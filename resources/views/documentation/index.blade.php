@@ -69,4 +69,8 @@
     <div data-ak-filters-dim class="transition-opacity">
         <x-documentation.hub :filters="$filters" />
     </div>
+
+    <div class="mt-6">
+        <x-documentation.groups-list />
+    </div>
 </x-layouts.layout>

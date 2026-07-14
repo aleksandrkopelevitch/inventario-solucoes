@@ -9,7 +9,7 @@ class SaveDocumentationRequest extends FormRequest
     /** Só quem pode editar o recurso (admin, via Policy::update) salva a doc. */
     public function authorize(): bool
     {
-        $model = $this->route('integration') ?? $this->route('solution');
+        $model = $this->route('integration') ?? $this->route('solution') ?? $this->route('group');
 
         return $model !== null && $this->user()->can('update', $model);
     }

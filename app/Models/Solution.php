@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Contracts\Documentable;
 use Database\Factories\SolutionFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -11,12 +10,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Spatie\MediaLibrary\InteractsWithMedia;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
-class Solution extends Model implements Documentable
+class Solution extends Model
 {
     /** @use HasFactory<SolutionFactory> */
-    use HasFactory, InteractsWithMedia;
+    use HasFactory;
 
     protected $fillable = [
         'name',
@@ -31,11 +30,18 @@ class Solution extends Model implements Documentable
         'cloud',
         'contract_status',
         'support_operation_note',
-        'documentation',
         'criticality',
         'status',
         'logo_path',
+        'map_position',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'map_position' => 'array',
+        ];
+    }
 
     /**
      * Rótulos dos atributos hoje gerenciados via `AttributeOption` (área
@@ -93,19 +99,6 @@ class Solution extends Model implements Documentable
         return 'slug';
     }
 
-    public function registerMediaCollections(): void
-    {
-        // Imagens e arquivos embutidos na documentação (referenciados por
-        // /files/{id} no Markdown). Sem conversões — a mídia original é servida
-        // pela rota autenticada `files.show`.
-        $this->addMediaCollection(self::DOCS_COLLECTION);
-    }
-
-    public function documentationTitle(): string
-    {
-        return $this->name;
-    }
-
     /** URL do link público da documentação, ou null se não compartilhada. */
     public function publicDocsUrl(): ?string
     {
@@ -144,6 +137,18 @@ class Solution extends Model implements Documentable
             ->withTimestamps();
     }
 
+    /** Árvore de páginas de documentação desta Solução (lista plana, ordenada). */
+    public function pages(): MorphMany
+    {
+        return $this->morphMany(DocumentationPage::class, 'container')->orderBy('position');
+    }
+
+    /** Só as páginas com conteúdo real — usada pra cobertura ("has_docs") e pro filtro "sem documentação". */
+    public function documentedPages(): MorphMany
+    {
+        return $this->pages()->whereNotNull('documentation')->where('documentation', '<>', '');
+    }
+
     public function scopeWithIntegrationCounts(Builder $query): void
     {
         $query->withCount([
@@ -172,9 +177,6 @@ class Solution extends Model implements Documentable
             ->when($filters['environment'] ?? null, fn (Builder $q, $v) => $q->where('environment', $v))
             ->when($filters['contract'] ?? null, fn (Builder $q, $v) => $q->where('contract_status', $v))
             ->when($filters['status'] ?? null, fn (Builder $q, $v) => $q->where('status', $v))
-            ->when($filters['undocumented'] ?? null, fn (Builder $q) => $q
-                ->where(fn (Builder $w) => $w
-                    ->whereNull('documentation')
-                    ->orWhere('documentation', '')));
+            ->when($filters['undocumented'] ?? null, fn (Builder $q) => $q->whereDoesntHave('documentedPages'));
     }
 }

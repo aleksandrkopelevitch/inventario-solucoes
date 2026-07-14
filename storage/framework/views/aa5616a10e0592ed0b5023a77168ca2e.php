@@ -28,16 +28,25 @@
 <?php $component = $__componentOriginal643fe1b47aec0b76658e1a0200b34b2c; ?>
 <?php unset($__componentOriginal643fe1b47aec0b76658e1a0200b34b2c); ?>
 <?php endif; ?>
-                <?php echo e(trim((string) $solution->documentation) !== '' ? 'Editar documentação' : 'Adicionar documentação'); ?>
+                <?php echo e($pages->isNotEmpty() ? 'Editar documentação' : 'Adicionar documentação'); ?>
 
             </a>
         <?php endif; ?>
     </div>
 
-    <?php if(trim($html) !== ''): ?>
-        <div class="html-content mt-4">
-            <?php echo $html; ?>
+    <?php if($pages->isNotEmpty()): ?>
+        <div class="mt-4 divide-y divide-line rounded-field border border-line">
+            <?php $__currentLoopData = $pages; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $page): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                <a href="<?php echo e($page['url']); ?>" class="flex items-center justify-between gap-3 px-4 py-2.5 text-sm no-underline hover:bg-raised">
+                    <span class="<?php echo \Illuminate\Support\Arr::toCssClasses(['font-medium text-ink' => $page['hasContent'], 'italic text-muted' => ! $page['hasContent']]); ?>">
+                        <?php echo e($page['title']); ?>
 
+                    </span>
+                    <?php if (! ($page['hasContent'])): ?>
+                        <span class="shrink-0 rounded-full bg-raised px-2 py-0.5 text-xs text-muted">Vazia</span>
+                    <?php endif; ?>
+                </a>
+            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
         </div>
     <?php else: ?>
         <p class="mt-4 rounded-field border border-dashed border-line px-4 py-8 text-center text-sm text-muted">

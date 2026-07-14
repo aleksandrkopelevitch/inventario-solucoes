@@ -9,7 +9,7 @@ class UploadDocumentationMediaRequest extends FormRequest
     /** Mesma regra do save: só quem edita o recurso envia mídia pra doc. */
     public function authorize(): bool
     {
-        $model = $this->route('integration') ?? $this->route('solution');
+        $model = $this->route('integration') ?? $this->route('solution') ?? $this->route('group');
 
         return $model !== null && $this->user()->can('update', $model);
     }

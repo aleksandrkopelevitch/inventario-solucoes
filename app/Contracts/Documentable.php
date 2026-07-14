@@ -9,7 +9,9 @@ use Spatie\MediaLibrary\HasMedia;
  * notação estendida estilo GitBook) e mídia embutida nela (coleção `docs` do
  * Spatie MediaLibrary, referenciada por `/files/{id}` dentro do texto).
  *
- * Implementado por Solution e Integration; consumido pelo editor de blocos
+ * Implementado por DocumentationPage (a unidade de página, dona da
+ * documentação de uma Solution ou de um DocumentationGroup) e por
+ * Integration (que continua single-page). Consumido pelo editor de blocos
  * (Editor.js) via App\Http\Controllers\Concerns\EditsDocumentation e pelo
  * render read-only App\Support\GitbookRenderer.
  *

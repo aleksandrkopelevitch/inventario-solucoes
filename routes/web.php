@@ -5,6 +5,8 @@ use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\ResetPasswordController;
+use App\Http\Controllers\DocumentationGroupController;
+use App\Http\Controllers\DocumentationGroupPageController;
 use App\Http\Controllers\DocumentationHubController;
 use App\Http\Controllers\HeroiconController;
 use App\Http\Controllers\IntegrationDocumentationController;
@@ -104,14 +106,29 @@ Route::middleware(['auth', BlockAgentFromWeb::class])->group(function () {
     // Edição inline de um atributo isolado a partir do próprio cabeçalho de detalhe.
     Route::patch('solucoes/{solution}/atributos', [SolutionController::class, 'updateAttributes'])->name('solutions.attributes.update');
 
-    // Documentação rica da solução (editor de blocos Editor.js). O segmento
-    // extra /documentacao não colide com o wildcard solucoes/{solution}.
-    Route::get('solucoes/{solution}/documentacao', [SolutionDocumentationController::class, 'edit'])->name('solutions.docs.edit');
-    Route::patch('solucoes/{solution}/documentacao', [SolutionDocumentationController::class, 'update'])->name('solutions.docs.update');
-    Route::post('solucoes/{solution}/documentacao/midia', [SolutionDocumentationController::class, 'media'])->name('solutions.docs.media');
+    // Documentação rica da solução — árvore de 1..N páginas (editor de blocos
+    // Editor.js por página). `solutions.docs.edit` é o "índice": resolve (ou
+    // cria) a primeira página e redireciona pra ela, então os poucos lugares
+    // que já linkam pra essa rota (Solutions\Documentation, cobertura) não
+    // precisam saber qual página é a atual.
+    Route::get('solucoes/{solution}/documentacao', [SolutionDocumentationController::class, 'index'])->name('solutions.docs.edit');
+    Route::post('solucoes/{solution}/documentacao/paginas', [SolutionDocumentationController::class, 'store'])->name('solutions.docs.pages.store');
     // Link público ("magic link") da documentação: gerar/revogar (admin).
+    // Estáticas ("compartilhar"), registradas antes do scopeBindings abaixo
+    // pra não colidir com o wildcard {page} (mesmo formato de segmentos).
     Route::post('solucoes/{solution}/documentacao/compartilhar', [SolutionDocumentationController::class, 'share'])->name('solutions.docs.share');
     Route::delete('solucoes/{solution}/documentacao/compartilhar', [SolutionDocumentationController::class, 'unshare'])->name('solutions.docs.unshare');
+
+    // {page} resolve via Solution::pages() (mesmo mecanismo do {integration}
+    // escopado em Solution::integrations() acima).
+    Route::scopeBindings()->group(function () {
+        Route::get('solucoes/{solution}/documentacao/{page}', [SolutionDocumentationController::class, 'edit'])->name('solutions.docs.page.edit');
+        Route::patch('solucoes/{solution}/documentacao/{page}', [SolutionDocumentationController::class, 'update'])->name('solutions.docs.update');
+        Route::patch('solucoes/{solution}/documentacao/{page}/titulo', [SolutionDocumentationController::class, 'rename'])->name('solutions.docs.pages.rename');
+        Route::delete('solucoes/{solution}/documentacao/{page}', [SolutionDocumentationController::class, 'destroy'])->name('solutions.docs.pages.destroy');
+        Route::patch('solucoes/{solution}/documentacao/{page}/mover', [SolutionDocumentationController::class, 'move'])->name('solutions.docs.pages.move');
+        Route::post('solucoes/{solution}/documentacao/{page}/midia', [SolutionDocumentationController::class, 'media'])->name('solutions.docs.media');
+    });
 
     // F5 — pessoas e empresas (Etapa 2).
     Route::get('pessoas', [PersonController::class, 'index'])->name('people.index');
@@ -137,10 +154,30 @@ Route::middleware(['auth', BlockAgentFromWeb::class])->group(function () {
 
     Route::get('mapa', [SolutionMapController::class, 'index'])->name('solutions.map');
     Route::get('mapa/dados', [SolutionMapController::class, 'data'])->name('solutions.map.data');
+    Route::patch('mapa/nos/{solution}/posicao', [SolutionMapController::class, 'updatePosition'])->name('solutions.map.position.update');
 
     // Hub de Documentação — visão transversal do que está documentado (soluções
     // + integrações) e do que falta. Substitui o antigo painel de cobertura.
     Route::get('documentacao', [DocumentationHubController::class, 'index'])->name('documentation.index');
+
+    // Grupos ("Aninhamentos") — árvore de páginas standalone, fora de
+    // qualquer Solução. Mesmo padrão de solutions.docs.* acima: `show` é o
+    // índice (resolve/cria a 1ª página), rotas estáticas antes do
+    // scopeBindings que resolve {page} via DocumentationGroup::pages().
+    Route::post('documentacao/grupos', [DocumentationGroupController::class, 'store'])->name('documentation.groups.store');
+    Route::get('documentacao/grupos/{group}', [DocumentationGroupController::class, 'show'])->name('documentation.groups.show');
+    Route::patch('documentacao/grupos/{group}', [DocumentationGroupController::class, 'update'])->name('documentation.groups.update');
+    Route::delete('documentacao/grupos/{group}', [DocumentationGroupController::class, 'destroy'])->name('documentation.groups.destroy');
+    Route::post('documentacao/grupos/{group}/paginas', [DocumentationGroupPageController::class, 'store'])->name('documentation.groups.pages.store');
+
+    Route::scopeBindings()->group(function () {
+        Route::get('documentacao/grupos/{group}/{page}', [DocumentationGroupPageController::class, 'edit'])->name('documentation.groups.pages.edit');
+        Route::patch('documentacao/grupos/{group}/{page}', [DocumentationGroupPageController::class, 'update'])->name('documentation.groups.pages.update');
+        Route::patch('documentacao/grupos/{group}/{page}/titulo', [DocumentationGroupPageController::class, 'rename'])->name('documentation.groups.pages.rename');
+        Route::delete('documentacao/grupos/{group}/{page}', [DocumentationGroupPageController::class, 'destroy'])->name('documentation.groups.pages.destroy');
+        Route::patch('documentacao/grupos/{group}/{page}/mover', [DocumentationGroupPageController::class, 'move'])->name('documentation.groups.pages.move');
+        Route::post('documentacao/grupos/{group}/{page}/midia', [DocumentationGroupPageController::class, 'media'])->name('documentation.groups.pages.media');
+    });
 
     // Mídia embutida na documentação (imagens/arquivos da coleção `docs`),
     // referenciada por /files/{id} dentro do Markdown. Só autenticados.
@@ -158,6 +195,9 @@ Route::middleware(['auth', BlockAgentFromWeb::class])->group(function () {
 // URL (Solution::public_token); a mídia embutida é servida por uma rota
 // dedicada validada contra a própria solução/integrações (PublicDocumentationController).
 Route::get('doc-publica/{token}', [PublicDocumentationController::class, 'solution'])->name('public.docs.solution');
+// {slug} não é model-bound: slug de página só é único dentro do seu
+// container, nunca globalmente (ver PublicDocumentationController::page()).
+Route::get('doc-publica/{token}/pagina/{slug}', [PublicDocumentationController::class, 'page'])->name('public.docs.page');
 Route::get('doc-publica/{token}/integracao/{integration:slug}', [PublicDocumentationController::class, 'integration'])->name('public.docs.integration');
 Route::get('doc-publica/{token}/arquivo/{media}', [PublicDocumentationController::class, 'file'])->name('public.docs.file');
 

@@ -54,7 +54,7 @@
                                 <x-heroicon-o-arrow-down-left class="size-3.5 text-accent" />{{ $solution->active_in }}
                                 <x-heroicon-o-arrow-up-right class="size-3.5 text-accent" />{{ $solution->active_out }}
                             </span>
-                            @php ($hasDocs = filled(trim((string) $solution->documentation)))
+                            @php ($hasDocs = (bool) $solution->has_docs)
                             <span @class([
                                 'inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium',
                                 'bg-accent-soft text-accent' => $hasDocs,

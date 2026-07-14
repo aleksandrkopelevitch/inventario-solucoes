@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\DocumentationPage;
 use App\Models\Integration;
 use App\Models\Solution;
 use App\Models\User;
@@ -23,10 +24,22 @@ function integrationFor(Solution $solution, ?string $documentation, string $name
     return $integration;
 }
 
+/** Cria uma Solution já com uma página de documentação com o conteúdo dado (ou nenhuma, se null). */
+function solutionWithDoc(?string $documentation, array $attributes = []): Solution
+{
+    $solution = Solution::factory()->create($attributes);
+
+    if ($documentation !== null) {
+        DocumentationPage::factory()->for($solution, 'container')->create(['documentation' => $documentation]);
+    }
+
+    return $solution;
+}
+
 it('computes coverage counters from real content, for solutions and integrations', function () {
-    $a = Solution::factory()->create(['documentation' => '# Doc']);
-    $b = Solution::factory()->create(['documentation' => '# Doc']);
-    Solution::factory()->create(['documentation' => null]);
+    $a = solutionWithDoc('# Doc');
+    $b = solutionWithDoc('# Doc');
+    solutionWithDoc(null);
 
     integrationFor($a, '# Doc', 'Int documentada');
     integrationFor($b, '', 'Int vazia');       // string vazia = pendente
@@ -39,8 +52,8 @@ it('computes coverage counters from real content, for solutions and integrations
 });
 
 it('filters the list by pending status', function () {
-    Solution::factory()->create(['name' => 'Documentada', 'documentation' => '# Doc']);
-    Solution::factory()->create(['name' => 'Pendente', 'documentation' => null]);
+    solutionWithDoc('# Doc', ['name' => 'Documentada']);
+    solutionWithDoc(null, ['name' => 'Pendente']);
 
     $groups = (new DocumentationCoverageService)->groups(['status' => 'pending']);
 
@@ -48,7 +61,7 @@ it('filters the list by pending status', function () {
 });
 
 it('filters the list by item type', function () {
-    $solution = Solution::factory()->create(['name' => 'Solução X', 'documentation' => '# Doc']);
+    $solution = solutionWithDoc('# Doc', ['name' => 'Solução X']);
     integrationFor($solution, null, 'Integração Y');
 
     $service = new DocumentationCoverageService;
@@ -77,7 +90,7 @@ it('searches by solution name or integration name', function () {
 });
 
 it('renders the documentation hub for any authenticated user', function () {
-    Solution::factory()->create(['name' => 'Minha Solução', 'documentation' => null]);
+    Solution::factory()->create(['name' => 'Minha Solução']);
 
     $response = $this->actingAs(User::factory()->create()) // viewer
         ->get(route('documentation.index'))
@@ -95,7 +108,7 @@ it('renders the documentation hub for any authenticated user', function () {
 });
 
 it('returns the hub slot as JSON when filtering', function () {
-    Solution::factory()->create(['name' => 'Filtrada', 'documentation' => null]);
+    Solution::factory()->create(['name' => 'Filtrada']);
 
     $response = $this->actingAs(User::factory()->create())
         ->getJson(route('documentation.index', ['filter' => ['status' => 'pending']]))

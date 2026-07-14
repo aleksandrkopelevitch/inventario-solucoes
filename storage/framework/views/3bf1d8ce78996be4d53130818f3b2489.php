@@ -181,6 +181,29 @@
 <?php unset($__componentOriginal5c9235626cd75c9113379ff82f38d134); ?>
 <?php endif; ?>
     </div>
+
+    <div class="mt-6">
+        <?php if (isset($component)) { $__componentOriginaldd9088ef2c50dd61a0c50cfc07911501 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginaldd9088ef2c50dd61a0c50cfc07911501 = $attributes; } ?>
+<?php $component = App\View\Components\Documentation\GroupsList::resolve([] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('documentation.groups-list'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\App\View\Components\Documentation\GroupsList::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes([]); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginaldd9088ef2c50dd61a0c50cfc07911501)): ?>
+<?php $attributes = $__attributesOriginaldd9088ef2c50dd61a0c50cfc07911501; ?>
+<?php unset($__attributesOriginaldd9088ef2c50dd61a0c50cfc07911501); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginaldd9088ef2c50dd61a0c50cfc07911501)): ?>
+<?php $component = $__componentOriginaldd9088ef2c50dd61a0c50cfc07911501; ?>
+<?php unset($__componentOriginaldd9088ef2c50dd61a0c50cfc07911501); ?>
+<?php endif; ?>
+    </div>
  <?php echo $__env->renderComponent(); ?>
 <?php endif; ?>
 <?php if (isset($__attributesOriginalf2b16bc3883246ba4659aff94e382522)): ?>

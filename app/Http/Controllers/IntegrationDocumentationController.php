@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\EditsDocumentation;
+use App\Http\Controllers\Concerns\NavigatesSolutionDocs;
 use App\Http\Requests\SaveDocumentationRequest;
 use App\Http\Requests\UploadDocumentationMediaRequest;
 use App\Models\Integration;
@@ -14,12 +15,15 @@ use Illuminate\Http\JsonResponse;
  * Documentação rica por Integração (editor de blocos Editor.js, formato
  * Markdown + notação GitBook na coluna `integrations.documentation`). As rotas
  * ficam sob o grupo `scopeBindings` de solucoes/{solution}/integracoes/{integration},
- * então {integration} 404a se não pertencer à {solution} da URL. Thin — delega
- * ao trait EditsDocumentation.
+ * então {integration} 404a se não pertencer à {solution} da URL. Mostra a
+ * mesma sidebar consolidada de SolutionDocumentationController (páginas da
+ * solução + integrações — ver NavigatesSolutionDocs), pra que a doc da
+ * integração pareça parte da mesma árvore, não uma tela à parte. Thin —
+ * delega ao trait EditsDocumentation.
  */
 class IntegrationDocumentationController extends Controller
 {
-    use EditsDocumentation;
+    use EditsDocumentation, NavigatesSolutionDocs;
 
     public function edit(Solution $solution, Integration $integration): View
     {
@@ -27,7 +31,15 @@ class IntegrationDocumentationController extends Controller
             'save'   => route('solutions.integrations.docs.update', [$solution, $integration]),
             'upload' => route('solutions.integrations.docs.media', [$solution, $integration]),
             'back'   => route('solutions.show', $solution),
-        ], eyebrow: 'Integração · ' . $solution->name, backLabel: $solution->name);
+        ], eyebrow: 'Integração · ' . $solution->name, backLabel: $integration->name)->with([
+            'pagesNav'        => $this->solutionPagesNav($solution, null),
+            'integrationsNav' => $this->solutionIntegrationsNav($solution, $integration),
+            'createPageUrl'   => route('solutions.docs.pages.store', $solution),
+            'breadcrumbs'     => [
+                ['label' => $solution->name, 'url' => route('solutions.show', $solution)],
+                ['label' => 'Documentação', 'url' => route('solutions.docs.edit', $solution)],
+            ],
+        ]);
     }
 
     public function update(SaveDocumentationRequest $request, Solution $solution, Integration $integration): JsonResponse

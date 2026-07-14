@@ -113,7 +113,8 @@
         <header class="sticky top-0 z-30 flex h-14 items-center justify-between gap-4 border-b border-line bg-canvas/[0.86] px-5 backdrop-blur-md md:px-8">
             <div class="flex min-w-0 items-center gap-2 text-[13.5px] text-faint">
                 <a href="<?php echo e(route('profile.show')); ?>" class="text-muted no-underline hover:text-ink">Inventário</a>
-                <?php if (isset($component)) { $__componentOriginal643fe1b47aec0b76658e1a0200b34b2c = $component; } ?>
+                <?php $__empty_1 = true; $__currentLoopData = $breadcrumbs ?? []; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $crumb): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                    <?php if (isset($component)) { $__componentOriginal643fe1b47aec0b76658e1a0200b34b2c = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal643fe1b47aec0b76658e1a0200b34b2c = $attributes; } ?>
 <?php $component = BladeUI\Icons\Components\Svg::resolve([] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
 <?php $component->withName('heroicon-o-chevron-right'); ?>
@@ -133,7 +134,38 @@
 <?php $component = $__componentOriginal643fe1b47aec0b76658e1a0200b34b2c; ?>
 <?php unset($__componentOriginal643fe1b47aec0b76658e1a0200b34b2c); ?>
 <?php endif; ?>
-                <b class="truncate font-semibold text-ink"><?php echo e($title ?? 'Visão geral'); ?></b>
+                    <?php if($crumb['url'] ?? null): ?>
+                        <a href="<?php echo e($crumb['url']); ?>" class="<?php echo \Illuminate\Support\Arr::toCssClasses([
+                            'truncate no-underline hover:text-ink',
+                            'font-semibold text-ink hover:underline' => $loop->last,
+                            'text-muted' => ! $loop->last,
+                        ]); ?>"><?php echo e($crumb['label']); ?></a>
+                    <?php else: ?>
+                        <b class="truncate font-semibold text-ink"><?php echo e($crumb['label']); ?></b>
+                    <?php endif; ?>
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
+                    <?php if (isset($component)) { $__componentOriginal643fe1b47aec0b76658e1a0200b34b2c = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal643fe1b47aec0b76658e1a0200b34b2c = $attributes; } ?>
+<?php $component = BladeUI\Icons\Components\Svg::resolve([] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('heroicon-o-chevron-right'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\BladeUI\Icons\Components\Svg::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes(['class' => 'size-4 shrink-0']); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginal643fe1b47aec0b76658e1a0200b34b2c)): ?>
+<?php $attributes = $__attributesOriginal643fe1b47aec0b76658e1a0200b34b2c; ?>
+<?php unset($__attributesOriginal643fe1b47aec0b76658e1a0200b34b2c); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginal643fe1b47aec0b76658e1a0200b34b2c)): ?>
+<?php $component = $__componentOriginal643fe1b47aec0b76658e1a0200b34b2c; ?>
+<?php unset($__componentOriginal643fe1b47aec0b76658e1a0200b34b2c); ?>
+<?php endif; ?>
+                    <b class="truncate font-semibold text-ink"><?php echo e($title ?? 'Visão geral'); ?></b>
+                <?php endif; ?>
             </div>
             <div class="flex items-center gap-2">
                 <?php echo e($actions ?? ''); ?>

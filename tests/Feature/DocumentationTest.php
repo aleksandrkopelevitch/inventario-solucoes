@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Models\DocumentationPage;
 use App\Models\Integration;
 use App\Models\Solution;
 use App\Models\User;
@@ -16,57 +17,176 @@ function docsAdmin(): User
     return User::factory()->create(['role' => UserRole::Admin->value]);
 }
 
+/** Cria uma página de documentação já pendurada numa Solution. */
+function solutionPage(Solution $solution, ?string $documentation = null): DocumentationPage
+{
+    return DocumentationPage::factory()->for($solution, 'container')->create(['documentation' => $documentation]);
+}
+
 /*
 |--------------------------------------------------------------------------
-| Solução — save / autorização / página
+| Solução — árvore de páginas: criar / renomear / mover / apagar
 |--------------------------------------------------------------------------
 */
 
-it('lets an admin save solution documentation', function () {
+it('opens the first page automatically from the docs index, creating one if none exists', function () {
     $solution = Solution::factory()->create();
 
-    $this->actingAs(docsAdmin())
-        ->patchJson(route('solutions.docs.update', $solution), ['documentation' => "# Título\n\nCorpo."])
+    $response = $this->actingAs(docsAdmin())
+        ->get(route('solutions.docs.edit', $solution))
+        ->assertRedirect();
+
+    $page = $solution->pages()->sole();
+    expect($page->title)->toBe('Visão geral')
+        ->and($response->headers->get('Location'))->toBe(route('solutions.docs.page.edit', [$solution, $page]));
+});
+
+it('reuses the existing first page instead of creating another one', function () {
+    $solution = Solution::factory()->create();
+    $page = solutionPage($solution, '# Oi');
+
+    $this->actingAs(docsAdmin())->get(route('solutions.docs.edit', $solution));
+
+    expect($solution->pages()->count())->toBe(1)
+        ->and($solution->pages()->first()->is($page))->toBeTrue();
+});
+
+it('lets an admin create a second page for a solution', function () {
+    $solution = Solution::factory()->create();
+    solutionPage($solution);
+
+    $response = $this->actingAs(docsAdmin())
+        ->postJson(route('solutions.docs.pages.store', $solution), ['title' => 'Guia de troubleshooting'])
         ->assertOk()
         ->assertJson(['type' => 'success']);
 
-    expect($solution->fresh()->documentation)->toBe("# Título\n\nCorpo.");
+    expect($solution->pages()->count())->toBe(2);
+    $newPage = $solution->pages()->where('title', 'Guia de troubleshooting')->sole();
+    expect($response->json('redirect'))->toBe(route('solutions.docs.page.edit', [$solution, $newPage]));
+});
+
+it('forbids a viewer from creating a page', function () {
+    $solution = Solution::factory()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('solutions.docs.pages.store', $solution), ['title' => 'X'])
+        ->assertForbidden();
+
+    expect($solution->pages()->count())->toBe(0);
+});
+
+it('renames a page without changing its slug', function () {
+    $solution = Solution::factory()->create();
+    $page = solutionPage($solution);
+    $originalSlug = $page->slug;
+
+    $this->actingAs(docsAdmin())
+        ->patchJson(route('solutions.docs.pages.rename', [$solution, $page]), ['title' => 'Novo título'])
+        ->assertOk()
+        ->assertJson(['type' => 'success']);
+
+    expect($page->fresh())
+        ->title->toBe('Novo título')
+        ->slug->toBe($originalSlug);
+});
+
+it('moves a page up and down among its siblings', function () {
+    $solution = Solution::factory()->create();
+    $first = solutionPage($solution);
+    $second = solutionPage($solution);
+    $first->update(['position' => 0]);
+    $second->update(['position' => 1]);
+
+    $this->actingAs(docsAdmin())
+        ->patchJson(route('solutions.docs.pages.move', [$solution, $second]), ['direction' => 'up'])
+        ->assertOk();
+
+    expect($second->fresh()->position)->toBe(0)
+        ->and($first->fresh()->position)->toBe(1);
+});
+
+it('deletes a page and redirects to the next remaining one', function () {
+    $solution = Solution::factory()->create();
+    $first = solutionPage($solution);
+    $second = solutionPage($solution);
+    $first->update(['position' => 0]);
+    $second->update(['position' => 1]);
+
+    $response = $this->actingAs(docsAdmin())
+        ->deleteJson(route('solutions.docs.pages.destroy', [$solution, $first]))
+        ->assertOk();
+
+    $this->assertModelMissing($first);
+    expect($response->json('redirect'))->toBe(route('solutions.docs.page.edit', [$solution, $second]));
+});
+
+it('deletes the last page and redirects back to the docs index', function () {
+    $solution = Solution::factory()->create();
+    $page = solutionPage($solution);
+
+    $response = $this->actingAs(docsAdmin())
+        ->deleteJson(route('solutions.docs.pages.destroy', [$solution, $page]))
+        ->assertOk();
+
+    expect($response->json('redirect'))->toBe(route('solutions.docs.edit', $solution));
+});
+
+/*
+|--------------------------------------------------------------------------
+| Solução — salvar conteúdo / autorização / tela
+|--------------------------------------------------------------------------
+*/
+
+it('lets an admin save a solution page documentation', function () {
+    $solution = Solution::factory()->create();
+    $page = solutionPage($solution);
+
+    $this->actingAs(docsAdmin())
+        ->patchJson(route('solutions.docs.update', [$solution, $page]), ['documentation' => "# Título\n\nCorpo."])
+        ->assertOk()
+        ->assertJson(['type' => 'success']);
+
+    expect($page->fresh()->documentation)->toBe("# Título\n\nCorpo.");
 });
 
 it('returns the solution documentation slot after saving', function () {
     $solution = Solution::factory()->create();
+    $page = solutionPage($solution);
 
     $response = $this->actingAs(docsAdmin())
-        ->patchJson(route('solutions.docs.update', $solution), ['documentation' => 'Oi'])
+        ->patchJson(route('solutions.docs.update', [$solution, $page]), ['documentation' => 'Oi'])
         ->assertOk();
 
     expect($response->json('updatableSlots.0.id'))->toBe('solution-documentation-slot');
 });
 
-it('forbids a viewer from saving solution documentation', function () {
+it('forbids a viewer from saving solution page documentation', function () {
     $solution = Solution::factory()->create();
+    $page = solutionPage($solution);
 
     $this->actingAs(User::factory()->create()) // viewer
-        ->patchJson(route('solutions.docs.update', $solution), ['documentation' => 'x'])
+        ->patchJson(route('solutions.docs.update', [$solution, $page]), ['documentation' => 'x'])
         ->assertForbidden();
 
-    expect($solution->fresh()->documentation)->toBeNull();
+    expect($page->fresh()->documentation)->toBeNull();
 });
 
-it('shows the block editor to an admin on the solution docs page', function () {
-    $solution = Solution::factory()->create(['documentation' => '# Oi']);
+it('shows the block editor to an admin on the solution page docs screen', function () {
+    $solution = Solution::factory()->create();
+    $page = solutionPage($solution, '# Oi');
 
     $this->actingAs(docsAdmin())
-        ->get(route('solutions.docs.edit', $solution))
+        ->get(route('solutions.docs.page.edit', [$solution, $page]))
         ->assertOk()
         ->assertSee('data-ak-docs-editor', false);
 });
 
-it('shows read-only rendered html to a viewer on the solution docs page', function () {
-    $solution = Solution::factory()->create(['documentation' => '# Olá mundo']);
+it('shows read-only rendered html to a viewer on the solution page docs screen', function () {
+    $solution = Solution::factory()->create();
+    $page = solutionPage($solution, '# Olá mundo');
 
     $response = $this->actingAs(User::factory()->create())
-        ->get(route('solutions.docs.edit', $solution))
+        ->get(route('solutions.docs.page.edit', [$solution, $page]))
         ->assertOk();
 
     expect($response->getContent())
@@ -76,9 +196,98 @@ it('shows read-only rendered html to a viewer on the solution docs page', functi
         ->not->toContain('data-ak-docs-editor');
 });
 
+it('404s a page that does not belong to the solution in the url', function () {
+    $solution = Solution::factory()->create();
+    $other = Solution::factory()->create();
+    $page = solutionPage($other, '# Doc');
+
+    $this->actingAs(docsAdmin())
+        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->assertNotFound();
+});
+
 /*
 |--------------------------------------------------------------------------
-| Integração — scopeBindings + save
+| Consolidação — páginas + integrações na mesma sidebar (uma tela por solução)
+|--------------------------------------------------------------------------
+*/
+
+it('lists the solution integrations alongside its pages when viewing a page', function () {
+    $solution = Solution::factory()->create();
+    $page = solutionPage($solution, '# Visão geral');
+    $integration = Integration::factory()->create([
+        'name'  => 'SAP -> AllStrategy',
+        'chain' => ['nodes' => [['solution_id' => $solution->id, 'label' => null]], 'edges' => []],
+    ]);
+    attachParticipants($integration, [[$solution, 0]]);
+
+    $response = $this->actingAs(docsAdmin())
+        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->assertOk();
+
+    expect($response->getContent())
+        ->toContain('SAP -&gt; AllStrategy')
+        ->toContain(route('solutions.integrations.docs.edit', [$solution, $integration]));
+});
+
+it('lists the solution pages alongside its integrations when viewing an integration doc', function () {
+    $solution = Solution::factory()->create();
+    $page = solutionPage($solution, '# Visão geral');
+    $integration = Integration::factory()->create([
+        'chain' => ['nodes' => [['solution_id' => $solution->id, 'label' => null]], 'edges' => []],
+    ]);
+    attachParticipants($integration, [[$solution, 0]]);
+
+    $response = $this->actingAs(docsAdmin())
+        ->get(route('solutions.integrations.docs.edit', [$solution, $integration]))
+        ->assertOk();
+
+    expect($response->getContent())
+        ->toContain($page->title)
+        ->toContain(route('solutions.docs.page.edit', [$solution, $page]));
+});
+
+it('breadcrumbs a solution page as Solução > Documentação, and labels the top bar with the page title', function () {
+    $solution = Solution::factory()->create(['name' => 'AllStrategy']);
+    $page = solutionPage($solution, '# Doc');
+    $page->update(['title' => 'Visão geral']);
+
+    $response = $this->actingAs(docsAdmin())
+        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->assertOk();
+
+    expect($response->getContent())
+        ->toContain('href="' . route('solutions.show', $solution) . '"')
+        ->toContain('href="' . route('solutions.docs.edit', $solution) . '"')
+        ->toContain('>Documentação<')
+        ->toContain('>AllStrategy<')
+        // O topo (voltar) mostra o título da página, não o nome da solução de novo.
+        ->toMatch('/>\s*Visão geral\s*<\/a>/');
+});
+
+it('breadcrumbs an integration doc as Solução > Documentação too, labeling the top bar with the integration name', function () {
+    $solution = Solution::factory()->create(['name' => 'AllStrategy']);
+    $integration = Integration::factory()->create([
+        'name'  => 'SAP -> AllStrategy',
+        'chain' => ['nodes' => [['solution_id' => $solution->id, 'label' => null]], 'edges' => []],
+    ]);
+    attachParticipants($integration, [[$solution, 0]]);
+
+    $response = $this->actingAs(docsAdmin())
+        ->get(route('solutions.integrations.docs.edit', [$solution, $integration]))
+        ->assertOk();
+
+    expect($response->getContent())
+        ->toContain('href="' . route('solutions.show', $solution) . '"')
+        ->toContain('href="' . route('solutions.docs.edit', $solution) . '"')
+        ->toContain('>Documentação<')
+        ->toContain('>AllStrategy<')
+        ->toMatch('/>\s*SAP -&gt; AllStrategy\s*<\/a>/');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Integração — scopeBindings + save (single-page, inalterado)
 |--------------------------------------------------------------------------
 */
 
@@ -112,16 +321,17 @@ it('404s the integration docs page when the integration does not belong to the s
 
 /*
 |--------------------------------------------------------------------------
-| Mídia — upload + serving
+| Mídia — upload + serving (por página, agora)
 |--------------------------------------------------------------------------
 */
 
 it('uploads documentation media and serves it via /files/{id}', function () {
     Storage::fake('public');
     $solution = Solution::factory()->create();
+    $page = solutionPage($solution);
 
     $response = $this->actingAs(docsAdmin())
-        ->post(route('solutions.docs.media', $solution), [
+        ->post(route('solutions.docs.media', [$solution, $page]), [
             'file' => UploadedFile::fake()->image('diagrama.png', 200, 120),
         ])
         ->assertOk()
@@ -131,7 +341,7 @@ it('uploads documentation media and serves it via /files/{id}', function () {
     expect($mediaId)->toBeInt()
         ->and($response->json('file.url'))->toContain('/files/' . $mediaId);
 
-    expect($solution->fresh()->getMedia('docs'))->toHaveCount(1);
+    expect($page->fresh()->getMedia('docs'))->toHaveCount(1);
 
     // A rota autenticada serve o arquivo.
     $this->actingAs(docsAdmin())
@@ -143,9 +353,10 @@ it('uploads documentation media and serves it via /files/{id}', function () {
 it('forbids a viewer from uploading documentation media', function () {
     Storage::fake('public');
     $solution = Solution::factory()->create();
+    $page = solutionPage($solution);
 
     $this->actingAs(User::factory()->create())
-        ->post(route('solutions.docs.media', $solution), [
+        ->post(route('solutions.docs.media', [$solution, $page]), [
             'file' => UploadedFile::fake()->image('x.png'),
         ])
         ->assertForbidden();
@@ -155,18 +366,20 @@ it('rejects a media upload with neither file nor url', function () {
     // Colar imagem de site externo manda `url`; upload manda `file`. Sem
     // nenhum dos dois, a regra `required_without` recíproca barra em 422.
     $solution = Solution::factory()->create();
+    $page = solutionPage($solution);
 
     $this->actingAs(docsAdmin())
-        ->postJson(route('solutions.docs.media', $solution), [])
+        ->postJson(route('solutions.docs.media', [$solution, $page]), [])
         ->assertStatus(422)
         ->assertJson(['type' => 'warning']);
 });
 
 it('rejects an external image url that is not http(s)', function () {
     $solution = Solution::factory()->create();
+    $page = solutionPage($solution);
 
     $this->actingAs(docsAdmin())
-        ->postJson(route('solutions.docs.media', $solution), [
+        ->postJson(route('solutions.docs.media', [$solution, $page]), [
             'url' => 'ftp://example.com/x.png',
         ])
         ->assertStatus(422)

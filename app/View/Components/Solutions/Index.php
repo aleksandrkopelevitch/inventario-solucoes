@@ -45,6 +45,7 @@ class Index extends Component
             ->filter($f)
             ->with('vendor:id,name,slug,logo_path')
             ->withIntegrationCounts()
+            ->withExists('documentedPages as has_docs')
             ->when(
                 ($f['sort'] ?? null) === 'status',
                 fn (Builder $q) => $q->orderBy('status')->orderBy('name'),

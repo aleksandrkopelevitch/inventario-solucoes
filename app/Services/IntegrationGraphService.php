@@ -20,7 +20,10 @@ use Illuminate\Support\Facades\Storage;
  * Formato de retorno:
  *
  *     [
- *         'nodes' => [ ['id','label','slug','category','logo'], ... ],
+ *         'nodes' => [ ['id','label','slug','category','logo','url',
+ *             'categoryLabel','statusLabel','criticalityLabel','environmentLabel',
+ *             'cloudLabel','contractLabel','supportLabel','directorate',
+ *             'mapPosition','positionUrl'], ... ],
  *         'edges' => [ ['id','source','target','label','status','direction','integrations'], ... ],
  *     ]
  *
@@ -87,6 +90,7 @@ class IntegrationGraphService
                 'solutions.contract_status',
                 'solutions.support_type',
                 'solutions.directorate',
+                'solutions.map_position',
             ),
         ];
     }
@@ -228,7 +232,11 @@ class IntegrationGraphService
      * Além do essencial pro desenho (nome/logo), carrega os mesmos 8
      * atributos exibidos em `Solutions\DetailHeader` — o popover de
      * atributos do mapa (`ecosystem-map.js`) os mostra sem precisar de um
-     * round-trip AJAX por clique. `url` evita reconstruir a rota no cliente.
+     * round-trip AJAX por clique. `url` evita reconstruir a rota no cliente,
+     * assim como `positionUrl` (endpoint de auto-save do drag-and-drop de
+     * hub). `mapPosition` é a posição arrastada e salva por último (null
+     * até o primeiro arraste) — `ecosystem-map.js::layout()` a usa no lugar
+     * do grid empacotado pra esse hub.
      *
      * @param  array<string, array<string, mixed>>  $nodes
      */
@@ -255,6 +263,8 @@ class IntegrationGraphService
             'contractLabel'    => $solution->contract_status_label,
             'supportLabel'     => $solution->support_type_label,
             'directorate'      => $solution->directorate,
+            'mapPosition'      => $solution->map_position,
+            'positionUrl'      => route('solutions.map.position.update', $solution),
         ];
     }
 

@@ -2,22 +2,25 @@
 
 namespace App\Services;
 
+use App\Models\DocumentationGroup;
 use App\Models\Integration;
 use App\Models\Solution;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 /**
- * Cobertura de documentação do inventário, medida por **conteúdo real** — uma
- * Solução/Integração está "documentada" quando sua coluna `documentation` não
- * está vazia. Alimenta o hub de Documentação (visão transversal soluções +
- * integrações). Nunca em controller/Blade; contadores em queries agregadas
- * (sem N+1 e sem carregar o longText `documentation`).
+ * Cobertura de documentação do inventário, medida por **conteúdo real**.
+ * Integration continua single-page (coluna `documentation` direta); Solution
+ * agora tem uma árvore de páginas — "documentada" quando ao menos uma
+ * `DocumentationPage` sua tem conteúdo (`Solution::documentedPages()`).
+ * Alimenta o hub de Documentação (visão transversal soluções + integrações +
+ * grupos standalone). Nunca em controller/Blade; contadores em queries
+ * agregadas (sem N+1 e sem carregar o longText `documentation`).
  */
 class DocumentationCoverageService
 {
-    /** Expressão SQL "tem documentação" reaproveitada em contadores e na lista. */
-    private const HAS_DOCS = "documentation is not null and documentation <> ''";
+    /** Expressão SQL "tem documentação" — só Integration ainda guarda a doc numa coluna direta. */
+    private const INTEGRATION_HAS_DOCS = "documentation is not null and documentation <> ''";
 
     /**
      * Contadores globais de cobertura (inventário inteiro, independentes de
@@ -31,7 +34,7 @@ class DocumentationCoverageService
     public function counters(): array
     {
         return [
-            'solutions'    => $this->countFor(Solution::query()),
+            'solutions'    => $this->countSolutions(),
             'integrations' => $this->countFor(Integration::query()),
         ];
     }
@@ -56,7 +59,7 @@ class DocumentationCoverageService
 
         $solutions = Solution::query()
             ->select('id', 'name', 'slug')
-            ->selectRaw('(' . self::HAS_DOCS . ') as has_docs')
+            ->withExists('documentedPages as has_docs')
             ->when($search !== '', fn (Builder $q) => $q->where(fn (Builder $w) => $w
                 ->where('name', 'like', "%{$search}%")
                 ->orWhereHas('integrations', fn (Builder $i) => $i->where('integrations.name', 'like', "%{$search}%"))))
@@ -106,16 +109,48 @@ class DocumentationCoverageService
             ->values();
     }
 
+    /**
+     * Grupos ("Aninhamentos") standalone — listagem simples pro hub, sem %
+     * de cobertura (não têm um "total" natural como Soluções/Integrações).
+     *
+     * @return Collection<int, array{name: string, slug: string, url: string, pageCount: int}>
+     */
+    public function groupsList(): Collection
+    {
+        return DocumentationGroup::query()
+            ->withCount('pages')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (DocumentationGroup $group) => [
+                'name'      => $group->name,
+                'slug'      => $group->slug,
+                'url'       => route('documentation.groups.show', $group),
+                'pageCount' => $group->pages_count,
+            ]);
+    }
+
+    /** @return array{documented: int, total: int, percent: float} */
+    private function countSolutions(): array
+    {
+        $total = Solution::query()->count();
+        $documented = Solution::query()->whereHas('documentedPages')->count();
+
+        return $this->percentages($documented, $total);
+    }
+
     /** @return array{documented: int, total: int, percent: float} */
     private function countFor(Builder $query): array
     {
         $row = $query
-            ->selectRaw('count(*) as total, sum(case when ' . self::HAS_DOCS . ' then 1 else 0 end) as documented')
+            ->selectRaw('count(*) as total, sum(case when ' . self::INTEGRATION_HAS_DOCS . ' then 1 else 0 end) as documented')
             ->first();
 
-        $total = (int) $row->total;
-        $documented = (int) $row->documented;
+        return $this->percentages((int) $row->documented, (int) $row->total);
+    }
 
+    /** @return array{documented: int, total: int, percent: float} */
+    private function percentages(int $documented, int $total): array
+    {
         return [
             'documented' => $documented,
             'total'      => $total,

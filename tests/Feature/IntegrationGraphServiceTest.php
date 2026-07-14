@@ -4,6 +4,7 @@ use App\Enums\Direction;
 use App\Models\Integration;
 use App\Models\Solution;
 use App\Services\IntegrationGraphService;
+use Database\Seeders\AttributeOptionSeeder;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 
 uses(LazilyRefreshDatabase::class);
@@ -46,6 +47,44 @@ it('builds a graph with every participant as a node and an edge per consecutive 
 
     expect($graph['edges'][1]['source'])->toBe("sol-{$digibee->id}")
         ->and($graph['edges'][1]['target'])->toBe("sol-{$target->id}");
+});
+
+it('includes the solution attribute labels and show url on each node, for the map popover', function () {
+    $this->seed(AttributeOptionSeeder::class);
+    $service = new IntegrationGraphService;
+
+    $root = Solution::factory()->create(['category' => 'erp', 'status' => 'active']);
+    $target = Solution::factory()->create();
+
+    $integration = Integration::factory()->active()->create(['source_solution_id' => $root->id, 'target_solution_id' => $target->id]);
+    attachParticipants($integration, [[$root, 0], [$target, 1]]);
+
+    $graph = $service->globalMap();
+    $rootNode = collect($graph['nodes'])->firstWhere('id', "sol-{$root->id}");
+
+    expect($rootNode['url'])->toBe(route('solutions.show', $root))
+        ->and($rootNode['categoryLabel'])->toBe('ERP')
+        ->and($rootNode['statusLabel'])->toBe('Ativo')
+        ->and($rootNode['directorate'])->toBe($root->directorate)
+        ->and($rootNode)->toHaveKeys(['criticalityLabel', 'environmentLabel', 'cloudLabel', 'contractLabel', 'supportLabel']);
+});
+
+it('exposes the saved hub map position and its auto-save url, null until the first drag', function () {
+    $service = new IntegrationGraphService;
+
+    $root = Solution::factory()->create();
+    $target = Solution::factory()->create(['map_position' => ['x' => 123.4, 'y' => 56.7]]);
+
+    $integration = Integration::factory()->active()->create(['source_solution_id' => $root->id, 'target_solution_id' => $target->id]);
+    attachParticipants($integration, [[$root, 0], [$target, 1]]);
+
+    $graph = $service->globalMap();
+    $rootNode = collect($graph['nodes'])->firstWhere('id', "sol-{$root->id}");
+    $targetNode = collect($graph['nodes'])->firstWhere('id', "sol-{$target->id}");
+
+    expect($rootNode['mapPosition'])->toBeNull()
+        ->and($rootNode['positionUrl'])->toBe(route('solutions.map.position.update', $root))
+        ->and($targetNode['mapPosition'])->toBe(['x' => 123.4, 'y' => 56.7]);
 });
 
 it('draws a multi-hop chain in position order, not a single A<>B edge', function () {

@@ -74,8 +74,21 @@
         <header class="sticky top-0 z-30 flex h-14 items-center justify-between gap-4 border-b border-line bg-canvas/[0.86] px-5 backdrop-blur-md md:px-8">
             <div class="flex min-w-0 items-center gap-2 text-[13.5px] text-faint">
                 <a href="{{ route('profile.show') }}" class="text-muted no-underline hover:text-ink">Inventário</a>
-                <x-heroicon-o-chevron-right class="size-4 shrink-0" />
-                <b class="truncate font-semibold text-ink">{{ $title ?? 'Visão geral' }}</b>
+                @forelse ($breadcrumbs ?? [] as $crumb)
+                    <x-heroicon-o-chevron-right class="size-4 shrink-0" />
+                    @if ($crumb['url'] ?? null)
+                        <a href="{{ $crumb['url'] }}" @class([
+                            'truncate no-underline hover:text-ink',
+                            'font-semibold text-ink hover:underline' => $loop->last,
+                            'text-muted' => ! $loop->last,
+                        ])>{{ $crumb['label'] }}</a>
+                    @else
+                        <b class="truncate font-semibold text-ink">{{ $crumb['label'] }}</b>
+                    @endif
+                @empty
+                    <x-heroicon-o-chevron-right class="size-4 shrink-0" />
+                    <b class="truncate font-semibold text-ink">{{ $title ?? 'Visão geral' }}</b>
+                @endforelse
             </div>
             <div class="flex items-center gap-2">
                 {{ $actions ?? '' }}

@@ -2,17 +2,18 @@
 
 namespace App\View\Components\Solutions;
 
+use App\Models\DocumentationPage;
 use App\Models\Solution;
-use App\Support\GitbookRenderer;
 use App\View\Components\Concerns\Renderable;
 use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 /**
- * Seção read-only da documentação da solução, exibida no detalhe (F1) logo
- * abaixo das integrações. Renderiza o Markdown + notação GitBook via
- * GitbookRenderer dentro de `.html-content`. O botão "Editar/Adicionar
- * documentação" (admin) leva à página do editor de blocos.
+ * Seção resumo da documentação da solução, exibida no detalhe (F1) logo
+ * abaixo das integrações — a Solution agora tem uma árvore de 1..N páginas
+ * (não mais um blob único), então aqui só listamos os títulos linkando pra
+ * cada página; o conteúdo completo mora na própria tela do editor
+ * (`solutions.docs.edit`, que resolve/abre a primeira página).
  *
  * Slot atualizável: `Documentation::slot($solution)` — o save do editor o
  * devolve pra manter esta seção fresca se o usuário voltar ao detalhe.
@@ -33,8 +34,12 @@ class Documentation extends Component
     public function render(): View
     {
         return view('components.solutions.documentation', [
-            'domId'   => self::DOM_ID,
-            'html'    => app(GitbookRenderer::class)->render($this->solution->documentation),
+            'domId' => self::DOM_ID,
+            'pages' => $this->solution->pages()->get()->map(fn (DocumentationPage $page) => [
+                'title'      => $page->title,
+                'url'        => route('solutions.docs.page.edit', [$this->solution, $page]),
+                'hasContent' => trim((string) $page->documentation) !== '',
+            ]),
             'editUrl' => route('solutions.docs.edit', $this->solution),
         ]);
     }
