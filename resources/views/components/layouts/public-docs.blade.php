@@ -1,0 +1,83 @@
+@props([
+    'title' => null,
+    'heading' => '',
+    'nav' => null,
+])
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="robots" content="noindex, nofollow">
+    <title>{{ $title ? $title . ' · Documentação' : 'Documentação' }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
+</head>
+<body class="min-h-screen bg-white text-body font-sans text-[14.5px] antialiased">
+
+    {{-- Barra do topo: marca Leo + nome da solução --}}
+    <header class="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-white/90 px-4 py-3 backdrop-blur sm:px-6">
+        <span class="flex size-8 shrink-0 items-center justify-center rounded-field bg-sidebar font-display text-sm font-bold text-white">L</span>
+        <div class="min-w-0">
+            <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-accent">Documentação</p>
+            <p class="truncate font-display text-base font-semibold leading-tight text-ink">{{ $heading }}</p>
+        </div>
+    </header>
+
+    <div class="mx-auto grid w-full max-w-6xl grid-cols-1 gap-8 px-4 py-6 md:grid-cols-[260px_1fr] md:px-6 md:py-10">
+
+        {{-- Índice lateral: todas as documentações desta solução --}}
+        @if ($nav)
+            <aside class="md:sticky md:top-[4.5rem] md:h-max">
+                <p class="px-2 pb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-muted">Nesta solução</p>
+                <nav class="flex flex-col gap-0.5">
+                    @foreach ($nav as $item)
+                        <a href="{{ $item['url'] }}"
+                           @class([
+                               'flex items-center justify-between gap-2 rounded-field px-3 py-2 text-sm no-underline transition-colors',
+                               'bg-accent-soft font-semibold text-accent' => $item['active'],
+                               'text-body hover:bg-raised' => ! $item['active'],
+                           ])>
+                            <span class="truncate">{{ $item['label'] }}</span>
+                            @unless ($item['hasDocs'])
+                                <span class="shrink-0 text-[10px] font-medium uppercase tracking-wide text-faint">vazio</span>
+                            @endunless
+                        </a>
+                    @endforeach
+                </nav>
+            </aside>
+        @endif
+
+        {{-- Conteúdo --}}
+        <main class="min-w-0">
+            {{ $slot }}
+        </main>
+    </div>
+
+    {{-- Toast — mesmo shell do layout principal (Toast.show do "Copiar Markdown"). --}}
+    <div id="toast-container" class="fixed right-4 top-4 z-50 flex w-80 flex-col gap-2">
+        <div id="toast-template" class="hidden rounded-card border border-line bg-surface p-4 opacity-0 shadow-lg transition-all duration-200">
+            <div class="flex items-start gap-3">
+                <div class="mt-0.5 shrink-0">
+                    <span data-icon-success class="hidden text-base text-lime-ink">✓</span>
+                    <span data-icon-warning class="hidden text-base text-hot">⚠</span>
+                    <span data-icon-error class="hidden text-base text-crit">✕</span>
+                    <span data-icon-info class="hidden text-base text-accent">ℹ</span>
+                </div>
+                <div class="min-w-0 flex-1">
+                    <p data-slot="title" class="text-sm font-semibold text-ink"></p>
+                    <p data-slot="content" class="mt-0.5 text-sm text-muted"></p>
+                </div>
+                <x-forms.button type="button" variant="ghost" class="!rounded-none !p-0 !text-lg !leading-none !font-normal shrink-0 !text-faint hover:!bg-transparent hover:!text-body">×</x-forms.button>
+            </div>
+            <div class="mt-3 h-0.5 overflow-hidden rounded-full bg-raised">
+                <div data-timer class="h-full rounded-full bg-accent" style="width:100%"></div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

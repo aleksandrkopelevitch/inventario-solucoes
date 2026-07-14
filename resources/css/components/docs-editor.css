@@ -1,0 +1,340 @@
+/* ------------------------------------------------------------------
+   Editor de blocos da documentação (Editor.js) — estilo GitBook.
+   Exceção de CSS custom legítima (mesma razão do .ak-viz-md): conteúdo
+   dinâmico dirigido por JS, sem elemento fixo para prender utilitários
+   antes de existir. Usa os tokens de @theme (app.css).
+-------------------------------------------------------------------- */
+
+.ak-docs-editor {
+    --ak-docs-blue: #2563eb;
+    --ak-docs-orange: #d97706;
+    --ak-docs-red: #dc2626;
+    --ak-docs-green: #1a7f4e;
+    font-family: 'InterVariable', ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+/* Editor.js: chrome discreto, tipografia estilo GitBook (mesmos tons neutros
+   de .html-content em app.css — deliberadamente fora da paleta verde da
+   marca só aqui, pra casar visualmente com o editor e com o resultado final). */
+.ak-docs-editor .ce-block__content,
+.ak-docs-editor .ce-toolbar__content {
+    max-width: 100%;
+}
+
+/* Core do Editor.js já usa `padding: .6em 0 3px; margin: 0` (não margin) pro
+   próprio `.ce-header` — a posição vertical do toolbar (+/⠿) no hover é
+   calculada com base nesse padding. Um `margin` nosso por fora (testado e
+   revertido) descasa essa conta: como margin-top > margin-bottom, o centro
+   vertical do bloco (margin+texto+margin) fica bem mais baixo que o centro
+   do próprio texto, e o toolbar — alinhado ao bloco — aparece "flutuando"
+   longe, abaixo do heading. Por isso aqui só ajustamos padding, seguindo a
+   mesma proporção (topo bem maior que a base) que o próprio core usa. */
+.ak-docs-editor .ce-header {
+    color: #111827;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0;
+}
+.ak-docs-editor h1.ce-header { font-size: 2.25rem; padding: 0.9em 0 3px; }
+.ak-docs-editor h2.ce-header { font-size: 1.75rem; padding: 0.9em 0 3px; }
+.ak-docs-editor h3.ce-header { font-size: 1.25rem; padding: 0.7em 0 3px; }
+
+/* `.ce-toolbar` (core) tem `will-change: opacity, top` sem `z-index` próprio —
+   isso cria um novo contexto de empilhamento, mas sem valor explícito ele cai
+   na camada "z-index:auto" do contexto do editor. Um bloco de Tabs (que hospeda
+   um Editor.js aninhado, cujo `.codex-editor` tem `z-index: 1` do próprio core)
+   então pinta ACIMA do toolbar/popover de blocos anteriores, fazendo o texto do
+   bloco aninhado vazar por cima do menu "Convert to"/"Heading" aberto num bloco
+   de fora das abas. z-index explícito aqui resolve por colocar o toolbar na
+   mesma camada "z-index positivo", agora maior que o `1` do editor aninhado. */
+.ak-docs-editor .ce-toolbar {
+    z-index: 5;
+}
+
+/* Reordenar bloco é só por drag&drop (editorjs-drag-drop, ver docs-editor.js)
+   — os tunes padrão "Move up"/"Move down" do Editor.js ficam escondidos no
+   menu de block tunes; "Convert to" e "Delete" continuam. */
+.ak-docs-editor [data-item-name='move-up'],
+.ak-docs-editor [data-item-name='move-down'] {
+    display: none;
+}
+
+.ak-docs-editor .cdx-block {
+    padding: 0.25rem 0;
+}
+
+.ak-docs-editor .ce-paragraph,
+.ak-docs-editor .cdx-block {
+    color: #374151;
+    line-height: 1.7;
+}
+
+.ak-docs-editor a {
+    color: var(--color-accent);
+    text-decoration: underline;
+}
+
+.ak-docs-editor code.inline-code {
+    background: #f3f4f6;
+    color: #b91c1c;
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+}
+
+/* ── Quote (Editor.js Quote tool) — filete simples, sem glifo decorativo,
+   pra casar com .html-content blockquote (app.css). ──────────────────── */
+.ak-docs-editor .cdx-quote {
+    border-left: 3px solid var(--color-line-2, #dbe3dc);
+    padding-left: 1rem;
+    margin: 0.75rem 0;
+}
+.ak-docs-editor .cdx-quote__text {
+    font-style: italic;
+    color: #4b5563;
+}
+.ak-docs-editor .cdx-quote-icon { display: none; }
+
+/* ── Código (Editor.js Code tool) — mesmo tema escuro de .html-content pre. */
+.ak-docs-editor .ce-code__textarea {
+    background: #272822;
+    color: #f8f8f2;
+    border: none;
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+/* ── Tabela (Editor.js Table tool) — sem linhas verticais, cabeçalho cinza,
+   moldura arredondada, igual à tabela do resultado final (app.css). */
+.ak-docs-editor .tc-table {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+    --color-border: transparent;
+}
+.ak-docs-editor .tc-row {
+    border-bottom: 1px solid #e5e7eb;
+}
+.ak-docs-editor .tc-row:last-child { border-bottom: none; }
+.ak-docs-editor .tc-cell { border: none !important; padding: 0.6rem 0.9rem; }
+.ak-docs-editor .tc-table--heading .tc-row--selected .tc-cell,
+.ak-docs-editor .tc-table--heading .tc-row:first-child {
+    background: #f9fafb;
+    font-weight: 600;
+    color: #111827;
+}
+
+/* ── Hint / callout — estilo GitBook: caixa com fundo pastel cheio + badge
+   circular do ícone (sem rótulo em texto), igual a .html-content aside
+   (app.css). O badge (.ak-hint__icon) é um <button> que abre o picker de
+   heroicons; o SVG outline do ícone escolhido vai dentro dele. ── */
+.ak-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    border: none;
+    background: #EFF6FF;
+    border-radius: 10px;
+    padding: 0.8rem 1rem;
+    margin: 0.25rem 0;
+}
+.ak-hint__icon {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: #DBEAFE;
+    color: #2563EB;
+    cursor: pointer;
+    margin-top: 0.05rem;
+    transition: filter 0.12s ease;
+}
+.ak-hint__icon:hover { filter: brightness(0.94); }
+.ak-hint__icon svg { width: 0.95rem; height: 0.95rem; }
+.ak-hint[data-hint-style='warning'] { background: #FFFBEB; }
+.ak-hint[data-hint-style='warning'] .ak-hint__icon { background: #FEF3C7; color: #D97706; }
+.ak-hint[data-hint-style='danger'] { background: #FEF2F2; }
+.ak-hint[data-hint-style='danger'] .ak-hint__icon { background: #FEE2E2; color: #DC2626; }
+.ak-hint[data-hint-style='success'] { background: #ECFDF5; }
+.ak-hint[data-hint-style='success'] .ak-hint__icon { background: #D1FAE5; color: #059669; }
+.ak-hint__text {
+    outline: none;
+    color: #374151;
+    line-height: 1.65;
+    flex: 1;
+    min-width: 0;
+}
+.ak-hint__text:empty::before {
+    content: attr(data-placeholder);
+    color: #9ca3af;
+}
+
+/* ── Tabs com blocos aninhados (editor) ─────────────────────────── */
+.ak-tabs {
+    margin: 0.5rem 0;
+}
+.ak-tabs__bar {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.25rem;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--color-line);
+}
+.ak-tabs__tab {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.3rem 0.35rem 0.3rem 0.7rem;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    margin-bottom: -1px;
+    cursor: pointer;
+    color: #6b7280;
+}
+.ak-tabs__tab:hover {
+    color: #111827;
+}
+.ak-tabs__tab.is-active {
+    color: #111827;
+    background: var(--color-surface);
+    border-color: var(--color-line);
+    border-bottom-color: var(--color-surface);
+}
+.ak-tabs__grip {
+    cursor: grab;
+    color: var(--color-muted);
+    font-size: 0.7rem;
+    line-height: 1;
+    opacity: 0;
+    transition: opacity 0.12s;
+    user-select: none;
+}
+.ak-tabs__grip:active {
+    cursor: grabbing;
+}
+.ak-tabs__tab:hover .ak-tabs__grip {
+    opacity: 0.6;
+}
+.ak-tabs__label {
+    outline: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    min-width: 1.5rem;
+    white-space: nowrap;
+}
+.ak-tabs__label:empty::before {
+    content: 'Aba';
+    color: var(--color-muted);
+}
+.ak-tabs__remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.15rem;
+    height: 1.15rem;
+    border-radius: 4px;
+    font-size: 1rem;
+    line-height: 1;
+    color: var(--color-muted);
+    opacity: 0;
+    transition: opacity 0.12s;
+}
+.ak-tabs__tab:hover .ak-tabs__remove,
+.ak-tabs__tab.is-active .ak-tabs__remove {
+    opacity: 1;
+}
+.ak-tabs__remove:hover {
+    background: color-mix(in srgb, var(--ak-docs-red) 12%, transparent);
+    color: var(--ak-docs-red);
+}
+.ak-tabs__add {
+    flex-shrink: 0;
+    padding: 0.25rem 0.6rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-muted);
+    border-radius: 6px;
+}
+.ak-tabs__add:hover {
+    color: var(--color-accent);
+    background: var(--color-accent-soft, #f3ede6);
+}
+.ak-tabs__panel {
+    border: 1px solid var(--color-line);
+    border-top: none;
+    border-bottom-left-radius: var(--radius-field, 8px);
+    border-bottom-right-radius: var(--radius-field, 8px);
+    border-top-right-radius: var(--radius-field, 8px);
+    background: var(--color-surface);
+    padding: 0.5rem 0.75rem;
+}
+/* editor aninhado: sem margens externas exageradas do core */
+.ak-tabs__holder .codex-editor__redactor {
+    padding-bottom: 0 !important;
+}
+
+/* ── Imagem (editor) — largura-preset, sempre centralizada ────────────
+   A largura escolhida no menu de tunes vira `.ak-img--wNN` no wrapper
+   (.image-tool) via DocsImageTool (docs-editor.js). A largura é aplicada
+   na imagem e na legenda (não no wrapper) — assim o botão "Selecionar
+   arquivo" do estado vazio continua em largura total, e a legenda
+   acompanha a imagem em vez de vazar pra largura toda. Espelha o read-only
+   (.html-content figure[data-width] em app.css). ──────────────────── */
+
+/* O @editorjs/image dá ao container da imagem uma borda + fundo próprios
+   (`border: 1px solid var(--border-color)`); o read-only (.html-content
+   figure img, app.css) não tem nenhuma moldura. Zeramos aqui pra o preview
+   do editor casar com o resultado final — a imagem aparece "limpa". */
+.ak-docs-editor .image-tool__image {
+    border: none;
+    background: transparent;
+}
+
+/* Legenda: por padrão o plugin a renderiza como um `.cdx-input` (caixa com
+   borda + sombra interna) posicionado `absolute` no rodapé do bloco, o que
+   a faz SOBREPOR a imagem e parecer que o editor quebrou. Trazemos de volta
+   pro fluxo normal (abaixo da imagem) e removemos a caixa — vira só um texto
+   discreto centralizado, igual a .html-content figcaption (app.css). O
+   `.image-tool--caption` reservava 50px no rodapé pra caixa absoluta; some. */
+.ak-docs-editor .image-tool--caption { padding-bottom: 0; }
+.ak-docs-editor .image-tool__caption {
+    position: static;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    margin-top: 0.5rem;
+    text-align: center;
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+.ak-docs-editor .image-tool__caption:empty::before { color: #9ca3af; }
+
+.ak-docs-editor .image-tool__image,
+.ak-docs-editor .image-tool__caption {
+    margin-inline: auto;
+    transition: width 0.12s ease;
+}
+.ak-docs-editor .ak-img--w25 :is(.image-tool__image, .image-tool__caption) { width: 25%; }
+.ak-docs-editor .ak-img--w50 :is(.image-tool__image, .image-tool__caption) { width: 50%; }
+.ak-docs-editor .ak-img--w75 :is(.image-tool__image, .image-tool__caption) { width: 75%; }
+.ak-docs-editor .ak-img--w100 :is(.image-tool__image, .image-tool__caption) { width: 100%; }
+
+/* ── Embed (editor) ─────────────────────────────────────────────── */
+.ak-docs-editor .embed-tool__caption {
+    text-align: center;
+    color: var(--color-muted);
+    font-size: 0.85rem;
+}
+.ak-docs-editor iframe {
+    max-width: 100%;
+    border-radius: var(--radius-field, 8px);
+}
+
+/* Modo escuro: Editor.js popovers herdam o tema do app via tokens acima;
+   ajustes finos ficam para quando o dark for revisto de fato. */

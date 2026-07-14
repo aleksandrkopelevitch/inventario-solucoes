@@ -1,0 +1,161 @@
+{
+  "meta": {
+    "489bf2b0-2f4c-4455-a154-cf309dab8915": {
+      "position": {
+        "x": 200,
+        "y": 0
+      }
+    },
+    "bc889ca8-47e6-4ba6-b66a-3cd83f997905": {
+      "position": {
+        "x": 400,
+        "y": 0
+      }
+    },
+    "e324932d-7964-46ae-b50a-52667af6a826": {
+      "position": {
+        "x": 600,
+        "y": 0
+      }
+    },
+    "e9a382ce-489c-46d8-a604-19330bb05e12": {
+      "position": {
+        "x": 800,
+        "y": 0
+      }
+    }
+  },
+  "flowSpec": {
+    "disconnected-root:76c61d61-e4c7-4d59-88e1-79ddf64db215": [
+      {
+        "id": "489bf2b0-2f4c-4455-a154-cf309dab8915",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "Body",
+        "doubleBracesAlias": "json-generator-2",
+        "params": {
+          "json": "{\n   \"body\": {{ message.body }},\n   \"tabela\": {{ CONCAT(\"{{global.bigquery-project-id}}\", \".\", \"{{global.tabela-staging-gld-clientes}}\") }}\n}",
+          "failOnError": false
+        }
+      },
+      {
+        "id": "bc889ca8-47e6-4ba6-b66a-3cd83f997905",
+        "type": "session-management",
+        "name": "",
+        "stepName": "Put tabela",
+        "operation": "PUT",
+        "sessionType": "LOCAL",
+        "scoped": false,
+        "fields": [
+          "tabela"
+        ],
+        "doubleBracesAlias": "session-management-2",
+        "params": {}
+      },
+      {
+        "id": "e324932d-7964-46ae-b50a-52667af6a826",
+        "type": "connector",
+        "name": "for-each-connector",
+        "stepName": "Processa item a item",
+        "doubleBracesAlias": "for-each-1",
+        "params": {
+          "itemIdentifier": "",
+          "parallel": false,
+          "failOnError": false,
+          "onProcess": "e324932d-7964-46ae-b50a-52667af6a826-onProcessTrack",
+          "onException": "e324932d-7964-46ae-b50a-52667af6a826-onExceptionTrack",
+          "expression": "$.body.row[*]"
+        }
+      },
+      {
+        "id": "e9a382ce-489c-46d8-a604-19330bb05e12",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "Response",
+        "doubleBracesAlias": "json-generator-3",
+        "params": {
+          "json": "{\n   \"mensagem\": {{ CONCAT(message.total, \" itens processados!!\") }}\n}",
+          "failOnError": false
+        }
+      }
+    ],
+    "e324932d-7964-46ae-b50a-52667af6a826-onProcessTrack": [
+      {
+        "id": "40e4d9ab-7779-4d44-811b-2550f3188653",
+        "type": "session-management",
+        "name": "",
+        "stepName": "Get tabela",
+        "operation": "GET",
+        "sessionType": "LOCAL",
+        "scoped": false,
+        "fields": [
+          "tabela"
+        ],
+        "doubleBracesAlias": "session-management-5",
+        "params": {}
+      },
+      {
+        "id": "9b1d8338-bbb6-4ab0-8ff4-02bdf3c74977",
+        "type": "connector",
+        "name": "jolt-connector-v2",
+        "stepName": "Prepara payload",
+        "doubleBracesAlias": "jolt-v2-2",
+        "params": {
+          "joltExpr": "[\n  {\n    \"operation\": \"shift\",\n    \"spec\": {\n      \"*\": \"query.&\",\n      \"tabela\": [\"query.&\", \"&\"]\n    }\n  },\n  {\n    \"operation\": \"modify-overwrite-beta\",\n    \"spec\": {\n      \"tabela\": \"=split('\\\\.',@(0))\"\n    }\n  },\n  {\n    \"operation\": \"shift\",\n    \"spec\": {\n      \"query\": \"&\",\n      \"tabela\": {\n        \"2\": \"tabela\"\n      }\n    }\n  }\n]",
+          "exprReference": false,
+          "failOnError": false
+        }
+      },
+      {
+        "id": "fae5494d-e7e7-46fa-b672-fb031a032d85",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Log",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Tabela → {{ message.tabela }} | Query → {{ message.query }}"
+        }
+      },
+      {
+        "id": "ac2738cd-9ff1-4ec3-97da-c7aee5b81c1d",
+        "type": "connector",
+        "name": "object-store-connector",
+        "accountLabel": "dgb-internal-object-store-account",
+        "stepName": "Insert stagin",
+        "doubleBracesAlias": "object-store-1",
+        "params": {
+          "operation": "INSERT",
+          "objectStore": "staging-clientes",
+          "unique": true,
+          "isolated": false,
+          "objectId": "{{ UUID() }}",
+          "failOnError": true,
+          "document": "{\n  \"query\": {{ message.query }},\n  \"tabela\": {{ message.tabela }},\n  \"timeInsert\": {{ NOW() }}\n}"
+        }
+      },
+      {
+        "id": "2fe21b82-f2e8-4c04-a5a6-8620eb3bf154",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "Success",
+        "doubleBracesAlias": "json-generator-5",
+        "params": {
+          "json": "{\n  \"success\": true\n}",
+          "failOnError": false
+        }
+      }
+    ],
+    "e324932d-7964-46ae-b50a-52667af6a826-onExceptionTrack": [
+      {
+        "id": "f8026deb-ad8c-4de1-99dd-7871eabb206e",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Erro processamento",
+        "params": {
+          "logLevel": "ERROR",
+          "message": "Erro no processamento - {{ message.$ }}"
+        }
+      }
+    ]
+  }
+}

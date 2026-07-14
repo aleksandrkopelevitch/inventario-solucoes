@@ -1,0 +1,112 @@
+@php
+    $editing = $person->exists;
+    $action = $editing
+        ? route('people.update', ['person' => $person, 'filter' => $filters ?? []])
+        : route('people.store', ['filter' => $filters ?? []]);
+    $photoUrl = $person->photo_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($person->photo_path) : null;
+
+    $solutionItems = $editing
+        ? $person->solutions->map(fn ($s) => ['value' => $s->id, 'label' => $s->name, 'role' => $s->pivot->role])->all()
+        : [];
+    $roleOptions = collect($roles)->map(fn ($r) => ['value' => $r->value, 'label' => $r->label()])->all();
+    // Contatos adicionais (`Person::contacts()`) — o único e-mail/telefone
+    // dos campos abaixo é só a metade da história: uma pessoa pode ter
+    // vários contatos (ex.: 2 e-mails de fornecedor), cada um com seu
+    // próprio tipo. Sem isso o form nunca conseguia editar o que o
+    // cabeçalho de detalhe já mostrava (ver Solutions\DetailHeader-equivalente,
+    // `components/people/detail-header.blade.php`).
+    $contactItems = $editing
+        ? $person->contacts->map(fn ($c) => ['id' => $c->id, 'type' => $c->type->value, 'value' => $c->value])->values()->all()
+        : [];
+@endphp
+
+<div class="flex items-center justify-between border-b border-line px-5 py-4">
+    <h2 class="font-display text-lg font-semibold text-ink">{{ $editing ? 'Editar pessoa' : 'Nova pessoa' }}</h2>
+    <a href="#" data-ak-panel-close class="rounded-field p-1 text-xl leading-none text-faint hover:text-ink">&times;</a>
+</div>
+
+<form id="person-form" class="flex flex-1 flex-col overflow-hidden">
+    @csrf
+    @if ($editing) @method('PATCH') @endif
+
+    <div class="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+        <x-forms.field label="Nome" for="p-name" name="name" required>
+            <x-forms.input id="p-name" name="name" :value="old('name', $person->name)" required />
+        </x-forms.field>
+
+        <x-forms.field label="Empresa" for="p-company" name="company_id">
+            <x-forms.select id="p-company" name="company_id">
+                <option value="">—</option>
+                @foreach ($companies as $company)
+                    <option value="{{ $company->id }}" @selected((string) old('company_id', $person->company_id) === (string) $company->id)>{{ $company->name }}</option>
+                @endforeach
+            </x-forms.select>
+        </x-forms.field>
+
+        <x-forms.field label="Cargo" for="p-job" name="job_title">
+            <x-forms.input id="p-job" name="job_title" :value="old('job_title', $person->job_title)" />
+        </x-forms.field>
+
+        <div class="grid grid-cols-2 gap-3">
+            <x-forms.field label="E-mail" for="p-email" name="email">
+                <x-forms.input id="p-email" name="email" type="email" :value="old('email', $person->email)" />
+            </x-forms.field>
+
+            <x-forms.field label="Telefone" for="p-phone" name="phone">
+                <x-forms.input id="p-phone" name="phone" :value="old('phone', $person->phone)" />
+            </x-forms.field>
+        </div>
+
+        {{-- Contatos adicionais: linhas repetíveis tipo+valor+rótulo, além do
+             e-mail/telefone únicos acima — `resources/js/modules/person-contacts.js`
+             adiciona/remove linhas no cliente; o servidor sincroniza
+             `Person::contacts()` (`PersonController::syncContacts()`). --}}
+        <x-forms.field label="Contatos adicionais" name="contacts"
+            hint="Outros e-mails/telefones (ex.: mais de um contato do fornecedor).">
+            <div data-ak-contacts data-ak-contacts-next="{{ count($contactItems) }}" class="flex flex-col gap-2">
+                <div data-ak-contacts-list class="flex flex-col gap-2 empty:hidden">
+                    @foreach ($contactItems as $i => $contact)
+                        <div data-ak-contact-row class="flex items-start gap-1.5">
+                            <input type="hidden" name="contacts[{{ $i }}][id]" value="{{ $contact['id'] }}">
+                            <div class="w-[104px] shrink-0">
+                                <x-forms.select name="contacts[{{ $i }}][type]" class="!h-9 !py-0 !pl-2.5 !pr-6 !text-xs">
+                                    @foreach ($contactTypes as $type)
+                                        <option value="{{ $type->value }}" @selected($contact['type'] === $type->value)>{{ $type->label() }}</option>
+                                    @endforeach
+                                </x-forms.select>
+                            </div>
+                            <x-forms.input name="contacts[{{ $i }}][value]" value="{{ $contact['value'] }}"
+                                placeholder="valor" class="!h-9 !flex-1 !py-0 !text-xs" />
+                            <x-forms.button type="button" variant="ghost" data-ak-contact-remove title="Remover contato"
+                                class="!h-9 !shrink-0 !p-2 !text-muted hover:!text-crit">
+                                <x-heroicon-o-trash class="size-4" />
+                            </x-forms.button>
+                        </div>
+                    @endforeach
+                </div>
+                <x-forms.button type="button" variant="ghost" data-ak-contact-add
+                    class="!self-start !px-2 !py-1 !text-xs">
+                    <x-heroicon-o-plus class="size-4" /> Adicionar contato
+                </x-forms.button>
+            </div>
+        </x-forms.field>
+
+        <x-forms.field label="Sistemas (papel por vínculo)" name="solutions"
+            hint="Digite o nome da solução e escolha na lista. Vínculos existentes vêm pré-carregados.">
+            <x-forms.chips name="solutions" :items="$solutionItems" :roles="$roleOptions"
+                :search-url="route('solutions.search')" placeholder="Nome da solução…" />
+        </x-forms.field>
+
+        <x-forms.field label="Notas" for="p-notes" name="notes">
+            <x-forms.textarea id="p-notes" name="notes" rows="2">{{ old('notes', $person->notes) }}</x-forms.textarea>
+        </x-forms.field>
+
+        <x-forms.field label="Foto" name="photo">
+            <x-forms.image-upload name="photo" :value="$photoUrl" size="h-24 w-24" />
+        </x-forms.field>
+    </div>
+
+    <div class="border-t border-line px-5 py-4">
+        <x-forms.button data-ak-ajax="person-form" data-ak-action="{{ $action }}" class="w-full">Salvar</x-forms.button>
+    </div>
+</form>

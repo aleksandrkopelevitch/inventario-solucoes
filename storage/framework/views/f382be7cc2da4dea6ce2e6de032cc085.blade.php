@@ -1,0 +1,1 @@
+<x-forms.radio-group><x-forms.radio name="cor" value="azul">Azul</x-forms.radio></x-forms.radio-group>

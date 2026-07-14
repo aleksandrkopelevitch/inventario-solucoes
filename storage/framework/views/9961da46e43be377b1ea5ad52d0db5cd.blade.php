@@ -1,0 +1,1 @@
+<x-forms.field label="Nome do produto" name="nome"><x-forms.input name="nome" /></x-forms.field>

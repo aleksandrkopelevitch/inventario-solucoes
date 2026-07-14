@@ -1,0 +1,169 @@
+{
+  "meta": {
+    "e1b375b6-f72f-4be7-96e8-962fc17410d0": {
+      "position": {
+        "x": 200,
+        "y": 75
+      }
+    },
+    "678ff06f-1250-4556-b2d6-203a92d60afa": {
+      "position": {
+        "x": 400,
+        "y": 75
+      }
+    },
+    "89ebccd9-0e04-4150-8afe-71390a1eaf28": {
+      "position": {
+        "x": 600,
+        "y": 75
+      }
+    },
+    "600f2187-626e-49a3-91ae-b2fd1d45933c": {
+      "position": {
+        "x": 800,
+        "y": 75
+      }
+    },
+    "770161a8-09d7-4801-90f6-0ee34f6ec1ae": {
+      "position": {
+        "x": 1250,
+        "y": 0
+      }
+    },
+    "a18f7ea8-289b-4d29-802b-19ab750b82ed": {
+      "position": {
+        "x": 1450,
+        "y": 0
+      }
+    },
+    "f9fc484a-d418-40ba-9606-3998cf031fc6": {
+      "position": {
+        "x": 1250,
+        "y": 150
+      }
+    },
+    "54c8b8cc-ea7b-41fb-8637-f216b3a3027b": {
+      "position": {
+        "x": 1450,
+        "y": 150
+      }
+    }
+  },
+  "flowSpec": {
+    "disconnected-root:9cf75230-97fb-4a58-be14-9128d7407dfd": [
+      {
+        "id": "e1b375b6-f72f-4be7-96e8-962fc17410d0",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "Body update BQ",
+        "doubleBracesAlias": "json-generator-5",
+        "params": {
+          "json": "{\n  \"body\": {\n    \"query\": {{ message.body.query }},\n    \"labels\": {\n      \"ambiente\": {{  metadata.runtime.environment }},\n      \"engine\": \"digibee\",\n      \"table\": {{ message.body.tabela}}\n    },\n    \"useLegacySql\": false,\n    \"location\": \"us-east1\"\n  }\n}",
+          "failOnError": false
+        }
+      },
+      {
+        "id": "678ff06f-1250-4556-b2d6-203a92d60afa",
+        "type": "delayer",
+        "name": "",
+        "stepName": "Delayer",
+        "delayMilliseconds": "2000",
+        "doubleBracesAlias": "delayer-1",
+        "params": {}
+      },
+      {
+        "id": "89ebccd9-0e04-4150-8afe-71390a1eaf28",
+        "type": "connector",
+        "name": "rest-connector-v2",
+        "stepName": "Update dados BQ",
+        "doubleBracesAlias": "rest-v2-10",
+        "accountLabel": "bigquery-auth",
+        "accountLabels": {
+          "custom-1": "",
+          "custom-2": ""
+        },
+        "params": {
+          "url": "{{global.url-bigquery-projects}}/{{global.bigquery-project-id}}/queries",
+          "operation": "POST",
+          "headers": "{\"Content-Type\":\"application/json\"}",
+          "injectJWT": false,
+          "readJWT": false,
+          "injectConsumer": false,
+          "injectPipelineKey": false,
+          "injectTraceId": false,
+          "stopOnClientError": false,
+          "stopOnServerError": false,
+          "overrideResponseCharset": true,
+          "responseCharset": "UTF-8",
+          "queryParams": "{}",
+          "useDynamicAccount": false,
+          "connectTimeout": "60000",
+          "readTimeout": "60000",
+          "writeTimeout": "",
+          "callTimeout": "",
+          "advanced": false,
+          "sendBinaryFile": false,
+          "body": "{{ message.body }}"
+        }
+      },
+      {
+        "id": "600f2187-626e-49a3-91ae-b2fd1d45933c",
+        "type": "choice",
+        "name": "",
+        "stepName": "Choice",
+        "when": [
+          {
+            "target": "success (2)",
+            "jsonPath": "$.[?(@.status >= 200 && @.status <= 299)]"
+          }
+        ],
+        "otherwise": "error (2)"
+      }
+    ],
+    "success (2)": [
+      {
+        "id": "770161a8-09d7-4801-90f6-0ee34f6ec1ae",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Sucesso no insert",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Sucesso no insert {{ message.$ }}"
+        }
+      },
+      {
+        "id": "a18f7ea8-289b-4d29-802b-19ab750b82ed",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "Sucesso",
+        "doubleBracesAlias": "json-generator-1",
+        "params": {
+          "json": "{\n   \"mensagem\": \"Sucesso no insert dos dados\"\n}",
+          "failOnError": false
+        }
+      }
+    ],
+    "error (2)": [
+      {
+        "id": "f9fc484a-d418-40ba-9606-3998cf031fc6",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Error",
+        "params": {
+          "logLevel": "ERROR",
+          "message": "Error {{ message.$ }}"
+        }
+      },
+      {
+        "id": "54c8b8cc-ea7b-41fb-8637-f216b3a3027b",
+        "type": "connector",
+        "name": "throw-error-connector",
+        "stepName": "Throw Error",
+        "params": {
+          "customErrorEnabled": true,
+          "customError": "{{ message.$ }}"
+        }
+      }
+    ]
+  }
+}

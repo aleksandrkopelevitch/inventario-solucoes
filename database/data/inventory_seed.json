@@ -1,0 +1,2526 @@
+[
+    {
+        "name": "SVL (Sistema de Vendas Leo)",
+        "slug": "svl-sistema-de-vendas-leo",
+        "vendor": "Leo Madeiras (interno)",
+        "directorate": "Digital / Comercial",
+        "journey": "Loja",
+        "category": "ecommerce",
+        "environment": "on_premise",
+        "cloud": "gcp",
+        "contract_status": "unknown",
+        "description": "E-commerce B2C/B2B – plataforma de vendas Leo",
+        "support_operation_note": "Time interno",
+        "owner_tech": "Ricardo Alexandre",
+        "owner_business": "Lucas Peregrino",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "consultor.ricardoag@leomadeiras.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "suporte@netrin.com.br",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "11 98733-5523",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "41 2101-1331",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "DevPartner, Cecilia. Fone: 11 98733-5523 | Netrim: suporte@netrin.com.br, Fone comercial: 41 2101-1331",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "LeoPlan",
+        "slug": "leoplan",
+        "vendor": "DotProduct / Eurosoft",
+        "directorate": "Digital / Comercial",
+        "journey": "Fabrica",
+        "category": "manufacturing",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Planejamento e orçamento de ambientes para clientes",
+        "support_operation_note": null,
+        "owner_tech": "Daniel Gallinari",
+        "owner_business": "Fabio Caldart",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "domingos@dotproduct.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "support@eurosoftinc.com",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "domingos@dotproduct.com.br",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "djthomas@eurosoftinc.com",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "administration@eurosoftinc.com",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "LeoMob (Middleware Promob)",
+        "slug": "leomob-middleware-promob",
+        "vendor": "Promob / Cyncly",
+        "directorate": "Digital / Comercial",
+        "journey": "Fabrica",
+        "category": "manufacturing",
+        "environment": "on_premise",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Integração configurador Promob com pedidos e preços Leo",
+        "support_operation_note": null,
+        "owner_tech": "Daniel Gallinari",
+        "owner_business": "Robson Costa",
+        "vendor_contacts": [
+            {
+                "type": "phone",
+                "value": "+55 54 99179-4254",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Iuri Lobato - +55 54 99179-4254",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "+55 54 99179-4254",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Iuri Lobato - +55 54 99179-4254",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Pricefy",
+        "slug": "pricefy",
+        "vendor": "Pricefy",
+        "directorate": "Comercial",
+        "journey": "Loja",
+        "category": "marketing",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Precificação e inteligência de preços",
+        "support_operation_note": null,
+        "owner_tech": "Eduardo Minichello",
+        "owner_business": "Eduardo Minichello",
+        "vendor_contacts": [
+            {
+                "type": "phone",
+                "value": "+55 51 8120-6993",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "William de Castro • +55 51 8120-6993",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "viviane.favero@selbetti.com.br",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "+55 11 99378-2914",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Viviane • viviane.favero@selbetti.com.br • +55 11 99378-2914",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Desconto Dinâmico",
+        "slug": "desconto-dinamico",
+        "vendor": "Leo Madeiras (interno)",
+        "directorate": "Digital / Comercial",
+        "journey": "Loja",
+        "category": "marketing",
+        "environment": "on_premise",
+        "cloud": "gcp",
+        "contract_status": "unknown",
+        "description": "Motor de regras de desconto em tempo real para vendas",
+        "support_operation_note": "Time interno",
+        "owner_tech": "Luiz Procopio",
+        "owner_business": "Kaio Tadeu",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "daniel.gallinari@leomadeiras.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "daniel.gallinari@leomadeiras.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Amigo Leo (interno)",
+        "slug": "amigo-leo-interno",
+        "vendor": "Devpartner",
+        "directorate": "Comercial / Marketing",
+        "journey": "Loja",
+        "category": "internal_platform",
+        "environment": "on_premise",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Programa de pontos e fidelidade de clientes Leo",
+        "support_operation_note": null,
+        "owner_tech": "Ricardo Alexandre",
+        "owner_business": "Edna Bossay",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "consultor.ricardoag@leomadeiras.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "cecilia.delucca@devpartner.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Leo Plus (benefícios)",
+        "slug": "leo-plus-beneficios",
+        "vendor": "Leo Madeiras (interno)",
+        "directorate": "Comercial / Marketing",
+        "journey": null,
+        "category": "internal_platform",
+        "environment": "on_premise",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Plataforma de benefícios e cashback para clientes Leo",
+        "support_operation_note": null,
+        "owner_tech": "Vagner Vargas",
+        "owner_business": "Fabio Caldart",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "vagner.vargas@leomadeiras.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "vagner.vargas@leomadeiras.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Leozinha (app clientes)",
+        "slug": "leozinha-app-clientes",
+        "vendor": "Leo Madeiras (interno)",
+        "directorate": "Digital / Comercial",
+        "journey": "Leozinha",
+        "category": "ecommerce",
+        "environment": "on_premise",
+        "cloud": "gcp",
+        "contract_status": "unknown",
+        "description": "App mobile / portal de clientes Leo",
+        "support_operation_note": null,
+        "owner_tech": "Caio Penachini",
+        "owner_business": "Bernardo Costa",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "consultor.caiop@leomadeiras.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "consultor.caiop@leomadeiras.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "NCR (TEF / Caixa)",
+        "slug": "ncr-tef-caixa",
+        "vendor": "NCR",
+        "directorate": "Varejo / TI",
+        "journey": "Loja",
+        "category": "ecommerce",
+        "environment": "on_premise",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Frente de caixa / PDV lojas físicas",
+        "support_operation_note": null,
+        "owner_tech": "Elaine Cristina",
+        "owner_business": "Eduardo Minichello",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "sergio.sato@ncratleos.com",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Sergio Sato • sergio.sato@ncratleos.com",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "support_br.retail@ncratleos.com",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Suporte • support_br.retail@ncratleos.com",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Devpartner (Amigo Leo)",
+        "slug": "devpartner-amigo-leo",
+        "vendor": "Devpartner",
+        "directorate": "TI / Comercial",
+        "journey": "Loja",
+        "category": "ecommerce",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Integração PDV / retaguarda lojas",
+        "support_operation_note": null,
+        "owner_tech": "Ricardo Alexandre",
+        "owner_business": "Edna Bossay",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "cecilia.delucca@devpartner.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "cecilia.delucca@devpartner.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "SAP S/4HANA",
+        "slug": "sap-s-4hana",
+        "vendor": "SAP / Inetum / Porto IT",
+        "directorate": "Financeiro / TI",
+        "journey": "Backoffice",
+        "category": "erp",
+        "environment": "saas",
+        "cloud": "gcp",
+        "contract_status": "contracted",
+        "description": "ERP principal Leo – módulos FI/CO/SD/MM/WM",
+        "support_operation_note": null,
+        "owner_tech": "Eduardo Minichello",
+        "owner_business": "Eduardo Minichello",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "eduardo.minichello@leomadeiras.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "eduardo.minichello@leomadeiras.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "SAP CPI (integração)",
+        "slug": "sap-cpi-integracao",
+        "vendor": "SAP",
+        "directorate": "TI / Financeiro",
+        "journey": "Integrador",
+        "category": "ipaas",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Plataforma de integração SAP com sistemas externos",
+        "support_operation_note": null,
+        "owner_tech": "Leandro Duarte",
+        "owner_business": "Eduardo Minichello",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "eduardo.minichello@leomadeiras.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "eduardo.minichello@leomadeiras.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "AllStrategy",
+        "slug": "allstrategy",
+        "vendor": "AllStrategy",
+        "directorate": "Financeiro",
+        "journey": "Financeiro",
+        "category": "payments",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Gestão financeira, fluxo de caixa e bancos",
+        "support_operation_note": null,
+        "owner_tech": "Ruy Araújo",
+        "owner_business": "Nicole Chaves",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "suporte@allstrategy.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "rafael.yamamura@allstrategy.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Finnet (conciliação bancária)",
+        "slug": "finnet-conciliacao-bancaria",
+        "vendor": "Finnet",
+        "directorate": "Financeiro",
+        "journey": "Financeiro",
+        "category": "payments",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Conciliação de extratos e pagamentos bancários",
+        "support_operation_note": null,
+        "owner_tech": "Eduardo Minichello",
+        "owner_business": "Graciella Maia",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "implantacao_painel@finnet.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Implantação • implantacao_painel@finnet.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "platinum@finnet.com.br",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Chamados Plantinum • platinum@finnet.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Braspag  (gateway de pagamento)",
+        "slug": "braspag-gateway-de-pagamento",
+        "vendor": "Braspag",
+        "directorate": "Financeiro / Digital",
+        "journey": "Ecommerce",
+        "category": "payments",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Processamento de pagamentos e-commerce",
+        "support_operation_note": null,
+        "owner_tech": "Renato Vitor",
+        "owner_business": "Renato Vitor",
+        "vendor_contacts": [
+            {
+                "type": "phone",
+                "value": "+55 11 94512-1412",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Paula Alves de Sino (+55 11 94512-1412)",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "+55 11 94512-1412",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Paula Alves de Sino (+55 11 94512-1412)",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Cobmais (cobrança)",
+        "slug": "cobmais-cobranca",
+        "vendor": "Cobmais",
+        "directorate": "Financeiro",
+        "journey": "Financeiro",
+        "category": "payments",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Gestão de cobranças e inadimplência",
+        "support_operation_note": null,
+        "owner_tech": "Jose Ferreira Neto",
+        "owner_business": "Andrea Souza",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "ruhan@cobmais.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Ruhan Pablo • ruhan@cobmais.com.br",
+                "label": "tech-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "InvoiceCon (NF-e / NFS-e)",
+        "slug": "invoicecon-nf-e-nfs-e",
+        "vendor": "CAST Group",
+        "directorate": "Fiscal / TI",
+        "journey": "Fiscal",
+        "category": "tax",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Emissão e gestão de notas fiscais (NF-e, NFS-e)",
+        "support_operation_note": null,
+        "owner_tech": "Eduardo Minichello",
+        "owner_business": "Luis Oliveira",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "castgroup.bruno@leomadeiras.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Bruno Natel • castgroup.bruno@leomadeiras.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "castgroup.bruno@leomadeiras.com.br",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Bruno Natel • castgroup.bruno@leomadeiras.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Soficom (fiscal / SPED)",
+        "slug": "soficom-fiscal-sped",
+        "vendor": "CAST Group",
+        "directorate": "Fiscal",
+        "journey": "Fiscal",
+        "category": "tax",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Obrigações fiscais, SPED e apuração de impostos",
+        "support_operation_note": null,
+        "owner_tech": "Eduardo Minichello",
+        "owner_business": "Luis Oliveira",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "castgroup.bruno@leomadeiras.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Bruno Natel • castgroup.bruno@leomadeiras.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "castgroup.bruno@leomadeiras.com.br",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Bruno Natel • castgroup.bruno@leomadeiras.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Oto CRM",
+        "slug": "oto-crm",
+        "vendor": "Oto CRM",
+        "directorate": "Comercial / Marketing",
+        "journey": "Loja",
+        "category": "crm",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "CRM e relacionamento com clientes",
+        "support_operation_note": null,
+        "owner_tech": "Renato Vitor",
+        "owner_business": "Renato Vitor",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "ana.costa@crmbonus.com",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "+55 51 93619-4259",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Ana Costa (+55 51 93619-4259) <ana.costa@crmbonus.com>",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "ana.costa@crmbonus.com",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "+55 51 93619-4259",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Ana Costa (+55 51 93619-4259) <ana.costa@crmbonus.com>",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Leo Resolve / BMC Helix (ITSM)",
+        "slug": "leo-resolve-bmc-helix-itsm",
+        "vendor": "BMC Software",
+        "directorate": "TI / Eficiência e Gestão",
+        "journey": "ITSM",
+        "category": "itsm",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Service desk, ESM, ITSM e gestão de ativos de TI",
+        "support_operation_note": "Suporte Contratato com a BMC",
+        "owner_tech": "Bruno Titz",
+        "owner_business": "Bruno Titz",
+        "vendor_contacts": [
+            {
+                "type": "other",
+                "value": "https://bmcapps.my.site.com/casemgmt/sc_CommunityHome",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "11 99124-6487",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "11 93445-8564",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "CS - Carol - 11 99124-6487 e Petrucci - 11 93445-8564",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Lea (Assistente Virtual / IA)",
+        "slug": "lea-assistente-virtual-ia",
+        "vendor": "Zaia",
+        "directorate": "TI / Eficiência e Gestão",
+        "journey": "ITSM",
+        "category": "customer_service",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Chatbot e assistente virtual para atendimento",
+        "support_operation_note": "Suporte Contratato com a Zaia",
+        "owner_tech": "Bruno Titz",
+        "owner_business": "Bruno Titz",
+        "vendor_contacts": [
+            {
+                "type": "phone",
+                "value": "11 98484-6047",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Gabriela Morelli - 11 98484-6047",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "11 98484-6047",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Gabriela Morelli - 11 98484-6047",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Leucotron (Telecom / PABX)",
+        "slug": "leucotron-telecom-pabx",
+        "vendor": "Leucotron",
+        "directorate": "TI / Operações",
+        "journey": "Pós Venda",
+        "category": "customer_service",
+        "environment": "on_premise",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Telefonia corporativa e central de atendimento",
+        "support_operation_note": null,
+        "owner_tech": "Luiz Procopio",
+        "owner_business": "Edna Bossay",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "kelly@leucotron.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "+55 (35) 99836-7488",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Kelly Costa • kelly@leucotron.com.br • +55 (35) 99836-7488",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "kelly@leucotron.com.br",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "+55 (35) 99836-7488",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Kelly Costa • kelly@leucotron.com.br • +55 (35) 99836-7488",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Onfly (reembolso / viagens)",
+        "slug": "onfly-reembolso-viagens",
+        "vendor": "Onfly",
+        "directorate": "RH / Financeiro",
+        "journey": null,
+        "category": "other",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Gestão de viagens corporativas e reembolsos",
+        "support_operation_note": null,
+        "owner_tech": "Luiz Procopio",
+        "owner_business": "Natália Alexandre",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "integracao@onfly.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "atendimento@onfly.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "SCL (Sistema de Compras Leo)",
+        "slug": "scl-sistema-de-compras-leo",
+        "vendor": "Leo Madeiras (interno)",
+        "directorate": "Logística / Suprimentos",
+        "journey": "Supply Chain",
+        "category": "internal_platform",
+        "environment": "saas_internal",
+        "cloud": "gcp",
+        "contract_status": "unknown",
+        "description": "Gestão de compras e suprimentos Leo",
+        "support_operation_note": "Time interno",
+        "owner_tech": "Daniel Gallinari",
+        "owner_business": "Cauê Abrantes",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "daniel.gallinari@leomadeiras.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "daniel.gallinari@leomadeiras.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Senior WMS",
+        "slug": "senior-wms",
+        "vendor": "Senior Sistemas",
+        "directorate": "Logística",
+        "journey": "Logística",
+        "category": "tms",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Gestão de armazém e estoque (WMS)",
+        "support_operation_note": "Suporte em horario comercial x operação 24/7",
+        "owner_tech": "Luiz Procopio",
+        "owner_business": "Gleyce Silva",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "jairo.santos@senior.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "551195975",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Routeasy (roteirização)",
+        "slug": "routeasy-roteirizacao",
+        "vendor": "Routeasy",
+        "directorate": "Logística",
+        "journey": "Logística",
+        "category": "tms",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Roteirização e gestão de entregas / última milha",
+        "support_operation_note": "Suporte em horario comercial x operação 17h as 00h",
+        "owner_tech": "Luiz Procopio",
+        "owner_business": "Gleyce Silva",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "marcio.cordeiro@nstech.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "11 97266-5248",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Intelipost (frete / rastreio)",
+        "slug": "intelipost-frete-rastreio",
+        "vendor": "Intelipost",
+        "directorate": "Logística / Digital",
+        "journey": "Ecommerce",
+        "category": "tms",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Cotação de frete, rastreamento e gestão de transportadoras",
+        "support_operation_note": null,
+        "owner_tech": "Renato Vitor",
+        "owner_business": "Renato Vitor",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "yasmin.santana@intelipost.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "larissa.silva@intelipost.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Comprovei / NStech",
+        "slug": "comprovei-nstech",
+        "vendor": "NStech",
+        "directorate": "Logística",
+        "journey": "Logística",
+        "category": "tms",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "not_contracted",
+        "description": "Comprovante digital de entrega (POD)",
+        "support_operation_note": "Suporte em horario comercial x operação em horario comercial",
+        "owner_tech": "Luiz Procopio",
+        "owner_business": "Gleyce Silva",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "marcio.cordeiro@nstech.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "11 97266-5248",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Mantran (TMS)",
+        "slug": "mantran-tms",
+        "vendor": "Mantran",
+        "directorate": "Logística",
+        "journey": "Logística",
+        "category": "tms",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Gestão de transportes (TMS) e frete",
+        "support_operation_note": "Suporte em horario comercial x operação em horario comercial",
+        "owner_tech": "Luiz Procopio",
+        "owner_business": "Gleyce Silva",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "marisa.alves@mantran.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "19 97406-2692",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Único Soluções (embarcador) • Será descontinuado",
+        "slug": "unico-solucoes-embarcador-sera-descontinuado",
+        "vendor": "Único Soluções",
+        "directorate": "RH / Financeiro",
+        "journey": null,
+        "category": "tms",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Gestão de embarques e expedição",
+        "support_operation_note": null,
+        "owner_tech": "Alexandra Marques",
+        "owner_business": "Alexandra Marques",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "info@unicosolucoes.com",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Aecorsoft (SAP → BQ)",
+        "slug": "aecorsoft-sap-bq",
+        "vendor": "Aecorsoft",
+        "directorate": "TI / Dados",
+        "journey": "Dados",
+        "category": "data_bi",
+        "environment": "on_premise",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Etiquetas de expedição e integração WMS",
+        "support_operation_note": null,
+        "owner_tech": "Fabio Roldão",
+        "owner_business": "Fabio Roldão",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "alexandre.winkel@aecorsoft.com",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "alexandre.winkel@aecorsoft.com",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Projuris (gestão jurídica)",
+        "slug": "projuris-gestao-juridica",
+        "vendor": "Softplan",
+        "directorate": "Jurídico",
+        "journey": "Jurídico",
+        "category": "legal_grc",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Gestão de processos jurídicos e contratos",
+        "support_operation_note": null,
+        "owner_tech": "Luiz Procopio",
+        "owner_business": "Elvis Ferreira",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "gustavo.moreira@projuris.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "lincoln.possani@projuris.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Decom Slice (analytics SC)",
+        "slug": "decom-slice-analytics-sc",
+        "vendor": "Sauter Tecnologia",
+        "directorate": "Supply Chain / Dados",
+        "journey": "Supply Chain",
+        "category": "data_bi",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Analytics e visibilidade de supply chain",
+        "support_operation_note": null,
+        "owner_tech": "Fabio Roldão",
+        "owner_business": "Fabio Roldão",
+        "vendor_contacts": [],
+        "status": "active"
+    },
+    {
+        "name": "CorteCloud (lojas / corte)",
+        "slug": "cortecloud-lojas-corte",
+        "vendor": "Serrabits",
+        "directorate": "Varejo / Operações",
+        "journey": "Fabrica",
+        "category": "manufacturing",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Gestão de corte e estoque nas lojas",
+        "support_operation_note": null,
+        "owner_tech": "Daniel Gallinari",
+        "owner_business": "Fabio Caldart",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "beto@serrabits.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "candido@serrabits.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Netrin (crédito / risco)",
+        "slug": "netrin-credito-risco",
+        "vendor": "Netrin",
+        "directorate": "Financeiro / Comercial",
+        "journey": "Loja",
+        "category": "payments",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Consulta de crédito e análise de risco de clientes",
+        "support_operation_note": null,
+        "owner_tech": "Luiz Procopio",
+        "owner_business": "Andrea Souza",
+        "vendor_contacts": [],
+        "status": "active"
+    },
+    {
+        "name": "Clear Sale (antifraude)",
+        "slug": "clear-sale-antifraude",
+        "vendor": "Clear Sale",
+        "directorate": "Marketing / Digital",
+        "journey": "Ecommerce",
+        "category": "payments",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Análise e prevenção de fraude em transações online",
+        "support_operation_note": null,
+        "owner_tech": "Renato Vitor",
+        "owner_business": "Renato Vitor",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "Stefani.SOliveira@experian.com",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "+55 11 93959-0267",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Stefani Silva Oliveira (+55 11 93959-0267) <Stefani.SOliveira@experian.com>",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "Stefani.SOliveira@experian.com",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "+55 11 93959-0267",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Stefani Silva Oliveira (+55 11 93959-0267) <Stefani.SOliveira@experian.com>",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "CWS Digital (marketing)",
+        "slug": "cws-digital-marketing",
+        "vendor": "CWS Digital",
+        "directorate": "Marketing",
+        "journey": "Ecommerce",
+        "category": "marketing",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Automação de campanhas de marketing digital",
+        "support_operation_note": null,
+        "owner_tech": "Renato Vitor",
+        "owner_business": "Renato Vitor",
+        "vendor_contacts": [
+            {
+                "type": "other",
+                "value": "Jira",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "cassio.melo@cws.digital",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Securiti (gestão consentimento)",
+        "slug": "securiti-gestao-consentimento",
+        "vendor": "Securiti / BWSEC",
+        "directorate": "Jurídico / TI",
+        "journey": "Ecommerce",
+        "category": "legal_grc",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Plataforma LGPD – gestão de consentimento e privacidade",
+        "support_operation_note": null,
+        "owner_tech": "Luiz Procopio",
+        "owner_business": "Roberta Garcia",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "henrique.assis@shieldsec.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "securiti.ai@shieldsec.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Google Cloud Platform (GCP)",
+        "slug": "google-cloud-platform-gcp",
+        "vendor": "Google Cloud",
+        "directorate": "TI / Dados",
+        "journey": "Dados",
+        "category": "infrastructure",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Infraestrutura de nuvem principal (migração Azure → GCP)",
+        "support_operation_note": null,
+        "owner_tech": "Amauri Costa",
+        "owner_business": "Amauri Costa",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "amauri.costa@leomadeiras.com.br",
+                "label": "tech-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Google BigQuery",
+        "slug": "google-bigquery",
+        "vendor": "Google Cloud",
+        "directorate": "Dados",
+        "journey": "Dados",
+        "category": "data_bi",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Data warehouse analítico corporativo",
+        "support_operation_note": null,
+        "owner_tech": "Fabio Roldão",
+        "owner_business": "Fabio Roldão",
+        "vendor_contacts": [
+            {
+                "type": "other",
+                "value": "N/A",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "N/A",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Airbyte (ETL/ELT)",
+        "slug": "airbyte-etl-elt",
+        "vendor": "Airbyte",
+        "directorate": "Dados",
+        "journey": "Dados",
+        "category": "data_bi",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Ingestão e integração de dados (ETL/ELT)",
+        "support_operation_note": null,
+        "owner_tech": "Fabio Roldão",
+        "owner_business": "Fabio Roldão",
+        "vendor_contacts": [
+            {
+                "type": "other",
+                "value": "N/A",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "N/A",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Power BI",
+        "slug": "power-bi",
+        "vendor": "Microsoft",
+        "directorate": "Dados / Gestão",
+        "journey": "Analytics",
+        "category": "data_bi",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Business intelligence e relatórios gerenciais",
+        "support_operation_note": null,
+        "owner_tech": "Fabio Roldão",
+        "owner_business": "Fabio Roldão",
+        "vendor_contacts": [
+            {
+                "type": "other",
+                "value": "N/A",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "N/A",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Elasticsearch (busca / logs)",
+        "slug": "elasticsearch-busca-logs",
+        "vendor": "Elastic",
+        "directorate": "TI / Dados",
+        "journey": "Loja",
+        "category": "data_bi",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Motor de busca e análise de logs de aplicações",
+        "support_operation_note": null,
+        "owner_tech": "Daniel Gallinari",
+        "owner_business": "Luiz Procópio",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "ask_support@elastic.co",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "+55 11 98154-8154",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Wagner Barbieri - +55 11 98154-8154",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Gitbook (base de conhecimento)",
+        "slug": "gitbook-base-de-conhecimento",
+        "vendor": "GitBook Inc",
+        "directorate": "TI",
+        "journey": "TI",
+        "category": "other",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "card",
+        "description": "Documentação técnica e base de conhecimento interna",
+        "support_operation_note": null,
+        "owner_tech": "Aleksandr Kopelevitch",
+        "owner_business": "Luiz Procópio",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "support@gitbook.com",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "support@gitbook.com",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Digibee (iPaaS)",
+        "slug": "digibee-ipaas",
+        "vendor": "Digibee",
+        "directorate": "TI / Digital",
+        "journey": "Integrador",
+        "category": "ipaas",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Integração entre SAP, SVL, dados e parceiros",
+        "support_operation_note": null,
+        "owner_tech": "Aleksandr Kopelevitch",
+        "owner_business": "Luiz Procópio",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "support@digibee.com",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "+55 11 94396-5395",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Guilherme Nespoli • +55 11 94396-5395",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Auth0 (identidade / SSO)",
+        "slug": "auth0-identidade-sso",
+        "vendor": "Auth0 (Okta)",
+        "directorate": "TI / Digital",
+        "journey": "TI",
+        "category": "iam",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "card",
+        "description": "Gerenciamento de identidade e autenticação (IAM/SSO)",
+        "support_operation_note": null,
+        "owner_tech": "Amauri Costa",
+        "owner_business": "Amauri Costa",
+        "vendor_contacts": [
+            {
+                "type": "other",
+                "value": "https://auth0.com/contact-us",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "https://auth0.com/contact-us",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "SIAC IT Services",
+        "slug": "siac-it-services",
+        "vendor": "SIAC IT Services",
+        "directorate": "TI / Infraestrutura",
+        "journey": "Loja",
+        "category": "itsm",
+        "environment": "on_premise",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Serviços de infraestrutura e suporte de TI",
+        "support_operation_note": null,
+        "owner_tech": "Elaine Cristina",
+        "owner_business": "Eduardo Minichello",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "sergio.sato@ncratleos.com",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Sergio Sato • sergio.sato@ncratleos.com",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "claudio.santos@conexao-tech.com",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Cláudio • claudio.santos@conexao-tech.com",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "CORE APIs (base Leo)",
+        "slug": "core-apis-base-leo",
+        "vendor": "Leo Madeiras (interno)",
+        "directorate": "TI / Digital",
+        "journey": "Loja",
+        "category": "internal_platform",
+        "environment": "saas_internal",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "APIs base compartilhadas por todos os sistemas Leo",
+        "support_operation_note": "Time interno",
+        "owner_tech": "Willian Vicente (Prezensa)",
+        "owner_business": "Ricardo Alexandre",
+        "vendor_contacts": [
+            {
+                "type": "other",
+                "value": "N/A",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "N/A",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Portal RedeLeo (rede de parceiros)",
+        "slug": "portal-redeleo-rede-de-parceiros",
+        "vendor": "Leo Madeiras (interno)",
+        "directorate": "Digital / Comercial",
+        "journey": "Associados",
+        "category": "internal_platform",
+        "environment": "saas_internal",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Plataforma de rede de parceiros e lojistas Leo",
+        "support_operation_note": "Time interno",
+        "owner_tech": "Daniel Gallinari",
+        "owner_business": "Juliana Souza",
+        "vendor_contacts": [
+            {
+                "type": "phone",
+                "value": "+55 11 98339-3696",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "+55 11 98496-7546",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "UNICA - Danilo Ferreira - +55 11 98339-3696\nSistemas - Danilo Ferrari - +55 11 98496-7546",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "+55 11 98339-3696",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "+55 11 98496-7546",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "UNICA - Danilo Ferreira - +55 11 98339-3696\nSistemas - Danilo Ferrari - +55 11 98496-7546",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Penca de Produtos",
+        "slug": "penca-de-produtos",
+        "vendor": "Leo Madeiras (interno)",
+        "directorate": "Digital",
+        "journey": "Loja",
+        "category": "internal_platform",
+        "environment": "saas_internal",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Plataforma interna Leo",
+        "support_operation_note": "Time interno",
+        "owner_tech": "Ricardo Alexandre",
+        "owner_business": "Arthur Soares",
+        "vendor_contacts": [
+            {
+                "type": "other",
+                "value": "N/A",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "N/A",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Agendamento Leo",
+        "slug": "agendamento-leo",
+        "vendor": "Leo Madeiras (interno)",
+        "directorate": "Digital / Operações",
+        "journey": "Supply Chain",
+        "category": "internal_platform",
+        "environment": "saas_internal",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Gestão de agendamentos de serviços e entregas",
+        "support_operation_note": "Time interno",
+        "owner_tech": "Ricardo Alexandre",
+        "owner_business": "Cauê Abrantes",
+        "vendor_contacts": [
+            {
+                "type": "other",
+                "value": "N/A",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "N/A",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Otimizador (Leo interno)",
+        "slug": "otimizador-leo-interno",
+        "vendor": "Leo Madeiras (interno)",
+        "directorate": "Digital / Operações",
+        "journey": "Fabrica",
+        "category": "manufacturing",
+        "environment": "saas_internal",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Otimização de processos operacionais internos",
+        "support_operation_note": "Time interno",
+        "owner_tech": "Daniel Gallinari",
+        "owner_business": "Robson Costa",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "domingos@dotproduct.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Domingos Dellamonica Junior - domingos@dotproduct.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "domingos@dotproduct.com.br",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Domingos Dellamonica Junior - domingos@dotproduct.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Senior HCM",
+        "slug": "senior-hcm",
+        "vendor": "Senior Sistemas (MEGAPC)",
+        "directorate": "Gente & Cultura",
+        "journey": "RH",
+        "category": "hcm",
+        "environment": "on_premise",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Gestão de pessoas",
+        "support_operation_note": "MegaPC",
+        "owner_tech": "Alexandra Marques",
+        "owner_business": "Merylyn Cristina",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "geovana@megapc.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Geovana Okamura  <geovana@megapc.com.br>",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "11 98136-3937",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "DEPS (crédito / risco)",
+        "slug": "deps-credito-risco",
+        "vendor": "DEPS",
+        "directorate": "Financeiro",
+        "journey": "Crédito",
+        "category": "payments",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Análise de crédito e risco de clientes",
+        "support_operation_note": null,
+        "owner_tech": "Juciane Silva / José Ferreira",
+        "owner_business": "Guilherme / Alex",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "fernando@deps.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "atendimento@deps.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Inhire (recrutamento)",
+        "slug": "inhire-recrutamento",
+        "vendor": "Inhire",
+        "directorate": "Gente & Cultura",
+        "journey": "RH",
+        "category": "hcm",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Plataforma de recrutamento e seleção",
+        "support_operation_note": null,
+        "owner_tech": "Alexandra Marques",
+        "owner_business": "Patrick Santana",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "augusto@inhire.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "augusto@inhire.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Insider (marketing / personalização)",
+        "slug": "insider-marketing-personalizacao",
+        "vendor": "Insider",
+        "directorate": "Marketing / Digital",
+        "journey": "Ecommerce",
+        "category": "marketing",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Personalização e engajamento de marketing digital",
+        "support_operation_note": null,
+        "owner_tech": "Renato Vitor",
+        "owner_business": "Renato Vitor",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "andrei.fabretti@useinsider.com",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "pedro.jesus@useinsider.com",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "saulo.vieira@useinsider.com",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "PromobWorker (gestão fábrica)",
+        "slug": "promobworker-gestao-fabrica",
+        "vendor": "Cyncly",
+        "directorate": "Operações / Fábrica LSM",
+        "journey": "Fabrica",
+        "category": "manufacturing",
+        "environment": "on_premise",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Gestão de processos da fábrica LSM",
+        "support_operation_note": null,
+        "owner_tech": "João Paulo Boaretto",
+        "owner_business": "Robson Costa",
+        "vendor_contacts": [
+            {
+                "type": "phone",
+                "value": "+55 54 99179-4254",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Iuri Lobato - +55 54 99179-4254",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "+55 54 99179-4254",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Iuri Lobato - +55 54 99179-4254",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "PromobCatalog (catálogo fábrica)",
+        "slug": "promobcatalog-catalogo-fabrica",
+        "vendor": "Cyncly",
+        "directorate": "Operações / Fábrica LSM",
+        "journey": "Fabrica",
+        "category": "manufacturing",
+        "environment": "on_premise",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Catálogo de produtos da fábrica LSM",
+        "support_operation_note": null,
+        "owner_tech": "João Paulo Boaretto",
+        "owner_business": "Robson Costa",
+        "vendor_contacts": [
+            {
+                "type": "phone",
+                "value": "+55 54 99179-4254",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Iuri Lobato - +55 54 99179-4254",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "+55 54 99179-4254",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Iuri Lobato - +55 54 99179-4254",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Universo Leo (endomarketing)",
+        "slug": "universo-leo-endomarketing",
+        "vendor": "Leo Madeiras (interno)",
+        "directorate": "Gente & Cultura / Comunicação",
+        "journey": "RH",
+        "category": "hcm",
+        "environment": "saas_internal",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Plataforma de endomarketing e comunicação interna",
+        "support_operation_note": null,
+        "owner_tech": "Neto Cerasi",
+        "owner_business": "Neto Cerasi",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "rolando.neto@leomadeiras.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "rolando.neto@leomadeiras.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "SentinelOne (EDR)",
+        "slug": "sentinelone-edr",
+        "vendor": "ISH",
+        "directorate": "TI / Segurança",
+        "journey": "TI",
+        "category": "security",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Endpoint Detection and Response – proteção de endpoints",
+        "support_operation_note": "ISH",
+        "owner_tech": "Miguel Chagas",
+        "owner_business": "Celso Bueno",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "rafael.cunha@visioncybersecurity.com",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "poliana.oliveira@ish.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Proofpoint (DLP)",
+        "slug": "proofpoint-dlp",
+        "vendor": "ISH",
+        "directorate": "TI / Segurança",
+        "journey": "TI",
+        "category": "security",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Prevenção contra vazamento de dados",
+        "support_operation_note": "ISH",
+        "owner_tech": "Miguel Chagas",
+        "owner_business": "Celso Bueno",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "rafael.cunha@visioncybersecurity.com",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "poliana.oliveira@ish.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Qualys (Gestão Vulnerabilidades e Patches)",
+        "slug": "qualys-gestao-vulnerabilidades-e-patches",
+        "vendor": "ISH",
+        "directorate": "TI / Segurança",
+        "journey": "TI",
+        "category": "security",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Scan e gestão de vulnerabilidades de infraestrutura e aplicação de patches de SO e aplicação",
+        "support_operation_note": "ISH",
+        "owner_tech": "Miguel Chagas",
+        "owner_business": "Celso Bueno",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "rafael.cunha@visioncybersecurity.com",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "poliana.oliveira@ish.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Mantis (CTI)",
+        "slug": "mantis-cti",
+        "vendor": "ISH",
+        "directorate": "TI / Segurança",
+        "journey": "TI",
+        "category": "security",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Monitoramento de deep/dark web, foruns, redes sociais e marcas buscando vazamentos, phishing etc.",
+        "support_operation_note": "ISH",
+        "owner_tech": "Miguel Chagas",
+        "owner_business": "Celso Bueno",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "rafael.cunha@visioncybersecurity.com",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "poliana.oliveira@ish.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "VaultOne (PAM)",
+        "slug": "vaultone-pam",
+        "vendor": "ISH",
+        "directorate": "TI / Segurança",
+        "journey": "TI",
+        "category": "security",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Ferramenta de gestão de credencias e monitoramento de acessos remotos de servidores e aplicações web",
+        "support_operation_note": "ISH",
+        "owner_tech": "Miguel Chagas",
+        "owner_business": "Celso Bueno",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "rafael.cunha@visioncybersecurity.com",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "poliana.oliveira@ish.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Azion (WAF)",
+        "slug": "azion-waf",
+        "vendor": "Azion",
+        "directorate": "TI / Segurança",
+        "journey": "TI",
+        "category": "security",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Protação de aplicações WEB que estão publicas para a internet",
+        "support_operation_note": "AZION",
+        "owner_tech": "Miguel Chagas",
+        "owner_business": "Celso Bueno",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "valeria.scalcon@azion.com",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "ariane.machado@azion.com",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Securonix (SIEM)",
+        "slug": "securonix-siem",
+        "vendor": "ISH",
+        "directorate": "TI / Segurança",
+        "journey": "TI",
+        "category": "security",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Centralizador de logs de segurança",
+        "support_operation_note": "ISH",
+        "owner_tech": "Miguel Chagas",
+        "owner_business": "Celso Bueno",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "rafael.cunha@visioncybersecurity.com",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "poliana.oliveira@ish.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Smart (eficiência fiscal)",
+        "slug": "smart-eficiencia-fiscal",
+        "vendor": "Smart",
+        "directorate": "Fiscal / Financeiro",
+        "journey": null,
+        "category": "tax",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Gestão e otimização fiscal",
+        "support_operation_note": null,
+        "owner_tech": null,
+        "owner_business": "Vinicius Defacio",
+        "vendor_contacts": [
+            {
+                "type": "other",
+                "value": "https://smartonline.app",
+                "label": "tech-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Eficiência Fiscal 70/30",
+        "slug": "eficiencia-fiscal-70-30",
+        "vendor": null,
+        "directorate": "Fiscal / Financeiro",
+        "journey": null,
+        "category": "tax",
+        "environment": null,
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Programa de eficiência fiscal – modelo 70/30",
+        "support_operation_note": null,
+        "owner_tech": null,
+        "owner_business": "Vinicius Defacio",
+        "vendor_contacts": [],
+        "status": "active"
+    },
+    {
+        "name": "Service Desk e Field Service",
+        "slug": "service-desk-e-field-service",
+        "vendor": "FindUP",
+        "directorate": "TI / Segurança",
+        "journey": null,
+        "category": "itsm",
+        "environment": null,
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Serviços de infraestrutura e suporte de TI",
+        "support_operation_note": null,
+        "owner_tech": "Danielle Morales",
+        "owner_business": "Danielle Morales",
+        "vendor_contacts": [
+            {
+                "type": "phone",
+                "value": "81) 8254-5070",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Gustavo Ferreira - (81) 8254-5070",
+                "label": "tech-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Telefonia Móvel",
+        "slug": "telefonia-movel",
+        "vendor": "Vivo Telefônica",
+        "directorate": "TI / Segurança",
+        "journey": null,
+        "category": "infrastructure",
+        "environment": null,
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Telefonia Móvel",
+        "support_operation_note": null,
+        "owner_tech": "Danielle Morales",
+        "owner_business": "Danielle Morales",
+        "vendor_contacts": [
+            {
+                "type": "phone",
+                "value": "11) 99956-2671",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Eduardo Ferrari - (11) 99956-2671",
+                "label": "tech-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Licenças Microsoft",
+        "slug": "licencas-microsoft",
+        "vendor": "Vivo Telefônica",
+        "directorate": "TI / Segurança",
+        "journey": null,
+        "category": "infrastructure",
+        "environment": null,
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Licenças Microsoft",
+        "support_operation_note": null,
+        "owner_tech": "Danielle Morales",
+        "owner_business": "Danielle Morales",
+        "vendor_contacts": [
+            {
+                "type": "phone",
+                "value": "11) 95680-2833",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Juliana da Cunha - (11) 95680-2833",
+                "label": "tech-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "GoTo Resolve (Acesso Remoto)",
+        "slug": "goto-resolve-acesso-remoto",
+        "vendor": "GoTo",
+        "directorate": "TI / Segurança",
+        "journey": null,
+        "category": "infrastructure",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Suporte Remoto",
+        "support_operation_note": null,
+        "owner_tech": "Danielle Morales",
+        "owner_business": "Danielle Morales",
+        "vendor_contacts": [
+            {
+                "type": "phone",
+                "value": "+52 1 55 8881 8646",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Jorge Reyes - +52 1 55 8881 8646",
+                "label": "tech-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Telefonia Fixa e IP",
+        "slug": "telefonia-fixa-e-ip",
+        "vendor": "Goto",
+        "directorate": "TI / Segurança",
+        "journey": null,
+        "category": "infrastructure",
+        "environment": "saas",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Telefonia corporativa e central de atendimento",
+        "support_operation_note": null,
+        "owner_tech": "Danielle Morales",
+        "owner_business": "Danielle Morales",
+        "vendor_contacts": [
+            {
+                "type": "phone",
+                "value": "11) 94026-7273",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Fabiano Vivencio - (11) 94026-7273",
+                "label": "tech-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Impressoras",
+        "slug": "impressoras",
+        "vendor": "Techub",
+        "directorate": "TI / Segurança",
+        "journey": null,
+        "category": "infrastructure",
+        "environment": null,
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Serviço de Impressão",
+        "support_operation_note": null,
+        "owner_tech": "Danielle Morales",
+        "owner_business": "Danielle Morales",
+        "vendor_contacts": [
+            {
+                "type": "phone",
+                "value": "11) 98951-3265",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Felipe Ferreira - (11) 98951-3265",
+                "label": "tech-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Videoconferencia - Salas de Reuniões",
+        "slug": "videoconferencia-salas-de-reunioes",
+        "vendor": "Netglobe",
+        "directorate": "TI / Segurança",
+        "journey": null,
+        "category": "infrastructure",
+        "environment": null,
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Videoconferencia salas de reuniões",
+        "support_operation_note": null,
+        "owner_tech": "Danielle Morales",
+        "owner_business": "Danielle Morales",
+        "vendor_contacts": [
+            {
+                "type": "phone",
+                "value": "19) 99700-5069",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Diego Biscaia - (19) 99700-5069",
+                "label": "tech-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Gestão Projetos Leoplan",
+        "slug": "gestao-projetos-leoplan",
+        "vendor": "Leo Madeiras (interno)",
+        "directorate": "Digital /Operações",
+        "journey": "Fabrica",
+        "category": "manufacturing",
+        "environment": "on_premise",
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": "Ferramenta de apoio para re-geração de arquivos do Leoplan",
+        "support_operation_note": null,
+        "owner_tech": "Daniel Gallinari",
+        "owner_business": "Fabio Caldart",
+        "vendor_contacts": [
+            {
+                "type": "phone",
+                "value": "+55 11 98862-4571",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Emerson Galdino - +55 11 98862-4571",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "+55 11 98862-4571",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Emerson Galdino - +55 11 98862-4571",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "DataLink - Corte",
+        "slug": "datalink-corte",
+        "vendor": "EuroSoft",
+        "directorate": "Digital /Operações",
+        "journey": "Fabrica",
+        "category": "manufacturing",
+        "environment": "on_premise",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Geração de arquivos de máquinas de planos de corte gerados pelo Leoplan",
+        "support_operation_note": "Eurosoft (DataLink)",
+        "owner_tech": "Daniel Gallinari",
+        "owner_business": "Fabio Caldart",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "domingos@dotproduct.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "support@eurosoftinc.com",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "domingos@dotproduct.com.br",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "djthomas@eurosoftinc.com",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "administration@eurosoftinc.com",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "DataLink -  Usinagem",
+        "slug": "datalink-usinagem",
+        "vendor": "EuroSoft",
+        "directorate": "Digital /Operações",
+        "journey": "Fabrica",
+        "category": "manufacturing",
+        "environment": "on_premise",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Geração de arquivos de máquinas de planos de corte gerados pelo Leoplan",
+        "support_operation_note": "Eurosoft (DataLink)",
+        "owner_tech": "Daniel Gallinari",
+        "owner_business": "Fabio Caldart",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "domingos@dotproduct.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "support@eurosoftinc.com",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "domingos@dotproduct.com.br",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "djthomas@eurosoftinc.com",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "administration@eurosoftinc.com",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Promob ERP",
+        "slug": "promob-erp",
+        "vendor": "Cyncly",
+        "directorate": "TI / Segurança",
+        "journey": "Fabrica",
+        "category": "manufacturing",
+        "environment": "on_premise",
+        "cloud": null,
+        "contract_status": "contracted",
+        "description": "Utilizado pela Leo Sob Medida e por uma parte do time de fábrica Leo - para PCP dos pedidos Leomob",
+        "support_operation_note": "Cyncly",
+        "owner_tech": "Daniel Gallinari",
+        "owner_business": "Danilo Reis",
+        "vendor_contacts": [
+            {
+                "type": "phone",
+                "value": "+55 54 99179-4254",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Iuri Lobato - +55 54 99179-4254",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "phone",
+                "value": "+55 54 99179-4254",
+                "label": "cs-am-fornecedor"
+            },
+            {
+                "type": "other",
+                "value": "Iuri Lobato - +55 54 99179-4254",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    },
+    {
+        "name": "Diligent One (GRC)",
+        "slug": "diligent-one-grc",
+        "vendor": "Diligent One / Cylk (Consultoria)",
+        "directorate": "Juridica / Compliance / Riscos",
+        "journey": "TI",
+        "category": "legal_grc",
+        "environment": null,
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": null,
+        "support_operation_note": null,
+        "owner_tech": null,
+        "owner_business": "Marcelo Oliveira",
+        "vendor_contacts": [],
+        "status": "active"
+    },
+    {
+        "name": "AccessOne (IAM)",
+        "slug": "accessone-iam",
+        "vendor": "AccessOne / Cylk (Consultoria)",
+        "directorate": "Compliance / Riscos e TI",
+        "journey": "TI",
+        "category": "iam",
+        "environment": null,
+        "cloud": null,
+        "contract_status": "unknown",
+        "description": null,
+        "support_operation_note": null,
+        "owner_tech": "Amauri Costa",
+        "owner_business": "Marcelo Oliveira",
+        "vendor_contacts": [
+            {
+                "type": "email",
+                "value": "leonardo.gardini@accessone.com.br",
+                "label": "tech-fornecedor"
+            },
+            {
+                "type": "email",
+                "value": "eudes.sousa@accessone.com.br",
+                "label": "cs-am-fornecedor"
+            }
+        ],
+        "status": "active"
+    }
+]

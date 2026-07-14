@@ -1,0 +1,31 @@
+# Dependências
+vendor/
+node_modules/
+
+# Build / assets
+dist/
+build/
+public/build/
+*.min.js
+
+# Cache / runtime
+storage/
+bootstrap/cache/
+__pycache__/
+*.log
+
+# Arquivos de lock
+*.lock
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+composer.lock
+
+# Git / IDE
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Testes (opcional, depende do uso)
+coverage/

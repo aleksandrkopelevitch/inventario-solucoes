@@ -1,0 +1,30 @@
+@media (width >= theme(--breakpoint-md)) {
+
+    .scrollbar {
+        scrollbar-width: thin;
+        scrollbar-color: #AAA #d8d8d8;
+    }
+
+    .scrollbar-invisible, .scrollbar-invisible::-webkit-scrollbar {
+        display: none;
+    }
+
+    ::-webkit-scrollbar {
+        width: 3px;
+        height: 3px;
+    }
+
+    ::-webkit-scrollbar-track {
+        border-radius: 10px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: #bfbfbf;
+        border-radius: 10px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: #f5c6b3;
+        cursor: crosshair;
+    }
+}

@@ -1,0 +1,1 @@
+<x-forms.image-upload name="logo" />

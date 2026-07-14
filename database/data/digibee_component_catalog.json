@@ -1,0 +1,12 @@
+{
+  "step_types": ["connector", "choice", "session-management", "delayer"],
+  "connector_names": [
+    "rest-connector-v2",
+    "json-generator-connector",
+    "jolt-connector-v2",
+    "for-each-connector",
+    "log-connector",
+    "object-store-connector",
+    "throw-error-connector"
+  ]
+}

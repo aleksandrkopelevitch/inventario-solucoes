@@ -1,0 +1,231 @@
+// Multi-select chips with an optional per-chip role ("papel") and an optional
+// server-backed autocomplete (search-url — see resources/views/components/forms/chips.blade.php).
+// Pure event delegation — registered once at module load, works with dynamic content.
+// Markup contract: see resources/views/components/forms/chips.blade.php
+
+import * as ajaxModule from './ajax'
+
+const SEARCH_DEBOUNCE_MS = 350
+const SEARCH_MIN_LENGTH = 2
+
+// container -> pending debounce timer id
+const searchTimers = new WeakMap()
+// container -> index of the highlighted result row
+const highlightedIndex = new WeakMap()
+
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+}
+
+function configOf(container) {
+    try {
+        return JSON.parse(container.dataset.akChips || '{}')
+    } catch {
+        return {}
+    }
+}
+
+function nextIndex(container) {
+    const n = parseInt(container.dataset.akChipsNext || '0', 10)
+    container.dataset.akChipsNext = String(n + 1)
+    return n
+}
+
+function roleSelectHtml(name, idx, roles, selected) {
+    if (!Array.isArray(roles) || !roles.length) return ''
+    const options = roles
+        .map((r) => `<option value="${escapeHtml(r.value)}" ${r.value === selected ? 'selected' : ''}>${escapeHtml(r.label)}</option>`)
+        .join('')
+    return `<select name="${escapeHtml(name)}[${idx}][role]" class="rounded bg-transparent text-xs text-ink focus:outline-none">${options}</select>`
+}
+
+function chipHtml(name, idx, value, label, roles) {
+    const v = escapeHtml(value)
+    const l = escapeHtml(label)
+    const selectedRole = Array.isArray(roles) && roles.length ? roles[0].value : null
+    return `<span data-ak-chip class="inline-flex items-center gap-1 rounded-full bg-accent-soft py-1 pl-2.5 pr-1 text-xs font-semibold text-ink ring-1 ring-accent-line">
+        <span>${l}</span>
+        ${roleSelectHtml(name, idx, roles, selectedRole)}
+        <button type="button" data-ak-chip-remove class="ml-0.5 rounded-full px-1 leading-none text-muted hover:bg-accent-line hover:text-ink" aria-label="Remover">&times;</button>
+        <input type="hidden" name="${escapeHtml(name)}[${idx}][value]" value="${v}">
+        <input type="hidden" name="${escapeHtml(name)}[${idx}][label]" value="${l}">
+    </span>`
+}
+
+function existingValues(container) {
+    return Array.from(container.querySelectorAll('[data-ak-chip] input[type="hidden"][name$="[value]"]')).map((i) => i.value)
+}
+
+function addChip(container, cfg, value, label) {
+    const value_ = String(value).trim()
+    if (!value_ || existingValues(container).includes(value_)) return
+
+    const list = container.querySelector('[data-ak-chips-list]')
+    if (!list) return
+
+    const idx = nextIndex(container)
+    list.insertAdjacentHTML('beforeend', chipHtml(cfg.name, idx, value_, label, cfg.roles))
+}
+
+function resultsContainerOf(container) {
+    return container.querySelector('[data-ak-chips-results]')
+}
+
+function hideResults(container) {
+    const results = resultsContainerOf(container)
+    if (!results) return
+
+    results.classList.add('hidden')
+    results.innerHTML = ''
+    highlightedIndex.set(container, -1)
+}
+
+function renderResults(container, items) {
+    const results = resultsContainerOf(container)
+    if (!results) return
+
+    if (!items.length) {
+        results.innerHTML = '<p class="px-3 py-1.5 text-xs text-faint">Nenhum resultado</p>'
+        results.classList.remove('hidden')
+        highlightedIndex.set(container, -1)
+        return
+    }
+
+    results.innerHTML = items
+        .map((item, i) => `<button type="button" data-ak-chips-result data-id="${escapeHtml(item.id)}" data-name="${escapeHtml(item.name)}" class="block w-full truncate px-3 py-1.5 text-left text-sm text-ink hover:bg-accent-soft ${i === 0 ? 'bg-accent-soft' : ''}">${escapeHtml(item.name)}</button>`)
+        .join('')
+    results.classList.remove('hidden')
+    highlightedIndex.set(container, 0)
+}
+
+function highlightAt(container, index) {
+    const buttons = resultsContainerOf(container)?.querySelectorAll('[data-ak-chips-result]')
+    if (!buttons || !buttons.length) return
+
+    const clamped = Math.max(0, Math.min(index, buttons.length - 1))
+    buttons.forEach((b, i) => b.classList.toggle('bg-accent-soft', i === clamped))
+    highlightedIndex.set(container, clamped)
+}
+
+// Picks the highlighted result (or the first one) and turns it into a chip.
+function selectHighlighted(container, cfg) {
+    const buttons = resultsContainerOf(container)?.querySelectorAll('[data-ak-chips-result]')
+    if (!buttons || !buttons.length) return false
+
+    const btn = buttons[highlightedIndex.get(container) ?? 0]
+    if (!btn) return false
+
+    addChip(container, cfg, btn.dataset.id, btn.dataset.name)
+    return true
+}
+
+async function search(container, cfg, term) {
+    try {
+        const response = await ajaxModule.init('GET', cfg.searchUrl + '?q=' + encodeURIComponent(term))
+        const data = await response.json()
+        renderResults(container, Array.isArray(data.results) ? data.results : [])
+    } catch {
+        hideResults(container)
+    }
+}
+
+// Debounced search-as-you-type — only when the field was rendered with search-url.
+document.addEventListener('input', (e) => {
+    const input = e.target.closest('[data-ak-chips-input]')
+    if (!input) return
+
+    const container = input.closest('[data-ak-chips]')
+    if (!container) return
+
+    const cfg = configOf(container)
+    if (!cfg.searchUrl) return
+
+    clearTimeout(searchTimers.get(container))
+
+    const term = input.value.trim()
+    if (term.length < SEARCH_MIN_LENGTH) {
+        hideResults(container)
+        return
+    }
+
+    searchTimers.set(container, setTimeout(() => search(container, cfg, term), SEARCH_DEBOUNCE_MS))
+})
+
+document.addEventListener('keydown', (e) => {
+    const input = e.target.closest('[data-ak-chips-input]')
+    if (!input) return
+
+    const container = input.closest('[data-ak-chips]')
+    if (!container) return
+
+    const cfg = configOf(container)
+
+    // With search-url, chips can only come from a picked result — no
+    // free-text Enter, since the value must be a real record id.
+    if (cfg.searchUrl) {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault()
+            highlightAt(container, (highlightedIndex.get(container) ?? -1) + 1)
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault()
+            highlightAt(container, (highlightedIndex.get(container) ?? 0) - 1)
+        } else if (e.key === 'Escape') {
+            hideResults(container)
+        } else if (e.key === 'Enter') {
+            e.preventDefault()
+            if (selectHighlighted(container, cfg)) {
+                input.value = ''
+                hideResults(container)
+            }
+        }
+        return
+    }
+
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+
+    const value = input.value.trim()
+    if (!value) return
+
+    addChip(container, cfg, value, value)
+    input.value = ''
+})
+
+document.addEventListener('click', (e) => {
+    const resultBtn = e.target.closest('[data-ak-chips-result]')
+    if (resultBtn) {
+        const container = resultBtn.closest('[data-ak-chips]')
+        if (container) {
+            addChip(container, configOf(container), resultBtn.dataset.id, resultBtn.dataset.name)
+            const input = container.querySelector('[data-ak-chips-input]')
+            if (input) {
+                input.value = ''
+                input.focus()
+            }
+            hideResults(container)
+        }
+        return
+    }
+
+    const removeBtn = e.target.closest('[data-ak-chip-remove]')
+    if (removeBtn) {
+        removeBtn.closest('[data-ak-chip]')?.remove()
+        return
+    }
+
+    // Close any open results dropdown when clicking outside its chips field.
+    document.querySelectorAll('[data-ak-chips-results]:not(.hidden)').forEach((results) => {
+        const container = results.closest('[data-ak-chips]')
+        if (container && !container.contains(e.target)) {
+            hideResults(container)
+        }
+    })
+})
+
+// No-op — delegation is registered at module load above.
+export function init() {}
