@@ -1,6 +1,8 @@
 <?php
 
+use App\Models\DocumentationGroup;
 use App\Models\DocumentationPage;
+use App\Models\Integration;
 use App\Models\Solution;
 use App\Services\Flowspec\FlowspecContextResolver;
 use Database\Seeders\FlowspecExampleSeeder;
@@ -69,5 +71,63 @@ it('cuts documentation pages to the budget, flagging what was omitted', function
     $context = (new FlowspecContextResolver)->resolve('post de token no svl');
 
     expect($context->pages->pluck('title')->all())->toBe(['Endpoints'])
-        ->and($context->omittedPages)->toBe(['Histórico']);
+        ->and($context->omittedDocuments)->toBe(['Histórico']);
+});
+
+it('includes documentation of integrations the considered solutions participate in', function () {
+    $iam = Solution::factory()->create(['name' => 'IAM']);
+    $svl = Solution::factory()->create(['name' => 'SVL']);
+    $sap = Solution::factory()->create(['name' => 'SAP']);
+
+    $integration = Integration::factory()->create([
+        'name'               => 'Access One -> SVL -> SAP | Gestão de Atendentes',
+        'source_solution_id' => $iam->id,
+        'target_solution_id' => $sap->id,
+        'documentation'      => 'fluxo completo de gestão de atendentes',
+    ]);
+    $integration->participants()->attach([
+        $iam->id => ['position' => 0],
+        $svl->id => ['position' => 1],
+        $sap->id => ['position' => 2],
+    ]);
+
+    $context = (new FlowspecContextResolver)->resolve('crie um flowspec para o IAM', [$iam->id]);
+
+    expect($context->integrationDocs->pluck('name')->all())->toBe([$integration->name]);
+});
+
+it('does not include integration documentation when no considered solution participates in it', function () {
+    $iam = Solution::factory()->create(['name' => 'IAM']);
+    Solution::factory()->create(['name' => 'Protheus']);
+
+    Integration::factory()->create(['documentation' => 'não deveria aparecer']);
+
+    $context = (new FlowspecContextResolver)->resolve('crie um flowspec para o IAM', [$iam->id]);
+
+    expect($context->integrationDocs)->toBeEmpty();
+});
+
+it('uses exactly the explicitly chosen documents, bypassing scoring and the budget cut', function () {
+    config()->set('services.flowspec.doc_budget_chars', 10);
+
+    $svl = Solution::factory()->create(['name' => 'SVL']);
+    $group = DocumentationGroup::factory()->create();
+    $page = DocumentationPage::factory()->for($group, 'container')->create([
+        'title'         => 'Processo transversal',
+        'documentation' => str_repeat('conteudo irrelevante para o pedido ', 20),
+    ]);
+    $integration = Integration::factory()->create(['documentation' => str_repeat('doc de integracao irrelevante ', 20)]);
+
+    $context = (new FlowspecContextResolver)->resolve(
+        'bom dia',
+        [$svl->id],
+        [
+            ['type' => 'page', 'id' => $page->id],
+            ['type' => 'integration', 'id' => $integration->id],
+        ],
+    );
+
+    expect($context->pages->pluck('id')->all())->toBe([$page->id])
+        ->and($context->integrationDocs->pluck('id')->all())->toBe([$integration->id])
+        ->and($context->omittedDocuments)->toBe([]);
 });

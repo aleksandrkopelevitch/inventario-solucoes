@@ -63,36 +63,74 @@
 
             <?php if (isset($component)) { $__componentOriginal788c5626c9f4f85906027b3ea3343fab = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal788c5626c9f4f85906027b3ea3343fab = $attributes; } ?>
-<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.forms.field','data' => ['label' => 'Contexto de documentação (opcional)','for' => 'flowspec-new-solutions','name' => 'solutions','hint' => 'Segure Ctrl/Cmd para marcar mais de uma. Sem seleção, os sistemas são inferidos do texto.']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.forms.field','data' => ['label' => 'Documentação usada','name' => 'solutions','hint' => 'Busque e adicione sistemas para priorizar a documentação deles no prompt. Sem seleção, são inferidos do texto.']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
 <?php $component->withName('forms.field'); ?>
 <?php if ($component->shouldRender()): ?>
 <?php $__env->startComponent($component->resolveView(), $component->data()); ?>
 <?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
 <?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
 <?php endif; ?>
-<?php $component->withAttributes(['label' => 'Contexto de documentação (opcional)','for' => 'flowspec-new-solutions','name' => 'solutions','hint' => 'Segure Ctrl/Cmd para marcar mais de uma. Sem seleção, os sistemas são inferidos do texto.']); ?>
-                <?php if (isset($component)) { $__componentOriginal7041cc63efd62f0450fe4bb37aadf484 = $component; } ?>
-<?php if (isset($attributes)) { $__attributesOriginal7041cc63efd62f0450fe4bb37aadf484 = $attributes; } ?>
-<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.forms.select','data' => ['id' => 'flowspec-new-solutions','name' => 'solutions[]','multiple' => true,'size' => '5']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
-<?php $component->withName('forms.select'); ?>
+<?php $component->withAttributes(['label' => 'Documentação usada','name' => 'solutions','hint' => 'Busque e adicione sistemas para priorizar a documentação deles no prompt. Sem seleção, são inferidos do texto.']); ?>
+                <?php if (isset($component)) { $__componentOriginalf6d00911ab92bb8c5e45a70991c07ef8 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginalf6d00911ab92bb8c5e45a70991c07ef8 = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.forms.chips','data' => ['name' => 'solutions','searchUrl' => route('solutions.search'),'placeholder' => 'Buscar sistema…']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('forms.chips'); ?>
 <?php if ($component->shouldRender()): ?>
 <?php $__env->startComponent($component->resolveView(), $component->data()); ?>
 <?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
 <?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
 <?php endif; ?>
-<?php $component->withAttributes(['id' => 'flowspec-new-solutions','name' => 'solutions[]','multiple' => true,'size' => '5']); ?>
-                    <?php $__currentLoopData = $solutions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $solution): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                        <option value="<?php echo e($solution->id); ?>"><?php echo e($solution->name); ?></option>
-                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
-                 <?php echo $__env->renderComponent(); ?>
+<?php $component->withAttributes(['name' => 'solutions','search-url' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute(route('solutions.search')),'placeholder' => 'Buscar sistema…']); ?>
+<?php echo $__env->renderComponent(); ?>
 <?php endif; ?>
-<?php if (isset($__attributesOriginal7041cc63efd62f0450fe4bb37aadf484)): ?>
-<?php $attributes = $__attributesOriginal7041cc63efd62f0450fe4bb37aadf484; ?>
-<?php unset($__attributesOriginal7041cc63efd62f0450fe4bb37aadf484); ?>
+<?php if (isset($__attributesOriginalf6d00911ab92bb8c5e45a70991c07ef8)): ?>
+<?php $attributes = $__attributesOriginalf6d00911ab92bb8c5e45a70991c07ef8; ?>
+<?php unset($__attributesOriginalf6d00911ab92bb8c5e45a70991c07ef8); ?>
 <?php endif; ?>
-<?php if (isset($__componentOriginal7041cc63efd62f0450fe4bb37aadf484)): ?>
-<?php $component = $__componentOriginal7041cc63efd62f0450fe4bb37aadf484; ?>
-<?php unset($__componentOriginal7041cc63efd62f0450fe4bb37aadf484); ?>
+<?php if (isset($__componentOriginalf6d00911ab92bb8c5e45a70991c07ef8)): ?>
+<?php $component = $__componentOriginalf6d00911ab92bb8c5e45a70991c07ef8; ?>
+<?php unset($__componentOriginalf6d00911ab92bb8c5e45a70991c07ef8); ?>
+<?php endif; ?>
+             <?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginal788c5626c9f4f85906027b3ea3343fab)): ?>
+<?php $attributes = $__attributesOriginal788c5626c9f4f85906027b3ea3343fab; ?>
+<?php unset($__attributesOriginal788c5626c9f4f85906027b3ea3343fab); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginal788c5626c9f4f85906027b3ea3343fab)): ?>
+<?php $component = $__componentOriginal788c5626c9f4f85906027b3ea3343fab; ?>
+<?php unset($__componentOriginal788c5626c9f4f85906027b3ea3343fab); ?>
+<?php endif; ?>
+
+            <?php if (isset($component)) { $__componentOriginal788c5626c9f4f85906027b3ea3343fab = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal788c5626c9f4f85906027b3ea3343fab = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.forms.field','data' => ['label' => 'Documentos específicos (opcional)','name' => 'documents','hint' => 'Escolha páginas de documentação ou integrações específicas para usar exatamente essas, sem a seleção automática por relevância.']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('forms.field'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes(['label' => 'Documentos específicos (opcional)','name' => 'documents','hint' => 'Escolha páginas de documentação ou integrações específicas para usar exatamente essas, sem a seleção automática por relevância.']); ?>
+                <?php if (isset($component)) { $__componentOriginalf6d00911ab92bb8c5e45a70991c07ef8 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginalf6d00911ab92bb8c5e45a70991c07ef8 = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.forms.chips','data' => ['name' => 'documents','searchUrl' => route('flowspec.documents.search'),'placeholder' => 'Buscar página ou integração…']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('forms.chips'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes(['name' => 'documents','search-url' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute(route('flowspec.documents.search')),'placeholder' => 'Buscar página ou integração…']); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginalf6d00911ab92bb8c5e45a70991c07ef8)): ?>
+<?php $attributes = $__attributesOriginalf6d00911ab92bb8c5e45a70991c07ef8; ?>
+<?php unset($__attributesOriginalf6d00911ab92bb8c5e45a70991c07ef8); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginalf6d00911ab92bb8c5e45a70991c07ef8)): ?>
+<?php $component = $__componentOriginalf6d00911ab92bb8c5e45a70991c07ef8; ?>
+<?php unset($__componentOriginalf6d00911ab92bb8c5e45a70991c07ef8); ?>
 <?php endif; ?>
              <?php echo $__env->renderComponent(); ?>
 <?php endif; ?>

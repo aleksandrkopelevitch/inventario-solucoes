@@ -36,24 +36,26 @@ function nextIndex(container) {
     return n
 }
 
-function roleSelectHtml(name, idx, roles, selected) {
+function roleSelectHtml(name, idx, roles, selected, form) {
     if (!Array.isArray(roles) || !roles.length) return ''
     const options = roles
         .map((r) => `<option value="${escapeHtml(r.value)}" ${r.value === selected ? 'selected' : ''}>${escapeHtml(r.label)}</option>`)
         .join('')
-    return `<select name="${escapeHtml(name)}[${idx}][role]" class="rounded bg-transparent text-xs text-ink focus:outline-none">${options}</select>`
+    const formAttr = form ? ` form="${escapeHtml(form)}"` : ''
+    return `<select name="${escapeHtml(name)}[${idx}][role]"${formAttr} class="rounded bg-transparent text-xs text-ink focus:outline-none">${options}</select>`
 }
 
-function chipHtml(name, idx, value, label, roles) {
+function chipHtml(name, idx, value, label, roles, form) {
     const v = escapeHtml(value)
     const l = escapeHtml(label)
     const selectedRole = Array.isArray(roles) && roles.length ? roles[0].value : null
+    const formAttr = form ? ` form="${escapeHtml(form)}"` : ''
     return `<span data-ak-chip class="inline-flex items-center gap-1 rounded-full bg-accent-soft py-1 pl-2.5 pr-1 text-xs font-semibold text-ink ring-1 ring-accent-line">
         <span>${l}</span>
-        ${roleSelectHtml(name, idx, roles, selectedRole)}
+        ${roleSelectHtml(name, idx, roles, selectedRole, form)}
         <button type="button" data-ak-chip-remove class="ml-0.5 rounded-full px-1 leading-none text-muted hover:bg-accent-line hover:text-ink" aria-label="Remover">&times;</button>
-        <input type="hidden" name="${escapeHtml(name)}[${idx}][value]" value="${v}">
-        <input type="hidden" name="${escapeHtml(name)}[${idx}][label]" value="${l}">
+        <input type="hidden" name="${escapeHtml(name)}[${idx}][value]"${formAttr} value="${v}">
+        <input type="hidden" name="${escapeHtml(name)}[${idx}][label]"${formAttr} value="${l}">
     </span>`
 }
 
@@ -69,7 +71,7 @@ function addChip(container, cfg, value, label) {
     if (!list) return
 
     const idx = nextIndex(container)
-    list.insertAdjacentHTML('beforeend', chipHtml(cfg.name, idx, value_, label, cfg.roles))
+    list.insertAdjacentHTML('beforeend', chipHtml(cfg.name, idx, value_, label, cfg.roles, cfg.form))
 }
 
 function resultsContainerOf(container) {
@@ -97,7 +99,10 @@ function renderResults(container, items) {
     }
 
     results.innerHTML = items
-        .map((item, i) => `<button type="button" data-ak-chips-result data-id="${escapeHtml(item.id)}" data-name="${escapeHtml(item.name)}" class="block w-full truncate px-3 py-1.5 text-left text-sm text-ink hover:bg-accent-soft ${i === 0 ? 'bg-accent-soft' : ''}">${escapeHtml(item.name)}</button>`)
+        .map((item, i) => `<button type="button" data-ak-chips-result data-id="${escapeHtml(item.id)}" data-name="${escapeHtml(item.name)}" class="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-sm text-ink hover:bg-accent-soft ${i === 0 ? 'bg-accent-soft' : ''}">
+            <span class="truncate">${escapeHtml(item.name)}</span>
+            ${item.meta ? `<span class="shrink-0 text-xs text-muted">${escapeHtml(item.meta)}</span>` : ''}
+        </button>`)
         .join('')
     results.classList.remove('hidden')
     highlightedIndex.set(container, 0)

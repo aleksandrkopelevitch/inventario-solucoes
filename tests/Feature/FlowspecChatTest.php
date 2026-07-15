@@ -2,9 +2,11 @@
 
 use App\Enums\UserRole;
 use App\Jobs\GenerateFlowspecReply;
+use App\Models\DocumentationPage;
 use App\Models\FlowspecChat;
 use App\Models\FlowspecExample;
 use App\Models\Integration;
+use App\Models\Solution;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
@@ -60,6 +62,67 @@ it('creates a chat, persists the user message and dispatches the generation job'
         ->and($chat->messages()->firstOrFail()->role)->toBe('user');
 
     Queue::assertPushed(GenerateFlowspecReply::class);
+});
+
+it('extracts solution ids from the chips payload (value/label pairs, not a flat id array)', function () {
+    Queue::fake();
+    $user = flowspecUser();
+    $svl = Solution::factory()->create(['name' => 'SVL']);
+
+    $this->actingAs($user)->postJson(route('flowspec.store'), [
+        'message'   => 'gera um flowspec de token para o SVL',
+        'solutions' => [['value' => $svl->id, 'label' => $svl->name]],
+    ])->assertOk();
+
+    $message = FlowspecChat::query()->firstOrFail()->messages()->firstOrFail();
+
+    expect($message->meta['solution_ids'])->toBe([$svl->id]);
+});
+
+it('extracts document refs from the chips payload (page:{id}/integration:{id})', function () {
+    Queue::fake();
+    $user = flowspecUser();
+    $page = DocumentationPage::factory()->for(Solution::factory(), 'container')->create(['documentation' => 'x']);
+    $integration = Integration::factory()->create(['documentation' => 'y']);
+
+    $this->actingAs($user)->postJson(route('flowspec.store'), [
+        'message'   => 'gera um flowspec',
+        'documents' => [
+            ['value' => "page:{$page->id}", 'label' => $page->title],
+            ['value' => "integration:{$integration->id}", 'label' => $integration->name],
+        ],
+    ])->assertOk();
+
+    $message = FlowspecChat::query()->firstOrFail()->messages()->firstOrFail();
+
+    expect($message->meta['document_refs'])->toBe([
+        ['type' => 'page', 'id' => $page->id],
+        ['type' => 'integration', 'id' => $integration->id],
+    ]);
+});
+
+it('rejects a malformed document reference', function () {
+    Queue::fake();
+    $user = flowspecUser();
+
+    $this->actingAs($user)->postJson(route('flowspec.store'), [
+        'message'   => 'gera um flowspec',
+        'documents' => [['value' => 'nao-existe:1', 'label' => 'x']],
+    ])->assertStatus(422);
+});
+
+it('searches documentation pages and integrations for the "Documentos específicos" chips picker', function () {
+    $user = flowspecUser();
+    $solution = Solution::factory()->create(['name' => 'SVL']);
+    $page = DocumentationPage::factory()->for($solution, 'container')->create(['title' => 'Autenticação', 'documentation' => 'x']);
+    $integration = Integration::factory()->create(['name' => 'Autenticação SVL -> IAM', 'documentation' => 'y']);
+    DocumentationPage::factory()->for($solution, 'container')->create(['title' => 'Sem relação', 'documentation' => 'z']);
+
+    $response = $this->actingAs($user)
+        ->getJson(route('flowspec.documents.search', ['q' => 'Autenticação']))
+        ->assertOk();
+
+    expect($response->json('results.*.id'))->toBe(["page:{$page->id}", "integration:{$integration->id}"]);
 });
 
 it('appends a message to an existing chat and dispatches the job', function () {

@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreFlowspecChatRequest;
 use App\Jobs\GenerateFlowspecReply;
+use App\Models\DocumentationPage;
 use App\Models\FlowspecChat;
-use App\Models\Solution;
+use App\Models\Integration;
 use App\View\Components\Flowspec\Thread;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -23,8 +25,7 @@ class FlowspecChatController extends Controller
         $this->authorize('viewAny', FlowspecChat::class);
 
         return view('flowspec.index', [
-            'chats'     => $request->user()->flowspecChats()->latest('updated_at')->withCount('messages')->get(),
-            'solutions' => Solution::query()->orderBy('name')->get(['id', 'name']),
+            'chats' => $request->user()->flowspecChats()->latest('updated_at')->withCount('messages')->get(),
         ]);
     }
 
@@ -37,7 +38,10 @@ class FlowspecChatController extends Controller
         $message = $chat->messages()->create([
             'role'    => 'user',
             'content' => $request->validated('message'),
-            'meta'    => ['solution_ids' => $request->validated('solutions') ?? []],
+            'meta'    => [
+                'solution_ids'  => $request->solutionIds(),
+                'document_refs' => $request->documentRefs(),
+            ],
         ]);
 
         GenerateFlowspecReply::dispatch($message);
@@ -50,8 +54,7 @@ class FlowspecChatController extends Controller
         $this->authorize('view', $chat);
 
         return view('flowspec.show', [
-            'chat'      => $chat->load('integration:id,name'),
-            'solutions' => Solution::query()->orderBy('name')->get(['id', 'name']),
+            'chat' => $chat->load('integration:id,name'),
         ]);
     }
 
@@ -71,5 +74,51 @@ class FlowspecChatController extends Controller
             'pending'        => $pending,
             'updatableSlots' => $pending ? [] : [Thread::slot($chat)],
         ]);
+    }
+
+    /**
+     * Busca do chips picker "Documentos específicos" — páginas de
+     * documentação (de qualquer Solution ou DocumentationGroup) e
+     * integrações com documentação própria, combinadas num resultado só.
+     * IDs vêm prefixados (`page:{id}`/`integration:{id}`) para o
+     * FlowspecDocumentReference/ParsesFlowspecContextInput distinguir os
+     * dois tipos ao salvar `meta.document_refs`.
+     */
+    public function searchDocuments(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', FlowspecChat::class);
+
+        $term = trim((string) $request->query('q', ''));
+
+        if ($term === '') {
+            return response()->json(['results' => []]);
+        }
+
+        $pages = DocumentationPage::query()
+            ->whereNotNull('documentation')
+            ->where('documentation', '<>', '')
+            ->where('title', 'like', "%{$term}%")
+            ->with('container')
+            ->limit(8)
+            ->get()
+            ->map(fn (DocumentationPage $page) => [
+                'id'   => "page:{$page->id}",
+                'name' => "{$page->container->name} — {$page->title}",
+                'meta' => 'Página de documentação',
+            ]);
+
+        $integrations = Integration::query()
+            ->whereNotNull('documentation')
+            ->where('documentation', '<>', '')
+            ->where('name', 'like', "%{$term}%")
+            ->limit(8)
+            ->get(['id', 'name'])
+            ->map(fn (Integration $integration) => [
+                'id'   => "integration:{$integration->id}",
+                'name' => $integration->name,
+                'meta' => 'Documentação de integração',
+            ]);
+
+        return response()->json(['results' => $pages->merge($integrations)->take(10)->values()]);
     }
 }

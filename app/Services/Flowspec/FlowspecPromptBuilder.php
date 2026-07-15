@@ -5,6 +5,7 @@ namespace App\Services\Flowspec;
 use App\Models\DocumentationPage;
 use App\Models\FlowspecExample;
 use App\Models\FlowspecMessage;
+use App\Models\Integration;
 use Illuminate\Support\Collection;
 
 /**
@@ -108,20 +109,24 @@ class FlowspecPromptBuilder
 
     private function documentationSection(FlowspecContext $context): string
     {
-        if ($context->pages->isEmpty()) {
+        if ($context->pages->isEmpty() && $context->integrationDocs->isEmpty()) {
             return '';
         }
 
-        $blocks = $context->pages->map(function (DocumentationPage $page) {
+        $pageBlocks = $context->pages->map(function (DocumentationPage $page) {
             $solution = $page->container->name;
 
             return "## {$solution} — {$page->title}\n\n{$page->documentation}";
         });
 
-        $section = "# DOCUMENTAÇÃO DOS SISTEMAS ENVOLVIDOS\n\n" . $blocks->implode("\n\n");
+        $integrationBlocks = $context->integrationDocs->map(function (Integration $integration) {
+            return "## Integração: {$integration->name}\n\n{$integration->documentation}";
+        });
 
-        if ($context->omittedPages !== []) {
-            $section .= "\n\n(Páginas omitidas por orçamento de contexto: " . implode('; ', $context->omittedPages) . ')';
+        $section = "# DOCUMENTAÇÃO DOS SISTEMAS ENVOLVIDOS\n\n" . $pageBlocks->merge($integrationBlocks)->implode("\n\n");
+
+        if ($context->omittedDocuments !== []) {
+            $section .= "\n\n(Documentos omitidos por orçamento de contexto: " . implode('; ', $context->omittedDocuments) . ')';
         }
 
         return $section;

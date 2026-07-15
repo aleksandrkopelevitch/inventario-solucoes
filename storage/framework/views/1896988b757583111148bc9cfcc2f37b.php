@@ -46,6 +46,44 @@
                         </ul>
                     <?php endif; ?>
 
+                    <?php if($canPromote): ?>
+                        <details class="mt-3">
+                            <summary class="cursor-pointer text-xs font-medium text-muted hover:text-ink">Contexto usado (debug)</summary>
+                            <dl class="mt-2 flex flex-col gap-2 rounded-field border border-line bg-canvas p-3 text-xs text-body">
+                                <div>
+                                    <dt class="font-medium text-muted">Solutions consideradas</dt>
+                                    <dd><?php echo e(($meta['solutions'] ?? []) !== [] ? implode(', ', $meta['solutions']) : '—'); ?></dd>
+                                </div>
+                                <div>
+                                    <dt class="font-medium text-muted">Páginas de documentação usadas</dt>
+                                    <dd><?php echo e(($meta['pages'] ?? []) !== [] ? implode(', ', $meta['pages']) : '—'); ?></dd>
+                                </div>
+                                <div>
+                                    <dt class="font-medium text-muted">Documentação de integrações usada</dt>
+                                    <dd><?php echo e(($meta['integration_docs'] ?? []) !== [] ? implode(', ', $meta['integration_docs']) : '—'); ?></dd>
+                                </div>
+                                <?php if(($meta['omitted_documents'] ?? []) !== []): ?>
+                                    <div>
+                                        <dt class="font-medium text-muted">Documentos omitidos (orçamento de contexto)</dt>
+                                        <dd><?php echo e(implode(', ', $meta['omitted_documents'])); ?></dd>
+                                    </div>
+                                <?php endif; ?>
+                                <div>
+                                    <dt class="font-medium text-muted">Tags candidatas</dt>
+                                    <dd><?php echo e(($meta['tags'] ?? []) !== [] ? implode(', ', $meta['tags']) : '—'); ?></dd>
+                                </div>
+                                <div>
+                                    <dt class="font-medium text-muted">Provider / modelo</dt>
+                                    <dd><?php echo e($meta['provider'] ?? '—'); ?> / <?php echo e($meta['model'] ?? '—'); ?></dd>
+                                </div>
+                                <div>
+                                    <dt class="font-medium text-muted">Tokens</dt>
+                                    <dd><?php echo e($meta['tokens']['prompt'] ?? 0); ?> prompt / <?php echo e($meta['tokens']['completion'] ?? 0); ?> completion</dd>
+                                </div>
+                            </dl>
+                        </details>
+                    <?php endif; ?>
+
                     
                     <div class="relative mt-3">
                         <pre id="flowspec-json-<?php echo e($message->id); ?>"

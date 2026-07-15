@@ -4,6 +4,7 @@
     'roles' => [],            // optional per-chip role options: [['value'=>, 'label'=>], ...]
     'placeholder' => 'Adicionar e pressionar Enter',
     'searchUrl' => null,      // optional: GET {searchUrl}?q=... -> {"results":[{"id":,"name":}]}. When set, chips can only be added by picking a result — no free-text Enter.
+    'form' => null,           // optional: id of an external <form> — lets this component render outside the <form> tag (e.g. a sidebar) while its hidden inputs still submit with it
 ])
 
 @php
@@ -11,7 +12,7 @@
         ? array_merge(['value' => null, 'label' => null, 'role' => null], $i)
         : ['value' => $i, 'label' => $i, 'role' => null]);
 
-    $config = ['name' => $name, 'roles' => array_values($roles), 'searchUrl' => $searchUrl];
+    $config = ['name' => $name, 'roles' => array_values($roles), 'searchUrl' => $searchUrl, 'form' => $form];
 @endphp
 
 {{-- Multi-select chips com "papel" (role) opcional por chip. Novos chips entram
@@ -29,27 +30,32 @@
             <span data-ak-chip class="inline-flex items-center gap-1 rounded-full bg-accent-soft py-1 pl-2.5 pr-1 text-xs font-semibold text-ink ring-1 ring-accent-line">
                 <span>{{ $item['label'] }}</span>
                 @if (! empty($roles))
-                    <select name="{{ $name }}[{{ $i }}][role]" class="rounded bg-transparent text-xs text-ink focus:outline-none">
+                    <select name="{{ $name }}[{{ $i }}][role]" @if ($form) form="{{ $form }}" @endif class="rounded bg-transparent text-xs text-ink focus:outline-none">
                         @foreach ($roles as $role)
                             <option value="{{ $role['value'] }}" @selected(($item['role'] ?? null) === $role['value'])>{{ $role['label'] }}</option>
                         @endforeach
                     </select>
                 @endif
                 <button type="button" data-ak-chip-remove class="ml-0.5 rounded-full px-1 leading-none text-muted hover:bg-accent-line hover:text-ink" aria-label="Remover">&times;</button>
-                <input type="hidden" name="{{ $name }}[{{ $i }}][value]" value="{{ $item['value'] }}">
-                <input type="hidden" name="{{ $name }}[{{ $i }}][label]" value="{{ $item['label'] }}">
+                <input type="hidden" name="{{ $name }}[{{ $i }}][value]" value="{{ $item['value'] }}" @if ($form) form="{{ $form }}" @endif>
+                <input type="hidden" name="{{ $name }}[{{ $i }}][label]" value="{{ $item['label'] }}" @if ($form) form="{{ $form }}" @endif>
             </span>
         @endforeach
     </div>
 
     <div class="relative">
-        <input
-            type="text"
-            data-ak-chips-input
-            placeholder="{{ $placeholder }}"
-            autocomplete="off"
-            class="w-full bg-transparent px-1 py-1 text-sm text-ink placeholder-faint focus:outline-none"
-        />
+        <div class="flex items-center gap-1.5">
+            @if ($searchUrl)
+                <x-heroicon-o-magnifying-glass class="size-4 shrink-0 text-faint" />
+            @endif
+            <input
+                type="text"
+                data-ak-chips-input
+                placeholder="{{ $placeholder }}"
+                autocomplete="off"
+                class="w-full bg-transparent px-1 py-1 text-sm text-ink placeholder-faint focus:outline-none"
+            />
+        </div>
         @if ($searchUrl)
             <div data-ak-chips-results class="absolute inset-x-0 top-full z-10 mt-1 hidden max-h-48 overflow-y-auto rounded-field border border-line-2 bg-surface py-1 shadow-lg"></div>
         @endif

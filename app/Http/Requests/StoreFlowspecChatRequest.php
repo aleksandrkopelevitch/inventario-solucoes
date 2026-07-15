@@ -2,11 +2,14 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\ParsesFlowspecContextInput;
 use App\Models\FlowspecChat;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreFlowspecChatRequest extends FormRequest
 {
+    use ParsesFlowspecContextInput;
+
     public function authorize(): bool
     {
         return $this->user()?->can('create', FlowspecChat::class) ?? false;
@@ -18,9 +21,8 @@ class StoreFlowspecChatRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'message'     => ['required', 'string', 'max:8000'],
-            'solutions'   => ['nullable', 'array'],
-            'solutions.*' => ['integer', 'exists:solutions,id'],
+            'message' => ['required', 'string', 'max:8000'],
+            ...$this->contextRules(),
         ];
     }
 }

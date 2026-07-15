@@ -5,6 +5,7 @@ namespace App\Services\Flowspec;
 use App\Enums\FlowspecTag;
 use App\Models\DocumentationPage;
 use App\Models\FlowspecExample;
+use App\Models\Integration;
 use App\Models\Solution;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -12,15 +13,23 @@ use Illuminate\Support\Str;
 /**
  * Resolve o contexto de uma geração de flowSpec sem RAG: Solutions citadas
  * (explícitas têm prioridade; senão, inferidas casando o nome no pedido),
- * páginas de documentação recortadas ao orçamento de caracteres, e 2-3
- * exemplos do corpus escolhidos pelo mapa palavra->tag do FlowspecTag.
+ * documentação recortada ao orçamento de caracteres — páginas das Solutions
+ * E documentação das integrações em que elas participam —, e 2-3 exemplos
+ * do corpus escolhidos pelo mapa palavra->tag do FlowspecTag.
+ *
+ * Quando o chat carrega `document_refs` explícitos (chips picker "Documentos
+ * específicos"), esse scoring/orçamento automático é pulado inteiramente:
+ * usa-se exatamente as páginas/integrações escolhidas — a ideia é dar a
+ * quem sabe exatamente qual documentação é relevante uma forma de evitar a
+ * inferência automática, que pode incluir contexto desnecessário.
  */
 class FlowspecContextResolver
 {
     /**
      * @param  list<int>  $solutionIds  ids marcados explicitamente no chat
+     * @param  list<array{type: string, id: int}>  $documentRefs  páginas/integrações escolhidas na mão
      */
-    public function resolve(string $request, array $solutionIds = []): FlowspecContext
+    public function resolve(string $request, array $solutionIds = [], array $documentRefs = []): FlowspecContext
     {
         $normalizedRequest = $this->normalize($request);
 
@@ -28,14 +37,17 @@ class FlowspecContextResolver
             ? Solution::query()->whereIn('id', $solutionIds)->get()
             : $this->inferSolutions($normalizedRequest);
 
-        [$pages, $omitted] = $this->selectPages($solutions, $normalizedRequest);
+        [$pages, $integrationDocs, $omitted] = $documentRefs !== []
+            ? $this->selectExplicitDocuments($documentRefs)
+            : $this->selectDocuments($solutions, $normalizedRequest);
 
         $tags = $this->candidateTags($normalizedRequest);
 
         return new FlowspecContext(
             solutions: $solutions,
             pages: $pages,
-            omittedPages: $omitted,
+            integrationDocs: $integrationDocs,
+            omittedDocuments: $omitted,
             examples: $this->selectExamples($tags),
             tags: $tags,
         );
@@ -68,18 +80,19 @@ class FlowspecContextResolver
     }
 
     /**
-     * Páginas documentadas das Solutions escolhidas, priorizadas pelas que
-     * casam termos do pedido (contratos, payloads, endpoints citados) e
-     * cortadas ao orçamento de caracteres — o que ficou de fora volta em
-     * `omittedPages` para ser sinalizado no chat.
+     * Páginas documentadas das Solutions escolhidas + documentação das
+     * integrações em que elas participam, priorizadas pelo que casa termos
+     * do pedido (contratos, payloads, endpoints citados) e cortadas juntas
+     * (mesmo orçamento) ao orçamento de caracteres — o que ficou de fora
+     * volta em `omitted` para ser sinalizado no chat.
      *
      * @param  Collection<int, Solution>  $solutions
-     * @return array{Collection<int, DocumentationPage>, list<string>}
+     * @return array{Collection<int, DocumentationPage>, Collection<int, Integration>, list<string>}
      */
-    private function selectPages(Collection $solutions, string $normalizedRequest): array
+    private function selectDocuments(Collection $solutions, string $normalizedRequest): array
     {
         if ($solutions->isEmpty()) {
-            return [collect(), []];
+            return [collect(), collect(), []];
         }
 
         $terms = $this->significantTerms($normalizedRequest);
@@ -95,8 +108,23 @@ class FlowspecContextResolver
         $solutionsById = $solutions->keyBy->getKey();
         $pages->each(fn (DocumentationPage $page) => $page->setRelation('container', $solutionsById[$page->container_id]));
 
-        $scored = $pages->sortByDesc(function (DocumentationPage $page) use ($terms) {
-            $haystack = $this->normalize($page->title . ' ' . $page->documentation);
+        $integrations = Integration::query()
+            ->whereHas('participants', fn ($query) => $query->whereIn('solutions.id', $solutions->modelKeys()))
+            ->whereNotNull('documentation')
+            ->where('documentation', '<>', '')
+            ->get();
+
+        // collect($model->all()) força uma Support\Collection "pura" antes do
+        // ->map() — mapear direto numa Eloquent\Collection devolveria outra
+        // Eloquent\Collection (mesmo com arrays dentro), e o ->merge() abaixo
+        // usaria o merge por dicionário de chave primária da Eloquent
+        // (getKey()), que quebra contra um array puro.
+        $units = collect($pages->all())
+            ->map(fn (DocumentationPage $page) => ['kind' => 'page', 'model' => $page, 'heading' => $page->title, 'body' => $page->documentation])
+            ->merge(collect($integrations->all())->map(fn (Integration $integration) => ['kind' => 'integration', 'model' => $integration, 'heading' => $integration->name, 'body' => $integration->documentation]));
+
+        $scored = $units->sortByDesc(function (array $unit) use ($terms) {
+            $haystack = $this->normalize($unit['heading'] . ' ' . $unit['body']);
 
             return collect($terms)->filter(fn (string $term) => str_contains($haystack, $term))->count();
         })->values();
@@ -105,23 +133,60 @@ class FlowspecContextResolver
         $selected = collect();
         $omitted = [];
 
-        foreach ($scored as $page) {
-            $size = mb_strlen($page->documentation);
+        foreach ($scored as $unit) {
+            $size = mb_strlen($unit['body']);
 
             if ($selected->isNotEmpty() && $budget - $size < 0) {
-                $omitted[] = $page->title;
+                $omitted[] = $unit['heading'];
 
                 continue;
             }
 
             $budget -= $size;
-            $selected->push($page);
+            $selected->push($unit);
         }
 
-        // Reapresenta na ordem natural (solução, posição), não na ordem do score.
-        $selected = $selected->sortBy(fn (DocumentationPage $page) => [$page->container_id, $page->position])->values();
+        // Reapresenta cada tipo na sua ordem natural, não na ordem do score.
+        $selectedPages = $selected->where('kind', 'page')->pluck('model')
+            ->sortBy(fn (DocumentationPage $page) => [$page->container_id, $page->position])->values();
 
-        return [$selected, $omitted];
+        $selectedIntegrations = $selected->where('kind', 'integration')->pluck('model')
+            ->sortBy(fn (Integration $integration) => $integration->name)->values();
+
+        return [$selectedPages, $selectedIntegrations, $omitted];
+    }
+
+    /**
+     * Contexto escolhido na mão via chips picker — sem scoring nem corte por
+     * orçamento: o que foi selecionado entra inteiro no prompt.
+     *
+     * @param  list<array{type: string, id: int}>  $documentRefs
+     * @return array{Collection<int, DocumentationPage>, Collection<int, Integration>, list<string>}
+     */
+    private function selectExplicitDocuments(array $documentRefs): array
+    {
+        $refs = collect($documentRefs);
+        $pageIds = $refs->where('type', 'page')->pluck('id')->all();
+        $integrationIds = $refs->where('type', 'integration')->pluck('id')->all();
+
+        $pages = $pageIds === [] ? collect() : DocumentationPage::query()
+            ->whereIn('id', $pageIds)
+            ->whereNotNull('documentation')
+            ->where('documentation', '<>', '')
+            ->with('container')
+            ->get()
+            ->sortBy(fn (DocumentationPage $page) => [$page->container_id, $page->position])
+            ->values();
+
+        $integrations = $integrationIds === [] ? collect() : Integration::query()
+            ->whereIn('id', $integrationIds)
+            ->whereNotNull('documentation')
+            ->where('documentation', '<>', '')
+            ->get()
+            ->sortBy('name')
+            ->values();
+
+        return [$pages, $integrations, []];
     }
 
     /** @return list<string> */

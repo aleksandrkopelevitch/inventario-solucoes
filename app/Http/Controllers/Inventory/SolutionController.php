@@ -76,7 +76,12 @@ class SolutionController extends Controller
             ->where('name', 'like', '%' . $term . '%')
             ->orderBy('name')
             ->limit(10)
-            ->get(['id', 'name']);
+            ->get(['id', 'name', 'category'])
+            ->map(fn (Solution $solution) => [
+                'id'   => $solution->id,
+                'name' => $solution->name,
+                'meta' => $solution->category_label,
+            ]);
 
         return response()->json(['results' => $results]);
     }

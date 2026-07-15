@@ -14,7 +14,10 @@ class FlowspecMessageController extends Controller
         $message = $chat->messages()->create([
             'role'    => 'user',
             'content' => $request->validated('message'),
-            'meta'    => ['solution_ids' => $request->validated('solutions') ?? []],
+            'meta'    => [
+                'solution_ids'  => $request->solutionIds(),
+                'document_refs' => $request->documentRefs(),
+            ],
         ]);
 
         $chat->touch();

@@ -17,13 +17,14 @@
                     placeholder="Ex.: com base na documentação do SVL e do IAM, crie um flowSpec que receba o colaborador, gerencie cache de token JWT por 30 min e faça POST no SVL." />
             </x-forms.field>
 
-            <x-forms.field label="Contexto de documentação (opcional)" for="flowspec-new-solutions" name="solutions"
-                hint="Segure Ctrl/Cmd para marcar mais de uma. Sem seleção, os sistemas são inferidos do texto.">
-                <x-forms.select id="flowspec-new-solutions" name="solutions[]" multiple size="5">
-                    @foreach ($solutions as $solution)
-                        <option value="{{ $solution->id }}">{{ $solution->name }}</option>
-                    @endforeach
-                </x-forms.select>
+            <x-forms.field label="Documentação usada" name="solutions"
+                hint="Busque e adicione sistemas para priorizar a documentação deles no prompt. Sem seleção, são inferidos do texto.">
+                <x-forms.chips name="solutions" :search-url="route('solutions.search')" placeholder="Buscar sistema…" />
+            </x-forms.field>
+
+            <x-forms.field label="Documentos específicos (opcional)" name="documents"
+                hint="Escolha páginas de documentação ou integrações específicas para usar exatamente essas, sem a seleção automática por relevância.">
+                <x-forms.chips name="documents" :search-url="route('flowspec.documents.search')" placeholder="Buscar página ou integração…" />
             </x-forms.field>
 
             <div>

@@ -165,6 +165,7 @@ Route::middleware(['auth', BlockAgentFromWeb::class])->group(function () {
     // {message} resolve escopado em FlowspecChat::messages().
     Route::get('flowspec', [FlowspecChatController::class, 'index'])->name('flowspec.index');
     Route::post('flowspec', [FlowspecChatController::class, 'store'])->name('flowspec.store');
+    Route::get('flowspec/documentos/busca', [FlowspecChatController::class, 'searchDocuments'])->name('flowspec.documents.search');
     Route::get('flowspec/{chat}', [FlowspecChatController::class, 'show'])->name('flowspec.show');
     Route::get('flowspec/{chat}/status', [FlowspecChatController::class, 'status'])->name('flowspec.status');
     Route::post('flowspec/{chat}/mensagens', [FlowspecMessageController::class, 'store'])->name('flowspec.messages.store');

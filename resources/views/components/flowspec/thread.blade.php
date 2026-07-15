@@ -45,6 +45,44 @@
                         </ul>
                     @endif
 
+                    @if ($canPromote)
+                        <details class="mt-3">
+                            <summary class="cursor-pointer text-xs font-medium text-muted hover:text-ink">Contexto usado (debug)</summary>
+                            <dl class="mt-2 flex flex-col gap-2 rounded-field border border-line bg-canvas p-3 text-xs text-body">
+                                <div>
+                                    <dt class="font-medium text-muted">Solutions consideradas</dt>
+                                    <dd>{{ ($meta['solutions'] ?? []) !== [] ? implode(', ', $meta['solutions']) : '—' }}</dd>
+                                </div>
+                                <div>
+                                    <dt class="font-medium text-muted">Páginas de documentação usadas</dt>
+                                    <dd>{{ ($meta['pages'] ?? []) !== [] ? implode(', ', $meta['pages']) : '—' }}</dd>
+                                </div>
+                                <div>
+                                    <dt class="font-medium text-muted">Documentação de integrações usada</dt>
+                                    <dd>{{ ($meta['integration_docs'] ?? []) !== [] ? implode(', ', $meta['integration_docs']) : '—' }}</dd>
+                                </div>
+                                @if (($meta['omitted_documents'] ?? []) !== [])
+                                    <div>
+                                        <dt class="font-medium text-muted">Documentos omitidos (orçamento de contexto)</dt>
+                                        <dd>{{ implode(', ', $meta['omitted_documents']) }}</dd>
+                                    </div>
+                                @endif
+                                <div>
+                                    <dt class="font-medium text-muted">Tags candidatas</dt>
+                                    <dd>{{ ($meta['tags'] ?? []) !== [] ? implode(', ', $meta['tags']) : '—' }}</dd>
+                                </div>
+                                <div>
+                                    <dt class="font-medium text-muted">Provider / modelo</dt>
+                                    <dd>{{ $meta['provider'] ?? '—' }} / {{ $meta['model'] ?? '—' }}</dd>
+                                </div>
+                                <div>
+                                    <dt class="font-medium text-muted">Tokens</dt>
+                                    <dd>{{ $meta['tokens']['prompt'] ?? 0 }} prompt / {{ $meta['tokens']['completion'] ?? 0 }} completion</dd>
+                                </div>
+                            </dl>
+                        </details>
+                    @endif
+
                     {{-- JSON pronto para colar --}}
                     <div class="relative mt-3">
                         <pre id="flowspec-json-{{ $message->id }}"

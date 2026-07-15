@@ -3,6 +3,7 @@
 namespace App\Services\Flowspec;
 
 use App\Models\FlowspecMessage;
+use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Responses\AgentResponse;
 
 use function Laravel\Ai\agent;
@@ -26,8 +27,9 @@ class FlowspecGenerationService
 
     /**
      * Gera a resposta para uma mensagem de usuário já persistida: o pedido é
-     * o `content` dela, as Solutions explícitas vêm do seu `meta.solution_ids`
-     * e o histórico são as mensagens anteriores a ela no chat.
+     * o `content` dela, as Solutions explícitas vêm do seu `meta.solution_ids`,
+     * os documentos escolhidos na mão vêm de `meta.document_refs`, e o
+     * histórico são as mensagens anteriores a ela no chat.
      */
     public function generate(FlowspecMessage $userMessage): FlowspecGenerationResult
     {
@@ -45,7 +47,14 @@ class FlowspecGenerationService
         $context = $this->resolver->resolve(
             $userMessage->content,
             array_map(intval(...), $userMessage->meta['solution_ids'] ?? []),
+            $userMessage->meta['document_refs'] ?? [],
         );
+
+        Log::debug('flowSpec: contexto resolvido', [
+            'chat_id'    => $userMessage->flowspec_chat_id,
+            'message_id' => $userMessage->id,
+            ...$context->toMeta(),
+        ]);
 
         $basePrompt = $this->prompts->userPrompt($context, $userMessage->content, $history);
 
@@ -59,10 +68,24 @@ class FlowspecGenerationService
         $prompt = $basePrompt;
 
         for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            Log::debug("flowSpec: prompt tentativa {$attempt}", [
+                'message_id' => $userMessage->id,
+                'prompt'     => $prompt,
+            ]);
+
             $response = $this->prompt($prompt);
             $text = $response->text;
             $tokens['prompt'] += $response->usage->promptTokens;
             $tokens['completion'] += $response->usage->completionTokens;
+
+            Log::debug("flowSpec: resposta tentativa {$attempt}", [
+                'message_id' => $userMessage->id,
+                'text'       => $text,
+                'usage'      => [
+                    'prompt'     => $response->usage->promptTokens,
+                    'completion' => $response->usage->completionTokens,
+                ],
+            ]);
 
             $fenced = $this->fencedJsonBlock($text);
 
