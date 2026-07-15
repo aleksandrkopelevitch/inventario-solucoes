@@ -39,12 +39,14 @@ class Integration extends Model implements Documentable
     protected function casts(): array
     {
         return [
-            'direction'  => Direction::class,
-            'protocol'   => Protocol::class,
-            'sync_mode'  => SyncMode::class,
-            'status'     => IntegrationStatus::class,
-            'chain'      => 'array',
-            'viz_layout' => 'array',
+            'direction'             => Direction::class,
+            'protocol'              => Protocol::class,
+            'sync_mode'             => SyncMode::class,
+            'status'                => IntegrationStatus::class,
+            'chain'                 => 'array',
+            'viz_layout'            => 'array',
+            'generated_flowspec'    => 'array',
+            'flowspec_generated_at' => 'datetime',
         ];
     }
 
@@ -52,6 +54,16 @@ class Integration extends Model implements Documentable
     protected function criticalityLabel(): Attribute
     {
         return Attribute::get(fn () => AttributeOption::labelFor('criticality', $this->criticality));
+    }
+
+    /** Rótulo de `flowspec_status` — só 'generated'/'validated' têm rótulo; 'idle' (nunca anexado) não aparece na UI. */
+    protected function flowspecStatusLabel(): Attribute
+    {
+        return Attribute::get(fn () => match ($this->flowspec_status) {
+            'validated' => 'flowSpec validado',
+            'generated' => 'flowSpec gerado',
+            default     => null,
+        });
     }
 
     public function getRouteKeyName(): string

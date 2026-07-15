@@ -79,6 +79,8 @@ Route::middleware(['auth', BlockAgentFromWeb::class])->group(function () {
         Route::get('solucoes/{solution}/integracoes/{integration}/documentacao', [IntegrationDocumentationController::class, 'edit'])->name('solutions.integrations.docs.edit');
         Route::patch('solucoes/{solution}/integracoes/{integration}/documentacao', [IntegrationDocumentationController::class, 'update'])->name('solutions.integrations.docs.update');
         Route::post('solucoes/{solution}/integracoes/{integration}/documentacao/midia', [IntegrationDocumentationController::class, 'media'])->name('solutions.integrations.docs.media');
+        // Painel lateral com o flowSpec anexado (F8 -> "Anexar à integração") — read-only.
+        Route::get('solucoes/{solution}/integracoes/{integration}/flowspec', [SolutionIntegrationController::class, 'flowspec'])->name('solutions.integrations.flowspec');
         // Título de um nó pontual (data-viz F3) — {node} é o índice na chain, não um model.
         Route::patch('solucoes/{solution}/integracoes/{integration}/chain/nos/{node}', [SolutionIntegrationController::class, 'updateNode'])
             ->whereNumber('node')

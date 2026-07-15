@@ -330,6 +330,22 @@ class SolutionIntegrationController extends Controller
         ]);
     }
 
+    /**
+     * Painel lateral (read-only) com o flowSpec anexado à integração via F8
+     * ("Anexar à integração" — `FlowspecAttachmentController`). Até aqui,
+     * `generated_flowspec`/`flowspec_status`/`flowspec_generated_at` eram
+     * gravados mas nunca lidos de volta em tela nenhuma — o único jeito de
+     * ver o conteúdo anexado era voltar na conversa original do chat.
+     */
+    public function flowspec(Solution $solution, Integration $integration): JsonResponse
+    {
+        return response()->json([
+            'content' => view('components.solutions.integration-flowspec-panel', [
+                'integration' => $integration,
+            ])->render(),
+        ]);
+    }
+
     public function destroy(Solution $solution, Integration $integration): JsonResponse
     {
         $this->authorize('delete', $integration);
