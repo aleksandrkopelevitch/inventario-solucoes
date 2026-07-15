@@ -1,1 +1,0 @@
-<x-forms.textarea name="bio" rows="3" />

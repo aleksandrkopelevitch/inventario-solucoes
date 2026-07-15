@@ -1,1 +1,0 @@
-<x-forms.toggle name="ativo">Ativo</x-forms.toggle>

@@ -1,1 +1,0 @@
-<x-forms.chips name="tags" />

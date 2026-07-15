@@ -1,1 +1,0 @@
-<x-solutions.detail-header :solution="$solution" />
