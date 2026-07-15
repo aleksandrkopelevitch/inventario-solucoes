@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\BackgroundTheme;
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\FlowspecMessage;
 use App\Support\BackgroundPhoto;
 use App\View\Components\Layouts\UserMenu;
 use Illuminate\Http\Request;
@@ -21,7 +22,12 @@ class ProfileController extends Controller
             ['label' => 'Soluções catalogadas', 'value' => '81', 'detail' => 'no inventário', 'icon' => 'squares-2x2'],
             ['label' => 'Integrações mapeadas', 'value' => '—', 'detail' => 'a detalhar (F2)', 'icon' => 'arrows-right-left'],
             ['label' => 'Cobertura de documentação', 'value' => '—', 'detail' => 'a medir (F7)', 'icon' => 'document-text'],
-            ['label' => 'flowSpecs gerados', 'value' => '—', 'detail' => 'a gerar (F8/F9)', 'icon' => 'cpu-chip'],
+            [
+                'label'  => 'flowSpecs gerados',
+                'value'  => (string) FlowspecMessage::query()->where('role', 'assistant')->whereNotNull('flow_spec')->count(),
+                'detail' => 'no gerador (F8)',
+                'icon'   => 'cpu-chip',
+            ],
         ];
 
         $columns = [
@@ -66,13 +72,12 @@ class ProfileController extends Controller
         $agenda = [
             ['time' => 'F4', 'title' => 'Documentação por blocos', 'detail' => 'GitbookRenderer · docBlocks.js'],
             ['time' => 'F5', 'title' => 'People & Companies', 'detail' => 'responsáveis por solução'],
-            ['time' => 'F8', 'title' => 'Gerador de flowSpec', 'detail' => 'a partir da documentação'],
         ];
 
         $feed = [
             ['title' => 'Infra genérica portada', 'detail' => 'Forms, slots, módulos JS e shells de layout.', 'color' => '#2563eb'],
             ['title' => 'Domínio legado removido', 'detail' => 'Multi-tenancy e módulos do projeto de referência fora deste escopo.', 'color' => '#d95f02'],
-            ['title' => 'Geradores de IA configurados', 'detail' => 'services.flowspec pronto para F8/F9.', 'color' => '#15803d'],
+            ['title' => 'Gerador de flowSpec publicado', 'detail' => 'Chat em /flowspec: corpus curado + laravel/ai + validação (F8).', 'color' => '#15803d'],
         ];
 
         return view('profile.index', [

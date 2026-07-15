@@ -1,0 +1,191 @@
+{
+  "meta": {
+    "973c1a5d-6e80-4200-a571-3e2bd34a9e08": {
+      "position": {
+        "x": 200,
+        "y": 75
+      }
+    },
+    "9d40ad0f-0909-445b-81d4-c94abe91e4f7": {
+      "position": {
+        "x": 400,
+        "y": 75
+      }
+    },
+    "7b0d36d6-aa91-49ae-b920-79fb1e391aa5": {
+      "position": {
+        "x": 850,
+        "y": 0
+      }
+    },
+    "3f2e1d0c-0001-4a00-9b00-aa1122334455": {
+      "position": {
+        "x": 1050,
+        "y": 0
+      }
+    },
+    "aa1aadb1-9f16-40bd-93ed-988bd1761d7d": {
+      "position": {
+        "x": 1250,
+        "y": 0
+      }
+    },
+    "0c171294-6882-4407-a087-19cebcd0c65e": {
+      "position": {
+        "x": 1450,
+        "y": 0
+      }
+    },
+    "25ea5d39-1f10-43ab-a1f7-5b7ea03ef43e": {
+      "position": {
+        "x": 850,
+        "y": 150
+      }
+    },
+    "1df0cfb1-f8d8-437b-8d89-500c77eacd4d": {
+      "position": {
+        "x": 1050,
+        "y": 150
+      }
+    }
+  },
+  "flowSpec": {
+    "disconnected-root:83e5eda5-4358-46b1-8bfd-25ae881a030f": [
+      {
+        "id": "973c1a5d-6e80-4200-a571-3e2bd34a9e08",
+        "type": "connector",
+        "name": "rest-connector-v2",
+        "stepName": "Get token svl",
+        "doubleBracesAlias": "rest-v2-1",
+        "accountLabel": "",
+        "accountLabels": {
+          "custom-1": "svl-auth",
+          "custom-2": ""
+        },
+        "params": {
+          "url": "{{global.url-token-svl}}",
+          "operation": "POST",
+          "headers": "{\"Content-Type\":\"application/json\"}",
+          "injectJWT": false,
+          "readJWT": false,
+          "injectConsumer": false,
+          "injectPipelineKey": false,
+          "injectTraceId": false,
+          "stopOnClientError": false,
+          "stopOnServerError": false,
+          "overrideResponseCharset": true,
+          "responseCharset": "UTF-8",
+          "queryParams": "{}",
+          "useDynamicAccount": false,
+          "connectTimeout": "60000",
+          "readTimeout": "60000",
+          "writeTimeout": "",
+          "callTimeout": "",
+          "advanced": true,
+          "sendBinaryFile": false,
+          "body": "{\n    \"client_id\": {{ account.custom-1.username }},\n    \"client_secret\": {{ account.custom-1.password }},\n    \"audience\": \"{{global.param-audience-svl}}\",\n    \"grant_type\": \"client_credentials\"\n}",
+          "rawMode": false,
+          "saveAsLocalFile": false,
+          "isInsecure": false,
+          "retry": true,
+          "compressBody": false,
+          "forceHttp1": false,
+          "disableConnectionPool": false,
+          "invalidateSSLSessionsOnEveryCall": false,
+          "enableFollowRedirect": true,
+          "maxRetry": "3",
+          "waitNextRetry": "3000"
+        }
+      },
+      {
+        "id": "9d40ad0f-0909-445b-81d4-c94abe91e4f7",
+        "type": "choice",
+        "name": "",
+        "stepName": "Choice",
+        "when": [
+          {
+            "target": "success",
+            "jsonPath": "$.[?(@.status >= 200 && @.status <= 299)]"
+          }
+        ],
+        "otherwise": "erro na captura do token"
+      }
+    ],
+    "success": [
+      {
+        "id": "7b0d36d6-aa91-49ae-b920-79fb1e391aa5",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Sucesso na captura do token",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Sucesso na captura do token"
+        }
+      },
+      {
+        "id": "3f2e1d0c-0001-4a00-9b00-aa1122334455",
+        "type": "connector",
+        "name": "jslt-connector",
+        "stepName": "Normaliza token e expiracao",
+        "doubleBracesAlias": "jslt-1",
+        "params": {
+          "payload": "{{ message.$ }}",
+          "jsltExpr": "{\n  \"token\": .body.access_token,\n  \"token_type\": .body.token_type,\n  \"expiresAt\": round(now() * 1000) + 1800000\n}",
+          "rawMode": false,
+          "failOnError": false
+        }
+      },
+      {
+        "id": "aa1aadb1-9f16-40bd-93ed-988bd1761d7d",
+        "type": "connector",
+        "name": "object-store-connector",
+        "stepName": "Upsert token",
+        "accountLabel": "dgb-internal-object-store-account",
+        "doubleBracesAlias": "object-store-1",
+        "params": {
+          "operation": "UPDATE",
+          "objectStore": "token-svl",
+          "unique": true,
+          "isolated": false,
+          "failOnError": false,
+          "upsert": true,
+          "objectId": "token",
+          "document": "{\n  $set: {\n    \"token\": {{ message.token }},\n    \"token_type\": {{ message.token_type }},\n    \"expiresAt\": {{ message.expiresAt }}\n  }\n}"
+        }
+      },
+      {
+        "id": "0c171294-6882-4407-a087-19cebcd0c65e",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "Response",
+        "doubleBracesAlias": "json-generator-1",
+        "params": {
+          "json": "{\n  \"mensagem\": \"Token atualizado com sucesso\"\n}",
+          "failOnError": false
+        }
+      }
+    ],
+    "erro na captura do token": [
+      {
+        "id": "25ea5d39-1f10-43ab-a1f7-5b7ea03ef43e",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Erro na captura do token",
+        "params": {
+          "logLevel": "ERROR",
+          "message": "Erro na captura do token {{ message.$ }}"
+        }
+      },
+      {
+        "id": "1df0cfb1-f8d8-437b-8d89-500c77eacd4d",
+        "type": "connector",
+        "name": "throw-error-connector",
+        "stepName": "Throw Error",
+        "params": {
+          "customErrorEnabled": true,
+          "customError": "{{ message.$ }}"
+        }
+      }
+    ]
+  }
+}

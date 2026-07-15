@@ -36,12 +36,21 @@ return [
     ],
 
     /*
-    | Digibee flowSpec generator (F8/F9). Mirrors the Laravel\Ai AnonymousAgent
-    | pattern: resolve provider/model from config so the agent stays env-driven.
+    | Digibee flowSpec generator (F8, /flowspec chat). Mirrors the Laravel\Ai
+    | AnonymousAgent pattern: resolve provider/model from config so the agent
+    | stays env-driven.
     */
     'flowspec' => [
         'provider' => env('DIGIBEE_FLOWSPEC_AI_PROVIDER', 'anthropic'),
         'model'    => env('DIGIBEE_FLOWSPEC_AI_MODEL', 'claude-sonnet-5'),
+
+        // Seleção de contexto (FlowspecContextResolver) e loop de correção
+        // (FlowspecGenerationService). 2-3 exemplos: mais dilui o sinal.
+        'max_examples'     => env('DIGIBEE_FLOWSPEC_MAX_EXAMPLES', 3),
+        'max_attempts'     => env('DIGIBEE_FLOWSPEC_MAX_ATTEMPTS', 3),
+        'doc_budget_chars' => env('DIGIBEE_FLOWSPEC_DOC_BUDGET_CHARS', 60000),
+        'fallback_example' => env('DIGIBEE_FLOWSPEC_FALLBACK_EXAMPLE', 'update-bigquery-rest'),
+        'timeout'          => env('DIGIBEE_FLOWSPEC_AI_TIMEOUT', 180),
     ],
 
 ];

@@ -4,7 +4,9 @@
     "rest-connector-v2",
     "json-generator-connector",
     "jolt-connector-v2",
+    "jslt-connector",
     "for-each-connector",
+    "ldap-connector",
     "log-connector",
     "object-store-connector",
     "throw-error-connector"

@@ -1,0 +1,81 @@
+[
+  {
+    "file": "iam-svl-token-cache.json",
+    "slug": "iam-svl-token-cache",
+    "name": "IAM -> SVL: cadastro de colaborador com cache de token JWT",
+    "description": "Recebe o colaborador do IAM, aplica fallbacks (telefone, endereco, datas), gerencia cache de token JWT por 30 minutos no Object Store (FIND, valida expiresAt com now(), renova via client_credentials e faz upsert) e faz POST no SVL roteando por acao (create/edit/deactivate) via de/para de rota. Preserva o payload entre steps com alias JSLT.",
+    "tags": [
+      "token-cache",
+      "rest",
+      "object-store",
+      "choice",
+      "jslt-alias",
+      "de-para",
+      "fallbacks"
+    ],
+    "source": "chat"
+  },
+  {
+    "file": "get-token-svl.json",
+    "slug": "get-token-svl",
+    "name": "SVL: obtencao de token client_credentials com cache",
+    "description": "Obtem token OAuth2 client_credentials no SVL e grava em Object Store com expiresAt (now + 30 min em ms), padrao correto para ser reutilizado por outras pipelines. Trata sucesso e erro de captura.",
+    "tags": [
+      "token",
+      "token-cache",
+      "rest",
+      "object-store",
+      "client-credentials",
+      "jslt-alias"
+    ],
+    "source": "chat"
+  },
+  {
+    "file": "promob-webhook-order.json",
+    "slug": "promob-webhook-order",
+    "name": "Promob: encaminhamento de pedido via webhook REST",
+    "description": "Encaminha o pedido para o webhook REST do Promob com header x-api-key vindo de global, em rawMode. Choice por status 200 separando sucesso e erro, com Response e Throw Error.",
+    "tags": [
+      "rest",
+      "choice",
+      "webhook",
+      "api-key"
+    ],
+    "source": "chat"
+  },
+  {
+    "file": "ad-unlock-ldap.json",
+    "slug": "ad-unlock-ldap",
+    "name": "Active Directory: desbloqueio de conta via LDAPS",
+    "description": "Desbloqueio de conta AD via LDAPS: SEARCH por samaccountname e employeeid, monta DN e zera lockouttime, MODIFY para aplicar, com tratamento de usuario nao encontrado (404) e falha de operacao (403). Atributos LDAP em minusculo.",
+    "tags": [
+      "ldap",
+      "search",
+      "modify",
+      "choice"
+    ],
+    "source": "chat"
+  },
+  {
+    "file": "anchor-1.json",
+    "slug": "staging-clientes-object-store",
+    "name": "Staging de clientes: processamento item a item com Object Store",
+    "description": "Recebe um lote de registros, monta o nome da tabela BigQuery a partir de variaveis globais, guarda em sessao (session-management PUT/GET) e processa item a item com for-each: prepara o payload com JOLT (de/para), insere cada query no Object Store de staging com objectId UUID() unico e trata excecao por item com log de erro no onExceptionTrack.",
+    "tags": [
+      "object-store",
+      "de-para"
+    ],
+    "source": "manual"
+  },
+  {
+    "file": "anchor-2.json",
+    "slug": "update-bigquery-rest",
+    "name": "Update BigQuery via REST com roteamento por faixa de status",
+    "description": "Monta o body da query com labels de ambiente, aguarda com delayer, faz POST REST autenticado por account no BigQuery e roteia por choice na faixa de status HTTP (200-299): sucesso loga e gera resposta amigavel; erro loga e lanca throw-error com o payload.",
+    "tags": [
+      "rest",
+      "choice"
+    ],
+    "source": "manual"
+  }
+]

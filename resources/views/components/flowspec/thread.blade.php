@@ -1,0 +1,126 @@
+@php
+    use App\Enums\FlowspecTag;
+
+    $canAttach  = auth()->user()?->can('create', App\Models\Integration::class);
+    $canPromote = auth()->user()?->can('create', App\Models\FlowspecExample::class);
+@endphp
+
+<div id="{{ $domId }}" class="flex flex-col gap-4">
+    @forelse ($messages as $message)
+        @if ($message->role === 'user')
+            <div class="ml-auto max-w-[85%] rounded-card rounded-br-sm bg-accent-soft px-4 py-3 text-sm text-ink">
+                {{ $message->content }}
+            </div>
+        @else
+            @php
+                $meta = $message->meta ?? [];
+                $validated = $meta['validated'] ?? false;
+                $failed = ($meta['status'] ?? null) === 'failed';
+                $attempts = count($meta['attempts'] ?? []);
+                $lastErrors = $attempts > 0 ? (end($meta['attempts'])['errors'] ?? []) : [];
+            @endphp
+
+            <div class="mr-auto w-full max-w-[95%] rounded-card rounded-bl-sm border border-line bg-surface p-4 shadow-[0_1px_3px_rgba(20,58,34,0.04)]">
+                <p @class(['text-sm text-body whitespace-pre-line', 'text-crit' => $failed])>{{ $message->content }}</p>
+
+                @if ($message->flow_spec !== null)
+                    {{-- Badges: validação, tentativas, exemplos usados --}}
+                    <div class="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] font-medium">
+                        @if ($validated)
+                            <span class="rounded-full border border-accent-line bg-accent-soft px-2 py-0.5 text-accent">Validado</span>
+                        @else
+                            <span class="rounded-full border border-hot-line bg-hot-soft px-2 py-0.5 text-hot">Com pendências</span>
+                        @endif
+                        <span class="rounded-full border border-line bg-raised px-2 py-0.5 text-muted">{{ $attempts }} {{ $attempts === 1 ? 'tentativa' : 'tentativas' }}</span>
+                        @foreach ($meta['examples'] ?? [] as $exampleSlug)
+                            <span class="rounded-full border border-line bg-raised px-2 py-0.5 text-muted">ex: {{ $exampleSlug }}</span>
+                        @endforeach
+                    </div>
+
+                    @if (! $validated && $lastErrors !== [])
+                        <ul class="mt-2 list-inside list-disc rounded-field border border-hot-line bg-hot-soft px-3 py-2 text-xs text-hot">
+                            @foreach ($lastErrors as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    @endif
+
+                    {{-- JSON pronto para colar --}}
+                    <div class="relative mt-3">
+                        <pre id="flowspec-json-{{ $message->id }}"
+                             class="max-h-80 overflow-auto rounded-field border border-line bg-canvas p-3 font-mono text-[11.5px] leading-relaxed text-body">{{ json_encode($message->flow_spec, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}</pre>
+                        <x-forms.button type="button" variant="glass" class="absolute right-2 top-2 !px-2.5 !py-1 !text-xs"
+                            data-ak-flowspec-copy="flowspec-json-{{ $message->id }}">
+                            <x-heroicon-o-clipboard-document class="size-3.5" /> Copiar JSON
+                        </x-forms.button>
+                    </div>
+
+                    {{-- Anexar a uma Integration (grava generated_flowspec) --}}
+                    @if ($canAttach && $integrations->isNotEmpty())
+                        <form id="flowspec-attach-{{ $message->id }}" class="mt-3 flex flex-wrap items-end gap-2">
+                            @csrf
+                            <div class="w-full max-w-xs">
+                                <x-forms.field label="Anexar à integração" for="flowspec-attach-select-{{ $message->id }}">
+                                    <x-forms.select id="flowspec-attach-select-{{ $message->id }}" name="integration_id">
+                                        @foreach ($integrations as $integration)
+                                            <option value="{{ $integration->id }}" @selected($chat->integration_id === $integration->id)>{{ $integration->name }}</option>
+                                        @endforeach
+                                    </x-forms.select>
+                                </x-forms.field>
+                            </div>
+                            <x-forms.button type="button" variant="glass" class="!px-3 !py-2 !text-xs"
+                                data-ak-ajax="flowspec-attach-{{ $message->id }}"
+                                data-ak-action="{{ route('flowspec.messages.attach', [$chat, $message]) }}">
+                                Anexar
+                            </x-forms.button>
+                        </form>
+                    @endif
+
+                    {{-- Promover a exemplo do corpus (curadoria, admin) --}}
+                    @if ($canPromote && $validated)
+                        <details class="mt-3">
+                            <summary class="cursor-pointer text-xs font-medium text-muted hover:text-ink">Promover a exemplo do corpus</summary>
+                            <form id="flowspec-promote-{{ $message->id }}" class="mt-2 flex flex-col gap-3 rounded-field border border-line bg-canvas p-3">
+                                @csrf
+                                <x-forms.field label="Nome" for="flowspec-promote-name-{{ $message->id }}" name="name" required>
+                                    <x-forms.input id="flowspec-promote-name-{{ $message->id }}" name="name" :value="$chat->title" />
+                                </x-forms.field>
+                                <x-forms.field label="Descrição (o que o pipeline faz)" for="flowspec-promote-description-{{ $message->id }}" name="description" required>
+                                    <x-forms.textarea id="flowspec-promote-description-{{ $message->id }}" name="description" rows="3" />
+                                </x-forms.field>
+                                <x-forms.field label="Tags" for="flowspec-promote-tags-{{ $message->id }}" name="tags" required hint="Segure Ctrl/Cmd para marcar mais de uma.">
+                                    <x-forms.select id="flowspec-promote-tags-{{ $message->id }}" name="tags[]" multiple size="5">
+                                        @foreach (FlowspecTag::cases() as $tag)
+                                            <option value="{{ $tag->value }}" @selected(in_array($tag->value, $meta['tags'] ?? [], true))>{{ $tag->value }}</option>
+                                        @endforeach
+                                    </x-forms.select>
+                                </x-forms.field>
+                                <div>
+                                    <x-forms.button type="button" variant="glass" class="!px-3 !py-2 !text-xs"
+                                        data-ak-ajax="flowspec-promote-{{ $message->id }}"
+                                        data-ak-action="{{ route('flowspec.messages.promote', [$chat, $message]) }}">
+                                        Promover
+                                    </x-forms.button>
+                                </div>
+                            </form>
+                        </details>
+                    @endif
+                @endif
+            </div>
+        @endif
+    @empty
+        <p class="text-sm text-muted">Nenhuma mensagem ainda.</p>
+    @endforelse
+
+    @if ($awaiting)
+        <div data-ak-flowspec-poll="{{ route('flowspec.status', $chat) }}"
+             class="mr-auto flex items-center gap-2.5 rounded-card rounded-bl-sm border border-line bg-surface px-4 py-3 text-sm text-muted">
+            <span class="flex gap-1">
+                <span class="size-1.5 animate-bounce rounded-full bg-accent [animation-delay:0ms]"></span>
+                <span class="size-1.5 animate-bounce rounded-full bg-accent [animation-delay:150ms]"></span>
+                <span class="size-1.5 animate-bounce rounded-full bg-accent [animation-delay:300ms]"></span>
+            </span>
+            Gerando flowSpec — monta contexto, chama o modelo e valida (pode levar alguns minutos)…
+        </div>
+    @endif
+</div>

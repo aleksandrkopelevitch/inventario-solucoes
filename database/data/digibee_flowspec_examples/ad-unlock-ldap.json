@@ -1,0 +1,268 @@
+{
+  "meta": {
+    "93da8b01-dd3f-48d7-a639-240c20e901c5": {
+      "position": {
+        "x": 200,
+        "y": 150
+      }
+    },
+    "47d6864f-a032-4b16-b41f-5da70a701809": {
+      "position": {
+        "x": 400,
+        "y": 150
+      }
+    },
+    "abd64eb1-dcd0-4283-aa68-28ab367b2d64": {
+      "position": {
+        "x": 600,
+        "y": 150
+      }
+    },
+    "312b82e7-9698-4f7f-950e-febccf091f2f": {
+      "position": {
+        "x": 1050,
+        "y": 75
+      }
+    },
+    "bd34ec11-cfa1-4c88-a729-b5cdae48658e": {
+      "position": {
+        "x": 1250,
+        "y": 75
+      }
+    },
+    "cb400e8c-ea80-4c4b-9105-191dff082b96": {
+      "position": {
+        "x": 1450,
+        "y": 75
+      }
+    },
+    "13d9f425-255f-4bee-bc46-3f0779429dbb": {
+      "position": {
+        "x": 1650,
+        "y": 75
+      }
+    },
+    "ce5ef9d7-7263-48a8-8119-7e9ad9806c27": {
+      "position": {
+        "x": 2100,
+        "y": 0
+      }
+    },
+    "b094dc18-d087-4e7a-9c1a-dcc7acf12ab9": {
+      "position": {
+        "x": 2300,
+        "y": 0
+      }
+    },
+    "f2080b37-a918-42ea-92dc-3f2ba9cc6b8c": {
+      "position": {
+        "x": 2100,
+        "y": 150
+      }
+    },
+    "9514477c-3616-46d1-9227-656effc6155f": {
+      "position": {
+        "x": 2300,
+        "y": 150
+      }
+    },
+    "c95df63e-57a9-4e50-ad5b-57b50ff0d9e3": {
+      "position": {
+        "x": 1050,
+        "y": 225
+      }
+    },
+    "30631b1a-5314-4fec-9c2a-36d848545cf8": {
+      "position": {
+        "x": 1250,
+        "y": 225
+      }
+    }
+  },
+  "flowSpec": {
+    "disconnected-root:9b8158fe-0c3d-48c0-a241-8c5a4ffed8e1": [
+      {
+        "id": "93da8b01-dd3f-48d7-a639-240c20e901c5",
+        "type": "connector",
+        "name": "ldap-connector",
+        "stepName": "Search LDAP",
+        "doubleBracesAlias": "ldap-2",
+        "accountLabel": "ldap-ad-unlock",
+        "accountLabels": {
+          "customSSLCertificate": "ldap-ad-unlock-cert"
+        },
+        "params": {
+          "useSsl": true,
+          "operation": "SEARCH",
+          "modifyOperation": "0",
+          "searchOperation": "2",
+          "host": "{{global.ldap-host}}",
+          "port": "636",
+          "dnAuthentication": "OU=Servicos,DC=leomadeiras,DC=com,DC=br",
+          "dnOperation": "DC=leomadeiras,DC=com,DC=br",
+          "entries": "{}",
+          "binaryEntries": [],
+          "filter": "(&(objectClass=user)(samaccountname={{ message.$.body.username }})(employeeid={{ message.$.body.employeeid }}))",
+          "failOnError": false
+        }
+      },
+      {
+        "id": "47d6864f-a032-4b16-b41f-5da70a701809",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Log",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Retorno: {{message.$}}"
+        }
+      },
+      {
+        "id": "abd64eb1-dcd0-4283-aa68-28ab367b2d64",
+        "type": "choice",
+        "name": "Choice",
+        "stepName": "Choice",
+        "when": [
+          {
+            "target": "Usuário encontrado (1)",
+            "jsonPath": "$.result[0]",
+            "__documentation__": ""
+          }
+        ],
+        "otherwise": "Usuário não encontrado (1)"
+      }
+    ],
+    "Usuário encontrado (1)": [
+      {
+        "id": "312b82e7-9698-4f7f-950e-febccf091f2f",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Usuário encontrado",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Usuário encontrado: {{ message.$.result[0].distinguishedname }}"
+        }
+      },
+      {
+        "id": "bd34ec11-cfa1-4c88-a729-b5cdae48658e",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "JSON Generator",
+        "doubleBracesAlias": "json-generator-3",
+        "params": {
+          "json": "{\n  \"dn\": {{ message.result[0].distinguishedname }},\n  \"atributosParaAtualizar\": {\n    \"lockouttime\": \"0\"\n  }\n}",
+          "failOnError": false
+        }
+      },
+      {
+        "id": "cb400e8c-ea80-4c4b-9105-191dff082b96",
+        "type": "connector",
+        "name": "ldap-connector",
+        "stepName": "Update LDAP",
+        "doubleBracesAlias": "ldap-4",
+        "accountLabel": "ldap-ad-unlock",
+        "accountLabels": {
+          "customSSLCertificate": "ldap-ad-unlock-cert"
+        },
+        "params": {
+          "useSsl": true,
+          "operation": "MODIFY",
+          "modifyOperation": "2",
+          "searchOperation": 0,
+          "host": "{{global.ldap-host}}",
+          "port": "636",
+          "dnAuthentication": "OU=Servicos,DC=leomadeiras,DC=com,DC=br",
+          "dnOperation": "{{ message.dn}}",
+          "entries": "{{ message.atributosParaAtualizar }}",
+          "binaryEntries": "[]",
+          "filter": "{{message.$.filter}}",
+          "failOnError": false
+        }
+      },
+      {
+        "id": "13d9f425-255f-4bee-bc46-3f0779429dbb",
+        "type": "choice",
+        "name": "Choice",
+        "stepName": "Choice",
+        "when": [
+          {
+            "target": "Operação OK (1)",
+            "jsonPath": "$.[?(@.success == true)]",
+            "__documentation__": ""
+          }
+        ],
+        "otherwise": "Operação falhou (1)"
+      }
+    ],
+    "Operação OK (1)": [
+      {
+        "id": "ce5ef9d7-7263-48a8-8119-7e9ad9806c27",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Log Update",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Sucesso no update {{ message.$ }}"
+        }
+      },
+      {
+        "id": "b094dc18-d087-4e7a-9c1a-dcc7acf12ab9",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "Response",
+        "doubleBracesAlias": "json-generator-4",
+        "params": {
+          "json": "{\n\"message\":\"Conta desbloqueada com sucesso\", \n\"success\": true\n}",
+          "failOnError": false
+        }
+      }
+    ],
+    "Operação falhou (1)": [
+      {
+        "id": "f2080b37-a918-42ea-92dc-3f2ba9cc6b8c",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Log",
+        "params": {
+          "logLevel": "ERROR",
+          "message": "Erro na atualização: {{message.$}}"
+        }
+      },
+      {
+        "id": "9514477c-3616-46d1-9227-656effc6155f",
+        "type": "connector",
+        "name": "throw-error-connector",
+        "stepName": "Throw Error",
+        "params": {
+          "errorMessage": "Ocorreu um erro na atualização",
+          "errorCode": "403",
+          "customErrorEnabled": false,
+          "customError": "{}"
+        }
+      }
+    ],
+    "Usuário não encontrado (1)": [
+      {
+        "id": "c95df63e-57a9-4e50-ad5b-57b50ff0d9e3",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Log",
+        "params": {
+          "logLevel": "ERROR",
+          "message": "Usuário não encontrado"
+        }
+      },
+      {
+        "id": "30631b1a-5314-4fec-9c2a-36d848545cf8",
+        "type": "connector",
+        "name": "throw-error-connector",
+        "stepName": "Response 404",
+        "params": {
+          "errorMessage": "Usuário não encontrado",
+          "errorCode": "404",
+          "customErrorEnabled": false,
+          "customError": "{\n  \"message\": \"Usuário não encontrado\",\n  \"error\": {\n     \"code\": 404,\n     \"body\": \"Usuário não encontrado\"\n  }\n}"
+        }
+      }
+    ]
+  }
+}

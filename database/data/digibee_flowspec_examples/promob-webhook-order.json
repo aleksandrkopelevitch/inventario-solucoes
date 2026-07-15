@@ -1,0 +1,182 @@
+{
+  "meta": {
+    "31b07b8c-32da-4c7d-aa61-a732dfa8bb9d": {
+      "position": {
+        "x": 200,
+        "y": 75
+      }
+    },
+    "51d19f2d-246e-4498-af44-e159218acc63": {
+      "position": {
+        "x": 400,
+        "y": 75
+      }
+    },
+    "4590c979-7ec8-49c7-baa9-d905e8b24e96": {
+      "position": {
+        "x": 600,
+        "y": 75
+      }
+    },
+    "4741b1c4-fe17-4c85-b7d2-9a85a2ae24e2": {
+      "position": {
+        "x": 800,
+        "y": 75
+      }
+    },
+    "d224d8aa-ee0f-457e-a70d-546d5d049740": {
+      "position": {
+        "x": 1250,
+        "y": 0
+      }
+    },
+    "4e5e38c4-e390-4c25-a20c-fb58e53b03b8": {
+      "position": {
+        "x": 1450,
+        "y": 0
+      }
+    },
+    "c1181d56-0cb8-4e45-b534-a3f9c0e7d27b": {
+      "position": {
+        "x": 1250,
+        "y": 150
+      }
+    },
+    "f144e17c-dcb6-4cca-b09f-47e9e9979eb4": {
+      "position": {
+        "x": 1450,
+        "y": 150
+      }
+    }
+  },
+  "flowSpec": {
+    "disconnected-root:4cf11f58-aaed-41ad-b4aa-7e2cb8baa4fd": [
+      {
+        "id": "31b07b8c-32da-4c7d-aa61-a732dfa8bb9d",
+        "type": "connector",
+        "name": "jslt-connector",
+        "stepName": "Prepara payload",
+        "doubleBracesAlias": "jslt-1",
+        "params": {
+          "payload": "{{ message.$ }}",
+          "jsltExpr": ".",
+          "rawMode": false,
+          "failOnError": false
+        }
+      },
+      {
+        "id": "51d19f2d-246e-4498-af44-e159218acc63",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Log",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Payload recebido {{ message.$ }}"
+        }
+      },
+      {
+        "id": "4590c979-7ec8-49c7-baa9-d905e8b24e96",
+        "type": "connector",
+        "name": "rest-connector-v2",
+        "stepName": "REST V2 (HTTP / APIs)",
+        "doubleBracesAlias": "rest-v2-1",
+        "accountLabels": {
+          "custom-1": "",
+          "custom-2": ""
+        },
+        "accountLabel": "api-key-parceiro",
+        "params": {
+          "url": "{{global.url-base-promob}}/Promob.Integration/api/Promob2020Manager/Webhooks/Order",
+          "operation": "POST",
+          "headers": "{\"Content-Type\":\"application/json\",\"x-api-key\":\"{{global.promob-x-api-key}}\"}",
+          "injectJWT": false,
+          "readJWT": false,
+          "injectConsumer": false,
+          "injectPipelineKey": false,
+          "injectTraceId": false,
+          "stopOnClientError": false,
+          "stopOnServerError": false,
+          "overrideResponseCharset": true,
+          "responseCharset": "UTF-8",
+          "queryParams": "{}",
+          "useDynamicAccount": false,
+          "connectTimeout": "30000",
+          "readTimeout": "30000",
+          "writeTimeout": "",
+          "callTimeout": "",
+          "advanced": true,
+          "sendBinaryFile": false,
+          "body": "{{message.$}}",
+          "rawMode": true,
+          "saveAsLocalFile": false,
+          "isInsecure": true,
+          "retry": false,
+          "compressBody": false,
+          "forceHttp1": false,
+          "disableConnectionPool": false,
+          "invalidateSSLSessionsOnEveryCall": false,
+          "enableFollowRedirect": true,
+          "rawModeAsBase64": false
+        }
+      },
+      {
+        "id": "4741b1c4-fe17-4c85-b7d2-9a85a2ae24e2",
+        "type": "choice",
+        "name": "",
+        "stepName": "Choice",
+        "when": [
+          {
+            "target": "Sucesso (2)",
+            "jsonPath": "$.[?(@.status == 200)]"
+          }
+        ],
+        "otherwise": "Error (2)"
+      }
+    ],
+    "Sucesso (2)": [
+      {
+        "id": "d224d8aa-ee0f-457e-a70d-546d5d049740",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Sucesso no envio",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Sucesso no envio"
+        }
+      },
+      {
+        "id": "4e5e38c4-e390-4c25-a20c-fb58e53b03b8",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "Response",
+        "doubleBracesAlias": "json-generator-1",
+        "params": {
+          "json": "{\n  \"message\": \"Sucesso no envio\",\n  \"details\": {{ message.$ }}\n}",
+          "failOnError": false
+        }
+      }
+    ],
+    "Error (2)": [
+      {
+        "id": "c1181d56-0cb8-4e45-b534-a3f9c0e7d27b",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Erro no envio",
+        "params": {
+          "logLevel": "ERROR",
+          "message": "Erro no envio {{ message.body }}"
+        }
+      },
+      {
+        "id": "f144e17c-dcb6-4cca-b09f-47e9e9979eb4",
+        "type": "connector",
+        "name": "throw-error-connector",
+        "stepName": "Throw Error",
+        "params": {
+          "customErrorEnabled": true,
+          "customError": "{\n  \"message\": \"Erro na atualização do pedido\",\n  \"error\": {\n     \"code\": {{ message.code }},\n     \"body\": {{ message.body }}\n  }\n}"
+        }
+      }
+    ]
+  }
+}

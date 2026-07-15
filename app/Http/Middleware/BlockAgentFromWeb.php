@@ -8,8 +8,8 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * O papel `agent` é reservado para acesso programático (geradores de flowSpec
- * F8/F9 via API). Ele não deve acessar a interface web — seção 15 do briefing:
+ * O papel `agent` é reservado para acesso programático (gerador de flowSpec
+ * F8 via API). Ele não deve acessar a interface web — seção 15 do briefing:
  * "agent permanece bloqueado por middleware (sem acesso web)".
  */
 class BlockAgentFromWeb

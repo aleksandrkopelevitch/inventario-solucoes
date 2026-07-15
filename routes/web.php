@@ -8,6 +8,10 @@ use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\DocumentationGroupController;
 use App\Http\Controllers\DocumentationGroupPageController;
 use App\Http\Controllers\DocumentationHubController;
+use App\Http\Controllers\FlowspecAttachmentController;
+use App\Http\Controllers\FlowspecChatController;
+use App\Http\Controllers\FlowspecExamplePromotionController;
+use App\Http\Controllers\FlowspecMessageController;
 use App\Http\Controllers\HeroiconController;
 use App\Http\Controllers\IntegrationDocumentationController;
 use App\Http\Controllers\Inventory\CompanyController;
@@ -155,6 +159,19 @@ Route::middleware(['auth', BlockAgentFromWeb::class])->group(function () {
     Route::get('mapa', [SolutionMapController::class, 'index'])->name('solutions.map');
     Route::get('mapa/dados', [SolutionMapController::class, 'data'])->name('solutions.map.data');
     Route::patch('mapa/nos/{solution}/posicao', [SolutionMapController::class, 'updatePosition'])->name('solutions.map.position.update');
+
+    // F8 — Gerador de flowSpec Digibee (chat). A resposta é gerada em job
+    // (GenerateFlowspecReply); `status` é o endpoint de polling do thread.
+    // {message} resolve escopado em FlowspecChat::messages().
+    Route::get('flowspec', [FlowspecChatController::class, 'index'])->name('flowspec.index');
+    Route::post('flowspec', [FlowspecChatController::class, 'store'])->name('flowspec.store');
+    Route::get('flowspec/{chat}', [FlowspecChatController::class, 'show'])->name('flowspec.show');
+    Route::get('flowspec/{chat}/status', [FlowspecChatController::class, 'status'])->name('flowspec.status');
+    Route::post('flowspec/{chat}/mensagens', [FlowspecMessageController::class, 'store'])->name('flowspec.messages.store');
+    Route::scopeBindings()->group(function () {
+        Route::post('flowspec/{chat}/mensagens/{message}/anexar', [FlowspecAttachmentController::class, 'store'])->name('flowspec.messages.attach');
+        Route::post('flowspec/{chat}/mensagens/{message}/promover', [FlowspecExamplePromotionController::class, 'store'])->name('flowspec.messages.promote');
+    });
 
     // Hub de Documentação — visão transversal do que está documentado (soluções
     // + integrações) e do que falta. Substitui o antigo painel de cobertura.

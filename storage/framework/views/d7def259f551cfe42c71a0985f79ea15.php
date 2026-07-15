@@ -23,6 +23,7 @@
         'Governança' => [
             ['route' => 'documentation.index', 'label' => 'Documentação', 'icon' => 'book-open', 'active' => 'documentation.*'],
             ['route' => 'solutions.map', 'label' => 'Mapa do ecossistema', 'icon' => 'share', 'active' => 'solutions.map'],
+            ['route' => 'flowspec.index', 'label' => 'Gerador de flowSpec', 'icon' => 'cpu-chip', 'active' => 'flowspec.*'],
         ],
     ];
 ?>

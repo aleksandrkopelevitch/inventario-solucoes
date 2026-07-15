@@ -26,6 +26,7 @@ class DatabaseSeeder extends Seeder
             AttributeOptionSeeder::class,
             SolutionSeeder::class,
             IntegrationSeeder::class,
+            FlowspecExampleSeeder::class,
         ]);
     }
 }

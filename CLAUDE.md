@@ -143,6 +143,22 @@ Proposal::with(['user:id,name', 'analysis:id,proposal_id,score'])->get();
 mostly surfaces inside a Blade partial that assumes a relation is loaded
 because the CALLER happens to have it in scope.
 
+**This guard only arms on multi-row hydration — don't assume it protects a
+single-model fetch.** `Illuminate\Database\Eloquent\Builder::hydrate()` sets
+the per-instance `$preventsLazyLoading` flag only `if (count($items) > 1)`; a
+single-row fetch (`find()`, `firstOrFail()`, a `belongsTo`/`hasOne` relation,
+or a model a queued job restores via `SerializesModels`) never arms it, so an
+unloaded relation on it silently lazy-loads with **no exception, in any
+environment** — verified 2026-07-15 by calling
+`Integration::query()->find($id)->source` inside a `LazilyRefreshDatabase`
+Feature test with `app()->isProduction()` confirmed false: no exception.
+Jobs are where this bites most — `handle(SomeModel $thing)` then
+`$thing->relatedModel->...` gets zero protection from strict mode, which is
+exactly the pattern it's supposed to catch. Eager-load explicitly
+(`$thing->loadMissing('relatedModel')`) at the top of job/service methods
+that walk a relation off a single fetched model — don't rely on a missing
+`with()` being caught by strict mode or by a test.
+
 If a View Component maps a parent's already-loaded collection and a child
 partial needs to walk back up (`$block->integration` when the component only
 has `$this->integration`), set the relation in memory instead of eager
@@ -270,11 +286,25 @@ public function backoff(): array
 ```
 
 - Use `ShouldDispatchAfterCommit` on jobs dispatched inside DB transactions to avoid race conditions
-- There are currently no queued jobs in this app (`app/Jobs` is empty) — if a
-  future feature needs "UI reflects a queued job's outcome", prefer polling
-  (a status column + a `data-status`/`data-poll-url` carrying slot + a
-  module-level timer) over broadcasting; `resources/js/modules/websocket.js`
-  was removed as dead code with zero consumers.
+- **UI reflects a queued job's outcome via polling, not broadcasting**
+  (`resources/js/modules/websocket.js` was removed as dead code with zero
+  consumers). Reference implementation: `App\Jobs\GenerateFlowspecReply` (F8
+  flowSpec chat generator) + `resources/js/modules/flowspec-chat.js` — a
+  `data-ak-*-poll` marker rendered inside the slot, a module-level
+  `setInterval` that stops itself once the marker disappears from the DOM
+  after a slot swap, and a **client-side give-up ceiling with a user-visible
+  Toast** (don't poll forever in silence if the queue worker is down or the
+  job never completes). The status endpoint must stay cheap while the job is
+  still pending: build/render the actual updatable slot only once the result
+  is ready — computing it on every poll tick (every 2–3s, for a job that can
+  take minutes) wastes a full query+render cycle on data the client discards.
+- **A job representing one turn of a sequential conversation/thread** (one
+  reply per prior message, order matters) needs `WithoutOverlapping` keyed by
+  the thread/chat id — without it, two rapid submissions to the same thread
+  run concurrently and violate the "one pending turn at a time" assumption
+  the UI/polling logic makes. Bump `$tries` well above 1 when adding it: each
+  blocked overlap is released back to the queue and retried (a wait, not a
+  real failure), and a release counts against `$tries`.
 
 ## Events & Notifications
 
@@ -574,6 +604,8 @@ All JS hooks use the `data-ak-*` prefix. Internal slots (`data-spinner`, `data-l
 | `data-ak-solution-attribute` (on a `<select>`) + `data-solution-attributes`/`data-action="url"` (on the wrapping `<dl>`) | `solution-attributes.js` | Auto-persists one Solution attribute on `change`, no save button |
 | `data-ak-chips` (root) + `data-ak-chips-input`/`data-ak-chips-list`/`data-ak-chips-results`/`data-ak-chips-result`/`data-ak-chip`/`data-ak-chip-remove` | `chips.js` | Multi-select-with-autocomplete chips input (e.g. Pessoa↔Solução role linking) |
 | `data-ak-integration-select="slug"` (on a row) + `data-ak-integration-list` (on the container) | `integration-select.js` | Selects an integration row (`aria-pressed`), dispatches `ak:integration-selected` `{name, slug, graph}` |
+| `data-ak-flowspec-poll="status-url"` | `flowspec-chat.js` | Presence in the thread slot = a reply is still generating; module polls the URL every 2.5s (capped at `MAX_POLL_ATTEMPTS`) until the slot swap removes this marker |
+| `data-ak-flowspec-copy="pre-id"` | `flowspec-chat.js` | Copies the target element's `textContent` (not `innerHTML` — the flowSpec JSON's `jsonPath` has literal `&&`) to the clipboard |
 
 ## `ajax.js` — contrato Promise, não XHR
 

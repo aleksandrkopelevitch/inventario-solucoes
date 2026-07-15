@@ -8,6 +8,7 @@ namespace App\Models;
 use App\Enums\UserRole;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -38,6 +39,11 @@ class User extends Authenticatable implements HasMedia
     public function preference(string $key, mixed $default = null): mixed
     {
         return data_get($this->preferences, $key, $default);
+    }
+
+    public function flowspecChats(): HasMany
+    {
+        return $this->hasMany(FlowspecChat::class);
     }
 
     public function registerMediaCollections(): void
