@@ -24,6 +24,20 @@
                     @endif
 
                     @if ($canEdit)
+                        {{-- Indicador do "Assiste IA" enquanto o job gera (docs-ai.js o revela). --}}
+                        <span data-ak-docs-ai-status class="hidden items-center gap-1.5 text-xs text-accent" aria-live="polite">
+                            <x-heroicon-o-sparkles class="size-4 animate-pulse" />
+                            Gerando com IA…
+                        </span>
+
+                        @isset($assistPanelUrl)
+                            <x-forms.button type="button" variant="ghost" data-ak-panel-open data-ak-panel-url="{{ $assistPanelUrl }}"
+                                class="!h-9 !px-3 !text-sm">
+                                <x-heroicon-o-sparkles class="size-4" />
+                                <span>Assiste IA</span>
+                            </x-forms.button>
+                        @endisset
+
                         <span data-ak-docs-status class="text-xs text-muted" aria-live="polite"></span>
                         <x-forms.button type="button" data-ak-docs-save data-action="{{ $saveUrl }}" class="!h-9 !px-4 !text-sm">
                             Salvar

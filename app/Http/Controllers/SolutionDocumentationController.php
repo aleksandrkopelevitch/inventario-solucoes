@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\AssistsDocumentation;
 use App\Http\Controllers\Concerns\EditsDocumentation;
 use App\Http\Controllers\Concerns\NavigatesSolutionDocs;
+use App\Http\Requests\GenerateDocumentationDraftRequest;
 use App\Http\Requests\MoveDocumentationPageRequest;
 use App\Http\Requests\SaveDocumentationPageTitleRequest;
 use App\Http\Requests\SaveDocumentationRequest;
 use App\Http\Requests\UploadDocumentationMediaRequest;
+use App\Models\DocumentationAiGeneration;
 use App\Models\DocumentationPage;
 use App\Models\Solution;
 use App\Services\DocumentationPageService;
@@ -31,7 +34,7 @@ use Illuminate\Support\Str;
  */
 class SolutionDocumentationController extends Controller
 {
-    use EditsDocumentation, NavigatesSolutionDocs;
+    use AssistsDocumentation, EditsDocumentation, NavigatesSolutionDocs;
 
     public function __construct(private readonly DocumentationPageService $pages) {}
 
@@ -68,6 +71,7 @@ class SolutionDocumentationController extends Controller
             'pagesNav'        => $this->solutionPagesNav($solution, $page),
             'integrationsNav' => $this->solutionIntegrationsNav($solution, null),
             'createPageUrl'   => route('solutions.docs.pages.store', $solution),
+            'assistPanelUrl'  => route('solutions.docs.assist.panel', [$solution, $page]),
             // Compartilhar (link público) só existe na doc da própria Solution
             // — a view genérica (compartilhada com IntegrationDocumentationController)
             // trata como opcional via @isset.
@@ -136,6 +140,36 @@ class SolutionDocumentationController extends Controller
     public function media(UploadDocumentationMediaRequest $request, Solution $solution, DocumentationPage $page): JsonResponse
     {
         return $this->storeDocumentationMedia($request, $page);
+    }
+
+    /* --- Assiste IA (gera o conteúdo da página por LLM) ------------------- */
+
+    public function assistantPanel(Solution $solution, DocumentationPage $page): JsonResponse
+    {
+        $page->setRelation('container', $solution);
+
+        return $this->assistantPanelResponse(
+            $solution,
+            $page,
+            route('solutions.docs.assist.generate', [$solution, $page]),
+        );
+    }
+
+    public function generateDraft(GenerateDocumentationDraftRequest $request, Solution $solution, DocumentationPage $page): JsonResponse
+    {
+        $page->setRelation('container', $solution);
+
+        return $this->createDraft(
+            $request,
+            $solution,
+            $page,
+            fn (DocumentationAiGeneration $g) => route('solutions.docs.assist.status', [$solution, $g]),
+        );
+    }
+
+    public function draftStatus(Solution $solution, DocumentationAiGeneration $generation): JsonResponse
+    {
+        return $this->draftStatusResponse($solution, $generation);
     }
 
     /** Gera (se ainda não existe) o token do link público e devolve o painel. */

@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\AssistsDocumentation;
 use App\Http\Controllers\Concerns\EditsDocumentation;
 use App\Http\Controllers\Concerns\NavigatesSolutionDocs;
+use App\Http\Requests\GenerateDocumentationDraftRequest;
 use App\Http\Requests\SaveDocumentationRequest;
 use App\Http\Requests\UploadDocumentationMediaRequest;
+use App\Models\DocumentationAiGeneration;
 use App\Models\Integration;
 use App\Models\Solution;
 use Illuminate\Contracts\View\View;
@@ -23,7 +26,7 @@ use Illuminate\Http\JsonResponse;
  */
 class IntegrationDocumentationController extends Controller
 {
-    use EditsDocumentation, NavigatesSolutionDocs;
+    use AssistsDocumentation, EditsDocumentation, NavigatesSolutionDocs;
 
     public function edit(Solution $solution, Integration $integration): View
     {
@@ -35,6 +38,7 @@ class IntegrationDocumentationController extends Controller
             'pagesNav'        => $this->solutionPagesNav($solution, null),
             'integrationsNav' => $this->solutionIntegrationsNav($solution, $integration),
             'createPageUrl'   => route('solutions.docs.pages.store', $solution),
+            'assistPanelUrl'  => route('solutions.integrations.docs.assist.panel', [$solution, $integration]),
             'breadcrumbs'     => [
                 ['label' => $solution->name, 'url' => route('solutions.show', $solution)],
                 ['label' => 'Documentação', 'url' => route('solutions.docs.edit', $solution)],
@@ -50,5 +54,28 @@ class IntegrationDocumentationController extends Controller
     public function media(UploadDocumentationMediaRequest $request, Solution $solution, Integration $integration): JsonResponse
     {
         return $this->storeDocumentationMedia($request, $integration);
+    }
+
+    /* --- Assiste IA (gera o conteúdo da doc da integração por LLM) -------- */
+
+    public function assistantPanel(Solution $solution, Integration $integration): JsonResponse
+    {
+        return $this->assistantPanelResponse(
+            $solution,
+            $integration,
+            route('solutions.integrations.docs.assist.generate', [$solution, $integration]),
+        );
+    }
+
+    public function generateDraft(GenerateDocumentationDraftRequest $request, Solution $solution, Integration $integration): JsonResponse
+    {
+        return $this->createDraft(
+            $request,
+            $solution,
+            $integration,
+            // Endpoint de status único (solutions.docs.assist.status) — serve
+            // páginas e integrações; o registro carrega o próprio alvo.
+            fn (DocumentationAiGeneration $g) => route('solutions.docs.assist.status', [$solution, $g]),
+        );
     }
 }

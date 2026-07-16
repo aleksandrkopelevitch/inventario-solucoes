@@ -1,7 +1,9 @@
 <?php
 
+use App\Models\DocumentationPage;
 use App\Models\FlowspecChat;
 use App\Models\FlowspecExample;
+use App\Models\Solution;
 use App\Services\Flowspec\DigibeeFlowspecNormalizer;
 use App\Services\Flowspec\DigibeeFlowspecValidator;
 use App\Services\Flowspec\FlowspecContextResolver;
@@ -56,7 +58,7 @@ it('returns a validated document on the first valid answer', function () {
     expect($result->validated)->toBeTrue()
         ->and($result->document)->toHaveKeys(['meta', 'flowSpec'])
         ->and($result->meta['attempts'])->toHaveCount(1)
-        ->and($result->meta['tokens'])->toBe(['prompt' => 100, 'completion' => 200]);
+        ->and($result->meta['tokens'])->toBe(['prompt' => 100, 'completion' => 200, 'cache_write' => 0, 'cache_read' => 0]);
 });
 
 it('re-prompts with the concrete errors until the answer validates', function () {
@@ -109,6 +111,51 @@ it('treats an answer without JSON as conversational, without re-prompting', func
         ->and($result->validated)->toBeFalse()
         ->and($result->text)->toContain('SVL ou IAM')
         ->and($result->meta['attempts'])->toHaveCount(1);
+});
+
+it('suggests documentation for a solution the conversational answer names but was not yet considered', function () {
+    $this->seed(FlowspecExampleSeeder::class);
+
+    $iam = Solution::factory()->create(['name' => 'IAM']);
+    $page = DocumentationPage::factory()->for($iam, 'container')->create(['title' => 'Autenticação', 'documentation' => 'x']);
+
+    $chat = chatWithUserMessage('gera um flowspec de token');
+
+    $result = fakeGenerationService(['Preciso saber como o IAM autentica antes de continuar — descreva ou anexe a documentação dele.'])
+        ->generate($chat->messages()->firstOrFail());
+
+    expect($result->meta['suggested_documents'])->toBe([
+        ['type' => 'page', 'id' => $page->id, 'label' => 'IAM — Autenticação'],
+    ]);
+});
+
+it('does not suggest documents when the loop exhausts attempts on broken JSON', function () {
+    $this->seed(FlowspecExampleSeeder::class);
+
+    $iam = Solution::factory()->create(['name' => 'IAM']);
+    DocumentationPage::factory()->for($iam, 'container')->create(['title' => 'Autenticação', 'documentation' => 'x']);
+
+    // JSON cercado mas inválido nas 3 tentativas (max_attempts): $document fica
+    // null SEM ser conversacional — o texto cita IAM, mas o guard não infere
+    // sugestões de um JSON quebrado.
+    $broken = "Preciso do IAM.\n```json\n{ \"meta\": }\n```";
+    $chat = chatWithUserMessage('gera um flowspec de token');
+
+    $result = fakeGenerationService([$broken, $broken, $broken])->generate($chat->messages()->firstOrFail());
+
+    expect($result->document)->toBeNull()
+        ->and($result->meta['suggested_documents'])->toBe([]);
+});
+
+it('does not suggest documents for a validated flowSpec answer', function () {
+    $this->seed(FlowspecExampleSeeder::class);
+
+    $valid = FlowspecExample::query()->where('slug', 'get-token-svl')->firstOrFail()->flow_spec;
+    $chat = chatWithUserMessage('gera o flowspec de token');
+
+    $result = fakeGenerationService([json_encode($valid)])->generate($chat->messages()->firstOrFail());
+
+    expect($result->meta['suggested_documents'])->toBe([]);
 });
 
 it('treats a conversational answer mentioning double-braces syntax as conversational, not broken JSON', function () {

@@ -24,7 +24,7 @@ class FlowspecPromptBuilder
         return <<<PROMPT
         Você gera pipelines de integração da plataforma Digibee para a Leo Madeiras.
 
-        Quando o pedido for a criação ou alteração de um pipeline, responda com UM ÚNICO JSON no formato {"meta": {...}, "flowSpec": {...}} — sem nenhum texto fora do JSON, sem cercas de código. Se o pedido for uma dúvida ou faltar informação essencial, responda em texto puro (sem JSON) pedindo o que falta.
+        Quando o pedido for a criação ou alteração de um pipeline, responda com UM ÚNICO JSON no formato {"meta": {...}, "flowSpec": {...}} — sem nenhum texto fora do JSON, sem cercas de código. Se o pedido for uma dúvida ou faltar informação essencial (por exemplo, documentação de um sistema envolvido que você ainda não recebeu), responda em texto puro (sem JSON) pedindo o que falta — cite pelo nome exato cada sistema cuja documentação ajudaria, e deixe claro que dá pra descrever mais na próxima mensagem OU anexar a documentação desse sistema diretamente.
 
         Regras de plataforma (obrigatórias — a resposta é validada automaticamente e volta para você corrigir se violar qualquer uma):
 
@@ -126,7 +126,10 @@ class FlowspecPromptBuilder
         $section = "# DOCUMENTAÇÃO DOS SISTEMAS ENVOLVIDOS\n\n" . $pageBlocks->merge($integrationBlocks)->implode("\n\n");
 
         if ($context->omittedDocuments !== []) {
-            $section .= "\n\n(Documentos omitidos por orçamento de contexto: " . implode('; ', $context->omittedDocuments) . ')';
+            // `omittedDocuments` é uma lista de refs `{type, id, label}` (para
+            // virarem botão de "adicionar" no chat) — aqui só o rótulo entra
+            // no prompt.
+            $section .= "\n\n(Documentos omitidos por orçamento de contexto: " . implode('; ', array_column($context->omittedDocuments, 'label')) . ')';
         }
 
         return $section;

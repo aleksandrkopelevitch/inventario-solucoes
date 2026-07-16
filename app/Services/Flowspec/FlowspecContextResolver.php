@@ -22,6 +22,14 @@ use Illuminate\Support\Str;
  * usa-se exatamente as páginas/integrações escolhidas — a ideia é dar a
  * quem sabe exatamente qual documentação é relevante uma forma de evitar a
  * inferência automática, que pode incluir contexto desnecessário.
+ *
+ * `suggestDocumentsFor()` (chamado por FlowspecGenerationService só quando a
+ * resposta do modelo foi conversacional — uma pergunta, não um flowSpec)
+ * é o lado inverso: acha documentação REAL para sistemas que o modelo citou
+ * pelo nome ao pedir mais contexto, mas que ainda não estavam no contexto
+ * considerado — vira botão de "adicionar" no chat em vez do usuário ter que
+ * digitar no chips picker. Nunca inventa um nome: casa contra o catálogo de
+ * Solutions existente, igual a inferSolutions().
  */
 class FlowspecContextResolver
 {
@@ -80,14 +88,83 @@ class FlowspecContextResolver
     }
 
     /**
+     * Documentação de Solutions que o modelo citou pelo nome numa resposta
+     * conversacional ("preciso saber como o IAM autentica…") mas que ainda
+     * não estavam em `$consideredSolutions` — cada página/integração
+     * encontrada vira um botão de "adicionar" no chat (mesma referência
+     * `{type, id}` do chips picker "Documentos específicos", então o clique
+     * reusa addChip() já existente em chips.js). Reaproveita o casamento de
+     * inferSolutions() — nunca sugere um nome que o modelo não podia ter
+     * visto em algum lugar real do catálogo.
+     *
+     * @param  Collection<int, Solution>  $consideredSolutions
+     * @return list<array{type: string, id: int, label: string}>
+     */
+    public function suggestDocumentsFor(string $text, Collection $consideredSolutions): array
+    {
+        // pluck('id'), não modelKeys(): ao contrário de $mentioned (sempre
+        // vindo de inferSolutions(), uma Eloquent\Collection de verdade),
+        // $consideredSolutions é o parâmetro público do método — aceita
+        // qualquer Collection<Solution>, não só Eloquent\Collection.
+        $consideredIds = $consideredSolutions->pluck('id')->all();
+
+        $mentioned = $this->inferSolutions($this->normalize($text))
+            ->reject(fn (Solution $solution) => in_array($solution->id, $consideredIds, true))
+            ->values();
+
+        if ($mentioned->isEmpty()) {
+            return [];
+        }
+
+        // Só as colunas usadas nos labels — não puxa o longText `documentation`
+        // (ele entra só no WHERE), por mensagem conversacional.
+        $pages = DocumentationPage::query()
+            ->where('container_type', Solution::class)
+            ->whereIn('container_id', $mentioned->modelKeys())
+            ->whereNotNull('documentation')
+            ->where('documentation', '<>', '')
+            ->orderBy('position')
+            ->get(['id', 'container_id', 'title']);
+
+        $solutionsById = $mentioned->keyBy->getKey();
+
+        $integrations = Integration::query()
+            ->whereHas('participants', fn ($query) => $query->whereIn('solutions.id', $mentioned->modelKeys()))
+            ->whereNotNull('documentation')
+            ->where('documentation', '<>', '')
+            ->get(['id', 'name']);
+
+        // collect($model->all()) antes do ->map() — mesmo cuidado do ->merge()
+        // em selectDocuments(): mapear direto numa Eloquent\Collection vazia
+        // não a rebaixa para Support\Collection, e o merge por chave primária
+        // da Eloquent quebra contra um array puro.
+        $pageSuggestions = collect($pages->all())->map(fn (DocumentationPage $page) => [
+            'type'  => 'page',
+            'id'    => $page->id,
+            'label' => "{$solutionsById[$page->container_id]->name} — {$page->title}",
+        ]);
+
+        $integrationSuggestions = collect($integrations->all())->map(fn (Integration $integration) => [
+            'type'  => 'integration',
+            'id'    => $integration->id,
+            'label' => $integration->name,
+        ]);
+
+        $limit = (int) config('services.flowspec.max_suggested_documents');
+
+        return $pageSuggestions->merge($integrationSuggestions)->take($limit)->values()->all();
+    }
+
+    /**
      * Páginas documentadas das Solutions escolhidas + documentação das
-     * integrações em que elas participam, priorizadas pelo que casa termos
-     * do pedido (contratos, payloads, endpoints citados) e cortadas juntas
-     * (mesmo orçamento) ao orçamento de caracteres — o que ficou de fora
-     * volta em `omitted` para ser sinalizado no chat.
+     * integrações em que elas participam, ordenadas pelo que casa termos do
+     * pedido (contratos, payloads, endpoints citados) e cortadas juntas ao
+     * mesmo orçamento de caracteres. No empate de relevância, a doc de
+     * integração vem antes da página (para um flowSpec, ela é a fonte mais
+     * direta). O que ficou de fora volta em `omitted` para ser sinalizado no chat.
      *
      * @param  Collection<int, Solution>  $solutions
-     * @return array{Collection<int, DocumentationPage>, Collection<int, Integration>, list<string>}
+     * @return array{Collection<int, DocumentationPage>, Collection<int, Integration>, list<array{type: string, id: int, label: string}>}
      */
     private function selectDocuments(Collection $solutions, string $normalizedRequest): array
     {
@@ -123,11 +200,21 @@ class FlowspecContextResolver
             ->map(fn (DocumentationPage $page) => ['kind' => 'page', 'model' => $page, 'heading' => $page->title, 'body' => $page->documentation])
             ->merge(collect($integrations->all())->map(fn (Integration $integration) => ['kind' => 'integration', 'model' => $integration, 'heading' => $integration->name, 'body' => $integration->documentation]));
 
-        $scored = $units->sortByDesc(function (array $unit) use ($terms) {
-            $haystack = $this->normalize($unit['heading'] . ' ' . $unit['body']);
+        $scored = $units
+            ->map(function (array $unit) use ($terms) {
+                $haystack = $this->normalize($unit['heading'] . ' ' . $unit['body']);
+                $unit['score'] = collect($terms)->filter(fn (string $term) => str_contains($haystack, $term))->count();
 
-            return collect($terms)->filter(fn (string $term) => str_contains($haystack, $term))->count();
-        })->values();
+                return $unit;
+            })
+            // Relevância de termos manda (score * 2). Empate no score: a doc de
+            // INTEGRAÇÃO vem antes da página — para gerar um flowSpec (que é a
+            // própria descrição da integração: endpoints, contratos, protocolos),
+            // a documentação da integração é a fonte mais direta. É só desempate:
+            // uma página claramente mais relevante ao pedido ainda ganha de uma
+            // integração pouco relevante.
+            ->sortByDesc(fn (array $unit) => $unit['score'] * 2 + ($unit['kind'] === 'integration' ? 1 : 0))
+            ->values();
 
         $budget = (int) config('services.flowspec.doc_budget_chars');
         $selected = collect();
@@ -137,7 +224,7 @@ class FlowspecContextResolver
             $size = mb_strlen($unit['body']);
 
             if ($selected->isNotEmpty() && $budget - $size < 0) {
-                $omitted[] = $unit['heading'];
+                $omitted[] = ['type' => $unit['kind'], 'id' => $unit['model']->getKey(), 'label' => $unit['heading']];
 
                 continue;
             }
@@ -161,7 +248,7 @@ class FlowspecContextResolver
      * orçamento: o que foi selecionado entra inteiro no prompt.
      *
      * @param  list<array{type: string, id: int}>  $documentRefs
-     * @return array{Collection<int, DocumentationPage>, Collection<int, Integration>, list<string>}
+     * @return array{Collection<int, DocumentationPage>, Collection<int, Integration>, list<array{type: string, id: int, label: string}>}
      */
     private function selectExplicitDocuments(array $documentRefs): array
     {

@@ -38,12 +38,12 @@
                 <h2 class="text-sm font-semibold text-ink">Documentação usada</h2>
                 <p class="mt-1 text-xs text-muted">Adicione sistemas para priorizar a documentação deles no prompt da próxima mensagem. Sem seleção, são inferidos do texto do pedido.</p>
                 <x-forms.chips name="solutions" form="flowspec-message-form" :search-url="route('solutions.search')"
-                    placeholder="Buscar sistema…" class="mt-3" />
+                    placeholder="Buscar sistema…" class="mt-3" centered />
 
                 <h2 class="mt-4 text-sm font-semibold text-ink">Documentos específicos</h2>
                 <p class="mt-1 text-xs text-muted">Opcional — escolha páginas ou integrações específicas para usar exatamente essas, sem a seleção automática por relevância.</p>
                 <x-forms.chips name="documents" form="flowspec-message-form" :search-url="route('flowspec.documents.search')"
-                    placeholder="Buscar página ou integração…" class="mt-3" />
+                    placeholder="Buscar página ou integração…" class="mt-3" centered />
             </div>
         </aside>
     </div>

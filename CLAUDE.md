@@ -606,6 +606,10 @@ All JS hooks use the `data-ak-*` prefix. Internal slots (`data-spinner`, `data-l
 | `data-ak-integration-select="slug"` (on a row) + `data-ak-integration-list` (on the container) | `integration-select.js` | Selects an integration row (`aria-pressed`), dispatches `ak:integration-selected` `{name, slug, graph}` |
 | `data-ak-flowspec-poll="status-url"` | `flowspec-chat.js` | Presence in the thread slot = a reply is still generating; module polls the URL every 2.5s (capped at `MAX_POLL_ATTEMPTS`) until the slot swap removes this marker |
 | `data-ak-flowspec-copy="pre-id"` | `flowspec-chat.js` | Copies the target element's `textContent` (not `innerHTML` — the flowSpec JSON's `jsonPath` has literal `&&`) to the clipboard |
+| `data-ak-docs-ai-generate` (+ `data-action="url"`) | `docs-ai.js` | "Assiste IA": collects the prompt, checked context docs and the editor's current Markdown (`window.__akDocsGetMarkdown`), POSTs to start the generation job, closes the panel and polls the returned `pollUrl` until the draft loads into the editor (`window.__akDocsSetMarkdown`) |
+| `data-ak-docs-ai-prompt` | `docs-ai.js` | The prompt `<textarea>` read by the generate action |
+| `data-ak-docs-ai-status` | `docs-ai.js` | "Gerando com IA…" indicator, revealed (`hidden`→`inline-flex`) while a generation job runs |
+| `data-ak-context-doc` (on a checkbox, `value`=media id) | `docs-ai.js` | A Solution context document the AI should consider; checked ids are sent as `media_ids[]` |
 
 ## `ajax.js` — contrato Promise, não XHR
 

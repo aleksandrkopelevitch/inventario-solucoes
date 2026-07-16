@@ -19,12 +19,12 @@
 
             <x-forms.field label="Documentação usada" name="solutions"
                 hint="Busque e adicione sistemas para priorizar a documentação deles no prompt. Sem seleção, são inferidos do texto.">
-                <x-forms.chips name="solutions" :search-url="route('solutions.search')" placeholder="Buscar sistema…" />
+                <x-forms.chips name="solutions" :search-url="route('solutions.search')" placeholder="Buscar sistema…" centered />
             </x-forms.field>
 
             <x-forms.field label="Documentos específicos (opcional)" name="documents"
                 hint="Escolha páginas de documentação ou integrações específicas para usar exatamente essas, sem a seleção automática por relevância.">
-                <x-forms.chips name="documents" :search-url="route('flowspec.documents.search')" placeholder="Buscar página ou integração…" />
+                <x-forms.chips name="documents" :search-url="route('flowspec.documents.search')" placeholder="Buscar página ou integração…" centered />
             </x-forms.field>
 
             <div>

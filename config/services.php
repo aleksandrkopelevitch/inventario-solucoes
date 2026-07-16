@@ -51,6 +51,31 @@ return [
         'doc_budget_chars' => env('DIGIBEE_FLOWSPEC_DOC_BUDGET_CHARS', 60000),
         'fallback_example' => env('DIGIBEE_FLOWSPEC_FALLBACK_EXAMPLE', 'update-bigquery-rest'),
         'timeout'          => env('DIGIBEE_FLOWSPEC_AI_TIMEOUT', 180),
+
+        // Botões de "adicionar documentação" oferecidos junto de uma resposta
+        // conversacional (FlowspecContextResolver::suggestDocumentsFor) —
+        // mais que isso vira ruído na bolha do chat.
+        'max_suggested_documents' => env('DIGIBEE_FLOWSPEC_MAX_SUGGESTED_DOCUMENTS', 6),
+    ],
+
+    /*
+    | "Assiste IA" da documentação — popula a página corrente por LLM com base
+    | num prompt + documentos de contexto da Solução (App\Services\Documentation).
+    | Mesmo padrão env-driven do flowspec; a chave da API é lida pelo config/ai.php
+    | do pacote laravel/ai (provider anthropic => ANTHROPIC_API_KEY).
+    */
+    'documentation_ai' => [
+        'provider' => env('DOCS_AI_PROVIDER', 'anthropic'),
+        'model'    => env('DOCS_AI_MODEL', 'claude-sonnet-5'),
+        'timeout'  => env('DOCS_AI_TIMEOUT', 180),
+        // Orçamento de caracteres para os documentos de contexto de TEXTO
+        // embutidos no prompt (PDF/imagem vão como anexo, fora deste limite).
+        'doc_budget_chars'      => env('DOCS_AI_DOC_BUDGET_CHARS', 60000),
+        'max_context_documents' => env('DOCS_AI_MAX_CONTEXT_DOCUMENTS', 10),
+        // Teto agregado de bytes dos anexos nativos (PDF/imagem) numa geração —
+        // abaixo do limite de ~32MB por requisição da API do Claude; excedeu,
+        // os anexos seguintes são omitidos (sinalizados em meta.omitted_attachments).
+        'max_attachment_bytes' => env('DOCS_AI_MAX_ATTACHMENT_BYTES', 28000000),
     ],
 
 ];

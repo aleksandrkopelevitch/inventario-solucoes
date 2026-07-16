@@ -125,6 +125,17 @@ it('searches documentation pages and integrations for the "Documentos específic
     expect($response->json('results.*.id'))->toBe(["page:{$page->id}", "integration:{$integration->id}"]);
 });
 
+it('finds an integration match even when no documentation page matches the term', function () {
+    $user = flowspecUser();
+    Integration::factory()->create(['name' => 'Access One -> SVL -> SAP | Gestão de Atendentes', 'documentation' => 'y']);
+
+    $response = $this->actingAs($user)
+        ->getJson(route('flowspec.documents.search', ['q' => 'Gestão de Atendentes']))
+        ->assertOk();
+
+    expect($response->json('results.*.name'))->toBe(['Access One -> SVL -> SAP | Gestão de Atendentes']);
+});
+
 it('appends a message to an existing chat and dispatches the job', function () {
     Queue::fake();
     $user = flowspecUser();

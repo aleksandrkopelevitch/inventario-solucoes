@@ -27,7 +27,11 @@ class FlowspecMessageController extends Controller
         return response()->json([
             'updatableSlots' => [Thread::slot($chat)],
             // Limpa o composer — o thread (com "gerando…") já voltou no slot.
-            'js' => "document.getElementById('flowspec-message-input').value = ''",
+            // Também zera os chips de contexto: eles ficam no aside (fora do
+            // slot) e valem só para esta mensagem; sem limpar, o mesmo sistema/
+            // documento seria reenviado em todas as mensagens seguintes.
+            'js' => "document.getElementById('flowspec-message-input').value = '';"
+                . "document.dispatchEvent(new CustomEvent('ak:chips-reset', {detail: {names: ['solutions', 'documents']}}));",
         ]);
     }
 }

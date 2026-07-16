@@ -119,6 +119,16 @@ class FlowspecChatController extends Controller
                 'meta' => 'Documentação de integração',
             ]);
 
-        return response()->json(['results' => $pages->merge($integrations)->take(10)->values()]);
+        // `collect()` forces a plain Support\Collection before merging: when
+        // `$pages` has zero matches, Eloquent\Collection::map() keeps it as an
+        // (empty) Eloquent\Collection instead of downgrading to a base
+        // Collection — `contains(fn ($item) => ! $item instanceof Model)` is
+        // vacuously false over zero items, so the downgrade in Eloquent's
+        // `map()` never fires. `$pages->merge($integrations)` then runs
+        // Eloquent\Collection::merge(), which assumes every item is a Model
+        // and calls `$item->getKey()` — a fatal error on the plain arrays
+        // `$integrations` actually holds. Reproduces with any term that
+        // matches an integration but no documentation page.
+        return response()->json(['results' => collect($pages)->merge($integrations)->take(10)->values()]);
     }
 }

@@ -63,6 +63,13 @@ function existingValues(container) {
     return Array.from(container.querySelectorAll('[data-ak-chip] input[type="hidden"][name$="[value]"]')).map((i) => i.value)
 }
 
+// Chama-se depois de todo add/remove — não dá pra confiar no `:empty` do
+// CSS aqui (ver comentário em chips.blade.php), então a visibilidade da
+// lista é decidida em JS, olhando se ainda sobra algum `[data-ak-chip]`.
+function syncListVisibility(list) {
+    list.classList.toggle('hidden', !list.querySelector('[data-ak-chip]'))
+}
+
 function addChip(container, cfg, value, label) {
     const value_ = String(value).trim()
     if (!value_ || existingValues(container).includes(value_)) return
@@ -72,6 +79,7 @@ function addChip(container, cfg, value, label) {
 
     const idx = nextIndex(container)
     list.insertAdjacentHTML('beforeend', chipHtml(cfg.name, idx, value_, label, cfg.roles, cfg.form))
+    syncListVisibility(list)
 }
 
 function resultsContainerOf(container) {
@@ -85,6 +93,35 @@ function hideResults(container) {
     results.classList.add('hidden')
     results.innerHTML = ''
     highlightedIndex.set(container, -1)
+}
+
+// Overlay centralizado (config `centered` — chips.blade.php). Só existe
+// quando o campo foi renderizado com `centered`; abre por clique no
+// trigger, nunca por atalho de teclado.
+function overlayOf(container) {
+    return container.querySelector('[data-ak-chips-overlay]')
+}
+
+function openOverlay(container) {
+    const overlay = overlayOf(container)
+    if (!overlay) return
+
+    overlay.style.display = 'flex'
+
+    const input = container.querySelector('[data-ak-chips-input]')
+    if (input) {
+        input.value = ''
+        requestAnimationFrame(() => input.focus())
+    }
+    hideResults(container)
+}
+
+function closeOverlay(container) {
+    const overlay = overlayOf(container)
+    if (!overlay) return
+
+    overlay.style.display = 'none'
+    hideResults(container)
 }
 
 function renderResults(container, items) {
@@ -180,7 +217,8 @@ document.addEventListener('keydown', (e) => {
             e.preventDefault()
             highlightAt(container, (highlightedIndex.get(container) ?? 0) - 1)
         } else if (e.key === 'Escape') {
-            hideResults(container)
+            if (cfg.centered) closeOverlay(container)
+            else hideResults(container)
         } else if (e.key === 'Enter') {
             e.preventDefault()
             if (selectHighlighted(container, cfg)) {
@@ -202,6 +240,50 @@ document.addEventListener('keydown', (e) => {
 })
 
 document.addEventListener('click', (e) => {
+    // Botão externo de "adicionar documentação" (ex.: sugestões do flowSpec
+    // em thread.blade.php) — encontra o campo chips pelo `name` (não pelo
+    // DOM: o botão vive na bolha da mensagem, o campo vive no composer, em
+    // outro lugar da página) e adiciona reusando addChip().
+    const addBtn = e.target.closest('[data-ak-chips-add]')
+    if (addBtn) {
+        let payload = {}
+        try {
+            payload = JSON.parse(addBtn.dataset.akChipsAdd || '{}')
+        } catch {
+            payload = {}
+        }
+
+        const container = Array.from(document.querySelectorAll('[data-ak-chips]')).find((el) => configOf(el).name === payload.name)
+        if (container && payload.value) {
+            addChip(container, configOf(container), payload.value, payload.label ?? payload.value)
+            addBtn.disabled = true
+        }
+        return
+    }
+
+    const trigger = e.target.closest('[data-ak-chips-trigger]')
+    if (trigger) {
+        const container = trigger.closest('[data-ak-chips]')
+        if (container) openOverlay(container)
+        return
+    }
+
+    const overlayCloseBtn = e.target.closest('[data-ak-chips-overlay-close]')
+    if (overlayCloseBtn) {
+        const container = overlayCloseBtn.closest('[data-ak-chips]')
+        if (container) closeOverlay(container)
+        return
+    }
+
+    // Clique no próprio backdrop (não no painel) fecha — mesmo padrão do
+    // `data-eco-search-overlay` em ecosystem-map.js.
+    const overlay = e.target.closest('[data-ak-chips-overlay]')
+    if (overlay && e.target === overlay) {
+        const container = overlay.closest('[data-ak-chips]')
+        if (container) closeOverlay(container)
+        return
+    }
+
     const resultBtn = e.target.closest('[data-ak-chips-result]')
     if (resultBtn) {
         const container = resultBtn.closest('[data-ak-chips]')
@@ -219,7 +301,9 @@ document.addEventListener('click', (e) => {
 
     const removeBtn = e.target.closest('[data-ak-chip-remove]')
     if (removeBtn) {
+        const list = removeBtn.closest('[data-ak-chips-list]')
         removeBtn.closest('[data-ak-chip]')?.remove()
+        if (list) syncListVisibility(list)
         return
     }
 
@@ -229,6 +313,24 @@ document.addEventListener('click', (e) => {
         if (container && !container.contains(e.target)) {
             hideResults(container)
         }
+    })
+})
+
+// Limpa os chips de um ou mais campos (por `name`) — ex.: após enviar uma
+// mensagem do flowSpec, cujo contexto vale só para aquela mensagem ("próxima
+// mensagem", ver flowspec/show.blade.php), senão os sistemas/documentos
+// escolhidos para uma pergunta seriam reenviados em todas as seguintes. Sem
+// `detail.names`, limpa todos os campos chips da página.
+document.addEventListener('ak:chips-reset', (e) => {
+    const names = e.detail?.names
+    document.querySelectorAll('[data-ak-chips]').forEach((container) => {
+        if (Array.isArray(names) && names.length && !names.includes(configOf(container).name)) return
+
+        const list = container.querySelector('[data-ak-chips-list]')
+        if (!list) return
+
+        list.querySelectorAll('[data-ak-chip]').forEach((chip) => chip.remove())
+        syncListVisibility(list)
     })
 })
 
