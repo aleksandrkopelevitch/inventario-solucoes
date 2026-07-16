@@ -24,7 +24,7 @@ final class FlowspecContext
      * @param  Collection<int, Solution>  $solutions
      * @param  Collection<int, DocumentationPage>  $pages
      * @param  Collection<int, Integration>  $integrationDocs  integrações com `documentation` própria
-     * @param  list<string>  $omittedDocuments  títulos/nomes cortados por orçamento
+     * @param  list<array{type: string, id: int, label: string}>  $omittedDocuments  cortados por orçamento — referência completa, não só o rótulo, para poderem virar sugestão de "adicionar" (ver FlowspecGenerationService::suggestedDocuments())
      * @param  Collection<int, FlowspecExample>  $examples
      * @param  list<string>  $tags  tags candidatas derivadas do pedido
      */
@@ -44,7 +44,7 @@ final class FlowspecContext
             'solutions'         => $this->solutions->pluck('name')->all(),
             'pages'             => $this->pages->pluck('title')->all(),
             'integration_docs'  => $this->integrationDocs->pluck('name')->all(),
-            'omitted_documents' => $this->omittedDocuments,
+            'omitted_documents' => array_column($this->omittedDocuments, 'label'),
             'examples'          => $this->examples->pluck('slug')->all(),
             'tags'              => $this->tags,
         ];

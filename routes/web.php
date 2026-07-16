@@ -20,6 +20,7 @@ use App\Http\Controllers\Inventory\SolutionController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicDocumentationController;
+use App\Http\Controllers\SolutionContextDocumentController;
 use App\Http\Controllers\SolutionDocumentationController;
 use App\Http\Controllers\SolutionIntegrationController;
 use App\Http\Controllers\SolutionMapController;
@@ -79,6 +80,10 @@ Route::middleware(['auth', BlockAgentFromWeb::class])->group(function () {
         Route::get('solucoes/{solution}/integracoes/{integration}/documentacao', [IntegrationDocumentationController::class, 'edit'])->name('solutions.integrations.docs.edit');
         Route::patch('solucoes/{solution}/integracoes/{integration}/documentacao', [IntegrationDocumentationController::class, 'update'])->name('solutions.integrations.docs.update');
         Route::post('solucoes/{solution}/integracoes/{integration}/documentacao/midia', [IntegrationDocumentationController::class, 'media'])->name('solutions.integrations.docs.media');
+        // Assiste IA — popula a doc da integração por LLM (job + polling). Os
+        // documentos de contexto são da Solução (rotas solutions.docs.context.*).
+        Route::get('solucoes/{solution}/integracoes/{integration}/documentacao/assistente', [IntegrationDocumentationController::class, 'assistantPanel'])->name('solutions.integrations.docs.assist.panel');
+        Route::post('solucoes/{solution}/integracoes/{integration}/documentacao/assistente', [IntegrationDocumentationController::class, 'generateDraft'])->name('solutions.integrations.docs.assist.generate');
         // Painel lateral com o flowSpec anexado (F8 -> "Anexar à integração") — read-only.
         Route::get('solucoes/{solution}/integracoes/{integration}/flowspec', [SolutionIntegrationController::class, 'flowspec'])->name('solutions.integrations.flowspec');
         // Título de um nó pontual (data-viz F3) — {node} é o índice na chain, não um model.
@@ -125,6 +130,20 @@ Route::middleware(['auth', BlockAgentFromWeb::class])->group(function () {
     Route::post('solucoes/{solution}/documentacao/compartilhar', [SolutionDocumentationController::class, 'share'])->name('solutions.docs.share');
     Route::delete('solucoes/{solution}/documentacao/compartilhar', [SolutionDocumentationController::class, 'unshare'])->name('solutions.docs.unshare');
 
+    // Documentos de contexto do "Assiste IA" (coleção `context_documents`),
+    // por Solução — compartilhados entre as páginas dela e as docs das suas
+    // integrações. {media} é um binding global do model Spatie (checado contra
+    // a Solução no controller), por isso fica fora do scopeBindings de {page}.
+    Route::post('solucoes/{solution}/documentacao/contexto', [SolutionContextDocumentController::class, 'store'])->name('solutions.docs.context.store');
+    Route::get('solucoes/{solution}/documentacao/contexto/{media}', [SolutionContextDocumentController::class, 'show'])->name('solutions.docs.context.show');
+    Route::delete('solucoes/{solution}/documentacao/contexto/{media}', [SolutionContextDocumentController::class, 'destroy'])->name('solutions.docs.context.destroy');
+
+    // Polling do "Assiste IA" — um só endpoint para páginas E integrações: o
+    // registro de geração carrega o próprio alvo/solução, então não precisa de
+    // {page}/{integration} na URL (e evita o auto-scope de scopeBindings tentar
+    // resolver {generation} como filho deles).
+    Route::get('solucoes/{solution}/documentacao/assistente/{generation}/status', [SolutionDocumentationController::class, 'draftStatus'])->name('solutions.docs.assist.status');
+
     // {page} resolve via Solution::pages() (mesmo mecanismo do {integration}
     // escopado em Solution::integrations() acima).
     Route::scopeBindings()->group(function () {
@@ -134,6 +153,9 @@ Route::middleware(['auth', BlockAgentFromWeb::class])->group(function () {
         Route::delete('solucoes/{solution}/documentacao/{page}', [SolutionDocumentationController::class, 'destroy'])->name('solutions.docs.pages.destroy');
         Route::patch('solucoes/{solution}/documentacao/{page}/mover', [SolutionDocumentationController::class, 'move'])->name('solutions.docs.pages.move');
         Route::post('solucoes/{solution}/documentacao/{page}/midia', [SolutionDocumentationController::class, 'media'])->name('solutions.docs.media');
+        // Assiste IA — popula a página por LLM (job + polling).
+        Route::get('solucoes/{solution}/documentacao/{page}/assistente', [SolutionDocumentationController::class, 'assistantPanel'])->name('solutions.docs.assist.panel');
+        Route::post('solucoes/{solution}/documentacao/{page}/assistente', [SolutionDocumentationController::class, 'generateDraft'])->name('solutions.docs.assist.generate');
     });
 
     // F5 — pessoas e empresas (Etapa 2).

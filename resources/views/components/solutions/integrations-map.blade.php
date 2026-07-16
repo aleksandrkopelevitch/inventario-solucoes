@@ -37,14 +37,14 @@
                 <span class="flex shrink-0 items-center gap-1.5">
                     <span data-ak-integration-status class="inline-flex rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-ink ring-1 ring-accent-line">{{ $integration->status->label() }}</span>
                     @if ($integration->flowspec_status_label)
-                        <button type="button"
+                        <x-forms.button type="button" variant="ghost"
                             data-ak-panel-open
                             data-ak-panel-url="{{ route('solutions.integrations.flowspec', [$solution, $integration]) }}"
                             title="{{ $integration->flowspec_status_label }}"
                             onclick="event.stopPropagation()"
-                            class="inline-flex shrink-0 items-center rounded-field p-1.5 text-muted transition-colors hover:bg-accent-soft hover:text-accent">
+                            class="!shrink-0 !p-1.5 hover:!text-accent">
                             <x-heroicon-o-code-bracket class="size-4" />
-                        </button>
+                        </x-forms.button>
                     @endif
                     <a href="{{ route('solutions.integrations.docs.edit', [$solution, $integration]) }}"
                         title="Documentação da integração"

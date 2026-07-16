@@ -3,8 +3,9 @@
 Aplicação Laravel standalone para catalogar as soluções e integrações da Leo
 Madeiras: cadastro de soluções/pessoas/empresas, um editor gráfico de
 topologia de integrações por solução, um mapa read-only do ecossistema
-completo, documentação rica por blocos (estilo GitBook) para cada solução e
-integração, e um hub que reúne a cobertura dessa documentação.
+completo, documentação rica (estilo GitBook) para soluções e integrações — com
+um assistente de IA que gera rascunhos —, um hub que reúne a cobertura dessa
+documentação, e um gerador de flowSpec Digibee em formato de chat.
 
 A base de infraestrutura genérica (form components, sistema de slots, módulos
 JS, shells de layout, autenticação) foi portada do projeto de referência
@@ -174,15 +175,43 @@ em `resources/js/modules/` já cobre o comportamento.
   (`IntegrationGraphService`); hubs com muitas conexões nascem colapsados
   (badge com a contagem, clique expande/colapsa). Filtros por status/
   categoria/diretoria.
-- **Documentação rica por blocos** (Solução e Integração): editor Editor.js
-  estilo GitBook (`/solucoes/{slug}/documentacao`,
-  `/solucoes/{slug}/integracoes/{slug}/documentacao`), persistido como
+- **Documentação rica (estilo GitBook)**: editor Editor.js persistido como
   Markdown + notação estendida GitBook (`hint`, `tabs`, `embed`, imagens com
   preset de largura) numa coluna `documentation` só de texto — sem tabela de
   blocos separada. Suporta upload/colar/arrastar imagem e arquivo, âncoras de
-  heading, atalhos de Markdown (`## `, `- `, `> `, ` ``` `), e um link público
-  ("magic link", só para Solução) que expõe a doc — e a de cada integração
-  dela — sem exigir login. Renderização read-only via `App\Support\GitbookRenderer`.
+  heading e atalhos de Markdown (`## `, `- `, `> `, ` ``` `). Três contêineres:
+    - **Solução** (`/solucoes/{slug}/documentacao`): árvore **plana** de 1..N
+      páginas (`DocumentationPage`) — criar/renomear/mover/excluir; a rota-índice
+      resolve (ou cria) a primeira página e redireciona pra ela.
+    - **Integração** (`/solucoes/{slug}/integracoes/{slug}/documentacao`): uma
+      página única.
+    - **Grupos "Aninhamentos"** (`/documentacao/grupos/{group}`): árvores de
+      páginas *standalone*, fora de qualquer solução.
+  Um **link público** ("magic link", só para Solução) expõe a doc dela — e a de
+  cada integração dela — sem exigir login. Renderização read-only via
+  `App\Support\GitbookRenderer`.
+- **Assiste IA (rascunho por LLM)**: em qualquer página de doc de Solução ou na
+  doc de uma Integração, um painel lateral coleta um prompt + **documentos de
+  contexto** (coleção `context_documents` por Solução — PDF/imagem/texto,
+  compartilhados entre as páginas dela e as docs das suas integrações) + o
+  Markdown atual do editor, e gera um rascunho via job assíncrono
+  (`GenerateDocumentationDraft`) com polling — carregado no editor para revisão,
+  nada é salvo automaticamente. Textos entram embutidos no prompt (com orçamento
+  de caracteres); PDFs/imagens vão como anexos nativos ao modelo (`laravel/ai`).
+  Uma geração por alvo de cada vez (`WithoutOverlapping`).
+- **Gerador de flowSpec Digibee** (`/flowspec`): chat que gera o JSON de
+  flowSpec a partir de um pedido em linguagem natural. Contexto **sem RAG** —
+  Solutions citadas (explícitas via chips, ou inferidas casando o nome no
+  texto), documentação recortada por orçamento de caracteres (páginas das
+  Solutions + documentação das integrações em que participam) e 2-3 exemplos de
+  um corpus curado por tags (`FlowspecExample`). A resposta é gerada em job
+  assíncrono (`GenerateFlowspecReply`, uma vez por thread via
+  `WithoutOverlapping`) com polling do thread; um loop **normaliza/valida** o
+  JSON e re-prompta com os erros concretos até `max_attempts`. Respostas
+  conversacionais (dúvidas) sugerem documentação real que possa faltar. O
+  resultado pode ser **anexado a uma integração** (painel read-only na lista de
+  integrações da solução) ou **promovido ao corpus** como novo `FlowspecExample`.
+  Um `CredentialScrubber` barra segredo literal no que é gerado/promovido.
 - **Hub de Documentação** (`/documentacao`): visão gerencial transversal do
   que está documentado e do que falta — soluções **e** integrações, cada uma
   com um selo por **conteúdo real** (não um flag manual), agrupadas por
@@ -216,6 +245,12 @@ em `resources/js/modules/` já cobre o comportamento.
 - **Busca e filtros de Soluções/Pessoas/Empresas** rodam via
   `execute-filters.js`/`execute-search.js` sobre `ajax.js` (contrato Promise
   baseado em `fetch`, não `XMLHttpRequest`) — ver `CLAUDE.md` § `ajax.js`.
+- **As duas features de IA (Assiste IA e flowSpec) refletem o job por
+  polling, nunca broadcasting.** O front dispara a geração, recebe uma URL de
+  status e faz polling até o registro sair de `pending` (com teto de tentativas
+  + Toast de desistência). O endpoint de status fica barato enquanto pende:
+  só monta o slot/resultado quando a resposta chegou, não a cada tick. Ver
+  `CLAUDE.md` § Queue & Jobs.
 
 ## Testando
 
@@ -229,5 +264,9 @@ adicionar/remover na chain), `IntegrationLayoutSaveTest` (persistência de
 inline dos 8 atributos), `PersonContactsSyncTest` (sincronização de contatos
 adicionais), `DocumentationTest` (editor de blocos de Solução/Integração),
 `PublicDocumentationTest` (magic link), `DocumentationCoverageTest` (hub de
-documentação, content-based), `ColorRefactorTest`, `PageCrawlSmokeTest` (crawl
-de todas as páginas seedadas).
+documentação, content-based), `DocumentationAiAssistTest`/
+`DocumentationDraftServiceTest` (Assiste IA — job, polling e montagem do
+prompt), `FlowspecChatTest`/`FlowspecContextResolverTest`/
+`FlowspecGenerationServiceTest` (gerador de flowSpec — chat, resolução de
+contexto e loop de normalização/validação), `ColorRefactorTest`,
+`PageCrawlSmokeTest` (crawl de todas as páginas seedadas).

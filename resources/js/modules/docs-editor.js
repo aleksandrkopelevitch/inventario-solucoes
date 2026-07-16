@@ -230,6 +230,13 @@ async function mount(holder) {
     // estado ATUAL do editor, não o textarea de origem (que pode estar defasado).
     window.__akDocsGetMarkdown = async () => serialize((await editor.save()).blocks)
 
+    // Substitui todo o conteúdo do editor pelo Markdown gerado pelo "Assiste IA"
+    // (docs-ai.js) — carrega como blocos para revisão, marcando como não salvo.
+    window.__akDocsSetMarkdown = async (md) => {
+        await editor.blocks.render({blocks: parse(md)})
+        markDirty()
+    }
+
     installGlobalHandlers()
 }
 

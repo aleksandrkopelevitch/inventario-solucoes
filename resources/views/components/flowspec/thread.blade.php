@@ -23,6 +23,25 @@
             <div class="mr-auto w-full max-w-[95%] rounded-card rounded-bl-sm border border-line bg-surface p-4 shadow-[0_1px_3px_rgba(20,58,34,0.04)]">
                 <p @class(['text-sm text-body whitespace-pre-line', 'text-crit' => $failed])>{{ $message->content }}</p>
 
+                {{-- Botões de "adicionar documentação" — só numa resposta conversacional
+                     (FlowspecGenerationService::suggestedDocuments()). Cada botão reusa a
+                     mesma referência `type:id` do chips picker "Documentos específicos":
+                     o clique (chips.js, `data-ak-chips-add`) adiciona direto no campo
+                     `documents` do composer, sem o usuário precisar buscar na mão. --}}
+                @if (($meta['suggested_documents'] ?? []) !== [])
+                    <div class="mt-3 rounded-field border border-line bg-canvas p-3">
+                        <p class="text-xs font-medium text-ink">Notei que a documentação de outros sistemas pode ajudar — adicionar ao contexto?</p>
+                        <div class="mt-2 flex flex-wrap gap-1.5">
+                            @foreach ($meta['suggested_documents'] as $doc)
+                                <x-forms.button type="button" variant="glass" class="!px-2.5 !py-1 !text-xs"
+                                    data-ak-chips-add="{{ json_encode(['name' => 'documents', 'value' => $doc['type'] . ':' . $doc['id'], 'label' => $doc['label']]) }}">
+                                    <x-heroicon-o-plus class="size-3.5" /> {{ $doc['label'] }}
+                                </x-forms.button>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+
                 @if ($message->flow_spec !== null)
                     {{-- Badges: validação, tentativas, exemplos usados --}}
                     <div class="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] font-medium">
@@ -87,7 +106,7 @@
                     <div class="relative mt-3">
                         <pre id="flowspec-json-{{ $message->id }}"
                              class="max-h-80 overflow-auto rounded-field border border-line bg-canvas p-3 font-mono text-[11.5px] leading-relaxed text-body">{{ json_encode($message->flow_spec, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}</pre>
-                        <x-forms.button type="button" variant="glass" class="absolute right-2 top-2 !px-2.5 !py-1 !text-xs"
+                        <x-forms.button type="button" variant="glass" class="!absolute right-2 top-2 !px-2.5 !py-1 !text-xs"
                             data-ak-flowspec-copy="flowspec-json-{{ $message->id }}">
                             <x-heroicon-o-clipboard-document class="size-3.5" /> Copiar JSON
                         </x-forms.button>

@@ -14,7 +14,10 @@ use function Laravel\Ai\agent;
  * `config('services.flowspec')`) e roda o loop de correção — normaliza,
  * valida e re-prompta com os erros concretos até `max_attempts`. Sem JSON na
  * primeira resposta = resposta conversacional (dúvida/pedido de detalhe),
- * devolvida como texto sem re-prompt.
+ * devolvida como texto sem re-prompt — e, nesse caso, `meta.suggested_documents`
+ * (`suggestedDocuments()`) traz documentação real que pode faltar (citada pelo
+ * nome pelo modelo, ou cortada por orçamento), pra virar botão de "adicionar"
+ * no chat em vez do usuário precisar do chips picker.
  */
 class FlowspecGenerationService
 {
@@ -60,27 +63,39 @@ class FlowspecGenerationService
 
         $maxAttempts = (int) config('services.flowspec.max_attempts');
         $attempts = [];
-        $tokens = ['prompt' => 0, 'completion' => 0];
+        $tokens = ['prompt' => 0, 'completion' => 0, 'cache_write' => 0, 'cache_read' => 0];
 
         $document = null;
         $validated = false;
+        $conversational = false;
         $text = '';
         $prompt = $basePrompt;
 
         for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            // Só o tamanho do prompt — nunca o texto: ele inclina documentação
+            // inteira (até doc_budget_chars), que pode conter segredos (o que o
+            // CredentialScrubber existe para pegar) e sozinho gera centenas de KB
+            // de log por tentativa quando LOG_LEVEL=debug.
             Log::debug("flowSpec: prompt tentativa {$attempt}", [
-                'message_id' => $userMessage->id,
-                'prompt'     => $prompt,
+                'message_id'   => $userMessage->id,
+                'prompt_chars' => mb_strlen($prompt),
             ]);
 
             $response = $this->prompt($prompt);
             $text = $response->text;
             $tokens['prompt'] += $response->usage->promptTokens;
             $tokens['completion'] += $response->usage->completionTokens;
+            // Zerados hoje (o AnthropicProvider do laravel/ai 0.3.2 não marca
+            // cache_control) — acumulados para dar visibilidade quando o prompt
+            // caching entrar (ver plano de otimização, Fase 2).
+            $tokens['cache_write'] += $response->usage->cacheWriteInputTokens;
+            $tokens['cache_read'] += $response->usage->cacheReadInputTokens;
 
+            // Idem: só o tamanho da resposta, não o texto — o modelo pode ecoar
+            // segredos vindos da documentação embutida no prompt.
             Log::debug("flowSpec: resposta tentativa {$attempt}", [
                 'message_id' => $userMessage->id,
-                'text'       => $text,
+                'text_chars' => mb_strlen($text),
                 'usage'      => [
                     'prompt'     => $response->usage->promptTokens,
                     'completion' => $response->usage->completionTokens,
@@ -104,6 +119,7 @@ class FlowspecGenerationService
 
                 if ($candidate === null) {
                     $attempts[] = ['attempt' => $attempt, 'errors' => [], 'conversational' => true];
+                    $conversational = true;
 
                     break; // dúvida/esclarecimento — não há o que corrigir
                 }
@@ -139,8 +155,34 @@ class FlowspecGenerationService
                 'tokens'   => $tokens,
                 'provider' => config('services.flowspec.provider'),
                 'model'    => config('services.flowspec.model'),
+                // Só numa resposta CONVERSACIONAL de fato — não quando o loop
+                // esgotou as tentativas com JSON inválido (aí $document também é
+                // null, mas inferir sugestões de um JSON quebrado não faz sentido).
+                'suggested_documents' => $conversational ? $this->suggestedDocuments($context, $text) : [],
             ],
         );
+    }
+
+    /**
+     * Botões de "adicionar documentação" para uma resposta conversacional:
+     * junta o que já tinha ficado de fora por orçamento (`context->omittedDocuments`
+     * — vazio no modo de `document_refs` explícitos, que não corta nada) com
+     * o que o modelo citou pelo nome ao pedir mais contexto
+     * (`FlowspecContextResolver::suggestDocumentsFor`) — dedup por
+     * `type:id`, já que os dois sinais podem apontar pro mesmo documento.
+     *
+     * @return list<array{type: string, id: int, label: string}>
+     */
+    private function suggestedDocuments(FlowspecContext $context, string $conversationalText): array
+    {
+        $mentioned = $this->resolver->suggestDocumentsFor($conversationalText, $context->solutions);
+
+        return collect($context->omittedDocuments)
+            ->merge($mentioned)
+            ->unique(fn (array $ref) => "{$ref['type']}:{$ref['id']}")
+            ->take((int) config('services.flowspec.max_suggested_documents'))
+            ->values()
+            ->all();
     }
 
     /** Protected para os testes substituírem a chamada real à API por um dublê. */

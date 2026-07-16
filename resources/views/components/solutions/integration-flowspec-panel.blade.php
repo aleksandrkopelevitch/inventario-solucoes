@@ -21,7 +21,7 @@
     <div class="relative mt-3">
         <pre id="{{ $preId }}"
              class="max-h-96 overflow-auto rounded-field border border-line bg-canvas p-3 font-mono text-[11.5px] leading-relaxed text-body">{{ json_encode($integration->generated_flowspec, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}</pre>
-        <x-forms.button type="button" variant="glass" class="absolute right-2 top-2 !px-2.5 !py-1 !text-xs"
+        <x-forms.button type="button" variant="glass" class="!absolute right-2 top-2 !px-2.5 !py-1 !text-xs"
             data-ak-flowspec-copy="{{ $preId }}">
             <x-heroicon-o-clipboard-document class="size-3.5" /> Copiar JSON
         </x-forms.button>

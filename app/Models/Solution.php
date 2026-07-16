@@ -11,11 +11,22 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
 
-class Solution extends Model
+class Solution extends Model implements HasMedia
 {
     /** @use HasFactory<SolutionFactory> */
-    use HasFactory;
+    use HasFactory, InteractsWithMedia;
+
+    /**
+     * Documentos de contexto (PDF/imagem/texto) anexados à Solução e
+     * reaproveitados pelo "Assiste IA" da documentação — alimentam a geração
+     * por LLM (App\Services\Documentation\DocumentationDraftService).
+     * Separada da coleção `docs` (mídia embutida na documentação): estes
+     * arquivos nunca aparecem no Markdown, só vão pro prompt do modelo.
+     */
+    public const CONTEXT_COLLECTION = 'context_documents';
 
     protected $fillable = [
         'name',
@@ -97,6 +108,14 @@ class Solution extends Model
     public function getRouteKeyName(): string
     {
         return 'slug';
+    }
+
+    public function registerMediaCollections(): void
+    {
+        // Documentos de contexto do "Assiste IA" — servidos por
+        // SolutionContextDocumentController (a rota `files.show`/MediaController
+        // só libera a coleção `docs`).
+        $this->addMediaCollection(self::CONTEXT_COLLECTION);
     }
 
     /** URL do link público da documentação, ou null se não compartilhada. */
