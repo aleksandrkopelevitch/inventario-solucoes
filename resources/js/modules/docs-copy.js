@@ -1,4 +1,4 @@
-// docs-copy.js — "Copy Markdown" button on documentation screens.
+// docs-copy.js — "Copiar Markdown" button on documentation screens.
 //
 // Markdown source, per surface:
 //   - Editing: window.__akDocsGetMarkdown() (serialized CURRENT editor state),

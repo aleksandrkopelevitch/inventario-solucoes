@@ -81,7 +81,7 @@
                     </p>
                 @else
                     @if (trim($renderedHtml) !== '')
-                        {{-- Raw Markdown for the "Copy Markdown" button (docs-copy.js) — there's no
+                        {{-- Raw Markdown for the "Copiar Markdown" button (docs-copy.js) — there's no
                              editor on this read-only screen, so this textarea is the source. --}}
                         <textarea data-ak-docs-markdown hidden>{{ $documentation }}</textarea>
 

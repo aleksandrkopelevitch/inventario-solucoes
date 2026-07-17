@@ -333,7 +333,7 @@ class SolutionIntegrationController extends Controller
 
     /**
      * Side panel (read-only) with the flowSpec attached to the integration
-     * via F8 ("Attach to integration" — `FlowspecAttachmentController`).
+     * via F8 ("Anexar à integração" — `FlowspecAttachmentController`).
      * Until now, `generated_flowspec`/`flowspec_status`/`flowspec_generated_at`
      * were written but never read back on any screen — the only way to see
      * the attached content was going back to the original chat conversation.

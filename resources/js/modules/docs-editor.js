@@ -228,7 +228,7 @@ async function mount(holder) {
     editors.set(holder, editor)
     editor.isReady.then(() => wireShortcuts(holder, editor)).catch(() => {})
 
-    // Source for "Copy Markdown" (docs-copy.js) on the editing screen: serializes
+    // Source for "Copiar Markdown" (docs-copy.js) on the editing screen: serializes
     // the editor's CURRENT state, not the source textarea (which may be stale).
     window.__akDocsGetMarkdown = async () => serialize((await editor.save()).blocks)
 

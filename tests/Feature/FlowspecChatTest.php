@@ -168,6 +168,27 @@ it('rejects a new message while a reply is still being generated', function () {
     Queue::assertNotPushed(GenerateFlowspecReply::class);
 });
 
+it('accepts a new message once a stalled reply is past the generation window', function () {
+    // A worker killed before it fires handle()/failed() never creates the
+    // assistant reply, so the last message stays role='user'. Past
+    // REPLY_STALL_SECONDS the generation is treated as dead — the composer must
+    // recover instead of locking the chat out forever.
+    Queue::fake();
+    $user = flowspecUser();
+    $chat = $user->flowspecChats()->create(['title' => 'Chat']);
+    $chat->messages()->create(['role' => 'user', 'content' => 'gera aí']);
+
+    $this->travel(FlowspecChat::REPLY_STALL_SECONDS + 60)->seconds();
+
+    $this->actingAs($user)
+        ->postJson(route('flowspec.messages.store', $chat), ['message' => 'mais uma'])
+        ->assertOk()
+        ->assertJsonStructure(['updatableSlots']);
+
+    expect($chat->messages()->count())->toBe(2);
+    Queue::assertPushed(GenerateFlowspecReply::class);
+});
+
 it('reports pending status while the last message is from the user', function () {
     $user = flowspecUser();
     $chat = $user->flowspecChats()->create(['title' => 'Chat']);

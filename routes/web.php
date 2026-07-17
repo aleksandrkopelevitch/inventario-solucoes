@@ -84,7 +84,7 @@ Route::middleware(['auth', BlockAgentFromWeb::class])->group(function () {
         // documents belong to the Solution (solutions.docs.context.* routes).
         Route::get('solutions/{solution}/integrations/{integration}/documentation/assistant', [IntegrationDocumentationController::class, 'assistantPanel'])->name('solutions.integrations.docs.assist.panel');
         Route::post('solutions/{solution}/integrations/{integration}/documentation/assistant', [IntegrationDocumentationController::class, 'generateDraft'])->name('solutions.integrations.docs.assist.generate');
-        // Side panel with the attached flowSpec (F8 -> "Attach to integration") — read-only.
+        // Side panel with the attached flowSpec (F8 -> "Anexar à integração") — read-only.
         Route::get('solutions/{solution}/integrations/{integration}/flowspec', [SolutionIntegrationController::class, 'flowspec'])->name('solutions.integrations.flowspec');
         // Title of a single node (data-viz F3) — {node} is the index in the chain, not a model.
         Route::patch('solutions/{solution}/integrations/{integration}/chain/nodes/{node}', [SolutionIntegrationController::class, 'updateNode'])
@@ -94,7 +94,7 @@ Route::middleware(['auth', BlockAgentFromWeb::class])->group(function () {
         Route::patch('solutions/{solution}/integrations/{integration}/chain/protocol/{edge}', [SolutionIntegrationController::class, 'updateProtocol'])
             ->whereNumber('edge')
             ->name('solutions.integrations.chain.protocol.update');
-        // New block at the end of the chain (data-viz F3, "Add block" panel).
+        // New block at the end of the chain (data-viz F3, "Adicionar bloco" panel).
         Route::post('solutions/{solution}/integrations/{integration}/chain/nodes', [SolutionIntegrationController::class, 'addNode'])
             ->name('solutions.integrations.chain.node.add');
         // Retargets one end of an existing edge to a different block (dragging

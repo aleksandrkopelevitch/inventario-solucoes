@@ -37,8 +37,8 @@ class Thread extends Component
             'messages'     => $messages,
             'integrations' => Integration::query()->orderBy('name')->get(['id', 'name']),
             // Derives from the collection already fetched — avoids the extra
-            // query from isAwaitingReply() (same rule: last message is from the user).
-            'awaiting' => $messages->last()?->role === 'user',
+            // query from isAwaitingReply() while applying the same stall bound.
+            'awaiting' => $this->chat->awaitsReplyFor($messages->last()),
         ]);
     }
 }

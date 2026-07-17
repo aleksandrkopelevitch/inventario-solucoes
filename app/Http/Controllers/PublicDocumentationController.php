@@ -104,7 +104,7 @@ class PublicDocumentationController extends Controller
             'title'        => $current?->documentationTitle() ?? $solution->name,
             'eyebrow'      => $eyebrow,
             'renderedHtml' => $this->renderMarkdown($markdown, $token),
-            // Raw Markdown for the "Copy Markdown" button, with media already
+            // Raw Markdown for the "Copiar Markdown" button, with media already
             // rewritten to the public routes (the internal /files/{id} does
             // not resolve for visitors accessing only via the public link).
             'markdown' => $this->rewriteFileUrls((string) $markdown, $token),

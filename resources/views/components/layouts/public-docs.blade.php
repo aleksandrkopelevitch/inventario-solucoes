@@ -57,7 +57,7 @@
         </main>
     </div>
 
-    {{-- Toast — same shell as the main layout (Toast.show for "Copy Markdown"). --}}
+    {{-- Toast — same shell as the main layout (Toast.show for "Copiar Markdown"). --}}
     <div id="toast-container" class="fixed right-4 top-4 z-50 flex w-80 flex-col gap-2">
         <div id="toast-template" class="hidden rounded-card border border-line bg-surface p-4 opacity-0 shadow-lg transition-all duration-200">
             <div class="flex items-start gap-3">
