@@ -7,6 +7,7 @@ use App\Services\Flowspec\FlowspecGenerationService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
@@ -98,10 +99,21 @@ class GenerateFlowspecReply implements ShouldQueue
             return;
         }
 
+        // Log the full exception server-side for debugging, but persist only
+        // its type: a provider error message can embed the request URL, headers
+        // or key fragments, and `meta` is an audit trail that could be exported.
+        if ($exception !== null) {
+            Log::error('flowSpec: reply generation failed', [
+                'chat_id'    => $this->userMessage->flowspec_chat_id,
+                'message_id' => $this->userMessage->id,
+                'exception'  => $exception,
+            ]);
+        }
+
         $this->userMessage->chat->messages()->create([
             'role'    => 'assistant',
             'content' => 'Não consegui gerar o flowSpec — a chamada ao modelo falhou. Tente novamente em instantes.',
-            'meta'    => ['status' => 'failed', 'error' => $exception?->getMessage()],
+            'meta'    => ['status' => 'failed', 'error_type' => $exception ? $exception::class : null],
         ]);
     }
 

@@ -134,7 +134,11 @@
                     @endif
 
                     {{-- Promover a exemplo do corpus (curadoria, admin) --}}
-                    @if ($canPromote && $validated)
+                    @if ($message->isPromoted())
+                        <p class="mt-3 inline-flex items-center gap-1 text-xs font-medium text-accent">
+                            <x-heroicon-o-check-circle class="size-3.5" /> Promovido ao corpus.
+                        </p>
+                    @elseif ($canPromote && $validated)
                         <details class="mt-3">
                             <summary class="cursor-pointer text-xs font-medium text-muted hover:text-ink">Promover a exemplo do corpus</summary>
                             <form id="flowspec-promote-{{ $message->id }}" class="mt-2 flex flex-col gap-3 rounded-field border border-line bg-canvas p-3">

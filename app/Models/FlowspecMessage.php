@@ -23,6 +23,7 @@ class FlowspecMessage extends Model
         'content',
         'flow_spec',
         'meta',
+        'flowspec_example_id',
     ];
 
     protected function casts(): array
@@ -36,5 +37,17 @@ class FlowspecMessage extends Model
     public function chat(): BelongsTo
     {
         return $this->belongsTo(FlowspecChat::class, 'flowspec_chat_id');
+    }
+
+    /** The corpus example this message was promoted into, if any. */
+    public function promotedExample(): BelongsTo
+    {
+        return $this->belongsTo(FlowspecExample::class, 'flowspec_example_id');
+    }
+
+    /** Whether this message has already been promoted to a corpus example. */
+    public function isPromoted(): bool
+    {
+        return $this->flowspec_example_id !== null;
     }
 }

@@ -221,6 +221,20 @@ it('writes no failure reply for a superseded turn', function () {
     expect($chat->messages()->where('role', 'assistant')->count())->toBe(1);
 });
 
+it('persists only the exception type on failure, never the raw provider message', function () {
+    $user = flowspecUser();
+    $chat = $user->flowspecChats()->create(['title' => 'Chat']);
+    $stale = $chat->messages()->create(['role' => 'user', 'content' => 'gera aí']);
+
+    (new GenerateFlowspecReply($stale))->failed(new RuntimeException('POST https://api.example.com key=sk-secret-123'));
+
+    $reply = $chat->messages()->where('role', 'assistant')->firstOrFail();
+
+    expect($reply->meta['error_type'])->toBe(RuntimeException::class)
+        ->and($reply->meta)->not->toHaveKey('error')
+        ->and(json_encode($reply->meta))->not->toContain('sk-secret-123');
+});
+
 it('blocks attaching a flowspec that carries a literal credential', function () {
     $admin = flowspecUser(UserRole::Admin);
     $chat = $admin->flowspecChats()->create(['title' => 'Chat']);
@@ -344,7 +358,42 @@ it('promotes a validated flowspec to a corpus example (admin)', function () {
     $example = FlowspecExample::query()->where('slug', 'resposta-simples')->firstOrFail();
 
     expect($example->source)->toBe('chat')
-        ->and($example->connectors)->toBe(['json-generator-connector']);
+        ->and($example->connectors)->toBe(['json-generator-connector'])
+        ->and($message->refresh()->flowspec_example_id)->toBe($example->id);
+});
+
+it('refuses to promote the same message twice (idempotent)', function () {
+    $admin = flowspecUser(UserRole::Admin);
+    $chat = $admin->flowspecChats()->create(['title' => 'Chat']);
+    $message = $chat->messages()->create(['role' => 'assistant', 'content' => 'pronto', 'flow_spec' => assistantFlowspec(), 'meta' => ['validated' => true]]);
+    $payload = ['name' => 'Resposta simples', 'description' => 'Gera uma resposta ok.', 'tags' => ['rest']];
+
+    $this->actingAs($admin)->postJson(route('flowspec.messages.promote', [$chat, $message]), $payload)->assertOk();
+
+    $response = $this->actingAs($admin)
+        ->postJson(route('flowspec.messages.promote', [$chat, $message]), $payload)
+        ->assertStatus(422)
+        ->assertJson(['type' => 'warning']);
+
+    expect($response->json('message'))->toContain('já foi promovida')
+        ->and(FlowspecExample::query()->count())->toBe(1);
+});
+
+it('generates a distinct slug when two messages promote under the same name', function () {
+    $admin = flowspecUser(UserRole::Admin);
+    $chat = $admin->flowspecChats()->create(['title' => 'Chat']);
+    $first = $chat->messages()->create(['role' => 'assistant', 'content' => 'a', 'flow_spec' => assistantFlowspec(), 'meta' => ['validated' => true]]);
+    $second = $chat->messages()->create(['role' => 'assistant', 'content' => 'b', 'flow_spec' => assistantFlowspec(), 'meta' => ['validated' => true]]);
+    $payload = ['name' => 'Mesmo nome', 'description' => 'Y', 'tags' => ['rest']];
+
+    $this->actingAs($admin)->postJson(route('flowspec.messages.promote', [$chat, $first]), $payload)->assertOk();
+    $this->actingAs($admin)->postJson(route('flowspec.messages.promote', [$chat, $second]), $payload)->assertOk();
+
+    $slugs = FlowspecExample::query()->pluck('slug');
+
+    expect($slugs)->toHaveCount(2)
+        ->and($slugs->unique())->toHaveCount(2)
+        ->and($slugs)->toContain('mesmo-nome');
 });
 
 it('blocks promotion for non-admins and for leaky flowspecs', function () {
