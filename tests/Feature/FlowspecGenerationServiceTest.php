@@ -4,6 +4,7 @@ use App\Models\DocumentationPage;
 use App\Models\FlowspecChat;
 use App\Models\FlowspecExample;
 use App\Models\Solution;
+use App\Services\Flowspec\CredentialScrubber;
 use App\Services\Flowspec\DigibeeFlowspecNormalizer;
 use App\Services\Flowspec\DigibeeFlowspecValidator;
 use App\Services\Flowspec\FlowspecContextResolver;
@@ -29,6 +30,7 @@ function fakeGenerationService(array $scriptedTexts): FlowspecGenerationService
                 app(FlowspecPromptBuilder::class),
                 app(DigibeeFlowspecNormalizer::class),
                 app(DigibeeFlowspecValidator::class),
+                app(CredentialScrubber::class),
             );
         }
 
@@ -79,6 +81,47 @@ it('re-prompts with the concrete errors until the answer validates', function ()
     expect($result->validated)->toBeTrue()
         ->and($result->meta['attempts'])->toHaveCount(2)
         ->and($result->meta['attempts'][0]['errors'])->not->toBe([]);
+});
+
+it('withholds the document (and raw text) when the best attempt still leaks a literal credential', function () {
+    $this->seed(FlowspecExampleSeeder::class);
+    config()->set('services.flowspec.max_attempts', 1);
+
+    $leaky = FlowspecExample::query()->where('slug', 'get-token-svl')->firstOrFail()->flow_spec;
+    $rootKey = array_key_first($leaky['flowSpec']);
+    // A literal secret CredentialScrubber flags, so validation never passes.
+    $leaky['flowSpec'][$rootKey][0]['params']['json'] = '{"x-api-key": "chave-literal-123"}';
+
+    $chat = chatWithUserMessage('gera o flowspec de token');
+
+    $result = fakeGenerationService([json_encode($leaky)])->generate($chat->messages()->firstOrFail());
+
+    expect($result->validated)->toBeFalse()
+        ->and($result->credentialLeak)->toBeTrue()
+        ->and($result->document)->toBeNull(); // never persisted or rendered
+});
+
+it('does not fabricate a fix for a duplicated step UUID, leaving it for the validator', function () {
+    $uuid = '11111111-1111-4111-8111-111111111111';
+    $document = [
+        'meta'     => [$uuid => ['position' => ['x' => 0, 'y' => 0]]],
+        'flowSpec' => [
+            "disconnected-root:{$uuid}" => [
+                ['id' => $uuid, 'type' => 'jslt'],
+                ['id' => $uuid, 'type' => 'jslt'],
+            ],
+        ],
+    ];
+
+    $result = app(DigibeeFlowspecNormalizer::class)->normalize($document);
+
+    $steps = $result->document['flowSpec']["disconnected-root:{$uuid}"];
+
+    // Both keep the (still duplicated) id — the normalizer no longer maps both
+    // to one new UUID and no longer logs a misleading "regenerado" fix.
+    expect($steps[0]['id'])->toBe($uuid)
+        ->and($steps[1]['id'])->toBe($uuid)
+        ->and(collect($result->fixes)->contains(fn (string $f) => str_contains($f, "regenerado: {$uuid}")))->toBeFalse();
 });
 
 it('gives up after max_attempts keeping the best attempt', function () {

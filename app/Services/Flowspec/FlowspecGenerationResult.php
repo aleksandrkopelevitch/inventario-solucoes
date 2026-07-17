@@ -8,6 +8,11 @@ namespace App\Services\Flowspec;
  * response (used as the assistant's message when no JSON came back), and the
  * auditable trail — context used, attempts with errors, fixes and tokens —
  * that gets recorded in `flowspec_messages.meta`.
+ *
+ * `credentialLeak` means the final best-attempt document still carried a
+ * literal secret (CredentialScrubber flagged it) after every attempt: the
+ * service withholds `document` (nulls it) in that case, and the raw `text`
+ * must NOT be shown either, since it embeds the same secret.
  */
 final class FlowspecGenerationResult
 {
@@ -20,5 +25,6 @@ final class FlowspecGenerationResult
         public readonly string $text,
         public readonly bool $validated,
         public readonly array $meta,
+        public readonly bool $credentialLeak = false,
     ) {}
 }

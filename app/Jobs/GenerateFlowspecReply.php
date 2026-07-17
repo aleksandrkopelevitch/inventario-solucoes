@@ -69,15 +69,20 @@ class GenerateFlowspecReply implements ShouldQueue
 
     public function handle(FlowspecGenerationService $service): void
     {
+        if ($this->isSuperseded()) {
+            return;
+        }
+
         $result = $service->generate($this->userMessage);
 
         $content = match (true) {
+            // A literal secret survived every attempt — the service withheld
+            // both the document and the raw text, so say so instead of leaking.
+            $result->credentialLeak    => 'A geração produziu uma credencial literal no flowSpec e o resultado foi descartado por segurança. Refaça pedindo que valores sensíveis usem referências {{ account.* }} / {{ global.* }} em vez de literais.',
             $result->document === null => $result->text,
             $result->validated         => 'flowSpec gerado e validado — pronto para colar no canvas da Digibee.',
             default                    => 'flowSpec gerado, mas a validação ainda apontou pendências depois de todas as tentativas — revise os erros abaixo antes de colar.',
         };
-
-        $this->userMessage->loadMissing('chat');
 
         $this->userMessage->chat->messages()->create([
             'role'      => 'assistant',
@@ -89,12 +94,33 @@ class GenerateFlowspecReply implements ShouldQueue
 
     public function failed(?Throwable $exception): void
     {
-        $this->userMessage->loadMissing('chat');
+        if ($this->isSuperseded()) {
+            return;
+        }
 
         $this->userMessage->chat->messages()->create([
             'role'    => 'assistant',
             'content' => 'Não consegui gerar o flowSpec — a chamada ao modelo falhou. Tente novamente em instantes.',
             'meta'    => ['status' => 'failed', 'error' => $exception?->getMessage()],
         ]);
+    }
+
+    /**
+     * True when a later message already exists in the chat, so this turn has
+     * been superseded and must produce no reply. Covers two orderings that
+     * WithoutOverlapping serializes but does NOT de-duplicate: a job the queue
+     * resurrected (retry_after) after a hard worker kill, once the stall guard
+     * (FlowspecChat::REPLY_STALL_SECONDS) reopened the composer and the user
+     * sent again; and a double-submit race that slipped two messages past the
+     * non-atomic FlowspecMessageController guard. Guarding both handle() and
+     * failed() means the latest message gets exactly one reply, in any order.
+     */
+    private function isSuperseded(): bool
+    {
+        $this->userMessage->loadMissing('chat');
+
+        return $this->userMessage->chat->messages()
+            ->where('id', '>', $this->userMessage->id)
+            ->exists();
     }
 }

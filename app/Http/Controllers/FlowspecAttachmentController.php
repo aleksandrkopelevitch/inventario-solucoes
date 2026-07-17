@@ -6,6 +6,7 @@ use App\Http\Requests\AttachFlowspecToIntegrationRequest;
 use App\Models\FlowspecChat;
 use App\Models\FlowspecMessage;
 use App\Models\Integration;
+use App\Services\Flowspec\CredentialScrubber;
 use App\View\Components\Flowspec\Thread;
 use Illuminate\Validation\ValidationException;
 
@@ -16,10 +17,20 @@ use Illuminate\Validation\ValidationException;
  */
 class FlowspecAttachmentController extends Controller
 {
-    public function store(AttachFlowspecToIntegrationRequest $request, FlowspecChat $chat, FlowspecMessage $message)
+    public function store(AttachFlowspecToIntegrationRequest $request, FlowspecChat $chat, FlowspecMessage $message, CredentialScrubber $scrubber)
     {
         if ($message->flow_spec === null) {
             throw ValidationException::withMessages(['integration_id' => 'Esta mensagem não carrega um flowSpec gerado.']);
+        }
+
+        // Attaching writes the flowSpec onto a shared Integration, widening its
+        // exposure — the same reason promotion scrubs, so scrub here too. A
+        // freshly generated flowSpec is withheld when it leaks, but a legacy
+        // message (persisted before that guard) could still carry a literal.
+        $violations = $scrubber->violations($message->flow_spec);
+
+        if ($violations !== []) {
+            throw ValidationException::withMessages(['integration_id' => 'Redija antes de anexar — credencial literal: ' . implode(' | ', $violations)]);
         }
 
         $integration = Integration::query()->findOrFail($request->validated('integration_id'));

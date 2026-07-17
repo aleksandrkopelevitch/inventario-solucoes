@@ -8,6 +8,7 @@ use App\Models\FlowspecExample;
 use App\Models\Integration;
 use App\Models\Solution;
 use App\Models\User;
+use App\Services\Flowspec\FlowspecGenerationService;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\Queue;
@@ -187,6 +188,55 @@ it('accepts a new message once a stalled reply is past the generation window', f
 
     expect($chat->messages()->count())->toBe(2);
     Queue::assertPushed(GenerateFlowspecReply::class);
+});
+
+it('writes no reply for a turn a later message has superseded (resurrected or duplicate job)', function () {
+    // Covers both a job the queue resurrects after a hard worker kill (once the
+    // stall guard reopened the composer and the user sent again) and a
+    // double-submit race that slipped two messages past the store() guard.
+    $user = flowspecUser();
+    $chat = $user->flowspecChats()->create(['title' => 'Chat']);
+    $stale = $chat->messages()->create(['role' => 'user', 'content' => 'primeira']);
+    $chat->messages()->create(['role' => 'user', 'content' => 'segunda — supersede']);
+
+    // isSuperseded() must short-circuit before generate() is ever called.
+    $service = Mockery::mock(FlowspecGenerationService::class);
+    $service->shouldNotReceive('generate');
+
+    (new GenerateFlowspecReply($stale))->handle($service);
+
+    expect($chat->messages()->where('role', 'assistant')->count())->toBe(0)
+        ->and($chat->messages()->count())->toBe(2);
+});
+
+it('writes no failure reply for a superseded turn', function () {
+    $user = flowspecUser();
+    $chat = $user->flowspecChats()->create(['title' => 'Chat']);
+    $stale = $chat->messages()->create(['role' => 'user', 'content' => 'primeira']);
+    $chat->messages()->create(['role' => 'assistant', 'content' => 'resposta do turno atual']);
+
+    (new GenerateFlowspecReply($stale))->failed(new RuntimeException('api down'));
+
+    // The current turn already has its reply — the stale job's failed() adds nothing.
+    expect($chat->messages()->where('role', 'assistant')->count())->toBe(1);
+});
+
+it('blocks attaching a flowspec that carries a literal credential', function () {
+    $admin = flowspecUser(UserRole::Admin);
+    $chat = $admin->flowspecChats()->create(['title' => 'Chat']);
+    $leaky = assistantFlowspec();
+    $rootKey = array_key_first($leaky['flowSpec']);
+    $leaky['flowSpec'][$rootKey][0]['params']['json'] = '{"x-api-key": "chave-literal-123"}';
+    $message = $chat->messages()->create(['role' => 'assistant', 'content' => 'pronto', 'flow_spec' => $leaky, 'meta' => ['validated' => false]]);
+    $integration = Integration::factory()->create();
+
+    $response = $this->actingAs($admin)
+        ->postJson(route('flowspec.messages.attach', [$chat, $message]), ['integration_id' => $integration->id])
+        ->assertStatus(422)
+        ->assertJson(['type' => 'warning']);
+
+    expect($response->json('message'))->toContain('credencial literal')
+        ->and($integration->refresh()->generated_flowspec)->toBeNull();
 });
 
 it('reports pending status while the last message is from the user', function () {

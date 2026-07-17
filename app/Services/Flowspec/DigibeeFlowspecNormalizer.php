@@ -41,22 +41,27 @@ class DigibeeFlowspecNormalizer
     private function regenerateInvalidIds(array $document, array &$fixes): array
     {
         $replacements = [];
-        $seen = [];
 
         foreach ($document['flowSpec'] as $steps) {
             foreach ((is_array($steps) ? $steps : []) as $step) {
                 $id = is_array($step) ? ($step['id'] ?? null) : null;
 
-                if (! is_string($id) || $id === '') {
+                if (! is_string($id) || $id === '' || isset($replacements[$id])) {
                     continue;
                 }
 
-                if (preg_match(self::UUID_PATTERN, $id) !== 1 || isset($seen[$id])) {
+                // Only genuinely malformed ids are rewritten. A well-formed but
+                // DUPLICATED UUID is left untouched: meta/branch/`{{ step }}`
+                // references are keyed by id, so two steps sharing one id are
+                // ambiguous and can't be split without guessing which reference
+                // points where. DigibeeFlowspecValidator flags `id duplicado`
+                // and the correction loop re-prompts to fix it — unlike the old
+                // code here, which mapped both occurrences to the SAME new UUID
+                // (the duplication survived) while logging a misleading fix.
+                if (preg_match(self::UUID_PATTERN, $id) !== 1) {
                     $replacements[$id] = (string) Str::uuid();
                     $fixes[] = "UUID de step regenerado: {$id} -> {$replacements[$id]}.";
                 }
-
-                $seen[$id] = true;
             }
         }
 

@@ -49,6 +49,14 @@ class FlowspecChat extends Model
      * so without this bound the chat's last message stays role='user' forever
      * and the composer is locked out of that chat indefinitely. Past this
      * window the generation is treated as dead and the user can send again.
+     *
+     * This window is a UX timer only — it decides when to reopen the composer,
+     * not whether a late/duplicate reply is safe. The correctness net for a job
+     * the queue resurrects after retry_after (900s > this window), or for a
+     * message that slipped past the composer during the reopen, is
+     * GenerateFlowspecReply::isSuperseded(): a job whose turn already has a
+     * later message writes no reply. That guard is what keeps this window from
+     * needing to exceed retry_after.
      */
     public const REPLY_STALL_SECONDS = 660;
 

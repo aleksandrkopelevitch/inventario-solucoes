@@ -27,6 +27,7 @@ class FlowspecGenerationService
         private readonly FlowspecPromptBuilder $prompts,
         private readonly DigibeeFlowspecNormalizer $normalizer,
         private readonly DigibeeFlowspecValidator $validator,
+        private readonly CredentialScrubber $scrubber,
     ) {}
 
     /**
@@ -147,10 +148,23 @@ class FlowspecGenerationService
             $prompt = $this->prompts->correctionPrompt($basePrompt, $text, $result->errors);
         }
 
+        // A validated document has no credential violations by construction
+        // (the scrubber runs inside the validator, so passes() implies clean).
+        // Only the unvalidated best attempt can still carry a literal secret —
+        // if it does, withhold it entirely: never persist or render a document
+        // (or its raw text) that leaks a credential. The correction loop
+        // already tried and failed to get a clean one.
+        $credentialLeak = $document !== null && ! $validated && $this->scrubber->violations($document) !== [];
+
+        if ($credentialLeak) {
+            $document = null;
+        }
+
         return new FlowspecGenerationResult(
             document: $document,
             text: $text,
             validated: $validated,
+            credentialLeak: $credentialLeak,
             meta: [
                 ...$context->toMeta(),
                 'attempts' => $attempts,
