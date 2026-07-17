@@ -10,8 +10,8 @@ use Illuminate\Validation\Rules\Enum;
 
 /**
  * Appends a new block to the end of the chain (data-viz F3) — chosen from a
- * registered Solution or free text. `arrow` is optional: when absent ("No
- * connection" in the "Add block" panel), the block is born isolated, with no
+ * registered Solution or free text. `arrow` is optional: when absent ("Sem
+ * conexão" in the "Adicionar bloco" panel), the block is born isolated, with no
  * edge at all — the user can connect it later via "connect mode"
  * (`AddIntegrationChainEdgeRequest`) or by retargeting another edge to it
  * (`RetargetIntegrationChainEdgeRequest`). When present, it connects to the
