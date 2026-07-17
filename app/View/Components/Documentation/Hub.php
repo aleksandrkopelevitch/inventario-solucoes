@@ -8,10 +8,10 @@ use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 /**
- * Lista do hub de Documentação, renderizável como slot atualizável
- * (`documentation-hub-slot`) — soluções + integrações agrupadas por solução,
- * cada uma com status de documentação (conteúdo real). Filtros por busca,
- * tipo e status via DocumentationCoverageService::groups().
+ * List for the Documentation hub, renderable as an updatable slot
+ * (`documentation-hub-slot`) — solutions + integrations grouped by solution,
+ * each with documentation status (based on real content). Filters by search,
+ * type and status via DocumentationCoverageService::groups().
  */
 class Hub extends Component
 {

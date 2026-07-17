@@ -9,8 +9,8 @@
         <p class="mt-1 text-sm text-muted">O que está documentado e o que ainda precisa — soluções e integrações do inventário.</p>
     </div>
 
-    {{-- Contadores globais de cobertura (inventário inteiro; não mudam com o
-         filtro da lista abaixo). --}}
+    {{-- Global coverage counters (whole inventory; don't change with the
+         filter on the list below). --}}
     <div class="grid gap-3.5 sm:grid-cols-2">
         @foreach ([
             'Soluções' => $counters['solutions'],
@@ -32,7 +32,7 @@
         @endforeach
     </div>
 
-    {{-- Busca + filtros (mesmo form: a busca é um campo filter[] preservado ao filtrar) --}}
+    {{-- Search + filters (same form: search is a filter[] field preserved when filtering) --}}
     <form id="documentation-filter-form" class="mb-3 mt-6 flex flex-col gap-3">
         <div class="max-w-md">
             <x-forms.field name="search">

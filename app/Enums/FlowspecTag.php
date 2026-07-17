@@ -3,10 +3,10 @@
 namespace App\Enums;
 
 /**
- * Vocabulário fechado de tags do corpus de exemplos de flowSpec (F8).
- * Padroniza o tagueamento do seeder/curadoria e alimenta o seletor de
- * exemplos: `keywords()` é o mapa palavra-do-pedido -> tag usado pelo
- * FlowspecContextResolver para derivar tags candidatas sem RAG.
+ * Closed vocabulary of tags for the flowSpec example corpus (F8).
+ * Standardizes seeder/curation tagging and feeds the example selector:
+ * `keywords()` is the request-word -> tag map used by
+ * FlowspecContextResolver to derive candidate tags without RAG.
  */
 enum FlowspecTag: string
 {
@@ -27,8 +27,8 @@ enum FlowspecTag: string
     case Modify = 'modify';
 
     /**
-     * Palavras/radicais (minúsculos, sem acento) que, presentes no pedido do
-     * usuário, sugerem esta tag.
+     * Words/stems (lowercase, no accents) that, when present in the user's
+     * request, suggest this tag.
      *
      * @return list<string>
      */

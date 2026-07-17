@@ -6,8 +6,8 @@ use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 /**
- * Destaca em `<mark>` o trecho de `$text` que casou com `$term` (busca do
- * catálogo F1). Some abaixo de 3 caracteres — mesma regra mínima da busca.
+ * Highlights in `<mark>` the portion of `$text` that matched `$term` (catalog
+ * F1 search). Disappears below 3 characters — same minimum-length rule as the search.
  */
 class Highlight extends Component
 {

@@ -5,10 +5,10 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Remove por completo a feature de health-check (F9): a tabela de pipeline e a
- * coluna `integrations.health_check_url` que só existia para alimentá-la. O
- * catálogo/mapa de integrações passou a viver a partir da solução e o
- * health-check foi descontinuado.
+ * Removes the health-check feature (F9) entirely: the pipeline table and the
+ * `integrations.health_check_url` column that only existed to feed it. The
+ * integration catalog/map now lives off the solution and health-check was
+ * discontinued.
  */
 return new class extends Migration
 {

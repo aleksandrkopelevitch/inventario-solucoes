@@ -12,12 +12,12 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * Resolve o grafo de integrações para o contrato NEUTRO (agnóstico de
- * renderizador) descrito na seção 10 do briefing. O mapeamento para o schema
- * do canvas acontece no cliente, de modo que trocar o renderizador no futuro
- * não muda o servidor.
+ * Resolves the integration graph into the NEUTRAL (renderer-agnostic)
+ * contract described in section 10 of the briefing. The mapping to the
+ * canvas schema happens on the client, so swapping the renderer in the
+ * future doesn't touch the server.
  *
- * Formato de retorno:
+ * Return format:
  *
  *     [
  *         'nodes' => [ ['id','label','slug','category','logo','url',
@@ -27,26 +27,27 @@ use Illuminate\Support\Facades\Storage;
  *         'edges' => [ ['id','source','target','label','status','direction','integrations'], ... ],
  *     ]
  *
- * Regras (seção 10):
- * - Cada aresta candidata vem de uma ligação real de `chain.edges` (não de
- *   adjacência de `integration_solution.position` — a chain é um grafo livre
- *   desde o data-viz F3, então duas soluções "vizinhas" na posição do pivot
- *   podem não ter ligação nenhuma entre si). Soluções iPaaS (ex.: Digibee)
- *   são participantes comuns da cadeia — o conceito de orquestrador foi
- *   removido.
- * - O mapa global exibe **uma aresta por par** de soluções (não uma por
- *   segmento de chain): `dedupePairs()` agrupa todas as arestas candidatas
- *   entre o mesmo par (de integrações diferentes, ou revisitado na mesma
- *   integração) numa só, agregando direção (bidirecional se há fluxo nos dois
- *   sentidos), status (a mais "saudável" do grupo) e protocolo (rótulos
- *   distintos, juntados). Evita o emaranhado de várias curvas sobrepostas
- *   entre o mesmo par no layout radial hub-and-spoke (`ecosystem-map.js`).
+ * Rules (section 10):
+ * - Every candidate edge comes from a real link in `chain.edges` (not from
+ *   `integration_solution.position` adjacency — the chain has been a free
+ *   graph since the F3 data-viz, so two solutions "neighboring" in pivot
+ *   position may have no link at all between them). iPaaS solutions (e.g.
+ *   Digibee) are ordinary chain participants — the orchestrator concept was
+ *   removed.
+ * - The global map shows **one edge per pair** of solutions (not one per
+ *   chain segment): `dedupePairs()` groups every candidate edge between the
+ *   same pair (from different integrations, or revisited within the same
+ *   integration) into a single one, aggregating direction (bidirectional if
+ *   flow exists in both directions), status (the "healthiest" in the group)
+ *   and protocol (distinct labels, joined). Avoids the tangle of several
+ *   overlapping curves between the same pair in the radial hub-and-spoke
+ *   layout (`ecosystem-map.js`).
  */
 class IntegrationGraphService
 {
     /**
-     * Mapa global: todo o ecossistema, com filtros opcionais por query string.
-     * Filtros aceitos: `status` (default todas), `category`, `directorate`.
+     * Global map: the whole ecosystem, with optional query-string filters.
+     * Accepted filters: `status` (default all), `category`, `directorate`.
      *
      * @param  array<string, string|null>  $filters
      * @return array{nodes: array<int, array<string, mixed>>, edges: array<int, array<string, mixed>>}
@@ -73,7 +74,7 @@ class IntegrationGraphService
         return $this->build($integrations);
     }
 
-    /** Eager loads que evitam N+1 ao montar nós/arestas. */
+    /** Eager loads that avoid N+1 while building nodes/edges. */
     private function graphEagerLoad(): array
     {
         return [
@@ -96,7 +97,7 @@ class IntegrationGraphService
     }
 
     /**
-     * Monta o contrato neutro a partir de uma coleção de integrações.
+     * Builds the neutral contract from a collection of integrations.
      *
      * @param  Collection<int, Integration>  $integrations
      * @return array{nodes: array<int, array<string, mixed>>, edges: array<int, array<string, mixed>>}
@@ -119,9 +120,17 @@ class IntegrationGraphService
                 $fromSid = $chainNodes[$edge['from'] ?? -1]['solution_id'] ?? null;
                 $toSid = $chainNodes[$edge['to'] ?? -1]['solution_id'] ?? null;
 
-                // Uma ponta em nó de texto livre não gera par de soluções —
-                // não há aresta pra desenhar no mapa global.
+                // An endpoint on a free-text node doesn't produce a solution
+                // pair — there's no edge to draw on the global map.
                 if ($fromSid === null || $toSid === null) {
+                    continue;
+                }
+
+                // The same solution can occupy two distinct chain nodes
+                // (from !== to in the chain, but same solution_id) — on the
+                // global map nodes are per-solution, so this would become a
+                // meaningless `sol-X -> sol-X` self-loop to draw.
+                if ($fromSid === $toSid) {
                     continue;
                 }
 
@@ -141,12 +150,12 @@ class IntegrationGraphService
     }
 
     /**
-     * Agrupa arestas candidatas pelo par não-ordenado de soluções, agregando
-     * direção/status/protocolo/integrações de todas as que ligam o mesmo par.
-     * A primeira aresta vista para um par define a orientação canônica
-     * (`source`/`target`) do grupo — toda aresta seguinte só marca se o fluxo
-     * observado é no mesmo sentido (`aToB`) ou no oposto (`bToA`); uma aresta
-     * já `<->` marca os dois.
+     * Groups candidate edges by the unordered pair of solutions, aggregating
+     * direction/status/protocol/integrations across all edges linking the
+     * same pair. The first edge seen for a pair defines the group's canonical
+     * orientation (`source`/`target`) — every following edge only marks
+     * whether the observed flow is in the same direction (`aToB`) or the
+     * opposite one (`bToA`); an edge that's already `<->` marks both.
      *
      * @param  array<int, array<string, mixed>>  $edges
      * @return array<int, array<string, mixed>>
@@ -207,7 +216,7 @@ class IntegrationGraphService
         }, $order);
     }
 
-    /** Chave estável e não-ordenada pra um par `sol-{id}` — mesma independente de quem é source/target. */
+    /** Stable, unordered key for a `sol-{id}` pair — same regardless of which one is source/target. */
     private function pairKey(string $a, string $b): string
     {
         $pair = [$a, $b];
@@ -229,14 +238,14 @@ class IntegrationGraphService
     }
 
     /**
-     * Além do essencial pro desenho (nome/logo), carrega os mesmos 8
-     * atributos exibidos em `Solutions\DetailHeader` — o popover de
-     * atributos do mapa (`ecosystem-map.js`) os mostra sem precisar de um
-     * round-trip AJAX por clique. `url` evita reconstruir a rota no cliente,
-     * assim como `positionUrl` (endpoint de auto-save do drag-and-drop de
-     * hub). `mapPosition` é a posição arrastada e salva por último (null
-     * até o primeiro arraste) — `ecosystem-map.js::layout()` a usa no lugar
-     * do grid empacotado pra esse hub.
+     * Besides the essentials for drawing (name/logo), loads the same 8
+     * attributes shown in `Solutions\DetailHeader` — the map's attribute
+     * popover (`ecosystem-map.js`) displays them without needing an AJAX
+     * round-trip per click. `url` avoids rebuilding the route on the client,
+     * same as `positionUrl` (the hub drag-and-drop's auto-save endpoint).
+     * `mapPosition` is the last dragged-and-saved position (null until the
+     * first drag) — `ecosystem-map.js::layout()` uses it instead of the
+     * packed grid for this hub.
      *
      * @param  array<string, array<string, mixed>>  $nodes
      */
@@ -269,7 +278,7 @@ class IntegrationGraphService
     }
 
     /**
-     * Aresta candidata (por segmento) — insumo de `dedupePairs()`, nunca devolvida diretamente.
+     * Candidate edge (per segment) — input to `dedupePairs()`, never returned directly.
      *
      * @return array<string, mixed>
      */

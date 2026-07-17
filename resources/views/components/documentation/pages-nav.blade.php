@@ -88,9 +88,9 @@
         @endforeach
     </ul>
 
-    {{-- Documentação de cada Integration em que a Solution participa —
-         consolidada nesta mesma árvore (não é uma tela à parte). Somente
-         link: renomear/mover/apagar uma integração não faz sentido aqui. --}}
+    {{-- Documentation for each Integration the Solution participates in —
+         consolidated into this same tree (not a separate screen). Link
+         only: renaming/moving/deleting an integration doesn't make sense here. --}}
     @if (count($integrations))
         <div class="mt-4 border-t border-line pt-3">
             <span class="px-1 text-xs font-semibold uppercase tracking-wide text-faint">Integrações</span>

@@ -1,8 +1,9 @@
-// Ferramenta Editor.js "Hint" (callout estilo GitBook). Serializa para
+// Editor.js "Hint" tool (GitBook-style callout). Serializes to
 // {% hint style="info|warning|danger|success" icon="…" %} … {% endhint %} —
-// ver docs-markdown.js. O estilo define só a cor; o ícone é um heroicon outline
-// de livre escolha (padrão por estilo), selecionado no picker (heroicon-picker.js).
-// O texto é rich (contenteditable, aceita a inline toolbar).
+// see docs-markdown.js. The style only defines the color; the icon is a
+// freely-chosen outline heroicon (defaulted per style), picked in the
+// picker (heroicon-picker.js). The text is rich (contenteditable, accepts
+// the inline toolbar).
 
 import {getHeroiconSvg, openHeroiconPicker} from '../heroicon-picker'
 import {DEFAULT_HINT_ICON} from './hint-icons'
@@ -39,7 +40,7 @@ export default class HintTool {
         this.iconBtn = null
     }
 
-    // Ícone efetivo exibido: o escolhido pelo autor, senão o padrão do estilo.
+    // Effective icon shown: the author's choice, otherwise the style's default.
     resolvedIcon() {
         return this.data.icon || DEFAULT_HINT_ICON[this.data.style] || DEFAULT_HINT_ICON.info
     }
@@ -50,7 +51,7 @@ export default class HintTool {
     }
 
     setIcon(name) {
-        // Guarda vazio quando é o padrão do estilo — mantém a notação limpa.
+        // Stores empty when it's the style's default — keeps the notation clean.
         this.data.icon = name === DEFAULT_HINT_ICON[this.data.style] ? '' : name
         this.renderIcon()
     }
@@ -60,7 +61,7 @@ export default class HintTool {
         this.wrapper.classList.add('ak-hint')
         this.wrapper.dataset.hintStyle = this.data.style
 
-        // Badge do ícone — também é o gatilho do picker de heroicons.
+        // Icon badge — also the trigger for the heroicon picker.
         this.iconBtn = document.createElement('button')
         this.iconBtn.type = 'button'
         this.iconBtn.className = 'ak-hint__icon'
@@ -82,9 +83,10 @@ export default class HintTool {
         this.editable.innerHTML = this.data.text
         this.editable.dataset.placeholder = 'Texto do aviso…'
 
-        // Enter insere uma quebra <br> em vez de deixar o navegador criar um
-        // <div> por linha — <div> não some no backspace (a linha vazia continua
-        // ocupando espaço vertical) e nem serializa (inlineToMd só entende <br>).
+        // Enter inserts a <br> break instead of letting the browser create a
+        // <div> per line — a <div> doesn't disappear on backspace (the empty
+        // line keeps taking up vertical space) and doesn't serialize either
+        // (inlineToMd only understands <br>).
         this.editable.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.isComposing) {
                 e.preventDefault()
@@ -92,8 +94,9 @@ export default class HintTool {
             }
         })
 
-        // Ao apagar tudo, colapsa resíduo (<br>/<div> vazios) para o estado
-        // :empty — assim o placeholder reaparece e a altura volta ao normal.
+        // On clearing everything, collapse residue (empty <br>/<div>) back to
+        // the :empty state — so the placeholder reappears and the height
+        // returns to normal.
         this.editable.addEventListener('input', () => {
             if (!this.editable.textContent.trim() && !this.editable.querySelector('img')) {
                 this.editable.innerHTML = ''
@@ -114,7 +117,7 @@ export default class HintTool {
             onActivate: () => {
                 this.data.style = style
                 this.wrapper.dataset.hintStyle = style
-                // Se o ícone estava no padrão, acompanha o novo padrão do estilo.
+                // If the icon was on the default, it follows the style's new default.
                 this.renderIcon()
             },
         }))

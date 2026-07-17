@@ -1,8 +1,8 @@
-// docs-share.js — gera/revoga/copia o link público ("magic link") da
-// documentação, a partir do painel Solutions\SharePanel na toolbar. Delegação
-// em `document` (não por elemento) porque `ajax-slot.js` troca o container
-// inteiro (`docs-share-slot`) a cada mutação. Segue o mesmo padrão dos demais
-// módulos de auto-persistência (fetch + updateSlots + Toast).
+// docs-share.js — generates/revokes/copies the documentation's public
+// ("magic link") link, from the Solutions\SharePanel panel in the toolbar.
+// Delegation on `document` (not per-element) because `ajax-slot.js` swaps
+// the whole container (`docs-share-slot`) on every mutation. Follows the
+// same pattern as the other auto-persistence modules (fetch + updateSlots + Toast).
 import {updateSlots} from './ajax-slot'
 
 function csrf() {

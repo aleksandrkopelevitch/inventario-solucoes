@@ -5,11 +5,11 @@ namespace App\Services\Flowspec;
 use Illuminate\Support\Arr;
 
 /**
- * Garante que um `{meta, flowSpec}` gerado cola no canvas Digibee sem erro:
- * estrutura, posições em `meta`, branches de choice/for-each existentes,
- * referências Double Braces (o clássico `{{ alias. }}` sem `step.`),
- * componentes dentro do catálogo, segredo literal barrado e upsert de
- * Object Store completo. Os erros saem concretos, prontos para o re-prompt.
+ * Ensures a generated `{meta, flowSpec}` pastes into the Digibee canvas
+ * without error: structure, positions in `meta`, existing choice/for-each
+ * branches, Double Braces references (the classic `{{ alias. }}` missing
+ * `step.`), components within the catalog, no literal secrets, and complete
+ * Object Store upserts. Errors come out concrete, ready for the re-prompt.
  */
 class DigibeeFlowspecValidator
 {
@@ -28,7 +28,7 @@ class DigibeeFlowspecValidator
         );
     }
 
-    /** @param array<string, mixed> $document o JSON `{meta, flowSpec}` completo */
+    /** @param array<string, mixed> $document the complete `{meta, flowSpec}` JSON */
     public function validate(array $document): ValidationResult
     {
         if (! is_array($document['meta'] ?? null) || ! is_array($document['flowSpec'] ?? null)) {
@@ -155,11 +155,11 @@ class DigibeeFlowspecValidator
     }
 
     /**
-     * Varre toda string do documento atrás de `{{ ... }}`: referência a step
-     * anterior exige o prefixo `step.` (`{{ step.alias.campo }}` — nunca
-     * `{{ alias.campo }}`), o alias precisa existir, e o escopo inicial deve
-     * ser válido. Chamadas de função (`{{ UUID() }}`, `{{ CONCAT(...) }}`)
-     * são ignoradas.
+     * Scans every string in the document for `{{ ... }}`: a reference to a
+     * previous step requires the `step.` prefix (`{{ step.alias.field }}` —
+     * never `{{ alias.field }}`), the alias must exist, and the initial scope
+     * must be valid. Function calls (`{{ UUID() }}`, `{{ CONCAT(...) }}`) are
+     * ignored.
      *
      * @param  array<string, mixed>  $document
      * @param  list<string>  $errors
@@ -173,11 +173,11 @@ class DigibeeFlowspecValidator
 
             foreach ($matches as [, $identifier, $next]) {
                 if ($next === '(') {
-                    continue; // função Double Braces (UUID(), CONCAT(), NOW()...)
+                    continue; // Double Braces function (UUID(), CONCAT(), NOW()...)
                 }
 
                 if ($identifier === 'step') {
-                    continue; // validado abaixo, com o alias completo
+                    continue; // validated below, with the full alias
                 }
 
                 if (in_array($identifier, $aliases, true)) {
@@ -221,7 +221,7 @@ class DigibeeFlowspecValidator
         }
     }
 
-    /** @return list<string> todos os valores string do documento, recursivamente */
+    /** @return list<string> all string values in the document, recursively */
     private function allStrings(mixed $value): array
     {
         if (is_string($value)) {

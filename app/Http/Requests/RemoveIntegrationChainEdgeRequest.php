@@ -6,10 +6,11 @@ use App\Models\Integration;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Remove uma ligação existente da chain (botão "desligar" do editor de
- * aresta no data-viz F3) — sem corpo, só o índice em `chain.edges` na rota.
- * É o que permite deixar um bloco sem interligação: remover a única ligação
- * que o mantinha conectado ao resto do grafo não remove o nó em si.
+ * Removes an existing edge from the chain (the "disconnect" button in the
+ * edge editor in data-viz F3) — no body, just the index into `chain.edges`
+ * in the route. This is what allows a block to be left with no connection:
+ * removing the only edge that kept it connected to the rest of the graph
+ * does not remove the node itself.
  */
 class RemoveIntegrationChainEdgeRequest extends FormRequest
 {

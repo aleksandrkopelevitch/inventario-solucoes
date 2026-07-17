@@ -13,15 +13,15 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use function Laravel\Ai\agent;
 
 /**
- * Gera um rascunho de documentação a partir de um pedido + documentos de
- * contexto da Solução. Documentos de texto vão embutidos no prompt (respeitando
- * um orçamento de caracteres); PDFs e imagens vão como anexos nativos ao modelo
- * (laravel/ai). A saída é Markdown+notação GitBook no subconjunto que o editor
- * entende — carregado no editor para revisão, nunca gravado direto.
+ * Generates a documentation draft from a request + the Solution's context
+ * documents. Text documents get inlined into the prompt (respecting a
+ * character budget); PDFs and images go as native attachments to the model
+ * (laravel/ai). The output is Markdown+GitBook notation in the subset the
+ * editor understands — loaded into the editor for review, never written directly.
  */
 class DocumentationDraftService
 {
-    /** Extensões tratadas como texto embutido no prompt. */
+    /** Extensions treated as text inlined into the prompt. */
     private const TEXT_EXTENSIONS = ['txt', 'md', 'csv', 'json', 'yaml', 'yml'];
 
     public function __construct(
@@ -30,34 +30,35 @@ class DocumentationDraftService
 
     public function generate(DocumentationAiGeneration $generation): DocumentationDraftResult
     {
-        // Job despacha um model recém-deserializado (SerializesModels) sem
-        // relações carregadas — strict mode não arma o guard em single fetch,
-        // então o eager load é explícito (ver CLAUDE.md).
+        // The job dispatches a freshly deserialized model (SerializesModels)
+        // with no relations loaded — strict mode doesn't arm the guard on a
+        // single fetch, so the eager load is explicit (see CLAUDE.md).
         $generation->loadMissing(['solution', 'target']);
 
         /** @var Solution $solution */
         $solution = $generation->solution;
         $target = $generation->target;
 
-        // Cap defensivo (o request não limita media_ids): mantém os N primeiros
-        // na ordem da coleção e sinaliza os excedentes em `omitted_context` — o
-        // usuário selecionou-os explicitamente, então não somem sem registro
-        // (mesmo tratamento de `omitted_attachments`).
+        // Defensive cap (the request doesn't limit media_ids): keeps the first
+        // N in collection order and flags the surplus in `omitted_context` —
+        // the user selected them explicitly, so they shouldn't vanish without
+        // a record (same treatment as `omitted_attachments`).
         $max = (int) config('services.documentation_ai.max_context_documents');
         $selectedAll = $this->selectedMedia($solution, $generation->context_media_ids ?? []);
         $selected = $selectedAll->take($max)->values();
         $omittedContext = $selectedAll->slice($max)->pluck('file_name')->values()->all();
 
-        [$textDocs, $attachments, $attachedMeta, $omittedAttachments] = $this->partition($selected);
+        [$textDocs, $attachments, $attachedMeta, $omittedAttachments, $omittedTexts] = $this->partition($selected);
 
         $userPrompt = $this->prompts->userPrompt(
             $target,
             $solution,
-            // O conteúdo atual NÃO é truncado: a saída da IA substitui a página
-            // inteira no editor, então qualquer trecho não enviado ao modelo
-            // sumiria da reescrita. Ele cabe folgado na janela do modelo (o
-            // request já limita a 500k chars ~= 125k tokens); os documentos de
-            // contexto, sim, têm orçamento próprio por serem vários e somarem.
+            // The current content is NOT truncated: the AI's output replaces
+            // the whole page in the editor, so any part not sent to the model
+            // would vanish from the rewrite. It fits comfortably in the
+            // model's window (the request already caps it at 500k chars ~=
+            // 125k tokens); context documents do have their own budget since
+            // there can be several of them adding up.
             $generation->existing_content,
             $generation->prompt,
             $textDocs,
@@ -73,24 +74,28 @@ class DocumentationDraftService
                 'tokens'   => [
                     'prompt'     => $response->usage->promptTokens,
                     'completion' => $response->usage->completionTokens,
-                    // Zerados hoje (o AnthropicProvider do laravel/ai 0.3.2 não
-                    // marca cache_control) — gravados para dar visibilidade quando
-                    // o prompt caching entrar (ver plano de otimização, Fase 2).
+                    // Zero today (laravel/ai 0.3.2's AnthropicProvider doesn't
+                    // set cache_control) — recorded to give visibility once
+                    // prompt caching lands (see optimization plan, Phase 2).
                     'cache_write' => $response->usage->cacheWriteInputTokens,
                     'cache_read'  => $response->usage->cacheReadInputTokens,
                 ],
                 'inlined'             => $textDocs->pluck('name')->all(),
                 'attached'            => $attachedMeta,
                 'omitted_attachments' => $omittedAttachments,
-                'omitted_context'     => $omittedContext,
+                // Surplus from the document cap + texts that didn't fit the
+                // character budget — both "selected but left out of the prompt".
+                'omitted_context' => [...$omittedContext, ...$omittedTexts],
             ],
         );
     }
 
     /**
-     * Documentos de contexto escolhidos, na ordem da coleção (o cap por
-     * `max_context_documents` é aplicado por quem chama, para poder sinalizar
-     * os excedentes).
+     * Chosen context documents, in collection order (the `max_context_documents`
+     * cap is applied by the caller, so it can flag the surplus). Empty list =
+     * NO documents: the panel's checkboxes come checked by default, so `[]`
+     * only happens when the user deliberately unchecked all of them — treating
+     * it as "all" would silently ignore that choice.
      *
      * @param  list<int>  $ids
      * @return Collection<int, Media>
@@ -100,16 +105,16 @@ class DocumentationDraftService
         $ids = array_map(intval(...), $ids);
 
         return $solution->getMedia(Solution::CONTEXT_COLLECTION)
-            ->when($ids !== [], fn (Collection $m) => $m->whereIn('id', $ids))
+            ->whereIn('id', $ids)
             ->values();
     }
 
     /**
-     * Separa em documentos de texto (embutidos, respeitando o orçamento de
-     * caracteres) e anexos nativos (PDF/imagem).
+     * Splits into text documents (inlined, respecting the character budget)
+     * and native attachments (PDF/image).
      *
      * @param  Collection<int, Media>  $media
-     * @return array{0: Collection<int, array{name: string, content: string}>, 1: list<object>, 2: list<array{id: int, name: string, kind: string}>, 3: list<string>}
+     * @return array{0: Collection<int, array{name: string, content: string}>, 1: list<object>, 2: list<array{id: int, name: string, kind: string}>, 3: list<string>, 4: list<string>}
      */
     private function partition(Collection $media): array
     {
@@ -119,6 +124,7 @@ class DocumentationDraftService
         $attachments = [];
         $attachedMeta = [];
         $omittedAttachments = [];
+        $omittedTexts = [];
         $attachmentBytes = 0;
 
         foreach ($media as $item) {
@@ -127,11 +133,17 @@ class DocumentationDraftService
 
             if (in_array($ext, self::TEXT_EXTENSIONS, true) || str_starts_with($mime, 'text/')) {
                 if ($budget <= 0) {
-                    continue; // orçamento esgotado — omite os demais textos
+                    // Budget exhausted — omits the remaining texts, but records
+                    // it: the user marked them on purpose, they can't vanish
+                    // without notice (same treatment as omitted_attachments/omitted_context).
+                    $omittedTexts[] = $item->file_name;
+
+                    continue;
                 }
-                // Lê só o necessário do arquivo (UTF-8: até 4 bytes/char, então
-                // (budget+1)*4 garante pelo menos budget+1 chars) em vez de
-                // carregar um arquivo de até 20MB inteiro na memória para truncar.
+                // Reads only what's needed from the file (UTF-8: up to 4
+                // bytes/char, so (budget+1)*4 guarantees at least budget+1
+                // chars) instead of loading a file up to 20MB whole into
+                // memory just to truncate it.
                 $content = (string) file_get_contents($item->getPath(), false, null, 0, ($budget + 1) * 4);
                 if (mb_strlen($content) > $budget) {
                     $content = mb_substr($content, 0, $budget) . "\n\n[documento truncado]";
@@ -149,9 +161,9 @@ class DocumentationDraftService
                 continue;
             }
 
-            // Teto agregado de bytes: estourou, omite este e sinaliza — cada
-            // arquivo já é <= 20MB pela validação do request, então o primeiro
-            // anexo sempre cabe abaixo do limite de ~32MB/requisição da API.
+            // Aggregate byte ceiling: exceeded, omit this one and flag it —
+            // each file is already <= 20MB per the request's validation, so
+            // the first attachment always fits under the API's ~32MB/request limit.
             if ($maxAttachmentBytes > 0 && $attachmentBytes + (int) $item->size > $maxAttachmentBytes) {
                 $omittedAttachments[] = $item->file_name;
 
@@ -169,12 +181,12 @@ class DocumentationDraftService
             }
         }
 
-        return [$textDocs, $attachments, $attachedMeta, $omittedAttachments];
+        return [$textDocs, $attachments, $attachedMeta, $omittedAttachments, $omittedTexts];
     }
 
     /**
-     * Remove uma cerca de código que envolva a resposta inteira (o modelo às
-     * vezes embrulha tudo em ```markdown … ```), preservando cercas internas.
+     * Removes a code fence wrapping the entire response (the model sometimes
+     * wraps everything in ```markdown … ```), preserving internal fences.
      */
     private function cleanFence(string $text): string
     {
@@ -188,7 +200,7 @@ class DocumentationDraftService
     }
 
     /**
-     * Protected para os testes substituírem a chamada real à API por um dublê.
+     * Protected so tests can substitute the real API call with a test double.
      *
      * @param  list<object>  $attachments
      */

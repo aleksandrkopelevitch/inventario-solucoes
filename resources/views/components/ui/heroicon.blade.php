@@ -2,11 +2,11 @@
     'name' => null,
 ])
 
-{{-- Renderiza o outline heroicon de `name` (slug salvo em `AttributeOption.icon`)
-     fora do fluxo `<x-heroicon-o-*>` — esse tag exige o nome do ícone estático
-     em tempo de compilação; aqui `name` é um valor dinâmico vindo do banco, e
-     pode ter ficado inválido (ícone renomeado/removido do pacote). Renderiza
-     vazio nesse caso em vez de quebrar a view. --}}
+{{-- Renders the outline heroicon for `name` (slug stored in `AttributeOption.icon`)
+     outside the `<x-heroicon-o-*>` flow — that tag requires the icon name to be
+     static at compile time; here `name` is a dynamic value coming from the
+     database, and it may have become invalid (icon renamed/removed from the
+     package). Renders empty in that case instead of breaking the view. --}}
 @php($svg = \App\Support\Heroicons::outlineSvg($name, (string) $attributes->get('class')))
 @if ($svg)
     {!! $svg !!}

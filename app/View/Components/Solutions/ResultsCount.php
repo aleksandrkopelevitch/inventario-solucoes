@@ -8,9 +8,9 @@ use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 /**
- * Contador ao vivo ("N soluções") ao lado do título do catálogo (F1) —
- * slot próprio para poder ser atualizado junto do grid a cada filtro/busca
- * sem recarregar a página, mesmo estando fora do container do grid no DOM.
+ * Live counter ("N solutions") next to the catalog title (F1) —
+ * own slot so it can be updated alongside the grid on each filter/search
+ * without reloading the page, even though it's outside the grid's container in the DOM.
  */
 class ResultsCount extends Component
 {

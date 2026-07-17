@@ -5,11 +5,11 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Layout visual da visualização gráfica F3 (posições dos blocos + âncoras das
- * pontas das setas), salvo por integração. É PURAMENTE visual — não deriva
- * topologia (a `chain` continua a fonte de verdade). Coluna própria em vez de
- * reaproveitar a `diagram` órfã (do editor de canvas removido) para não
- * confundir semânticas.
+ * Visual layout of the F3 graphical viz (block positions + arrow endpoint
+ * anchors), saved per integration. It's PURELY visual — it doesn't derive
+ * topology (the `chain` remains the source of truth). Its own column instead
+ * of reusing the orphaned `diagram` (from the removed canvas editor) to avoid
+ * confusing semantics.
  */
 return new class extends Migration
 {

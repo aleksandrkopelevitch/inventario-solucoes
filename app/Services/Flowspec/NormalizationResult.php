@@ -3,8 +3,8 @@
 namespace App\Services\Flowspec;
 
 /**
- * Saída do DigibeeFlowspecNormalizer: o documento corrigido e o rastro das
- * correções aplicadas (auditado em `flowspec_messages.meta`).
+ * Output of DigibeeFlowspecNormalizer: the corrected document and the trail
+ * of applied fixes (audited in `flowspec_messages.meta`).
  */
 final class NormalizationResult
 {

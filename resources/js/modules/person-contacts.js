@@ -1,17 +1,17 @@
-// Contatos adicionais repetíveis do form de Pessoa (data-ak-contacts) — tipo
-// (select) + valor, além do e-mail/telefone únicos do form.
-// Linhas novas entram via botão (não Enter, ao contrário de chips.js — aqui
-// cada linha tem 2 campos, não um único valor), saem pelo botão de lixeira.
-// Pura delegação em `document`, sem `init()` (mesmo espírito de chips.js) —
-// funciona tanto na primeira renderização (linhas vindas do Blade) quanto
-// depois de reabrir o painel via AJAX.
+// Repeatable additional contacts on the Person form (data-ak-contacts) —
+// type (select) + value, in addition to the form's single email/phone.
+// New rows are added via a button (not Enter, unlike chips.js — here each
+// row has 2 fields, not a single value), removed via the delete button.
+// Pure delegation on `document`, no `init()` (same spirit as chips.js) —
+// works both on first render (rows coming from Blade) and after reopening
+// the panel via AJAX.
 //
-// Markup gerado aqui precisa espelhar visualmente as linhas renderizadas
-// pelo Blade (`resources/views/people/form.blade.php`) — que usam
+// Markup generated here needs to visually mirror the rows rendered by
+// Blade (`resources/views/people/form.blade.php`) — which use
 // `<x-forms.select>`/`<x-forms.input>`/`<x-forms.button variant="ghost">`,
-// impossíveis de invocar em tempo de execução no cliente — por isso as
-// classes Tailwind abaixo são escritas por extenso (mesmo padrão já usado em
-// chips.js::chipHtml() para o mesmo problema).
+// impossible to invoke at client runtime — so the Tailwind classes below
+// are spelled out in full (same pattern already used in
+// chips.js::chipHtml() for the same problem).
 
 function nextIndex(container) {
     const n = parseInt(container.dataset.akContactsNext || '0', 10)

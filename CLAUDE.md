@@ -1,11 +1,11 @@
 # Inventário de Soluções — Claude Guidelines
 
-Catálogo das soluções/integrações da Leo Madeiras: cadastro de soluções,
-pessoas e empresas, editor gráfico de topologia de integrações por solução, e
-mapa read-only do ecossistema. Fork da infra genérica do projeto de
-referência **akop-pro** (forms, slots, módulos JS, shells de layout) — o
-domínio legado daquele projeto (CRM, DISC, multi-tenancy) não faz parte
-daqui. Ver `README.md` para visão geral e lista de funcionalidades.
+Catalog of Leo Madeiras' solutions/integrations: solution, people and company
+records, a graphical topology editor for a solution's integrations, and a
+read-only map of the ecosystem. Fork of the generic infra from the
+**akop-pro** reference project (forms, slots, JS modules, layout shells) — that
+project's legacy domain (CRM, DISC, multi-tenancy) is not part of this one.
+See `README.md` for an overview and feature list.
 
 ## Stack
 - Laravel 13+, Blade, Vanilla JS, Tailwind CSS 4, Vite 8, SQLite (dev) / PostgreSQL (prod)
@@ -13,21 +13,36 @@ daqui. Ver `README.md` para visão geral e lista de funcionalidades.
 ## Commands
 
 ```bash
-composer dev          # serve + queue + pail + vite em paralelo
+composer dev          # serve + queue + pail + vite in parallel
 composer test         # pest
 ./vendor/bin/pint     # code style
 npm run build && php artisan optimize
 ```
 
+## Language
+
+All code and everything the end user never sees — comments, docblocks,
+commit messages, this file, internal error/log messages, seeder/migration
+comments — must be written in English, regardless of the surrounding code's
+language. The one deliberate exception is **user-facing text**: Toast/flash
+messages, validation error strings, Blade view content, UI labels/
+placeholders, and any string a Brazilian end user actually reads on screen —
+those stay in Portuguese, since this app's real UI is PT-BR for Leo Madeiras
+staff. When editing a file, don't "fix" surrounding user-facing Portuguese
+strings while translating a comment near them, and don't translate a
+comment's quoted reference to an actual on-screen label/button name (e.g. a
+comment that says `the "Adicionar bloco" button` keeps that name verbatim —
+it's what's really printed on the button).
+
 ## Conventions
 
-- Controllers finos: 
-  - lógica mais ampla em Services
-  - Actions para ações únicas (single-purpose, constructor DI)
-- Queries complexas em Scopes ou Query Builders
-- Rotas sempre com `->name()`
-- Mobile-first com Tailwind
-- Avoid: 
+- Thin controllers:
+  - broader logic lives in Services
+  - Actions for single-purpose operations (single-purpose, constructor DI)
+- Complex queries in Scopes or Query Builders
+- Routes always with `->name()`
+- Mobile-first with Tailwind
+- Avoid:
   - fat controllers
   - `dd()` committed
   - raw queries
@@ -521,7 +536,7 @@ Never register new conversions or collections without checking existing ones fir
 
 ## JavaScript — use modules before creating new ones
 
-Before writing any new JS behavior, check if an existing module in `resources/js/modules/` already handles it. The project has modules for: toggle, tabs, side panel, AJAX form submission, file upload, masks, autocomplete, filters, search, and more.
+Before writing any new JS behavior, check if an existing module in `resources/js/modules/` already handles it. The project has modules for: toggle, tabs, side panel, AJAX form submission, file upload, filters, search, chips (multi-select with autocomplete), and more. (Modules inherited from akop-pro with zero consumers — mask, standalone autocomplete, copy-content, url-location, event-helpers, string-helpers, search-in-container, switch-button, radio-group — were removed on 2026-07-16; they weren't even part of `app.js`'s bundle.)
 
 Only create a new module when the behavior is genuinely not covered. When creating one, follow the delegation pattern:
 
@@ -583,7 +598,6 @@ All JS hooks use the `data-ak-*` prefix. Internal slots (`data-spinner`, `data-l
 | `data-ak-panel-close` | `side-panel.js` | Closes `#side-panel` and clears content |
 | `data-ak-panel-overlay="false"` | `side-panel.js` | Open without overlay |
 | `data-ak-tabs='{"targetId":"…"}'` | `tabs.js` | JSON config for tab switching |
-| `data-ak-switch='{"checkName":"…"}'` | `switch-button.js` | JSON config for toggle switch |
 | `data-ak-filters='{"formId":"…"}'` | `execute-filters.js` | JSON config for filter execution |
 | `data-ak-filters-clear='{"formId":"…","field":"filter[x]","url":"…"}'` | `execute-filters.js` | Clears one filter field (active-filter chip ✕) and resubmits via AJAX |
 | `data-ak-filters-clear-all='{"formId":"…","url":"…"}'` | `execute-filters.js` | Clears every `filter[...]` field except `filter[sort]` and resubmits ("Limpar tudo" / empty-state action) |
@@ -591,18 +605,11 @@ All JS hooks use the `data-ak-*` prefix. Internal slots (`data-spinner`, `data-l
 | `data-ak-filters-dim` | `execute-filters.js` | Dimmed (`opacity-50 pointer-events-none`) while a filter/search AJAX request is in flight — put on a persistent wrapper *around* the swapped slot, not the slot node itself, since the slot node gets replaced wholesale |
 | `data-ak-search='{"inputId":"…"}'` | `execute-search.js` | Debounced (350ms) search-as-you-type; searches immediately on Enter |
 | `data-ak-search-hint="input-id"` | `execute-search.js` | Element whose text is set to the "digite N+ letras" hint while 1–2 chars are typed, cleared otherwise |
-| `data-ak-mask="phone\|cpf\|cnpj\|zip"` | `mask.js` | Input mask type |
-| `data-ak-copy='{"fromId":"…"}'` | `copy-content.js` | Copy innerHTML from another element |
 | `data-ak-file-upload` | `file-upload.js` | File upload root element |
 | `data-ak-avatar-upload='{"inputId":"…"}'` | `avatar-upload.js` | Avatar upload trigger |
-| `data-ak-autocomplete='{"resultsId":"…"}'` | `autocomplete.js` | Autocomplete input |
 | `data-ak-top-nav` | `top-nav.js` | Element that receives scroll shadow |
-| `data-ak-url="url"` | `url-location.js` | Navigate to URL on click |
-| `data-ak-enter-click="btn-id"` | `event-helpers.js` | Click button on Enter keypress |
-| `data-ak-make-slug='{"sourceId":"…"}'` | `string-helpers.js` | Generate slug from source field |
-| `data-ak-searchable` | `search-in-container.js` | Marks element as searchable |
 | `data-ak-solution-attribute` (on a `<select>`) + `data-solution-attributes`/`data-action="url"` (on the wrapping `<dl>`) | `solution-attributes.js` | Auto-persists one Solution attribute on `change`, no save button |
-| `data-ak-chips` (root) + `data-ak-chips-input`/`data-ak-chips-list`/`data-ak-chips-results`/`data-ak-chips-result`/`data-ak-chip`/`data-ak-chip-remove` | `chips.js` | Multi-select-with-autocomplete chips input (e.g. Pessoa↔Solução role linking) |
+| `data-ak-chips` (root) + `data-ak-chips-input`/`data-ak-chips-list`/`data-ak-chips-results`/`data-ak-chips-result`/`data-ak-chip`/`data-ak-chip-remove` | `chips.js` | Multi-select-with-autocomplete chips input (e.g. Person↔Solution role linking) |
 | `data-ak-integration-select="slug"` (on a row) + `data-ak-integration-list` (on the container) | `integration-select.js` | Selects an integration row (`aria-pressed`), dispatches `ak:integration-selected` `{name, slug, graph}` |
 | `data-ak-flowspec-poll="status-url"` | `flowspec-chat.js` | Presence in the thread slot = a reply is still generating; module polls the URL every 2.5s (capped at `MAX_POLL_ATTEMPTS`) until the slot swap removes this marker |
 | `data-ak-flowspec-copy="pre-id"` | `flowspec-chat.js` | Copies the target element's `textContent` (not `innerHTML` — the flowSpec JSON's `jsonPath` has literal `&&`) to the clipboard |
@@ -611,53 +618,54 @@ All JS hooks use the `data-ak-*` prefix. Internal slots (`data-spinner`, `data-l
 | `data-ak-docs-ai-status` | `docs-ai.js` | "Gerando com IA…" indicator, revealed (`hidden`→`inline-flex`) while a generation job runs |
 | `data-ak-context-doc` (on a checkbox, `value`=media id) | `docs-ai.js` | A Solution context document the AI should consider; checked ids are sent as `media_ids[]` |
 
-## `ajax.js` — contrato Promise, não XHR
+## `ajax.js` — Promise contract, not XHR
 
-`resources/js/modules/ajax.js::init(method, url, formData?)` é uma função
-**assíncrona baseada em `fetch`** — devolve uma `Promise<Response>` (rejeita
-em `!response.ok`, com `error.response` anexado). Ela **não** tem API de
-`XMLHttpRequest` (`.onload`, `.status`, `.response`, `.send()`) — isso é
-resquício do `ajax.js` antigo do akop-pro, que era baseado em XHR.
+`resources/js/modules/ajax.js::init(method, url, formData?)` is an
+**async, `fetch`-based function** — it returns a `Promise<Response>`
+(rejects on `!response.ok`, with `error.response` attached). It **doesn't**
+have the `XMLHttpRequest` API (`.onload`, `.status`, `.response`, `.send()`)
+— that's a leftover from the old, XHR-based `ajax.js` from akop-pro.
 
 ```js
-// Correto
+// Correct
 ajaxModule.init('GET', url)
     .then((response) => response.json())
     .then((data) => updateSlots(data))
-    .catch((error) => { /* error.response, se veio de status != 2xx */ })
+    .catch((error) => { /* error.response, if it came from a non-2xx status */ })
 
-// Quebrado — ajaxObj é uma Promise, não tem .onload/.send()
+// Broken — ajaxObj is a Promise, it has no .onload/.send()
 let ajaxObj = ajaxModule.init('GET', url)
 ajaxObj.onload = function () { ... }
 ajaxObj.send()
 ```
 
-Achado real (2026-07-02): `execute-filters.js::applyFilters()`, `modal.js::loadFromURLAndOpen()`
-e `avatar-upload.js::uploadAddedImage()` (removida — código morto, nunca
-chamada) ainda usavam a API antiga contra o `ajax.js` já reescrito — todo
-clique num filtro/busca (Soluções, Pessoas, Empresas) lançava
-`TypeError: ajaxObj.send is not a function`, silenciosamente engolido pelo
-listener, deixando busca/filtro sem efeito nenhum. `ajax-post.js` era o único
-consumidor já correto (usa `await`). Ao adicionar um novo consumidor de
-`ajaxModule.init()`, sempre tratar o retorno como Promise.
+Real incident (2026-07-02): `execute-filters.js::applyFilters()`,
+`modal.js::loadFromURLAndOpen()`, and `avatar-upload.js::uploadAddedImage()`
+(removed — dead code, never called) still used the old API against the
+already-rewritten `ajax.js` — every filter/search click (Solutions, People,
+Companies) threw `TypeError: ajaxObj.send is not a function`, silently
+swallowed by the listener, leaving search/filter with no effect at all.
+`ajax-post.js` was the only already-correct consumer (uses `await`). When
+adding a new consumer of `ajaxModule.init()`, always treat the return value
+as a Promise.
 
-## AJAX — Submissão de forms
+## AJAX — Form submission
 
-O módulo `ajax-post.js` intercepta **cliques** em `[data-ak-ajax]` e também **submit** do form (Enter ou submit nativo), prevenindo a submissão nativa em ambos os casos.
+The `ajax-post.js` module intercepts **clicks** on `[data-ak-ajax]` and also form **submit** (Enter or native submit), preventing the native submission in both cases.
 
 ```html
-<form id="meu-form">
+<form id="my-form">
     @csrf
-    <!-- campos -->
+    <!-- fields -->
 </form>
 
-<x-forms.button data-ak-ajax="meu-form" data-ak-action="{{ route('minha.rota') }}">
+<x-forms.button data-ak-ajax="my-form" data-ak-action="{{ route('my.route') }}">
     <span data-label>Salvar</span>
     <span data-spinner class="opacity-0 absolute">...</span>
 </x-forms.button>
 ```
 
-Não é necessário `onsubmit` no form. Enter e clique funcionam automaticamente.
+No `onsubmit` needed on the form. Enter and click both work automatically.
 
 ## AJAX and Updatable Slots
 
@@ -832,78 +840,83 @@ The `<x-forms.button>` component handles the `data-spinner` / `data-label` patte
 
 Icons: `<x-heroicon-o-home class="w-5 h-5" />` (outline) or `<x-heroicon-s-home />` (solid).
 
-## Layout global (`layout.blade.php`)
+## Global layout (`layout.blade.php`)
 
-O layout principal (sidebar verde + canvas claro, identidade Leo) inclui
-permanentemente as seguintes shells — **não recriar em páginas individuais**:
+The main layout (green sidebar + light canvas, Leo identity) permanently
+includes the following shells — **don't recreate them in individual pages**:
 
 - `#alert-modal` — `Modal.loadAlert({...})`
 - `#main-modal` — `Modal.loadFromURLAndOpen('main-modal', url)`
 - `#toast-container` — `Toast.show(msg)` / `Toast.open({...})`
-- `#side-panel` — painel lateral genérico, conteúdo via AJAX
+- `#side-panel` — generic side panel, content via AJAX
 
-Toda página nova acessível por GET precisa de um item na nav da sidebar (o
-array `$sections` no topo do layout) — sem isso a página fica órfã, só
-alcançável por URL digitada. A chave `active` aceita string ou array de
-padrões `routeIs()`; use array quando um item precisa acender em várias rotas
-(ex.: "Soluções" lista `['solutions.index', 'solutions.show',
-'solutions.integrations.*']`, para permanecer ativo também no detalhe da
-solução e nas páginas de integração aninhadas sob ela).
+Every new GET-accessible page needs an entry in the sidebar nav (the
+`$sections` array at the top of the layout) — without it the page is
+orphaned, reachable only by typing the URL directly. The `active` key
+accepts a string or an array of `routeIs()` patterns; use an array when an
+item needs to light up on several routes (e.g. "Soluções" lists
+`['solutions.index', 'solutions.show', 'solutions.integrations.*']`, so it
+stays active on the solution's detail page and on integration pages nested
+under it too).
 
-> O `#dashboard-bg` dinâmico (gradiente/foto por preferência do usuário) do
-> projeto de referência akop-pro foi **removido** na aplicação da identidade
-> Leo — não reintroduzir. `ProfileController::customizePanel/updatePreferences`
-> e `App\Support\BackgroundPhoto`/`App\Enums\BackgroundTheme` ficaram órfãos
-> (sem rota/UI ativa apontando pra eles); não construir em cima disso sem
-> primeiro confirmar se ainda fazem sentido.
+> The dynamic `#dashboard-bg` (gradient/photo by user preference) from the
+> akop-pro reference project was **removed** when applying the Leo identity
+> — don't reintroduce it. `ProfileController::customizePanel/updatePreferences`
+> and `App\Support\BackgroundPhoto`/`App\Enums\BackgroundTheme` are now
+> orphaned (no route/active UI pointing to them); don't build on top of this
+> without first confirming whether it still makes sense.
 
 ## Side Panel
 
-Shell genérico em `layout.blade.php`. Conteúdo **sempre carregado via AJAX** na abertura; **sempre limpo no fechamento** (volta ao placeholder de carregamento com 3 bolinhas).
+Generic shell in `layout.blade.php`. Content is **always loaded via AJAX**
+on open; **always cleared on close** (reverts to the 3-dot loading
+placeholder).
 
 ```html
-{{-- Abrir com overlay (padrão) --}}
-<button data-ak-panel-open data-ak-panel-url="{{ route('minha.rota.panel') }}">
+{{-- Open with overlay (default) --}}
+<button data-ak-panel-open data-ak-panel-url="{{ route('my.route.panel') }}">
     Abrir
 </button>
 
-{{-- Abrir sem overlay --}}
-<button data-ak-panel-open data-ak-panel-url="{{ route('minha.rota.panel') }}" data-ak-panel-overlay="false">
+{{-- Open without overlay --}}
+<button data-ak-panel-open data-ak-panel-url="{{ route('my.route.panel') }}" data-ak-panel-overlay="false">
     Abrir sem overlay
 </button>
 
-{{-- Fechar de dentro do conteúdo injetado --}}
+{{-- Close from inside the injected content --}}
 <button data-ak-panel-close>Fechar</button>
 ```
 
-O overlay (quando visível) também fecha o painel ao ser clicado.
+The overlay (when visible) also closes the panel when clicked.
 
-O endpoint deve retornar `{ "content": "<html>" }`:
+The endpoint must return `{ "content": "<html>" }`:
 ```php
 return response()->json([
-    'content' => view('modulo.panels.meu-panel', $data)->render(),
+    'content' => view('module.panels.my-panel', $data)->render(),
 ]);
 ```
 
-Após injeção, `initAllModules()` é chamado automaticamente. O listener do `side-panel.js` fica no nível do módulo (fora do `init()`), então `init()` é no-op — chamadas múltiplas de `initAllModules()` são segradas.
+After injection, `initAllModules()` is called automatically. The
+`side-panel.js` listener lives at the module level (outside `init()`), so
+`init()` is a no-op — multiple `initAllModules()` calls are safe.
 
 ## Modal
 
 ```js
-// Alerta simples (usa #alert-modal)
+// Simple alert (uses #alert-modal)
 Modal.loadAlert({ title: 'Atenção', content: 'Mensagem', type: 'warning' })
 
-// Conteúdo AJAX (usa #main-modal)
+// AJAX content (uses #main-modal)
 Modal.loadFromURLAndOpen('main-modal', '/url')
-// Endpoint retorna: { "content": "<html>" }
+// Endpoint returns: { "content": "<html>" }
 ```
 
-Botões com `data-close` dentro de qualquer `<dialog>` fecham automaticamente.
+Buttons with `data-close` inside any `<dialog>` close automatically.
 
 ## Toast
 
 ```js
-Toast.show('Salvo.')                   // success por padrão
+Toast.show('Salvo.')                   // success by default
 Toast.show('Atenção.', 'warning')
 Toast.open({ title: 'T', content: 'C', type: 'error' })
 ```

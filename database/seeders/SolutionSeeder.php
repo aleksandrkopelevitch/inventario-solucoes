@@ -13,8 +13,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
- * Importa as 81 soluções de database/data/inventory_seed.json (secao 14.1).
- * Idempotente: upsert por chaves naturais (slug), rodar duas vezes nao duplica.
+ * Imports the 81 solutions from database/data/inventory_seed.json (section 14.1).
+ * Idempotent: upsert by natural keys (slug), running it twice doesn't duplicate.
  */
 class SolutionSeeder extends Seeder
 {
@@ -40,7 +40,7 @@ class SolutionSeeder extends Seeder
         }
     }
 
-    /** Nulo quando o inventário não informa fornecedor — nunca cria uma Company vazia. */
+    /** Null when the inventory doesn't report a vendor — never creates an empty Company. */
     private function upsertVendor(string $vendor): ?Company
     {
         if (trim($vendor) === '') {
@@ -115,7 +115,7 @@ class SolutionSeeder extends Seeder
                 ? $item['type']
                 : 'other';
 
-            // Dedup de contatos idênticos (mesma pessoa, tipo e valor).
+            // Dedup identical contacts (same person, type and value).
             Contact::firstOrCreate(
                 ['person_id' => $person->id, 'type' => $type, 'value' => $item['value'] ?? ''],
                 ['is_primary' => false],
@@ -141,7 +141,7 @@ class SolutionSeeder extends Seeder
         );
     }
 
-    /** Primeiro token antes de "/" ou "(" (secao 6.2 / 14.1). */
+    /** First token before "/" or "(" (section 6.2 / 14.1). */
     private function companyPrincipal(string $vendor): string
     {
         $principal = preg_split('/[\/(]/', $vendor)[0] ?? $vendor;
@@ -164,7 +164,7 @@ class SolutionSeeder extends Seeder
             ->all();
     }
 
-    /** Best-effort: minera um nome de pessoa do texto cru do item type=other. */
+    /** Best-effort: mines a person's name from the raw text of a type=other item. */
     private function mineVendorPersonName(array $contacts, string $principal): ?string
     {
         $blacklist = ['fone', 'comercial', 'suporte', 'tel', 'telefone', 'contato', 'whatsapp', 'email', 'e-mail', 'devpartner'];
@@ -175,8 +175,8 @@ class SolutionSeeder extends Seeder
             }
 
             $raw = (string) ($c['value'] ?? '');
-            $raw = preg_replace('/\S+@\S+/', ' ', $raw);          // remove e-mails
-            $raw = preg_replace('/[+(]?\d[\d\s\-()]{5,}/', ' ', $raw); // remove telefones
+            $raw = preg_replace('/\S+@\S+/', ' ', $raw);          // remove emails
+            $raw = preg_replace('/[+(]?\d[\d\s\-()]{5,}/', ' ', $raw); // remove phone numbers
 
             foreach (preg_split('/[•|,;.\-–:]+/u', $raw) as $part) {
                 $part = trim($part);

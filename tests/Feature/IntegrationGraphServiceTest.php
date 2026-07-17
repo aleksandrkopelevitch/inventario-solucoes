@@ -42,7 +42,7 @@ it('builds a graph with every participant as a node and an edge per consecutive 
         ->and($edge['target'])->toBe("sol-{$digibee->id}")
         ->and($edge['status'])->toBe('active')
         ->and($edge['direction'])->toBe('unidirectional')
-        ->and($edge['label'])->toBe('REST') // fallback ao protocolo escalar quando não há chain
+        ->and($edge['label'])->toBe('REST') // falls back to the scalar protocol when there's no chain
         ->and($edge)->not->toHaveKey('orchestrator');
 
     expect($graph['edges'][1]['source'])->toBe("sol-{$digibee->id}")
@@ -147,7 +147,7 @@ it('marks only the segment with a <-> arrow as bidirectional, not the whole chai
     $integration = Integration::factory()->active()->create([
         'source_solution_id' => $a->id,
         'target_solution_id' => $c->id,
-        'direction'          => Direction::Bidirectional, // resumo agregado da cadeia inteira
+        'direction'          => Direction::Bidirectional, // aggregated summary for the whole chain
         'chain'              => [
             'nodes' => [
                 ['solution_id' => $a->id, 'label' => null],
@@ -178,7 +178,7 @@ it('labels each edge with the per-segment protocol from the chain', function () 
     $b = Solution::factory()->create();
     $c = Solution::factory()->create();
 
-    // Protocolo por passo: A->B é SOAP, B->C é SFTP.
+    // Per-step protocol: A->B is SOAP, B->C is SFTP.
     $integration = Integration::factory()->active()->create([
         'protocol' => null,
         'chain'    => [
@@ -205,10 +205,10 @@ it('labels each edge with the per-segment protocol from the chain', function () 
 });
 
 it('draws no edges for an integration without a chain, even though its participants still appear as nodes', function () {
-    // Não deve acontecer em produção — `SyncIntegrationFromChain` é o único
-    // escritor de `participants` e sempre a deriva de uma `chain` — mas o
-    // mapa global não deve inventar uma aresta a partir da posição do pivot
-    // quando a chain (única fonte de verdade da topologia) está ausente.
+    // Shouldn't happen in production — `SyncIntegrationFromChain` is the only
+    // writer of `participants` and always derives it from a `chain` — but the
+    // global map must not invent an edge from pivot position adjacency
+    // when the chain (the single source of truth for topology) is absent.
     $service = new IntegrationGraphService;
 
     $a = Solution::factory()->create();
@@ -230,9 +230,9 @@ it('draws no edges for an integration without a chain, even though its participa
 });
 
 it('draws edges exactly as defined in chain.edges, not by pivot-position adjacency (regression)', function () {
-    // Ordem do pivot é A, B, C — mas a topologia real só liga A->C e B->C.
-    // O bug corrigido desenhava A->B e B->C (adjacência de posição) em vez
-    // das ligações reais.
+    // Pivot order is A, B, C — but the real topology only connects A->C and B->C.
+    // The fixed bug used to draw A->B and B->C (position adjacency) instead
+    // of the real edges.
     $service = new IntegrationGraphService;
 
     $a = Solution::factory()->create();

@@ -6,7 +6,7 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class StoreContextDocumentRequest extends FormRequest
 {
-    /** Só quem edita a Solução gerencia os documentos de contexto dela. */
+    /** Only whoever edits the Solution manages its context documents. */
     public function authorize(): bool
     {
         $solution = $this->route('solution');
@@ -18,8 +18,8 @@ class StoreContextDocumentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // Formatos que o Claude ingere nativamente (PDF/imagem como anexo,
-            // texto embutido no prompt — ver DocumentationDraftService).
+            // Formats Claude ingests natively (PDF/image as an attachment,
+            // text embedded in the prompt — see DocumentationDraftService).
             'file' => [
                 'required',
                 'file',

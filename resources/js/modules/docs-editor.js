@@ -1,17 +1,17 @@
-// docs-editor.js — editor de blocos da documentação (Editor.js), estilo GitBook.
+// docs-editor.js — GitBook-style block editor for documentation (Editor.js).
 //
-// - Monta um Editor.js em cada [data-ak-docs-editor], carregando o Markdown cru
-//   do <textarea data-ak-docs-source> (convertido para blocos por docs-markdown).
-// - Abas hospedam Editor.js aninhados (docs-tools/tabs.js) com a paleta inteira.
-// - Salva serializando blocos -> Markdown+notação GitBook: botão, Ctrl/Cmd+S e
-//   autosave (debounce). Avisa ao sair com alterações não salvas.
-// - Imagens: upload por botão, colar (paste) e arrastar (drag-drop) — servidas
-//   por /files/{id} (coleção `docs` do Spatie).
-// - "/" no início de um bloco vazio abre o menu; Markdown ("## ", "- ", "```",
-//   "---" …) transforma o bloco na hora, também dentro das abas.
-// - Reordenar blocos é só por drag&drop (editorjs-drag-drop, ligado tanto no
-//   editor principal quanto nos aninhados das abas) — "Move up"/"Move down"
-//   ficam escondidos no menu de block tunes (ver docs-editor.css).
+// - Mounts an Editor.js on each [data-ak-docs-editor], loading the raw
+//   Markdown from <textarea data-ak-docs-source> (converted to blocks by docs-markdown).
+// - Tabs host nested Editor.js instances (docs-tools/tabs.js) with the whole palette.
+// - Saves by serializing blocks -> Markdown+GitBook notation: button, Ctrl/Cmd+S
+//   and autosave (debounced). Warns on leaving with unsaved changes.
+// - Images: upload via button, paste and drag-drop — served via
+//   /files/{id} (Spatie's `docs` collection).
+// - "/" at the start of an empty block opens the menu; Markdown ("## ", "- ",
+//   "```", "---" …) transforms the block on the spot, also inside tabs.
+// - Reordering blocks is drag&drop only (editorjs-drag-drop, wired on both
+//   the main editor and the nested tab editors) — "Move up"/"Move down"
+//   stay hidden in the block tunes menu (see docs-editor.css).
 
 import * as ajaxModule from './ajax'
 import {updateSlots} from './ajax-slot'
@@ -29,25 +29,26 @@ function csrf() {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
 }
 
-// Larguras-preset para imagens (%). A imagem fica sempre centralizada (ver
-// docs-editor.css / app.css) — só a largura é configurável.
+// Preset widths for images (%). The image is always centered (see
+// docs-editor.css / app.css) — only the width is configurable.
 const IMAGE_WIDTHS = [25, 50, 75, 100]
 const IMAGE_WIDTH_TITLES = {25: 'Pequeno · 25%', 50: 'Médio · 50%', 75: 'Grande · 75%', 100: 'Total · 100%'}
 
-// Ícone (retângulo centralizado cuja largura acompanha o preset) pro menu de
-// tunes do bloco. `currentColor` herda a cor do item do popover.
+// Icon (centered rectangle whose width follows the preset) for the block
+// tunes menu. `currentColor` inherits the popover item's color.
 function imageWidthIcon(pct) {
     const w = Math.round(5 + (pct / 100) * 11)
     const x = Math.round((20 - w) / 2)
     return `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="${x}" y="6" width="${w}" height="8" rx="1.5" fill="currentColor"/></svg>`
 }
 
-// Estende o @editorjs/image só pra adicionar largura-preset: reaproveita todo o
-// upload/colar/arrastar/legenda do tool original. As tunes nativas
-// (borda/fundo/esticar) são desligadas via `features` no config (elas nunca
-// eram persistidas pelo nosso serializer — só confundiam). A largura vira uma
-// classe `ak-img--wNN` no wrapper (preview no editor) e é salva em `data.width`
-// (serializada como `<figure data-width>` por docs-markdown).
+// Extends @editorjs/image just to add preset widths: reuses all the original
+// tool's upload/paste/drag/caption behavior. The native tunes
+// (border/background/stretch) are turned off via `features` in the config
+// (they were never persisted by our serializer — they only caused confusion).
+// The width becomes an `ak-img--wNN` class on the wrapper (preview in the
+// editor) and is saved in `data.width` (serialized as `<figure data-width>`
+// by docs-markdown).
 function makeImageTool(Base) {
     return class DocsImageTool extends Base {
         constructor(opts) {
@@ -90,8 +91,8 @@ function makeImageTool(Base) {
     }
 }
 
-// Editor.js e seus plugins são pesados (~400 kB) e só usados nesta página, então
-// são carregados sob demanda (chunk separado) apenas quando há um editor na tela.
+// Editor.js and its plugins are heavy (~400 kB) and only used on this page, so
+// they're loaded on demand (separate chunk) only when an editor is on screen.
 async function loadTools(uploadUrl) {
     const [
         {default: EditorJS},
@@ -133,7 +134,7 @@ async function loadTools(uploadUrl) {
     const uploadHeaders = {'X-CSRF-TOKEN': csrf()}
     const wire = (editor, holder) => wireShortcuts(holder, editor)
 
-    // Fábrica reutilizada pelos editores aninhados das abas (fresh a cada aba).
+    // Factory reused by the tabs' nested editors (fresh for each tab).
     const buildTools = () => ({
         header: {class: Header, inlineToolbar: true, config: {levels: [1, 2, 3], defaultLevel: 2}},
         list: {class: List, inlineToolbar: true, config: {defaultStyle: 'unordered'}},
@@ -146,15 +147,16 @@ async function loadTools(uploadUrl) {
             config: {
                 field: 'file',
                 types: 'image/*',
-                // byFile: upload de arquivo colado/escolhido. byUrl: ao colar uma
-                // imagem de site externo (o clipboard traz só um <img src="http…">,
-                // sem blob), o plugin manda a URL pra cá e o servidor baixa e
-                // rehospeda na coleção `docs` — nada de hotlink pra domínio externo.
+                // byFile: upload of a pasted/chosen file. byUrl: when pasting an
+                // image from an external site (the clipboard only carries an
+                // <img src="http…">, no blob), the plugin sends the URL here and
+                // the server downloads and re-hosts it in the `docs` collection —
+                // no hotlinking to an external domain.
                 endpoints: {byFile: uploadUrl, byUrl: uploadUrl},
                 additionalRequestHeaders: uploadHeaders,
                 captionPlaceholder: 'Legenda (opcional)',
-                // Tunes nativas desligadas — a única configuração é a largura
-                // (renderSettings do DocsImageTool). Ver makeImageTool acima.
+                // Native tunes turned off — the only configuration is the width
+                // (DocsImageTool's renderSettings). See makeImageTool above.
                 features: {border: false, background: false, stretch: false},
             },
         },
@@ -226,12 +228,12 @@ async function mount(holder) {
     editors.set(holder, editor)
     editor.isReady.then(() => wireShortcuts(holder, editor)).catch(() => {})
 
-    // Fonte do "Copiar Markdown" (docs-copy.js) na tela de edição: serializa o
-    // estado ATUAL do editor, não o textarea de origem (que pode estar defasado).
+    // Source for "Copy Markdown" (docs-copy.js) on the editing screen: serializes
+    // the editor's CURRENT state, not the source textarea (which may be stale).
     window.__akDocsGetMarkdown = async () => serialize((await editor.save()).blocks)
 
-    // Substitui todo o conteúdo do editor pelo Markdown gerado pelo "Assiste IA"
-    // (docs-ai.js) — carrega como blocos para revisão, marcando como não salvo.
+    // Replaces the whole editor content with the Markdown generated by "AI Assist"
+    // (docs-ai.js) — loads it as blocks for review, marking it as unsaved.
     window.__akDocsSetMarkdown = async (md) => {
         await editor.blocks.render({blocks: parse(md)})
         markDirty()
@@ -241,7 +243,7 @@ async function mount(holder) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Salvar (botão, Ctrl/Cmd+S, autosave)                              */
+/*  Save (button, Ctrl/Cmd+S, autosave)                               */
 /* ------------------------------------------------------------------ */
 
 let globalHandlersInstalled = false
@@ -250,7 +252,7 @@ function installGlobalHandlers() {
     if (globalHandlersInstalled) return
     globalHandlersInstalled = true
 
-    // Botão Salvar — captura ANTES do ajax-post (precisamos serializar async).
+    // Save button — captures BEFORE ajax-post (we need to serialize async).
     document.addEventListener(
         'click',
         (e) => {
@@ -263,7 +265,7 @@ function installGlobalHandlers() {
         true
     )
 
-    // Ctrl/Cmd+S salva.
+    // Ctrl/Cmd+S saves.
     document.addEventListener('keydown', (e) => {
         if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
             const btn = document.querySelector('[data-ak-docs-save]')
@@ -273,7 +275,7 @@ function installGlobalHandlers() {
         }
     })
 
-    // Avisa ao sair com alterações não salvas.
+    // Warns on leaving with unsaved changes.
     window.addEventListener('beforeunload', (e) => {
         if (!dirty) return
         e.preventDefault()
@@ -322,7 +324,7 @@ async function save(btn, {silent = false} = {}) {
             try {
                 message = (await error.response.json()).message ?? message
             } catch (_) {
-                // mantém a mensagem padrão
+                // keep the default message
             }
         }
         setStatus('Não salvo')
@@ -360,9 +362,9 @@ function setButtonLoading(button, loading) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Atalhos: "/" abre o menu, Markdown transforma o bloco             */
-/*  Escopados por holder — não vazam entre o editor externo e os      */
-/*  editores aninhados das abas.                                      */
+/*  Shortcuts: "/" opens the menu, Markdown transforms the block      */
+/*  Scoped per holder — don't leak between the outer editor and the   */
+/*  tabs' nested editors.                                             */
 /* ------------------------------------------------------------------ */
 
 function wireShortcuts(holder, editor) {
@@ -371,8 +373,8 @@ function wireShortcuts(holder, editor) {
     if (DragDrop) new DragDrop(editor)
 
     holder.addEventListener('keydown', (e) => {
-        // Só o holder mais próximo do alvo trata o evento (evita o editor
-        // externo agir sobre digitação dentro de uma aba aninhada).
+        // Only the holder closest to the target handles the event (prevents
+        // the outer editor from acting on typing inside a nested tab).
         if (e.target.closest('[data-ak-docs-holder]') !== holder) return
 
         if (e.key === '/') {
@@ -384,12 +386,12 @@ function wireShortcuts(holder, editor) {
         }
     })
 
-    // Colar um bloco de Markdown/notação vira blocos (capture: antes do Editor.js).
+    // Pasting a Markdown/notation block turns it into blocks (capture: before Editor.js).
     holder.addEventListener('paste', (e) => handlePasteMarkdown(holder, editor, e), true)
 }
 
-// Detecta Markdown "de bloco" (multi-linha com marcadores) — pastes de linha
-// única seguem o fluxo normal (mantém formatação inline).
+// Detects "block-level" Markdown (multi-line with markers) — single-line
+// pastes follow the normal flow (keeps inline formatting).
 function looksLikeMarkdown(t) {
     if (!t || !/\n/.test(t.trim())) return false
     return (
@@ -401,8 +403,8 @@ function looksLikeMarkdown(t) {
 
 function handlePasteMarkdown(holder, editor, e) {
     if (e.target.closest('[data-ak-docs-holder]') !== holder) return
-    if (e.target.closest('.ak-tabs__bar')) return // não no título da aba
-    if (e.clipboardData?.files?.length) return // deixa imagem/arquivo pro tool
+    if (e.target.closest('.ak-tabs__bar')) return // not on the tab title
+    if (e.clipboardData?.files?.length) return // leaves image/file to the tool
 
     const text = e.clipboardData?.getData('text/plain') || ''
     if (!looksLikeMarkdown(text)) return
@@ -415,7 +417,7 @@ function handlePasteMarkdown(holder, editor, e) {
     } catch (_) {
         return
     }
-    if (current && current.name === 'code') return // cola cru dentro de code
+    if (current && current.name === 'code') return // pastes raw inside code
 
     const blocks = parse(text)
     if (!blocks.length) return
@@ -436,15 +438,15 @@ function insertBlocks(editor, blocks, index, current) {
         } else {
             blocks.forEach((b, i) => editor.blocks.insert(b.type, b.data, {}, at + i, false))
         }
-        // Remove o parágrafo vazio onde o cursor estava (empurrado para baixo).
+        // Removes the empty paragraph where the cursor was (pushed down).
         if (atEmpty) editor.blocks.delete(at + blocks.length)
         markDirty()
     } catch (_) {
-        // API divergente: melhor não quebrar; nada é inserido.
+        // Divergent API: better not to break; nothing is inserted.
     }
 }
 
-// "/" num bloco vazio abre a toolbox de inserção (clicando no "+" DESTE editor).
+// "/" in an empty block opens the insertion toolbox (by clicking THIS editor's "+").
 function handleSlash(holder, e) {
     const block = e.target.closest('[contenteditable]')
     if (!block || block.textContent.trim() !== '') return
@@ -470,7 +472,7 @@ const MD_SPACE = {
     '>': ['quote', {}],
 }
 
-// Digitar "## " (etc.) no começo de um parágrafo vazio transforma o bloco.
+// Typing "## " (etc.) at the start of an empty paragraph transforms the block.
 function handleMarkdownSpace(editor, e) {
     const editable = e.target.closest('[contenteditable]')
     if (!editable) return
@@ -481,7 +483,7 @@ function handleMarkdownSpace(editor, e) {
     convertCurrent(editor, editable, shortcut[0], shortcut[1], e)
 }
 
-// "```" (code) e "---"/"***"/"___" (divisor) ao apertar Enter.
+// "```" (code) and "---"/"***"/"___" (divider) on pressing Enter.
 function handleMarkdownEnter(editor, e) {
     const editable = e.target.closest('[contenteditable]')
     if (!editable) return
@@ -505,6 +507,6 @@ function convertCurrent(editor, editable, tool, data, e) {
         editor.blocks.convert(block.id, tool, data)
         setTimeout(() => editor.caret.setToBlock(index, 'start'), 0)
     } catch (_) {
-        // API divergente: ignora, a tecla age normalmente.
+        // Divergent API: ignore, the key acts normally.
     }
 }

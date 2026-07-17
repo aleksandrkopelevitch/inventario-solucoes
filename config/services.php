@@ -44,37 +44,37 @@ return [
         'provider' => env('DIGIBEE_FLOWSPEC_AI_PROVIDER', 'anthropic'),
         'model'    => env('DIGIBEE_FLOWSPEC_AI_MODEL', 'claude-sonnet-5'),
 
-        // Seleção de contexto (FlowspecContextResolver) e loop de correção
-        // (FlowspecGenerationService). 2-3 exemplos: mais dilui o sinal.
+        // Context selection (FlowspecContextResolver) and correction loop
+        // (FlowspecGenerationService). 2-3 examples: more dilutes the signal.
         'max_examples'     => env('DIGIBEE_FLOWSPEC_MAX_EXAMPLES', 3),
         'max_attempts'     => env('DIGIBEE_FLOWSPEC_MAX_ATTEMPTS', 3),
         'doc_budget_chars' => env('DIGIBEE_FLOWSPEC_DOC_BUDGET_CHARS', 60000),
         'fallback_example' => env('DIGIBEE_FLOWSPEC_FALLBACK_EXAMPLE', 'update-bigquery-rest'),
         'timeout'          => env('DIGIBEE_FLOWSPEC_AI_TIMEOUT', 180),
 
-        // Botões de "adicionar documentação" oferecidos junto de uma resposta
-        // conversacional (FlowspecContextResolver::suggestDocumentsFor) —
-        // mais que isso vira ruído na bolha do chat.
+        // "Add documentation" buttons offered alongside a conversational
+        // reply (FlowspecContextResolver::suggestDocumentsFor) — more than
+        // this turns into noise in the chat bubble.
         'max_suggested_documents' => env('DIGIBEE_FLOWSPEC_MAX_SUGGESTED_DOCUMENTS', 6),
     ],
 
     /*
-    | "Assiste IA" da documentação — popula a página corrente por LLM com base
-    | num prompt + documentos de contexto da Solução (App\Services\Documentation).
-    | Mesmo padrão env-driven do flowspec; a chave da API é lida pelo config/ai.php
-    | do pacote laravel/ai (provider anthropic => ANTHROPIC_API_KEY).
+    | Documentation "AI assist" — populates the current page via LLM based on
+    | a prompt + Solution context documents (App\Services\Documentation).
+    | Same env-driven pattern as flowspec; the API key is read by config/ai.php
+    | from the laravel/ai package (provider anthropic => ANTHROPIC_API_KEY).
     */
     'documentation_ai' => [
         'provider' => env('DOCS_AI_PROVIDER', 'anthropic'),
         'model'    => env('DOCS_AI_MODEL', 'claude-sonnet-5'),
         'timeout'  => env('DOCS_AI_TIMEOUT', 180),
-        // Orçamento de caracteres para os documentos de contexto de TEXTO
-        // embutidos no prompt (PDF/imagem vão como anexo, fora deste limite).
+        // Character budget for TEXT context documents embedded in the prompt
+        // (PDF/image go as attachments, outside this limit).
         'doc_budget_chars'      => env('DOCS_AI_DOC_BUDGET_CHARS', 60000),
         'max_context_documents' => env('DOCS_AI_MAX_CONTEXT_DOCUMENTS', 10),
-        // Teto agregado de bytes dos anexos nativos (PDF/imagem) numa geração —
-        // abaixo do limite de ~32MB por requisição da API do Claude; excedeu,
-        // os anexos seguintes são omitidos (sinalizados em meta.omitted_attachments).
+        // Aggregate byte ceiling for native attachments (PDF/image) in one
+        // generation — below the Claude API's ~32MB per-request limit; once
+        // exceeded, further attachments are omitted (flagged in meta.omitted_attachments).
         'max_attachment_bytes' => env('DOCS_AI_MAX_ATTACHMENT_BYTES', 28000000),
     ],
 

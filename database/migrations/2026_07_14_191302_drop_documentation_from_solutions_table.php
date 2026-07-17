@@ -7,8 +7,8 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Conteúdo já migrado pra `documentation_pages` (ver migration anterior)
-     * — a Solution passa a ter 1..N páginas em vez de um blob único.
+     * Content already migrated to `documentation_pages` (see previous
+     * migration) — a Solution now has 1..N pages instead of a single blob.
      */
     public function up(): void
     {

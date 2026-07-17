@@ -4,7 +4,7 @@
         <p class="mt-1 text-sm text-muted">Descreva a integração e gere um pipeline Digibee pronto para colar no canvas, com base na documentação do inventário.</p>
     </div>
 
-    {{-- Nova conversa --}}
+    {{-- New conversation --}}
     <div class="rounded-card border border-line bg-surface p-5 shadow-[0_1px_3px_rgba(20,58,34,0.04)]">
         <h2 class="font-display text-lg font-semibold text-ink">Nova conversa</h2>
 
@@ -35,7 +35,7 @@
         </form>
     </div>
 
-    {{-- Conversas anteriores --}}
+    {{-- Previous conversations --}}
     <div class="mt-6">
         <h2 class="font-display text-lg font-semibold text-ink">Conversas</h2>
 

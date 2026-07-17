@@ -4,10 +4,10 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-/** Título de uma DocumentationPage — usado tanto pra criar (store) quanto renomear. */
+/** Title of a DocumentationPage — used both to create (store) and to rename. */
 class SaveDocumentationPageTitleRequest extends FormRequest
 {
-    /** Mesma regra de SaveDocumentationRequest: só quem edita o container (Solution/Group). */
+    /** Same rule as SaveDocumentationRequest: only whoever edits the container (Solution/Group). */
     public function authorize(): bool
     {
         $model = $this->route('solution') ?? $this->route('group');

@@ -9,9 +9,9 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\View\Component;
 
 /**
- * Lista do catálogo de soluções (F1), renderizável como slot atualizável
- * (`solutions-index-slot`). Busca por nome/fornecedor/responsável e filtros por
- * categoria, diretoria, jornada, hospedagem, contrato, status e "sem documentação".
+ * Solution catalog list (F1), renderable as an updatable slot
+ * (`solutions-index-slot`). Search by name/vendor/owner and filters by
+ * category, directorate, journey, hosting, contract, status and "no documentation".
  */
 class Index extends Component
 {

@@ -1,9 +1,9 @@
-// Persistência instantânea dos atributos do cabeçalho de detalhe da solução
-// (Solutions\DetailHeader) — cada select (`[data-ak-solution-attribute]`)
-// autopersiste no `change`, sem botão "Salvar". Delegação em `document`
-// (não por elemento) porque
-// `ajax-slot.js` substitui o container inteiro (`solution-detail-header-slot`)
-// a cada mutação.
+// Instant persistence of the solution detail header's attributes
+// (Solutions\DetailHeader) — each select (`[data-ak-solution-attribute]`)
+// auto-persists on `change`, with no "Save" button. Delegation on `document`
+// (not per-element) because
+// `ajax-slot.js` replaces the whole container (`solution-detail-header-slot`)
+// on every mutation.
 import {updateSlots} from './ajax-slot'
 
 document.addEventListener('change', (e) => {

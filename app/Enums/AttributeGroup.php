@@ -3,10 +3,10 @@
 namespace App\Enums;
 
 /**
- * Os 8 atributos de Solução (e, para `Criticality`, também de Integration)
- * cujos valores são gerenciáveis em runtime via `AttributeOption` — ver
- * `App\Http\Controllers\AttributeOptionController`. Adicionar um grupo novo
- * é mudança de código; os *valores* dentro de cada grupo são dados editáveis.
+ * The 8 Solution attributes (and, for `Criticality`, also Integration)
+ * whose values are manageable at runtime via `AttributeOption` — see
+ * `App\Http\Controllers\AttributeOptionController`. Adding a new group is
+ * a code change; the *values* inside each group are editable data.
  */
 enum AttributeGroup: string
 {
@@ -34,10 +34,10 @@ enum AttributeGroup: string
     }
 
     /**
-     * Só `Hospedagem`/`Cloud` expõem um ícone (heroicons) por valor — usados
-     * como destaque discreto em cima de cada bloco de solução no data-viz
-     * (F3, `integration-viz.js`). Os demais grupos não têm campo de ícone na
-     * UI de "Gerenciar atributos".
+     * Only `Environment`/`Cloud` expose an icon (heroicons) per value — used
+     * as a subtle highlight on top of each solution block in the data-viz
+     * (F3, `integration-viz.js`). The other groups have no icon field in the
+     * "Manage attributes" UI.
      */
     public function supportsIcon(): bool
     {

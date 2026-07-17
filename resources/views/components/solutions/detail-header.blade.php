@@ -1,8 +1,8 @@
 <div id="{{ $domId }}">
     <div class="overflow-hidden rounded-card border border-line bg-surface shadow-[0_1px_3px_rgba(20,58,34,0.04)]">
-        {{-- Faixa de identidade: logo, nome, fornecedor, descrição e ação --}}
+        {{-- Identity strip: logo, name, vendor, description and action --}}
         <div class="relative flex flex-wrap items-start gap-4 p-6">
-            {{-- Tint verde sutil no topo do card (identidade Leo) --}}
+            {{-- Subtle green tint at the top of the card (Leo identity) --}}
             <div class="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-accent-soft/60 to-transparent"></div>
 
             <x-ui.logo :name="$solution->name" :src="$solution->logo_path" size="lg" class="relative shadow-sm" />
@@ -31,13 +31,13 @@
             @endcan
         </div>
 
-        {{-- Ficha de atributos — cada valor exibido com o RÓTULO da sua dimensão
-             (Categoria, Status, …), não mais pílulas soltas sem contexto.
-             Sempre as 8, mesmo em branco ("Não informado" no lugar de sumir
-             da grade — ver `Solutions\DetailHeader::render()`). Editável no
-             lugar: cada atributo é um `<select>` que autopersiste no
-             `change` (`solution-attributes.js`), sem precisar abrir o painel
-             de edição completo. --}}
+        {{-- Attribute sheet — each value shown with its dimension's LABEL
+             (Category, Status, …), no longer loose pills without context.
+             Always all 8, even blank ("Não informado" instead of disappearing
+             from the grid — see `Solutions\DetailHeader::render()`). Editable
+             in place: each attribute is a `<select>` that auto-persists on
+             `change` (`solution-attributes.js`), without needing to open the
+             full edit panel. --}}
         @if ($facts->isNotEmpty())
             @php
                 $factTones = [
@@ -48,12 +48,12 @@
                     'crit'    => 'bg-crit-soft text-crit ring-1 ring-crit-line',
                     'neutral' => 'bg-raised text-body ring-1 ring-line-2',
                 ];
-                // Mesmas classes de tom acima, mas cada utility marcada `!`
-                // importante — necessário só no `<select>` editável, pra
-                // vencer o `bg-surface`/`text-ink`/`rounded-field` padrão do
-                // `<x-forms.select>` (ver resources/views/components/forms/select.blade.php).
-                // O `<span>` do viewer não precisa disso (sem componente pra
-                // vencer), por isso os dois mapas.
+                // Same tone classes as above, but each utility marked `!`
+                // important — only needed on the editable `<select>`, to
+                // beat `<x-forms.select>`'s default `bg-surface`/`text-ink`/
+                // `rounded-field` (see resources/views/components/forms/select.blade.php).
+                // The viewer's `<span>` doesn't need this (no component to
+                // beat), hence the two maps.
                 $important = fn (string $classes) => '!' . str_replace(' ', ' !', trim($classes));
                 $canEditAttributes = \Illuminate\Support\Facades\Gate::allows('update', $solution);
             @endphp
@@ -64,7 +64,7 @@
                         <dt class="text-[10px] font-semibold uppercase tracking-[0.09em] text-muted">{{ $fact['label'] }}</dt>
                         <dd class="mt-1.5">
                             @if (! $canEditAttributes)
-                                {{-- Viewer: mesma apresentação de sempre, sem select. --}}
+                                {{-- Viewer: same presentation as always, no select. --}}
                                 @if ($fact['tone'] === 'plain')
                                     <span class="text-sm font-medium {{ filled($fact['value']) ? 'text-ink' : 'text-faint italic' }}">{{ $fact['displayLabel'] ?: 'Não informado' }}</span>
                                 @elseif (blank($fact['value']))
@@ -101,7 +101,7 @@
             </dl>
         @endif
 
-        {{-- Responsáveis por papel --}}
+        {{-- Owners by role --}}
         <div class="grid gap-x-6 gap-y-5 border-t border-line p-6 sm:grid-cols-3">
             @foreach (['Owner técnico' => $techOwners, 'Owner de negócio' => $businessOwners, 'Contato do fornecedor' => $vendorContacts] as $roleLabel => $group)
                 <div>

@@ -7,7 +7,7 @@ use Illuminate\Support\Str;
 
 uses(LazilyRefreshDatabase::class);
 
-/** Documento mínimo válido: root com um json-generator posicionado. */
+/** Minimal valid document: root with a positioned json-generator. */
 function validFlowspecDocument(): array
 {
     $id = (string) Str::uuid();

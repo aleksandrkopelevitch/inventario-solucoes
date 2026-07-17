@@ -13,10 +13,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 /**
- * Chat do gerador de flowSpec Digibee (F8). A conversa é assíncrona: o POST
- * persiste a mensagem do usuário e despacha GenerateFlowspecReply; o thread
- * (Flowspec\Thread, slot atualizável) mostra "gerando…" e o polling de
- * `status` troca o slot quando a resposta chega.
+ * Chat for the Digibee flowSpec generator (F8). The conversation is async:
+ * the POST persists the user's message and dispatches GenerateFlowspecReply;
+ * the thread (Flowspec\Thread, updatable slot) shows "generating…" and the
+ * `status` polling swaps the slot once the reply arrives.
  */
 class FlowspecChatController extends Controller
 {
@@ -59,10 +59,10 @@ class FlowspecChatController extends Controller
     }
 
     /**
-     * Polling do thread enquanto o job de geração roda (flowspec-chat.js).
-     * Só monta o slot (mensagens + integrações + render do Blade) quando a
-     * resposta já chegou — enquanto `pending`, o cliente descarta o slot, e a
-     * geração pode levar minutos, então nada disso deve rodar a cada tick.
+     * Thread polling while the generation job runs (flowspec-chat.js). Only
+     * builds the slot (messages + integrations + Blade render) once the
+     * reply has arrived — while `pending`, the client discards the slot, and
+     * generation can take minutes, so none of this should run on every tick.
      */
     public function status(Request $request, FlowspecChat $chat)
     {
@@ -77,12 +77,12 @@ class FlowspecChatController extends Controller
     }
 
     /**
-     * Busca do chips picker "Documentos específicos" — páginas de
-     * documentação (de qualquer Solution ou DocumentationGroup) e
-     * integrações com documentação própria, combinadas num resultado só.
-     * IDs vêm prefixados (`page:{id}`/`integration:{id}`) para o
-     * FlowspecDocumentReference/ParsesFlowspecContextInput distinguir os
-     * dois tipos ao salvar `meta.document_refs`.
+     * Search for the "Specific documents" chips picker — documentation pages
+     * (from any Solution or DocumentationGroup) and integrations with their
+     * own documentation, combined into a single result set. IDs come
+     * prefixed (`page:{id}`/`integration:{id}`) so
+     * FlowspecDocumentReference/ParsesFlowspecContextInput can distinguish
+     * the two types when saving `meta.document_refs`.
      */
     public function searchDocuments(Request $request): JsonResponse
     {

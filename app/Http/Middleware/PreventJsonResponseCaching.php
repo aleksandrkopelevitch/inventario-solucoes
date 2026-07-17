@@ -7,15 +7,15 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Sem isso, o navegador pode reaproveitar uma resposta JSON de
- * `updatableSlots` como se fosse o documento de uma navegação real para a
- * mesma URL — exatamente o que acontece ao clicar "voltar" depois de
- * aplicar um filtro: `execute-filters.js` troca a URL da barra de endereço
- * (`history.replaceState`) para a mesma URL usada pelo fetch AJAX (mesmo
- * path + query string), sem enviar `Vary: Accept`. O cache HTTP do
- * navegador não distingue as duas requisições (documento vs AJAX) pela
- * mesma URL e pode devolver o JSON em cache em vez de recarregar a página,
- * mostrando o JSON cru em vez do catálogo renderizado.
+ * Without this, the browser can reuse a JSON `updatableSlots` response as if
+ * it were the document of a real navigation to the same URL — exactly what
+ * happens when clicking "back" after applying a filter: `execute-filters.js`
+ * swaps the address bar's URL (`history.replaceState`) to the same URL used
+ * by the AJAX fetch (same path + query string), without sending
+ * `Vary: Accept`. The browser's HTTP cache doesn't distinguish the two
+ * requests (document vs AJAX) by the same URL and may return the cached
+ * JSON instead of reloading the page, showing the raw JSON instead of the
+ * rendered catalog.
  */
 class PreventJsonResponseCaching
 {

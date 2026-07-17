@@ -5,9 +5,9 @@ namespace App\Http\Requests;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Persiste a posição (x,y) de um hub arrastado no mapa global do ecossistema
- * (`ecosystem-map.js::startHubDrag`) — auto-save silencioso a cada arraste,
- * sem painel/formulário. Mesma permissão de editar a própria Solução.
+ * Persists the (x,y) position of a hub dragged in the global ecosystem map
+ * (`ecosystem-map.js::startHubDrag`) — a silent auto-save on every drag, with
+ * no panel/form. Same permission as editing the Solution itself.
  */
 class UpdateSolutionMapPositionRequest extends FormRequest
 {

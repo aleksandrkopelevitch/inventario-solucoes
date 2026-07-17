@@ -8,9 +8,9 @@ use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 /**
- * Contador ao vivo ("N pessoas") ao lado do título do catálogo — slot
- * próprio para poder ser atualizado junto da lista a cada filtro/busca sem
- * recarregar a página, mesmo estando fora do container da lista no DOM.
+ * Live counter ("N people") next to the catalog title — own slot so it
+ * can be updated alongside the list on each filter/search without
+ * reloading the page, even though it's outside the list's container in the DOM.
  */
 class ResultsCount extends Component
 {

@@ -11,31 +11,31 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 /**
- * Resolve o contexto de uma geração de flowSpec sem RAG: Solutions citadas
- * (explícitas têm prioridade; senão, inferidas casando o nome no pedido),
- * documentação recortada ao orçamento de caracteres — páginas das Solutions
- * E documentação das integrações em que elas participam —, e 2-3 exemplos
- * do corpus escolhidos pelo mapa palavra->tag do FlowspecTag.
+ * Resolves the context for a flowSpec generation without RAG: Solutions
+ * cited (explicit ones take priority; otherwise, inferred by matching the
+ * name in the request), documentation trimmed to a character budget —
+ * Solution pages AND documentation of the integrations they participate
+ * in —, and 2-3 corpus examples chosen via FlowspecTag's word->tag map.
  *
- * Quando o chat carrega `document_refs` explícitos (chips picker "Documentos
- * específicos"), esse scoring/orçamento automático é pulado inteiramente:
- * usa-se exatamente as páginas/integrações escolhidas — a ideia é dar a
- * quem sabe exatamente qual documentação é relevante uma forma de evitar a
- * inferência automática, que pode incluir contexto desnecessário.
+ * When the chat carries explicit `document_refs` (the "Specific documents"
+ * chips picker), that automatic scoring/budget is skipped entirely: exactly
+ * the chosen pages/integrations are used — the idea is to give someone who
+ * already knows exactly which documentation is relevant a way to avoid
+ * automatic inference, which can pull in unnecessary context.
  *
- * `suggestDocumentsFor()` (chamado por FlowspecGenerationService só quando a
- * resposta do modelo foi conversacional — uma pergunta, não um flowSpec)
- * é o lado inverso: acha documentação REAL para sistemas que o modelo citou
- * pelo nome ao pedir mais contexto, mas que ainda não estavam no contexto
- * considerado — vira botão de "adicionar" no chat em vez do usuário ter que
- * digitar no chips picker. Nunca inventa um nome: casa contra o catálogo de
- * Solutions existente, igual a inferSolutions().
+ * `suggestDocumentsFor()` (called by FlowspecGenerationService only when the
+ * model's response was conversational — a question, not a flowSpec) is the
+ * inverse side: it finds REAL documentation for systems the model cited by
+ * name while asking for more context, but that weren't already in the
+ * considered context — becomes an "add" button in the chat instead of the
+ * user having to type into the chips picker. Never invents a name: matches
+ * against the existing Solution catalog, same as inferSolutions().
  */
 class FlowspecContextResolver
 {
     /**
-     * @param  list<int>  $solutionIds  ids marcados explicitamente no chat
-     * @param  list<array{type: string, id: int}>  $documentRefs  páginas/integrações escolhidas na mão
+     * @param  list<int>  $solutionIds  ids explicitly marked in the chat
+     * @param  list<array{type: string, id: int}>  $documentRefs  pages/integrations chosen by hand
      */
     public function resolve(string $request, array $solutionIds = [], array $documentRefs = []): FlowspecContext
     {
@@ -62,15 +62,15 @@ class FlowspecContextResolver
     }
 
     /**
-     * Sem seleção explícita, sugere Solutions cujo nome aparece no pedido
-     * ("com base na documentação do SVL e do IAM...").
+     * Without an explicit selection, suggests Solutions whose name appears in
+     * the request ("based on SVL's and IAM's documentation...").
      *
-     * O casamento (acento-insensível, por word-boundary) roda em PHP, não em
-     * SQL: `Str::ascii()` dobra "ó"->"o" de um jeito portável entre SQLite
-     * (dev) e PostgreSQL (prod) sem depender de extensão (`unaccent`) ou
-     * collation específica de um dos dois drivers — uma tradução pra SQL
-     * ganharia velocidade trocando portabilidade/corretude, sem necessidade
-     * real na escala atual do catálogo (dezenas de Solutions, uma query só).
+     * The matching (accent-insensitive, by word-boundary) runs in PHP, not
+     * SQL: `Str::ascii()` folds "ó"->"o" in a way that's portable between
+     * SQLite (dev) and PostgreSQL (prod) without depending on an extension
+     * (`unaccent`) or a driver-specific collation — porting this to SQL would
+     * trade portability/correctness for speed, with no real need at the
+     * catalog's current scale (dozens of Solutions, a single query).
      *
      * @return Collection<int, Solution>
      */
@@ -88,24 +88,24 @@ class FlowspecContextResolver
     }
 
     /**
-     * Documentação de Solutions que o modelo citou pelo nome numa resposta
-     * conversacional ("preciso saber como o IAM autentica…") mas que ainda
-     * não estavam em `$consideredSolutions` — cada página/integração
-     * encontrada vira um botão de "adicionar" no chat (mesma referência
-     * `{type, id}` do chips picker "Documentos específicos", então o clique
-     * reusa addChip() já existente em chips.js). Reaproveita o casamento de
-     * inferSolutions() — nunca sugere um nome que o modelo não podia ter
-     * visto em algum lugar real do catálogo.
+     * Documentation for Solutions the model cited by name in a conversational
+     * response ("I need to know how IAM authenticates…") but that weren't
+     * already in `$consideredSolutions` — each page/integration found becomes
+     * an "add" button in the chat (same `{type, id}` reference as the
+     * "Specific documents" chips picker, so the click reuses the addChip()
+     * already existing in chips.js). Reuses inferSolutions()'s matching —
+     * never suggests a name the model couldn't have seen somewhere real in
+     * the catalog.
      *
      * @param  Collection<int, Solution>  $consideredSolutions
      * @return list<array{type: string, id: int, label: string}>
      */
     public function suggestDocumentsFor(string $text, Collection $consideredSolutions): array
     {
-        // pluck('id'), não modelKeys(): ao contrário de $mentioned (sempre
-        // vindo de inferSolutions(), uma Eloquent\Collection de verdade),
-        // $consideredSolutions é o parâmetro público do método — aceita
-        // qualquer Collection<Solution>, não só Eloquent\Collection.
+        // pluck('id'), not modelKeys(): unlike $mentioned (always coming
+        // from inferSolutions(), a real Eloquent\Collection),
+        // $consideredSolutions is the method's public parameter — it accepts
+        // any Collection<Solution>, not just Eloquent\Collection.
         $consideredIds = $consideredSolutions->pluck('id')->all();
 
         $mentioned = $this->inferSolutions($this->normalize($text))
@@ -116,8 +116,8 @@ class FlowspecContextResolver
             return [];
         }
 
-        // Só as colunas usadas nos labels — não puxa o longText `documentation`
-        // (ele entra só no WHERE), por mensagem conversacional.
+        // Only the columns used in the labels — doesn't pull the longText
+        // `documentation` (it's only used in the WHERE), per conversational message.
         $pages = DocumentationPage::query()
             ->where('container_type', Solution::class)
             ->whereIn('container_id', $mentioned->modelKeys())
@@ -134,10 +134,10 @@ class FlowspecContextResolver
             ->where('documentation', '<>', '')
             ->get(['id', 'name']);
 
-        // collect($model->all()) antes do ->map() — mesmo cuidado do ->merge()
-        // em selectDocuments(): mapear direto numa Eloquent\Collection vazia
-        // não a rebaixa para Support\Collection, e o merge por chave primária
-        // da Eloquent quebra contra um array puro.
+        // collect($model->all()) before ->map() — same care as the ->merge()
+        // in selectDocuments(): mapping directly on an empty Eloquent\Collection
+        // doesn't downgrade it to Support\Collection, and Eloquent's
+        // primary-key merge breaks against a plain array.
         $pageSuggestions = collect($pages->all())->map(fn (DocumentationPage $page) => [
             'type'  => 'page',
             'id'    => $page->id,
@@ -156,12 +156,12 @@ class FlowspecContextResolver
     }
 
     /**
-     * Páginas documentadas das Solutions escolhidas + documentação das
-     * integrações em que elas participam, ordenadas pelo que casa termos do
-     * pedido (contratos, payloads, endpoints citados) e cortadas juntas ao
-     * mesmo orçamento de caracteres. No empate de relevância, a doc de
-     * integração vem antes da página (para um flowSpec, ela é a fonte mais
-     * direta). O que ficou de fora volta em `omitted` para ser sinalizado no chat.
+     * Documented pages of the chosen Solutions + documentation of the
+     * integrations they participate in, ordered by matches against terms in
+     * the request (contracts, payloads, endpoints cited) and trimmed together
+     * to the same character budget. On a relevance tie, integration docs come
+     * before pages (for a flowSpec, it's the more direct source). What's left
+     * out comes back in `omitted` to be flagged in the chat.
      *
      * @param  Collection<int, Solution>  $solutions
      * @return array{Collection<int, DocumentationPage>, Collection<int, Integration>, list<array{type: string, id: int, label: string}>}
@@ -191,11 +191,11 @@ class FlowspecContextResolver
             ->where('documentation', '<>', '')
             ->get();
 
-        // collect($model->all()) força uma Support\Collection "pura" antes do
-        // ->map() — mapear direto numa Eloquent\Collection devolveria outra
-        // Eloquent\Collection (mesmo com arrays dentro), e o ->merge() abaixo
-        // usaria o merge por dicionário de chave primária da Eloquent
-        // (getKey()), que quebra contra um array puro.
+        // collect($model->all()) forces a "pure" Support\Collection before
+        // ->map() — mapping directly on an Eloquent\Collection would return
+        // another Eloquent\Collection (even with arrays inside), and the
+        // ->merge() below would use Eloquent's primary-key dictionary merge
+        // (getKey()), which breaks against a plain array.
         $units = collect($pages->all())
             ->map(fn (DocumentationPage $page) => ['kind' => 'page', 'model' => $page, 'heading' => $page->title, 'body' => $page->documentation])
             ->merge(collect($integrations->all())->map(fn (Integration $integration) => ['kind' => 'integration', 'model' => $integration, 'heading' => $integration->name, 'body' => $integration->documentation]));
@@ -207,12 +207,12 @@ class FlowspecContextResolver
 
                 return $unit;
             })
-            // Relevância de termos manda (score * 2). Empate no score: a doc de
-            // INTEGRAÇÃO vem antes da página — para gerar um flowSpec (que é a
-            // própria descrição da integração: endpoints, contratos, protocolos),
-            // a documentação da integração é a fonte mais direta. É só desempate:
-            // uma página claramente mais relevante ao pedido ainda ganha de uma
-            // integração pouco relevante.
+            // Term relevance rules (score * 2). Tie on score: INTEGRATION docs
+            // come before pages — for generating a flowSpec (which is itself
+            // the integration's description: endpoints, contracts, protocols),
+            // integration documentation is the more direct source. It's only a
+            // tiebreaker: a page clearly more relevant to the request still
+            // beats a barely relevant integration.
             ->sortByDesc(fn (array $unit) => $unit['score'] * 2 + ($unit['kind'] === 'integration' ? 1 : 0))
             ->values();
 
@@ -233,7 +233,7 @@ class FlowspecContextResolver
             $selected->push($unit);
         }
 
-        // Reapresenta cada tipo na sua ordem natural, não na ordem do score.
+        // Re-presents each type in its natural order, not the score order.
         $selectedPages = $selected->where('kind', 'page')->pluck('model')
             ->sortBy(fn (DocumentationPage $page) => [$page->container_id, $page->position])->values();
 
@@ -244,8 +244,8 @@ class FlowspecContextResolver
     }
 
     /**
-     * Contexto escolhido na mão via chips picker — sem scoring nem corte por
-     * orçamento: o que foi selecionado entra inteiro no prompt.
+     * Context chosen by hand via the chips picker — no scoring or budget
+     * trimming: whatever was selected goes into the prompt in full.
      *
      * @param  list<array{type: string, id: int}>  $documentRefs
      * @return array{Collection<int, DocumentationPage>, Collection<int, Integration>, list<array{type: string, id: int, label: string}>}
@@ -295,8 +295,9 @@ class FlowspecContextResolver
     }
 
     /**
-     * Os 2-3 exemplos com mais tags em comum com o pedido — mais que isso
-     * dilui o sinal e gasta token à toa. Fallback: o exemplo âncora genérico.
+     * The 2-3 examples with the most tags in common with the request — more
+     * than that dilutes the signal and wastes tokens. Fallback: the generic
+     * anchor example.
      *
      * @param  list<string>  $tags
      * @return Collection<int, FlowspecExample>
@@ -322,13 +323,13 @@ class FlowspecContextResolver
         return $examples;
     }
 
-    /** Minúsculas e sem acento, para casar palavra-chave e nome de Solution. */
+    /** Lowercase and unaccented, to match keyword and Solution name. */
     private function normalize(string $text): string
     {
         return mb_strtolower(Str::ascii($text));
     }
 
-    /** @return list<string> palavras do pedido com 4+ caracteres, únicas */
+    /** @return list<string> unique words from the request with 4+ characters */
     private function significantTerms(string $normalizedRequest): array
     {
         preg_match_all('/[a-z0-9][a-z0-9_-]{3,}/', $normalizedRequest, $matches);

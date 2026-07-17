@@ -2,21 +2,23 @@ import * as ajaxModule from './ajax.js'
 import { updateSlots } from './ajax-slot.js'
 
 /**
- * Chat do gerador de flowSpec (F8).
+ * flowSpec generator chat (F8).
  *
- * Polling: enquanto o thread renderizar o marcador [data-ak-flowspec-poll]
- * (última mensagem é do usuário — o job GenerateFlowspecReply ainda roda),
- * consulta a rota de status; quando `pending` vira false, troca o slot do
- * thread pela resposta. O init() pós-slot-update derruba o timer quando o
- * marcador some. Desiste após MAX_POLL_ATTEMPTS (fila parada, worker caído,
- * sessão expirada) em vez de tentar pra sempre sem nenhum sinal ao usuário.
+ * Polling: while the thread renders the [data-ak-flowspec-poll] marker
+ * (last message is from the user — the GenerateFlowspecReply job is still
+ * running), polls the status route; once `pending` turns false, swaps the
+ * thread's slot for the response. The post-slot-update init() tears down
+ * the timer once the marker disappears. Gives up after MAX_POLL_ATTEMPTS
+ * (stuck queue, worker down, expired session) instead of retrying forever
+ * with no signal to the user.
  *
- * Copiar: [data-ak-flowspec-copy="id-do-pre"] copia o textContent (não
- * innerHTML — o JSON tem `&&` em jsonPath, que viraria &amp;&amp;).
+ * Copy: [data-ak-flowspec-copy="pre-id"] copies the textContent (not
+ * innerHTML — the JSON has `&&` in jsonPath, which would turn into
+ * &amp;&amp;).
  */
 
 const POLL_INTERVAL = 2500
-const MAX_POLL_ATTEMPTS = 240 // ~10min a 2.5s/tick — bem acima do "alguns minutos" esperado
+const MAX_POLL_ATTEMPTS = 240 // ~10min at 2.5s/tick — well above the expected "a few minutes"
 let timer = null
 let attempts = 0
 
@@ -73,9 +75,9 @@ async function poll() {
         const data = await response.json()
 
         if (!data.pending) {
-            updateSlots(data) // reinicializa os módulos; init() encerra o timer
+            updateSlots(data) // re-initializes the modules; init() stops the timer
         }
     } catch (error) {
-        // falha transitória — o próximo tick tenta de novo, até MAX_POLL_ATTEMPTS
+        // transient failure — the next tick retries, up to MAX_POLL_ATTEMPTS
     }
 }

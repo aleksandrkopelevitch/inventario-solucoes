@@ -1,15 +1,17 @@
-// Tradução PT-BR do Editor.js — SEM pacote externo: o core (@editorjs/editorjs
-// 2.31) já traz i18n embutido via a opção `i18n.messages`. Este dicionário é
-// aplicado no editor principal (docs-editor.js) e repassado aos editores
-// aninhados das abas (docs-tools/tabs.js), então toda a UI — toolbox, busca de
-// blocos, menu de ajustes (block tunes), toolbar inline e os menus de cada tool
-// (imagem, tabela, lista, arquivo) — aparece em português.
+// PT-BR translation for Editor.js — NO external package: the core
+// (@editorjs/editorjs 2.31) already ships built-in i18n via the
+// `i18n.messages` option. This dictionary is applied to the main editor
+// (docs-editor.js) and passed down to the nested tab editors
+// (docs-tools/tabs.js), so the whole UI — toolbox, block search, settings
+// menu (block tunes), inline toolbar and each tool's menus (image, table,
+// list, file) — shows up in Portuguese.
 //
-// As strings dos NOSSOS tools (Hint, Tabs) já nascem em PT-BR no próprio tool;
-// aqui traduzimos só o que vem em inglês dos pacotes de terceiros e do core.
-// As chaves em inglês à esquerda são as strings-fonte que o Editor.js usa como
-// identificador de tradução — não invente chaves novas, elas precisam bater
-// exatamente com o texto original de cada tool/namespace.
+// Strings from OUR OWN tools (Hint, Tabs) are already authored in PT-BR in
+// the tool itself; here we only translate what ships in English from
+// third-party packages and the core. The English keys on the left are the
+// source strings Editor.js uses as the translation identifier — don't invent
+// new keys, they need to match the original text of each tool/namespace
+// exactly.
 export const EDITOR_I18N = {
     messages: {
         ui: {
@@ -35,14 +37,14 @@ export const EDITOR_I18N = {
                 'Convert to': 'Converter em',
             },
         },
-        // Nomes dos blocos na toolbox e das ferramentas inline. As chaves são os
-        // `toolbox.title` (e nomes das inline tools) de cada pacote — inclui os
-        // nossos: 'Tabs' e 'Hint'.
+        // Block names in the toolbox and inline tool names. The keys are each
+        // package's `toolbox.title` (and inline tool names) — includes our
+        // own: 'Tabs' and 'Hint'.
         toolNames: {
             Text: 'Texto',
             Heading: 'Título',
-            // O @editorjs/list (v2) registra três entradas separadas na toolbox,
-            // cada uma com seu próprio título (não é só "List").
+            // @editorjs/list (v2) registers three separate toolbox entries,
+            // each with its own title (not just "List").
             List: 'Lista',
             'Unordered List': 'Lista com marcadores',
             'Ordered List': 'Lista numerada',
@@ -61,8 +63,8 @@ export const EDITOR_I18N = {
             Tabs: 'Abas',
             Hint: 'Aviso',
         },
-        // Mensagens internas de cada tool. A chave externa é o NOME do tool como
-        // registrado no mapa `tools` (docs-editor.js): image, table, list…
+        // Internal messages for each tool. The outer key is the tool's NAME as
+        // registered in the `tools` map (docs-editor.js): image, table, list…
         tools: {
             list: {
                 Ordered: 'Numerada',
@@ -103,8 +105,8 @@ export const EDITOR_I18N = {
                 "Enter a caption": 'Digite o autor/fonte',
             },
         },
-        // Ajustes de bloco padrão do core. "Mover" fica escondido via CSS
-        // (docs-editor.css), mas traduzimos por consistência.
+        // Default core block tunes. "Move" stays hidden via CSS
+        // (docs-editor.css), but we translate it for consistency.
         blockTunes: {
             delete: {
                 Delete: 'Excluir',

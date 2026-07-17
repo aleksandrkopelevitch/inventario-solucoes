@@ -123,7 +123,7 @@
     </div>
 </dialog>
 
-{{-- Main Modal — conteúdo via AJAX (Modal.loadFromURLAndOpen) --}}
+{{-- Main Modal — content loaded via AJAX (Modal.loadFromURLAndOpen) --}}
 <dialog id="main-modal" class="fixed inset-0 m-auto w-full max-w-2xl rounded-card border border-line p-0 shadow-2xl backdrop:bg-black/50">
     <div data-loading class="flex items-center justify-center p-12">
         <div class="flex gap-1.5">
@@ -157,7 +157,7 @@
     </div>
 </div>
 
-{{-- Side Panel — shell genérico, conteúdo via AJAX --}}
+{{-- Side Panel — generic shell, content loaded via AJAX --}}
 <div id="side-panel-overlay"
      class="pointer-events-none fixed inset-0 z-40 bg-black/30 opacity-0 transition-opacity duration-300"
      data-ak-panel-close></div>

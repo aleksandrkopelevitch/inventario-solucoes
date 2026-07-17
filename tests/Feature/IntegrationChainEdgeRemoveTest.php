@@ -32,10 +32,10 @@ it('removes an edge without deleting the nodes it connected, leaving a block iso
 
     $integration->refresh();
 
-    expect($integration->chain['nodes'])->toHaveCount(2) // nós continuam existindo
+    expect($integration->chain['nodes'])->toHaveCount(2) // nodes still exist
         ->and($integration->chain['edges'])->toBeEmpty()
         ->and($integration->participants->pluck('name')->sort()->values()->all())->toBe(['A', 'B'])
-        // Nenhuma ligação: o resumo lista os blocos, não uma seta entre eles.
+        // No link: the summary lists the blocks, not an arrow between them.
         ->and($response->json('summary'))->toBe('A, B');
 });
 
@@ -59,7 +59,7 @@ it('reindexes viz_layout.edges (anchors) when an earlier edge is removed', funct
         'viz_layout' => [
             'edges' => [
                 ['from' => 'r', 'to' => 'l'],
-                ['from' => 't', 'to' => 'b'], // âncora "custom" da 2ª ligação
+                ['from' => 't', 'to' => 'b'], // "custom" anchor of the 2nd link
             ],
         ],
     ]);
@@ -71,7 +71,7 @@ it('reindexes viz_layout.edges (anchors) when an earlier edge is removed', funct
 
     $integration->refresh();
 
-    // A âncora que sobrou é a da ligação que ficou (agora no índice 0), não a que foi removida.
+    // The remaining anchor belongs to the link that's left (now at index 0), not the one that was removed.
     expect($integration->chain['edges'])->toHaveCount(1)
         ->and($integration->viz_layout['edges'])->toBe([['from' => 't', 'to' => 'b']]);
 });

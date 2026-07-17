@@ -8,11 +8,11 @@ use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 /**
- * Cabeçalho do detalhe da pessoa (briefing 9.5). Extraído como componente
- * próprio para que editar a pessoa a partir da sua própria página de
- * detalhe (via side panel) também atualize o que está na tela.
+ * Header of the person's detail page (briefing 9.5). Extracted as its own
+ * component so that editing the person from their own detail page (via
+ * side panel) also updates what's on screen.
  *
- * Renderável como slot atualizável: `DetailHeader::slot($person)`.
+ * Renderable as an updatable slot: `DetailHeader::slot($person)`.
  */
 class DetailHeader extends Component
 {

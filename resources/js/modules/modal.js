@@ -59,9 +59,9 @@ export default window.Modal = {
 
             Modal.open(modal.id)
 
-            // Navegação dentro da modal já aberta (ex.: lista de integrações
-            // → form de edição): volta ao placeholder de carregamento antes
-            // do fetch, em vez de manter o conteúdo anterior visível.
+            // Navigation within an already-open modal (e.g. integrations
+            // list → edit form): resets to the loading placeholder before
+            // the fetch, instead of keeping the previous content visible.
             modal.querySelector('[data-content]').innerHTML = ''
             modal.querySelector('[data-loading]').classList.remove('hidden')
 
@@ -161,8 +161,9 @@ export default window.Modal = {
 
         if (modal === null) return false
 
-        // showModal() numa dialog já aberta lança InvalidStateError — o guard
-        // permite reusar open() para navegar entre conteúdos da mesma modal.
+        // showModal() on an already-open dialog throws InvalidStateError —
+        // the guard lets open() be reused to navigate between different
+        // content in the same modal.
         if (!modal.open) modal.showModal()
 
         document.body.classList.add('overflow-y-hidden')

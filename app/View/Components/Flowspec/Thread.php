@@ -9,10 +9,10 @@ use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 /**
- * Thread de um chat do gerador de flowSpec (F8), renderizável como slot
- * atualizável (`flowspec-thread-slot`): mensagens, bloco de JSON com copiar,
- * badge de validação, formulários de anexar/promover e o marcador de
- * "gerando…" que dispara o polling (flowspec-chat.js).
+ * Thread for a flowSpec generator (F8) chat, renderable as an updatable slot
+ * (`flowspec-thread-slot`): messages, JSON block with copy, validation badge,
+ * attach/promote forms and the "gerando…" marker that triggers polling
+ * (flowspec-chat.js).
  */
 class Thread extends Component
 {
@@ -36,8 +36,8 @@ class Thread extends Component
             'chat'         => $this->chat,
             'messages'     => $messages,
             'integrations' => Integration::query()->orderBy('name')->get(['id', 'name']),
-            // Deriva da coleção já buscada — evita a query extra de
-            // isAwaitingReply() (mesma regra: última mensagem é do usuário).
+            // Derives from the collection already fetched — avoids the extra
+            // query from isAwaitingReply() (same rule: last message is from the user).
             'awaiting' => $messages->last()?->role === 'user',
         ]);
     }

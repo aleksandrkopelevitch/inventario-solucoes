@@ -5,9 +5,9 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Corpus curado de exemplos de flowSpec Digibee (F8). Cada linha é um pipeline
- * completo ({meta, flowSpec}) descrito e tagueado, selecionado por tags/busca
- * textual — sem RAG/embeddings — para compor o prompt do gerador.
+ * Curated corpus of Digibee flowSpec examples (F8). Each row is a full
+ * pipeline ({meta, flowSpec}) described and tagged, selected by tags/text
+ * search — no RAG/embeddings — to compose the generator's prompt.
  */
 return new class extends Migration
 {

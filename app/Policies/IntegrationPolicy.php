@@ -8,7 +8,7 @@ use App\Models\User;
 
 class IntegrationPolicy
 {
-    /** Qualquer usuário autenticado pode consultar o catálogo de integrações. */
+    /** Any authenticated user can browse the integration catalog. */
     public function viewAny(User $user): bool
     {
         return true;
@@ -19,7 +19,7 @@ class IntegrationPolicy
         return true;
     }
 
-    /** Criação e edição restritas a administradores (seção 9.3). */
+    /** Creation and editing restricted to administrators (section 9.3). */
     public function create(User $user): bool
     {
         return $user->role === UserRole::Admin;

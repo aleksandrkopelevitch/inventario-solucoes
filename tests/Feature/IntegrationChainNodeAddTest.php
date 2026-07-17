@@ -127,7 +127,7 @@ it('appends a block with no connection at all when the panel omits the arrow ("S
     $integration->refresh();
 
     expect($integration->chain['nodes'])->toHaveCount(3)
-        ->and($integration->chain['edges'])->toHaveCount(1) // nenhuma ligação nova
+        ->and($integration->chain['edges'])->toHaveCount(1) // no new edge
         ->and($integration->participants->pluck('name')->sort()->values()->all())
         ->toBe(['Isolado', 'SAP', 'SVL']);
 });

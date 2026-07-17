@@ -70,8 +70,8 @@ it('retitles a chain node to free text, dropping it from participants but keepin
 
     $integration->refresh();
 
-    // Único participante restante (SVL) vira origem e destino por fallback —
-    // mesma regra de SyncIntegrationFromChain quando sobra um só nó de Solução.
+    // The only remaining participant (SVL) becomes both source and target by fallback —
+    // same rule as SyncIntegrationFromChain when only one Solution node is left.
     expect($integration->chain['nodes'][1])->toBe(['solution_id' => null, 'label' => 'Sistema legado'])
         ->and($integration->participants->pluck('name')->all())->toBe(['SVL'])
         ->and($integration->source_solution_id)->toBe($svl->id)

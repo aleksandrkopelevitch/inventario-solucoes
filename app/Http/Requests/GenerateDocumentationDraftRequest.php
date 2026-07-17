@@ -6,7 +6,7 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class GenerateDocumentationDraftRequest extends FormRequest
 {
-    /** Só quem edita a Solução pode gerar rascunho com IA. */
+    /** Only someone who can edit the Solution can generate an AI draft. */
     public function authorize(): bool
     {
         $solution = $this->route('solution');
@@ -21,7 +21,7 @@ class GenerateDocumentationDraftRequest extends FormRequest
             'prompt'      => ['required', 'string', 'max:4000'],
             'media_ids'   => ['array'],
             'media_ids.*' => ['integer'],
-            // Snapshot do editor no momento do pedido (Markdown serializado).
+            // Snapshot of the editor at the moment of the request (serialized Markdown).
             'existing_content' => ['nullable', 'string', 'max:500000'],
         ];
     }

@@ -3,9 +3,9 @@
 namespace App\Services\Documentation;
 
 /**
- * Resultado de uma geração do "Assiste IA": o Markdown gerado (já limpo de
- * cercas de código acidentais) e metadados auditáveis (provider/model/tokens,
- * documentos anexados/embutidos).
+ * Result of an "Assiste IA" generation: the generated Markdown (already
+ * stripped of accidental code fences) and auditable metadata (provider/model/
+ * tokens, attached/inlined documents).
  */
 final class DocumentationDraftResult
 {

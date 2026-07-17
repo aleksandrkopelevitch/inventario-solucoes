@@ -23,13 +23,13 @@ pest()->extend(TestCase::class)->in('Feature');
 */
 
 /**
- * Anexa participantes a uma integração: [[Solution, position], ...]. Espelha
- * o que `SyncIntegrationFromChain` garante em produção — participants nunca
- * existem sem uma `chain` condizente — montando uma chain linear (na ordem
- * das posições dadas) quando o teste não configurou uma explicitamente.
- * Testes que precisam de uma integração genuinamente sem `chain` (para
- * exercitar esse caso-limite) devem anexar via `$integration->participants()`
- * diretamente, sem passar por este helper.
+ * Attaches participants to an integration: [[Solution, position], ...]. Mirrors
+ * what `SyncIntegrationFromChain` guarantees in production — participants never
+ * exist without a matching `chain` — by building a linear chain (in the order
+ * of the given positions) when the test hasn't configured one explicitly.
+ * Tests that need an integration genuinely without a `chain` (to exercise
+ * that edge case) should attach via `$integration->participants()`
+ * directly, bypassing this helper.
  */
 function attachParticipants(Integration $integration, array $participants): void
 {

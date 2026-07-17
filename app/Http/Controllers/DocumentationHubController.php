@@ -10,10 +10,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Hub de Documentação — visão gerencial transversal do que está documentado e
- * do que falta, para soluções e integrações (cobertura por conteúdo real).
- * Thin: agregação em DocumentationCoverageService. Mesma action HTML/JSON — o
- * JSON devolve o slot da lista filtrada (padrão dos catálogos).
+ * Documentation Hub — cross-cutting management view of what is documented
+ * and what's missing, for solutions and integrations (coverage by actual
+ * content). Thin: aggregation lives in DocumentationCoverageService. Same
+ * HTML/JSON action — JSON returns the filtered list's slot (catalog pattern).
  */
 class DocumentationHubController extends Controller
 {

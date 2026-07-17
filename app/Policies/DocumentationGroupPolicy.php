@@ -18,7 +18,7 @@ class DocumentationGroupPolicy
         return true;
     }
 
-    /** Criação, edição e páginas restritas a administradores (mesma regra de SolutionPolicy). */
+    /** Creation, editing, and pages restricted to administrators (same rule as SolutionPolicy). */
     public function create(User $user): bool
     {
         return $user->role === UserRole::Admin;

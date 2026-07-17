@@ -8,18 +8,20 @@ use App\Jobs\GenerateDocumentationDraft;
 use App\Models\DocumentationAiGeneration;
 use App\Models\Solution;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Cache;
 
 /**
- * "Assiste IA" da documentação, compartilhado por SolutionDocumentationController
- * e IntegrationDocumentationController. Cada controller resolve o seu alvo
- * (DocumentationPage ou Integration) e a Solução dona dos documentos de
- * contexto, e delega aqui o painel lateral, a criação do pedido de geração (job
- * assíncrono) e o polling de status. O rascunho é carregado no editor para
- * revisão — nada é gravado na página até o usuário salvar.
+ * Documentation "AI assist", shared by SolutionDocumentationController and
+ * IntegrationDocumentationController. Each controller resolves its own
+ * target (DocumentationPage or Integration) and the Solution that owns the
+ * context documents, and delegates to this trait the side panel, creating
+ * the generation request (async job) and status polling. The draft is
+ * loaded into the editor for review — nothing is persisted to the page
+ * until the user saves.
  */
 trait AssistsDocumentation
 {
-    /** Painel lateral (side-panel) com prompt + documentos de contexto da Solução. */
+    /** Side panel with prompt + the Solution's context documents. */
     protected function assistantPanelResponse(Solution $solution, Documentable $target, string $generateUrl): JsonResponse
     {
         $this->authorize('update', $solution);
@@ -35,8 +37,9 @@ trait AssistsDocumentation
     }
 
     /**
-     * Cria o registro de geração e despacha o job. Devolve a URL de polling
-     * (montada a partir do registro recém-criado pelo callback do controller).
+     * Creates the generation record and dispatches the job. Returns the
+     * polling URL (built from the record just created by the controller's
+     * callback).
      *
      * @param  callable(DocumentationAiGeneration): string  $pollUrl
      */
@@ -46,49 +49,62 @@ trait AssistsDocumentation
         Documentable $target,
         callable $pollUrl,
     ): JsonResponse {
-        // Já há uma geração pendente para o mesmo alvo? NÃO reaproveitar
-        // silenciosamente o pollUrl dela: este pedido pode trazer prompt/contexto
-        // diferentes, e devolver o rascunho do pedido anterior seria um resultado
-        // errado sem aviso. O WithoutOverlapping da job (chaveado pelo alvo) também
-        // impede um segundo rodar em paralelo — criar um segundo registro/job só
-        // gastaria as tentativas em segundos e falharia sem nunca rodar. Então
-        // sinalizamos e pedimos para aguardar (409 -> Toast no docs-ai.js).
-        $pending = DocumentationAiGeneration::query()
-            ->where('target_type', $target->getMorphClass())
-            ->where('target_id', $target->getKey())
-            ->where('status', 'pending')
-            ->exists();
+        // Is there already a pending generation for the same target? Do NOT
+        // silently reuse its pollUrl: this request may carry a different
+        // prompt/context, and returning the previous request's draft would be
+        // a wrong result with no warning. The job's WithoutOverlapping (keyed
+        // by the target) also prevents a second one from running in
+        // parallel — creating a second record/job would just waste a queue
+        // slot and an API call for nothing. So we flag it and ask the caller
+        // to wait (409 -> Toast in docs-ai.js).
+        //
+        // Cache::lock closes the check-then-create window: two near-
+        // simultaneous clicks would both pass the exists() check and create
+        // two records/jobs — with the lock, the second request fails to
+        // acquire it and falls into the same 409.
+        $lockKey = 'docs-ai-generate:' . $target->getMorphClass() . ':' . $target->getKey();
 
-        if ($pending) {
+        $response = Cache::lock($lockKey, 10)->get(function () use ($request, $solution, $target, $pollUrl) {
+            $pending = DocumentationAiGeneration::query()
+                ->where('target_type', $target->getMorphClass())
+                ->where('target_id', $target->getKey())
+                ->where('status', 'pending')
+                ->exists();
+
+            if ($pending) {
+                return null;
+            }
+
+            $data = $request->validated();
+
+            $generation = DocumentationAiGeneration::create([
+                'target_type'       => $target->getMorphClass(),
+                'target_id'         => $target->getKey(),
+                'solution_id'       => $solution->id,
+                'user_id'           => $request->user()->id,
+                'status'            => 'pending',
+                'prompt'            => $data['prompt'],
+                'context_media_ids' => array_map(intval(...), $data['media_ids'] ?? []),
+                'existing_content'  => $data['existing_content'] ?? null,
+            ]);
+
+            GenerateDocumentationDraft::dispatch($generation);
+
             return response()->json([
-                'message' => 'Já existe um rascunho sendo gerado para este conteúdo. Aguarde a conclusão antes de gerar outro.',
-                'title'   => 'Geração em andamento',
-                'type'    => 'warning',
-            ], 409);
-        }
+                'status'  => 'pending',
+                'pollUrl' => $pollUrl($generation),
+            ]);
+        });
 
-        $data = $request->validated();
-
-        $generation = DocumentationAiGeneration::create([
-            'target_type'       => $target->getMorphClass(),
-            'target_id'         => $target->getKey(),
-            'solution_id'       => $solution->id,
-            'user_id'           => $request->user()->id,
-            'status'            => 'pending',
-            'prompt'            => $data['prompt'],
-            'context_media_ids' => array_map(intval(...), $data['media_ids'] ?? []),
-            'existing_content'  => $data['existing_content'] ?? null,
-        ]);
-
-        GenerateDocumentationDraft::dispatch($generation);
-
-        return response()->json([
-            'status'  => 'pending',
-            'pollUrl' => $pollUrl($generation),
-        ]);
+        // false = lock busy (another request is creating one right now); null = already pending.
+        return $response ?: response()->json([
+            'message' => 'Já existe um rascunho sendo gerado para este conteúdo. Aguarde a conclusão antes de gerar outro.',
+            'title'   => 'Geração em andamento',
+            'type'    => 'warning',
+        ], 409);
     }
 
-    /** Polling: `{pending}` enquanto gera; ao concluir, o Markdown; se falhar, o erro. */
+    /** Polling: `{pending}` while generating; on completion, the Markdown; on failure, the error. */
     protected function draftStatusResponse(Solution $solution, DocumentationAiGeneration $generation): JsonResponse
     {
         $this->authorize('update', $solution);
@@ -102,9 +118,9 @@ trait AssistsDocumentation
             return response()->json([
                 'pending' => false,
                 'failed'  => true,
-                // Mensagem genérica — a exceção crua (que pode carregar URL ou
-                // corpo da resposta do provider) fica só em `error` no registro,
-                // para auditoria, e nunca vai pro Toast do usuário.
+                // Generic message — the raw exception (which may carry the
+                // provider's URL or response body) stays only in `error` on
+                // the record, for auditing, and never reaches the user's Toast.
                 'error' => 'Não consegui gerar a documentação. Tente novamente em instantes.',
             ]);
         }

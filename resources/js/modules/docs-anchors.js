@@ -1,7 +1,7 @@
-// docs-anchors.js — link permanente por título na documentação read-only.
-// O GitbookRenderer (HeadingPermalinkExtension) coloca `<a class="heading-permalink"
-// href="#slug" id="slug">#</a>` após cada H1–H3. Clicar copia a URL#slug e rola
-// até a seção. Delegação pura — init() é no-op.
+// docs-anchors.js — permanent per-heading link in read-only documentation.
+// GitbookRenderer (HeadingPermalinkExtension) places `<a class="heading-permalink"
+// href="#slug" id="slug">#</a>` after every H1–H3. Clicking copies the
+// URL#slug and scrolls to the section. Pure delegation — init() is a no-op.
 
 document.addEventListener('click', async (e) => {
     const link = e.target.closest('.heading-permalink')

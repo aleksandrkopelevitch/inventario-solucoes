@@ -6,21 +6,20 @@ use App\Models\Solution;
 use Illuminate\Support\Collection;
 
 /**
- * Rótulo humano de uma cadeia de integração (`{nodes, edges}` — cada edge é
- * `{from, to, arrow, protocol}` por índice de nó, não mais posicional).
- * Compartilhado entre o controller (nome derivado quando a criação não
- * informa um) e a lista de integrações do detalhe da solução
- * (`Solutions\IntegrationsMap`), para não duplicar a montagem do texto
- * "A -> B -> C".
+ * Human-readable label of an integration chain (`{nodes, edges}` — each edge
+ * is `{from, to, arrow, protocol}` by node index, no longer positional).
+ * Shared between the controller (derived name when creation doesn't supply
+ * one) and the solution detail's integration list (`Solutions\IntegrationsMap`),
+ * to avoid duplicating the "A -> B -> C" text assembly.
  */
 class ChainLabeler
 {
     /**
-     * Soluções referenciadas pelos chains dados — uma query só, para rotular
-     * nós e (na F3) linkar para o detalhe da solução, sem N+1. Também traz
-     * `environment`/`cloud`/`logo_path` — usados por `Solutions\IntegrationsMap`
-     * para destacar hospedagem/cloud e o logo em cima de cada bloco no
-     * data-viz (`integration-viz.js`).
+     * Solutions referenced by the given chains — a single query, to label
+     * nodes and (in F3) link to the solution detail, without N+1. Also
+     * brings `environment`/`cloud`/`logo_path` — used by
+     * `Solutions\IntegrationsMap` to highlight environment/cloud and the
+     * logo on top of each block in the data-viz (`integration-viz.js`).
      *
      * @param  Collection<int, array|null>  $chains
      * @return Collection<int, Solution>
@@ -38,13 +37,13 @@ class ChainLabeler
     }
 
     /**
-     * Texto completo da cadeia — vira o nome da integração quando o campo
-     * fica em branco. Quando a cadeia é uma linha simples (`isLinear()`),
-     * produz "A -> B -> C" andando os nós em ordem. Uma cadeia religada em
-     * grafo livre no data-viz (F3) não tem mais essa ordem única — lista cada
-     * ligação separadamente ("A -> B, B -> C, A -> C"), seguida (se houver)
-     * dos blocos sem nenhuma ligação — "livres" no grafo, mas que ainda
-     * precisam aparecer no resumo.
+     * Full chain text — becomes the integration's name when the field is
+     * left blank. When the chain is a simple line (`isLinear()`), produces
+     * "A -> B -> C" by walking the nodes in order. A chain retargeted into a
+     * free graph in the data-viz (F3) no longer has that single order —
+     * lists each edge separately ("A -> B, B -> C, A -> C"), followed (if
+     * any) by blocks with no edge at all — "free" in the graph, but that
+     * still need to appear in the summary.
      */
     public function label(array $chain, Collection $solutions): string
     {
@@ -77,12 +76,12 @@ class ChainLabeler
     }
 
     /**
-     * Uma cadeia é "linear" quando `edges[i]` liga sempre `nodes[i]` a
-     * `nodes[i+1]`, na ordem — usado só por `label()` acima para escolher o
-     * formato do resumo textual ("A -> B -> C" vs. lista de ligações
-     * separadas). Toda integração nasce linear (só o nó raiz); assim que o
-     * data-viz (F3) religa uma ligação pra um nó fora dessa sequência, a
-     * cadeia deixa de ser linear.
+     * A chain is "linear" when `edges[i]` always connects `nodes[i]` to
+     * `nodes[i+1]`, in order — used only by `label()` above to choose the
+     * text summary format ("A -> B -> C" vs. a list of separate edges).
+     * Every integration is born linear (just the root node); as soon as the
+     * data-viz (F3) retargets an edge to a node outside that sequence, the
+     * chain stops being linear.
      */
     public function isLinear(array $chain): bool
     {

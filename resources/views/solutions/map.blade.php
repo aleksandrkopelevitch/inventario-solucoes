@@ -4,8 +4,8 @@
         <p class="mt-1 text-sm text-muted">Ecossistema completo: soluções como nós, integrações como arestas. O grafo é derivado da tabela de integrações.</p>
     </div>
 
-    {{-- Grid (não flex): x-forms.select se envolve num wrapper w-full, que
-         numa linha flex forçaria cada item a ocupar 100% e quebrar linha. --}}
+    {{-- Grid (not flex): x-forms.select wraps itself in a w-full wrapper, which
+         in a flex row would force each item to take 100% width and wrap. --}}
     <div class="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:items-center">
         <x-forms.select data-ak-graph-filter="status">
             <option value="all">Todos os status</option>
@@ -33,9 +33,9 @@
 
     <x-ecosystem-map id="global-map" :source-url="route('solutions.map.data')" height="620px" />
 
-    {{-- Glue da página: reconstrói a query string a partir dos filtros acima e
-         manda o mapa recarregar — não é o motor do mapa, só a integração
-         com os controles desta tela. --}}
+    {{-- Page glue: rebuilds the query string from the filters above and
+         tells the map to reload — not the map engine itself, just the
+         integration with this screen's controls. --}}
     <script>
         (function () {
             const shell = document.getElementById('global-map');

@@ -16,7 +16,7 @@ function shareAdmin(): User
     return User::factory()->create(['role' => UserRole::Admin->value]);
 }
 
-/** Cria uma página de documentação já pendurada numa Solution. */
+/** Creates a documentation page already attached to a Solution. */
 function publicSolutionPage(Solution $solution, ?string $documentation = null): DocumentationPage
 {
     return DocumentationPage::factory()->for($solution, 'container')->create(['documentation' => $documentation]);
@@ -24,7 +24,7 @@ function publicSolutionPage(Solution $solution, ?string $documentation = null): 
 
 /*
 |--------------------------------------------------------------------------
-| Gerar / revogar o link público (admin)
+| Generate / revoke the public link (admin)
 |--------------------------------------------------------------------------
 */
 
@@ -75,7 +75,7 @@ it('forbids a viewer from generating or revoking a public link', function () {
 
 /*
 |--------------------------------------------------------------------------
-| Página pública (sem auth)
+| Public page (no auth)
 |--------------------------------------------------------------------------
 */
 
@@ -108,12 +108,12 @@ it('renders a non-first page of the solution tree publicly', function () {
 });
 
 it('resolves the right page when two different solutions each have a page with the same slug', function () {
-    // Slug só é único DENTRO do container (unique composto em
-    // documentation_pages) — duas soluções podem ter cada uma uma página
-    // "teste". A rota pública não pode confiar em model binding global por
-    // slug, senão pega a de menor id e 404a por dono errado.
-    // A página de menor id pertence a OUTRA solução de propósito — um
-    // binding global por slug pegaria essa primeiro.
+    // Slug is only unique WITHIN the container (composite unique on
+    // documentation_pages) — two solutions can each have a page named
+    // "teste". The public route can't rely on global model binding by
+    // slug, or it'll grab the lowest-id one and 404 for the wrong owner.
+    // The lowest-id page deliberately belongs to ANOTHER solution — a
+    // global binding by slug would grab that one first.
     $solutionB = Solution::factory()->create(['public_token' => 'tok-dup-b']);
     DocumentationPage::factory()->for($solutionB, 'container')->create(['slug' => 'teste', 'documentation' => '# Da solução B']);
 
@@ -176,7 +176,7 @@ it('renders a participating integration doc publicly and 404s a non-participatin
 
 /*
 |--------------------------------------------------------------------------
-| Mídia pública
+| Public media
 |--------------------------------------------------------------------------
 */
 
@@ -188,13 +188,13 @@ it('serves owned docs media publicly and rewrites /files/ urls to the public rou
 
     $page->update(['documentation' => "<figure><img src=\"/files/{$media->id}\" alt=\"x\"></figure>"]);
 
-    // A url /files/ é reescrita para a rota pública no HTML renderizado.
+    // The /files/ url is rewritten to the public route in the rendered HTML.
     $this->get(route('public.docs.solution', $solution->public_token))
         ->assertOk()
         ->assertSee(route('public.docs.file', [$solution->public_token, $media->id]), false)
         ->assertDontSee('src="/files/', false);
 
-    // E a rota pública serve o arquivo sem auth.
+    // And the public route serves the file without auth.
     $this->get(route('public.docs.file', [$solution->public_token, $media->id]))
         ->assertOk()
         ->assertHeader('content-type', 'image/png');

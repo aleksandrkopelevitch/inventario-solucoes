@@ -6,12 +6,12 @@ use App\Models\DocumentationPage;
 use App\Models\User;
 
 /**
- * Uma DocumentationPage não tem regra de autorização própria — ela delega
- * pro container (`Solution` via SolutionPolicy, ou `DocumentationGroup` via
- * DocumentationGroupPolicy). Necessária pra `EditsDocumentation::documentationView()`
- * (`$user->can('update', $page)`) funcionar — sem policy registrada pra
- * DocumentationPage, o Gate cairia no padrão "negado" e ninguém conseguiria
- * editar página nenhuma.
+ * A DocumentationPage has no authorization rule of its own — it delegates to
+ * the container (`Solution` via SolutionPolicy, or `DocumentationGroup` via
+ * DocumentationGroupPolicy). Needed for `EditsDocumentation::documentationView()`
+ * (`$user->can('update', $page)`) to work — without a policy registered for
+ * DocumentationPage, the Gate would default to "denied" and no one could
+ * edit any page.
  */
 class DocumentationPagePolicy
 {

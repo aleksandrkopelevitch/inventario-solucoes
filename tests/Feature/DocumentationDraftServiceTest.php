@@ -14,7 +14,7 @@ use Laravel\Ai\Responses\Data\Usage;
 
 uses(LazilyRefreshDatabase::class);
 
-/** Dublê do serviço: captura o prompt/anexos e devolve um texto roteirizado em vez de chamar a API. */
+/** Test double for the service: captures the prompt/attachments and returns scripted text instead of calling the API. */
 function fakeDraftService(string $reply): DocumentationDraftService
 {
     return new class($reply) extends DocumentationDraftService
@@ -62,14 +62,14 @@ it('creates documentation from scratch when the page is empty', function () {
     expect($service->capturedPrompt)->toContain('A página está vazia')
         ->and($result->markdown)->toContain('## Objetivo')
         ->and($result->meta['model'])->toBe('claude-sonnet-5')
-        // Campos de cache gravados (zerados sem prompt caching no pacote).
+        // Cache fields recorded (zeroed out since the package has no prompt caching).
         ->and($result->meta['tokens'])->toHaveKeys(['prompt', 'completion', 'cache_write', 'cache_read']);
 });
 
 it('sends the full existing content to the model without truncating', function () {
-    // A saída substitui a página inteira no editor, então o conteúdo atual não
-    // pode ser cortado — o modelo precisa ver tudo para reescrever sem perder a
-    // cauda. Um marcador no fim prova que nada foi descartado.
+    // The output replaces the whole page in the editor, so the current content
+    // can't be cut off — the model needs to see everything to rewrite without
+    // losing the tail. A marker at the end proves nothing was discarded.
     $solution = Solution::factory()->create();
     $page = DocumentationPage::factory()->for($solution, 'container')->create();
 
@@ -89,8 +89,8 @@ it('omits native attachments beyond the aggregate byte budget', function () {
     $solution = Solution::factory()->create();
     $page = DocumentationPage::factory()->for($solution, 'container')->create();
 
-    // PDFs reais (~2KB cada, magic bytes p/ o mime sniffar como application/pdf,
-    // não text/*): o primeiro cabe (2009 <= 3000), o segundo estoura o teto.
+    // Real PDFs (~2KB each, magic bytes so the mime sniffs as application/pdf,
+    // not text/*): the first fits (2009 <= 3000), the second blows past the cap.
     $pdf = "%PDF-1.4\n" . str_repeat("\x00", 2000);
     $first = $solution->addMediaFromString($pdf)->usingFileName('a.pdf')->toMediaCollection(Solution::CONTEXT_COLLECTION);
     $second = $solution->addMediaFromString($pdf)->usingFileName('b.pdf')->toMediaCollection(Solution::CONTEXT_COLLECTION);
@@ -117,6 +117,25 @@ it('uses the existing content when the page already has documentation', function
         ->toContain('Conteúdo antigo que deve ser reaproveitado');
 });
 
+it('sends no context documents when the user unchecked all of them', function () {
+    // The panel's checkboxes come checked by default, so `[]` only happens
+    // when the user unchecked all of them — it can't mean "all".
+    Storage::fake('public');
+    $solution = Solution::factory()->create();
+    $page = DocumentationPage::factory()->for($solution, 'container')->create();
+
+    $solution->addMediaFromString('conteúdo que NÃO deve ir ao modelo')
+        ->usingFileName('notas.txt')
+        ->toMediaCollection(Solution::CONTEXT_COLLECTION);
+
+    $service = fakeDraftService('# ok');
+    $result = $service->generate(generationFor($page, ['context_media_ids' => []]));
+
+    expect($service->capturedPrompt)->not->toContain('conteúdo que NÃO deve ir ao modelo')
+        ->and($service->capturedAttachments)->toBeEmpty()
+        ->and($result->meta['inlined'])->toBeEmpty();
+});
+
 it('inlines a selected text context document into the prompt', function () {
     Storage::fake('public');
     $solution = Solution::factory()->create();
@@ -133,7 +152,7 @@ it('inlines a selected text context document into the prompt', function () {
     expect($service->capturedPrompt)
         ->toContain('notas.txt')
         ->toContain('SEGREDO: a ordem importa')
-        ->and($service->capturedAttachments)->toBe([]); // texto entra no prompt, não como anexo
+        ->and($service->capturedAttachments)->toBe([]); // text goes into the prompt, not as an attachment
 });
 
 it('strips an accidental markdown code fence wrapping the whole reply', function () {

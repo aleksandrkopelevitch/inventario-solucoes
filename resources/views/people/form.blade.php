@@ -9,12 +9,11 @@
         ? $person->solutions->map(fn ($s) => ['value' => $s->id, 'label' => $s->name, 'role' => $s->pivot->role])->all()
         : [];
     $roleOptions = collect($roles)->map(fn ($r) => ['value' => $r->value, 'label' => $r->label()])->all();
-    // Contatos adicionais (`Person::contacts()`) — o único e-mail/telefone
-    // dos campos abaixo é só a metade da história: uma pessoa pode ter
-    // vários contatos (ex.: 2 e-mails de fornecedor), cada um com seu
-    // próprio tipo. Sem isso o form nunca conseguia editar o que o
-    // cabeçalho de detalhe já mostrava (ver Solutions\DetailHeader-equivalente,
-    // `components/people/detail-header.blade.php`).
+    // Additional contacts (`Person::contacts()`) — the single email/phone in
+    // the fields below is only half the story: a person can have several
+    // contacts (e.g. 2 vendor emails), each with its own type. Without this
+    // the form could never edit what the detail header already showed (see
+    // the Solutions\DetailHeader equivalent, `components/people/detail-header.blade.php`).
     $contactItems = $editing
         ? $person->contacts->map(fn ($c) => ['id' => $c->id, 'type' => $c->type->value, 'value' => $c->value])->values()->all()
         : [];
@@ -57,9 +56,9 @@
             </x-forms.field>
         </div>
 
-        {{-- Contatos adicionais: linhas repetíveis tipo+valor+rótulo, além do
-             e-mail/telefone únicos acima — `resources/js/modules/person-contacts.js`
-             adiciona/remove linhas no cliente; o servidor sincroniza
+        {{-- Additional contacts: repeatable type+value+label rows, besides the
+             single e-mail/phone above — `resources/js/modules/person-contacts.js`
+             adds/removes rows on the client; the server syncs
              `Person::contacts()` (`PersonController::syncContacts()`). --}}
         <x-forms.field label="Contatos adicionais" name="contacts"
             hint="Outros e-mails/telefones (ex.: mais de um contato do fornecedor).">

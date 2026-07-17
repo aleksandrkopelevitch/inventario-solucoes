@@ -33,9 +33,9 @@ class StorePersonRequest extends FormRequest
             'solutions.*.value' => ['required', 'string'],
             'solutions.*.label' => ['nullable', 'string'],
             'solutions.*.role'  => ['nullable', Rule::enum(PersonSolutionRole::class)],
-            // Contatos adicionais (`Person::contacts()`, além dos campos
-            // únicos email/phone acima) — linha em branco (adicionada no
-            // form mas nunca preenchida) é filtrada no controller, não aqui.
+            // Additional contacts (`Person::contacts()`, besides the single
+            // email/phone fields above) — a blank row (added in the form but
+            // never filled in) is filtered out in the controller, not here.
             'contacts'         => ['nullable', 'array'],
             'contacts.*.type'  => ['nullable', Rule::enum(ContactType::class)],
             'contacts.*.value' => ['nullable', 'string', 'max:255'],

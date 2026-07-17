@@ -13,13 +13,13 @@ use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 uses(LazilyRefreshDatabase::class);
 
 /**
- * Crawl de todas as páginas com os dados REAIS do seed (não factories
- * isoladas) — pega classes de bug que só aparecem com o dataset completo,
- * como registros com campos opcionais em branco. Achou um bug real na
- * revisão de 2026-07-02: `SolutionSeeder` criava uma Company vazia
- * (name/slug='') para soluções sem fornecedor no inventário, e
- * `route('companies.show', $company)` quebrava com 500 ao tentar gerar a
- * URL com um slug vazio.
+ * Crawls every page with the REAL seed data (not isolated factories) —
+ * catches classes of bugs that only show up with the full dataset, such
+ * as records with blank optional fields. Found a real bug in the
+ * 2026-07-02 review: `SolutionSeeder` created an empty Company
+ * (name/slug='') for solutions without a vendor in the inventory, and
+ * `route('companies.show', $company)` broke with a 500 when trying to
+ * generate the URL with an empty slug.
  */
 it('renders every detail page for every seeded record without a 500', function () {
     $this->seed(AttributeOptionSeeder::class);

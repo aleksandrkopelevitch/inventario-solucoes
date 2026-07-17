@@ -7,10 +7,11 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * A tabela `documentation_blocks` (schema legado da F4 removida) nunca
-     * teve model, controller ou UI vinculados — a documentação rica agora vive
-     * na coluna `documentation` (Markdown + notação GitBook) de `solutions` e
-     * `integrations`. Removida para não deixar schema órfão.
+     * The `documentation_blocks` table (legacy schema from the removed F4)
+     * never had a model, controller, or UI attached to it — rich
+     * documentation now lives in the `documentation` column (Markdown +
+     * GitBook notation) of `solutions` and `integrations`. Dropped to avoid
+     * leaving an orphaned schema.
      */
     public function up(): void
     {

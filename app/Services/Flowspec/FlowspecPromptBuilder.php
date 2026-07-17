@@ -9,11 +9,12 @@ use App\Models\Integration;
 use Illuminate\Support\Collection;
 
 /**
- * Monta os prompts do gerador de flowSpec: o system prompt codifica as regras
- * de plataforma Digibee que a validação já pegou o modelo errando (formato
- * {meta, flowSpec}, `{{ step.alias }}`, branches de choice, catálogo fechado,
- * segredos só por account/global); o user prompt junta catálogo, exemplos do
- * corpus, documentação recortada, histórico do chat e o pedido.
+ * Builds the flowSpec generator's prompts: the system prompt encodes the
+ * Digibee platform rules that validation has already caught the model
+ * getting wrong (the {meta, flowSpec} format, `{{ step.alias }}`, choice
+ * branches, closed catalog, secrets only via account/global); the user
+ * prompt joins the catalog, corpus examples, trimmed documentation, chat
+ * history and the request.
  */
 class FlowspecPromptBuilder
 {
@@ -58,8 +59,8 @@ class FlowspecPromptBuilder
     }
 
     /**
-     * Prompt do loop de correção: reapresenta o contexto, a resposta anterior
-     * e os erros concretos do validador.
+     * Correction-loop prompt: re-presents the context, the previous response
+     * and the validator's concrete errors.
      *
      * @param  list<string>  $errors
      */
@@ -126,9 +127,9 @@ class FlowspecPromptBuilder
         $section = "# DOCUMENTAÇÃO DOS SISTEMAS ENVOLVIDOS\n\n" . $pageBlocks->merge($integrationBlocks)->implode("\n\n");
 
         if ($context->omittedDocuments !== []) {
-            // `omittedDocuments` é uma lista de refs `{type, id, label}` (para
-            // virarem botão de "adicionar" no chat) — aqui só o rótulo entra
-            // no prompt.
+            // `omittedDocuments` is a list of `{type, id, label}` refs (to
+            // become an "add" button in the chat) — here only the label goes
+            // into the prompt.
             $section .= "\n\n(Documentos omitidos por orçamento de contexto: " . implode('; ', array_column($context->omittedDocuments, 'label')) . ')';
         }
 

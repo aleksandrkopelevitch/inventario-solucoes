@@ -1,7 +1,7 @@
-// Heroicon outline padrão de cada estilo de callout (hint). Espelha
-// GitbookRenderer::DEFAULT_HINT_ICON (PHP). Módulo-folha sem imports, para que
-// docs-markdown.js possa reusar o mapa sem arrastar hint.js/heroicon-picker.js
-// para o bundle global (eles só são carregados sob demanda no editor).
+// Default outline heroicon for each callout (hint) style. Mirrors
+// GitbookRenderer::DEFAULT_HINT_ICON (PHP). Leaf module with no imports, so
+// docs-markdown.js can reuse the map without dragging hint.js/heroicon-picker.js
+// into the global bundle (they're only loaded on demand in the editor).
 export const DEFAULT_HINT_ICON = {
     info: 'information-circle',
     warning: 'exclamation-triangle',

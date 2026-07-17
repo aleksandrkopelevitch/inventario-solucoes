@@ -9,15 +9,16 @@ use Laravel\Ai\Responses\AgentResponse;
 use function Laravel\Ai\agent;
 
 /**
- * Orquestra uma geração de flowSpec: resolve contexto (docs + exemplos, sem
- * RAG), monta o prompt, chama o modelo via laravel/ai (provider/model de
- * `config('services.flowspec')`) e roda o loop de correção — normaliza,
- * valida e re-prompta com os erros concretos até `max_attempts`. Sem JSON na
- * primeira resposta = resposta conversacional (dúvida/pedido de detalhe),
- * devolvida como texto sem re-prompt — e, nesse caso, `meta.suggested_documents`
- * (`suggestedDocuments()`) traz documentação real que pode faltar (citada pelo
- * nome pelo modelo, ou cortada por orçamento), pra virar botão de "adicionar"
- * no chat em vez do usuário precisar do chips picker.
+ * Orchestrates a flowSpec generation: resolves context (docs + examples, no
+ * RAG), builds the prompt, calls the model via laravel/ai (provider/model
+ * from `config('services.flowspec')`) and runs the correction loop —
+ * normalizes, validates and re-prompts with the concrete errors up to
+ * `max_attempts`. No JSON in the first response = conversational response
+ * (a question/request for detail), returned as text with no re-prompt — and
+ * in that case, `meta.suggested_documents` (`suggestedDocuments()`) brings
+ * real documentation that might be missing (cited by name by the model, or
+ * trimmed by budget), to become an "add" button in the chat instead of the
+ * user needing the chips picker.
  */
 class FlowspecGenerationService
 {
@@ -29,18 +30,19 @@ class FlowspecGenerationService
     ) {}
 
     /**
-     * Gera a resposta para uma mensagem de usuário já persistida: o pedido é
-     * o `content` dela, as Solutions explícitas vêm do seu `meta.solution_ids`,
-     * os documentos escolhidos na mão vêm de `meta.document_refs`, e o
-     * histórico são as mensagens anteriores a ela no chat.
+     * Generates the response for an already-persisted user message: the
+     * request is its `content`, explicit Solutions come from its
+     * `meta.solution_ids`, documents chosen by hand come from
+     * `meta.document_refs`, and the history is the messages preceding it in
+     * the chat.
      */
     public function generate(FlowspecMessage $userMessage): FlowspecGenerationResult
     {
-        // Explícito: o job despacha um model recém-deserializado (SerializesModels),
-        // sem a relação carregada — sem isto, o acesso a ->chat abaixo é um
-        // lazy-load silencioso (Eloquent só arma o guard de strict mode em
-        // hydrations de mais de uma linha, então nem em ambiente não-produção
-        // isso lançaria LazyLoadingViolationException).
+        // Explicit: the job dispatches a freshly deserialized model
+        // (SerializesModels), with no relation loaded — without this, the
+        // ->chat access below is a silent lazy-load (Eloquent only arms the
+        // strict-mode guard on multi-row hydrations, so even outside
+        // production this wouldn't throw LazyLoadingViolationException).
         $userMessage->loadMissing('chat');
 
         $history = $userMessage->chat->messages()
@@ -72,10 +74,10 @@ class FlowspecGenerationService
         $prompt = $basePrompt;
 
         for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-            // Só o tamanho do prompt — nunca o texto: ele inclina documentação
-            // inteira (até doc_budget_chars), que pode conter segredos (o que o
-            // CredentialScrubber existe para pegar) e sozinho gera centenas de KB
-            // de log por tentativa quando LOG_LEVEL=debug.
+            // Only the prompt size — never the text: it carries whole
+            // documentation (up to doc_budget_chars), which can contain
+            // secrets (what CredentialScrubber exists to catch) and alone
+            // generates hundreds of KB of log per attempt when LOG_LEVEL=debug.
             Log::debug("flowSpec: prompt tentativa {$attempt}", [
                 'message_id'   => $userMessage->id,
                 'prompt_chars' => mb_strlen($prompt),
@@ -85,14 +87,14 @@ class FlowspecGenerationService
             $text = $response->text;
             $tokens['prompt'] += $response->usage->promptTokens;
             $tokens['completion'] += $response->usage->completionTokens;
-            // Zerados hoje (o AnthropicProvider do laravel/ai 0.3.2 não marca
-            // cache_control) — acumulados para dar visibilidade quando o prompt
-            // caching entrar (ver plano de otimização, Fase 2).
+            // Zero today (laravel/ai 0.3.2's AnthropicProvider doesn't set
+            // cache_control) — accumulated to give visibility once prompt
+            // caching lands (see optimization plan, Phase 2).
             $tokens['cache_write'] += $response->usage->cacheWriteInputTokens;
             $tokens['cache_read'] += $response->usage->cacheReadInputTokens;
 
-            // Idem: só o tamanho da resposta, não o texto — o modelo pode ecoar
-            // segredos vindos da documentação embutida no prompt.
+            // Same here: only the response size, not the text — the model may
+            // echo back secrets coming from documentation embedded in the prompt.
             Log::debug("flowSpec: resposta tentativa {$attempt}", [
                 'message_id' => $userMessage->id,
                 'text_chars' => mb_strlen($text),
@@ -121,7 +123,7 @@ class FlowspecGenerationService
                     $attempts[] = ['attempt' => $attempt, 'errors' => [], 'conversational' => true];
                     $conversational = true;
 
-                    break; // dúvida/esclarecimento — não há o que corrigir
+                    break; // question/clarification — nothing to correct
                 }
             }
 
@@ -134,7 +136,7 @@ class FlowspecGenerationService
                 'fixes'   => $normalization->fixes,
             ];
 
-            $document = $normalization->document; // melhor tentativa até aqui
+            $document = $normalization->document; // best attempt so far
 
             if ($result->passes()) {
                 $validated = true;
@@ -155,21 +157,22 @@ class FlowspecGenerationService
                 'tokens'   => $tokens,
                 'provider' => config('services.flowspec.provider'),
                 'model'    => config('services.flowspec.model'),
-                // Só numa resposta CONVERSACIONAL de fato — não quando o loop
-                // esgotou as tentativas com JSON inválido (aí $document também é
-                // null, mas inferir sugestões de um JSON quebrado não faz sentido).
+                // Only on an actual CONVERSATIONAL response — not when the
+                // loop ran out of attempts with invalid JSON (there $document
+                // is also null, but inferring suggestions from broken JSON
+                // makes no sense).
                 'suggested_documents' => $conversational ? $this->suggestedDocuments($context, $text) : [],
             ],
         );
     }
 
     /**
-     * Botões de "adicionar documentação" para uma resposta conversacional:
-     * junta o que já tinha ficado de fora por orçamento (`context->omittedDocuments`
-     * — vazio no modo de `document_refs` explícitos, que não corta nada) com
-     * o que o modelo citou pelo nome ao pedir mais contexto
-     * (`FlowspecContextResolver::suggestDocumentsFor`) — dedup por
-     * `type:id`, já que os dois sinais podem apontar pro mesmo documento.
+     * "Add documentation" buttons for a conversational response: joins what
+     * was already left out by budget (`context->omittedDocuments` — empty in
+     * the explicit `document_refs` mode, which trims nothing) with what the
+     * model cited by name while asking for more context
+     * (`FlowspecContextResolver::suggestDocumentsFor`) — deduped by
+     * `type:id`, since both signals can point to the same document.
      *
      * @return list<array{type: string, id: int, label: string}>
      */
@@ -185,7 +188,7 @@ class FlowspecGenerationService
             ->all();
     }
 
-    /** Protected para os testes substituírem a chamada real à API por um dublê. */
+    /** Protected so tests can substitute the real API call with a test double. */
     protected function prompt(string $prompt): AgentResponse
     {
         return agent(instructions: $this->prompts->systemPrompt())->prompt(
@@ -197,9 +200,9 @@ class FlowspecGenerationService
     }
 
     /**
-     * Bloco JSON dentro de uma cerca de código (```json ... ```) — o modelo
-     * cercou o JSON deliberadamente, então uma falha de `json_decode` aqui é
-     * um erro real do modelo, não uma leitura errada nossa.
+     * JSON block inside a code fence (```json ... ```) — the model fenced the
+     * JSON deliberately, so a `json_decode` failure here is a real model
+     * error, not a misread on our end.
      */
     private function fencedJsonBlock(string $text): ?string
     {
@@ -209,13 +212,13 @@ class FlowspecGenerationService
     }
 
     /**
-     * Sem cerca de código, varre da primeira `{` à última `}` — mas só trata
-     * como uma TENTATIVA de flowSpec se aquilo decodificar para um array com
-     * chave `meta` ou `flowSpec`. O system prompt ensina uma sintaxe de
-     * chaves duplas (`{{ step.alias.campo }}`), então uma resposta puramente
-     * conversacional que cite essa sintaxe também contém `{`/`}` — sem este
-     * filtro, ela seria extraída, falhar o `json_decode` e queimar uma
-     * tentativa do loop de correção com um "corrija o JSON" sem sentido.
+     * With no code fence, scans from the first `{` to the last `}` — but only
+     * treats it as a flowSpec ATTEMPT if that decodes to an array with a
+     * `meta` or `flowSpec` key. The system prompt teaches a double-braces
+     * syntax (`{{ step.alias.field }}`), so a purely conversational response
+     * citing that syntax also contains `{`/`}` — without this filter, it
+     * would get extracted, fail `json_decode` and burn a correction-loop
+     * attempt on a meaningless "fix the JSON".
      *
      * @return array<string, mixed>|null
      */

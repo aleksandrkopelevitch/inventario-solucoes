@@ -29,7 +29,7 @@ it('counts active in/out integrations via scopeWithIntegrationCounts', function 
 
     Integration::factory()->active()->create(['source_solution_id' => $hub->id, 'target_solution_id' => $other->id]);
     Integration::factory()->active()->create(['source_solution_id' => $other->id, 'target_solution_id' => $hub->id]);
-    Integration::factory()->create(['source_solution_id' => $hub->id, 'target_solution_id' => $other->id]); // planned, não conta
+    Integration::factory()->create(['source_solution_id' => $hub->id, 'target_solution_id' => $other->id]); // planned, doesn't count
 
     $loaded = Solution::withIntegrationCounts()->find($hub->id);
 

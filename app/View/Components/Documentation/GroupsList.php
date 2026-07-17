@@ -8,10 +8,10 @@ use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 /**
- * Lista dos Grupos ("Aninhamentos") standalone no hub de Documentação — fora
- * do filtro de busca/status de soluções e integrações (não têm cobertura em
- * %, só uma listagem simples). Slot próprio pra refletir criar/renomear/
- * excluir sem precisar recarregar a página inteira.
+ * List of standalone Groups ("Aninhamentos") in the Documentation hub —
+ * outside the search/status filter for solutions and integrations (they have
+ * no % coverage, just a simple listing). Own slot to reflect create/rename/
+ * delete without needing to reload the whole page.
  */
 class GroupsList extends Component
 {

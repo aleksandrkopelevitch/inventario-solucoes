@@ -6,9 +6,9 @@ use App\Enums\UserRole;
 use App\Models\User;
 
 /**
- * Gerenciar os valores dos atributos (Categoria, Status, Diretoria etc.) é
- * configuração transversal ao catálogo inteiro — restrito a administradores,
- * mesma trilha de `SolutionPolicy::create/update` (seção 15).
+ * Managing attribute values (Category, Status, Directorate, etc.) is
+ * configuration that cuts across the whole catalog — restricted to
+ * administrators, same rule as `SolutionPolicy::create/update` (section 15).
  */
 class AttributeOptionPolicy
 {

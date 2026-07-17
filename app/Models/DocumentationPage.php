@@ -10,11 +10,11 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Spatie\MediaLibrary\InteractsWithMedia;
 
 /**
- * Uma página de documentação (Markdown + notação GitBook), unidade atômica
- * editada pelo bloco Editor.js — igual ao antigo blob único de
- * `Solution`/`Integration`, só que agora uma Solution (ou um
- * `DocumentationGroup` standalone) pode ter 1..N delas, em lista plana
- * ordenada por `position`. `container` é polimórfico (`Solution` ou
+ * A documentation page (Markdown + GitBook notation), the atomic unit
+ * edited by the Editor.js block — same as the old single blob on
+ * `Solution`/`Integration`, except now a Solution (or a standalone
+ * `DocumentationGroup`) can have 1..N of them, in a flat list ordered by
+ * `position`. `container` is polymorphic (`Solution` or
  * `DocumentationGroup`).
  */
 class DocumentationPage extends Model implements Documentable
@@ -36,8 +36,8 @@ class DocumentationPage extends Model implements Documentable
 
     public function registerMediaCollections(): void
     {
-        // Ver Solution/Integration — mídia da documentação, servida por
-        // `files.show`, referenciada por /files/{id} no Markdown.
+        // See Solution/Integration — documentation media, served by
+        // `files.show`, referenced as /files/{id} in the Markdown.
         $this->addMediaCollection(self::DOCS_COLLECTION);
     }
 

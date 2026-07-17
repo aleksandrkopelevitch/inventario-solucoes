@@ -1,15 +1,15 @@
-// Ferramenta Editor.js "Tabs" (abas estilo GitBook) com blocos ANINHADOS de
-// verdade: cada aba hospeda o seu próprio Editor.js com a paleta completa
-// (títulos, listas, imagens, hints, tabelas, e até outras abas). Serializa para
-// {% tabs %}{% tab title="…" %} <blocos> {% endtab %} … {% endtabs %} — a
-// conversão dos blocos ↔ Markdown fica em docs-markdown.js.
+// Editor.js "Tabs" tool (GitBook-style tabs) with genuinely NESTED blocks:
+// each tab hosts its own Editor.js with the full palette (headings, lists,
+// images, hints, tables, and even other tabs). Serializes to
+// {% tabs %}{% tab title="…" %} <blocks> {% endtab %} … {% endtabs %} — the
+// blocks ↔ Markdown conversion lives in docs-markdown.js.
 //
-// Depende de config injetada por docs-editor.js:
-//   EditorJS   — construtor (evita reimportar o core neste chunk)
-//   getTools() — mapa de tools p/ o editor aninhado (inclui esta própria tool)
-//   wire(ed, holder) — liga atalhos ("/" e Markdown) no editor aninhado
-//   onChange() — marca a doc como suja (dispara autosave)
-//   i18n       — dicionário PT-BR do Editor.js (docs-tools/i18n.js)
+// Depends on config injected by docs-editor.js:
+//   EditorJS   — constructor (avoids re-importing the core in this chunk)
+//   getTools() — tools map for the nested editor (includes this tool itself)
+//   wire(ed, holder) — wires shortcuts ("/" and Markdown) on the nested editor
+//   onChange() — marks the doc as dirty (triggers autosave)
+//   i18n       — Editor.js PT-BR dictionary (docs-tools/i18n.js)
 
 const ICON = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="4" x2="9" y2="9"/></svg>'
 
@@ -60,8 +60,8 @@ export default class TabsTool {
         return this.wrapper
     }
 
-    // Chamado pelo Editor.js após o bloco entrar no DOM — só então dá pra
-    // montar os editores aninhados com layout medido corretamente.
+    // Called by Editor.js after the block enters the DOM — only then can the
+    // nested editors be mounted with correctly measured layout.
     rendered() {
         this.tabs.forEach((_, i) => this.initEditor(i))
         this.select(0)
@@ -74,7 +74,7 @@ export default class TabsTool {
         tabEl.className = 'ak-tabs__tab'
         tabEl.setAttribute('role', 'tab')
 
-        // Grip de arraste (reordena as abas).
+        // Drag grip (reorders the tabs).
         const grip = document.createElement('span')
         grip.className = 'ak-tabs__grip'
         grip.draggable = true
@@ -175,7 +175,7 @@ export default class TabsTool {
         if (from == null || to == null || from === to || from < 0 || to < 0) return
         const [moved] = this.tabs.splice(from, 1)
         this.tabs.splice(to, 0, moved)
-        // Reflui o DOM na nova ordem (insertBefore/appendChild movem os nós).
+        // Re-flows the DOM into the new order (insertBefore/appendChild move the nodes).
         this.tabs.forEach((t) => this.bar.insertBefore(t.tabEl, this.addBtn))
         this.tabs.forEach((t) => this.panels.appendChild(t.panel))
         this.select(to)
@@ -200,7 +200,7 @@ export default class TabsTool {
                 try {
                     blocks = (await tab.editor.save()).blocks
                 } catch (_) {
-                    // mantém os blocos originais se o save aninhado falhar
+                    // keep the original blocks if the nested save fails
                 }
             }
             items.push({title: tab.label.textContent.trim() || 'Aba', blocks})
@@ -208,7 +208,7 @@ export default class TabsTool {
         return {items}
     }
 
-    // Impede o Editor.js de "achatar" a tool quando as abas estão vazias.
+    // Prevents Editor.js from "flattening" the tool when the tabs are empty.
     static get contentless() {
         return false
     }

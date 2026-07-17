@@ -13,10 +13,10 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Curadoria contínua do corpus (F8, Etapa 6): promove um flowSpec gerado e
- * aprovado a FlowspecExample. O CredentialScrubber roda de novo aqui — nada
- * entra no corpus com segredo literal, mesmo que tenha passado despercebido
- * na conversa.
+ * Ongoing corpus curation (F8, Stage 6): promotes a generated and approved
+ * flowSpec to FlowspecExample. CredentialScrubber runs again here — nothing
+ * enters the corpus with a literal secret, even if it slipped through
+ * unnoticed in the conversation.
  */
 class FlowspecExamplePromotionController extends Controller
 {

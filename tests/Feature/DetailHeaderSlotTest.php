@@ -10,12 +10,12 @@ use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 uses(LazilyRefreshDatabase::class);
 
 /**
- * Fecha o gap encontrado na auditoria: editar uma solução/pessoa/empresa a
- * partir da sua PRÓPRIA página de detalhe (não da listagem) só refletia na
- * tela se ela tivesse o id certo — mas o controller só devolvia o slot da
- * listagem, que não existe no detalhe. Os componentes `*\DetailHeader`
- * fecham isso: o controller devolve os dois slots, e o `ajax-slot.js`
- * ignora silenciosamente o que não estiver na página atual.
+ * Closes the gap found in the audit: editing a solution/person/company from
+ * its OWN detail page (not the listing) only reflected on screen if it
+ * happened to have the right id — but the controller only returned the
+ * listing slot, which doesn't exist on the detail page. The `*\DetailHeader`
+ * components close this: the controller returns both slots, and
+ * `ajax-slot.js` silently ignores whichever isn't on the current page.
  */
 it('renders the solution-detail-header-slot id on the solution detail page', function () {
     $solution = Solution::factory()->create();

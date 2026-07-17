@@ -6,7 +6,7 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class SaveDocumentationRequest extends FormRequest
 {
-    /** Só quem pode editar o recurso (admin, via Policy::update) salva a doc. */
+    /** Only whoever can edit the resource (admin, via Policy::update) saves the doc. */
     public function authorize(): bool
     {
         $model = $this->route('integration') ?? $this->route('solution') ?? $this->route('group');
@@ -18,7 +18,7 @@ class SaveDocumentationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // Markdown + notação estendida GitBook. Nullable: doc pode ser esvaziada.
+            // Markdown + extended GitBook notation. Nullable: the doc can be emptied out.
             'documentation' => ['nullable', 'string', 'max:500000'],
         ];
     }

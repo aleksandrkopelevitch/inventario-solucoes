@@ -7,12 +7,12 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Grafo do editor visual de integrações: {nodes, edges, clouds}. Nota
-     * histórica: nasceu como fonte de verdade da topologia (participants/
-     * source/target/direction derivados dele); desde a coluna `chain`
-     * (2026-07-06) é só o desenho macro — a derivação vem da cadeia
-     * (App\Actions\SyncIntegrationFromChain). jsonb para paridade com
-     * generated_flowspec e consultas futuras.
+     * Graph for the visual integration editor: {nodes, edges, clouds}.
+     * Historical note: it started as the topology source of truth
+     * (participants/source/target/direction derived from it); since the
+     * `chain` column (2026-07-06) it's just the macro drawing — derivation
+     * comes from the chain (App\Actions\SyncIntegrationFromChain). jsonb for
+     * parity with generated_flowspec and future queries.
      */
     public function up(): void
     {

@@ -1,17 +1,17 @@
-// heroicon-picker.js — popover de seleção de um heroicon outline, usado pelos
-// callouts (hint) da documentação para escolher o ícone em destaque.
+// heroicon-picker.js — popover for picking a heroicon outline, used by the
+// documentation's callouts (hint) to choose the highlighted icon.
 //
-// Fonte dos ícones: GET /heroicons/outline (HeroiconController@outline, só
-// autenticados) — carregado uma única vez e cacheado no módulo.
+// Icon source: GET /heroicons/outline (HeroiconController@outline,
+// authenticated only) — fetched once and cached in the module.
 //
-// Uso imperativo (não por atributo data-ak-*, pois o gatilho é o badge do bloco
-// hint, montado pelo Editor.js):
+// Imperative usage (not via a data-ak-* attribute, since the trigger is the
+// hint block's badge, mounted by Editor.js):
 //   import {openHeroiconPicker, getHeroiconSvg} from './heroicon-picker'
 //   openHeroiconPicker({anchorEl, current: 'light-bulb', onSelect: (name) => …})
 
-let iconsPromise = null // Promise<[{name, svg}]> — fetch único
-let iconMap = null // {name: svg} depois de resolvido
-let popover = null // elemento singleton (append no body)
+let iconsPromise = null // Promise<[{name, svg}]> — single fetch
+let iconMap = null // {name: svg} once resolved
+let popover = null // singleton element (appended to body)
 let grid = null
 let input = null
 let activeOnSelect = null
@@ -31,14 +31,14 @@ function fetchIcons() {
                 return list
             })
             .catch((e) => {
-                iconsPromise = null // permite retry na próxima abertura
+                iconsPromise = null // allows a retry on the next open
                 throw e
             })
     }
     return iconsPromise
 }
 
-/** SVG (string) de um ícone outline pelo nome, garantindo o carregamento da lista. */
+/** SVG (string) of an outline icon by name, ensuring the list is loaded. */
 export async function getHeroiconSvg(name) {
     if (!name) return null
     try {
@@ -120,7 +120,7 @@ function close() {
     activeAnchor = null
 }
 
-/** Abre o picker ancorado a um elemento. Chama `onSelect(name)` ao escolher. */
+/** Opens the picker anchored to an element. Calls `onSelect(name)` on pick. */
 export async function openHeroiconPicker({anchorEl, current = '', onSelect}) {
     buildPopover()
     activeOnSelect = onSelect
@@ -146,11 +146,11 @@ export async function openHeroiconPicker({anchorEl, current = '', onSelect}) {
     if (active) active.scrollIntoView({block: 'nearest'})
 }
 
-// Fecha em clique fora / Esc. Delegação no nível do módulo (ver CLAUDE.md).
+// Closes on outside click / Esc. Module-level delegation (see CLAUDE.md).
 document.addEventListener('click', (e) => {
     if (!popover || popover.classList.contains('hidden')) return
     if (popover.contains(e.target)) return
-    if (activeAnchor && activeAnchor.contains(e.target)) return // o próprio anchor reabre/reposiciona
+    if (activeAnchor && activeAnchor.contains(e.target)) return // the anchor itself reopens/repositions it
     close()
 })
 
@@ -158,4 +158,4 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && popover && !popover.classList.contains('hidden')) close()
 })
 
-export function init() {} // no-op — API é imperativa; mantém a interface de globalModules
+export function init() {} // no-op — API is imperative; keeps the globalModules interface

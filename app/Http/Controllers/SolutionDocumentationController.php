@@ -23,14 +23,14 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Str;
 
 /**
- * Documentação rica por Solução — árvore de 1..N páginas (editor de blocos
- * Editor.js por página, formato Markdown + notação GitBook em
- * `documentation_pages.documentation`), consolidada numa única tela junto
- * com a doc de cada Integration em que a solução participa (ver
- * NavigatesSolutionDocs — mesma sidebar mostrada por
- * IntegrationDocumentationController). Thin — delega ao trait
- * EditsDocumentation (por página) e ao DocumentationPageService (regras da
- * árvore: criar/renomear/mover/apagar).
+ * Rich documentation per Solution — a tree of 1..N pages (Editor.js block
+ * editor per page, Markdown format + GitBook notation in
+ * `documentation_pages.documentation`), consolidated into a single screen
+ * alongside the docs of each Integration the solution participates in (see
+ * NavigatesSolutionDocs — same sidebar shown by
+ * IntegrationDocumentationController). Thin — delegates to the
+ * EditsDocumentation trait (per page) and to DocumentationPageService (tree
+ * rules: create/rename/move/delete).
  */
 class SolutionDocumentationController extends Controller
 {
@@ -38,7 +38,7 @@ class SolutionDocumentationController extends Controller
 
     public function __construct(private readonly DocumentationPageService $pages) {}
 
-    /** Índice: resolve (ou cria) a 1ª página e abre o editor nela. */
+    /** Index: resolves (or creates) the 1st page and opens the editor on it. */
     public function index(Solution $solution): RedirectResponse
     {
         $page = $solution->pages()->first() ?? $this->pages->create($solution, 'Visão geral');
@@ -59,8 +59,8 @@ class SolutionDocumentationController extends Controller
 
     public function edit(Solution $solution, DocumentationPage $page): View
     {
-        // Evita lazy load de $page->container dentro de DocumentationPagePolicy
-        // (strict mode) — já temos a Solution em mãos via o binding da rota.
+        // Avoids lazy loading $page->container inside DocumentationPagePolicy
+        // (strict mode) — we already have the Solution in hand via the route binding.
         $page->setRelation('container', $solution);
 
         return $this->documentationView($page, [
@@ -72,12 +72,13 @@ class SolutionDocumentationController extends Controller
             'integrationsNav' => $this->solutionIntegrationsNav($solution, null),
             'createPageUrl'   => route('solutions.docs.pages.store', $solution),
             'assistPanelUrl'  => route('solutions.docs.assist.panel', [$solution, $page]),
-            // Compartilhar (link público) só existe na doc da própria Solution
-            // — a view genérica (compartilhada com IntegrationDocumentationController)
-            // trata como opcional via @isset.
+            // Share (public link) only exists on the Solution's own docs — the
+            // generic view (shared with IntegrationDocumentationController)
+            // treats it as optional via @isset.
             'coverageSolution' => $solution,
-            // O nome da Solution já vira breadcrumb — o topo da tela mostra o
-            // título da página atual (ver $backLabel acima), não repete o nome.
+            // The Solution's name already becomes a breadcrumb — the top of
+            // the screen shows the current page's title (see $backLabel
+            // above), it doesn't repeat the name.
             'breadcrumbs' => [
                 ['label' => $solution->name, 'url' => route('solutions.show', $solution)],
                 ['label' => 'Documentação', 'url' => route('solutions.docs.edit', $solution)],
@@ -89,8 +90,9 @@ class SolutionDocumentationController extends Controller
     {
         $response = $this->persistDocumentation($request, $page);
 
-        // Atualiza a seção read-only inline no detalhe da solução, se o usuário
-        // voltar pra lá (ajax-slot no-op se o id não estiver na página atual).
+        // Updates the inline read-only section on the solution's detail page,
+        // in case the user goes back there (ajax-slot no-ops if the id isn't
+        // on the current page).
         return $response->setData($response->getData(true) + [
             'updatableSlots' => [Documentation::slot($solution->fresh())],
         ]);
@@ -142,7 +144,7 @@ class SolutionDocumentationController extends Controller
         return $this->storeDocumentationMedia($request, $page);
     }
 
-    /* --- Assiste IA (gera o conteúdo da página por LLM) ------------------- */
+    /* --- AI Assist (generates the page's content via LLM) ----------------- */
 
     public function assistantPanel(Solution $solution, DocumentationPage $page): JsonResponse
     {
@@ -172,7 +174,7 @@ class SolutionDocumentationController extends Controller
         return $this->draftStatusResponse($solution, $generation);
     }
 
-    /** Gera (se ainda não existe) o token do link público e devolve o painel. */
+    /** Generates (if it doesn't exist yet) the public link token and returns the panel. */
     public function share(Solution $solution): JsonResponse
     {
         $this->authorize('update', $solution);
@@ -188,7 +190,7 @@ class SolutionDocumentationController extends Controller
         ]);
     }
 
-    /** Revoga o link público (zera o token — o link antigo para de funcionar). */
+    /** Revokes the public link (clears the token — the old link stops working). */
     public function unshare(Solution $solution): JsonResponse
     {
         $this->authorize('update', $solution);

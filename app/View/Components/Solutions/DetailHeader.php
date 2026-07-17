@@ -9,12 +9,12 @@ use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 /**
- * Cabeçalho do detalhe da solução (briefing 9.2 itens 1 e 2: header +
- * bloco "Operação"). Extraído como componente próprio para que editar a
- * solução a partir da sua própria página de detalhe (via side panel)
- * também consiga atualizar o que está na tela — e não só a listagem.
+ * Header of the solution's detail page (briefing 9.2 items 1 and 2: header +
+ * "Operação" block). Extracted as its own component so that editing the
+ * solution from its own detail page (via side panel) can also update
+ * what's on screen — not just the listing.
  *
- * Renderável como slot atualizável: `DetailHeader::slot($solution)`.
+ * Renderable as an updatable slot: `DetailHeader::slot($solution)`.
  */
 class DetailHeader extends Component
 {
@@ -43,15 +43,15 @@ class DetailHeader extends Component
             'techOwners'     => $s->people->where('pivot.role', 'technical'),
             'businessOwners' => $s->people->where('pivot.role', 'business'),
             'vendorContacts' => $s->people->where('pivot.role', 'vendor_contact'),
-            // Cada atributo é exibido com o RÓTULO da sua dimensão (Categoria,
-            // Status, …) — o valor sozinho ("Alta", "Planejado") não deixava
-            // claro o que representava. Tom semântico via "Blocos Leo".
-            // Sempre os 8 — mesmo sem valor: um atributo em branco vira
-            // "Não informado" no card (ver detail-header.blade.php), nunca
-            // some da grade (a lacuna cinza confundia com um erro de layout).
-            // `value` é o valor CRU (não o label) — o select inline precisa
-            // dele pra marcar a opção selecionada; `nullable` decide se o
-            // card aceita limpar o campo de volta pra "Não informado".
+            // Each attribute is displayed with the LABEL of its dimension (Categoria,
+            // Status, …) — the value alone ("Alta", "Planejado") didn't make
+            // it clear what it represented. Semantic tone via "Blocos Leo".
+            // Always all 8 — even without a value: a blank attribute becomes
+            // "Não informado" on the card (see detail-header.blade.php), it
+            // never disappears from the grid (the gray gap was confused with a layout bug).
+            // `value` is the RAW value (not the label) — the inline select
+            // needs it to mark the selected option; `nullable` decides
+            // whether the card accepts clearing the field back to "Não informado".
             'facts' => collect([
                 ['group' => 'category',        'label' => 'Categoria',   'value' => $s->category,        'displayLabel' => $s->category_label,        'tone' => 'anchor',                 'nullable' => false],
                 ['group' => 'status',          'label' => 'Status',      'value' => $s->status,          'displayLabel' => $s->status_label,          'tone' => 'green',                  'nullable' => false],
@@ -62,18 +62,18 @@ class DetailHeader extends Component
                 ['group' => 'support_type',    'label' => 'Suporte',     'value' => $s->support_type,    'displayLabel' => $s->support_type_label,    'tone' => 'neutral',                'nullable' => false],
                 ['group' => 'directorate',     'label' => 'Diretoria',   'value' => $s->directorate,     'displayLabel' => $s->directorate,           'tone' => 'plain',                  'nullable' => true],
             ])->values(),
-            // Opções de cada grupo pro select inline do card — `AttributeOption::options()`
-            // lê de um cache único (agrupado em memória), então isto não é
-            // 8 queries: é 8 leituras da mesma coleção já cacheada.
+            // Options for each group for the card's inline select — `AttributeOption::options()`
+            // reads from a single cache (grouped in memory), so this isn't
+            // 8 queries: it's 8 reads of the same already-cached collection.
             'attributeOptions' => collect(['category', 'status', 'criticality', 'environment', 'cloud', 'contract_status', 'support_type', 'directorate'])
                 ->mapWithKeys(fn (string $group) => [$group => AttributeOption::options($group)]),
         ]);
     }
 
     /**
-     * Tom semântico do badge de criticidade — vermelho para alta/crítica,
-     * âmbar para média, verde suave para baixa/desconhecida. Deriva do valor
-     * cru (não do label traduzido) para não depender do texto exibido.
+     * Semantic tone of the criticality badge — red for high/critical,
+     * amber for medium, soft green for low/unknown. Derived from the raw
+     * value (not the translated label) so it doesn't depend on the displayed text.
      */
     private function criticalityTone(): string
     {

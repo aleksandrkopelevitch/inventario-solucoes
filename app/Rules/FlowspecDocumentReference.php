@@ -7,7 +7,7 @@ use App\Models\Integration;
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 
-/** Valida uma referência `page:{id}`/`integration:{id}` vinda do chips picker de documentos do flowSpec. */
+/** Validates a `page:{id}`/`integration:{id}` reference coming from the flowSpec document chips picker. */
 class FlowspecDocumentReference implements ValidationRule
 {
     public function validate(string $attribute, mixed $value, Closure $fail): void

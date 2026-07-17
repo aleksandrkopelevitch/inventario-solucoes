@@ -6,10 +6,11 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
- * Serve a mídia embutida na documentação (coleção `docs`) pela URL estável
- * `/files/{id}` usada dentro do Markdown (<img src="/files/{id}">,
- * {% file src="/files/{id}" %}). Fica sob o grupo `auth`, então só usuários
- * autenticados acessam — a doc é privada como o resto do inventário.
+ * Serves media embedded in documentation (the `docs` collection) through the
+ * stable `/files/{id}` URL used inside Markdown (<img src="/files/{id}">,
+ * {% file src="/files/{id}" %}). Lives under the `auth` group, so only
+ * authenticated users can access it — the docs are private like the rest of
+ * the inventory.
  */
 class MediaController extends Controller
 {

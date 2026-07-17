@@ -16,21 +16,21 @@
     $config = ['name' => $name, 'roles' => array_values($roles), 'searchUrl' => $searchUrl, 'form' => $form, 'centered' => $centered];
 @endphp
 
-{{-- Multi-select chips com "papel" (role) opcional por chip. Novos chips entram
-     no Enter (ou seleção de resultado) e saem pelo × (resources/js/modules/chips.js).
-     Submete como name[index][value], name[index][label], name[index][role]. Com
-     `search-url`, o Enter só adiciona um chip vindo da lista de resultados
-     buscada no servidor — não cria chip a partir de texto livre.
+{{-- Multi-select chips with an optional "role" per chip. New chips are added
+     on Enter (or picking a search result) and removed via × (resources/js/modules/chips.js).
+     Submits as name[index][value], name[index][label], name[index][role]. With
+     `search-url`, Enter only adds a chip coming from the server-side search
+     results list — it never creates a chip from free text.
 
-     `data-ak-chips-list` some via classe `hidden` calculada aqui (estado
-     inicial) e mantida por `chips.js::syncListVisibility` a cada
-     add/remove — não usa o utilitário `empty:hidden` do Tailwind: CSS
-     `:empty` exige ZERO nós filhos, e o whitespace deixado pela indentação
-     do Blade entre `<div>`/`@foreach`/`@endforeach`/`</div>` já conta como
-     filho, então `:empty` nunca batia (achado real: a lista "vazia" ficava
-     com um nó de texto fantasma, e o `gap-2` do flex-col pai ainda reservava
-     espaço para ela — a caixa de busca nascia com um respiro extra no topo,
-     parecendo com padding mal formado). --}}
+     `data-ak-chips-list` is hidden via the `hidden` class computed here
+     (initial state) and kept in sync by `chips.js::syncListVisibility` on
+     every add/remove — it doesn't use Tailwind's `empty:hidden` utility: CSS
+     `:empty` requires ZERO child nodes, and the whitespace left by Blade's
+     indentation between `<div>`/`@foreach`/`@endforeach`/`</div>` already
+     counts as a child, so `:empty` never matched (real finding: the "empty"
+     list still had a phantom text node, and the parent flex-col's `gap-2`
+     still reserved space for it — the search box was born with extra
+     breathing room on top, looking like broken padding). --}}
 <div
     data-ak-chips="{{ json_encode($config) }}"
     data-ak-chips-next="{{ $items->count() }}"
@@ -64,12 +64,12 @@
             <span class="truncate">{{ $placeholder }}</span>
         </button>
 
-        {{-- Overlay centralizado — mesmo padrão visual do `data-eco-search-overlay`
-             em ecosystem-map.blade.php. `position: fixed` ignora o layout do
-             container pai (nenhum ancestral aqui usa transform/filter), então
-             pode ficar aninhado dentro de `[data-ak-chips]` sem sair do card
-             — e assim `closest('[data-ak-chips]')` em chips.js continua
-             encontrando o input/resultados normalmente. --}}
+        {{-- Centered overlay — same visual pattern as `data-eco-search-overlay`
+             in ecosystem-map.blade.php. `position: fixed` ignores the parent
+             container's layout (no ancestor here uses transform/filter), so
+             it can stay nested inside `[data-ak-chips]` without escaping the
+             card — and so `closest('[data-ak-chips]')` in chips.js still
+             finds the input/results normally. --}}
         <div data-ak-chips-overlay class="fixed inset-0 z-40 hidden items-start justify-center bg-ink/25 pt-24 backdrop-blur-[1px]">
             <div class="w-full max-w-md rounded-xl border border-line bg-surface shadow-[0_12px_32px_rgba(16,24,40,.24)]">
                 <div class="flex items-center gap-2 border-b border-line px-3 py-2.5">

@@ -6,7 +6,7 @@ use App\Support\Heroicons;
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 
-/** Valida que o valor é o slug (kebab-case) de um ícone outline existente no set heroicons. */
+/** Validates that the value is the slug (kebab-case) of an existing outline icon in the heroicons set. */
 class Heroicon implements ValidationRule
 {
     public function validate(string $attribute, mixed $value, Closure $fail): void

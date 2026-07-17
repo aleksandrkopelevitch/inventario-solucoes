@@ -30,9 +30,9 @@
             </form>
         </div>
 
-        {{-- Documentação usada: fica fora do <form> (posicionada na lateral), mas
-             o `form="flowspec-message-form"` nos inputs do x-forms.chips associa
-             os chips ao composer mesmo assim — ver forms/chips.blade.php. --}}
+        {{-- Documentation used: sits outside the <form> (positioned in the sidebar), but
+             the `form="flowspec-message-form"` on the x-forms.chips inputs associates
+             the chips to the composer anyway — see forms/chips.blade.php. --}}
         <aside class="w-full shrink-0 lg:w-80">
             <div class="rounded-card border border-line bg-surface p-4 shadow-[0_1px_3px_rgba(20,58,34,0.04)] lg:sticky lg:top-6">
                 <h2 class="text-sm font-semibold text-ink">Documentação usada</h2>

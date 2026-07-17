@@ -6,10 +6,10 @@ use App\Models\Integration;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Atualiza o título de um único nó já existente na chain (bloco do data-viz
- * F3) — escolhido de uma Solução cadastrada ou texto livre. O nó raiz
- * (índice 0) nunca chega aqui — bloqueado no controller antes de qualquer
- * autorização de conteúdo.
+ * Updates the title of a single node already present in the chain (a
+ * data-viz F3 block) — chosen from a registered Solution or free text. The
+ * root node (index 0) never reaches here — blocked in the controller before
+ * any content authorization.
  */
 class UpdateIntegrationChainNodeRequest extends FormRequest
 {
@@ -43,7 +43,7 @@ class UpdateIntegrationChainNodeRequest extends FormRequest
         ];
     }
 
-    /** Normaliza o sentinel "free" do select (texto livre) para solution_id nulo. */
+    /** Normalizes the select's "free" sentinel (free text) to a null solution_id. */
     protected function prepareForValidation(): void
     {
         $solutionId = $this->input('solution_id');

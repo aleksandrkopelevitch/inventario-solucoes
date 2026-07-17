@@ -14,8 +14,8 @@ class SolutionMapController extends Controller
     public function __construct(private readonly IntegrationGraphService $graph) {}
 
     /**
-     * Página do mapa global (F3). Renderiza o container do grafo; o desenho no
-     * canvas entra na Etapa 4. Aceita `?json` para servir o próprio contrato.
+     * Global map page (F3). Renders the graph container; the canvas drawing
+     * lands in Stage 4. Accepts `?json` to serve the contract itself.
      */
     public function index(Request $request)
     {
@@ -31,7 +31,7 @@ class SolutionMapController extends Controller
         ]);
     }
 
-    /** Contrato neutro do mapa global, com filtros por query string. */
+    /** Neutral contract for the global map, with filters via query string. */
     public function data(Request $request): JsonResponse
     {
         $this->authorize('viewAny', Solution::class);
@@ -46,10 +46,11 @@ class SolutionMapController extends Controller
     }
 
     /**
-     * Auto-save da posição de um hub arrastado no canvas (`ecosystem-map.js::
-     * startHubDrag`) — sem painel/botão de salvar, dispara a cada arraste
-     * solto. Persistida em `solutions.map_position` (global, não por usuário)
-     * pra sobreviver a reloads e ser a mesma pra todo mundo que abre o mapa.
+     * Auto-save of a hub's position dragged on the canvas
+     * (`ecosystem-map.js::startHubDrag`) — no panel/save button, fires on
+     * every drag release. Persisted in `solutions.map_position` (global, not
+     * per-user) so it survives reloads and is the same for everyone who
+     * opens the map.
      */
     public function updatePosition(UpdateSolutionMapPositionRequest $request, Solution $solution): JsonResponse
     {

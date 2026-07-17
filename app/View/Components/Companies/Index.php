@@ -9,8 +9,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\View\Component;
 
 /**
- * Lista de empresas (F5), slot atualizável `companies-index-slot`. Busca por
- * nome e filtro por tipo (interno/fornecedor/parceiro).
+ * Company list (F5), updatable slot `companies-index-slot`. Search by name
+ * and filter by type (internal/supplier/partner).
  */
 class Index extends Component
 {

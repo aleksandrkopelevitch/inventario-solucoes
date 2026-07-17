@@ -18,7 +18,7 @@ class SolutionPolicy
         return true;
     }
 
-    /** Criação e edição restritas a administradores (seção 15). */
+    /** Creation and editing restricted to administrators (section 15). */
     public function create(User $user): bool
     {
         return $user->role === UserRole::Admin;

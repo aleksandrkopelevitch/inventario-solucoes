@@ -1,11 +1,11 @@
-// docs-copy.js — botão "Copiar Markdown" das telas de documentação.
+// docs-copy.js — "Copy Markdown" button on documentation screens.
 //
-// Fonte do Markdown, por superfície:
-//   - Edição: window.__akDocsGetMarkdown() (estado ATUAL do editor serializado),
-//     registrado por docs-editor.js ao montar.
-//   - Read-only (privada/pública): <textarea data-ak-docs-markdown hidden> na página.
+// Markdown source, per surface:
+//   - Editing: window.__akDocsGetMarkdown() (serialized CURRENT editor state),
+//     registered by docs-editor.js on mount.
+//   - Read-only (private/public): <textarea data-ak-docs-markdown hidden> on the page.
 //
-// Toast é singleton global (ver CLAUDE.md) — sem import.
+// Toast is a global singleton (see CLAUDE.md) — no import.
 
 document.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-ak-docs-copy]')
@@ -28,4 +28,4 @@ document.addEventListener('click', async (e) => {
     }
 })
 
-export function init() {} // no-op — listener no nível do módulo (delegação)
+export function init() {} // no-op — listener at module level (delegation)

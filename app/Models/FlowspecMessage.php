@@ -8,9 +8,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Mensagem de um FlowspecChat. `role` = user|assistant|system. `flow_spec`
- * carrega o pipeline gerado quando houver; `meta` audita a geração (exemplos
- * usados, tokens, tentativas de validação, status).
+ * A message from a FlowspecChat. `role` = user|assistant|system. `flow_spec`
+ * carries the generated pipeline when present; `meta` audits the generation
+ * (examples used, tokens, validation attempts, status).
  */
 class FlowspecMessage extends Model
 {

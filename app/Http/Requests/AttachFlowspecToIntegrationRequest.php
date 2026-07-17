@@ -8,8 +8,8 @@ class AttachFlowspecToIntegrationRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        // Dono do chat; a permissão de editar a Integration alvo é checada no
-        // controller (`authorize('update', $integration)`), já com o model.
+        // Owner of the chat; permission to edit the target Integration is checked
+        // in the controller (`authorize('update', $integration)`), once the model is in hand.
         return $this->user()?->can('update', $this->route('chat')) ?? false;
     }
 

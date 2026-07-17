@@ -17,7 +17,7 @@ function docsAdmin(): User
     return User::factory()->create(['role' => UserRole::Admin->value]);
 }
 
-/** Cria uma página de documentação já pendurada numa Solution. */
+/** Creates a documentation page already hanging off a Solution. */
 function solutionPage(Solution $solution, ?string $documentation = null): DocumentationPage
 {
     return DocumentationPage::factory()->for($solution, 'container')->create(['documentation' => $documentation]);
@@ -25,7 +25,7 @@ function solutionPage(Solution $solution, ?string $documentation = null): Docume
 
 /*
 |--------------------------------------------------------------------------
-| Solução — árvore de páginas: criar / renomear / mover / apagar
+| Solution — page tree: create / rename / move / delete
 |--------------------------------------------------------------------------
 */
 
@@ -133,7 +133,7 @@ it('deletes the last page and redirects back to the docs index', function () {
 
 /*
 |--------------------------------------------------------------------------
-| Solução — salvar conteúdo / autorização / tela
+| Solution — save content / authorization / screen
 |--------------------------------------------------------------------------
 */
 
@@ -208,7 +208,7 @@ it('404s a page that does not belong to the solution in the url', function () {
 
 /*
 |--------------------------------------------------------------------------
-| Consolidação — páginas + integrações na mesma sidebar (uma tela por solução)
+| Consolidation — pages + integrations in the same sidebar (one screen per solution)
 |--------------------------------------------------------------------------
 */
 
@@ -261,7 +261,7 @@ it('breadcrumbs a solution page as Solução > Documentação, and labels the to
         ->toContain('href="' . route('solutions.docs.edit', $solution) . '"')
         ->toContain('>Documentação<')
         ->toContain('>AllStrategy<')
-        // O topo (voltar) mostra o título da página, não o nome da solução de novo.
+        // The top bar (back) shows the page title, not the solution name again.
         ->toMatch('/>\s*Visão geral\s*<\/a>/');
 });
 
@@ -287,7 +287,7 @@ it('breadcrumbs an integration doc as Solução > Documentação too, labeling t
 
 /*
 |--------------------------------------------------------------------------
-| Integração — scopeBindings + save (single-page, inalterado)
+| Integration — scopeBindings + save (single-page, unchanged)
 |--------------------------------------------------------------------------
 */
 
@@ -321,7 +321,7 @@ it('404s the integration docs page when the integration does not belong to the s
 
 /*
 |--------------------------------------------------------------------------
-| Mídia — upload + serving (por página, agora)
+| Media — upload + serving (per page, now)
 |--------------------------------------------------------------------------
 */
 
@@ -343,7 +343,7 @@ it('uploads documentation media and serves it via /files/{id}', function () {
 
     expect($page->fresh()->getMedia('docs'))->toHaveCount(1);
 
-    // A rota autenticada serve o arquivo.
+    // The authenticated route serves the file.
     $this->actingAs(docsAdmin())
         ->get(route('files.show', $mediaId))
         ->assertOk()
@@ -363,8 +363,8 @@ it('forbids a viewer from uploading documentation media', function () {
 });
 
 it('rejects a media upload with neither file nor url', function () {
-    // Colar imagem de site externo manda `url`; upload manda `file`. Sem
-    // nenhum dos dois, a regra `required_without` recíproca barra em 422.
+    // Pasting an image from an external site sends `url`; upload sends `file`.
+    // With neither, the reciprocal `required_without` rule blocks with a 422.
     $solution = Solution::factory()->create();
     $page = solutionPage($solution);
 
@@ -388,7 +388,7 @@ it('rejects an external image url that is not http(s)', function () {
 
 /*
 |--------------------------------------------------------------------------
-| GitbookRenderer — notação estendida
+| GitbookRenderer — extended notation
 |--------------------------------------------------------------------------
 */
 
@@ -433,12 +433,12 @@ it('renders an outline heroicon badge in hints, with a per-style default and an 
     $override = app(GitbookRenderer::class)->render("{% hint style=\"info\" icon=\"fire\" %}\nOi\n{% endhint %}");
     $bogus = app(GitbookRenderer::class)->render("{% hint style=\"info\" icon=\"nao-existe\" %}\nOi\n{% endhint %}");
 
-    // O badge do ícone é emitido como SVG inline (não mais um emoji em CSS ::before).
+    // The icon badge is emitted as inline SVG (no longer an emoji in CSS ::before).
     expect($default)
         ->toContain('<span class="callout-icon"')
         ->toContain('<svg');
 
-    // Um ícone escolhido pelo autor muda o SVG; um nome inválido cai no padrão do estilo.
+    // An icon chosen by the author changes the SVG; an invalid name falls back to the style's default.
     expect($override)->not->toBe($default);
     expect($bogus)->toBe($default);
 });

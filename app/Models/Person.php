@@ -51,10 +51,9 @@ class Person extends Model
     }
 
     /**
-     * Filtros do catálogo de pessoas — busca por nome/empresa/sistema e
-     * filtros por empresa e papel. Reaproveitado por People\Index (lista),
-     * People\ResultsCount (contador) e People\FilterChips, para os três
-     * nunca divergirem.
+     * People catalog filters — search by name/company/system and filters by
+     * company and role. Reused by People\Index (list), People\ResultsCount
+     * (counter) and People\FilterChips, so the three never diverge.
      *
      * @param  array<string, mixed>  $filters
      */

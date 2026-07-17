@@ -16,13 +16,13 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\View\Component;
 
 /**
- * Lista das integrações em que a solução participa (detalhe da solução) —
- * renderizada à esquerda da seção F3 (nome + resumo da cadeia + status), com
- * form de criação (nome opcional) e ação de excluir; renomear/mudar status
- * de uma já existente é feito pelo lápis da topbar do data-viz à direita
- * (`integration-viz.js`), não por aqui. Selecionar uma linha alimenta a
- * visualização gráfica à direita (via `integration-select.js`). É slot
- * atualizável para refletir na hora as integrações criadas/editadas/excluídas.
+ * List of integrations the solution participates in (solution detail) —
+ * rendered on the left of the F3 section (name + chain summary + status), with
+ * a creation form (optional name) and a delete action; renaming/changing the
+ * status of an existing one is done via the pencil in the data-viz topbar on
+ * the right (`integration-viz.js`), not here. Selecting a row feeds the
+ * graphical visualization on the right (via `integration-select.js`). It's an
+ * updatable slot to instantly reflect integrations created/edited/deleted.
  */
 class IntegrationsMap extends Component
 {
@@ -46,17 +46,17 @@ class IntegrationsMap extends Component
         return view('components.solutions.integrations-map', [
             'domId'    => self::DOM_ID,
             'solution' => $this->solution,
-            // Lista completa para o seletor de título de nó no data-viz (mesma
-            // fonte do form de cadeia completo) — uma query por render do
-            // componente, não por nó/linha.
+            // Full list for the node title selector in the data-viz (same
+            // source as the full chain form) — one query per component
+            // render, not per node/row.
             'solutionsList' => Solution::orderBy('name')->get(['id', 'name']),
-            // Idem para o seletor de protocolo de uma aresta — enum fixo, sem
-            // query, mas resolvido aqui (não hardcoded no JS) pra nunca
-            // divergir de `App\Enums\Protocol`.
+            // Same for the protocol selector of an edge — fixed enum, no
+            // query, but resolved here (not hardcoded in JS) so it never
+            // diverges from `App\Enums\Protocol`.
             'protocolsList' => collect(Protocol::cases())->map(fn (Protocol $p) => ['value' => $p->value, 'label' => $p->label()])->values(),
-            // Idem para o select de status do editor de nome/status (lápis da
-            // topbar do data-viz) — enum fixo, resolvido aqui pra nunca
-            // divergir de `App\Enums\IntegrationStatus`.
+            // Same for the status select in the name/status editor (data-viz
+            // topbar pencil) — fixed enum, resolved here so it never
+            // diverges from `App\Enums\IntegrationStatus`.
             'statusesList' => collect(IntegrationStatus::cases())->map(fn (IntegrationStatus $s) => ['value' => $s->value, 'label' => $s->label()])->values(),
             'rows'         => $integrations->map(fn (Integration $integration) => [
                 'integration' => $integration,
@@ -67,25 +67,25 @@ class IntegrationsMap extends Component
     }
 
     /**
-     * Grafo resolvido consumido pela visualização à direita (`integration-viz.js`):
-     * rótulos de nó já resolvidos (nome da solução ou texto livre), link para
-     * o detalhe da solução (quando o nó referencia uma), comentário salvo
-     * (`viz_layout.comments`, por índice do nó), setas por segmento
-     * (`->`/`<-`/`<->`) e o protocolo de cada passo já traduzido para o
-     * rótulo humano. É a mesma cadeia (fonte de verdade), só que pronta para
-     * desenhar — nada de topologia nova é derivado aqui.
+     * Resolved graph consumed by the visualization on the right (`integration-viz.js`):
+     * already-resolved node labels (solution name or free text), link to
+     * the solution detail page (when the node references one), saved comment
+     * (`viz_layout.comments`, by node index), arrows per segment
+     * (`->`/`<-`/`<->`) and the protocol of each step already translated to the
+     * human-readable label. It's the same chain (source of truth), just ready
+     * to draw — no new topology is derived here.
      *
-     * Nós que referenciam uma Solução também carregam `logo` (URL pública,
-     * para o avatar do bloco — sem logo, o JS desenha a inicial do nome) e
-     * `environment`/`cloud` (rótulo + SVG do ícone, quando a opção tem um
-     * configurado em "Gerenciar atributos") — exibidos discretamente em cima
-     * do bloco. O SVG já vem renderizado do lado do servidor porque
-     * `integration-viz.js` desenha os nós via DOM puro, sem componentes Blade.
+     * Nodes that reference a Solution also carry `logo` (public URL,
+     * for the block's avatar — without a logo, the JS draws the name's
+     * initial) and `environment`/`cloud` (label + icon SVG, when the option has
+     * one configured in "Gerenciar atributos") — shown discreetly on top
+     * of the block. The SVG already comes rendered server-side because
+     * `integration-viz.js` draws the nodes via plain DOM, without Blade components.
      *
-     * `edges[i]` traz `from`/`to` (índices em `nodes`) — não mais posições
-     * consecutivas — porque o data-viz permite religar a ponta de qualquer
-     * ligação pra qualquer bloco (`retargetEdge()`/`edgeRetargetUrl` abaixo),
-     * tornando a chain um grafo livre, não uma linha reta.
+     * `edges[i]` carries `from`/`to` (indices into `nodes`) — no longer
+     * consecutive positions — because the data-viz allows reconnecting the
+     * end of any link to any block (`retargetEdge()`/`edgeRetargetUrl` below),
+     * making the chain a free graph, not a straight line.
      *
      * @param  Collection<int, Solution>  $solutions
      * @return array{nodes: array<int, array{label: string, solution: bool, solutionId: int|null, url: string|null, comment: string|null, logo: string|null, environment: array{label: string, icon: string|null}|null, cloud: array{label: string, icon: string|null}|null}>, edges: array<int, array{from: int, to: int, arrow: string, protocol: array{value: string, label: string}|null}>}|null
@@ -97,11 +97,11 @@ class IntegrationsMap extends Component
             return null;
         }
 
-        // Comentários por nó (só existem quando o layout foi salvo com eles) —
-        // indexados pela posição do nó na chain, mesma convenção posicional
-        // já usada por `viz_layout.nodes`/`edges`. Sem uma chave de identidade
-        // estável por nó (id/slug), reordenar a chain deixa comentários
-        // "grudados" na posição errada — ver nota no PR.
+        // Comments per node (only exist when the layout was saved with them) —
+        // indexed by the node's position in the chain, the same positional
+        // convention already used by `viz_layout.nodes`/`edges`. Without a stable
+        // identity key per node (id/slug), reordering the chain leaves comments
+        // "stuck" at the wrong position — see note in the PR.
         $comments = $integration->viz_layout['comments'] ?? [];
 
         return [
@@ -118,45 +118,45 @@ class IntegrationsMap extends Component
                 ])
                 ->values()
                 ->all(),
-            // Layout visual salvo (posições dos blocos + âncoras das pontas) +
-            // fiação do botão salvar (só quando o usuário pode editar).
+            // Saved visual layout (block positions + link endpoint anchors) +
+            // wiring for the save button (only when the user can edit).
             'layout'   => $integration->viz_layout,
             'editable' => Gate::allows('update', $integration),
             'saveUrl'  => route('solutions.integrations.layout.save', [$this->solution, $integration]),
-            // Status bruto (não o label) — pré-seleciona o select do editor
-            // de nome/status (lápis da topbar); PATCH vai para o mesmo
-            // `SolutionIntegrationController::update()` do form de criação.
+            // Raw status (not the label) — pre-selects the select in the
+            // name/status editor (topbar pencil); PATCH goes to the same
+            // `SolutionIntegrationController::update()` as the creation form.
             'status'        => $integration->status->value,
             'metaUpdateUrl' => route('solutions.integrations.update', [$this->solution, $integration]),
-            // Placeholders de índice ("NODE_INDEX"/"EDGE_INDEX") substituídos
-            // no JS (integration-viz.js) antes do PATCH/POST pontual — o nó
-            // raiz (índice 0) é bloqueado no controller, nunca no cliente;
-            // toda ligação (edge) é editável e religável.
+            // Index placeholders ("NODE_INDEX"/"EDGE_INDEX") substituted
+            // in the JS (integration-viz.js) before the specific PATCH/POST — the
+            // root node (index 0) is locked in the controller, never on the client;
+            // every link (edge) is editable and reconnectable.
             'nodeUpdateUrl' => route('solutions.integrations.chain.node.update', [$this->solution, $integration, 'NODE_INDEX']),
-            // PATCH que atualiza protocolo e/ou sentido (arrow) de uma ligação já existente.
+            // PATCH that updates the protocol and/or direction (arrow) of an existing link.
             'edgeUpdateUrl' => route('solutions.integrations.chain.protocol.update', [$this->solution, $integration, 'EDGE_INDEX']),
-            // POST do painel "Adicionar bloco" — sempre acrescenta ao final da
-            // cadeia (ou nasce isolado, se o painel não escolher uma seta); o
-            // usuário pode religar essa (ou qualquer outra) ligação depois,
-            // arrastando a ponta da seta (ver `edgeRetargetUrl`).
+            // POST from the "Adicionar bloco" panel — always appends to the end
+            // of the chain (or is born isolated, if the panel doesn't choose an
+            // arrow); the user can reconnect this (or any other) link later,
+            // by dragging the arrow's endpoint (see `edgeRetargetUrl`).
             'nodeAddUrl' => route('solutions.integrations.chain.node.add', [$this->solution, $integration]),
-            // PATCH que religa a ponta de uma ligação pra outro bloco —
-            // arrastar o handle da seta até um nó diferente do atual.
+            // PATCH that reconnects the endpoint of a link to another block —
+            // dragging the arrow's handle to a node different from the current one.
             'edgeRetargetUrl' => route('solutions.integrations.chain.edge.retarget', [$this->solution, $integration, 'EDGE_INDEX']),
-            // POST que cria uma ligação nova entre dois blocos já existentes — "modo ligar".
+            // POST that creates a new link between two existing blocks — "link mode".
             'edgeAddUrl' => route('solutions.integrations.chain.edge.add', [$this->solution, $integration]),
-            // DELETE que remove uma ligação existente, sem remover os nós — é o que permite deixar um bloco sem interligação.
+            // DELETE that removes an existing link, without removing the nodes — this is what allows leaving a block without any connection.
             'edgeRemoveUrl' => route('solutions.integrations.chain.edge.remove', [$this->solution, $integration, 'EDGE_INDEX']),
         ];
     }
 
     /**
-     * Resolve o valor bruto do protocolo de uma ligação (`chain.edges[i].protocol`)
-     * para o formato `{value,label}` consumido pelo data-viz — usado tanto ao montar
-     * o grafo inteiro (acima) quanto pelo endpoint de edição pontual de
-     * protocolo (`SolutionIntegrationController::updateProtocol()`), pelo
-     * mesmo motivo de `resolveNode()`: as duas rotas nunca podem divergir no
-     * formato do campo resolvido.
+     * Resolves the raw protocol value of a link (`chain.edges[i].protocol`)
+     * into the `{value,label}` format consumed by the data-viz — used both when
+     * building the entire graph (above) and by the endpoint for single-field
+     * protocol editing (`SolutionIntegrationController::updateProtocol()`), for
+     * the same reason as `resolveNode()`: the two routes must never diverge in
+     * the resolved field's format.
      */
     public static function resolveProtocol(?string $protocol): ?array
     {
@@ -168,10 +168,10 @@ class IntegrationsMap extends Component
     }
 
     /**
-     * Resolve um nó da chain para o formato consumido pelo data-viz. Usado
-     * tanto ao montar o grafo inteiro (acima) quanto pelo endpoint de edição
-     * pontual de título de um nó (`SolutionIntegrationController::updateNode()`),
-     * para as duas rotas nunca divergirem no formato dos campos resolvidos.
+     * Resolves a chain node into the format consumed by the data-viz. Used
+     * both when building the entire graph (above) and by the endpoint for
+     * single-field title editing of a node (`SolutionIntegrationController::updateNode()`),
+     * so the two routes never diverge in the format of the resolved fields.
      *
      * @param  array{solution_id?: int|null, label?: string|null}  $node
      * @param  Collection<int, Solution>  $solutions
@@ -194,11 +194,11 @@ class IntegrationsMap extends Component
     }
 
     /**
-     * Rótulo + SVG (outline) de um atributo de Solução, ou null se a solução
-     * não tiver esse atributo definido. Sem classe Tailwind no SVG — o
-     * dimensionamento é feito pelo CSS escopado do bloco
-     * (`.ak-viz-node-attr-icon svg`), já que este HTML nunca passa pelo
-     * scanner do Tailwind (é montado em JS a partir do JSON do grafo).
+     * Label + SVG (outline) of a Solution attribute, or null if the solution
+     * doesn't have that attribute set. No Tailwind class on the SVG — the
+     * sizing is handled by the block's scoped CSS
+     * (`.ak-viz-node-attr-icon svg`), since this HTML never passes through the
+     * Tailwind scanner (it's built in JS from the graph's JSON).
      */
     private static function attributeBadge(?string $label, ?string $icon): ?array
     {
@@ -210,11 +210,11 @@ class IntegrationsMap extends Component
     }
 
     /**
-     * Integrações em que a solução participa — mesmo recorte do pivot usado
-     * pela modal de gerenciamento (`SolutionIntegrationController::panel()`).
-     * `unique('id')` cobre o caso de a própria solução participar duas vezes
-     * da mesma integração (ida e volta), que devolveria a integração
-     * duplicada pelo join do pivot.
+     * Integrations the solution participates in — same pivot subset used
+     * by the management modal (`SolutionIntegrationController::panel()`).
+     * `unique('id')` covers the case where the solution itself participates
+     * twice in the same integration (round trip), which would return the
+     * integration duplicated by the pivot join.
      *
      * @return Collection<int, Integration>
      */

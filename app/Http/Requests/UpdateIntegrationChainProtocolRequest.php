@@ -9,13 +9,13 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Enum;
 
 /**
- * Atualiza o protocolo e/ou o sentido (`arrow`) de um único passo (segmento/
- * aresta) já existente na chain — editado no lugar a partir do editor
- * ancorado à pill de protocolo no data-viz F3, sem reenviar a cadeia inteira.
- * Ao contrário do nó raiz, não há segmento protegido: toda aresta pode ter
- * seu protocolo (nullable) e seu sentido editados livremente. `arrow` é
- * `sometimes` — o painel sempre o envia junto do protocolo, mas mantém
- * compatível uma chamada que só queira atualizar o protocolo.
+ * Updates the protocol and/or direction (`arrow`) of a single step (segment/
+ * edge) already present in the chain — edited in place from the editor
+ * anchored to the protocol pill in data-viz F3, without resending the whole
+ * chain. Unlike the root node, there is no protected segment: every edge can
+ * have its protocol (nullable) and direction freely edited. `arrow` is
+ * `sometimes` — the panel always sends it together with the protocol, but
+ * this keeps it compatible with a call that only wants to update the protocol.
  */
 class UpdateIntegrationChainProtocolRequest extends FormRequest
 {
@@ -38,7 +38,7 @@ class UpdateIntegrationChainProtocolRequest extends FormRequest
         ];
     }
 
-    /** Esvazia o sentinel "" do select ("Protocolo…") para null. */
+    /** Empties the select's "" sentinel ("Protocol…") to null. */
     protected function prepareForValidation(): void
     {
         $this->merge([

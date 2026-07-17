@@ -50,6 +50,6 @@ it('includes Digibee as a common participant across the portfolio, never as the 
 it('exposes a 3+ system integration in each participant via integration_solution', function () {
     $sap = Solution::where('slug', 'sap-s-4hana')->firstOrFail();
 
-    // A cadeia VPR (6 participantes) aparece entre as integrações do SAP.
+    // The VPR chain (6 participants) shows up among SAP's integrations.
     expect($sap->integrations()->pluck('slug'))->toContain('toll-voucher-vpr');
 });

@@ -5,9 +5,9 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Linha única (F9, Apêndice B) para a última tentativa de geração da
- * pipeline de health-check — não pertence a uma integração específica, por
- * isso não reaproveita as colunas `flowspec_*` de `integrations` (F8).
+ * Single row (F9, Appendix B) for the latest health-check pipeline
+ * generation attempt — doesn't belong to a specific integration, so it
+ * doesn't reuse the `flowspec_*` columns from `integrations` (F8).
  */
 return new class extends Migration
 {

@@ -14,7 +14,7 @@ class BackgroundPhoto
     public static function all(): array
     {
         return [
-            // Natureza
+            // Nature
             ['id' => 'mountains',      'photo_id' => '1464822759023-fed622ff2c3b', 'label' => 'Montanhas'],
             ['id' => 'forest',         'photo_id' => '1513836279014-a89f7a76ae86', 'label' => 'Floresta'],
             ['id' => 'ocean',          'photo_id' => '1505118380757-91f5f5632de0', 'label' => 'Oceano'],
@@ -26,7 +26,7 @@ class BackgroundPhoto
             ['id' => 'canyon',         'photo_id' => '1474044159687-1ee9f3a51722', 'label' => 'Cânion'],
             ['id' => 'lake',           'photo_id' => '1507525428034-b723cf961d3e', 'label' => 'Praia'],
 
-            // Cozy / Trabalho
+            // Cozy / Work
             ['id' => 'coffee-desk',    'photo_id' => '1495474472287-4d71bcdd2085', 'label' => 'Café & Trabalho'],
             ['id' => 'office-plants',  'photo_id' => '1524758631624-e2822e304c36', 'label' => 'Escritório Verde'],
             ['id' => 'rainy-window',   'photo_id' => '1441974231531-c6227db76b6e', 'label' => 'Janela com Chuva'],

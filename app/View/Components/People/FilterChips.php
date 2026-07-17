@@ -9,9 +9,9 @@ use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 /**
- * Chips dos filtros ativos do catálogo de pessoas, cada um removível
- * individualmente. Slot próprio (não faz parte da lista) para atualizar
- * junto a cada filtro/busca.
+ * Chips for the active filters in the people catalog, each individually
+ * removable. Own slot (not part of the list) to update alongside each
+ * filter/search.
  */
 class FilterChips extends Component
 {

@@ -1,23 +1,24 @@
 import * as ajaxModule from './ajax.js'
 
 /**
- * "Assiste IA" da documentação.
+ * "AI Assist" for documentation.
  *
- * Ao clicar em "Gerar rascunho" (no side-panel), coleta o prompt, os documentos
- * de contexto marcados e o Markdown ATUAL do editor (window.__akDocsGetMarkdown),
- * dispara a geração (job assíncrono) e fecha o painel. Enquanto o job roda, faz
- * polling na URL de status; ao concluir, carrega o Markdown gerado no editor
- * (window.__akDocsSetMarkdown) para revisão — nada é salvo automaticamente.
- * Desiste após MAX_POLL_ATTEMPTS com um Toast, em vez de tentar pra sempre.
+ * On clicking "Generate draft" (in the side-panel), collects the prompt, the
+ * checked context documents and the editor's CURRENT Markdown
+ * (window.__akDocsGetMarkdown), fires off the generation (async job) and
+ * closes the panel. While the job runs, polls the status URL; once done,
+ * loads the generated Markdown into the editor (window.__akDocsSetMarkdown)
+ * for review — nothing is saved automatically. Gives up after
+ * MAX_POLL_ATTEMPTS with a Toast, instead of trying forever.
  */
 
 const POLL_INTERVAL = 2500
-const MAX_POLL_ATTEMPTS = 240 // ~10min a 2.5s/tick
+const MAX_POLL_ATTEMPTS = 240 // ~10min at 2.5s/tick
 let timer = null
 let attempts = 0
-// Markdown do editor no momento do submit — o rascunho é gerado a partir dele.
-// Se o editor mudar durante a geração (o painel fecha e o editor fica editável),
-// carregar o rascunho apagaria essas edições, então confirmamos antes.
+// Editor's Markdown at the moment of submit — the draft is generated from it.
+// If the editor changes during generation (the panel closes and the editor
+// stays editable), loading the draft would wipe those edits, so we confirm first.
 let submittedSnapshot = ''
 
 document.addEventListener('click', (e) => {
@@ -57,7 +58,7 @@ async function generate(btn) {
             try {
                 message = (await error.response.json()).message ?? message
             } catch (_) {
-                // mantém a mensagem padrão
+                // keep the default message
             }
         }
         Toast.open({content: message, title: 'Atenção', type: 'warning'})
@@ -104,9 +105,10 @@ async function poll(pollUrl) {
         }
 
         if (window.__akDocsSetMarkdown) {
-            // O editor ficou editável durante a geração. Se o conteúdo atual
-            // divergir do snapshot do submit, o usuário editou nesse meio-tempo —
-            // carregar o rascunho apagaria essas edições, então confirmamos.
+            // The editor stayed editable during generation. If the current
+            // content diverges from the submit snapshot, the user edited it
+            // in the meantime — loading the draft would wipe those edits, so
+            // we confirm first.
             const current = window.__akDocsGetMarkdown ? await window.__akDocsGetMarkdown() : submittedSnapshot
             if (current.trim() !== submittedSnapshot.trim()) {
                 const replace = window.confirm(
@@ -122,7 +124,7 @@ async function poll(pollUrl) {
         }
         Toast.show('Rascunho gerado — revise e salve.')
     } catch (error) {
-        // falha transitória — o próximo tick tenta de novo, até MAX_POLL_ATTEMPTS
+        // transient failure — the next tick retries, up to MAX_POLL_ATTEMPTS
     }
 }
 
@@ -153,5 +155,5 @@ function setButtonLoading(button, loading) {
     }
 }
 
-// Delegação pura no nível do módulo — init() é no-op (mantém a interface de globalModules).
+// Pure delegation at module level — init() is a no-op (keeps the globalModules interface).
 export function init() {}

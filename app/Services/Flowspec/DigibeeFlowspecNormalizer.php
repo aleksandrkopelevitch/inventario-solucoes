@@ -6,12 +6,12 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 
 /**
- * Auto-fix barato dos erros mais comuns da IA antes do validador rodar:
- * UUIDs de step malformados/duplicados são regenerados (propagando para
- * `meta`, chaves de branch `<id>-on*Track` e `params.onProcess/onException`),
- * referências `{{ alias. }}` cruas ganham o prefixo `step.` quando o alias
- * existe, e steps de canvas sem `meta.position` recebem posição de grade.
- * O que não dá para corrigir com segurança fica para o validador apontar.
+ * Cheap auto-fix for the AI's most common mistakes before the validator runs:
+ * malformed/duplicated step UUIDs are regenerated (propagating to `meta`,
+ * `<id>-on*Track` branch keys and `params.onProcess/onException`), raw
+ * `{{ alias. }}` references get the `step.` prefix when the alias exists,
+ * and canvas steps without `meta.position` get a grid position. Whatever
+ * can't be safely fixed is left for the validator to flag.
  */
 class DigibeeFlowspecNormalizer
 {
@@ -110,8 +110,8 @@ class DigibeeFlowspecNormalizer
     }
 
     /**
-     * `{{ jslt-3.token }}` -> `{{ step.jslt-3.token }}` quando `jslt-3` é um
-     * `doubleBracesAlias` existente — o erro mais comum do modelo.
+     * `{{ jslt-3.token }}` -> `{{ step.jslt-3.token }}` when `jslt-3` is an
+     * existing `doubleBracesAlias` — the model's most common mistake.
      *
      * @param  array<string, mixed>  $document
      * @param  list<string>  $fixes
@@ -142,8 +142,8 @@ class DigibeeFlowspecNormalizer
     }
 
     /**
-     * Steps de canvas (fora de tracks de for-each) sem posição ganham uma
-     * grade simples: colunas de 200px por step, linhas de 150px por branch.
+     * Canvas steps (outside for-each tracks) without a position get a simple
+     * grid: 200px columns per step, 150px rows per branch.
      *
      * @param  array<string, mixed>  $document
      * @param  list<string>  $fixes
@@ -179,7 +179,7 @@ class DigibeeFlowspecNormalizer
         return $document;
     }
 
-    /** Aplica $callback a todo valor string do documento, recursivamente. */
+    /** Applies $callback to every string value in the document, recursively. */
     private function mapStrings(mixed $value, callable $callback): mixed
     {
         if (is_string($value)) {

@@ -8,9 +8,10 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Portfólio conhecido de integrações (secao 14.2). O Excel nao descreve
- * integracoes; este seeder as cria referenciando solucoes por slug, criando
- * solucoes `planned` para participantes ausentes do inventario. Idempotente.
+ * Known portfolio of integrations (section 14.2). The Excel file doesn't
+ * describe integrations; this seeder creates them by referencing solutions
+ * by slug, creating `planned` solutions for participants missing from the
+ * inventory. Idempotent.
  */
 class IntegrationSeeder extends Seeder
 {
@@ -19,7 +20,7 @@ class IntegrationSeeder extends Seeder
     /** @var array<string, int> cache slug => solution id */
     private array $cache = [];
 
-    /** Participantes ausentes do inventário: slug => [name, description]. */
+    /** Participants missing from the inventory: slug => [name, description]. */
     private const PLANNED = [
         'gupy'                => ['Gupy', 'ATS de recrutamento e seleção (participante de integração).'],
         'active-directory'    => ['Active Directory / Entra ID', 'Diretório de identidade corporativa.'],
@@ -31,10 +32,10 @@ class IntegrationSeeder extends Seeder
     ];
 
     /**
-     * Definição do portfólio. participants: [slug, position] — a ordem no
-     * fluxo já basta, não há mais um papel rotulado no pivot. Digibee (iPaaS)
-     * entra em todas — todo tráfego passa por ele, mas é um participante
-     * comum da cadeia.
+     * Portfolio definition. participants: [slug, position] — the order in
+     * the flow is enough on its own, there's no longer a labeled role on the
+     * pivot. Digibee (iPaaS) is in all of them — all traffic passes through
+     * it, but it's a regular chain participant.
      */
     private function portfolio(): array
     {
@@ -128,7 +129,7 @@ class IntegrationSeeder extends Seeder
                 ],
             ],
             [
-                // VPR: cadeia completa SAP -> Digibee -> Mantran -> Repom -> BigQuery -> SAP
+                // VPR: full chain SAP -> Digibee -> Mantran -> Repom -> BigQuery -> SAP
                 'slug'         => 'toll-voucher-vpr', 'name' => 'Toll Voucher (VPR)',
                 'source'       => 'sap-s-4hana', 'target' => 'sap-s-4hana',
                 'direction'    => 'bidirectional', 'protocol' => 'rest', 'sync_mode' => 'batch',

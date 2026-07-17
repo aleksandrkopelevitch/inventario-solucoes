@@ -7,18 +7,18 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * Layout visual da visualização gráfica F3 — posição de cada bloco (por índice
- * do nó da chain), a âncora de cada ponta de seta (por segmento) e o
- * comentário em markdown de cada bloco (também por índice do nó). É só
- * apresentação: não toca na topologia (a `chain` é a fonte de verdade), então
- * nada aqui vira participants/source/target/direction.
+ * Visual layout of the F3 graphical view — each block's position (by chain
+ * node index), each arrow end's anchor (per segment), and each block's
+ * markdown comment (also by node index). It's purely presentational: it
+ * doesn't touch the topology (the `chain` is the source of truth), so
+ * nothing here turns into participants/source/target/direction.
  */
 class SaveIntegrationLayoutRequest extends FormRequest
 {
-    /** Âncoras possíveis: 4 principais + 2 no topo + 2 na base. */
+    /** Possible anchors: 4 main ones + 2 on top + 2 on the bottom. */
     public const ANCHORS = ['l', 'r', 't', 'b', 'tl', 'tr', 'bl', 'br'];
 
-    /** Fontes disponíveis na toolbar contextual de cada bloco. */
+    /** Fonts available in each block's contextual toolbar. */
     public const FONTS = ['sans', 'serif', 'mono'];
 
     public function authorize(): bool

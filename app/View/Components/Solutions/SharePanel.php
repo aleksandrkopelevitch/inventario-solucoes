@@ -8,10 +8,10 @@ use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 /**
- * Painel "Compartilhar" da toolbar da documentação (só na doc da própria
- * Solution, só admin). Gera/revoga o link público ("magic link") da
- * documentação — token opaco em `solutions.public_token`. Gerar e revogar
- * devolvem este slot atualizado (`docs-share-slot`) via `docs-share.js`.
+ * "Compartilhar" panel in the documentation toolbar (only in the Solution's
+ * own docs, admin only). Generates/revokes the documentation's public link
+ * ("magic link") — opaque token in `solutions.public_token`. Generating and
+ * revoking both return this updated slot (`docs-share-slot`) via `docs-share.js`.
  */
 class SharePanel extends Component
 {

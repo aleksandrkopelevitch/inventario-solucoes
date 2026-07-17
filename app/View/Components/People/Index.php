@@ -9,8 +9,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\View\Component;
 
 /**
- * Lista de pessoas (F5), slot atualizável `people-index-slot`. Busca por
- * nome/empresa/sistema e filtros por empresa e por papel.
+ * List of people (F5), updatable slot `people-index-slot`. Search by
+ * name/company/system and filters by company and role.
  */
 class Index extends Component
 {

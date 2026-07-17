@@ -7,10 +7,10 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Cadeia linear da integração definida via formulário (modal no detalhe
-     * da solução): `{"nodes": [{"solution_id": int|null, "label": string|null}],
-     * "arrows": ["->"|"<-", ...]}`. É a fonte de verdade de participants/
-     * source/target/direction — o `diagram` (canvas) passa a ser só visual.
+     * Linear integration chain defined via form (modal in the solution's
+     * detail page): `{"nodes": [{"solution_id": int|null, "label": string|null}],
+     * "arrows": ["->"|"<-", ...]}`. It's the source of truth for participants/
+     * source/target/direction — the `diagram` (canvas) becomes purely visual.
      */
     public function up(): void
     {

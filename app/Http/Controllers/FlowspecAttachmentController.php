@@ -10,9 +10,9 @@ use App\View\Components\Flowspec\Thread;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Anexa o flowSpec de uma mensagem do chat (F8) a uma Integration —
- * `generated_flowspec`, `flowspec_status`, `flowspec_generated_at` — e
- * vincula o chat à integração.
+ * Attaches the flowSpec from a chat message (F8) to an Integration —
+ * `generated_flowspec`, `flowspec_status`, `flowspec_generated_at` — and
+ * links the chat to the integration.
  */
 class FlowspecAttachmentController extends Controller
 {

@@ -11,12 +11,12 @@ use Illuminate\Database\Seeder;
 use RuntimeException;
 
 /**
- * Popula o corpus de exemplos de flowSpec (F8) a partir de
- * `database/data/digibee_flowspec_examples/`: cada entrada do manifesto
- * (`flowspec_examples_manifest.json`) aponta um arquivo `{meta, flowSpec}` e
- * carrega nome/descrição/tags — o corpus cresce adicionando arquivo + entrada
- * no manifesto, sem tocar em código. `connectors` é derivado do flowSpec, e o
- * CredentialScrubber barra qualquer exemplo com segredo literal.
+ * Populates the flowSpec examples corpus (F8) from
+ * `database/data/digibee_flowspec_examples/`: each manifest entry
+ * (`flowspec_examples_manifest.json`) points to a `{meta, flowSpec}` file and
+ * carries name/description/tags — the corpus grows by adding a file + manifest
+ * entry, without touching code. `connectors` is derived from the flowSpec, and
+ * CredentialScrubber blocks any example with a literal secret.
  */
 class FlowspecExampleSeeder extends Seeder
 {
@@ -46,13 +46,13 @@ class FlowspecExampleSeeder extends Seeder
             $unknownTags = array_diff($entry['tags'], FlowspecTag::values());
 
             throw_if($unknownTags !== [], new RuntimeException(
-                "Tags fora do vocabulário FlowspecTag em {$entry['file']}: " . implode(', ', $unknownTags),
+                "Tags outside the FlowspecTag vocabulary in {$entry['file']}: " . implode(', ', $unknownTags),
             ));
 
             $violations = $scrubber->violations($flowSpec);
 
             throw_if($violations !== [], new RuntimeException(
-                "Credencial literal em {$entry['file']}: " . implode(' | ', $violations),
+                "Literal credential in {$entry['file']}: " . implode(' | ', $violations),
             ));
 
             FlowspecExample::updateOrCreate(

@@ -9,7 +9,7 @@
         @endisset
 
         <div class="min-w-0 flex-1">
-            {{-- Barra superior: voltar + salvar (grudenta no topo ao rolar, logo abaixo do header global) --}}
+            {{-- Top bar: back + save (sticky at the top on scroll, right below the global header) --}}
             <div class="sticky top-14 z-10 flex items-center justify-between gap-3 rounded-t-card border-b border-line bg-white px-6 py-3">
                 <span class="text-sm text-ink font-bold">
                     {{ $backLabel }}
@@ -24,7 +24,7 @@
                     @endif
 
                     @if ($canEdit)
-                        {{-- Indicador do "Assiste IA" enquanto o job gera (docs-ai.js o revela). --}}
+                        {{-- "Assiste IA" indicator while the job generates (docs-ai.js reveals it). --}}
                         <span data-ak-docs-ai-status class="hidden items-center gap-1.5 text-xs text-accent" aria-live="polite">
                             <x-heroicon-o-sparkles class="size-4 animate-pulse" />
                             Gerando com IA…
@@ -44,9 +44,9 @@
                         </x-forms.button>
                     @endif
 
-                    {{-- Compartilhar (link público) — só na doc da própria Solution
-                         ($coverageSolution vem só de SolutionDocumentationController)
-                         e só para quem pode editá-la. --}}
+                    {{-- Share (public link) — only on the Solution's own doc
+                         ($coverageSolution only comes from SolutionDocumentationController)
+                         and only for whoever can edit it. --}}
                     @isset($coverageSolution)
                         @can('update', $coverageSolution)
                             <div class="relative">
@@ -65,12 +65,12 @@
 
             <div class="px-8">
                 @if ($canEdit)
-                    {{-- Markdown cru de origem; o editor monta os blocos a partir daqui.
-                         O <textarea> preserva o conteúdo com escape seguro. --}}
+                    {{-- Raw source Markdown; the editor builds the blocks from here.
+                         The <textarea> preserves the content with safe escaping. --}}
                     <textarea data-ak-docs-source hidden>{{ $documentation }}</textarea>
 
-                    {{-- Ponto de montagem do Editor.js (resources/js/modules/docs-editor.js).
-                         As bordas de bloco só aparecem no hover; o menu de blocos abre com "/". --}}
+                    {{-- Editor.js mount point (resources/js/modules/docs-editor.js).
+                         Block borders only appear on hover; the block menu opens with "/". --}}
                     <div class="mt-6 ak-docs-editor" data-ak-docs-editor
                         data-config="{{ json_encode(['uploadUrl' => $uploadUrl]) }}"></div>
 
@@ -81,8 +81,8 @@
                     </p>
                 @else
                     @if (trim($renderedHtml) !== '')
-                        {{-- Markdown cru para o botão "Copiar Markdown" (docs-copy.js) — não há
-                             editor nesta tela read-only, então a fonte é este textarea. --}}
+                        {{-- Raw Markdown for the "Copy Markdown" button (docs-copy.js) — there's no
+                             editor on this read-only screen, so this textarea is the source. --}}
                         <textarea data-ak-docs-markdown hidden>{{ $documentation }}</textarea>
 
                         <div class="html-content mt-6">

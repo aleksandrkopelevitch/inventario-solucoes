@@ -19,7 +19,7 @@ use Illuminate\Support\Str;
 
 class SolutionController extends Controller
 {
-    /** Catálogo (F1). Mesma action HTML/JSON: JSON devolve o slot filtrado. */
+    /** Catalog (F1). Same HTML/JSON action: JSON returns the filtered slot. */
     public function index(Request $request)
     {
         $this->authorize('viewAny', Solution::class);
@@ -44,7 +44,7 @@ class SolutionController extends Controller
         ]);
     }
 
-    /** Detalhe (header — 9.2 itens 1 e 2). Integrações/grafo/cobertura são etapas 3/4/6. */
+    /** Detail (header — 9.2 items 1 and 2). Integrations/graph/coverage are steps 3/4/6. */
     public function show(Request $request, Solution $solution)
     {
         $this->authorize('view', $solution);
@@ -61,7 +61,7 @@ class SolutionController extends Controller
         return view('solutions.show', ['solution' => $solution]);
     }
 
-    /** Busca por nome para o autocomplete dos chips de "Sistemas" no form de Pessoa. */
+    /** Search by name for the "Systems" chips autocomplete in the Person form. */
     public function search(Request $request): JsonResponse
     {
         $this->authorize('viewAny', Solution::class);
@@ -115,10 +115,10 @@ class SolutionController extends Controller
     }
 
     /**
-     * Edição inline de um único atributo (Categoria, Status, Criticidade, …)
-     * diretamente no card do cabeçalho de detalhe (`Solutions\DetailHeader`) —
-     * cada select do card autopersiste no `change`, sem abrir o painel de
-     * edição completo.
+     * Inline editing of a single attribute (Category, Status, Criticality, …)
+     * directly in the detail header card (`Solutions\DetailHeader`) — each
+     * select in the card auto-persists on `change`, without opening the full
+     * edit panel.
      */
     public function updateAttributes(UpdateSolutionAttributesRequest $request, Solution $solution): JsonResponse
     {
@@ -132,10 +132,10 @@ class SolutionController extends Controller
     }
 
     /**
-     * Conteúdo do side panel (form de criação/edição). `$filters` são os
-     * filtros ativos na página de listagem que abriu o painel — repassados
-     * pela URL para a action do form, e daí de volta para `saved()`, para
-     * que o slot atualizado após salvar preserve os filtros em vigor.
+     * Side panel content (create/edit form). `$filters` are the filters
+     * active on the listing page that opened the panel — carried through
+     * the URL to the form's action, and from there back to `saved()`, so
+     * the slot updated after saving preserves the filters in effect.
      */
     private function panel(Solution $solution, array $filters = []): JsonResponse
     {
@@ -165,8 +165,8 @@ class SolutionController extends Controller
             ? $data['slug']
             : ($solution?->slug ?? $this->uniqueSlug($data['name'], $solution));
 
-        // Colunas NOT NULL sem default: mantém o valor enviado, senão o atual (edição), senão um
-        // default fixo — precisa sempre existir como opção seedada em `attribute_options`.
+        // NOT NULL columns with no default: keep the submitted value, else the current one (editing), else a
+        // fixed default — must always exist as a seeded option in `attribute_options`.
         $data['support_type'] = $data['support_type'] ?? $solution?->support_type ?? 'third_party';
         $data['contract_status'] = $data['contract_status'] ?? $solution?->contract_status ?? 'unknown';
 
@@ -178,11 +178,10 @@ class SolutionController extends Controller
     }
 
     /**
-     * Devolve o slot da listagem sempre e, quando a mutação partiu do
-     * detalhe de uma solução existente, também o slot do cabeçalho — o
-     * `ajax-slot.js` ignora silenciosamente o que não estiver na página
-     * atual, então é seguro mandar os dois independentemente de onde o
-     * painel foi aberto.
+     * Always returns the listing slot and, when the mutation originated
+     * from an existing solution's detail page, also the header slot — the
+     * `ajax-slot.js` silently ignores whatever isn't on the current page,
+     * so it's safe to send both regardless of where the panel was opened.
      */
     private function saved(string $message, ?Solution $solution = null, array $filters = []): JsonResponse
     {

@@ -3,14 +3,14 @@
 namespace App\Services\Flowspec;
 
 /**
- * Leitura estruturada de um documento `{meta, flowSpec}` do Digibee.
+ * Structured reading of a Digibee `{meta, flowSpec}` document.
  *
- * `flowSpec` é um mapa branch => lista ordenada de steps: o branch de entrada
- * é `disconnected-root:<uuid>`, tracks de for-each terminam em
- * `-onProcessTrack`/`-onExceptionTrack` e os demais branches são alvos de
- * choice (`when[].target`/`otherwise`). `meta` mapeia step id => position
- * {x,y} — steps dentro de tracks de for-each NÃO têm entrada em `meta`
- * (ficam no editor do track, não no canvas).
+ * `flowSpec` is a branch => ordered list of steps map: the entry branch is
+ * `disconnected-root:<uuid>`, for-each tracks end in
+ * `-onProcessTrack`/`-onExceptionTrack` and the remaining branches are choice
+ * targets (`when[].target`/`otherwise`). `meta` maps step id => position
+ * {x,y} — steps inside for-each tracks do NOT have an entry in `meta` (they
+ * live in the track's editor, not on the canvas).
  */
 final class FlowspecDocument
 {
@@ -53,8 +53,8 @@ final class FlowspecDocument
     }
 
     /**
-     * Nomes de connector usados (steps `type: connector`), únicos e ordenados
-     * — é daqui que `flowspec_examples.connectors` é derivado.
+     * Names of connectors used (steps `type: connector`), unique and sorted
+     * — this is where `flowspec_examples.connectors` is derived from.
      *
      * @return list<string>
      */
@@ -94,7 +94,7 @@ final class FlowspecDocument
         return array_keys($this->branches);
     }
 
-    /** Steps em tracks de for-each não aparecem no canvas e dispensam `meta.position`. */
+    /** Steps in for-each tracks don't appear on the canvas and don't need `meta.position`. */
     public static function branchIsForEachTrack(string $branch): bool
     {
         return str_ends_with($branch, '-onProcessTrack') || str_ends_with($branch, '-onExceptionTrack');

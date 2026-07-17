@@ -5,12 +5,11 @@ namespace App\Http\Requests\Concerns;
 use App\Rules\FlowspecDocumentReference;
 
 /**
- * Regras e parsing compartilhados por StoreFlowspecChatRequest e
- * StoreFlowspecMessageRequest para os dois chips pickers do composer:
- * `solutions` (Solutions explícitas — prioridade sobre a inferência por
- * nome) e `documents` (páginas/integrações específicas — quando presentes,
- * o FlowspecContextResolver usa exatamente essas, sem scoring nem corte por
- * orçamento).
+ * Rules and parsing shared by StoreFlowspecChatRequest and
+ * StoreFlowspecMessageRequest for the composer's two chips pickers:
+ * `solutions` (explicit Solutions — takes priority over name-based inference)
+ * and `documents` (specific pages/integrations — when present,
+ * FlowspecContextResolver uses exactly those, with no scoring or budget cutoff).
  */
 trait ParsesFlowspecContextInput
 {

@@ -13,14 +13,14 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Str;
 
 /**
- * Área "Gerenciar atributos" — CRUD dos valores de Categoria, Status,
- * Diretoria, Hospedagem, Cloud, Contrato, Suporte e Criticidade. Só existe
- * dentro da `#main-modal` (nunca uma página própria), acionada de dentro do
- * form de criação/edição de Solução — ver `solutions/form.blade.php`.
+ * "Manage attributes" area — CRUD for Category, Status, Directorate,
+ * Hosting, Cloud, Contract, Support and Criticality option values. Only
+ * exists inside `#main-modal` (never its own page), triggered from within
+ * the Solution create/edit form — see `solutions/form.blade.php`.
  */
 class AttributeOptionController extends Controller
 {
-    /** Conteúdo da Modal: todos os 8 grupos, um por aba (data-ak-tabs). */
+    /** Modal content: all 8 groups, one per tab (data-ak-tabs). */
     public function index(): JsonResponse
     {
         $this->authorize('manage', AttributeOption::class);
@@ -32,7 +32,7 @@ class AttributeOptionController extends Controller
         ]);
     }
 
-    /** Opções de um grupo, para o refresh ao vivo dos <select> do form de Solução (ver modal.js). */
+    /** Options for a group, for the live refresh of the Solution form's <select>s (see modal.js). */
     public function options(AttributeGroup $group): JsonResponse
     {
         $this->authorize('manage', AttributeOption::class);
@@ -91,11 +91,11 @@ class AttributeOptionController extends Controller
     }
 
     /**
-     * Slug único dentro do grupo, gerado a partir do rótulo — o usuário só
-     * digita o texto em português, nunca vê/edita a chave interna. Diretoria
-     * é exceção: `solutions.directorate` já guarda o texto cru (sem slug)
-     * para os ~40 valores existentes, então novos valores seguem o mesmo
-     * formato para não misturar convenções dentro do mesmo grupo.
+     * Unique slug within the group, generated from the label — the user only
+     * types the (Portuguese) text, never sees/edits the internal key.
+     * Directorate is the exception: `solutions.directorate` already stores
+     * the raw text (no slug) for the ~40 existing values, so new values
+     * follow the same format to avoid mixing conventions within the group.
      */
     private function uniqueValue(AttributeGroup $group, string $label): string
     {

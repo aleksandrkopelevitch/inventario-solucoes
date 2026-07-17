@@ -8,11 +8,11 @@ use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 /**
- * Cabeçalho do detalhe da empresa (briefing 9.6). Extraído como componente
- * próprio para que editar a empresa a partir da sua própria página de
- * detalhe (via side panel) também atualize o que está na tela.
+ * Company detail header (briefing 9.6). Extracted as its own component so
+ * that editing the company from its own detail page (via side panel) also
+ * updates what's on screen.
  *
- * Renderável como slot atualizável: `DetailHeader::slot($company)`.
+ * Renderable as an updatable slot: `DetailHeader::slot($company)`.
  */
 class DetailHeader extends Component
 {

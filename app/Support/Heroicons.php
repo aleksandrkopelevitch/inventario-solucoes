@@ -7,15 +7,14 @@ use BladeUI\Icons\Factory;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * Ponte fina para o `blade-ui-kit/blade-heroicons` fora de um contexto Blade
- * — usada para embutir o SVG (outline) de um ícone escolhido dentro de
- * payloads consumidos por JS (ex.: `data-integration-graph`, lido por
- * `integration-viz.js`; o picker de ícones dos callouts da documentação),
- * onde `<x-heroicon-o-*>` não se aplica.
+ * Thin bridge to `blade-ui-kit/blade-heroicons` outside a Blade context —
+ * used to embed the (outline) SVG of a chosen icon inside payloads consumed
+ * by JS (e.g. `data-integration-graph`, read by `integration-viz.js`; the
+ * documentation callouts' icon picker), where `<x-heroicon-o-*>` doesn't apply.
  */
 class Heroicons
 {
-    /** SVG (outline) renderizado, ou null se `$name` estiver vazio ou não existir. */
+    /** Rendered (outline) SVG, or null if `$name` is empty or doesn't exist. */
     public static function outlineSvg(?string $name, string $class = ''): ?string
     {
         if (! $name) {
@@ -35,9 +34,10 @@ class Heroicons
     }
 
     /**
-     * Todos os ícones outline do set, como `[{name, svg}]` — fonte do picker de
-     * ícones dos callouts. O conjunto é estático (vem do pacote), então fica em
-     * cache permanente; a versão no nome da chave permite invalidar num upgrade.
+     * All outline icons in the set, as `[{name, svg}]` — source for the
+     * callouts' icon picker. The set is static (comes from the package), so
+     * it's cached permanently; the version in the cache key name allows
+     * invalidating it on an upgrade.
      *
      * @return array<int, array{name: string, svg: string}>
      */
@@ -47,7 +47,7 @@ class Heroicons
             $dir = base_path('vendor/blade-ui-kit/blade-heroicons/resources/svg');
 
             return collect(glob($dir . '/o-*.svg') ?: [])
-                ->map(fn (string $path): string => substr(basename($path, '.svg'), 2)) // tira o prefixo "o-"
+                ->map(fn (string $path): string => substr(basename($path, '.svg'), 2)) // strips the "o-" prefix
                 ->sort()
                 ->map(fn (string $name): array => ['name' => $name, 'svg' => self::outlineSvg($name)])
                 ->filter(fn (array $icon): bool => $icon['svg'] !== null)

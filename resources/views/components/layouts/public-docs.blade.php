@@ -18,7 +18,7 @@
 </head>
 <body class="min-h-screen bg-white text-body font-sans text-[14.5px] antialiased">
 
-    {{-- Barra do topo: marca Leo + nome da solução --}}
+    {{-- Top bar: Leo brand + solution name --}}
     <header class="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-white/90 px-4 py-3 backdrop-blur sm:px-6">
         <span class="flex size-8 shrink-0 items-center justify-center rounded-field bg-sidebar font-display text-sm font-bold text-white">L</span>
         <div class="min-w-0">
@@ -29,7 +29,7 @@
 
     <div class="mx-auto grid w-full max-w-6xl grid-cols-1 gap-8 px-4 py-6 md:grid-cols-[260px_1fr] md:px-6 md:py-10">
 
-        {{-- Índice lateral: todas as documentações desta solução --}}
+        {{-- Side index: all documentation pages for this solution --}}
         @if ($nav)
             <aside class="md:sticky md:top-[4.5rem] md:h-max">
                 <p class="px-2 pb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-muted">Nesta solução</p>
@@ -51,13 +51,13 @@
             </aside>
         @endif
 
-        {{-- Conteúdo --}}
+        {{-- Content --}}
         <main class="min-w-0">
             {{ $slot }}
         </main>
     </div>
 
-    {{-- Toast — mesmo shell do layout principal (Toast.show do "Copiar Markdown"). --}}
+    {{-- Toast — same shell as the main layout (Toast.show for "Copy Markdown"). --}}
     <div id="toast-container" class="fixed right-4 top-4 z-50 flex w-80 flex-col gap-2">
         <div id="toast-template" class="hidden rounded-card border border-line bg-surface p-4 opacity-0 shadow-lg transition-all duration-200">
             <div class="flex items-start gap-3">

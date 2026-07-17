@@ -1,6 +1,6 @@
 @php
-    // Classes do selo de status (documentado vs pendente), reaproveitadas em
-    // solução e integração — mesmo par usado no índice de docs relacionadas.
+    // Status badge classes (documented vs. pending), reused for both
+    // solution and integration — same pair used in the related-docs index.
     $badge = fn (bool $hasDocs) => [
         'inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
         'bg-accent-soft text-accent' => $hasDocs,
@@ -18,7 +18,7 @@
             @foreach ($groups as $group)
                 @php ($solution = $group['solution'])
                 <div class="rounded-card border border-line bg-surface shadow-[0_1px_3px_rgba(20,58,34,0.04)]">
-                    {{-- Cabeçalho do grupo: a solução --}}
+                    {{-- Group header: the solution --}}
                     <div class="flex items-center justify-between gap-3 px-4 py-3">
                         <div class="flex min-w-0 items-center gap-2.5">
                             <a href="{{ $solution['showUrl'] }}" class="truncate font-display text-[15px] font-semibold text-ink no-underline hover:text-accent">
@@ -37,7 +37,7 @@
                         </a>
                     </div>
 
-                    {{-- Integrações da solução --}}
+                    {{-- Solution's integrations --}}
                     @if ($group['integrations']->isNotEmpty())
                         <ul class="divide-y divide-line border-t border-line">
                             @foreach ($group['integrations'] as $integration)

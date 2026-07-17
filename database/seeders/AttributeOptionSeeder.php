@@ -6,10 +6,10 @@ use App\Models\AttributeOption;
 use Illuminate\Database\Seeder;
 
 /**
- * Popula `attribute_options` — os valores/rótulos dos 8 atributos hoje
- * gerenciáveis via a área "Gerenciar atributos" (antes, 7 deles eram `enum`s
- * PHP fixos; ver histórico em `app/Enums/{Category,SolutionStatus,...}.php`
- * antes de removidos). Idempotente: `updateOrCreate` por `[group, value]`.
+ * Populates `attribute_options` — the values/labels for the 8 attributes now
+ * manageable via the "Manage attributes" area (previously, 7 of them were
+ * fixed PHP `enum`s; see history in `app/Enums/{Category,SolutionStatus,...}.php`
+ * before they were removed). Idempotent: `updateOrCreate` by `[group, value]`.
  */
 class AttributeOptionSeeder extends Seeder
 {
@@ -42,9 +42,9 @@ class AttributeOptionSeeder extends Seeder
             'deprecated' => 'Descontinuado',
             'planned'    => 'Planejado',
         ],
-        // `environment`/`cloud` são os únicos grupos com ícone (heroicons
-        // outline) — ver `AttributeGroup::supportsIcon()` — por isso vêm como
-        // ['label', 'icon'] em vez de string simples.
+        // `environment`/`cloud` are the only groups with an icon (heroicons
+        // outline) — see `AttributeGroup::supportsIcon()` — that's why they
+        // come as ['label', 'icon'] instead of a plain string.
         'environment' => [
             'saas'          => ['label' => 'SaaS', 'icon' => 'cloud'],
             'saas_internal' => ['label' => 'SaaS interno', 'icon' => 'server-stack'],
@@ -90,14 +90,14 @@ class AttributeOptionSeeder extends Seeder
     }
 
     /**
-     * Deriva as opções de Diretoria diretamente do inventário (mesma fonte
-     * do `SolutionSeeder`), preservando os valores existentes tal como
-     * estão hoje — inclusive combinados como "Digital / Comercial". `value`
-     * é o próprio texto (sem slug): `solutions.directorate` já guarda esse
-     * texto cru hoje, então a opção precisa bater exatamente com ele para
-     * `Rule::exists` continuar validando os registros existentes. Lê o JSON
-     * em vez da tabela `solutions` para não depender da ordem de execução
-     * entre este seeder e o `SolutionSeeder`.
+     * Derives the Directorate options directly from the inventory (same
+     * source as `SolutionSeeder`), preserving the existing values exactly as
+     * they are today — including combined ones like "Digital / Comercial".
+     * `value` is the raw text itself (no slug): `solutions.directorate`
+     * already stores this raw text today, so the option needs to match it
+     * exactly for `Rule::exists` to keep validating existing records. Reads
+     * the JSON instead of the `solutions` table so it doesn't depend on
+     * execution order between this seeder and `SolutionSeeder`.
      */
     private function seedDirectorates(): void
     {

@@ -14,20 +14,20 @@ it('renders the solution header badges with semantic tones instead of a single g
     $solution = Solution::factory()->create(['category' => 'iam', 'criticality' => 'high']);
     AttributeOption::create(['group' => 'category', 'value' => 'iam', 'label' => 'IAM']);
     AttributeOption::create(['group' => 'criticality', 'value' => 'high', 'label' => 'Alta']);
-    Cache::flush(); // AttributeOption::options() é cacheado por grupo
+    Cache::flush(); // AttributeOption::options() is cached per group
 
-    // Componente isolado (via tag, para o ciclo de vida injetar a prop pública
-    // $solution) — assim o HTML é só o header, sem o chrome do layout.
+    // Isolated component (via tag, so the lifecycle injects the public
+    // $solution prop) — this way the HTML is just the header, no layout chrome.
     $html = Blade::render('<x-solutions.detail-header :solution="$solution" />', ['solution' => $solution]);
 
-    // Categoria = bloco verde sólido (âncora); criticidade alta = vermelho;
-    // nenhuma pílula cinza `rounded-full bg-raised`. Guest (sem permissão de
-    // editar) renderiza o <span> de sempre — os tons continuam ali; a versão
-    // editável (<select>) usa as mesmas classes com prefixo `!` (ver
+    // Category = solid green block (anchor); high criticality = red;
+    // no gray `rounded-full bg-raised` pill. Guest (no edit permission)
+    // renders the usual <span> — the tones stay the same; the editable
+    // version (<select>) uses the same classes with a `!` prefix (see
     // Solutions\DetailHeader).
-    expect($html)->toContain('bg-accent text-white')           // categoria âncora
-        ->and($html)->toContain('ring-crit-line')               // criticidade alta = vermelho
-        ->and($html)->not->toContain('rounded-full bg-raised'); // sem pílula cinza
+    expect($html)->toContain('bg-accent text-white')           // category anchor
+        ->and($html)->toContain('ring-crit-line')               // high criticality = red
+        ->and($html)->not->toContain('rounded-full bg-raised'); // no gray pill
 });
 
 it('maps criticality to a semantic tone from the raw value', function () {
@@ -51,7 +51,7 @@ it('highlights the selected integration row with a lime border on a white backgr
 
     $html = (new IntegrationsMap($solution))->render()->render();
 
-    // Selecionada = borda/anel lima sobre fundo branco (sem preenchimento verde).
+    // Selected = lime border/ring on white background (no green fill).
     expect($html)->toContain('aria-pressed:border-lime')
         ->and($html)->toContain('aria-pressed:bg-surface')
         ->and($html)->not->toContain('aria-pressed:bg-accent-soft');
@@ -60,10 +60,10 @@ it('highlights the selected integration row with a lime border on a white backgr
 it('renders diagram nodes in the navy/blue palette with shadow and draggable-anchor styling', function () {
     $html = Blade::render('<x-solutions.integration-viz />');
 
-    expect($html)->toContain('--viz-node: #C9D4F7')  // nós lavanda/azulados (paleta do mapa mental de referência)
-        ->and($html)->toContain('--viz-select: #4A90D9') // anel de seleção azul
-        ->and($html)->toContain('.ak-viz-handle')    // handles arrastáveis das pontas
-        ->and($html)->toContain('.ak-viz-anchor');    // âncoras candidatas (4 + 2 + 2)
+    expect($html)->toContain('--viz-node: #C9D4F7')  // lavender/bluish nodes (reference mind-map palette)
+        ->and($html)->toContain('--viz-select: #4A90D9') // blue selection ring
+        ->and($html)->toContain('.ak-viz-handle')    // draggable endpoint handles
+        ->and($html)->toContain('.ak-viz-anchor');    // candidate anchors (4 + 2 + 2)
 });
 
 it('gives the logo fallback a solid green anchor block (no gray tile)', function () {

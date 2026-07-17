@@ -90,7 +90,7 @@ class ProfileController extends Controller
         ]);
     }
 
-    /** Formulário de edição do perfil (nome/e-mail/avatar) — sempre em Modal, nunca página própria. */
+    /** Profile edit form (name/email/avatar) — always in a Modal, never its own page. */
     public function edit()
     {
         return response()->json([

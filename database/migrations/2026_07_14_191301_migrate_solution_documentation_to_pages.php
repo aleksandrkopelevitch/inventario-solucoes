@@ -8,10 +8,11 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     /**
-     * Cada Solution com `documentation` preenchida vira sua primeira página
-     * ("Visão geral") na nova tabela `documentation_pages` — a mídia embutida
-     * (coleção `docs`, referenciada por /files/{id} no Markdown) é reatribuída
-     * da Solution pra essa página, senão os links quebrariam.
+     * Every Solution with `documentation` filled in becomes its first page
+     * ("Visão geral") in the new `documentation_pages` table — embedded media
+     * (the `docs` collection, referenced via /files/{id} in the Markdown) is
+     * reassigned from the Solution to that page, otherwise the links would
+     * break.
      */
     public function up(): void
     {

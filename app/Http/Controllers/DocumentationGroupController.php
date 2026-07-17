@@ -11,9 +11,9 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Str;
 
 /**
- * CRUD do Grupo ("Aninhamento") em si — a árvore de páginas dentro dele é
- * gerenciada por DocumentationGroupPageController. Um Grupo não pertence a
- * nenhuma Solução (fica fora do hub de cobertura solução/integração).
+ * CRUD for the Group ("Nesting") itself — the tree of pages inside it is
+ * managed by DocumentationGroupPageController. A Group does not belong to
+ * any Solution (it stays outside the solution/integration coverage hub).
  */
 class DocumentationGroupController extends Controller
 {
@@ -35,7 +35,7 @@ class DocumentationGroupController extends Controller
         ]);
     }
 
-    /** Índice: resolve (ou cria) a 1ª página e abre o editor nela. */
+    /** Index: resolves (or creates) the 1st page and opens the editor on it. */
     public function show(DocumentationGroup $group): RedirectResponse
     {
         $page = $group->pages()->first() ?? $this->pages->create($group, 'Página inicial');

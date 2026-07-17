@@ -1,14 +1,15 @@
-// Seleção de uma integração na lista do detalhe da solução
-// (`Solutions\IntegrationsMap`). Destaca a linha clicada (aria-pressed) e
-// dispara `ak:integration-selected` (bubbling) com o grafo resolvido daquela
-// integração — quem desenha é `integration-viz.js`, mantendo este módulo
-// responsável só pela seleção. Puro event delegation — cliques no botão de
-// lixeira (que dispara AJAX) são ignorados para não selecionar junto.
+// Selects an integration in the solution detail list
+// (`Solutions\IntegrationsMap`). Highlights the clicked row (aria-pressed)
+// and fires `ak:integration-selected` (bubbling) with that integration's
+// resolved graph — the actual drawing is done by `integration-viz.js`,
+// keeping this module responsible only for selection. Pure event
+// delegation — clicks on the delete button (which fires AJAX) are ignored
+// so they don't also select the row.
 
 document.addEventListener('click', (e) => {
     const row = e.target.closest('[data-ak-integration-select]')
     if (!row) return
-    if (e.target.closest('button, a')) return // lixeira/form de criação não selecionam
+    if (e.target.closest('button, a')) return // delete button/creation form don't select
 
     selectRow(row)
 })
@@ -46,4 +47,4 @@ function selectRow(row) {
     }))
 }
 
-export function init() {} // no-op — listeners são de nível de módulo (delegação)
+export function init() {} // no-op — listeners are module-level (delegation)

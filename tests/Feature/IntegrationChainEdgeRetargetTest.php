@@ -19,7 +19,7 @@ it('retargets an edge endpoint to a different block, turning the chain into a fr
     $b = Solution::factory()->create(['name' => 'B']);
     $c = Solution::factory()->create(['name' => 'C']);
 
-    // A -> B -> C. Religa a ponta "from" da 2ª ligação de B pra A: A -> B, A -> C.
+    // A -> B -> C. Retargets the "from" end of B's 2nd edge to A: A -> B, A -> C.
     $integration = Integration::factory()->create([
         'chain' => [
             'nodes' => [
@@ -50,8 +50,8 @@ it('retargets an edge endpoint to a different block, turning the chain into a fr
 
     expect($integration->chain['edges'][1])->toBe(['from' => 0, 'to' => 2, 'arrow' => '->', 'protocol' => null])
         ->and($integration->participants->pluck('name')->sort()->values()->all())->toBe(['A', 'B', 'C'])
-        // A cadeia não é mais linear (edges[1] não liga nodes[1]->nodes[2]) —
-        // só afeta o formato do resumo textual (ChainLabeler::label()).
+        // The chain is no longer linear (edges[1] doesn't connect nodes[1]->nodes[2]) —
+        // this only affects the textual summary format (ChainLabeler::label()).
         ->and((new ChainLabeler)->isLinear($integration->chain))->toBeFalse();
 });
 
@@ -70,7 +70,7 @@ it('rejects retargeting an edge endpoint onto its own opposite end (self-loop)',
     $this->actingAs(edgeRetargetAdmin())
         ->patchJson(route('solutions.integrations.chain.edge.retarget', [$a, $integration, 0]), [
             'end'  => 'from',
-            'node' => 1, // já é o 'to' desta ligação
+            'node' => 1, // already the 'to' of this edge
         ])
         ->assertStatus(422);
 

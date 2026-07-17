@@ -34,13 +34,13 @@ class UpdatePersonRequest extends FormRequest
             'solutions.*.value' => ['required', 'string'],
             'solutions.*.label' => ['nullable', 'string'],
             'solutions.*.role'  => ['nullable', Rule::enum(PersonSolutionRole::class)],
-            // Contatos adicionais (`Person::contacts()`, além dos campos
-            // únicos email/phone acima) — linha em branco (adicionada no
-            // form mas nunca preenchida) é filtrada no controller, não aqui.
-            // `id`, quando presente, precisa pertencer a ESTA pessoa (o
-            // `where('person_id', ...)` do Rule::exists abaixo) — sem isso,
-            // um id forjado no form conseguiria reatribuir o contato de
-            // outra pessoa.
+            // Additional contacts (`Person::contacts()`, besides the single
+            // email/phone fields above) — a blank row (added in the form but
+            // never filled in) is filtered out in the controller, not here.
+            // `id`, when present, must belong to THIS person (the
+            // `where('person_id', ...)` on the Rule::exists below) — without
+            // that, a forged id in the form could reassign another person's
+            // contact.
             'contacts'         => ['nullable', 'array'],
             'contacts.*.id'    => ['nullable', 'integer', Rule::exists('contacts', 'id')->where('person_id', $personId)],
             'contacts.*.type'  => ['nullable', Rule::enum(ContactType::class)],

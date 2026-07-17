@@ -106,7 +106,7 @@ it('shows the flowspec attached via the F8 chat in the integration side panel', 
     ]);
     attachParticipants($integration, [[$solution, 0]]);
 
-    $response = $this->actingAs(User::factory()->create()) // viewer — leitura, sem restrição de admin
+    $response = $this->actingAs(User::factory()->create()) // viewer — read-only, no admin restriction
         ->getJson(route('solutions.integrations.flowspec', [$solution, $integration]))
         ->assertOk();
 

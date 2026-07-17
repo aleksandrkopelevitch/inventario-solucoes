@@ -6,7 +6,7 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class UploadDocumentationMediaRequest extends FormRequest
 {
-    /** Mesma regra do save: só quem edita o recurso envia mídia pra doc. */
+    /** Same rule as save: only whoever edits the resource can upload media to the doc. */
     public function authorize(): bool
     {
         $model = $this->route('integration') ?? $this->route('solution') ?? $this->route('group');
@@ -18,10 +18,10 @@ class UploadDocumentationMediaRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // Dois modos exclusivos (ver EditsDocumentation::storeDocumentationMedia):
-            // 'file' = upload multipart (imagem via Editor.js Image ou arquivo via
-            // Attaches, ambos com config.field = 'file'); 'url' = imagem colada de
-            // site externo, que o servidor baixa e rehospeda (Image plugin byUrl).
+            // Two mutually exclusive modes (see EditsDocumentation::storeDocumentationMedia):
+            // 'file' = multipart upload (image via Editor.js Image or file via
+            // Attaches, both with config.field = 'file'); 'url' = image pasted from
+            // an external site, which the server downloads and re-hosts (Image plugin byUrl).
             'file' => [
                 'required_without:url',
                 'file',

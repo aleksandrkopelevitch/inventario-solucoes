@@ -13,20 +13,21 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
- * Documentação PÚBLICA de uma solução ("magic link"), sem auth. O acesso é por
- * um token opaco na URL (`Solution::public_token`); a partir dele mostra-se a
- * árvore de páginas da própria solução (1..N, GitBook-style) e a doc de cada
- * integração em que ela participa, no estilo GitBook (layout próprio
- * `public-docs`, barra no topo + índice lateral). Grupos ("Aninhamentos")
- * standalone nunca são expostos aqui — só a árvore da própria Solution.
+ * PUBLIC documentation for a solution ("magic link"), no auth. Access is via
+ * an opaque token in the URL (`Solution::public_token`); from it, shows the
+ * solution's own page tree (1..N, GitBook-style) and the docs for each
+ * integration it participates in, GitBook-style (dedicated `public-docs`
+ * layout, top bar + side index). Standalone Groups ("Nestings") are never
+ * exposed here — only the Solution's own tree.
  *
- * A mídia embutida (`/files/{id}` no Markdown) é reescrita para uma rota
- * pública dedicada (`public.docs.file`), validada contra a própria solução/
- * integrações — a rota autenticada `files.show` não serve visitantes.
+ * Embedded media (`/files/{id}` in the Markdown) is rewritten to a dedicated
+ * public route (`public.docs.file`), validated against the solution/
+ * integrations themselves — the authenticated `files.show` route doesn't
+ * serve visitors.
  */
 class PublicDocumentationController extends Controller
 {
-    /** Primeira página da árvore (ou nenhuma, se a solução ainda não tem página). */
+    /** First page of the tree (or none, if the solution has no page yet). */
     public function solution(string $token): View
     {
         $solution = $this->resolve($token);
@@ -35,13 +36,13 @@ class PublicDocumentationController extends Controller
     }
 
     /**
-     * `$slug` NÃO é resolvido por route-model-binding — o slug de uma
-     * DocumentationPage só é único DENTRO do seu container (ver unique
-     * composto em `documentation_pages`), nunca globalmente. Duas soluções
-     * podem ter cada uma uma página "teste"; um binding `{page:slug}` global
-     * pegaria a de menor id (a de outra solução) e 404aria por dono errado.
-     * Escopar a query pela própria Solution resolvida do token evita a
-     * ambiguidade de vez.
+     * `$slug` is NOT resolved via route-model-binding — a DocumentationPage's
+     * slug is only unique WITHIN its container (see the composite unique on
+     * `documentation_pages`), never globally. Two solutions can each have a
+     * page called "test"; a global `{page:slug}` binding would grab the
+     * lowest id (belonging to another solution) and 404 for the wrong owner.
+     * Scoping the query by the Solution resolved from the token avoids the
+     * ambiguity entirely.
      */
     public function page(string $token, string $slug): View
     {
@@ -103,21 +104,21 @@ class PublicDocumentationController extends Controller
             'title'        => $current?->documentationTitle() ?? $solution->name,
             'eyebrow'      => $eyebrow,
             'renderedHtml' => $this->renderMarkdown($markdown, $token),
-            // Markdown cru para o botão "Copiar Markdown", com a mídia já
-            // reescrita para as rotas públicas (o /files/{id} interno não
-            // resolve para quem acessa só pelo link público).
+            // Raw Markdown for the "Copy Markdown" button, with media already
+            // rewritten to the public routes (the internal /files/{id} does
+            // not resolve for visitors accessing only via the public link).
             'markdown' => $this->rewriteFileUrls((string) $markdown, $token),
             'nav'      => $this->nav($solution, $current, $token),
         ]);
     }
 
-    /** Renderiza o Markdown e reescreve `/files/{id}` para a rota pública. */
+    /** Renders the Markdown and rewrites `/files/{id}` to the public route. */
     private function renderMarkdown(?string $markdown, string $token): string
     {
         return $this->rewriteFileUrls(app(GitbookRenderer::class)->render($markdown), $token);
     }
 
-    /** Reescreve todo `src|href="/files/{id}"` para a rota pública `public.docs.file`. */
+    /** Rewrites every `src|href="/files/{id}"` to the public `public.docs.file` route. */
     private function rewriteFileUrls(string $content, string $token): string
     {
         return preg_replace_callback(
@@ -128,8 +129,8 @@ class PublicDocumentationController extends Controller
     }
 
     /**
-     * Índice lateral: cada página da árvore da solução + cada integração em
-     * que ela participa.
+     * Side index: every page in the solution's tree + every integration it
+     * participates in.
      *
      * @return Collection<int, array{label: string, url: string, active: bool, hasDocs: bool}>
      */

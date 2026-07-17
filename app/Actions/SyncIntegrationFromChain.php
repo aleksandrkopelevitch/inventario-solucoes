@@ -7,16 +7,16 @@ use App\Models\Integration;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Reconstrói os campos estruturados da Integração a partir do `chain` — o
- * grafo livre autorado inteiramente pelo data-viz F3 (`integration-viz.js`:
- * nó raiz na criação, blocos/ligações/religação depois) —, fonte de verdade
- * da topologia desde o desacoplamento do `diagram` (que voltou a ser um
- * desenho livre, sem efeito colateral em participants).
+ * Rebuilds the Integration's structured fields from the `chain` — the free
+ * graph authored entirely by the F3 data-viz (`integration-viz.js`: root
+ * node on creation, blocks/edges/retargeting afterward) —, the source of
+ * truth for topology since decoupling from `diagram` (which went back to
+ * being a free-form drawing, with no side effect on participants).
  *
  * `chain = {nodes: [{solution_id, label}], edges: [{from, to, arrow, protocol}]}`
- * — `from`/`to` são índices de `nodes`, não mais posições consecutivas.
- * Nós de texto livre (solution_id null) contam para o grau de entrada/saída
- * dos vizinhos, mas não viram participants (o pivot referencia solutions).
+ * — `from`/`to` are indices into `nodes`, no longer consecutive positions.
+ * Free-text nodes (solution_id null) count toward neighbors' in/out degree
+ * but don't become participants (the pivot references solutions).
  */
 class SyncIntegrationFromChain
 {
@@ -26,7 +26,7 @@ class SyncIntegrationFromChain
         $nodes = array_values($chain['nodes'] ?? []);
         $edges = array_values($chain['edges'] ?? []);
 
-        // Grau de entrada/saída por índice do nó, seguindo o sentido da seta de cada ligação.
+        // In/out degree per node index, following each edge's arrow direction.
         $in = array_fill(0, count($nodes), 0);
         $out = array_fill(0, count($nodes), 0);
         $sawForward = false;
@@ -40,11 +40,11 @@ class SyncIntegrationFromChain
             $arrow = $edge['arrow'] ?? '->';
             $sawForward = $sawForward || $arrow !== '<-';
             $sawBackward = $sawBackward || $arrow !== '->';
-            if ($arrow !== '<-') { // '->' e '<->'
+            if ($arrow !== '<-') { // '->' and '<->'
                 $out[$from]++;
                 $in[$to]++;
             }
-            if ($arrow !== '->') { // '<-' e '<->'
+            if ($arrow !== '->') { // '<-' and '<->'
                 $out[$to]++;
                 $in[$from]++;
             }
@@ -67,7 +67,7 @@ class SyncIntegrationFromChain
             return;
         }
 
-        // Agregado por solução distinta (uma solução pode aparecer em mais de um nó).
+        // Aggregated per distinct solution (a solution can appear in more than one node).
         $inBySolution = [];
         $outBySolution = [];
         $positions = [];
@@ -83,10 +83,10 @@ class SyncIntegrationFromChain
 
         $bidirectional = $sawForward && $sawBackward;
 
-        // O protocolo é definido por ligação (chain.edges[i].protocol). O
-        // escalar `integrations.protocol` guarda um valor representativo (a
-        // primeira ligação com protocolo, na ordem armazenada) só para
-        // exibição resumida — a verdade por ligação vive no chain.
+        // Protocol is defined per edge (chain.edges[i].protocol). The
+        // `integrations.protocol` scalar holds a representative value (the
+        // first edge with a protocol, in storage order) only for summary
+        // display — the per-edge truth lives in the chain.
         $protocol = collect($edges)->pluck('protocol')->first(fn ($p) => filled($p));
 
         $pivotData = collect($positions)->map(fn ($position) => ['position' => $position])->all();

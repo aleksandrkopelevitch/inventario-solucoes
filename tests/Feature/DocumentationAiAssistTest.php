@@ -90,7 +90,7 @@ it('404s a status request for a generation of another solution', function () {
     $gen = DocumentationAiGeneration::create([
         'target_type' => $page->getMorphClass(),
         'target_id'   => $page->getKey(),
-        'solution_id' => $other->id, // pertence a outra solução
+        'solution_id' => $other->id, // belongs to another solution
         'user_id'     => assistAdmin()->id,
         'status'      => 'completed',
         'result'      => 'segredo',
@@ -112,10 +112,10 @@ it('rejects a second generation for the same target while one is pending', funct
         ->postJson(route('solutions.docs.assist.generate', [$solution, $page]), ['prompt' => 'primeiro'])
         ->assertOk();
 
-    // Um segundo pedido (prompt diferente) NÃO pode reaproveitar silenciosamente
-    // o rascunho do primeiro — isso serviria o resultado do prompt errado. Nem
-    // pode criar um segundo registro/job (o WithoutOverlapping, chaveado pelo
-    // alvo, só gastaria as tentativas). Sinaliza e pede para aguardar (409).
+    // A second request (different prompt) must NOT silently reuse the first
+    // one's draft — that would serve the result of the wrong prompt. Nor can
+    // it create a second record/job (WithoutOverlapping, keyed by the
+    // target, would just burn through the tries). Signal and ask to wait (409).
     $second = $this->actingAs($admin)
         ->postJson(route('solutions.docs.assist.generate', [$solution, $page]), ['prompt' => 'segundo'])
         ->assertStatus(409);

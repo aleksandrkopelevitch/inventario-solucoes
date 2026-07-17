@@ -7,12 +7,12 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Remove o rótulo de papel (origem/destino/intermediário) do pivot —
-     * decisão de 2026-07-06: era puramente derivado da cadeia (nunca editado)
-     * e redundante com `integrations.source_solution_id`/`target_solution_id`
-     * + a posição no pivot, que já ordenam o fluxo. `position` sozinha segue
-     * distinguindo uma mesma solução participando duas vezes (ex.: SAP em
-     * ida e volta no fluxo VPR).
+     * Removes the role label (source/target/intermediary) from the pivot —
+     * 2026-07-06 decision: it was purely derived from the chain (never
+     * edited) and redundant with `integrations.source_solution_id`/
+     * `target_solution_id` + the pivot's position, which already order the
+     * flow. `position` alone still distinguishes the same solution
+     * participating twice (e.g. SAP on both legs of the VPR flow).
      */
     public function up(): void
     {

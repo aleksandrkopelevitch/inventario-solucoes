@@ -15,14 +15,15 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 
 /**
- * Documentação rica por Integração (editor de blocos Editor.js, formato
- * Markdown + notação GitBook na coluna `integrations.documentation`). As rotas
- * ficam sob o grupo `scopeBindings` de solucoes/{solution}/integracoes/{integration},
- * então {integration} 404a se não pertencer à {solution} da URL. Mostra a
- * mesma sidebar consolidada de SolutionDocumentationController (páginas da
- * solução + integrações — ver NavigatesSolutionDocs), pra que a doc da
- * integração pareça parte da mesma árvore, não uma tela à parte. Thin —
- * delega ao trait EditsDocumentation.
+ * Rich documentation per Integration (Editor.js block editor, Markdown
+ * format + GitBook notation in the `integrations.documentation` column).
+ * The routes live under the `scopeBindings` group for
+ * solucoes/{solution}/integracoes/{integration}, so {integration} 404s if it
+ * doesn't belong to the URL's {solution}. Shows the same consolidated
+ * sidebar as SolutionDocumentationController (solution pages + integrations
+ * — see NavigatesSolutionDocs), so the integration's docs feel like part of
+ * the same tree, not a separate screen. Thin — delegates to the
+ * EditsDocumentation trait.
  */
 class IntegrationDocumentationController extends Controller
 {
@@ -56,7 +57,7 @@ class IntegrationDocumentationController extends Controller
         return $this->storeDocumentationMedia($request, $integration);
     }
 
-    /* --- Assiste IA (gera o conteúdo da doc da integração por LLM) -------- */
+    /* --- AI Assist (generates the integration's doc content via LLM) ----- */
 
     public function assistantPanel(Solution $solution, Integration $integration): JsonResponse
     {
@@ -73,8 +74,8 @@ class IntegrationDocumentationController extends Controller
             $request,
             $solution,
             $integration,
-            // Endpoint de status único (solutions.docs.assist.status) — serve
-            // páginas e integrações; o registro carrega o próprio alvo.
+            // Single status endpoint (solutions.docs.assist.status) — serves
+            // both pages and integrations; the record carries its own target.
             fn (DocumentationAiGeneration $g) => route('solutions.docs.assist.status', [$solution, $g]),
         );
     }

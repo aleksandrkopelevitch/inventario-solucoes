@@ -7,10 +7,10 @@ use App\Models\Solution;
 use Illuminate\Support\Collection;
 
 /**
- * Monta os prompts do "Assiste IA". O system prompt restringe a saída ao
- * subconjunto exato de Markdown + notação GitBook que o parser do editor
- * (resources/js/modules/docs-markdown.js `parse()`) entende, para o rascunho
- * carregar em blocos sem perder nada.
+ * Builds the "Assiste IA" prompts. The system prompt restricts the output to
+ * the exact Markdown + GitBook notation subset that the editor's parser
+ * (resources/js/modules/docs-markdown.js `parse()`) understands, so the draft
+ * loads into blocks without losing anything.
  */
 class DocumentationDraftPromptBuilder
 {

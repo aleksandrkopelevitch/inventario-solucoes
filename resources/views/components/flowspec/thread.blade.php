@@ -43,7 +43,7 @@
                 @endif
 
                 @if ($message->flow_spec !== null)
-                    {{-- Badges: validação, tentativas, exemplos usados --}}
+                    {{-- Badges: validation, attempts, examples used --}}
                     <div class="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] font-medium">
                         @if ($validated)
                             <span class="rounded-full border border-accent-line bg-accent-soft px-2 py-0.5 text-accent">Validado</span>

@@ -6,35 +6,35 @@
 ])
 
 {{--
-    Mapa do ecossistema (somente leitura) — layout radial hub-and-spoke:
-    cada solução é um hub (cartão arredondado, mesmo visual do canvas de
-    integração de cada solução — `resources/views/components/solutions/
-    integration-viz.blade.php`) com um círculo de vizinhos diretos ao redor.
-    Vizinhos (satélites) são o MESMO tipo de cartão (avatar + nome, variante
-    compacta) — não um avatar-só — pra sempre dar pra ler o nome. Substitui
-    o antigo `<x-flow-canvas>` (canvas 2D + dagre esquerda→direita), que
-    desenhava uma curva por SEGMENTO de chain sem dedup, emaranhando o
-    desenho conforme mais integrações eram cadastradas.
+    Ecosystem map (read-only) — radial hub-and-spoke layout: each solution
+    is a hub (rounded card, same look as each solution's integration canvas
+    — `resources/views/components/solutions/integration-viz.blade.php`)
+    with a ring of direct neighbors around it. Neighbors (satellites) are
+    the SAME card type (avatar + name, compact variant) — not an avatar
+    alone — so the name is always readable. Replaces the old
+    `<x-flow-canvas>` (2D canvas + dagre left→right), which drew one curve
+    per chain SEGMENT with no dedup, tangling the drawing as more
+    integrations were registered.
 
-    Fonte dos dados: contrato neutro do IntegrationGraphService (já
-    deduplicado por par — uma aresta por par de soluções, não uma por
-    segmento — ver `IntegrationGraphService::dedupePairs()`), buscado via
-    fetch em `sourceUrl` (hoje só `solutions.map.data`). Todo o desenho é
-    DOM+SVG (não canvas-2D) — nós reais em `<div>`, arestas num `<svg>`
-    overlay, ambos dentro de `[data-eco-world]` com um único `transform` de
-    pan/zoom, exatamente o padrão de `integration-viz.js` (sem nenhuma das
-    ferramentas de autoria de lá: sem drag, sem editor de nó/aresta, sem
-    sidebar de comentário — clique num hub ou satélite abre um popover com
-    os atributos daquela solução + botão "Ver mais" pra sua página, em nova
-    aba).
+    Data source: IntegrationGraphService's neutral contract (already
+    deduped by pair — one edge per pair of solutions, not one per segment —
+    see `IntegrationGraphService::dedupePairs()`), fetched via `sourceUrl`
+    (today only `solutions.map.data`). The whole drawing is DOM+SVG (not
+    2D canvas) — real nodes in `<div>`s, edges in an overlay `<svg>`, both
+    inside `[data-eco-world]` with a single pan/zoom `transform`, exactly
+    the same pattern as `integration-viz.js` (without any of that page's
+    authoring tools: no drag, no node/edge editor, no comment sidebar —
+    clicking a hub or satellite opens a popover with that solution's
+    attributes + a "Ver mais" button to its page, in a new tab).
 
-    Hubs com muitas conexões (mais que `EXPAND_THRESHOLD` em
-    `ecosystem-map.js`) nascem colapsados — só o cartão + uma badge com a
-    contagem; clique na badge expande/colapsa o próprio anel (reflow
-    completo do grid empacotado, que reserva mais espaço pra cada hub
-    considerando o tamanho do seu anel quando expandido). Uma solução pode
-    aparecer como hub (posição própria) E como satélite no anel de outro hub
-    — intencional: é o que elimina os cruzamentos de linha do desenho antigo.
+    Hubs with many connections (more than `EXPAND_THRESHOLD` in
+    `ecosystem-map.js`) start out collapsed — just the card + a badge with
+    the count; clicking the badge expands/collapses that ring (a full
+    reflow of the packed grid, which reserves more space for each hub
+    accounting for its ring's size when expanded). A solution can appear
+    both as a hub (its own position) AND as a satellite in another hub's
+    ring — intentional: that's what eliminates the crossed lines from the
+    old drawing.
 --}}
 <div
     data-ecosystem-map
@@ -42,7 +42,7 @@
     class="ak-viz relative w-full overflow-hidden rounded-card border border-line bg-surface"
     style="height: {{ $height }}"
     data-source-url="{{ $sourceUrl }}"
-    data-nav-base="{{ url('/solucoes') }}"
+    data-nav-base="{{ url('/solutions') }}"
 >
     <div data-eco-stage class="relative h-full min-h-0">
         <div data-eco-viewport class="ak-viz-viewport">
@@ -59,14 +59,14 @@
                         </marker>
                     </defs>
                 </svg>
-                {{-- hubs/satélites injetados por ecosystem-map.js --}}
+                {{-- hubs/satellites injected by ecosystem-map.js --}}
             </div>
         </div>
 
         <div data-eco-status class="pointer-events-none absolute left-2.5 top-2.5 z-10 rounded border border-line bg-surface/90 px-2 py-0.5 font-mono text-[10px] text-faint backdrop-blur"></div>
 
-        {{-- Mesma ressalva de `hidden`+`flex` do flow-canvas: cada estado
-             sobreposto fica sozinho no elemento que o JS alterna. --}}
+        {{-- Same `hidden`+`flex` caveat as flow-canvas: each overlaid state
+             lives alone in the element the JS toggles. --}}
         <div data-eco-loading class="absolute inset-0 z-[5] bg-surface text-sm text-faint">
             <div class="flex h-full items-center justify-center">Carregando grafo…</div>
         </div>
@@ -74,9 +74,9 @@
             <div class="flex h-full items-center justify-center px-6 text-center">{{ $emptyMessage }}</div>
         </div>
 
-        {{-- Busca de sistema (lupa ou Ctrl+K/Cmd+K) — ecosystem-map.js abre/
-             fecha via `style.display` (não a classe `hidden`), pela mesma
-             razão de especificidade documentada junto ao satélite abaixo. --}}
+        {{-- System search (magnifier or Ctrl+K/Cmd+K) — ecosystem-map.js opens/
+             closes it via `style.display` (not the `hidden` class), for the
+             same specificity reason documented next to the satellite below. --}}
         <div data-eco-search-overlay class="absolute inset-0 z-40 items-start justify-center bg-ink/25 pt-20 backdrop-blur-[1px]" style="display: none">
             <div class="w-full max-w-md rounded-xl border border-line bg-surface shadow-[0_12px_32px_rgba(16,24,40,.24)]">
                 <div class="flex items-center gap-2 border-b border-line px-3 py-2.5">
@@ -115,12 +115,12 @@
         </div>
     </div>
 
-    {{-- Inline (não @push): igual ao integration-viz, a página monta este
-         componente uma única vez, sem risco de duplicar estilo. Reaproveita
-         os mesmos tokens/classes `--viz-*`/`.ak-viz-node*` do
-         integration-viz para hub e satélite renderizarem com o mesmo
-         cartão — `.ak-eco-*` é só o vocabulário novo (variante compacta do
-         satélite, badge de contagem, popover de atributos). --}}
+    {{-- Inline (not @push): like integration-viz, the page mounts this
+         component only once, with no risk of duplicating the style. Reuses
+         the same `--viz-*`/`.ak-viz-node*` tokens/classes from
+         integration-viz so hub and satellite render with the same
+         card — `.ak-eco-*` is just the new vocabulary (satellite's compact
+         variant, count badge, attribute popover). --}}
     <style>
             [data-ecosystem-map] {
                 --viz-bg: #F7F9FC;
@@ -161,16 +161,16 @@
             }
             .ak-viz-edges marker path { fill: var(--viz-line); }
 
-            /* Halo por trás de um hub expandido + seu anel de satélites —
-               amarra o cluster visualmente (`ecosystem-map.js::drawHalo`).
-               Bem sutil de propósito: é fundo, não deve competir com os
-               cartões nem com a linha da seta. */
+            /* Halo behind an expanded hub + its satellite ring — visually
+               ties the cluster together (`ecosystem-map.js::drawHalo`).
+               Deliberately subtle: it's background, shouldn't compete with
+               the cards or the arrow line. */
             .ak-eco-halo {
                 fill: var(--viz-node);
                 opacity: .16;
             }
 
-            /* Cartão do hub — idêntico ao bloco do integration-viz. */
+            /* Hub card — identical to the block in integration-viz. */
             .ak-viz-node {
                 position: absolute;
                 display: flex;
@@ -194,11 +194,12 @@
                 cursor: pointer;
                 transition: box-shadow .12s ease;
             }
-            /* Hub em branco, satélite na cor de acento (`--viz-node`, herdada
-               da regra base acima) — antes os dois usavam a mesma cor e o
-               olho não distinguia "a solução central desta vizinhança" de
-               "uma vizinha dela". O anel (`box-shadow` inset-like via
-               0 0 0 Npx) substitui a borda pra não alterar o box model. */
+            /* White hub, accent-colored satellite (`--viz-node`, inherited
+               from the base rule above) — the two used to share the same
+               color and the eye couldn't tell "this neighborhood's central
+               solution" from "one of its neighbors". The ring (inset-like
+               `box-shadow` via 0 0 0 Npx) replaces the border so it doesn't
+               change the box model. */
             .ak-viz-node.ak-eco-hub {
                 background: #fff;
                 box-shadow: 0 0 0 1.5px var(--viz-node), 0 1px 2px rgba(16, 24, 40, .08);
@@ -206,18 +207,18 @@
             .ak-viz-node.ak-eco-hub:hover {
                 box-shadow: 0 0 0 1.5px var(--viz-select), 0 4px 14px rgba(16, 24, 40, .16);
             }
-            /* Hub é arrastável (ecosystem-map.js::startHubDrag) — `grab`/
-               `grabbing` avisa isso, diferente do satélite (só clicável). */
+            /* Hub is draggable (ecosystem-map.js::startHubDrag) — `grab`/
+               `grabbing` signals that, unlike the satellite (click-only). */
             .ak-viz-node.ak-eco-hub { cursor: grab; }
             .ak-viz-node.ak-eco-hub.is-dragging {
                 cursor: grabbing;
                 z-index: 10;
                 box-shadow: 0 0 0 1.5px var(--viz-select), 0 8px 22px rgba(16, 24, 40, .22);
             }
-            /* Destaque temporário ao focar um sistema pela busca
-               (ecosystem-map.js::focusHub) — mesmo tom de seleção do hover,
-               só que sustentado por alguns segundos sem precisar do mouse
-               em cima. */
+            /* Temporary highlight when focusing a system via search
+               (ecosystem-map.js::focusHub) — same selection tone as hover,
+               just held for a few seconds without needing the mouse over
+               it. */
             .ak-viz-node.ak-eco-hub.is-focused {
                 box-shadow: 0 0 0 3px var(--viz-select), 0 8px 22px rgba(16, 24, 40, .22);
                 animation: ak-eco-focus-pulse 1s ease-out 2;
@@ -255,11 +256,11 @@
                 color: #fff;
             }
 
-            /* Satélite: mesmo cartão do hub (`.ak-viz-node`), variante
-               compacta — posicionado pelo CENTRO (`translate(-50%,-50%)`),
-               ao contrário do hub (posicionado pelo canto, vindo do grid),
-               porque sua posição nasce de trigonometria sobre um ponto
-               central (`ringRadius()`/`drawRing()` em ecosystem-map.js). */
+            /* Satellite: same card as the hub (`.ak-viz-node`), compact
+               variant — positioned by its CENTER (`translate(-50%,-50%)`),
+               unlike the hub (positioned by its corner, coming from the
+               grid), because its position comes from trigonometry around a
+               central point (`ringRadius()`/`drawRing()` in ecosystem-map.js). */
             .ak-viz-node.ak-eco-satellite-card {
                 position: absolute;
                 transform: translate(-50%, -50%);
@@ -280,8 +281,8 @@
                 box-shadow: 0 4px 14px rgba(16, 24, 40, .16);
             }
 
-            /* Badge de contagem — colapsado (número, clique expande) ou
-               expandido (traço, clique recolhe). Canto inferior direito do hub. */
+            /* Count badge — collapsed (number, click expands) or expanded
+               (dash, click collapses). Hub's bottom-right corner. */
             .ak-eco-badge {
                 position: absolute;
                 right: -8px;
@@ -314,9 +315,9 @@
             }
             [data-ecosystem-map]:fullscreen .ak-viz-viewport { border-radius: 0; }
 
-            /* Popover de atributos — aberto ao clicar num hub ou satélite
-               (ecosystem-map.js::openPopover). Mesmo visual dos editores
-               flutuantes do integration-viz (cartão arredondado + sombra). */
+            /* Attributes popover — opened by clicking a hub or satellite
+               (ecosystem-map.js::openPopover). Same look as integration-viz's
+               floating editors (rounded card + shadow). */
             .ak-eco-popover {
                 position: absolute;
                 z-index: 30;
@@ -398,10 +399,10 @@
             }
             .ak-eco-popover-more:hover { filter: brightness(1.08); }
 
-            /* Busca de sistema (ecosystem-map.js — `openSearch`/
-               `renderSearchResults`). Reaproveita `.ak-viz-node-body`/
-               `.ak-viz-node-avatar` (mesmo avatar do cartão) pra cada item
-               da lista de resultados. */
+            /* System search (ecosystem-map.js — `openSearch`/
+               `renderSearchResults`). Reuses `.ak-viz-node-body`/
+               `.ak-viz-node-avatar` (same card avatar) for each item in the
+               results list. */
             .ak-eco-search-item {
                 display: flex;
                 align-items: center;

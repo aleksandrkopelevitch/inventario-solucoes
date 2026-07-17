@@ -20,7 +20,7 @@
         @endcan
     </div>
 
-    {{-- Busca + filtros (mesmo form: a busca é um campo filter[] preservado ao filtrar) --}}
+    {{-- Search + filters (same form: search is a filter[] field preserved when filtering) --}}
     <form id="solutions-filter-form" class="mb-3 flex flex-col gap-3">
         <div class="max-w-md">
             <x-forms.field name="search">

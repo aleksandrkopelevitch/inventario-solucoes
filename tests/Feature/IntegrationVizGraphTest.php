@@ -32,7 +32,7 @@ it('embeds a resolved graph (labels, per-step protocol, arrow direction) on each
 
     $html = (new IntegrationsMap($a))->render()->render();
 
-    // Extrai o JSON do data-integration-graph e valida a forma consumida pelo JS.
+    // Extracts the JSON from data-integration-graph and validates the shape consumed by JS.
     expect($html)->toContain('data-integration-graph=');
     preg_match('/data-integration-graph="([^"]*)"/', $html, $m);
     $graph = json_decode(html_entity_decode($m[1]), true);
@@ -40,11 +40,11 @@ it('embeds a resolved graph (labels, per-step protocol, arrow direction) on each
     expect($graph['nodes'])->toBe([
         ['label' => 'Alpha ERP', 'solution' => true, 'solutionId' => $a->id, 'url' => route('solutions.show', $a), 'comment' => null, 'logo' => null, 'environment' => null, 'cloud' => null],
         ['label' => 'Bravo iPaaS', 'solution' => true, 'solutionId' => $b->id, 'url' => route('solutions.show', $b), 'comment' => null, 'logo' => null, 'environment' => null, 'cloud' => null],
-        ['label' => 'Sistema externo', 'solution' => false, 'solutionId' => null, 'url' => null, 'comment' => null, 'logo' => null, 'environment' => null, 'cloud' => null], // nó de texto livre
+        ['label' => 'Sistema externo', 'solution' => false, 'solutionId' => null, 'url' => null, 'comment' => null, 'logo' => null, 'environment' => null, 'cloud' => null], // free-text node
     ]);
     expect($graph['edges'])->toBe([
         ['from' => 0, 'to' => 1, 'arrow' => '<->', 'protocol' => ['value' => 'rest', 'label' => 'REST']],
-        ['from' => 1, 'to' => 2, 'arrow' => '<-', 'protocol' => null], // valor bruto + rótulo humano, null preservado
+        ['from' => 1, 'to' => 2, 'arrow' => '<-', 'protocol' => null], // raw value + human label, null preserved
     ]);
 });
 
@@ -70,7 +70,7 @@ it('carries logo and hosting/cloud badges (label + icon) for nodes with a soluti
 
     expect($graph['nodes'][0]['logo'])->toContain('logos/alpha.png');
     expect($graph['nodes'][0]['environment'])->toBe(['label' => 'SaaS', 'icon' => Heroicons::outlineSvg('cloud')]);
-    expect($graph['nodes'][0]['cloud'])->toBe(['label' => 'Azure', 'icon' => null]); // ícone opcional: rótulo aparece mesmo sem ícone
+    expect($graph['nodes'][0]['cloud'])->toBe(['label' => 'Azure', 'icon' => null]); // icon optional: label appears even without an icon
 
     expect($graph['nodes'][1]['logo'])->toBeNull();
     expect($graph['nodes'][1]['environment'])->toBeNull();

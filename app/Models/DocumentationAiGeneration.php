@@ -7,11 +7,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 /**
- * Um pedido de geração de documentação pelo "Assiste IA": a UI dispara o job
- * GenerateDocumentationDraft e faz polling em `status` até `completed`/`failed`.
- * O `result` (Markdown) é carregado no editor para revisão — nada é gravado na
- * página até o usuário salvar. `target` é a DocumentationPage (ou Integration)
- * sendo gerada; `solution` é a dona dos documentos de contexto.
+ * A documentation generation request from "Assiste IA": the UI dispatches the
+ * GenerateDocumentationDraft job and polls `status` until `completed`/`failed`.
+ * The `result` (Markdown) is loaded into the editor for review — nothing is
+ * written to the page until the user saves. `target` is the DocumentationPage
+ * (or Integration) being generated; `solution` owns the context documents.
  */
 class DocumentationAiGeneration extends Model
 {

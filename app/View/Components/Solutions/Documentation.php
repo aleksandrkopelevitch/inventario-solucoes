@@ -9,14 +9,14 @@ use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 /**
- * Seção resumo da documentação da solução, exibida no detalhe (F1) logo
- * abaixo das integrações — a Solution agora tem uma árvore de 1..N páginas
- * (não mais um blob único), então aqui só listamos os títulos linkando pra
- * cada página; o conteúdo completo mora na própria tela do editor
- * (`solutions.docs.edit`, que resolve/abre a primeira página).
+ * Documentation summary section for the solution, shown in the detail
+ * page (F1) right below the integrations — the Solution now has a tree
+ * of 1..N pages (no longer a single blob), so here we only list the
+ * titles linking to each page; the full content lives in the editor's
+ * own screen (`solutions.docs.edit`, which resolves/opens the first page).
  *
- * Slot atualizável: `Documentation::slot($solution)` — o save do editor o
- * devolve pra manter esta seção fresca se o usuário voltar ao detalhe.
+ * Updatable slot: `Documentation::slot($solution)` — the editor's save
+ * returns it to keep this section fresh if the user goes back to the detail page.
  */
 class Documentation extends Component
 {

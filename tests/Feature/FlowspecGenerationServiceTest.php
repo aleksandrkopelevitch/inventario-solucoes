@@ -17,7 +17,7 @@ use Laravel\Ai\Responses\Data\Usage;
 
 uses(LazilyRefreshDatabase::class);
 
-/** Dublê do serviço: devolve respostas roteirizadas em vez de chamar a API. */
+/** Test double for the service: returns scripted responses instead of calling the API. */
 function fakeGenerationService(array $scriptedTexts): FlowspecGenerationService
 {
     return new class($scriptedTexts) extends FlowspecGenerationService
@@ -68,7 +68,7 @@ it('re-prompts with the concrete errors until the answer validates', function ()
 
     $broken = $valid;
     $rootKey = array_key_first($broken['flowSpec']);
-    // choice apontando pra branch inexistente — o normalizador não corrige isso.
+    // choice pointing to a nonexistent branch — the normalizer doesn't fix this.
     $broken['flowSpec'][$rootKey][1]['when'][0]['target'] = 'branch-que-nao-existe';
 
     $chat = chatWithUserMessage('gera o flowspec de token');
@@ -135,9 +135,9 @@ it('does not suggest documents when the loop exhausts attempts on broken JSON', 
     $iam = Solution::factory()->create(['name' => 'IAM']);
     DocumentationPage::factory()->for($iam, 'container')->create(['title' => 'Autenticação', 'documentation' => 'x']);
 
-    // JSON cercado mas inválido nas 3 tentativas (max_attempts): $document fica
-    // null SEM ser conversacional — o texto cita IAM, mas o guard não infere
-    // sugestões de um JSON quebrado.
+    // Fenced but invalid JSON across all 3 attempts (max_attempts): $document
+    // ends up null WITHOUT being conversational — the text mentions IAM, but
+    // the guard doesn't infer suggestions from broken JSON.
     $broken = "Preciso do IAM.\n```json\n{ \"meta\": }\n```";
     $chat = chatWithUserMessage('gera um flowspec de token');
 
@@ -163,9 +163,9 @@ it('treats a conversational answer mentioning double-braces syntax as conversati
 
     $chat = chatWithUserMessage('como faço para referenciar o step anterior?');
 
-    // Contém `{`/`}` (a sintaxe do domínio), mas não tem cerca de código nem
-    // decodifica para um array com `meta`/`flowSpec` — não pode virar um erro
-    // de "JSON inválido" que queima uma tentativa do loop de correção.
+    // Contains `{`/`}` (the domain syntax), but has no code fence and doesn't
+    // decode to an array with `meta`/`flowSpec` — must not turn into an
+    // "invalid JSON" error that burns an attempt of the correction loop.
     $answer = 'Use a sintaxe {{ step.jslt-1.token }} para referenciar o resultado do step anterior.';
 
     $result = fakeGenerationService([$answer])->generate($chat->messages()->firstOrFail());

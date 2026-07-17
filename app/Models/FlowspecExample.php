@@ -8,10 +8,10 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Exemplo curado do corpus de flowSpecs Digibee (F8). Selecionado por tags e
- * busca textual (sem RAG) pelo FlowspecContextResolver para compor o prompt
- * do gerador. `connectors` é derivado de `flow_spec` pelo seeder/curadoria —
- * nunca mantido à mão.
+ * A curated example from the Digibee flowSpec corpus (F8). Selected by tags
+ * and text search (no RAG) by FlowspecContextResolver to compose the
+ * generator's prompt. `connectors` is derived from `flow_spec` by the
+ * seeder/curation — never maintained by hand.
  */
 class FlowspecExample extends Model
 {
@@ -45,7 +45,7 @@ class FlowspecExample extends Model
     }
 
     /**
-     * Exemplos que possuem QUALQUER uma das tags informadas.
+     * Examples that have ANY of the given tags.
      *
      * @param  list<string>  $tags
      */

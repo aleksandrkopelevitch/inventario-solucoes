@@ -3,8 +3,8 @@
 namespace App\Services\Flowspec;
 
 /**
- * Resultado do DigibeeFlowspecValidator: lista de erros concretos, prontos
- * para virar re-prompt no loop de correção do FlowspecGenerationService.
+ * Result of DigibeeFlowspecValidator: a list of concrete errors, ready to
+ * become a re-prompt in FlowspecGenerationService's correction loop.
  */
 final class ValidationResult
 {

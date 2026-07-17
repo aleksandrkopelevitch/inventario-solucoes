@@ -8,9 +8,9 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\Enum;
 
 /**
- * Renomeia / muda o status de uma Integration já existente — o que o
- * data-viz F3 ainda não sabe fazer sozinho (a chain em si é toda editada
- * pelo próprio canvas: título de nó, protocolo, novo bloco, religação).
+ * Renames / changes the status of an existing Integration — the one thing
+ * data-viz F3 doesn't yet handle on its own (the chain itself is entirely
+ * edited from the canvas: node title, protocol, new block, retargeting).
  */
 class UpdateIntegrationMetaRequest extends FormRequest
 {

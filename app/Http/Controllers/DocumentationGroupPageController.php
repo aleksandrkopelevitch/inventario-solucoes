@@ -15,10 +15,10 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 
 /**
- * Documentação rica de um Grupo standalone — árvore de 1..N páginas, mesmo
- * mecanismo de SolutionDocumentationController (EditsDocumentation +
- * DocumentationPageService), só que o container é um DocumentationGroup em
- * vez de uma Solution (não tem link público nem "documentações relacionadas").
+ * Rich documentation for a standalone Group — a tree of 1..N pages, the same
+ * mechanism as SolutionDocumentationController (EditsDocumentation +
+ * DocumentationPageService), except the container is a DocumentationGroup
+ * instead of a Solution (no public link, no "related documentation").
  */
 class DocumentationGroupPageController extends Controller
 {
@@ -39,8 +39,8 @@ class DocumentationGroupPageController extends Controller
 
     public function edit(DocumentationGroup $group, DocumentationPage $page): View
     {
-        // Evita lazy load de $page->container dentro de DocumentationPagePolicy
-        // (strict mode) — já temos o Group em mãos via o binding da rota.
+        // Avoids lazy loading $page->container inside DocumentationPagePolicy
+        // (strict mode) — we already have the Group in hand via the route binding.
         $page->setRelation('container', $group);
 
         return $this->documentationView($page, [

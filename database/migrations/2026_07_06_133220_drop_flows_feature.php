@@ -7,11 +7,10 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Remove o F6 (diagramas de arquitetura livres, modo autoria do canvas)
-     * por completo — decisão de 2026-07-06: o editor de diagrama de
-     * integrações (`integrations.diagram`) desenha os fluxos no novo padrão
-     * e tornou o F6 redundante. `flow_solution` antes de `flows` por causa
-     * da FK.
+     * Removes F6 (free-form architecture diagrams, canvas authoring mode)
+     * entirely — 2026-07-06 decision: the integration diagram editor
+     * (`integrations.diagram`) draws flows in the new standard and made F6
+     * redundant. `flow_solution` before `flows` because of the FK.
      */
     public function up(): void
     {

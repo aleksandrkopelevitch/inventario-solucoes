@@ -5,7 +5,7 @@ namespace App\Policies;
 use App\Enums\UserRole;
 use App\Models\User;
 
-/** Curadoria do corpus de exemplos (F8) é restrita a administradores. */
+/** Curation of the example corpus (F8) is restricted to administrators. */
 class FlowspecExamplePolicy
 {
     public function create(User $user): bool

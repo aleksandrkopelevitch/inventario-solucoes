@@ -82,9 +82,9 @@ class CompanyController extends Controller
     }
 
     /**
-     * `$filters` são os filtros ativos na listagem que abriu o painel —
-     * repassados pela URL até `saved()`, para o slot atualizado após salvar
-     * preservar os filtros em vigor.
+     * `$filters` are the filters active on the listing that opened the
+     * panel — carried through the URL all the way to `saved()`, so the slot
+     * updated after saving preserves the filters in effect.
      */
     private function panel(Company $company, array $filters = []): JsonResponse
     {

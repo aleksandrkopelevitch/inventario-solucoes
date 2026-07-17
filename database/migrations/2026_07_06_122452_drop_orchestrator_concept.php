@@ -8,16 +8,17 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Remove o conceito de "orquestrador" do sistema (decisão de 2026-07-06):
-     * o papel no pivot vira intermediário, e caem as colunas
-     * `integrations.orchestrator_solution_id` e `solutions.is_orchestrator`.
-     * Soluções iPaaS (Digibee) seguem como participantes comuns da cadeia.
+     * Removes the "orchestrator" concept from the system (2026-07-06
+     * decision): the pivot role becomes intermediary, and the
+     * `integrations.orchestrator_solution_id` and `solutions.is_orchestrator`
+     * columns are dropped. iPaaS solutions (Digibee) remain regular chain
+     * participants.
      */
     public function up(): void
     {
-        // Antes de reclassificar, remove linhas 'orchestrator' que colidiriam
-        // com uma linha 'intermediary' já existente da mesma (integração,
-        // solução) — o índice único do pivot inclui o role.
+        // Before reclassifying, remove 'orchestrator' rows that would collide
+        // with an already-existing 'intermediary' row for the same
+        // (integration, solution) — the pivot's unique index includes role.
         DB::table('integration_solution')
             ->where('role', 'intermediary')
             ->get(['integration_id', 'solution_id'])

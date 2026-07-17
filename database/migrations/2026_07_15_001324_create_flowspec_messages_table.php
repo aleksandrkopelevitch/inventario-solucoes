@@ -5,9 +5,9 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Mensagens de um flowspec_chat. `flow_spec` carrega o JSON gerado quando a
- * mensagem do assistant contém um pipeline; `meta` audita a geração (exemplos
- * usados, tokens, tentativas de validação).
+ * Messages in a flowspec_chat. `flow_spec` carries the generated JSON when
+ * the assistant's message contains a pipeline; `meta` audits the generation
+ * (examples used, tokens, validation attempts).
  */
 return new class extends Migration
 {

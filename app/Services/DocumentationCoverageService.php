@@ -9,22 +9,22 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 /**
- * Cobertura de documentação do inventário, medida por **conteúdo real**.
- * Integration continua single-page (coluna `documentation` direta); Solution
- * agora tem uma árvore de páginas — "documentada" quando ao menos uma
- * `DocumentationPage` sua tem conteúdo (`Solution::documentedPages()`).
- * Alimenta o hub de Documentação (visão transversal soluções + integrações +
- * grupos standalone). Nunca em controller/Blade; contadores em queries
- * agregadas (sem N+1 e sem carregar o longText `documentation`).
+ * Documentation coverage across the inventory, measured by **actual content**.
+ * Integration is still single-page (direct `documentation` column); Solution
+ * now has a page tree — "documented" when at least one of its
+ * `DocumentationPage`s has content (`Solution::documentedPages()`).
+ * Feeds the Documentation hub (cross-cutting view of solutions + integrations
+ * + standalone groups). Never in controller/Blade; counters via aggregated
+ * queries (no N+1 and no loading the `documentation` longText).
  */
 class DocumentationCoverageService
 {
-    /** Expressão SQL "tem documentação" — só Integration ainda guarda a doc numa coluna direta. */
+    /** SQL expression "has documentation" — only Integration still stores the doc in a direct column. */
     private const INTEGRATION_HAS_DOCS = "documentation is not null and documentation <> ''";
 
     /**
-     * Contadores globais de cobertura (inventário inteiro, independentes de
-     * filtro) para soluções e integrações.
+     * Global coverage counters (whole inventory, independent of any filter)
+     * for solutions and integrations.
      *
      * @return array{
      *     solutions: array{documented: int, total: int, percent: float},
@@ -40,11 +40,11 @@ class DocumentationCoverageService
     }
 
     /**
-     * Lista agrupada por solução: cada solução (com seu status de doc) e as
-     * integrações em que participa (cada uma com o seu). Aplica os filtros do
-     * hub (busca por nome, tipo de item e status de documentação).
+     * List grouped by solution: each solution (with its doc status) and the
+     * integrations it participates in (each with its own). Applies the hub's
+     * filters (search by name, item type and documentation status).
      *
-     * Estrutura de cada item:
+     * Structure of each item:
      *   ['solution' => ['name','slug','url','hasDocs','showStatus'],
      *    'integrations' => [['name','slug','url','hasDocs'], ...]]
      *
@@ -97,9 +97,9 @@ class DocumentationCoverageService
                         'showStatus' => $showStatus,
                     ],
                     'integrations' => $integrations,
-                    // Mantém o grupo visível se a própria solução casa com o
-                    // filtro de status (quando aplicável) OU sobrou alguma
-                    // integração após o filtro.
+                    // Keeps the group visible if the solution itself matches
+                    // the status filter (when applicable) OR any integration
+                    // survived the filter.
                     'keep' => ($showStatus && $this->matchesStatus((bool) $solution->has_docs, $status))
                         || $integrations->isNotEmpty(),
                 ];
@@ -110,8 +110,8 @@ class DocumentationCoverageService
     }
 
     /**
-     * Grupos ("Aninhamentos") standalone — listagem simples pro hub, sem %
-     * de cobertura (não têm um "total" natural como Soluções/Integrações).
+     * Standalone groups ("Nestings") — simple listing for the hub, without a
+     * coverage % (they don't have a natural "total" like Solutions/Integrations).
      *
      * @return Collection<int, array{name: string, slug: string, url: string, pageCount: int}>
      */

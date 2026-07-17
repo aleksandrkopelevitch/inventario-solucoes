@@ -50,13 +50,13 @@ class Integration extends Model implements Documentable
         ];
     }
 
-    /** Rótulo do valor de `criticality`, hoje gerenciado via `AttributeOption` (grupo compartilhado com Solution). */
+    /** Label for the `criticality` value, now managed via `AttributeOption` (group shared with Solution). */
     protected function criticalityLabel(): Attribute
     {
         return Attribute::get(fn () => AttributeOption::labelFor('criticality', $this->criticality));
     }
 
-    /** Rótulo de `flowspec_status` — só 'generated'/'validated' têm rótulo; 'idle' (nunca anexado) não aparece na UI. */
+    /** Label for `flowspec_status` — only 'generated'/'validated' have a label; 'idle' (never attached) doesn't appear in the UI. */
     protected function flowspecStatusLabel(): Attribute
     {
         return Attribute::get(fn () => match ($this->flowspec_status) {
@@ -73,8 +73,8 @@ class Integration extends Model implements Documentable
 
     public function registerMediaCollections(): void
     {
-        // Ver Solution::registerMediaCollections() — mídia da documentação,
-        // servida por `files.show`, referenciada por /files/{id} no Markdown.
+        // See Solution::registerMediaCollections() — documentation media,
+        // served by `files.show`, referenced as /files/{id} in the Markdown.
         $this->addMediaCollection(self::DOCS_COLLECTION);
     }
 

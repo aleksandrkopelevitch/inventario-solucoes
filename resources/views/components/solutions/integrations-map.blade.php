@@ -4,9 +4,9 @@
     data-ak-statuses="{{ json_encode($statusesList) }}"
     class="flex flex-col gap-3" aria-label="Integrações da solução">
     @can('create', App\Models\Integration::class)
-        {{-- Cria uma Integration nova (só o nome) com a solução atual como nó
-             raiz — o data-viz à direita assume dali em diante (blocos,
-             ligações, protocolo, renome/status). --}}
+        {{-- Creates a new Integration (name only) with the current solution as
+             the root node — the data-viz on the right takes over from there
+             (blocks, links, protocol, rename/status). --}}
         <form id="integration-create-form" class="flex items-center gap-2">
             @csrf
             <x-forms.input type="text" name="name" placeholder="Nome da nova integração (opcional)"

@@ -9,7 +9,7 @@ use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 
 uses(LazilyRefreshDatabase::class);
 
-/** Cria uma integração ligada a uma solução (pivot), sem criar soluções extra. */
+/** Creates an integration linked to a solution (pivot), without creating extra solutions. */
 function integrationFor(Solution $solution, ?string $documentation, string $name): Integration
 {
     $integration = Integration::factory()->create([
@@ -24,7 +24,7 @@ function integrationFor(Solution $solution, ?string $documentation, string $name
     return $integration;
 }
 
-/** Cria uma Solution já com uma página de documentação com o conteúdo dado (ou nenhuma, se null). */
+/** Creates a Solution already with a documentation page with the given content (or none, if null). */
 function solutionWithDoc(?string $documentation, array $attributes = []): Solution
 {
     $solution = Solution::factory()->create($attributes);
@@ -42,8 +42,8 @@ it('computes coverage counters from real content, for solutions and integrations
     solutionWithDoc(null);
 
     integrationFor($a, '# Doc', 'Int documentada');
-    integrationFor($b, '', 'Int vazia');       // string vazia = pendente
-    integrationFor($b, null, 'Int nula');      // null = pendente
+    integrationFor($b, '', 'Int vazia');       // empty string = pending
+    integrationFor($b, null, 'Int nula');      // null = pending
 
     $counters = (new DocumentationCoverageService)->counters();
 
@@ -66,13 +66,13 @@ it('filters the list by item type', function () {
 
     $service = new DocumentationCoverageService;
 
-    // Só soluções: o grupo aparece, sem linhas de integração.
+    // Solutions only: the group appears, with no integration rows.
     $onlySolutions = $service->groups(['type' => 'solutions']);
     expect($onlySolutions)->toHaveCount(1)
         ->and($onlySolutions->first()['solution']['showStatus'])->toBeTrue()
         ->and($onlySolutions->first()['integrations'])->toBeEmpty();
 
-    // Só integrações: o grupo aparece pela integração; o status da solução não é mostrado.
+    // Integrations only: the group appears via the integration; the solution status isn't shown.
     $onlyIntegrations = $service->groups(['type' => 'integrations']);
     expect($onlyIntegrations)->toHaveCount(1)
         ->and($onlyIntegrations->first()['solution']['showStatus'])->toBeFalse()
@@ -98,9 +98,9 @@ it('renders the documentation hub for any authenticated user', function () {
         ->assertSee('Documentação')
         ->assertSee('Minha Solução')
         ->assertSee('Sem documentação')
-        // Os hooks de filtro/busca precisam compilar (o bug do @json em atributo
-        // de componente falha em silêncio — ver CLAUDE.md); confirma o JSON
-        // encodado presente e nenhum resquício de diretiva não compilada.
+        // The filter/search hooks need to compile (the @json-in-component-attribute
+        // bug fails silently — see CLAUDE.md); confirms the encoded JSON is
+        // present and no leftover uncompiled directive.
         ->assertSee('data-ak-filters', false)
         ->assertSee('data-ak-search', false);
 
@@ -120,6 +120,6 @@ it('returns the hub slot as JSON when filtering', function () {
 
 it('redirects the retired coverage URL to the documentation hub', function () {
     $this->actingAs(User::factory()->create())
-        ->get('/solucoes/cobertura')
-        ->assertRedirect('/documentacao');
+        ->get('/solutions/coverage')
+        ->assertRedirect('/documentation');
 });

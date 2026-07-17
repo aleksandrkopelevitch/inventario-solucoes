@@ -36,35 +36,37 @@ function handleToggleEvent(e) {
     if (trigger.dataset.akToggleBlur === 'true') {
         const targetElement = document.getElementById(id)
 
-        // Só arma o fechamento-ao-clicar-fora quando ESTE clique de fato ABRIU o
-        // alvo (`hidden` acabou de sair). Se o clique FECHOU (o toggle inverte a
-        // cada clique no gatilho), não registra nada — senão um clique fora
-        // posterior inverteria `hidden` de volta, reabrindo o popover a cada
-        // clique na tela. Também evita empilhar um listener novo a cada abre/fecha.
+        // Only arms the close-on-outside-click when THIS click actually
+        // OPENED the target (`hidden` was just removed). If the click
+        // CLOSED it (the toggle flips on every click on the trigger), it
+        // registers nothing — otherwise a later outside click would flip
+        // `hidden` back, reopening the popover on every click on the page.
+        // Also avoids stacking a new listener on every open/close.
         if (targetElement && !targetElement.classList.contains('hidden')) {
             const handleClickOutside = (ev) => {
-                // Clique no próprio gatilho: o handleToggleEvent já cuida de
-                // abrir/fechar. Retira este listener (a reabertura registra um
-                // novo) para não acumular listeners órfãos.
+                // Click on the trigger itself: handleToggleEvent already
+                // handles opening/closing. Removes this listener (reopening
+                // registers a new one) to avoid accumulating orphan listeners.
                 if (trigger.contains(ev.target)) {
                     document.removeEventListener('click', handleClickOutside)
                     return
                 }
 
-                // Clique DENTRO do popover: mantém aberto e preserva o listener
-                // — sobrevive à troca do slot interno via AJAX (ex.: gerar/copiar
-                // link, alternar cobertura), que substitui só o conteúdo, não o
-                // container capturado em `targetElement`.
+                // Click INSIDE the popover: keeps it open and preserves the
+                // listener — survives the inner slot being swapped via AJAX
+                // (e.g. generate/copy link, toggle coverage), which replaces
+                // only the content, not the container captured in
+                // `targetElement`.
                 if (targetElement.contains(ev.target)) return
 
-                // Clique fora: fecha EXPLICITAMENTE (nunca inverte) e só se ainda
-                // estiver aberto, então listeners empilhados não podem reabrir.
+                // Click outside: closes EXPLICITLY (never flips) and only if
+                // still open, so stacked listeners can't reopen it.
                 document.removeEventListener('click', handleClickOutside)
                 if (!targetElement.classList.contains('hidden')) {
                     toggleElement(id, toggleClasses, ev)
                 }
             }
-            // Adiado para o próprio clique de abertura não fechar imediatamente.
+            // Deferred so the opening click itself doesn't close it immediately.
             setTimeout(() => document.addEventListener('click', handleClickOutside), 0)
         }
     }

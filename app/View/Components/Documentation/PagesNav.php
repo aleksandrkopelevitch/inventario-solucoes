@@ -7,19 +7,19 @@ use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 /**
- * Árvore vertical (lista plana, estilo GitBook) de uma Solution: suas
- * próprias páginas ("Páginas", gerenciáveis — criar/renomear/mover/apagar) e,
- * logo abaixo, a doc de cada Integration em que ela participa
- * ("Integrações", somente link — consolidando as duas coisas numa única
- * tela, ver NavigatesSolutionDocs). Um DocumentationGroup standalone não tem
- * integrações, então `$integrations` chega vazio nesse caso e a seção some.
- * Puramente apresentacional — as URLs já vêm prontas do controller
+ * Vertical tree (flat list, GitBook-style) for a Solution: its own pages
+ * ("Páginas", manageable — create/rename/move/delete) and, right below, the
+ * doc for each Integration it participates in ("Integrações", link-only —
+ * consolidating both into a single screen, see NavigatesSolutionDocs). A
+ * standalone DocumentationGroup has no integrations, so `$integrations`
+ * arrives empty in that case and the section disappears. Purely
+ * presentational — the URLs already come ready-made from the controller
  * (`SolutionDocumentationController`/`IntegrationDocumentationController`/
- * `DocumentationGroupPageController`), que são quem sabe os nomes de rota de
- * cada contexto.
+ * `DocumentationGroupPageController`), which are the ones that know the
+ * route names for each context.
  *
- * Slot atualizável: usado depois de mover uma página (a única ação que não
- * navega pra outra tela).
+ * Updatable slot: used after moving a page (the only action that doesn't
+ * navigate to another screen).
  */
 class PagesNav extends Component
 {

@@ -7,9 +7,9 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Origem/destino deixam de ser obrigatórios: uma integração nasce como
-     * rascunho de canvas vazio e esses campos passam a ser derivados do
-     * diagrama ao salvar. As FKs (cascade/nullOnDelete) permanecem.
+     * Source/target are no longer required: an integration starts as an
+     * empty canvas draft and these fields become derived from the diagram
+     * on save. The FKs (cascade/nullOnDelete) remain.
      */
     public function up(): void
     {

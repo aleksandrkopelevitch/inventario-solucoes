@@ -163,7 +163,7 @@ export function executeFilters(formId, url, e) {
     }
 }
 
-/** Limpa um único campo `filter[...]` (chip individual) e reenvia via AJAX. */
+/** Clears a single `filter[...]` field (individual chip) and resubmits via AJAX. */
 export function clearFilterField(formId, field, url) {
     const form = document.getElementById(formId)
     if (!form) return
@@ -180,7 +180,7 @@ export function clearFilterField(formId, field, url) {
     executeFilters(formId, url, {stopPropagation() {}})
 }
 
-/** Limpa todos os campos `filter[...]` do form, exceto ordenação, e reenvia via AJAX. */
+/** Clears every `filter[...]` field in the form, except sorting, and resubmits via AJAX. */
 export function clearAllFilterFields(formId, url) {
     const form = document.getElementById(formId)
     if (!form) return
@@ -203,8 +203,8 @@ function resetFilterField(el) {
     }
 }
 
-/** Mostra/esconde spinners (`data-ak-filters-loading`) e esmaece resultados
- *  (`data-ak-filters-dim`) enquanto uma busca/filtro está em voo no servidor. */
+/** Shows/hides spinners (`data-ak-filters-loading`) and dims results
+ *  (`data-ak-filters-dim`) while a search/filter request is in flight. */
 function setFiltersLoading(isLoading) {
     document.querySelectorAll('[data-ak-filters-loading]').forEach((el) => {
         el.classList.toggle('hidden', !isLoading)
@@ -256,17 +256,33 @@ export function clearOneFilter(filterName) {
     window.location.search = filterQuery
 }
 
+// Sequence number of the last request fired: responses from older requests
+// that arrive AFTER a newer one (fast-typed debounced search, two filter
+// clicks in a row) are discarded — without this, the late response would
+// overwrite the slot with stale results while the URL (already updated via
+// replaceState) says something else.
+let latestFilterRequest = 0
+
 export function applyFilters(formData, url) {
     let searchParams = new URLSearchParams(formData)
+    const requestId = ++latestFilterRequest
 
     setFiltersLoading(true)
 
     ajaxModule.init('GET', url + '?' + searchParams)
         .then((response) => response.json())
-        .then((data) => updateSlots(data))
+        .then((data) => {
+            if (requestId !== latestFilterRequest) return
+            updateSlots(data)
+        })
         .catch((error) => {
+            if (requestId !== latestFilterRequest) return
             console.error('Error applying filters:', error)
             showWarning({message: 'Não foi possível aplicar o filtro. Tente novamente.'})
         })
-        .finally(() => setFiltersLoading(false))
+        .finally(() => {
+            // Only the most recent request controls the spinner — the 1st of
+            // two in flight would finish first and clear loading while the 2nd is still pending.
+            if (requestId === latestFilterRequest) setFiltersLoading(false)
+        })
 }

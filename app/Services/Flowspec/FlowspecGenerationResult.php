@@ -3,11 +3,11 @@
 namespace App\Services\Flowspec;
 
 /**
- * Saída de FlowspecGenerationService::generate(): o flowSpec validado (ou a
- * melhor tentativa, quando o loop esgota), o texto bruto da última resposta
- * do modelo (usado como fala do assistente quando não veio JSON) e o rastro
- * auditável — contexto usado, tentativas com erros, fixes e tokens — que é
- * gravado em `flowspec_messages.meta`.
+ * Output of FlowspecGenerationService::generate(): the validated flowSpec (or
+ * the best attempt, when the loop runs out), the raw text of the model's last
+ * response (used as the assistant's message when no JSON came back), and the
+ * auditable trail — context used, attempts with errors, fixes and tokens —
+ * that gets recorded in `flowspec_messages.meta`.
  */
 final class FlowspecGenerationResult
 {

@@ -63,9 +63,9 @@ function existingValues(container) {
     return Array.from(container.querySelectorAll('[data-ak-chip] input[type="hidden"][name$="[value]"]')).map((i) => i.value)
 }
 
-// Chama-se depois de todo add/remove — não dá pra confiar no `:empty` do
-// CSS aqui (ver comentário em chips.blade.php), então a visibilidade da
-// lista é decidida em JS, olhando se ainda sobra algum `[data-ak-chip]`.
+// Called after every add/remove — can't rely on CSS `:empty` here (see
+// comment in chips.blade.php), so list visibility is decided in JS by
+// checking whether any `[data-ak-chip]` is still left.
 function syncListVisibility(list) {
     list.classList.toggle('hidden', !list.querySelector('[data-ak-chip]'))
 }
@@ -95,9 +95,9 @@ function hideResults(container) {
     highlightedIndex.set(container, -1)
 }
 
-// Overlay centralizado (config `centered` — chips.blade.php). Só existe
-// quando o campo foi renderizado com `centered`; abre por clique no
-// trigger, nunca por atalho de teclado.
+// Centered overlay (`centered` config — chips.blade.php). Only exists
+// when the field was rendered with `centered`; opens on a trigger click,
+// never via keyboard shortcut.
 function overlayOf(container) {
     return container.querySelector('[data-ak-chips-overlay]')
 }
@@ -240,10 +240,10 @@ document.addEventListener('keydown', (e) => {
 })
 
 document.addEventListener('click', (e) => {
-    // Botão externo de "adicionar documentação" (ex.: sugestões do flowSpec
-    // em thread.blade.php) — encontra o campo chips pelo `name` (não pelo
-    // DOM: o botão vive na bolha da mensagem, o campo vive no composer, em
-    // outro lugar da página) e adiciona reusando addChip().
+    // External "add documentation" button (e.g. flowSpec suggestions in
+    // thread.blade.php) — finds the chips field by `name` (not by DOM: the
+    // button lives in the message bubble, the field lives in the composer,
+    // elsewhere on the page) and adds it by reusing addChip().
     const addBtn = e.target.closest('[data-ak-chips-add]')
     if (addBtn) {
         let payload = {}
@@ -275,8 +275,8 @@ document.addEventListener('click', (e) => {
         return
     }
 
-    // Clique no próprio backdrop (não no painel) fecha — mesmo padrão do
-    // `data-eco-search-overlay` em ecosystem-map.js.
+    // Clicking the backdrop itself (not the panel) closes it — same pattern
+    // as `data-eco-search-overlay` in ecosystem-map.js.
     const overlay = e.target.closest('[data-ak-chips-overlay]')
     if (overlay && e.target === overlay) {
         const container = overlay.closest('[data-ak-chips]')
@@ -316,11 +316,11 @@ document.addEventListener('click', (e) => {
     })
 })
 
-// Limpa os chips de um ou mais campos (por `name`) — ex.: após enviar uma
-// mensagem do flowSpec, cujo contexto vale só para aquela mensagem ("próxima
-// mensagem", ver flowspec/show.blade.php), senão os sistemas/documentos
-// escolhidos para uma pergunta seriam reenviados em todas as seguintes. Sem
-// `detail.names`, limpa todos os campos chips da página.
+// Clears the chips of one or more fields (by `name`) — e.g. after sending a
+// flowSpec message, whose context only applies to that message ("next
+// message", see flowspec/show.blade.php), otherwise the systems/documents
+// chosen for a question would be resent on every following one. Without
+// `detail.names`, clears every chips field on the page.
 document.addEventListener('ak:chips-reset', (e) => {
     const names = e.detail?.names
     document.querySelectorAll('[data-ak-chips]').forEach((container) => {

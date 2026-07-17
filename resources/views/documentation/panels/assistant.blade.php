@@ -28,7 +28,7 @@
                 <span class="text-xs text-muted">da solução</span>
             </div>
 
-            {{-- Slot atualizável: refrescado por context.store/destroy. --}}
+            {{-- Updatable slot: refreshed by context.store/destroy. --}}
             <x-documentation.context-documents :solution="$solution" />
 
             <form id="ctx-upload-form" class="mt-3 flex items-end gap-2" enctype="multipart/form-data">

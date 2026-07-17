@@ -8,10 +8,10 @@ use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 /**
- * Lista de documentos de contexto de uma Solução, renderizável como slot
- * atualizável (`context-documents-slot`) — o painel do "Assiste IA" a exibe e
- * os endpoints de upload/remover (SolutionContextDocumentController) a devolvem
- * como `updatableSlots` para refrescar sem recarregar o painel.
+ * List of a Solution's context documents, renderable as an updatable slot
+ * (`context-documents-slot`) — the "Assiste IA" panel displays it and the
+ * upload/remove endpoints (SolutionContextDocumentController) return it as
+ * `updatableSlots` to refresh without reloading the panel.
  */
 class ContextDocuments extends Component
 {

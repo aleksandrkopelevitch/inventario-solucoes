@@ -7,10 +7,10 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * Valores editáveis (em runtime, via a área "Gerenciar atributos") dos 8
- * atributos de Solução hoje agrupados por `group` (ver `App\Enums\AttributeGroup`)
- * — antes eram `enum`s PHP fixos em código. `Criticality` também é usado por
- * Integration, que consome o mesmo grupo.
+ * Editable values (at runtime, via the "Manage attributes" area) for the 8
+ * Solution attributes, now grouped by `group` (see `App\Enums\AttributeGroup`)
+ * — previously these were fixed PHP `enum`s in code. `Criticality` is also
+ * used by Integration, which consumes the same group.
  */
 class AttributeOption extends Model
 {
@@ -18,13 +18,13 @@ class AttributeOption extends Model
 
     protected $fillable = ['group', 'value', 'label', 'icon'];
 
-    /** Todas as opções de um grupo, ordenadas por rótulo — sem query extra (lê do cache). */
+    /** All options for a group, ordered by label — no extra query (reads from cache). */
     public static function options(string $group): Collection
     {
         return static::cached()->get($group, collect());
     }
 
-    /** Rótulo de um valor dentro de um grupo, ou null se o valor não existir mais. */
+    /** Label for a value within a group, or null if the value no longer exists. */
     public static function labelFor(string $group, ?string $value): ?string
     {
         if ($value === null) {
@@ -35,9 +35,9 @@ class AttributeOption extends Model
     }
 
     /**
-     * Slug do ícone heroicons (outline) configurado para um valor, ou null se
-     * não houver ícone definido (hoje só `environment`/`cloud` expõem esse
-     * campo na UI — ver `AttributeGroup::supportsIcon()`).
+     * Heroicons (outline) icon slug configured for a value, or null if no
+     * icon is defined (today only `environment`/`cloud` expose this field in
+     * the UI — see `AttributeGroup::supportsIcon()`).
      */
     public static function iconFor(string $group, ?string $value): ?string
     {

@@ -6,9 +6,9 @@ use App\Models\Integration;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Cria uma Integration nova a partir da solução do contexto — só o nome
- * (opcional). Chain inicial é {nodes: [raiz], edges: []}; blocos, ligações e
- * status/renome ficam por conta do data-viz F3 daí em diante.
+ * Creates a new Integration from the context solution — just the name
+ * (optional). The initial chain is {nodes: [root], edges: []}; blocks, edges,
+ * and status/rename are handled by data-viz F3 from then on.
  */
 class StoreIntegrationRequest extends FormRequest
 {

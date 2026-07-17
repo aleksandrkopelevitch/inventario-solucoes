@@ -6,12 +6,12 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * Atualiza um (ou mais) dos 8 atributos de Solução isoladamente — editados no
- * lugar a partir do próprio card do cabeçalho de detalhe (`Solutions\DetailHeader`),
- * sem abrir o painel de edição completo. Ao contrário de `UpdateSolutionRequest`
- * (usado pelo form inteiro, onde `category`/`status` são sempre obrigatórios),
- * aqui cada campo é `sometimes` — o card manda só o atributo que o usuário
- * acabou de trocar.
+ * Updates one (or more) of a Solution's 8 attributes in isolation — edited in
+ * place from the detail header card itself (`Solutions\DetailHeader`),
+ * without opening the full edit panel. Unlike `UpdateSolutionRequest` (used
+ * by the whole form, where `category`/`status` are always required), here
+ * every field is `sometimes` — the card only sends the attribute the user
+ * just changed.
  */
 class UpdateSolutionAttributesRequest extends FormRequest
 {
@@ -26,12 +26,12 @@ class UpdateSolutionAttributesRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // NOT NULL no schema — nunca podem ser esvaziados por aqui.
+            // NOT NULL in the schema — can never be emptied out from here.
             'category'        => ['sometimes', 'required', Rule::exists('attribute_options', 'value')->where('group', 'category')],
             'status'          => ['sometimes', 'required', Rule::exists('attribute_options', 'value')->where('group', 'status')],
             'contract_status' => ['sometimes', 'required', Rule::exists('attribute_options', 'value')->where('group', 'contract_status')],
             'support_type'    => ['sometimes', 'required', Rule::exists('attribute_options', 'value')->where('group', 'support_type')],
-            // Nullable no schema — o card mostra "Não informado" e aceita limpar de volta pra null.
+            // Nullable in the schema — the card shows "Not informed" and accepts clearing back to null.
             'criticality' => ['sometimes', 'nullable', Rule::exists('attribute_options', 'value')->where('group', 'criticality')],
             'environment' => ['sometimes', 'nullable', Rule::exists('attribute_options', 'value')->where('group', 'environment')],
             'cloud'       => ['sometimes', 'nullable', Rule::exists('attribute_options', 'value')->where('group', 'cloud')],
@@ -39,7 +39,7 @@ class UpdateSolutionAttributesRequest extends FormRequest
         ];
     }
 
-    /** Esvazia o sentinel "" do select para null, nos campos que aceitam. */
+    /** Empties the select's "" sentinel to null, for the fields that accept it. */
     protected function prepareForValidation(): void
     {
         foreach (['criticality', 'environment', 'cloud', 'directorate'] as $field) {

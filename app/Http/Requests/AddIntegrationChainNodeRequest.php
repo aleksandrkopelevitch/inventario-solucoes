@@ -9,13 +9,13 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Enum;
 
 /**
- * Acrescenta um novo bloco ao final da chain (data-viz F3) — escolhido de uma
- * Solução cadastrada ou texto livre. `arrow` é opcional: quando ausente
- * ("Sem conexão" no painel "Adicionar bloco"), o bloco nasce isolado, sem
- * nenhuma ligação — o usuário pode ligá-lo depois via "modo ligar"
- * (`AddIntegrationChainEdgeRequest`) ou religando outra ligação até ele
- * (`RetargetIntegrationChainEdgeRequest`). Quando presente, liga ao nó
- * atualmente no final da cadeia pela seta/protocolo do painel.
+ * Appends a new block to the end of the chain (data-viz F3) — chosen from a
+ * registered Solution or free text. `arrow` is optional: when absent ("No
+ * connection" in the "Add block" panel), the block is born isolated, with no
+ * edge at all — the user can connect it later via "connect mode"
+ * (`AddIntegrationChainEdgeRequest`) or by retargeting another edge to it
+ * (`RetargetIntegrationChainEdgeRequest`). When present, it connects to the
+ * node currently at the end of the chain using the panel's arrow/protocol.
  */
 class AddIntegrationChainNodeRequest extends FormRequest
 {
@@ -51,7 +51,7 @@ class AddIntegrationChainNodeRequest extends FormRequest
         ];
     }
 
-    /** Normaliza o sentinel "free" do select (texto livre) para solution_id nulo. */
+    /** Normalizes the select's "free" sentinel (free text) to a null solution_id. */
     protected function prepareForValidation(): void
     {
         $solutionId = $this->input('solution_id');

@@ -10,10 +10,10 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
- * Documentos de contexto de uma Solução (coleção `context_documents`),
- * reaproveitados pelo "Assiste IA" da documentação. São por Solução e
- * compartilhados entre as páginas dela e as docs das suas integrações. Servir
- * fica aqui e não no MediaController, que só libera a coleção `docs`.
+ * Context documents for a Solution (the `context_documents` collection),
+ * reused by the documentation's "AI Assist". They are per-Solution and
+ * shared across its pages and the docs of its integrations. Serving lives
+ * here and not in MediaController, which only releases the `docs` collection.
  */
 class SolutionContextDocumentController extends Controller
 {
@@ -54,7 +54,7 @@ class SolutionContextDocumentController extends Controller
         ]);
     }
 
-    /** 404 se a mídia não for um documento de contexto desta Solução. */
+    /** 404 if the media is not a context document belonging to this Solution. */
     private function assertBelongsTo(Solution $solution, Media $media): void
     {
         abort_unless(

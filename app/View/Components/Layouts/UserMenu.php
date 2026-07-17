@@ -7,9 +7,10 @@ use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 /**
- * Menu de contexto no canto inferior esquerdo da sidebar (avatar + nome do
- * usuário logado). Slot atualizável para que editar o perfil (nome/e-mail/
- * avatar) via `profile.edit` reflita aqui sem reload — ver `ProfileController::update()`.
+ * Context menu at the bottom-left corner of the sidebar (avatar + logged-in
+ * user's name). Updatable slot so that editing the profile (name/email/
+ * avatar) via `profile.edit` is reflected here without a reload — see
+ * `ProfileController::update()`.
  */
 class UserMenu extends Component
 {

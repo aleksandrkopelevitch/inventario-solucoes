@@ -86,8 +86,8 @@ it('renders omitted-document labels (not "Array") in the prompt', function () {
     $context = (new FlowspecContextResolver)->resolve('post de token no svl');
     $prompt = (new FlowspecPromptBuilder)->userPrompt($context, 'post de token no svl', collect());
 
-    // `omittedDocuments` virou list<array{type,id,label}>; a seção de docs
-    // precisa render só o `label`, nunca "Array" (Array to string conversion).
+    // `omittedDocuments` became list<array{type,id,label}>; the docs section
+    // must render only the `label`, never "Array" (Array to string conversion).
     expect($prompt)
         ->toContain('Documentos omitidos por orçamento de contexto: Histórico')
         ->not->toContain('Array');
@@ -160,7 +160,7 @@ it('suggests documents for a solution mentioned by name but not yet considered',
 
     $suggestions = (new FlowspecContextResolver)->suggestDocumentsFor(
         'Preciso saber como o IAM autentica antes de continuar.',
-        collect([$svl]), // SVL já considerado — IAM ainda não
+        collect([$svl]), // SVL already considered — IAM not yet
     );
 
     expect($suggestions)->toBe([

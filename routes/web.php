@@ -29,219 +29,219 @@ use Illuminate\Support\Facades\Route;
 
 // Guest routes
 Route::middleware('guest')->group(function () {
-    Route::get('cadastro', [RegisterController::class, 'create'])->name('register.create');
-    Route::post('cadastro', [RegisterController::class, 'store'])->name('register.store');
+    Route::get('register', [RegisterController::class, 'create'])->name('register.create');
+    Route::post('register', [RegisterController::class, 'store'])->name('register.store');
 
     Route::get('login', [LoginController::class, 'create'])->name('login.create');
     Route::post('login', [LoginController::class, 'store'])->name('login.store');
 
-    Route::get('esqueci-minha-senha', [ForgotPasswordController::class, 'create'])->name('password.request');
-    Route::post('esqueci-minha-senha', [ForgotPasswordController::class, 'store'])->name('password.email');
+    Route::get('forgot-password', [ForgotPasswordController::class, 'create'])->name('password.request');
+    Route::post('forgot-password', [ForgotPasswordController::class, 'store'])->name('password.email');
 
-    Route::get('redefinir-senha/{token}', [ResetPasswordController::class, 'create'])->name('password.reset');
-    Route::post('redefinir-senha', [ResetPasswordController::class, 'store'])->name('password.update');
+    Route::get('reset-password/{token}', [ResetPasswordController::class, 'create'])->name('password.reset');
+    Route::post('reset-password', [ResetPasswordController::class, 'store'])->name('password.update');
 });
 
-// Authenticated routes (o papel `agent` é bloqueado da web — seção 15)
+// Authenticated routes (the `agent` role is blocked from the web — section 15)
 Route::middleware(['auth', BlockAgentFromWeb::class])->group(function () {
-    Route::get('painel', [ProfileController::class, 'show'])->name('profile.show');
-    Route::get('painel/editar', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('painel', [ProfileController::class, 'update'])->name('profile.update');
-    Route::get('painel/personalizar', [ProfileController::class, 'customizePanel'])->name('profile.preferences.panel');
-    Route::patch('painel/preferencias', [ProfileController::class, 'updatePreferences'])->name('profile.preferences.update');
+    Route::get('profile', [ProfileController::class, 'show'])->name('profile.show');
+    Route::get('profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::get('profile/customize', [ProfileController::class, 'customizePanel'])->name('profile.preferences.panel');
+    Route::patch('profile/preferences', [ProfileController::class, 'updatePreferences'])->name('profile.preferences.update');
 
     Route::delete('logout', [LoginController::class, 'destroy'])->name('login.destroy');
 
-    // F1 — catálogo de soluções (Etapa 2). Rotas estáticas antes das wildcard.
-    Route::get('solucoes', [SolutionController::class, 'index'])->name('solutions.index');
-    Route::get('solucoes/novo', [SolutionController::class, 'create'])->name('solutions.create');
-    Route::post('solucoes', [SolutionController::class, 'store'])->name('solutions.store');
-    // Antigo painel de cobertura (F7, por flags) — aposentado; a visão gerencial
-    // agora é o hub de documentação (content-based). Redireciona bookmarks.
-    Route::redirect('solucoes/cobertura', '/documentacao');
-    // Busca por nome (autocomplete dos chips de "Sistemas" no form de Pessoa). Estática, antes de solutions.{solution:slug}.
-    Route::get('solucoes/busca', [SolutionController::class, 'search'])->name('solutions.search');
-    Route::get('solucoes/{solution}/editar', [SolutionController::class, 'edit'])->name('solutions.edit');
+    // F1 — solutions catalog (Stage 2). Static routes before the wildcard.
+    Route::get('solutions', [SolutionController::class, 'index'])->name('solutions.index');
+    Route::get('solutions/new', [SolutionController::class, 'create'])->name('solutions.create');
+    Route::post('solutions', [SolutionController::class, 'store'])->name('solutions.store');
+    // Old flag-based coverage panel (F7) — retired; the management view is now
+    // the content-based documentation hub. Redirects existing bookmarks.
+    Route::redirect('solutions/coverage', '/documentation');
+    // Name search (autocomplete for the "Systems" chips in the Person form). Static, before solutions.{solution:slug}.
+    Route::get('solutions/search', [SolutionController::class, 'search'])->name('solutions.search');
+    Route::get('solutions/{solution}/edit', [SolutionController::class, 'edit'])->name('solutions.edit');
 
-    // Integrações sempre a partir da solução — não há mais catálogo/módulo
-    // /integracoes avulso. `scopeBindings` garante que {integration} pertence
-    // à {solution} da URL (via Solution::integrations()). Estáticas antes de
-    // {integration}.
+    // Integrations are always scoped under a solution — there's no standalone
+    // /integrations catalog/module anymore. `scopeBindings` guarantees
+    // {integration} belongs to the {solution} in the URL (via
+    // Solution::integrations()). Static routes before {integration}.
     Route::scopeBindings()->group(function () {
-        // Integrações do detalhe da solução (F3) — o data-viz é quem autora a
-        // cadeia (participants/source/target/direction derivados via
-        // SyncIntegrationFromChain; protocolo por passo). `store`/`update`
-        // aqui só cobrem o que o data-viz não faz sozinho: criar uma
-        // Integration nova e renomear/mudar status de uma existente.
-        Route::post('solucoes/{solution}/integracoes', [SolutionIntegrationController::class, 'store'])->name('solutions.integrations.store');
-        Route::patch('solucoes/{solution}/integracoes/{integration}', [SolutionIntegrationController::class, 'update'])->name('solutions.integrations.update');
-        Route::patch('solucoes/{solution}/integracoes/{integration}/layout', [SolutionIntegrationController::class, 'saveLayout'])->name('solutions.integrations.layout.save');
-        // Documentação rica da integração (editor de blocos Editor.js).
-        Route::get('solucoes/{solution}/integracoes/{integration}/documentacao', [IntegrationDocumentationController::class, 'edit'])->name('solutions.integrations.docs.edit');
-        Route::patch('solucoes/{solution}/integracoes/{integration}/documentacao', [IntegrationDocumentationController::class, 'update'])->name('solutions.integrations.docs.update');
-        Route::post('solucoes/{solution}/integracoes/{integration}/documentacao/midia', [IntegrationDocumentationController::class, 'media'])->name('solutions.integrations.docs.media');
-        // Assiste IA — popula a doc da integração por LLM (job + polling). Os
-        // documentos de contexto são da Solução (rotas solutions.docs.context.*).
-        Route::get('solucoes/{solution}/integracoes/{integration}/documentacao/assistente', [IntegrationDocumentationController::class, 'assistantPanel'])->name('solutions.integrations.docs.assist.panel');
-        Route::post('solucoes/{solution}/integracoes/{integration}/documentacao/assistente', [IntegrationDocumentationController::class, 'generateDraft'])->name('solutions.integrations.docs.assist.generate');
-        // Painel lateral com o flowSpec anexado (F8 -> "Anexar à integração") — read-only.
-        Route::get('solucoes/{solution}/integracoes/{integration}/flowspec', [SolutionIntegrationController::class, 'flowspec'])->name('solutions.integrations.flowspec');
-        // Título de um nó pontual (data-viz F3) — {node} é o índice na chain, não um model.
-        Route::patch('solucoes/{solution}/integracoes/{integration}/chain/nos/{node}', [SolutionIntegrationController::class, 'updateNode'])
+        // Integrations of the solution detail page (F3) — the data-viz is what
+        // authors the chain (participants/source/target/direction derived via
+        // SyncIntegrationFromChain; protocol per step). `store`/`update` here
+        // only cover what the data-viz doesn't do on its own: creating a new
+        // Integration and renaming/changing the status of an existing one.
+        Route::post('solutions/{solution}/integrations', [SolutionIntegrationController::class, 'store'])->name('solutions.integrations.store');
+        Route::patch('solutions/{solution}/integrations/{integration}', [SolutionIntegrationController::class, 'update'])->name('solutions.integrations.update');
+        Route::patch('solutions/{solution}/integrations/{integration}/layout', [SolutionIntegrationController::class, 'saveLayout'])->name('solutions.integrations.layout.save');
+        // Rich integration documentation (Editor.js block editor).
+        Route::get('solutions/{solution}/integrations/{integration}/documentation', [IntegrationDocumentationController::class, 'edit'])->name('solutions.integrations.docs.edit');
+        Route::patch('solutions/{solution}/integrations/{integration}/documentation', [IntegrationDocumentationController::class, 'update'])->name('solutions.integrations.docs.update');
+        Route::post('solutions/{solution}/integrations/{integration}/documentation/media', [IntegrationDocumentationController::class, 'media'])->name('solutions.integrations.docs.media');
+        // AI Assist — populates the integration doc via LLM (job + polling). Context
+        // documents belong to the Solution (solutions.docs.context.* routes).
+        Route::get('solutions/{solution}/integrations/{integration}/documentation/assistant', [IntegrationDocumentationController::class, 'assistantPanel'])->name('solutions.integrations.docs.assist.panel');
+        Route::post('solutions/{solution}/integrations/{integration}/documentation/assistant', [IntegrationDocumentationController::class, 'generateDraft'])->name('solutions.integrations.docs.assist.generate');
+        // Side panel with the attached flowSpec (F8 -> "Attach to integration") — read-only.
+        Route::get('solutions/{solution}/integrations/{integration}/flowspec', [SolutionIntegrationController::class, 'flowspec'])->name('solutions.integrations.flowspec');
+        // Title of a single node (data-viz F3) — {node} is the index in the chain, not a model.
+        Route::patch('solutions/{solution}/integrations/{integration}/chain/nodes/{node}', [SolutionIntegrationController::class, 'updateNode'])
             ->whereNumber('node')
             ->name('solutions.integrations.chain.node.update');
-        // Protocolo de uma ligação pontual (data-viz F3) — {edge} é o índice em chain.edges.
-        Route::patch('solucoes/{solution}/integracoes/{integration}/chain/protocolo/{edge}', [SolutionIntegrationController::class, 'updateProtocol'])
+        // Protocol of a single edge (data-viz F3) — {edge} is the index in chain.edges.
+        Route::patch('solutions/{solution}/integrations/{integration}/chain/protocol/{edge}', [SolutionIntegrationController::class, 'updateProtocol'])
             ->whereNumber('edge')
             ->name('solutions.integrations.chain.protocol.update');
-        // Novo bloco ao final da cadeia (data-viz F3, painel "Adicionar bloco").
-        Route::post('solucoes/{solution}/integracoes/{integration}/chain/nos', [SolutionIntegrationController::class, 'addNode'])
+        // New block at the end of the chain (data-viz F3, "Add block" panel).
+        Route::post('solutions/{solution}/integrations/{integration}/chain/nodes', [SolutionIntegrationController::class, 'addNode'])
             ->name('solutions.integrations.chain.node.add');
-        // Religa uma ponta de uma ligação existente pra outro bloco qualquer
-        // (arrastar o handle da seta no data-viz F3) — {edge} é o índice em chain.edges.
-        Route::patch('solucoes/{solution}/integracoes/{integration}/chain/aresta/{edge}', [SolutionIntegrationController::class, 'retargetEdge'])
+        // Retargets one end of an existing edge to a different block (dragging
+        // the arrow handle in data-viz F3) — {edge} is the index in chain.edges.
+        Route::patch('solutions/{solution}/integrations/{integration}/chain/edge/{edge}', [SolutionIntegrationController::class, 'retargetEdge'])
             ->whereNumber('edge')
             ->name('solutions.integrations.chain.edge.retarget');
-        // Ligação nova entre dois blocos já existentes ("modo ligar" do data-viz F3).
-        Route::post('solucoes/{solution}/integracoes/{integration}/chain/arestas', [SolutionIntegrationController::class, 'addEdge'])
+        // New edge between two already-existing blocks ("link mode" in data-viz F3).
+        Route::post('solutions/{solution}/integrations/{integration}/chain/edges', [SolutionIntegrationController::class, 'addEdge'])
             ->name('solutions.integrations.chain.edge.add');
-        // Remove uma ligação existente (botão "desligar" do editor de aresta) — {edge} é o índice em chain.edges.
-        Route::delete('solucoes/{solution}/integracoes/{integration}/chain/aresta/{edge}', [SolutionIntegrationController::class, 'removeEdge'])
+        // Removes an existing edge (the "unlink" button in the edge editor) — {edge} is the index in chain.edges.
+        Route::delete('solutions/{solution}/integrations/{integration}/chain/edge/{edge}', [SolutionIntegrationController::class, 'removeEdge'])
             ->whereNumber('edge')
             ->name('solutions.integrations.chain.edge.remove');
-        Route::delete('solucoes/{solution}/integracoes/{integration}', [SolutionIntegrationController::class, 'destroy'])->name('solutions.integrations.destroy');
+        Route::delete('solutions/{solution}/integrations/{integration}', [SolutionIntegrationController::class, 'destroy'])->name('solutions.integrations.destroy');
     });
 
-    Route::get('solucoes/{solution}', [SolutionController::class, 'show'])->name('solutions.show');
-    Route::patch('solucoes/{solution}', [SolutionController::class, 'update'])->name('solutions.update');
-    // Edição inline de um atributo isolado a partir do próprio cabeçalho de detalhe.
-    Route::patch('solucoes/{solution}/atributos', [SolutionController::class, 'updateAttributes'])->name('solutions.attributes.update');
+    Route::get('solutions/{solution}', [SolutionController::class, 'show'])->name('solutions.show');
+    Route::patch('solutions/{solution}', [SolutionController::class, 'update'])->name('solutions.update');
+    // Inline editing of a single attribute from the detail header itself.
+    Route::patch('solutions/{solution}/attributes', [SolutionController::class, 'updateAttributes'])->name('solutions.attributes.update');
 
-    // Documentação rica da solução — árvore de 1..N páginas (editor de blocos
-    // Editor.js por página). `solutions.docs.edit` é o "índice": resolve (ou
-    // cria) a primeira página e redireciona pra ela, então os poucos lugares
-    // que já linkam pra essa rota (Solutions\Documentation, cobertura) não
-    // precisam saber qual página é a atual.
-    Route::get('solucoes/{solution}/documentacao', [SolutionDocumentationController::class, 'index'])->name('solutions.docs.edit');
-    Route::post('solucoes/{solution}/documentacao/paginas', [SolutionDocumentationController::class, 'store'])->name('solutions.docs.pages.store');
-    // Link público ("magic link") da documentação: gerar/revogar (admin).
-    // Estáticas ("compartilhar"), registradas antes do scopeBindings abaixo
-    // pra não colidir com o wildcard {page} (mesmo formato de segmentos).
-    Route::post('solucoes/{solution}/documentacao/compartilhar', [SolutionDocumentationController::class, 'share'])->name('solutions.docs.share');
-    Route::delete('solucoes/{solution}/documentacao/compartilhar', [SolutionDocumentationController::class, 'unshare'])->name('solutions.docs.unshare');
+    // Rich solution documentation — a tree of 1..N pages (Editor.js block
+    // editor per page). `solutions.docs.edit` is the "index": it resolves (or
+    // creates) the first page and redirects to it, so the few places that
+    // already link to this route (Solutions\Documentation, coverage) don't
+    // need to know which page is current.
+    Route::get('solutions/{solution}/documentation', [SolutionDocumentationController::class, 'index'])->name('solutions.docs.edit');
+    Route::post('solutions/{solution}/documentation/pages', [SolutionDocumentationController::class, 'store'])->name('solutions.docs.pages.store');
+    // Public documentation link ("magic link"): generate/revoke (admin).
+    // Static routes ("share"), registered before the scopeBindings below so
+    // they don't collide with the {page} wildcard (same segment shape).
+    Route::post('solutions/{solution}/documentation/share', [SolutionDocumentationController::class, 'share'])->name('solutions.docs.share');
+    Route::delete('solutions/{solution}/documentation/share', [SolutionDocumentationController::class, 'unshare'])->name('solutions.docs.unshare');
 
-    // Documentos de contexto do "Assiste IA" (coleção `context_documents`),
-    // por Solução — compartilhados entre as páginas dela e as docs das suas
-    // integrações. {media} é um binding global do model Spatie (checado contra
-    // a Solução no controller), por isso fica fora do scopeBindings de {page}.
-    Route::post('solucoes/{solution}/documentacao/contexto', [SolutionContextDocumentController::class, 'store'])->name('solutions.docs.context.store');
-    Route::get('solucoes/{solution}/documentacao/contexto/{media}', [SolutionContextDocumentController::class, 'show'])->name('solutions.docs.context.show');
-    Route::delete('solucoes/{solution}/documentacao/contexto/{media}', [SolutionContextDocumentController::class, 'destroy'])->name('solutions.docs.context.destroy');
+    // "AI Assist" context documents (`context_documents` collection), per
+    // Solution — shared between its pages and its integrations' docs. {media}
+    // is a global binding of the Spatie model (checked against the Solution
+    // in the controller), so it stays outside the {page} scopeBindings.
+    Route::post('solutions/{solution}/documentation/context', [SolutionContextDocumentController::class, 'store'])->name('solutions.docs.context.store');
+    Route::get('solutions/{solution}/documentation/context/{media}', [SolutionContextDocumentController::class, 'show'])->name('solutions.docs.context.show');
+    Route::delete('solutions/{solution}/documentation/context/{media}', [SolutionContextDocumentController::class, 'destroy'])->name('solutions.docs.context.destroy');
 
-    // Polling do "Assiste IA" — um só endpoint para páginas E integrações: o
-    // registro de geração carrega o próprio alvo/solução, então não precisa de
-    // {page}/{integration} na URL (e evita o auto-scope de scopeBindings tentar
-    // resolver {generation} como filho deles).
-    Route::get('solucoes/{solution}/documentacao/assistente/{generation}/status', [SolutionDocumentationController::class, 'draftStatus'])->name('solutions.docs.assist.status');
+    // "AI Assist" polling — a single endpoint for both pages AND integrations:
+    // the generation record carries its own target/solution, so it doesn't
+    // need {page}/{integration} in the URL (and avoids scopeBindings'
+    // auto-scope trying to resolve {generation} as their child).
+    Route::get('solutions/{solution}/documentation/assistant/{generation}/status', [SolutionDocumentationController::class, 'draftStatus'])->name('solutions.docs.assist.status');
 
-    // {page} resolve via Solution::pages() (mesmo mecanismo do {integration}
-    // escopado em Solution::integrations() acima).
+    // {page} resolves via Solution::pages() (same mechanism as the
+    // {integration} scoped in Solution::integrations() above).
     Route::scopeBindings()->group(function () {
-        Route::get('solucoes/{solution}/documentacao/{page}', [SolutionDocumentationController::class, 'edit'])->name('solutions.docs.page.edit');
-        Route::patch('solucoes/{solution}/documentacao/{page}', [SolutionDocumentationController::class, 'update'])->name('solutions.docs.update');
-        Route::patch('solucoes/{solution}/documentacao/{page}/titulo', [SolutionDocumentationController::class, 'rename'])->name('solutions.docs.pages.rename');
-        Route::delete('solucoes/{solution}/documentacao/{page}', [SolutionDocumentationController::class, 'destroy'])->name('solutions.docs.pages.destroy');
-        Route::patch('solucoes/{solution}/documentacao/{page}/mover', [SolutionDocumentationController::class, 'move'])->name('solutions.docs.pages.move');
-        Route::post('solucoes/{solution}/documentacao/{page}/midia', [SolutionDocumentationController::class, 'media'])->name('solutions.docs.media');
-        // Assiste IA — popula a página por LLM (job + polling).
-        Route::get('solucoes/{solution}/documentacao/{page}/assistente', [SolutionDocumentationController::class, 'assistantPanel'])->name('solutions.docs.assist.panel');
-        Route::post('solucoes/{solution}/documentacao/{page}/assistente', [SolutionDocumentationController::class, 'generateDraft'])->name('solutions.docs.assist.generate');
+        Route::get('solutions/{solution}/documentation/{page}', [SolutionDocumentationController::class, 'edit'])->name('solutions.docs.page.edit');
+        Route::patch('solutions/{solution}/documentation/{page}', [SolutionDocumentationController::class, 'update'])->name('solutions.docs.update');
+        Route::patch('solutions/{solution}/documentation/{page}/title', [SolutionDocumentationController::class, 'rename'])->name('solutions.docs.pages.rename');
+        Route::delete('solutions/{solution}/documentation/{page}', [SolutionDocumentationController::class, 'destroy'])->name('solutions.docs.pages.destroy');
+        Route::patch('solutions/{solution}/documentation/{page}/move', [SolutionDocumentationController::class, 'move'])->name('solutions.docs.pages.move');
+        Route::post('solutions/{solution}/documentation/{page}/media', [SolutionDocumentationController::class, 'media'])->name('solutions.docs.media');
+        // AI Assist — populates the page via LLM (job + polling).
+        Route::get('solutions/{solution}/documentation/{page}/assistant', [SolutionDocumentationController::class, 'assistantPanel'])->name('solutions.docs.assist.panel');
+        Route::post('solutions/{solution}/documentation/{page}/assistant', [SolutionDocumentationController::class, 'generateDraft'])->name('solutions.docs.assist.generate');
     });
 
-    // F5 — pessoas e empresas (Etapa 2).
-    Route::get('pessoas', [PersonController::class, 'index'])->name('people.index');
-    Route::get('pessoas/nova', [PersonController::class, 'create'])->name('people.create');
-    Route::post('pessoas', [PersonController::class, 'store'])->name('people.store');
-    Route::get('pessoas/{person}/editar', [PersonController::class, 'edit'])->name('people.edit');
-    Route::get('pessoas/{person}', [PersonController::class, 'show'])->name('people.show');
-    Route::patch('pessoas/{person}', [PersonController::class, 'update'])->name('people.update');
+    // F5 — people and companies (Stage 2).
+    Route::get('people', [PersonController::class, 'index'])->name('people.index');
+    Route::get('people/new', [PersonController::class, 'create'])->name('people.create');
+    Route::post('people', [PersonController::class, 'store'])->name('people.store');
+    Route::get('people/{person}/edit', [PersonController::class, 'edit'])->name('people.edit');
+    Route::get('people/{person}', [PersonController::class, 'show'])->name('people.show');
+    Route::patch('people/{person}', [PersonController::class, 'update'])->name('people.update');
 
-    Route::get('empresas', [CompanyController::class, 'index'])->name('companies.index');
-    Route::get('empresas/nova', [CompanyController::class, 'create'])->name('companies.create');
-    Route::post('empresas', [CompanyController::class, 'store'])->name('companies.store');
-    Route::get('empresas/{company}/editar', [CompanyController::class, 'edit'])->name('companies.edit');
-    Route::get('empresas/{company}', [CompanyController::class, 'show'])->name('companies.show');
-    Route::patch('empresas/{company}', [CompanyController::class, 'update'])->name('companies.update');
+    Route::get('companies', [CompanyController::class, 'index'])->name('companies.index');
+    Route::get('companies/new', [CompanyController::class, 'create'])->name('companies.create');
+    Route::post('companies', [CompanyController::class, 'store'])->name('companies.store');
+    Route::get('companies/{company}/edit', [CompanyController::class, 'edit'])->name('companies.edit');
+    Route::get('companies/{company}', [CompanyController::class, 'show'])->name('companies.show');
+    Route::patch('companies/{company}', [CompanyController::class, 'update'])->name('companies.update');
 
-    // Área "Gerenciar atributos" — só existe dentro da #main-modal (ver solutions/form.blade.php).
-    Route::get('atributos', [AttributeOptionController::class, 'index'])->name('attribute-options.index');
-    Route::get('atributos/{group}/opcoes', [AttributeOptionController::class, 'options'])->name('attribute-options.options');
-    Route::post('atributos/{group}', [AttributeOptionController::class, 'store'])->name('attribute-options.store');
-    Route::patch('atributos/{option}', [AttributeOptionController::class, 'update'])->name('attribute-options.update');
-    Route::delete('atributos/{option}', [AttributeOptionController::class, 'destroy'])->name('attribute-options.destroy');
+    // "Manage attributes" area — only exists inside #main-modal (see solutions/form.blade.php).
+    Route::get('attributes', [AttributeOptionController::class, 'index'])->name('attribute-options.index');
+    Route::get('attributes/{group}/options', [AttributeOptionController::class, 'options'])->name('attribute-options.options');
+    Route::post('attributes/{group}', [AttributeOptionController::class, 'store'])->name('attribute-options.store');
+    Route::patch('attributes/{option}', [AttributeOptionController::class, 'update'])->name('attribute-options.update');
+    Route::delete('attributes/{option}', [AttributeOptionController::class, 'destroy'])->name('attribute-options.destroy');
 
-    Route::get('mapa', [SolutionMapController::class, 'index'])->name('solutions.map');
-    Route::get('mapa/dados', [SolutionMapController::class, 'data'])->name('solutions.map.data');
-    Route::patch('mapa/nos/{solution}/posicao', [SolutionMapController::class, 'updatePosition'])->name('solutions.map.position.update');
+    Route::get('map', [SolutionMapController::class, 'index'])->name('solutions.map');
+    Route::get('map/data', [SolutionMapController::class, 'data'])->name('solutions.map.data');
+    Route::patch('map/nodes/{solution}/position', [SolutionMapController::class, 'updatePosition'])->name('solutions.map.position.update');
 
-    // F8 — Gerador de flowSpec Digibee (chat). A resposta é gerada em job
-    // (GenerateFlowspecReply); `status` é o endpoint de polling do thread.
-    // {message} resolve escopado em FlowspecChat::messages().
+    // F8 — Digibee flowSpec generator (chat). The reply is generated in a job
+    // (GenerateFlowspecReply); `status` is the thread's polling endpoint.
+    // {message} resolves scoped to FlowspecChat::messages().
     Route::get('flowspec', [FlowspecChatController::class, 'index'])->name('flowspec.index');
     Route::post('flowspec', [FlowspecChatController::class, 'store'])->name('flowspec.store');
-    Route::get('flowspec/documentos/busca', [FlowspecChatController::class, 'searchDocuments'])->name('flowspec.documents.search');
+    Route::get('flowspec/documents/search', [FlowspecChatController::class, 'searchDocuments'])->name('flowspec.documents.search');
     Route::get('flowspec/{chat}', [FlowspecChatController::class, 'show'])->name('flowspec.show');
     Route::get('flowspec/{chat}/status', [FlowspecChatController::class, 'status'])->name('flowspec.status');
-    Route::post('flowspec/{chat}/mensagens', [FlowspecMessageController::class, 'store'])->name('flowspec.messages.store');
+    Route::post('flowspec/{chat}/messages', [FlowspecMessageController::class, 'store'])->name('flowspec.messages.store');
     Route::scopeBindings()->group(function () {
-        Route::post('flowspec/{chat}/mensagens/{message}/anexar', [FlowspecAttachmentController::class, 'store'])->name('flowspec.messages.attach');
-        Route::post('flowspec/{chat}/mensagens/{message}/promover', [FlowspecExamplePromotionController::class, 'store'])->name('flowspec.messages.promote');
+        Route::post('flowspec/{chat}/messages/{message}/attach', [FlowspecAttachmentController::class, 'store'])->name('flowspec.messages.attach');
+        Route::post('flowspec/{chat}/messages/{message}/promote', [FlowspecExamplePromotionController::class, 'store'])->name('flowspec.messages.promote');
     });
 
-    // Hub de Documentação — visão transversal do que está documentado (soluções
-    // + integrações) e do que falta. Substitui o antigo painel de cobertura.
-    Route::get('documentacao', [DocumentationHubController::class, 'index'])->name('documentation.index');
+    // Documentation Hub — cross-cutting view of what's documented (solutions +
+    // integrations) and what's missing. Replaces the old coverage panel.
+    Route::get('documentation', [DocumentationHubController::class, 'index'])->name('documentation.index');
 
-    // Grupos ("Aninhamentos") — árvore de páginas standalone, fora de
-    // qualquer Solução. Mesmo padrão de solutions.docs.* acima: `show` é o
-    // índice (resolve/cria a 1ª página), rotas estáticas antes do
-    // scopeBindings que resolve {page} via DocumentationGroup::pages().
-    Route::post('documentacao/grupos', [DocumentationGroupController::class, 'store'])->name('documentation.groups.store');
-    Route::get('documentacao/grupos/{group}', [DocumentationGroupController::class, 'show'])->name('documentation.groups.show');
-    Route::patch('documentacao/grupos/{group}', [DocumentationGroupController::class, 'update'])->name('documentation.groups.update');
-    Route::delete('documentacao/grupos/{group}', [DocumentationGroupController::class, 'destroy'])->name('documentation.groups.destroy');
-    Route::post('documentacao/grupos/{group}/paginas', [DocumentationGroupPageController::class, 'store'])->name('documentation.groups.pages.store');
+    // Groups ("Nestings") — a tree of standalone pages, outside any Solution.
+    // Same pattern as solutions.docs.* above: `show` is the index (resolves/
+    // creates the 1st page), static routes before the scopeBindings that
+    // resolves {page} via DocumentationGroup::pages().
+    Route::post('documentation/groups', [DocumentationGroupController::class, 'store'])->name('documentation.groups.store');
+    Route::get('documentation/groups/{group}', [DocumentationGroupController::class, 'show'])->name('documentation.groups.show');
+    Route::patch('documentation/groups/{group}', [DocumentationGroupController::class, 'update'])->name('documentation.groups.update');
+    Route::delete('documentation/groups/{group}', [DocumentationGroupController::class, 'destroy'])->name('documentation.groups.destroy');
+    Route::post('documentation/groups/{group}/pages', [DocumentationGroupPageController::class, 'store'])->name('documentation.groups.pages.store');
 
     Route::scopeBindings()->group(function () {
-        Route::get('documentacao/grupos/{group}/{page}', [DocumentationGroupPageController::class, 'edit'])->name('documentation.groups.pages.edit');
-        Route::patch('documentacao/grupos/{group}/{page}', [DocumentationGroupPageController::class, 'update'])->name('documentation.groups.pages.update');
-        Route::patch('documentacao/grupos/{group}/{page}/titulo', [DocumentationGroupPageController::class, 'rename'])->name('documentation.groups.pages.rename');
-        Route::delete('documentacao/grupos/{group}/{page}', [DocumentationGroupPageController::class, 'destroy'])->name('documentation.groups.pages.destroy');
-        Route::patch('documentacao/grupos/{group}/{page}/mover', [DocumentationGroupPageController::class, 'move'])->name('documentation.groups.pages.move');
-        Route::post('documentacao/grupos/{group}/{page}/midia', [DocumentationGroupPageController::class, 'media'])->name('documentation.groups.pages.media');
+        Route::get('documentation/groups/{group}/{page}', [DocumentationGroupPageController::class, 'edit'])->name('documentation.groups.pages.edit');
+        Route::patch('documentation/groups/{group}/{page}', [DocumentationGroupPageController::class, 'update'])->name('documentation.groups.pages.update');
+        Route::patch('documentation/groups/{group}/{page}/title', [DocumentationGroupPageController::class, 'rename'])->name('documentation.groups.pages.rename');
+        Route::delete('documentation/groups/{group}/{page}', [DocumentationGroupPageController::class, 'destroy'])->name('documentation.groups.pages.destroy');
+        Route::patch('documentation/groups/{group}/{page}/move', [DocumentationGroupPageController::class, 'move'])->name('documentation.groups.pages.move');
+        Route::post('documentation/groups/{group}/{page}/media', [DocumentationGroupPageController::class, 'media'])->name('documentation.groups.pages.media');
     });
 
-    // Mídia embutida na documentação (imagens/arquivos da coleção `docs`),
-    // referenciada por /files/{id} dentro do Markdown. Só autenticados.
+    // Media embedded in documentation (images/files from the `docs`
+    // collection), referenced via /files/{id} inside the Markdown. Authenticated only.
     Route::get('files/{media}', [MediaController::class, 'show'])->name('files.show');
 
-    // Ícones outline do heroicons para o picker dos callouts da documentação
-    // (só o editor consome; as views read-only já vêm com o SVG renderizado).
+    // Heroicons outline icons for the documentation callout picker (only the
+    // editor consumes this; read-only views already ship with the rendered SVG).
     Route::get('heroicons/outline', [HeroiconController::class, 'outline'])->name('heroicons.outline');
 
-    // Demonstração dos form components (Etapa 0 — DoD: renderizam isoladamente)
-    Route::view('componentes', 'showcase')->name('showcase');
+    // Form components demo (Stage 0 — DoD: renders in isolation)
+    Route::view('components', 'showcase')->name('showcase');
 });
 
-// Documentação pública ("magic link") — SEM auth. Acesso por token opaco na
-// URL (Solution::public_token); a mídia embutida é servida por uma rota
-// dedicada validada contra a própria solução/integrações (PublicDocumentationController).
-Route::get('doc-publica/{token}', [PublicDocumentationController::class, 'solution'])->name('public.docs.solution');
-// {slug} não é model-bound: slug de página só é único dentro do seu
-// container, nunca globalmente (ver PublicDocumentationController::page()).
-Route::get('doc-publica/{token}/pagina/{slug}', [PublicDocumentationController::class, 'page'])->name('public.docs.page');
-Route::get('doc-publica/{token}/integracao/{integration:slug}', [PublicDocumentationController::class, 'integration'])->name('public.docs.integration');
-Route::get('doc-publica/{token}/arquivo/{media}', [PublicDocumentationController::class, 'file'])->name('public.docs.file');
+// Public documentation ("magic link") — NO auth. Access via an opaque token in
+// the URL (Solution::public_token); embedded media is served by a dedicated
+// route validated against the solution/its integrations itself (PublicDocumentationController).
+Route::get('public-docs/{token}', [PublicDocumentationController::class, 'solution'])->name('public.docs.solution');
+// {slug} is not model-bound: a page's slug is only unique within its
+// container, never globally (see PublicDocumentationController::page()).
+Route::get('public-docs/{token}/page/{slug}', [PublicDocumentationController::class, 'page'])->name('public.docs.page');
+Route::get('public-docs/{token}/integration/{integration:slug}', [PublicDocumentationController::class, 'integration'])->name('public.docs.integration');
+Route::get('public-docs/{token}/file/{media}', [PublicDocumentationController::class, 'file'])->name('public.docs.file');
 
 Route::get('/', fn () => auth()->check()
     ? redirect()->route('profile.show')

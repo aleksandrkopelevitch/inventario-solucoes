@@ -1,50 +1,49 @@
-// Mapa do ecossistema (somente leitura) — layout radial hub-and-spoke.
+// Ecosystem map (read-only) — radial hub-and-spoke layout.
 //
-// Cada solução vira um hub (cartão arredondado, mesmo visual do bloco do
-// integration-viz) posicionado uma única vez num grid compacto que empacota
-// os FOOTPRINTs (cartão + anel de vizinhos, quando expandido) em linhas,
-// maiores primeiro. Nada de `dagre`/layout por rank aqui: a maioria dos
-// pares/clusters deste grafo é pequena e majoritariamente desconexa entre
-// si (muitas soluções com 0-2 vizinhos, alguns hubs bem conectados) — um
-// layout por rank (esquerda→direita) empurra tudo que não compartilha
-// aresta pro mesmo rank e colapsa numa coluna única (verificado visualmente
-// durante a implementação). O grid empacotado dá 2D de verdade
-// independente da conectividade.
+// Each solution becomes a hub (rounded card, same visual as the
+// integration-viz block) positioned once in a compact grid that packs the
+// FOOTPRINTs (card + neighbor ring, when expanded) into rows, largest first.
+// No `dagre`/rank layout here: most pairs/clusters in this graph are small
+// and mostly disconnected from each other (many solutions with 0-2
+// neighbors, a few well-connected hubs) — a rank layout (left→right) pushes
+// everything that shares no edge into the same rank and collapses into a
+// single column (verified visually during implementation). The packed grid
+// gives genuine 2D layout regardless of connectivity.
 //
-// Vizinhos (satélites) são o MESMO cartão do hub (avatar + nome, variante
-// compacta `.ak-eco-satellite-card`) — não um avatar-só — pra sempre dar
-// pra ler o nome, tanto do hub quanto de cada satélite. O raio do anel é
-// derivado do tamanho REAL medido de cada cartão (hub + maior satélite +
-// perímetro necessário pro nº de vizinhos), não uma constante fixa — um hub
-// de grau 1 fica bem próximo do seu único vizinho.
+// Neighbors (satellites) are the SAME card as the hub (avatar + name,
+// compact `.ak-eco-satellite-card` variant) — not an avatar alone — so the
+// name is always readable, both for the hub and for each satellite. The
+// ring radius is derived from the REAL measured size of each card (hub +
+// largest satellite + perimeter needed for the number of neighbors), not a
+// fixed constant — a degree-1 hub sits close to its single neighbor.
 //
-// Uma solução pode aparecer como hub (posição própria) E como satélite no
-// anel de outro hub — intencional: evita as curvas cruzando o canvas
-// inteiro que emaranhavam o desenho antigo (ver CLAUDE.md/plano). Hubs com
-// muitos vizinhos (grau > EXPAND_THRESHOLD) nascem colapsados (só o cartão +
-// badge com a contagem); clique na badge expande/colapsa o anel daquele hub
-// SEM tocar no `layout()` do grid — nenhum outro hub muda de lugar, e o
-// hub alternado também fica onde estava (só o anel dele aparece/desaparece
-// ao redor). Recalcular o grid inteiro a cada toggle fazia a view inteira
-// reposicionar de forma imprevisível a cada clique — desorientador.
+// A solution can appear as a hub (its own position) AND as a satellite in
+// another hub's ring — intentional: avoids the canvas-spanning curves that
+// tangled up the old drawing (see CLAUDE.md/plan). Hubs with many neighbors
+// (degree > EXPAND_THRESHOLD) start collapsed (just the card + a badge with
+// the count); clicking the badge expands/collapses that hub's ring WITHOUT
+// touching the grid's `layout()` — no other hub moves, and the toggled hub
+// itself also stays where it was (only its ring appears/disappears around
+// it). Recalculating the whole grid on every toggle made the entire view
+// reposition unpredictably on every click — disorienting.
 //
-// Clique num cartão (hub ou satélite) abre um popover com os atributos da
-// solução + botão "Ver mais" (nova aba) — não navega direto. Pan/zoom/fit/
-// tela cheia seguem o mesmo padrão de integration-viz.js (view.x/y/scale
-// sobre um #world com um único transform, Fullscreen API real).
+// Clicking a card (hub or satellite) opens a popover with the solution's
+// attributes + a "See more" button (new tab) — it doesn't navigate directly.
+// Pan/zoom/fit/fullscreen follow the same pattern as integration-viz.js
+// (view.x/y/scale on a single #world transform, real Fullscreen API).
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
 const MIN_SCALE = 0.15
 const MAX_SCALE = 2.5
 const FIT_PAD = 60
 const EXPAND_THRESHOLD = 6
-const RING_GAP = 8 // espaço mínimo entre satélites vizinhos ao redor do anel
-const HUB_MARGIN = 18 // folga do footprint em torno do hub/anel, pro grid não colar clusters
-const HUB_EDGE_GAP = 4 // afasta a ponta da seta da borda do hub
-const SAT_EDGE_GAP = 4 // afasta a ponta da seta da borda do satélite
-const GRID_GAP = 12 // espaço entre clusters (hub+anel) no grid empacotado
-const DRAG_THRESHOLD = 4 // px de tela — abaixo disso um mousedown+mouseup ainda conta como clique (abre popover), não arraste
-const FOCUS_SCALE = 1 // zoom aplicado ao focar um sistema pela busca — legível sem aproximar demais
+const RING_GAP = 8 // minimum spacing between neighboring satellites around the ring
+const HUB_MARGIN = 18 // footprint slack around the hub/ring, so the grid doesn't stick clusters together
+const HUB_EDGE_GAP = 4 // pulls the arrow tip away from the hub's edge
+const SAT_EDGE_GAP = 4 // pulls the arrow tip away from the satellite's edge
+const GRID_GAP = 12 // spacing between clusters (hub+ring) in the packed grid
+const DRAG_THRESHOLD = 4 // screen px — below this a mousedown+mouseup still counts as a click (opens popover), not a drag
+const FOCUS_SCALE = 1 // zoom applied when focusing a system via search — readable without zooming in too much
 
 const mounted = new WeakSet()
 let uidCounter = 0
@@ -53,8 +52,8 @@ export function init() {
     document.querySelectorAll('[data-ecosystem-map]').forEach(mount)
 }
 
-// Mesmo fallback do catálogo (`x-ui.logo`), refeito em DOM puro — os nós
-// deste mapa não passam por Blade (chegam via fetch), mesma razão de
+// Same fallback as the catalog (`x-ui.logo`), redone in plain DOM — this
+// map's nodes don't go through Blade (they arrive via fetch), same reason as
 // integration-viz.js.
 function buildAvatar(data) {
     const avatar = document.createElement('span')
@@ -71,9 +70,9 @@ function buildAvatar(data) {
     return avatar
 }
 
-// Pinta o conteúdo de um cartão (avatar + nome) — usado tanto pro hub quanto
-// pro satélite, a única diferença entre os dois é a classe CSS aplicada ao
-// elemento raiz (`.ak-eco-hub` vs `.ak-eco-satellite-card`).
+// Paints a card's content (avatar + name) — used for both the hub and the
+// satellite, the only difference between the two is the CSS class applied to
+// the root element (`.ak-eco-hub` vs `.ak-eco-satellite-card`).
 function paintCard(el, data) {
     el.innerHTML = ''
     const body = document.createElement('div')
@@ -128,7 +127,7 @@ function mount(root) {
     markerStart.id = uid + '-start'
 
     const view = { x: FIT_PAD, y: FIT_PAD, scale: 1 }
-    const expandState = new Map() // nodeId -> bool, sobrevive a re-fetches (troca de filtro) na mesma sessão
+    const expandState = new Map() // nodeId -> bool, survives re-fetches (filter changes) within the same session
     let hubs = []
     let graphRef = null
     let panning = false
@@ -142,9 +141,10 @@ function mount(root) {
     function applyView() {
         world.style.transform = `translate(${view.x}px,${view.y}px) scale(${view.scale})`
         if (zoomLabel) zoomLabel.textContent = Math.round(view.scale * 100) + '%'
-        // O popover não fecha em pan/zoom (só Esc/[X] — ver `closePopover`
-        // callers), então precisa acompanhar o anchor pra não ficar
-        // flutuando desconectado do cartão enquanto a view se move.
+        // The popover doesn't close on pan/zoom (only Esc/[X] — see
+        // `closePopover` callers), so it needs to follow the anchor so it
+        // doesn't end up floating disconnected from the card while the view
+        // moves.
         if (popoverEl && popoverAnchor) positionPopover(popoverEl, popoverAnchor)
     }
 
@@ -164,7 +164,7 @@ function mount(root) {
         applyView()
     }
 
-    // ── popover de atributos ────────────────────────────────────────
+    // ── attribute popover ────────────────────────────────────────
     function closePopover() {
         popoverEl?.remove()
         popoverEl = null
@@ -247,11 +247,12 @@ function mount(root) {
         popoverAnchor = anchorEl
     }
 
-    // Só fecha no [X] (botão no próprio popover) ou Esc — clicar fora
-    // (canvas, pan, zoom, sidebar, outro filtro) NUNCA fecha o popover
-    // sozinho. Isto é deliberado só neste mapa: o usuário quer poder
-    // clicar/arrastar o canvas com o popover aberto pra comparar um cartão
-    // com outro, sem o popover sumir no meio do gesto.
+    // Only closes via [X] (button on the popover itself) or Esc — clicking
+    // outside (canvas, pan, zoom, sidebar, another filter) NEVER closes the
+    // popover on its own. This is deliberate only in this map: the user
+    // wants to be able to click/drag the canvas with the popover open to
+    // compare one card against another, without the popover disappearing
+    // mid-gesture.
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') closePopover()
     })
@@ -276,10 +277,10 @@ function mount(root) {
         applyView()
     }
 
-    // ── busca de sistema (Ctrl+K / Cmd+K ou lupa) ──────────────────
-    // `display` inline (não a classe `hidden`) pela mesma razão do satélite
-    // acima — evita depender de quem vence o empate de especificidade com
-    // o CSS local deste componente.
+    // ── system search (Ctrl+K / Cmd+K or magnifier) ──────────────────
+    // Inline `display` (not the `hidden` class) for the same reason as the
+    // satellite above — avoids depending on who wins the specificity tie
+    // with this component's local CSS.
     function openSearch() {
         if (!hubs.length) return
         searchOverlay.style.display = 'flex'
@@ -297,8 +298,9 @@ function mount(root) {
         ;[...searchResultsEl.children].forEach((el, idx) => el.classList.toggle('is-active', idx === i))
     }
 
-    // Foca (pan+zoom centralizado) e destaca por alguns segundos o hub
-    // escolhido — não navega pra outra página, só localiza no próprio mapa.
+    // Focuses (centered pan+zoom) and highlights the chosen hub for a few
+    // seconds — doesn't navigate to another page, just locates it within the
+    // map itself.
     function focusHub(hub) {
         const r = viewport.getBoundingClientRect()
         view.scale = FOCUS_SCALE
@@ -307,7 +309,7 @@ function mount(root) {
         applyView()
 
         hub.el.classList.remove('is-focused')
-        void hub.el.offsetWidth // força reflow — reinicia a animação mesmo se o hub já estava em foco
+        void hub.el.offsetWidth // forces reflow — restarts the animation even if the hub was already focused
         hub.el.classList.add('is-focused')
         clearTimeout(focusTimer)
         focusTimer = setTimeout(() => hub.el.classList.remove('is-focused'), 2200)
@@ -318,10 +320,10 @@ function mount(root) {
         focusHub(hub)
     }
 
-    // Busca só entre hubs (todo nó do grafo tem uma posição própria no
-    // grid — "sistema principal" é qualquer um deles), não entre cartões-
-    // satélite (que são só a mesma solução redesenhada dentro do anel de
-    // outro hub, não um alvo de foco à parte).
+    // Searches only among hubs (every graph node has its own position in the
+    // grid — "primary system" is any one of them), not among satellite
+    // cards (which are just the same solution redrawn inside another hub's
+    // ring, not a separate focus target).
     function renderSearchResults(query) {
         const q = query.trim().toLowerCase()
         searchMatches = !q ? hubs : hubs.filter((h) => (h.label ?? '').toLowerCase().includes(q))
@@ -375,16 +377,17 @@ function mount(root) {
             closeSearch()
         }
     })
-    // Clique no overlay fora do painel fecha (mesmo padrão do side-panel
-    // global) — clique dentro do painel (input, lista) não propaga por não
-    // ter listener de fechamento.
+    // Clicking the overlay outside the panel closes it (same pattern as the
+    // global side-panel) — clicking inside the panel (input, list) doesn't
+    // propagate since it has no close listener.
     searchOverlay?.addEventListener('mousedown', (e) => {
         if (e.target === searchOverlay) closeSearch()
     })
 
-    // Não intercepta se o usuário já está digitando em outro campo de texto
-    // da página (ex.: um filtro fora deste componente) — Ctrl+K é um atalho
-    // "global" da página, mas não deve roubar teclas de um input alheio.
+    // Doesn't intercept if the user is already typing into another text
+    // field on the page (e.g. a filter outside this component) — Ctrl+K is a
+    // "global" page shortcut, but it shouldn't steal keystrokes from someone
+    // else's input.
     document.addEventListener('keydown', (e) => {
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
             const active = document.activeElement
@@ -439,32 +442,32 @@ function mount(root) {
     fitBtn?.addEventListener('click', fit)
     fullscreenBtn?.addEventListener('click', toggleFullscreen)
 
-    // Grau acima do threshold nasce colapsado; ao ou abaixo, expandido — a
-    // não ser que o usuário já tenha alternado esse hub nesta sessão
-    // (preserva a escolha entre trocas de filtro, que recarregam o grafo).
+    // Degree above the threshold starts collapsed; at or below, expanded —
+    // unless the user has already toggled this hub in this session
+    // (preserves the choice across filter changes, which reload the graph).
     function defaultExpanded(nodeId, degree) {
         if (expandState.has(nodeId)) return expandState.get(nodeId)
         return degree <= EXPAND_THRESHOLD
     }
 
-    // Maior "raio" (metade da diagonal) entre os cartões-satélite do hub —
-    // usado tanto pro raio mínimo do anel quanto pro footprint reservado.
+    // Largest "radius" (half the diagonal) among the hub's satellite cards —
+    // used both for the ring's minimum radius and for the reserved footprint.
     function maxNeighborRadius(hub) {
         return hub.neighbors.reduce((m, n) => Math.max(m, Math.hypot(n.w, n.h) / 2), 0)
     }
 
-    // Perímetro necessário pra caber todos os satélites lado a lado sem
-    // sobrepor (soma da "largura" de cada um, não um valor médio/fixo —
-    // cartões de nomes longos ocupam mais fatia do círculo).
+    // Perimeter needed to fit all satellites side by side without
+    // overlapping (sum of each one's "width", not an average/fixed value —
+    // cards with long names take up a bigger slice of the circle).
     function neighborCircumference(hub) {
         return hub.neighbors.reduce((sum, n) => sum + Math.hypot(n.w, n.h) + RING_GAP, 0)
     }
 
-    // Raio do anel: ancorado no tamanho REAL medido dos cartões (hub +
-    // maior satélite + uma folga pequena) — não mais uma constante fixa
-    // desconectada do conteúdo. Um hub de grau 1 fica bem próximo do seu
-    // único vizinho; o piso por perímetro só entra quando há vizinhos
-    // suficientes pra precisarem de mais espaço ao redor.
+    // Ring radius: anchored to the REAL measured size of the cards (hub +
+    // largest satellite + a small gap) — no longer a fixed constant
+    // disconnected from the content. A degree-1 hub sits close to its single
+    // neighbor; the perimeter-based floor only kicks in when there are
+    // enough neighbors to need more space around them.
     function ringRadius(hub) {
         if (!hub.expanded || hub.degree === 0) return 0
         const base = Math.hypot(hub.w, hub.h) / 2 + RING_GAP + maxNeighborRadius(hub)
@@ -476,8 +479,8 @@ function mount(root) {
         return hub.expanded && hub.degree > 0 ? ringRadius(hub) + maxNeighborRadius(hub) : 0
     }
 
-    // Tamanho reservado pro hub no grid empacotado (`layout()`) — quadrado
-    // que cabe o anel inteiro quando expandido, ou só o cartão quando não.
+    // Size reserved for the hub in the packed grid (`layout()`) — a square
+    // that fits the whole ring when expanded, or just the card when not.
     function footprint(hub) {
         if (hub.expanded && hub.degree > 0) {
             const side = 2 * (ringRadius(hub) + maxNeighborRadius(hub)) + HUB_MARGIN
@@ -486,21 +489,20 @@ function mount(root) {
         return { w: hub.w + HUB_MARGIN, h: hub.h + HUB_MARGIN }
     }
 
-    // Grid empacotado: maiores footprints primeiro (hubs expandidos com anel
-    // grande viram "âncoras" visuais, o resto preenche ao redor) — sem
-    // depender de conectividade. A largura de quebra de linha NÃO é a
-    // largura literal do viewport (isso produzia uma coluna alta e estreita
-    // quando a soma dos footprints era grande — `fit()` então precisava
-    // zerar o zoom quase todo pra caber uma torre vertical numa tela
-    // widescreen); em vez disso, mira a MESMA proporção do viewport a
-    // partir da área total ocupada (`largura = sqrt(área * proporção)`),
-    // pra o retângulo resultante já nascer parecido com o formato da tela.
-    // Hubs com `mapPosition` salva (arrastados e persistidos em algum
-    // momento — `saveHubPosition()`) pulam o empacotamento automático e vão
-    // direto pra posição salva; só os demais (`auto`) entram no grid
-    // empacotado, como se os manuais nem existissem (pode sobrepor um
-    // cluster manual — aceitável, é o preço de deixar o usuário fixar a
-    // posição; ele pode arrastar de novo pra abrir espaço).
+    // Packed grid: largest footprints first (expanded hubs with a big ring
+    // become visual "anchors", the rest fills in around them) — independent
+    // of connectivity. The line-wrap width is NOT the viewport's literal
+    // width (that produced a tall, narrow column when the sum of footprints
+    // was large — `fit()` then had to zero out almost all the zoom to fit a
+    // vertical tower on a widescreen); instead, it targets the SAME aspect
+    // ratio as the viewport starting from the total occupied area
+    // (`width = sqrt(area * aspect)`), so the resulting rectangle is already
+    // shaped like the screen. Hubs with a saved `mapPosition` (dragged and
+    // persisted at some point — `saveHubPosition()`) skip automatic packing
+    // and go straight to their saved position; only the rest (`auto`) enter
+    // the packed grid, as if the manual ones didn't exist (may overlap a
+    // manual cluster — acceptable, it's the price of letting the user pin a
+    // position; they can drag again to make room).
     function layout() {
         const rect = viewport.getBoundingClientRect()
         const aspect = rect.width && rect.height ? rect.width / rect.height : 16 / 9
@@ -546,14 +548,14 @@ function mount(root) {
         edgesSvg.querySelectorAll('.ak-eco-spoke, .ak-eco-halo').forEach((el) => el.remove())
     }
 
-    // Expandir/colapsar NUNCA move nada: nem o hub alternado, nem os
-    // demais hubs, nem a view (pan/zoom). `layout()` (o grid empacotado)
-    // só corre na carga inicial/troca de filtro — aqui só redesenha o
-    // anel daquele hub (mostra/esconde satélites, refaz spokes/halo) em
-    // cima da posição que já existia. Um anel que cresce pode passar por
-    // cima do cartão de um cluster vizinho — aceitável (o usuário pode
-    // recolher de novo), o alternativo (reempacotar tudo) é o que fazia a
-    // tela toda pular a cada clique.
+    // Expanding/collapsing NEVER moves anything: not the toggled hub, not
+    // the other hubs, not the view (pan/zoom). `layout()` (the packed grid)
+    // only runs on initial load/filter change — here it only redraws that
+    // hub's ring (shows/hides satellites, redoes spokes/halo) on top of the
+    // position that already existed. A growing ring may overlap a
+    // neighboring cluster's card — acceptable (the user can collapse it
+    // again), the alternative (repacking everything) is what made the whole
+    // screen jump on every click.
     function toggleHub(hub) {
         closePopover()
         hub.expanded = !hub.expanded
@@ -562,12 +564,12 @@ function mount(root) {
         updateStatus()
     }
 
-    // Arrasta um hub (sistema primário) pra reposicioná-lo — só o cartão
-    // solto do `layout()` do grid empacotado, que não roda de novo depois
-    // (só na carga inicial/troca de filtro, igual ao `toggleHub`). O anel
-    // de satélites do próprio hub (se expandido) e seus spokes/halo
-    // acompanham em tempo real porque `draw()` deriva a posição deles de
-    // `hub.x/y` a cada chamada — nenhum outro hub se move.
+    // Drags a hub (primary system) to reposition it — just detaches the card
+    // from the packed grid's `layout()`, which doesn't run again afterward
+    // (only on initial load/filter change, same as `toggleHub`). The hub's
+    // own satellite ring (if expanded) and its spokes/halo follow along in
+    // real time because `draw()` derives their position from `hub.x/y` on
+    // every call — no other hub moves.
     function startHubDrag(hub, downEvent) {
         const startX = downEvent.clientX
         const startY = downEvent.clientY
@@ -604,8 +606,8 @@ function mount(root) {
                 cancelAnimationFrame(rafId)
                 apply()
             }
-            // Só persiste se o mousedown virou arraste de verdade — um
-            // clique parado (abre popover) não deve gerar um PATCH à toa.
+            // Only persists if the mousedown actually turned into a drag — a
+            // stationary click (opens popover) shouldn't fire a pointless PATCH.
             if (dragging) {
                 hub.mapPosition = { x: hub.x, y: hub.y }
                 saveHubPosition(hub)
@@ -616,12 +618,12 @@ function mount(root) {
         window.addEventListener('mouseup', onUp)
     }
 
-    // Auto-save silencioso — sem botão/toast de confirmação, é uma
-    // customização de layout, não uma ação que precisa de feedback (mesmo
-    // padrão de "salva sozinho" do `solution-attributes.js`). Erro de rede
-    // só aparece na barra de status pra não incomodar com modal/toast no
-    // meio de um arraste; a posição já está correta na tela, só não foi
-    // persistida — o próximo arraste tenta de novo.
+    // Silent auto-save — no confirmation button/toast, it's a layout
+    // customization, not an action that needs feedback (same "auto-saves
+    // itself" pattern as `solution-attributes.js`). A network error only
+    // shows up in the status bar so it doesn't interrupt with a modal/toast
+    // mid-drag; the position is already correct on screen, it just wasn't
+    // persisted — the next drag tries again.
     function saveHubPosition(hub) {
         if (!hub.positionUrl) return
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
@@ -657,23 +659,24 @@ function mount(root) {
         hub.badgeEl = badge
     }
 
-    // Distância do centro até a BORDA real de um cartão retangular w×h, na
-    // direção (nx,ny) — não o raio da circunferência circunscrita
-    // (`hypot(w,h)/2`, usada antes). Pra um cartão bem mais largo que alto
-    // (o caso comum aqui), a circunferência circunscrita é bem maior que a
-    // borda real na direção vertical/diagonal — a ponta da seta parava bem
-    // antes de tocar o cartão, flutuando solta no meio do caminho. Isto
-    // resolve a intersecção reta×retângulo (min dos dois eixos) + uma folga
-    // pequena, então a seta encosta na borda de fato.
+    // Distance from the center to the real EDGE of a w×h rectangular card, in
+    // direction (nx,ny) — not the circumscribed circle's radius
+    // (`hypot(w,h)/2`, used before). For a card that's much wider than tall
+    // (the common case here), the circumscribed circle is much bigger than
+    // the real edge in the vertical/diagonal direction — the arrow tip
+    // stopped well before touching the card, floating loose partway there.
+    // This solves the line×rectangle intersection (min of the two axes) + a
+    // small gap, so the arrow actually touches the edge.
     function edgeGapToward(w, h, nx, ny, extraGap) {
         const toVertical = nx !== 0 ? w / 2 / Math.abs(nx) : Infinity
         const toHorizontal = ny !== 0 ? h / 2 / Math.abs(ny) : Infinity
         return Math.min(toVertical, toHorizontal) + extraGap
     }
 
-    // Seta do centro do hub até o satélite, com gap nas duas pontas (a linha
-    // não invade nem o cartão do hub nem o do satélite) e marcador conforme
-    // o sentido observado do PAR (hub é source/target/os dois).
+    // Arrow from the hub's center to the satellite, with a gap on both ends
+    // (the line invades neither the hub's card nor the satellite's) and a
+    // marker following the observed direction of the PAIR (hub is
+    // source/target/both).
     function drawSpoke(hub, neighbor) {
         const cx = hub.x + hub.w / 2
         const cy = hub.y + hub.h / 2
@@ -708,9 +711,9 @@ function mount(root) {
         edgesSvg.appendChild(path)
     }
 
-    // Só reposiciona/mostra-esconde os cartões-satélite (já criados e
-    // medidos em `render()`) e redesenha os spokes — nunca recria elementos,
-    // pra alternar expandir/colapsar não custar um reflow de DOM inteiro.
+    // Only repositions/shows-hides the satellite cards (already created and
+    // measured in `render()`) and redraws the spokes — never recreates
+    // elements, so toggling expand/collapse doesn't cost a full DOM reflow.
     function drawRing(hub) {
         hub.badgeEl?.remove()
         hub.badgeEl = null
@@ -719,13 +722,13 @@ function mount(root) {
         if (hub.degree === 0) return
 
         if (!hub.expanded) {
-            // `.hidden` (Tailwind) e `.ak-viz-node` (regra local, `display:
-            // flex`) empatam em especificidade (uma classe cada) — a que
-            // vier depois na cascata vence, e o `<style>` deste componente
-            // é injetado DEPOIS do bundle do Tailwind no documento, então
-            // `display:flex` ganhava do `display:none` e o satélite
-            // continuava visível mesmo com a classe aplicada. `style.display`
-            // inline sempre vence qualquer classe, então força de verdade.
+            // `.hidden` (Tailwind) and `.ak-viz-node` (local rule, `display:
+            // flex`) tie in specificity (one class each) — whichever comes
+            // later in the cascade wins, and this component's `<style>` is
+            // injected AFTER the Tailwind bundle in the document, so
+            // `display:flex` beat `display:none` and the satellite stayed
+            // visible even with the class applied. Inline `style.display`
+            // always beats any class, so it genuinely forces it.
             hub.neighbors.forEach((n) => {
                 n.el.style.display = 'none'
             })
@@ -749,11 +752,11 @@ function mount(root) {
         })
     }
 
-    // Uma cor por grupo (hash do id do hub, não do índice na lista — assim
-    // a cor de um grupo não pula pra outra a cada troca de filtro só
-    // porque a ordem dos nós mudou) pra diferenciar clusters vizinhos no
-    // grid; sem isso, todo halo saía do mesmo tom e dois clusters lado a
-    // lado se liam como um blob só.
+    // One color per group (hash of the hub's id, not its index in the list —
+    // so a group's color doesn't jump to another one on every filter change
+    // just because the node order changed) to tell neighboring clusters
+    // apart in the grid; without this, every halo came out the same shade
+    // and two clusters side by side read as a single blob.
     const HALO_PALETTE = ['#C9D4F7', '#FBD6B0', '#B7EACD', '#F5C2DD', '#BFE3F5', '#E4D2F7', '#FFE49E', '#CFE0B8']
     function haloColor(hub) {
         const key = String(hub.id)
@@ -762,13 +765,13 @@ function mount(root) {
         return HALO_PALETTE[Math.abs(hash) % HALO_PALETTE.length]
     }
 
-    // Halo (círculo bem sutil, atrás dos cartões) por trás de cada hub
-    // expandido + seu anel de satélites — sem ele, um hub e seus vizinhos
-    // são só pontos flutuando soltos no grid, com nada além da linha fina
-    // da seta amarrando visualmente o grupo. Como o `<svg>` é o primeiro
-    // filho de `world` (os cartões, `<div>`s, são anexados depois), tudo
-    // que é desenhado aqui nasce automaticamente ATRÁS dos cartões — não
-    // precisa de z-index.
+    // Halo (a very subtle circle, behind the cards) drawn behind each
+    // expanded hub + its satellite ring — without it, a hub and its
+    // neighbors are just points floating loose in the grid, with nothing
+    // but the thin arrow line visually tying the group together. Since the
+    // `<svg>` is `world`'s first child (the cards, `<div>`s, are appended
+    // afterward), everything drawn here is automatically born BEHIND the
+    // cards — no z-index needed.
     function drawHalo(hub) {
         if (!hub.expanded || hub.degree === 0) return
         const circle = document.createElementNS(SVG_NS, 'circle')
@@ -850,9 +853,9 @@ function mount(root) {
             })
             el.addEventListener('click', (e) => {
                 e.stopPropagation()
-                // Um arraste real dispara `click` também (mouseup natural) —
-                // suprime a abertura do popover nesse caso, só o próximo
-                // clique "parado" volta a abrir.
+                // A real drag also fires `click` (natural mouseup) —
+                // suppresses opening the popover in that case; only the
+                // next "stationary" click opens it again.
                 if (hub.didDrag) {
                     hub.didDrag = false
                     return
@@ -867,8 +870,8 @@ function mount(root) {
             h.h = h.el.offsetHeight
         })
 
-        // Satélites: um cartão por (hub, vizinho), criado e medido uma única
-        // vez aqui — `drawRing()` só reposiciona/mostra-esconde depois.
+        // Satellites: one card per (hub, neighbor), created and measured
+        // once here — `drawRing()` only repositions/shows-hides afterward.
         hubs.forEach((hub) => {
             hub.neighbors.forEach((neighbor) => {
                 const el = document.createElement('div')

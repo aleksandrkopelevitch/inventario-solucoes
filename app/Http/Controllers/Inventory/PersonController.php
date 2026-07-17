@@ -93,9 +93,9 @@ class PersonController extends Controller
     }
 
     /**
-     * `$filters` são os filtros ativos na listagem que abriu o painel —
-     * repassados pela URL até `saved()`, para o slot atualizado após salvar
-     * preservar os filtros em vigor.
+     * `$filters` are the filters active on the listing that opened the
+     * panel — carried through the URL all the way to `saved()`, so the slot
+     * updated after saving preserves the filters in effect.
      */
     private function panel(Person $person, array $filters = []): JsonResponse
     {
@@ -126,7 +126,7 @@ class PersonController extends Controller
         return $data;
     }
 
-    /** Vínculo pessoa <-> solução (com papel), vindo dos chips do form. */
+    /** Person <-> solution link (with role), coming from the form's chips. */
     private function syncSolutions(StorePersonRequest|UpdatePersonRequest $request, Person $person): void
     {
         if (! $request->has('solutions')) {
@@ -155,14 +155,14 @@ class PersonController extends Controller
     }
 
     /**
-     * Contatos adicionais (`Person::contacts()`) — vindos das linhas
-     * repetíveis do form (`data-ak-contacts`). Cada linha com `id` atualiza o
-     * contato existente; sem `id`, cria um novo; uma linha em branco
-     * (adicionada mas nunca preenchida) é ignorada. Contatos existentes cujo
-     * `id` não veio de volta no request foram removidos pelo usuário no
-     * form, então são apagados aqui — mesmo espírito de `solutions()->sync()`
-     * acima, só que sem um método `sync()` pronto pra isso (a linha carrega
-     * mais que um id de pivot: type/value).
+     * Additional contacts (`Person::contacts()`) — coming from the form's
+     * repeatable rows (`data-ak-contacts`). Each row with an `id` updates
+     * the existing contact; without an `id`, it creates a new one; a blank
+     * row (added but never filled in) is ignored. Existing contacts whose
+     * `id` didn't come back in the request were removed by the user in the
+     * form, so they're deleted here — same spirit as `solutions()->sync()`
+     * above, just without a ready-made `sync()` method for this (the row
+     * carries more than a pivot id: type/value).
      */
     private function syncContacts(StorePersonRequest|UpdatePersonRequest $request, Person $person): void
     {
@@ -192,8 +192,8 @@ class PersonController extends Controller
             }
         }
 
-        // `[0]` como sentinela: `whereNotIn` com array vazio apagaria todos os
-        // contatos existentes se o usuário removeu a última linha do form.
+        // `[0]` as a sentinel: `whereNotIn` with an empty array would delete
+        // all existing contacts if the user removed the form's last row.
         $person->contacts()->whereNotIn('id', $keptIds ?: [0])->delete();
     }
 

@@ -21,14 +21,15 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Str;
 
 /**
- * Integrações do detalhe de uma solução (F3). O data-viz F3 (`integration-viz.js`)
- * é quem autora a topologia (chain: nodes/edges, via `updateNode()`/`updateProtocol()`/
- * `addNode()`/`retargetEdge()` abaixo) e o layout visual (`saveLayout()`) — este
- * controller só cobre o que o data-viz ainda não sabe fazer sozinho: criar uma
- * Integration nova do zero (`store()`) e renomear/mudar status de uma já
- * existente (`update()`), nenhum dos dois mexendo na chain. `SyncIntegrationFromChain`
- * segue sendo o único lugar que deriva participants/source/target/direction a
- * partir da chain.
+ * Integrations for a solution's detail page (F3). The F3 data-viz
+ * (`integration-viz.js`) is what authors the topology (chain: nodes/edges,
+ * via `updateNode()`/`updateProtocol()`/`addNode()`/`retargetEdge()` below)
+ * and the visual layout (`saveLayout()`) — this controller only covers what
+ * the data-viz doesn't yet do on its own: creating a brand-new Integration
+ * (`store()`) and renaming/changing the status of an existing one
+ * (`update()`), neither of which touches the chain. `SyncIntegrationFromChain`
+ * remains the only place that derives participants/source/target/direction
+ * from the chain.
  */
 class SolutionIntegrationController extends Controller
 {
@@ -38,11 +39,11 @@ class SolutionIntegrationController extends Controller
     ) {}
 
     /**
-     * Cria uma Integration nova com a solução do contexto como nó raiz —
-     * chain = {nodes: [raiz], edges: []}, pronta para o data-viz acrescentar
-     * blocos (`addNode()`) e religar (`retargetEdge()`) livremente. Nome
-     * opcional (cai para o nome da solução raiz); status inicial "planned",
-     * ajustável depois via `update()`.
+     * Creates a brand-new Integration with the context solution as the root
+     * node — chain = {nodes: [root], edges: []}, ready for the data-viz to
+     * freely add blocks (`addNode()`) and rewire (`retargetEdge()`). Name is
+     * optional (falls back to the root solution's name); initial status is
+     * "planned", adjustable afterwards via `update()`.
      */
     public function store(StoreIntegrationRequest $request, Solution $solution): JsonResponse
     {
@@ -59,7 +60,7 @@ class SolutionIntegrationController extends Controller
             'slug'        => $this->uniqueSlug($name),
             'status'      => 'planned',
             'criticality' => 'medium',
-            'direction'   => Direction::Unidirectional->value, // re-derivada da cadeia logo abaixo
+            'direction'   => Direction::Unidirectional->value, // re-derived from the chain right below
             'chain'       => $chain,
         ]);
 
@@ -69,13 +70,13 @@ class SolutionIntegrationController extends Controller
             'type'           => 'success',
             'message'        => 'Integração criada.',
             'updatableSlots' => [IntegrationsMap::slot($solution)],
-            // Seleciona a integração recém-criada na lista, abrindo o
-            // data-viz já pronta para receber o primeiro bloco.
+            // Selects the newly created integration in the list, opening the
+            // data-viz already ready to receive the first block.
             'js' => 'document.querySelector(\'[data-ak-integration-select="' . $integration->slug . '"]\')?.click()',
         ]);
     }
 
-    /** Renomeia / muda o status de uma integração já existente — não mexe na chain. */
+    /** Renames / changes the status of an existing integration — doesn't touch the chain. */
     public function update(UpdateIntegrationMetaRequest $request, Solution $solution, Integration $integration): JsonResponse
     {
         $integration->update($request->validated());
@@ -88,11 +89,11 @@ class SolutionIntegrationController extends Controller
     }
 
     /**
-     * Salva o layout visual do grafo F3 (posições dos blocos, âncoras das
-     * pontas e comentário em markdown de cada bloco, todos por índice do nó
-     * na chain). Só apresentação — a `chain` continua a fonte da topologia,
-     * então NÃO chamamos SyncIntegrationFromChain aqui nem tocamos
-     * participants/source/target/direction.
+     * Saves the F3 graph's visual layout (block positions, edge endpoint
+     * anchors, and each block's markdown comment, all keyed by the node's
+     * index in the chain). Presentation only — the `chain` remains the
+     * source of topology, so we do NOT call SyncIntegrationFromChain here
+     * nor touch participants/source/target/direction.
      */
     public function saveLayout(SaveIntegrationLayoutRequest $request, Solution $solution, Integration $integration): JsonResponse
     {
@@ -107,12 +108,13 @@ class SolutionIntegrationController extends Controller
     }
 
     /**
-     * Atualiza o título de um único nó (bloco do data-viz F3) — escolhido de
-     * uma Solução cadastrada (puxa nome/logo/atributos) ou texto livre.
-     * Continua editando a `chain` (fonte de verdade da topologia), então
-     * SyncIntegrationFromChain roda de novo: trocar a Solução de um nó pode
-     * mudar participants/source/target/direction. O nó raiz (índice 0) é
-     * fixo — nunca chega aqui (bloqueado no cliente, reforçado no 404 abaixo).
+     * Updates the title of a single node (F3 data-viz block) — chosen from a
+     * registered Solution (pulls name/logo/attributes) or free text. Still
+     * edits the `chain` (source of truth for topology), so
+     * SyncIntegrationFromChain runs again: swapping a node's Solution can
+     * change participants/source/target/direction. The root node (index 0)
+     * is fixed — it never reaches here (blocked client-side, enforced by the
+     * 404 below).
      */
     public function updateNode(UpdateIntegrationChainNodeRequest $request, Solution $solution, Integration $integration, int $node): JsonResponse
     {
@@ -136,14 +138,14 @@ class SolutionIntegrationController extends Controller
     }
 
     /**
-     * Atualiza o protocolo e/ou o sentido (`arrow`) de uma única ligação
-     * (aresta) — editado no lugar a partir do editor ancorado à pill de
-     * protocolo no data-viz F3. Ao contrário do nó, não há ligação protegida
-     * (nenhum "raiz" entre arestas); `$edge` é o índice em `chain.edges`.
-     * Continua editando a `chain`, então SyncIntegrationFromChain roda de
-     * novo: o escalar `integrations.protocol` (1ª ligação com protocolo, só
-     * resumo) e o `direction` (bidirecional depende do `arrow`) são
-     * derivados daqui também.
+     * Updates the protocol and/or direction (`arrow`) of a single edge —
+     * edited in place from the editor anchored to the protocol pill in the
+     * F3 data-viz. Unlike the node, there's no protected edge (no "root"
+     * among edges); `$edge` is the index in `chain.edges`. Still edits the
+     * `chain`, so SyncIntegrationFromChain runs again: the
+     * `integrations.protocol` scalar (1st edge with a protocol, summary
+     * only) and `direction` (bidirectional depends on `arrow`) are also
+     * derived from here.
      */
     public function updateProtocol(UpdateIntegrationChainProtocolRequest $request, Solution $solution, Integration $integration, int $edge): JsonResponse
     {
@@ -170,17 +172,17 @@ class SolutionIntegrationController extends Controller
     }
 
     /**
-     * Acrescenta um novo bloco ao final da cadeia (painel "Adicionar bloco"
-     * do data-viz F3) — escolhido de uma Solução cadastrada ou texto livre.
-     * Quando o painel informa uma seta (`data['arrow']` presente), liga o
-     * bloco novo ao nó atualmente no final por uma ligação nova (seta/
-     * protocolo do painel); quando não informa ("Sem conexão"), o bloco
-     * nasce isolado, sem nenhuma ligação. De qualquer forma esse é só o
-     * ponto de partida: o usuário pode em seguida arrastar a ponta de
-     * qualquer ligação até este bloco (`retargetEdge()`) ou usar o "modo
-     * ligar" para criar uma ligação nova até ele (`addEdge()`), religando a
-     * cadeia num grafo livre. Continua editando a `chain` (fonte de verdade
-     * da topologia), então SyncIntegrationFromChain roda de novo.
+     * Appends a new block to the end of the chain (the F3 data-viz's "Add
+     * block" panel) — chosen from a registered Solution or free text. When
+     * the panel supplies an arrow (`data['arrow']` present), links the new
+     * block to the node currently at the end via a new edge (arrow/protocol
+     * from the panel); when it doesn't ("No connection"), the block is born
+     * isolated, with no edge at all. Either way this is just the starting
+     * point: the user can then drag any edge's endpoint to this block
+     * (`retargetEdge()`) or use "connect mode" to create a new edge to it
+     * (`addEdge()`), rewiring the chain into a free graph. Still edits the
+     * `chain` (source of truth for topology), so SyncIntegrationFromChain
+     * runs again.
      */
     public function addNode(AddIntegrationChainNodeRequest $request, Solution $solution, Integration $integration): JsonResponse
     {
@@ -220,14 +222,14 @@ class SolutionIntegrationController extends Controller
     }
 
     /**
-     * Religa uma ponta de uma ligação existente (`from` ou `to`) para outro
-     * bloco qualquer — arrastar o handle da seta no data-viz F3 até outro nó
-     * (`integration-viz.js::retargetEdge()`). É isto que torna a cadeia um
-     * grafo livre em vez de uma linha reta: uma vez religada fora da
-     * sequência 0→1→2→…, `ChainLabeler::isLinear()` passa a reprovar essa
-     * chain (usado só para escolher o formato do resumo textual, ver
-     * `ChainLabeler::label()`). Continua editando a `chain`, então
-     * SyncIntegrationFromChain roda de novo.
+     * Rewires one endpoint of an existing edge (`from` or `to`) to any other
+     * block — dragging the arrow's handle in the F3 data-viz to another node
+     * (`integration-viz.js::retargetEdge()`). This is what turns the chain
+     * into a free graph instead of a straight line: once rewired outside the
+     * 0→1→2→… sequence, `ChainLabeler::isLinear()` starts rejecting that
+     * chain (used only to choose the textual summary's format, see
+     * `ChainLabeler::label()`). Still edits the `chain`, so
+     * SyncIntegrationFromChain runs again.
      */
     public function retargetEdge(RetargetIntegrationChainEdgeRequest $request, Solution $solution, Integration $integration, int $edge): JsonResponse
     {
@@ -255,14 +257,13 @@ class SolutionIntegrationController extends Controller
     }
 
     /**
-     * Cria uma ligação nova entre dois blocos já existentes na chain — "modo
-     * ligar" do data-viz F3 (botão da toolbar do bloco, depois clique em
-     * outro bloco). Ao contrário de `addNode()`, não acrescenta nó nenhum;
-     * ao contrário de `retargetEdge()`, não move uma ligação já existente —
-     * é uma ligação nova do zero, o que permite conectar qualquer par de
-     * blocos já desenhados, mesmo que não fizessem parte da mesma "linha" da
-     * cadeia. Continua editando a `chain`, então SyncIntegrationFromChain
-     * roda de novo.
+     * Creates a new edge between two blocks that already exist in the chain
+     * — the F3 data-viz's "connect mode" (block toolbar button, then click
+     * on another block). Unlike `addNode()`, it doesn't add any node; unlike
+     * `retargetEdge()`, it doesn't move an existing edge — it's a brand-new
+     * edge from scratch, which lets you connect any pair of already-drawn
+     * blocks, even if they weren't part of the same "line" of the chain.
+     * Still edits the `chain`, so SyncIntegrationFromChain runs again.
      */
     public function addEdge(AddIntegrationChainEdgeRequest $request, Solution $solution, Integration $integration): JsonResponse
     {
@@ -295,13 +296,13 @@ class SolutionIntegrationController extends Controller
     }
 
     /**
-     * Remove uma ligação existente da chain (botão "desligar" do editor de
-     * aresta no data-viz F3) — os nós continuam existindo; se essa era a
-     * única ligação de um bloco, ele passa a aparecer isolado no grafo. É o
-     * que torna a interligação livre de verdade: nem todo bloco precisa
-     * estar conectado a outro. `viz_layout.edges` é reindexado junto (é
-     * paralelo a `chain.edges` por posição), senão as âncoras salvas das
-     * ligações depois desta deslizariam para a ligação errada.
+     * Removes an existing edge from the chain (the "disconnect" button in
+     * the F3 data-viz's edge editor) — the nodes keep existing; if this was
+     * a block's only edge, it now appears isolated in the graph. This is
+     * what makes the wiring genuinely free: not every block needs to be
+     * connected to another. `viz_layout.edges` is reindexed alongside it (it
+     * runs parallel to `chain.edges` by position), otherwise the saved
+     * anchors of edges after this one would slide to the wrong edge.
      */
     public function removeEdge(RemoveIntegrationChainEdgeRequest $request, Solution $solution, Integration $integration, int $edge): JsonResponse
     {
@@ -331,11 +332,11 @@ class SolutionIntegrationController extends Controller
     }
 
     /**
-     * Painel lateral (read-only) com o flowSpec anexado à integração via F8
-     * ("Anexar à integração" — `FlowspecAttachmentController`). Até aqui,
-     * `generated_flowspec`/`flowspec_status`/`flowspec_generated_at` eram
-     * gravados mas nunca lidos de volta em tela nenhuma — o único jeito de
-     * ver o conteúdo anexado era voltar na conversa original do chat.
+     * Side panel (read-only) with the flowSpec attached to the integration
+     * via F8 ("Attach to integration" — `FlowspecAttachmentController`).
+     * Until now, `generated_flowspec`/`flowspec_status`/`flowspec_generated_at`
+     * were written but never read back on any screen — the only way to see
+     * the attached content was going back to the original chat conversation.
      */
     public function flowspec(Solution $solution, Integration $integration): JsonResponse
     {
@@ -350,8 +351,9 @@ class SolutionIntegrationController extends Controller
     {
         $this->authorize('delete', $integration);
 
-        // O pivot integration_solution e (schema legado) documentation_blocks
-        // têm cascadeOnDelete, então a exclusão limpa os vínculos sozinha.
+        // The integration_solution pivot and the (legacy schema)
+        // documentation_blocks have cascadeOnDelete, so the deletion cleans
+        // up the links on its own.
         $integration->delete();
 
         return response()->json([

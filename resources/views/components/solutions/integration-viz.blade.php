@@ -1,63 +1,65 @@
 {{--
-    Visualização gráfica da integração selecionada (lado direito da seção F3).
-    Canvas JS-driven (exceção legítima a "utilitários sobre CSS custom", como o
-    flow-canvas): nós posicionados em absoluto + arestas em SVG, com pan/zoom e
-    tela cheia do navegador. Desenha a cadeia (`chain = {nodes, edges}`, cada
-    edge `{from, to, arrow, protocol}` por índice de nó) da integração
-    escolhida na lista à esquerda — um GRAFO LIVRE de verdade, não uma linha
-    reta e não exige que todo bloco esteja ligado a algo: um bloco pode ficar
-    isolado, seja porque nasceu assim ("Sem conexão" no painel "Adicionar
-    bloco") seja porque sua última ligação foi removida (botão "Desligar" do
-    editor de ligação). Coisas editáveis/estendíveis no lugar: o título de um
-    nó (exceto o raiz, índice 0), via o lápis na toolbar contextual do bloco;
-    sentido + protocolo de qualquer ligação, clicando na pill acima da seta
-    (inclusive a pill tracejada "+ protocolo", quando ainda não tem um) — o
-    mesmo editor tem um botão "Desligar" que remove só a ligação, nunca os
-    blocos; um bloco NOVO ao FINAL da cadeia, via o botão "+" da topbar
-    (painel "Adicionar bloco" — escolhe uma Solução cadastrada ou texto livre,
-    mais a seta/protocolo da nova ligação, ou "Sem conexão" pra nascer
-    isolado); a religação de qualquer ligação (a que acabou de ser criada ou
-    qualquer outra já existente) pra um bloco diferente, arrastando a ponta da
-    seta até ele; e o "modo ligar" (ícone de elo na toolbar do bloco) — clique
-    num bloco, ativa o modo, clique em outro bloco qualquer cria uma ligação
-    NOVA entre os dois, sem depender de nenhuma ligação existente pra arrastar
-    (é o que permite ligar dois blocos que nunca estiveram conectados, ou
-    reconectar um bloco isolado). Todas essas ações mexem na `chain` (fonte de
-    verdade da topologia) e rerodam SyncIntegrationFromChain no servidor — não
-    são ajustes "só visuais" como posição/cor/comentário (esses continuam só
-    em `viz_layout`). Este é o único editor de topologia da aplicação — não há
-    mais um form/modal separado. Os dados chegam já resolvidos no
-    `data-integration-graph` de cada linha (ver Solutions\IntegrationsMap);
-    `integration-viz.js` lê e desenha. As setas seguem o sentido da ligação
-    (`->` ida, `<-` volta, `<->` ambos) e o rótulo de cada seta é o protocolo.
+    Graphical visualization of the selected integration (right side of the F3
+    section). JS-driven canvas (legitimate exception to "utilities over custom
+    CSS", like flow-canvas): absolutely-positioned nodes + SVG edges, with
+    pan/zoom and browser fullscreen. Draws the chain (`chain = {nodes, edges}`,
+    each edge `{from, to, arrow, protocol}` by node index) of the integration
+    chosen in the list on the left — a genuinely FREE GRAPH, not a straight
+    line, and it doesn't require every block to be linked to something: a
+    block can stay isolated, either because it was born that way ("Sem
+    conexão" in the "Adicionar bloco" panel) or because its last link was
+    removed (the "Desligar" button in the link editor). Editable/extensible
+    things in place: a node's title (except the root, index 0), via the
+    pencil in the block's contextual toolbar; direction + protocol of any
+    link, by clicking the pill above the arrow (including the dashed "+
+    protocolo" pill, when it doesn't have one yet) — the same editor has a
+    "Desligar" button that removes only the link, never the blocks; a NEW
+    block at the END of the chain, via the "+" button in the topbar
+    ("Adicionar bloco" panel — pick a registered Solution or free text, plus
+    the arrow/protocol of the new link, or "Sem conexão" to be born isolated);
+    retargeting any link (one just created or any other existing one) to a
+    different block, by dragging the arrow's tip to it; and "link mode" (the
+    link icon in the block's toolbar) — click a block, it activates the mode,
+    click any other block creates a NEW link between the two, without
+    depending on an existing link to drag (this is what lets you link two
+    blocks that were never connected, or reconnect an isolated block). All of
+    these actions touch `chain` (the topology's source of truth) and re-run
+    SyncIntegrationFromChain on the server — they aren't "purely visual"
+    tweaks like position/color/comment (those stay only in `viz_layout`).
+    This is the app's only topology editor — there's no separate form/modal
+    anymore. Data arrives already resolved in each row's
+    `data-integration-graph` (see Solutions\IntegrationsMap);
+    `integration-viz.js` reads and draws it. Arrows follow the link's
+    direction (`->` forward, `<-` backward, `<->` both) and each arrow's
+    label is the protocol.
 
-    Um quinto ajuste, no lápis da topbar (não do bloco): nome/status da
-    integração selecionada — o único metadado que não mora num nó/aresta.
-    Criar uma Integration nova é o form "Nova" da lista à esquerda
-    (`integrations-map.blade.php`), que já entrega a cadeia com só o nó raiz;
-    daí em diante é tudo por aqui.
+    A fifth adjustment, on the topbar's pencil (not the block's): name/status
+    of the selected integration — the only metadata that doesn't live on a
+    node/edge. Creating a new Integration is the "Nova" form in the list on
+    the left (`integrations-map.blade.php`), which already delivers the chain
+    with only the root node; from there on, it's all done here.
 
-    Chrome (barra do topo, toolbar contextual de seleção, sidebar de
-    comentário) em Tailwind utilities + `x-forms.button`, seguindo a marca
-    Leo. O canvas interno (nós/arestas/handles) mantém o bloco `<style>`
-    escopado com tokens `--viz-*`, agora espelhando a paleta navy/azul do
-    mapa mental de referência (única exceção sancionada a "utilitários sobre
-    CSS custom" nesta view).
+    Chrome (top bar, contextual selection toolbar, comment sidebar) in
+    Tailwind utilities + `x-forms.button`, following the Leo brand. The
+    internal canvas (nodes/edges/handles) keeps the `<style>` block scoped
+    with `--viz-*` tokens, now mirroring the navy/blue palette of the
+    reference mind-map (the only sanctioned exception to "utilities over
+    custom CSS" in this view).
 --}}
 <div data-integration-viz
     class="ak-viz relative flex min-h-[360px] flex-1 flex-col overflow-hidden rounded-card border border-line bg-surface">
 
-    {{-- Barra do topo: logo + integração selecionada + ações de visualização
-         (organizar layout padrão / centralizar / tela cheia / salvar). Nenhuma
-         ação de autoria de topologia mora aqui — só a topologia, sempre
-         a chain, decide nós e arestas. --}}
+    {{-- Top bar: logo + selected integration + view actions (organize
+         default layout / center / fullscreen / save). No topology-authoring
+         action lives here — only the topology, always the chain, decides
+         nodes and edges. --}}
     <div data-viz-topbar class="ak-viz-topbar flex shrink-0 items-center gap-3 border-b border-line bg-surface px-3 py-2">
     
         <p data-viz-title class="min-w-0 flex-1 truncate text-sm font-medium text-ink">Selecione uma integração à esquerda</p>
 
-        {{-- Renomear / mudar status da integração selecionada — o único
-             metadado que o data-viz ainda não edita no próprio bloco/aresta.
-             Só visível quando editável e há uma integração selecionada. --}}
+        {{-- Rename / change status of the selected integration — the only
+             metadata that data-viz doesn't yet edit on the block/edge itself.
+             Only visible when editable and an integration is selected. --}}
         <x-forms.button type="button" variant="ghost" data-viz-meta-edit title="Renomear / mudar status"
             class="!hidden !shrink-0 !rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
             <x-heroicon-o-pencil-square class="size-4" />
@@ -66,10 +68,10 @@
         <span data-viz-hint class="hidden shrink-0 text-xs text-faint lg:inline">clique seleciona · arraste move · roda dá zoom</span>
 
         <div class="flex shrink-0 items-center gap-1">
-            {{-- Adicionar bloco: sempre ao FINAL da cadeia (raiz → ... → novo)
-                 — abre o painel `data-viz-add-editor`, ancorado a este botão.
-                 Só visível quando a integração é editável (mesmo gate do
-                 botão Salvar). --}}
+            {{-- Add block: always at the END of the chain (root → ... → new)
+                 — opens the `data-viz-add-editor` panel, anchored to this
+                 button. Only visible when the integration is editable (same
+                 gate as the Save button). --}}
             <x-forms.button type="button" variant="ghost" data-viz-add-node title="Adicionar bloco"
                 class="!hidden !rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
                 <x-heroicon-o-plus class="size-4" />
@@ -87,8 +89,9 @@
                 <x-heroicon-o-arrows-pointing-out data-viz-fs-open-top class="size-4" />
                 <x-heroicon-o-arrows-pointing-in data-viz-fs-close-top class="hidden size-4" />
             </x-forms.button>
-            {{-- Salvar layout — o JS revela (remove `hidden`) só quando a
-                 integração é editável, e habilita quando há mudança não salva. --}}
+            {{-- Save layout — the JS reveals it (removes `hidden`) only when
+                 the integration is editable, and enables it when there's an
+                 unsaved change. --}}
             <span data-viz-save-sep class="mx-0.5 hidden h-5 w-px bg-line"></span>
             <x-forms.button type="button" data-viz-save title="Salvar posição dos blocos, das setas e dos comentários"
                 class="!hidden !rounded-md !px-3 !py-1 !text-xs disabled:!opacity-45 disabled:!cursor-not-allowed">
@@ -97,13 +100,14 @@
         </div>
     </div>
 
-    {{-- `data-viz-stage`: base de referência para posicionar a toolbar/editor de
-         protocolo em JS. Esses painéis são `position:absolute` e resolvem
-         contra ESTE elemento (o ancestro posicionado mais próximo), não contra
-         `[data-integration-viz]` — que também é `relative`, mas inclui a
-         topbar acima. Usar `root.getBoundingClientRect()` para essas contas
-         soma a altura da topbar por engano, empurrando o painel pra baixo, em
-         cima do bloco (bug relatado: "tampa metade do bloco verticalmente"). --}}
+    {{-- `data-viz-stage`: reference base for positioning the toolbar/protocol
+         editor in JS. These panels are `position:absolute` and resolve
+         against THIS element (the nearest positioned ancestor), not against
+         `[data-integration-viz]` — which is also `relative`, but includes the
+         topbar above. Using `root.getBoundingClientRect()` for these
+         calculations mistakenly adds the topbar's height, pushing the panel
+         down, on top of the block (reported bug: "covers half the block
+         vertically"). --}}
     <div data-viz-stage class="relative min-h-0 flex-1">
         <div data-viz-viewport class="ak-viz-viewport">
             <div data-viz-world class="ak-viz-world">
@@ -119,11 +123,11 @@
                         </marker>
                     </defs>
                 </svg>
-                {{-- nós injetados por integration-viz.js --}}
+                {{-- nodes injected by integration-viz.js --}}
             </div>
         </div>
 
-        {{-- Estado vazio / sem cadeia — sobreposto, escondido quando há desenho --}}
+        {{-- Empty state / no chain — overlaid, hidden when there's a drawing --}}
         <div data-viz-empty
             class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
             <x-heroicon-o-share class="size-8 text-faint" />
@@ -131,10 +135,10 @@
             <p data-viz-empty-hint class="text-xs text-faint">A visualização gráfica aparecerá aqui.</p>
         </div>
 
-        {{-- "Modo ligar" (data-viz-toolbar-link): ativo depois do clique no
-             lápis de ligação, até o clique no bloco de destino (ou Esc/clique
-             no fundo, que cancela). Hint + botão de cancelar explícito, pra
-             quem não sabe do atalho de teclado. --}}
+        {{-- "Link mode" (data-viz-toolbar-link): active after clicking the
+             link pencil, until clicking the destination block (or Esc/click
+             on the background, which cancels). Hint + explicit cancel button,
+             for anyone who doesn't know the keyboard shortcut. --}}
         <div data-viz-link-hint
             class="pointer-events-none absolute left-1/2 top-3 z-10 hidden -translate-x-1/2 items-center gap-2 rounded-lg border border-line bg-surface/95 px-3 py-1.5 text-xs text-ink shadow-[0_2px_8px_rgba(20,58,34,0.08)] backdrop-blur">
             <span>Clique em outro bloco para ligar</span>
@@ -144,7 +148,7 @@
             </x-forms.button>
         </div>
 
-        {{-- Controles: zoom / centralizar / tela cheia --}}
+        {{-- Controls: zoom / center / fullscreen --}}
         <div data-viz-bottombar
             class="ak-viz-bottombar absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-line bg-surface/95 p-1 shadow-[0_2px_8px_rgba(20,58,34,0.08)] backdrop-blur">
             <x-forms.button type="button" variant="ghost" data-viz-zoom-out title="Diminuir zoom"
@@ -164,23 +168,24 @@
             </x-forms.button>
         </div>
 
-        {{-- Toolbar contextual: aparece ancorada ao nó selecionado (clique
-             sem arraste). Estilo do bloco (cor, cor do texto, fonte) só é
-             editável — nunca mexe na topologia, só no `viz_layout` visual,
-             mesmo espírito da posição/âncoras já persistidas ali. --}}
+        {{-- Contextual toolbar: appears anchored to the selected node (click
+             without drag). Block style (color, text color, font) is only
+             editable — it never touches the topology, only the visual
+             `viz_layout`, same spirit as the position/anchors already
+             persisted there. --}}
         <div data-viz-toolbar
             class="ak-viz-toolbar pointer-events-none absolute z-20 hidden flex-wrap items-center gap-1.5 rounded-xl border border-line bg-surface p-1.5 shadow-[0_8px_28px_rgba(16,24,40,.16)]">
             <div data-viz-toolbar-style class="pointer-events-auto flex items-center gap-1.5">
-                {{-- Paleta de cor do bloco — presets gerados em JS (integration-viz.js::buildSwatches) --}}
+                {{-- Block color palette — presets generated in JS (integration-viz.js::buildSwatches) --}}
                 <div data-viz-swatches class="flex items-center gap-1"></div>
 
-                {{-- Cor personalizada do bloco --}}
+                {{-- Custom block color --}}
                 <x-forms.input type="color" data-viz-custom-color title="Cor personalizada do bloco"
                     class="!size-[22px] !shrink-0 !cursor-pointer !rounded-md !border !border-line !bg-transparent !p-0 [&::-webkit-color-swatch]:!rounded-md [&::-webkit-color-swatch]:!border-none [&::-webkit-color-swatch-wrapper]:!p-0" />
 
                 <span class="mx-0.5 h-6 w-px shrink-0 bg-line"></span>
 
-                {{-- Cor do texto — quadrado com "A" sublinhado na cor atual, igual ao mapa mental de referência --}}
+                {{-- Text color — square with an underlined "A" in the current color, same as the reference mind-map --}}
                 <div class="relative flex size-[26px] shrink-0">
                     <x-forms.label for="viz-text-color-input" data-viz-text-color-wrap title="Cor do texto"
                         class="!m-0 !flex !size-full !font-extrabold !text-ink size-full cursor-pointer items-center justify-center rounded-md border border-line text-sm">
@@ -190,10 +195,10 @@
                         class="!absolute !inset-0 !size-full !cursor-pointer !border-0 !bg-transparent !p-0 !opacity-0" />
                 </div>
 
-                {{-- Fonte do texto — mono / sans / serif. Envolvido num wrapper de
-                     largura fixa: o <select> do design system se auto-envolve num
-                     `w-full`, que numa toolbar flex ocuparia todo o espaço restante
-                     (mesma ressalva documentada em solutions/map.blade.php). --}}
+                {{-- Text font — mono / sans / serif. Wrapped in a fixed-width
+                     wrapper: the design system's <select> auto-wraps itself in
+                     `w-full`, which inside a flex toolbar would take up all the
+                     remaining space (same caveat documented in solutions/map.blade.php). --}}
                 <div class="w-[70px] shrink-0">
                     <x-forms.select data-viz-font title="Fonte do texto"
                         class="!h-[26px] !w-full !rounded-md !border-line !bg-surface !py-0 !pl-1.5 !pr-5 !text-xs">
@@ -207,10 +212,10 @@
             </div>
 
             <div data-viz-toolbar-actions class="pointer-events-auto flex items-center gap-1.5">
-                {{-- Título do nó: só aparece com a integração editável e num
-                     nó que não seja o raiz (índice 0) — mesma invariante do
-                     form completo de cadeia, onde o raiz é fixo pelo contexto
-                     da rota (ver `selectNode` em integration-viz.js). --}}
+                {{-- Node title: only shown when the integration is editable and on
+                     a node that isn't the root (index 0) — same invariant as the
+                     full chain form, where the root is fixed by the route's
+                     context (see `selectNode` in integration-viz.js). --}}
                 <x-forms.button type="button" variant="ghost" data-viz-toolbar-title title="Editar título do nó"
                     class="!rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
                     <x-heroicon-o-pencil class="size-4" />
@@ -219,10 +224,10 @@
                     class="!rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
                     <x-heroicon-o-chat-bubble-left-ellipsis class="size-4" />
                 </x-forms.button>
-                {{-- Só visível quando editável (mesmo gate do título) — ativa o
-                     "modo ligar": o próximo clique num bloco diferente abre o
-                     editor de ligação nova (`data-viz-protocol-editor` em modo
-                     "create"), sem passar por `retargetEdge`. --}}
+                {{-- Only visible when editable (same gate as the title) — activates
+                     "link mode": the next click on a different block opens the
+                     new-link editor (`data-viz-protocol-editor` in "create" mode),
+                     without going through `retargetEdge`. --}}
                 <x-forms.button type="button" variant="ghost" data-viz-toolbar-link title="Ligar a outro bloco"
                     class="!hidden !rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
                     <x-heroicon-o-link class="size-4" />
@@ -233,13 +238,12 @@
                 </x-forms.button>
             </div>
 
-            {{-- Editor de título do nó — select de Soluções cadastradas +
-                 texto livre, editando um nó já existente diretamente no
-                 bloco selecionado. Escolher uma Solução puxa nome/logo/
-                 atributos como sempre; a opção "Outro" aceita texto livre.
-                 Opções da Solução vêm de `[data-ak-solutions]` (renderizado
-                 uma vez em integrations-map.blade.php), lidas e cacheadas no
-                 JS. --}}
+            {{-- Node title editor — select of registered Solutions + free text,
+                 editing an already-existing node directly on the selected
+                 block. Choosing a Solution pulls in name/logo/attributes as
+                 always; the "Outro" option accepts free text. Solution
+                 options come from `[data-ak-solutions]` (rendered once in
+                 integrations-map.blade.php), read and cached in JS. --}}
             <div data-viz-title-editor class="pointer-events-auto hidden w-[min(280px,80vw)] flex-col gap-2">
                 <x-forms.select data-viz-title-select class="!h-8 !w-full !rounded-md !border-line !bg-surface !py-0 !text-xs"></x-forms.select>
                 <x-forms.input type="text" data-viz-title-label placeholder="Nome do sistema externo"
@@ -257,18 +261,19 @@
             </div>
         </div>
 
-        {{-- Painel "Adicionar bloco": cria um nó novo no FINAL da cadeia,
-             ligado ao nó hoje no final por uma ligação nova (seta/protocolo
-             escolhidos aqui). Esse é só o ponto de partida — a ligação criada
-             pode ser arrastada pra qualquer outro bloco depois (handle da
-             seta no canvas), religando a cadeia num grafo livre; não há um
-             segundo painel pra "escolher a quem conectar" porque arrastar já
-             resolve isso. Ancorado ao botão "+" da topbar (não a um nó), por
-             isso é um painel próprio, fora da toolbar contextual do bloco.
-             Sistema: Solução cadastrada (mesma lista de `[data-ak-solutions]`)
-             ou texto livre — mesmo par do editor de título de nó. Seta: 3
-             opções hardcoded (não vêm de enum). Protocolo: mesma lista de
-             `[data-ak-protocols]` do editor de protocolo de ligação. --}}
+        {{-- "Adicionar bloco" panel: creates a new node at the END of the
+             chain, linked to whichever node is currently last by a new link
+             (arrow/protocol chosen here). This is only the starting point —
+             the created link can be dragged to any other block afterwards
+             (the arrow's handle on the canvas), re-linking the chain into a
+             free graph; there's no second panel to "choose who to connect
+             to" because dragging already handles that. Anchored to the
+             topbar's "+" button (not to a node), which is why it's its own
+             panel, outside the block's contextual toolbar. System:
+             registered Solution (same list as `[data-ak-solutions]`) or
+             free text — same pair as the node title editor. Arrow: 3
+             hardcoded options (not from an enum). Protocol: same list as
+             `[data-ak-protocols]` from the link's protocol editor. --}}
         <div data-viz-add-editor
             class="pointer-events-auto absolute z-20 hidden w-[min(260px,80vw)] flex-col gap-2 rounded-xl border border-line bg-surface p-2.5 shadow-[0_8px_28px_rgba(16,24,40,.16)]">
             <x-forms.select data-viz-add-select class="!h-8 !w-full !rounded-md !border-line !bg-surface !py-0 !text-xs"></x-forms.select>
@@ -296,11 +301,12 @@
             </div>
         </div>
 
-        {{-- Editor de nome/status da integração selecionada — ancorado ao
-             lápis da topbar (não a um nó/aresta), mesmo espírito do painel
-             "Adicionar bloco". Criar uma Integration nova é feito pelo form
-             "Nova" da lista à esquerda (`integrations-map.blade.php`); aqui
-             só renomeia/muda status da já selecionada. --}}
+        {{-- Editor for the selected integration's name/status — anchored to
+             the topbar's pencil (not to a node/edge), same spirit as the
+             "Adicionar bloco" panel. Creating a new Integration is done via
+             the "Nova" form in the list on the left
+             (`integrations-map.blade.php`); this one only renames/changes
+             the status of the one already selected. --}}
         <div data-viz-meta-editor
             class="pointer-events-auto absolute z-20 hidden w-[min(260px,80vw)] flex-col gap-2 rounded-xl border border-line bg-surface p-2.5 shadow-[0_8px_28px_rgba(16,24,40,.16)]">
             <x-forms.input type="text" data-viz-meta-name placeholder="Nome da integração"
@@ -318,20 +324,23 @@
             </div>
         </div>
 
-        {{-- Editor de uma ligação — dois modos, mesmo painel (`edgeEditorMode`
-             em integration-viz.js):
-               "edit"   aberto ao clicar na pill de protocolo em cima de uma
-                        seta já existente (ou na pill tracejada "+ protocolo");
-                        ancorado à pill clicada. Edita sentido + protocolo da
-                        ligação, com botão "Desligar" pra removê-la (o bloco
-                        continua existindo, só perde essa ligação).
-               "create" aberto ao completar o "modo ligar" (clique no bloco de
-                        destino, depois de ativado pelo lápis de ligação da
-                        toolbar); ancorado ao bloco de destino. Escolhe
-                        sentido + protocolo da ligação nova; sem "Desligar"
-                        (ainda não existe o que desligar).
-             Opções de protocolo vêm de `[data-ak-protocols]` (mesma origem/
-             formato do enum `App\Enums\Protocol`), lidas e cacheadas no JS. --}}
+        {{-- Editor for a link — two modes, same panel (`edgeEditorMode`
+             in integration-viz.js):
+               "edit"   opened by clicking the protocol pill above an
+                        already existing arrow (or the dashed "+ protocolo"
+                        pill); anchored to the clicked pill. Edits the
+                        link's direction + protocol, with a "Desligar"
+                        button to remove it (the block keeps existing, it
+                        only loses that link).
+               "create" opened by completing "link mode" (clicking the
+                        destination block, after activating it via the
+                        toolbar's link pencil); anchored to the destination
+                        block. Chooses direction + protocol of the new
+                        link; no "Desligar" (there's nothing to disconnect
+                        yet).
+             Protocol options come from `[data-ak-protocols]` (same
+             source/format as the `App\Enums\Protocol` enum), read and
+             cached in JS. --}}
         <div data-viz-protocol-editor
             class="pointer-events-auto absolute z-20 hidden w-[min(220px,80vw)] flex-col gap-2 rounded-xl border border-line bg-surface p-2.5 shadow-[0_8px_28px_rgba(16,24,40,.16)]">
             <x-forms.select data-viz-protocol-arrow aria-label="Sentido do fluxo"
@@ -361,8 +370,8 @@
             </div>
         </div>
 
-        {{-- Sidebar de comentário (markdown), escopada ao componente — nunca
-             fixa à viewport da página. --}}
+        {{-- Comment sidebar (markdown), scoped to the component — never
+             fixed to the page viewport. --}}
         <div data-viz-sidebar
             class="ak-viz-sidebar absolute inset-y-0 right-0 z-30 flex w-[min(390px,92%)] translate-x-full flex-col border-l border-line bg-surface shadow-[-12px_0_32px_rgba(16,24,40,.10)] transition-transform duration-300">
             <div class="flex shrink-0 items-start justify-between gap-3 border-b border-line px-4 py-3">
@@ -386,14 +395,14 @@
         </div>
     </div>
 
-    {{-- Inline (não @push): o layout não tem @stack e a seção F3 monta este
-         componente uma única vez por página, então não há risco de duplicar. --}}
+    {{-- Inline (not @push): the layout has no @stack and the F3 section mounts
+         this component only once per page, so there's no risk of duplication. --}}
     <style>
             @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
 
-            /* Canvas de integração (F3) — JS-driven, paleta navy/azul própria
-               (espelha o mapa mental de referência), independente do tema
-               verde/lima da app. */
+            /* Integration canvas (F3) — JS-driven, its own navy/blue palette
+               (mirrors the reference mind-map), independent of the app's
+               green/lime theme. */
             [data-integration-viz] {
                 --viz-bg: #F7F9FC;
                 --viz-grid: #E7ECF4;
@@ -401,8 +410,8 @@
                 --viz-node: #C9D4F7;
                 --viz-node-free: #EBF4FC;
                 --viz-ink: #1A1A2E;
-                --viz-select: #4A90D9; /* anel de seleção + badge de comentário */
-                --viz-highlight: #AADB1E; /* âncora/handle em destaque */
+                --viz-select: #4A90D9; /* selection ring + comment badge */
+                --viz-highlight: #AADB1E; /* highlighted anchor/handle */
             }
             .ak-viz-viewport {
                 position: absolute;
@@ -415,7 +424,7 @@
                     var(--viz-bg);
             }
             .ak-viz-viewport.is-panning { cursor: grabbing; }
-            /* "Modo ligar" ativo — próximo clique num bloco cria a ligação. */
+            /* "Link mode" active — next click on a block creates the link. */
             .ak-viz-viewport.is-linking { cursor: crosshair; }
             .ak-viz-viewport.is-linking .ak-viz-node { cursor: crosshair; }
             .ak-viz-world {
@@ -449,9 +458,9 @@
                 text-anchor: middle;
                 dominant-baseline: middle;
             }
-            /* Pill de protocolo editável — a SVG mãe (.ak-viz-edges) tem
-               `pointer-events: none` (não deve capturar cliques de pan), então
-               só a pill clicável reabilita eventos aqui. */
+            /* Editable protocol pill — the parent SVG (.ak-viz-edges) has
+               `pointer-events: none` (shouldn't capture pan clicks), so only
+               the clickable pill re-enables events here. */
             .ak-viz-edges .ak-viz-plabel.is-editable { cursor: pointer; pointer-events: auto; }
             .ak-viz-edges .ak-viz-plabel.is-empty .ak-viz-plabel-box {
                 fill: transparent;
@@ -460,8 +469,8 @@
             .ak-viz-edges .ak-viz-plabel.is-empty .ak-viz-plabel-text { fill: var(--viz-line); }
             .ak-viz-edges .ak-viz-plabel.is-editable:hover .ak-viz-plabel-box { stroke: var(--viz-select); }
             .ak-viz-edges .ak-viz-plabel.is-editable:hover .ak-viz-plabel-text { fill: var(--viz-select); }
-            /* Nós lavanda/azulados (paleta do mapa mental), raio 13px. Layout
-               em coluna: linha de atributos (opcional) + corpo (avatar + nome). */
+            /* Lavender/blue-ish nodes (mind-map palette), 13px radius. Column
+               layout: attribute line (optional) + body (avatar + name). */
             .ak-viz-node {
                 position: absolute;
                 display: flex;
@@ -483,8 +492,8 @@
                 user-select: none;
                 box-shadow: 0 1px 2px rgba(16, 24, 40, .08), 0 0 0 1px rgba(16, 24, 40, .03);
             }
-            /* Linha discreta em cima do bloco: hospedagem/cloud da solução
-               (ícone + rótulo), só quando a solução tem o atributo definido. */
+            /* Discreet line above the block: solution's hosting/cloud
+               (icon + label), only when the solution has that attribute set. */
             .ak-viz-node-attrs {
                 display: flex;
                 flex-wrap: wrap;
@@ -509,7 +518,7 @@
                 width: 10px;
                 height: 10px;
             }
-            /* Corpo do bloco: avatar (logo ou inicial) + nome. */
+            /* Block body: avatar (logo or initial) + name. */
             .ak-viz-node-body {
                 display: flex;
                 align-items: center;
@@ -538,17 +547,17 @@
                 font-size: 10px;
                 font-weight: 700;
             }
-            /* Nó de texto livre: azul claro com borda tracejada (externo à Leo). */
+            /* Free-text node: light blue with dashed border (external to Leo). */
             .ak-viz-node.is-free {
                 background: var(--viz-node-free);
                 border: 1px dashed var(--viz-line);
                 box-shadow: none;
             }
-            /* Selecionado: anel azul de destaque. */
+            /* Selected: highlighted blue ring. */
             .ak-viz-node.is-selected {
                 box-shadow: 0 0 0 2px var(--viz-bg), 0 0 0 4px var(--viz-select), 0 4px 14px rgba(16, 24, 40, .14);
             }
-            /* Badge de comentário — canto superior direito do nó. */
+            /* Comment badge — node's top-right corner. */
             .ak-viz-comment-badge {
                 position: absolute;
                 top: -6px;
@@ -561,10 +570,10 @@
                 display: none;
             }
             .ak-viz-node.has-comment .ak-viz-comment-badge { display: block; }
-            /* Blocos arrastáveis quando a integração é editável. */
+            /* Blocks are draggable when the integration is editable. */
             [data-integration-viz][data-editable] .ak-viz-node { cursor: grab; }
             [data-integration-viz][data-editable] .ak-viz-node.is-dragging { cursor: grabbing; }
-            /* Handles das pontas da seta (arrastáveis) — discretos. */
+            /* Arrow-tip handles (draggable) — subtle. */
             .ak-viz-handle {
                 position: absolute;
                 width: 9px;
@@ -608,10 +617,10 @@
             }
             [data-integration-viz]:fullscreen .ak-viz-viewport { border-radius: 0; }
 
-            /* Pré-visualização do comentário em markdown — conteúdo arbitrário
-               sem elemento fixo para atachar classe (mesma exceção do
-               .html-content documentada no CLAUDE.md), por isso CSS aqui em
-               vez de utilities, mas usando os tokens de cor do app (chrome). */
+            /* Markdown comment preview — arbitrary content with no fixed
+               element to attach a class to (same exception as .html-content
+               documented in CLAUDE.md), hence CSS here instead of utilities,
+               but using the app's color tokens (chrome). */
             .ak-viz-md { line-height: 1.6; }
             .ak-viz-md .md-empty { color: var(--color-faint); font-style: italic; }
             .ak-viz-md h1, .ak-viz-md h2, .ak-viz-md h3, .ak-viz-md h4 {

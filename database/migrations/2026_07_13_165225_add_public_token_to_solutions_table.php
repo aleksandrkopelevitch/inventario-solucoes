@@ -12,8 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('solutions', function (Blueprint $table) {
-            // Token do link público de documentação ("magic link"). Nulo = doc
-            // não compartilhada; regenerar o token revoga o link antigo.
+            // Public documentation link token ("magic link"). Null = doc not
+            // shared; regenerating the token revokes the old link.
             $table->string('public_token', 64)->nullable()->unique()->after('slug');
         });
     }

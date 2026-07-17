@@ -5,9 +5,9 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Conversas do gerador de flowSpec (F8): cada chat pertence a um usuário e
- * pode, opcionalmente, ficar vinculado à Integration que receberá o flowSpec
- * gerado (`integrations.generated_flowspec`).
+ * flowSpec generator (F8) conversations: each chat belongs to a user and can
+ * optionally be linked to the Integration that will receive the generated
+ * flowSpec (`integrations.generated_flowspec`).
  */
 return new class extends Migration
 {

@@ -20,11 +20,12 @@ class Solution extends Model implements HasMedia
     use HasFactory, InteractsWithMedia;
 
     /**
-     * Documentos de contexto (PDF/imagem/texto) anexados à Solução e
-     * reaproveitados pelo "Assiste IA" da documentação — alimentam a geração
-     * por LLM (App\Services\Documentation\DocumentationDraftService).
-     * Separada da coleção `docs` (mídia embutida na documentação): estes
-     * arquivos nunca aparecem no Markdown, só vão pro prompt do modelo.
+     * Context documents (PDF/image/text) attached to the Solution and reused
+     * by the documentation "Assiste IA" — they feed the LLM generation
+     * (App\Services\Documentation\DocumentationDraftService). Separate from
+     * the `docs` collection (media embedded in the documentation): these
+     * files never appear in the Markdown, they only go into the model's
+     * prompt.
      */
     public const CONTEXT_COLLECTION = 'context_documents';
 
@@ -55,10 +56,10 @@ class Solution extends Model implements HasMedia
     }
 
     /**
-     * Rótulos dos atributos hoje gerenciados via `AttributeOption` (área
-     * "Gerenciar atributos") — as colunas em si guardam apenas o `value`
-     * (string), o `label` de exibição vem de uma lookup em memória (cache),
-     * nunca uma query por solução (evita N+1 nos cards do catálogo).
+     * Attribute labels now managed via `AttributeOption` (the "Manage
+     * attributes" area) — the columns themselves only store the `value`
+     * (string); the display `label` comes from an in-memory (cached) lookup,
+     * never a query per solution (avoids N+1 in the catalog cards).
      */
     protected function categoryLabel(): Attribute
     {
@@ -112,13 +113,13 @@ class Solution extends Model implements HasMedia
 
     public function registerMediaCollections(): void
     {
-        // Documentos de contexto do "Assiste IA" — servidos por
-        // SolutionContextDocumentController (a rota `files.show`/MediaController
-        // só libera a coleção `docs`).
+        // Context documents for "Assiste IA" — served by
+        // SolutionContextDocumentController (the `files.show`/MediaController
+        // route only serves the `docs` collection).
         $this->addMediaCollection(self::CONTEXT_COLLECTION);
     }
 
-    /** URL do link público da documentação, ou null se não compartilhada. */
+    /** URL of the documentation's public link, or null if not shared. */
     public function publicDocsUrl(): ?string
     {
         return $this->public_token
@@ -148,7 +149,7 @@ class Solution extends Model implements HasMedia
         return $this->hasMany(Integration::class, 'target_solution_id');
     }
 
-    /** Toda integração em que esta solução participa, em qualquer papel. */
+    /** Every integration this solution participates in, in any role. */
     public function integrations(): BelongsToMany
     {
         return $this->belongsToMany(Integration::class, 'integration_solution')
@@ -156,13 +157,13 @@ class Solution extends Model implements HasMedia
             ->withTimestamps();
     }
 
-    /** Árvore de páginas de documentação desta Solução (lista plana, ordenada). */
+    /** This Solution's documentation page tree (flat, ordered list). */
     public function pages(): MorphMany
     {
         return $this->morphMany(DocumentationPage::class, 'container')->orderBy('position');
     }
 
-    /** Só as páginas com conteúdo real — usada pra cobertura ("has_docs") e pro filtro "sem documentação". */
+    /** Only pages with actual content — used for coverage ("has_docs") and the "no documentation" filter. */
     public function documentedPages(): MorphMany
     {
         return $this->pages()->whereNotNull('documentation')->where('documentation', '<>', '');
@@ -177,10 +178,10 @@ class Solution extends Model implements HasMedia
     }
 
     /**
-     * Filtros do catálogo (F1) — busca por nome/fornecedor/responsável e
-     * filtros por categoria, diretoria, hospedagem, contrato, status e "sem
-     * documentação". Reaproveitado por Solutions\Index (lista) e
-     * Solutions\ResultsCount (contador), para os dois nunca divergirem.
+     * Catalog (F1) filters — search by name/vendor/owner and filters by
+     * category, directorate, hosting, contract, status and "no
+     * documentation". Reused by Solutions\Index (list) and
+     * Solutions\ResultsCount (counter), so the two never diverge.
      *
      * @param  array<string, mixed>  $filters
      */

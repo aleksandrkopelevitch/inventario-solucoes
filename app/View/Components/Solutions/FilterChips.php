@@ -8,8 +8,8 @@ use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 /**
- * Chips dos filtros ativos do catálogo (F1), cada um removível individualmente.
- * Slot próprio (não faz parte do grid) para atualizar junto a cada filtro/busca.
+ * Chips for the active filters in the catalog (F1), each individually removable.
+ * Own slot (not part of the grid) to update alongside each filter/search.
  */
 class FilterChips extends Component
 {

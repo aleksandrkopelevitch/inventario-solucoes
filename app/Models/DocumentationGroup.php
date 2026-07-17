@@ -8,10 +8,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 /**
- * Aninhamento de páginas de documentação que não pertence a nenhuma Solução
- * — standalone, para docs "soltas" (ex.: um processo transversal). Mesma
- * árvore de páginas (`DocumentationPage`, coluna `documentation`) que uma
- * Solution, via o polimórfico `container`.
+ * A nesting of documentation pages that doesn't belong to any Solution —
+ * standalone, for "loose" docs (e.g. a cross-cutting process). Same page
+ * tree (`DocumentationPage`, `documentation` column) as a Solution, via the
+ * polymorphic `container`.
  */
 class DocumentationGroup extends Model
 {
@@ -34,9 +34,9 @@ class DocumentationGroup extends Model
     }
 
     /**
-     * Sem FK real pra cascadear (container é polimórfico) — apaga cada
-     * página via o próprio model, pra também disparar a limpeza de mídia
-     * (Spatie hooka no `deleting` de DocumentationPage).
+     * No real FK to cascade (container is polymorphic) — deletes each page
+     * through its own model, so it also triggers media cleanup (Spatie hooks
+     * into DocumentationPage's `deleting`).
      */
     protected static function booted(): void
     {

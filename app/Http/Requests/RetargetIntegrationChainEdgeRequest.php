@@ -8,10 +8,10 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 /**
- * Religa uma ponta (`from` ou `to`) de uma ligação existente da chain para
- * outro nó — arrastar o handle da seta no data-viz F3 até outro bloco
- * qualquer (`integration-viz.js::retargetEdge()`). É o que permite o grafo
- * livre: a ligação deixa de estar presa ao par de nós com que foi criada.
+ * Retargets one end (`from` or `to`) of an existing chain edge to another
+ * node — dragging the arrow's handle in data-viz F3 to any other block
+ * (`integration-viz.js::retargetEdge()`). This is what enables the free
+ * graph: the edge is no longer stuck to the pair of nodes it was created with.
  */
 class RetargetIntegrationChainEdgeRequest extends FormRequest
 {
@@ -37,7 +37,7 @@ class RetargetIntegrationChainEdgeRequest extends FormRequest
         ];
     }
 
-    /** Uma ligação não pode conectar um bloco a ele mesmo — bloqueia religar pra ponta oposta da mesma ligação. */
+    /** An edge cannot connect a block to itself — blocks retargeting to the opposite end of the same edge. */
     protected function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator) {

@@ -46,9 +46,9 @@ class Company extends Model
     }
 
     /**
-     * Filtros do catálogo de empresas — busca por nome e filtro por tipo.
-     * Reaproveitado por Companies\Index (lista), Companies\ResultsCount
-     * (contador) e Companies\FilterChips, para os três nunca divergirem.
+     * Company catalog filters — search by name and filter by type.
+     * Reused by Companies\Index (list), Companies\ResultsCount (counter) and
+     * Companies\FilterChips, so the three never diverge.
      *
      * @param  array<string, mixed>  $filters
      */

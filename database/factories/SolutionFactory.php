@@ -14,8 +14,8 @@ class SolutionFactory extends Factory
     protected $model = Solution::class;
 
     /**
-     * Valores fixos (não lidos de `AttributeOption`, de propósito — a factory
-     * não deve depender de `attribute_options` estar seedada no banco de teste).
+     * Fixed values (not read from `AttributeOption`, on purpose — the factory
+     * shouldn't depend on `attribute_options` being seeded in the test database).
      */
     private const CATEGORIES = [
         'erp', 'ipaas', 'data_bi', 'ecommerce', 'manufacturing', 'tms', 'payments',
@@ -50,7 +50,7 @@ class SolutionFactory extends Factory
         return $this->state(fn () => ['status' => 'planned']);
     }
 
-    /** Solução com documentação preenchida (conteúdo real na coluna `documentation`). */
+    /** Solution with documentation filled in (real content in the `documentation` column). */
     public function fullyDocumented(): static
     {
         return $this->state(fn () => [

@@ -20,7 +20,7 @@ function flowspecUser(UserRole $role = UserRole::Viewer): User
     return User::factory()->create(['role' => $role->value]);
 }
 
-/** flowSpec mínimo e válido para mensagens de assistant nos testes HTTP. */
+/** Minimal, valid flowSpec for assistant messages in the HTTP tests. */
 function assistantFlowspec(): array
 {
     $id = (string) Str::uuid();
@@ -148,6 +148,24 @@ it('appends a message to an existing chat and dispatches the job', function () {
 
     expect($chat->messages()->count())->toBe(1);
     Queue::assertPushed(GenerateFlowspecReply::class);
+});
+
+it('rejects a new message while a reply is still being generated', function () {
+    // The composer sits outside the thread slot and stays enabled during the
+    // "generating…" state — it's the server that guarantees one pending turn at a time.
+    Queue::fake();
+    $user = flowspecUser();
+    $chat = $user->flowspecChats()->create(['title' => 'Chat']);
+    $chat->messages()->create(['role' => 'user', 'content' => 'gera aí']);
+
+    $response = $this->actingAs($user)
+        ->postJson(route('flowspec.messages.store', $chat), ['message' => 'mais uma'])
+        ->assertStatus(422)
+        ->assertJson(['type' => 'warning']);
+
+    expect($response->json('message'))->toContain('Aguarde a resposta atual')
+        ->and($chat->messages()->count())->toBe(1);
+    Queue::assertNotPushed(GenerateFlowspecReply::class);
 });
 
 it('reports pending status while the last message is from the user', function () {

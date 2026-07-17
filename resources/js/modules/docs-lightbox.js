@@ -1,11 +1,11 @@
-// docs-lightbox.js — clicar numa imagem da documentação read-only (dentro de
-// `.html-content`) abre um lightbox em tela cheia: backdrop escuro, imagem em
-// tamanho grande (object-contain), legenda embaixo, setas ‹ › para navegar
-// entre todas as imagens do mesmo documento, e Esc / clique no fundo / ✕ para
-// fechar. Delegação pura — init() é no-op (o listener vive no nível do módulo).
+// docs-lightbox.js — clicking an image in read-only documentation (inside
+// `.html-content`) opens a fullscreen lightbox: dark backdrop, large image
+// (object-contain), caption underneath, ‹ › arrows to navigate between all
+// images in the same document, and Esc / click on backdrop / ✕ to close.
+// Pure delegation — init() is a no-op (the listener lives at module level).
 //
-// Só atua em `.html-content` (visão read-only do GitbookRenderer), nunca no
-// editor (`.ak-docs-editor`), onde clicar na imagem serve pra editá-la.
+// Only acts within `.html-content` (GitbookRenderer's read-only view), never
+// in the editor (`.ak-docs-editor`), where clicking the image edits it instead.
 
 let overlay = null
 let imgs = []
@@ -34,7 +34,7 @@ function build() {
         if (e.target.closest('[data-lb-prev]')) { e.stopPropagation(); step(-1); return }
         if (e.target.closest('[data-lb-next]')) { e.stopPropagation(); step(1); return }
         if (e.target.closest('[data-lb-close]')) { close(); return }
-        // Clique no fundo (fora da <figure>) fecha; na imagem/legenda, não.
+        // Clicking the backdrop (outside the <figure>) closes it; the image/caption don't.
         if (!e.target.closest('figure')) close()
     })
 
@@ -87,7 +87,7 @@ function step(dir) {
 document.addEventListener('click', (e) => {
     const img = e.target.closest('.html-content img')
     if (!img) return
-    // Imagem dentro de um link: respeita o link, não sequestra o clique.
+    // Image inside a link: respects the link, doesn't hijack the click.
     if (img.closest('a')) return
     e.preventDefault()
     open(img)

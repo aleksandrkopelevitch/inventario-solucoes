@@ -18,7 +18,7 @@ function groupAdmin(): User
 
 /*
 |--------------------------------------------------------------------------
-| Grupo — CRUD (admin-only)
+| Group — CRUD (admin-only)
 |--------------------------------------------------------------------------
 */
 
@@ -89,7 +89,7 @@ it('forbids a viewer from renaming or deleting a group', function () {
 
 /*
 |--------------------------------------------------------------------------
-| Páginas do grupo — criar / renomear / mover / apagar / mídia
+| Group pages — create / rename / move / delete / media
 |--------------------------------------------------------------------------
 */
 

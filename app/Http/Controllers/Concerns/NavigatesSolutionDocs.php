@@ -7,14 +7,14 @@ use App\Models\Integration;
 use App\Models\Solution;
 
 /**
- * Consolida, numa única árvore de navegação, as páginas de uma Solution
- * (`DocumentationPage`, gerenciáveis: criar/renomear/mover/apagar) e a
- * documentação de cada Integration em que ela participa (single-page,
- * somente link — não é gerenciável a partir daqui). Usado tanto por
- * `SolutionDocumentationController` (navegando pelas próprias páginas)
- * quanto por `IntegrationDocumentationController` (navegando pela doc de
- * uma integração), pra que os dois mostrem exatamente a mesma sidebar —
- * "uma página por solução", como pedido.
+ * Consolidates, into a single navigation tree, a Solution's pages
+ * (`DocumentationPage`, manageable: create/rename/move/delete) and the
+ * documentation of each Integration it participates in (single-page,
+ * link-only — not manageable from here). Used both by
+ * `SolutionDocumentationController` (navigating the Solution's own pages)
+ * and `IntegrationDocumentationController` (navigating an integration's
+ * docs), so both show the exact same sidebar — "one page per solution", as
+ * requested.
  */
 trait NavigatesSolutionDocs
 {

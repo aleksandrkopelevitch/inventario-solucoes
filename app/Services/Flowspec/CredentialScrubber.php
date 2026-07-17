@@ -3,20 +3,20 @@
 namespace App\Services\Flowspec;
 
 /**
- * Detecta segredo literal (chave de API, senha, token) num flowSpec. Valores
- * sensíveis só podem entrar por referência Double Braces ({{ account.* }},
- * {{ global.* }}) — nunca como literal. Roda como guarda no seeder do corpus
- * e como regra do DigibeeFlowspecValidator sobre o que a IA gerar.
+ * Detects literal secrets (API key, password, token) in a flowSpec. Sensitive
+ * values may only enter via a Double Braces reference ({{ account.* }},
+ * {{ global.* }}) — never as a literal. Runs as a guard in the corpus seeder
+ * and as a DigibeeFlowspecValidator rule over what the AI generates.
  */
 class CredentialScrubber
 {
-    /** Fragmentos (chave minúscula, sem -_/espaço) que marcam uma chave como sensível. */
+    /** Fragments (lowercase key, no -_/space) that mark a key as sensitive. */
     private const SENSITIVE_KEY_FRAGMENTS = [
         'password', 'senha', 'secret', 'apikey', 'authorization',
         'credential', 'accesstoken', 'refreshtoken', 'privatekey',
     ];
 
-    /** Padrões de segredo literal dentro de qualquer valor string. */
+    /** Literal-secret patterns inside any string value. */
     private const VALUE_PATTERNS = [
         'JWT literal'                            => '/\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}/',
         'Bearer token literal'                   => '/\bBearer\s+(?!\{\{)[A-Za-z0-9._~+\/=-]{20,}/',
@@ -25,7 +25,7 @@ class CredentialScrubber
 
     /**
      * @param  array<string, mixed>  $document
-     * @return list<string> descrições dos vazamentos encontrados (vazio = limpo)
+     * @return list<string> descriptions of the leaks found (empty = clean)
      */
     public function violations(array $document): array
     {
@@ -55,7 +55,7 @@ class CredentialScrubber
             return;
         }
 
-        // params como `headers` carregam JSON serializado em string — varre também.
+        // Params like `headers` carry serialized JSON as a string — scan it too.
         if (str_starts_with(ltrim($value), '{')) {
             $decoded = json_decode($value, true);
 
@@ -88,7 +88,7 @@ class CredentialScrubber
         return false;
     }
 
-    /** Um valor com qualquer referência Double Braces não é segredo literal. */
+    /** A value with any Double Braces reference is not a literal secret. */
     private function isLiteral(string $value): bool
     {
         return trim($value) !== '' && ! str_contains($value, '{{');

@@ -6,10 +6,10 @@ use App\Support\Heroicons;
 use Illuminate\Http\JsonResponse;
 
 /**
- * Lista os ícones outline do heroicons para o picker dos callouts da
- * documentação (`resources/js/modules/heroicon-picker.js`). Só o editor
- * (autenticado) consome isto — as views read-only exibem o SVG já
- * renderizado no servidor pelo `GitbookRenderer`.
+ * Lists the heroicons outline icons for the documentation callouts' picker
+ * (`resources/js/modules/heroicon-picker.js`). Only the (authenticated)
+ * editor consumes this — read-only views display the SVG already rendered
+ * server-side by `GitbookRenderer`.
  */
 class HeroiconController extends Controller
 {

@@ -9,9 +9,9 @@ use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 /**
- * Lista + form de criação de um grupo de atributo, dentro da área "Gerenciar
- * atributos" (Modal única — ver `AttributeOptionController`). Slot próprio
- * por grupo, para uma mutação num grupo não precisar re-renderizar os outros.
+ * List + creation form for an attribute group, inside the "Gerenciar
+ * atributos" area (single Modal — see `AttributeOptionController`). Own slot
+ * per group, so a mutation in one group doesn't need to re-render the others.
  */
 class GroupList extends Component
 {

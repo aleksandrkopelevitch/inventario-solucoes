@@ -13,9 +13,9 @@ return new class extends Migration
     {
         Schema::create('documentation_ai_generations', function (Blueprint $table) {
             $table->id();
-            // Alvo da geração: uma DocumentationPage ou uma Integration.
+            // Generation target: a DocumentationPage or an Integration.
             $table->morphs('target');
-            // Solução dona dos documentos de contexto usados na geração.
+            // Solution owning the context documents used in the generation.
             $table->foreignId('solution_id')->constrained()->cascadeOnDelete();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->string('status')->default('pending'); // pending | completed | failed

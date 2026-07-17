@@ -9,13 +9,13 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Enum;
 
 /**
- * Cria uma ligação nova entre dois blocos já existentes na chain — o "modo
- * ligar" do data-viz F3 (clique num bloco, depois em outro): diferente de
- * `AddIntegrationChainNodeRequest` (que sempre acrescenta um nó novo) e de
- * `RetargetIntegrationChainEdgeRequest` (que move a ponta de uma ligação já
- * existente), este endpoint acrescenta uma aresta nova sem tocar nos nós —
- * é o que torna a chain um grafo livre de verdade, permitindo ligar qualquer
- * par de blocos já desenhados.
+ * Creates a new edge between two blocks already present in the chain — the
+ * data-viz F3 "connect mode" (click one block, then another): unlike
+ * `AddIntegrationChainNodeRequest` (which always appends a new node) and
+ * `RetargetIntegrationChainEdgeRequest` (which moves the end of an existing
+ * edge), this endpoint adds a new edge without touching the nodes — that's
+ * what makes the chain a genuinely free graph, letting any pair of already
+ * drawn blocks be connected.
  */
 class AddIntegrationChainEdgeRequest extends FormRequest
 {
@@ -53,7 +53,7 @@ class AddIntegrationChainEdgeRequest extends FormRequest
         ];
     }
 
-    /** Esvazia o sentinel "" do select ("Protocolo…") para null. */
+    /** Empties the select's "" sentinel ("Protocol…") to null. */
     protected function prepareForValidation(): void
     {
         $this->merge([

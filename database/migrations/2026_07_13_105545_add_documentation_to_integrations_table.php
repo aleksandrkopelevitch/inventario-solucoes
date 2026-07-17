@@ -9,8 +9,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('integrations', function (Blueprint $table) {
-            // Ver comentário gêmeo em add_documentation_to_solutions_table:
-            // Markdown + notação GitBook, editor de blocos, GitbookRenderer.
+            // See the twin comment in add_documentation_to_solutions_table:
+            // Markdown + GitBook notation, block editor, GitbookRenderer.
             $table->longText('documentation')->nullable()->after('viz_layout');
         });
     }

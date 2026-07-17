@@ -19,7 +19,7 @@ it('creates a new edge between two existing blocks without adding a node ("modo 
     $b = Solution::factory()->create(['name' => 'B']);
     $c = Solution::factory()->create(['name' => 'C']);
 
-    // A -> B, C isolado (nasceu sem conexão).
+    // A -> B, C isolated (created with no connection).
     $integration = Integration::factory()->create([
         'chain' => [
             'nodes' => [
@@ -53,7 +53,7 @@ it('creates a new edge between two existing blocks without adding a node ("modo 
 
     expect($integration->chain['edges'])->toHaveCount(2)
         ->and($integration->chain['edges'][1])->toBe(['from' => 0, 'to' => 2, 'arrow' => '->', 'protocol' => 'rest'])
-        // C deixou de estar isolado (agora tem grau de entrada 1).
+        // C is no longer isolated (now has in-degree 1).
         ->and((new ChainLabeler)->isLinear($integration->chain))->toBeFalse();
 });
 

@@ -6,7 +6,7 @@ use App\Enums\UserRole;
 use App\Models\FlowspecChat;
 use App\Models\User;
 
-/** Chats do gerador de flowSpec são pessoais: só o dono (ou admin) vê e conversa. */
+/** FlowSpec generator chats are personal: only the owner (or admin) can view and converse. */
 class FlowspecChatPolicy
 {
     public function viewAny(User $user): bool

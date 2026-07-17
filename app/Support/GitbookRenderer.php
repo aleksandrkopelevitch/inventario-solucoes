@@ -10,30 +10,31 @@ use League\CommonMark\MarkdownConverter;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 /**
- * Renderiza a documentação (Markdown + notação estendida estilo GitBook,
- * autorada no editor de blocos Editor.js) em HTML read-only para dentro de
- * `.html-content` (ver resources/css/app.css).
+ * Renders documentation (Markdown + GitBook-style extended notation,
+ * authored in the Editor.js block editor) into read-only HTML for
+ * `.html-content` (see resources/css/app.css).
  *
- * Markdown padrão (headings, listas, task lists, quote, code fence, tabelas
- * pipe, `***`) passa pelo league/commonmark (GFM). As construções que o GitBook
- * inventou — e que não têm Markdown nativo — são tratadas aqui, recursivamente,
- * antes/entre os trechos de Markdown:
+ * Standard Markdown (headings, lists, task lists, quote, code fence, pipe
+ * tables, `***`) goes through league/commonmark (GFM). The constructs GitBook
+ * invented — that have no native Markdown — are handled here, recursively,
+ * before/between the Markdown chunks:
  *
  *   {% hint style="info|warning|danger|success" %} … {% endhint %}
- *       → <aside data-callout="note|warning|danger|tip"> (callouts do .html-content)
+ *       → <aside data-callout="note|warning|danger|tip"> (.html-content callouts)
  *   {% tabs %}{% tab title="…" %} … {% endtab %} … {% endtabs %}
- *       → abas com o contrato data-ak-tabs (resources/js/modules/tabs.js)
+ *       → tabs using the data-ak-tabs contract (resources/js/modules/tabs.js)
  *   {% file src="/files/{id}" %}
- *       → cartão de download apontando pra rota autenticada files.show
+ *       → download card pointing to the authenticated files.show route
  *
- * Imagens vêm como HTML puro (<figure><img src="/files/{id}">…), que o
- * commonmark repassa (html_input=allow) — /files/{id} resolve na rota files.show.
+ * Images come as plain HTML (<figure><img src="/files/{id}">…), which
+ * commonmark passes through (html_input=allow) — /files/{id} resolves via
+ * the files.show route.
  */
 class GitbookRenderer
 {
     private ?MarkdownConverter $converter = null;
 
-    /** Contador para ids únicos de blocos de abas dentro de um mesmo render. */
+    /** Counter for unique tab-block ids within the same render. */
     private int $uid = 0;
 
     public function render(?string $markdown): string
@@ -72,7 +73,7 @@ class GitbookRenderer
             $line = $lines[$i];
             $trimmed = trim($line);
 
-            // Code fence: consome verbatim (não interpretar {% %} lá dentro).
+            // Code fence: consume verbatim (don't interpret {% %} inside it).
             if (preg_match('/^(```|~~~)/', $trimmed, $m)) {
                 $fence = $m[1];
                 $buffer[] = $line;
@@ -132,8 +133,8 @@ class GitbookRenderer
     }
 
     /**
-     * Coleta as linhas até o `{% end{$type} %}` correspondente, respeitando
-     * aninhamento do mesmo tipo. Devolve [linhasInternas, novoIndice].
+     * Collects the lines up to the matching `{% end{$type} %}`, respecting
+     * nesting of the same type. Returns [innerLines, newIndex].
      *
      * @param  array<int, string>  $lines
      * @return array{0: array<int, string>, 1: int}
@@ -164,7 +165,7 @@ class GitbookRenderer
         return [$inner, $i];
     }
 
-    /** Heroicon outline padrão de cada estilo de callout (usado quando o autor não escolheu um). */
+    /** Default outline heroicon for each callout style (used when the author didn't pick one). */
     private const DEFAULT_HINT_ICON = [
         'info'    => 'information-circle',
         'warning' => 'exclamation-triangle',
@@ -185,8 +186,8 @@ class GitbookRenderer
         };
 
         $default = self::DEFAULT_HINT_ICON[$style] ?? self::DEFAULT_HINT_ICON['info'];
-        // Ícone escolhido pelo autor, com fallback defensivo pro padrão do estilo
-        // se o nome não existir no set (nada de SVG externo).
+        // Icon chosen by the author, with a defensive fallback to the style's
+        // default if the name doesn't exist in the set (no external SVG).
         $svg = ($icon !== '' ? Heroicons::outlineSvg($icon) : null) ?? Heroicons::outlineSvg($default);
 
         return '<aside data-callout="' . $callout . '">'
@@ -196,8 +197,8 @@ class GitbookRenderer
     }
 
     /**
-     * Extrai pares `chave="valor"` de uma string de atributos da notação GitBook
-     * (ordem livre). Ex.: `style="info" icon="light-bulb"` → `['style'=>…, 'icon'=>…]`.
+     * Extracts `key="value"` pairs from a GitBook-notation attribute string
+     * (free order). E.g.: `style="info" icon="light-bulb"` → `['style'=>…, 'icon'=>…]`.
      *
      * @return array<string, string>
      */
@@ -289,8 +290,8 @@ class GitbookRenderer
     }
 
     /**
-     * Embed responsivo (YouTube/Vimeo/Figma). Mantém em sincronia com
-     * `embedData()` de resources/js/modules/docs-markdown.js (editor).
+     * Responsive embed (YouTube/Vimeo/Figma). Keep in sync with
+     * `embedData()` from resources/js/modules/docs-markdown.js (editor).
      */
     private function renderEmbed(string $url): string
     {
@@ -330,8 +331,8 @@ class GitbookRenderer
             $environment = new Environment([
                 'html_input'         => 'allow',
                 'allow_unsafe_links' => true,
-                // Âncoras clicáveis nos títulos (H1–H3) — o id vira o alvo de
-                // /docs#slug; docs-anchors.js copia o link ao clicar.
+                // Clickable anchors on headings (H1–H3) — the id becomes the
+                // target of /docs#slug; docs-anchors.js copies the link on click.
                 'heading_permalink' => [
                     'html_class'        => 'heading-permalink',
                     'id_prefix'         => '',

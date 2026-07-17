@@ -18,8 +18,8 @@ it('includes a block with no edges at all in the free-graph summary, alongside t
             ['solution_id' => $b->id, 'label' => null],
             ['solution_id' => $isolated->id, 'label' => null],
         ],
-        // Não linear (2 edges pra 3 nós já reprovaria isLinear de qualquer
-        // forma) — força o ramo "lista cada ligação" de label().
+        // Not linear (2 edges for 3 nodes would already fail isLinear
+        // anyway) — forces the "list every link" branch of label().
         'edges' => [
             ['from' => 0, 'to' => 1, 'arrow' => '->', 'protocol' => null],
             ['from' => 1, 'to' => 0, 'arrow' => '->', 'protocol' => null],
