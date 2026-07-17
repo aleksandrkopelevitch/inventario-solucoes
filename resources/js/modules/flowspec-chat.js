@@ -18,7 +18,14 @@ import { updateSlots } from './ajax-slot.js'
  */
 
 const POLL_INTERVAL = 2500
-const MAX_POLL_ATTEMPTS = 240 // ~10min at 2.5s/tick — well above the expected "a few minutes"
+// ~12.5min at 2.5s/tick. Must stay ABOVE the server's stall window
+// (FlowspecChat::REPLY_STALL_SECONDS, 660s): by then status() reports the turn
+// resolved (a reply arrived, or the generation is declared dead and the
+// composer reopens) and the slot swap removes the poll marker, so the client
+// stops on its own. A lower ceiling gave up mid-window and left a slow-but-live
+// reply invisible until a manual refresh. This ceiling is now only a backstop
+// for a status endpoint that never resolves at all.
+const MAX_POLL_ATTEMPTS = 300
 let timer = null
 let attempts = 0
 

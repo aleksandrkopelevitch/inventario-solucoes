@@ -235,6 +235,25 @@ it('persists only the exception type on failure, never the raw provider message'
         ->and(json_encode($reply->meta))->not->toContain('sk-secret-123');
 });
 
+it('rejects a context selection larger than the allowed maximum', function () {
+    Queue::fake();
+    $user = flowspecUser();
+    // 21 real solutions so only the array `max` rule can fail (each value still
+    // passes exists:solutions,id).
+    $solutions = Solution::factory()->count(21)->create()
+        ->map(fn (Solution $s) => ['value' => $s->id, 'label' => $s->name])
+        ->all();
+
+    $response = $this->actingAs($user)
+        ->postJson(route('flowspec.store'), ['message' => 'gera aí', 'solutions' => $solutions])
+        ->assertStatus(422)
+        ->assertJson(['type' => 'warning']);
+
+    expect($response->json('message'))->toContain('20')
+        ->and(FlowspecChat::query()->count())->toBe(0);
+    Queue::assertNotPushed(GenerateFlowspecReply::class);
+});
+
 it('blocks attaching a flowspec that carries a literal credential', function () {
     $admin = flowspecUser(UserRole::Admin);
     $chat = $admin->flowspecChats()->create(['title' => 'Chat']);

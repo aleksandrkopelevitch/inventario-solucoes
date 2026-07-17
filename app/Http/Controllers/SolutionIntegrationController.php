@@ -340,6 +340,8 @@ class SolutionIntegrationController extends Controller
      */
     public function flowspec(Solution $solution, Integration $integration): JsonResponse
     {
+        $this->authorize('view', $integration);
+
         return response()->json([
             'content' => view('components.solutions.integration-flowspec-panel', [
                 'integration' => $integration,
