@@ -255,7 +255,7 @@ function escapeHtml(s) {
 
 function mdInline(s) {
     const codes = []
-    s = s.replace(/`([^`]+)`/g, (m, c) => { codes.push(c); return ' ' + (codes.length - 1) + ' ' })
+    s = s.replace(/`([^`]+)`/g, (m, c) => { codes.push(c); return '\x00' + (codes.length - 1) + '\x00' })
     s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (m, a, u) => `<img src="${u}" alt="${a}" style="max-width:100%;border-radius:6px">`)
     s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, t, u) => `<a href="${u}" target="_blank" rel="noopener">${t}</a>`)
     s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
@@ -263,7 +263,7 @@ function mdInline(s) {
     s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
     s = s.replace(/(^|[^\w])_([^_\n]+)_/g, '$1<em>$2</em>')
     s = s.replace(/~~([^~]+)~~/g, '<del>$1</del>')
-    s = s.replace(/ (\d+) /g, (m, i) => `<code>${codes[+i]}</code>`)
+    s = s.replace(/\x00(\d+)\x00/g, (m, i) => `<code>${codes[+i]}</code>`)
     return s
 }
 
@@ -271,14 +271,14 @@ function renderMarkdown(src) {
     if (!src || !src.trim()) return '<p class="md-empty">Sem comentário ainda.</p>'
     src = src.replace(/\r\n/g, '\n')
     const blocks = []
-    src = src.replace(/```([\s\S]*?)```/g, (m, code) => { blocks.push(code.replace(/^\n/, '').replace(/\n$/, '')); return '' + (blocks.length - 1) + '' })
+    src = src.replace(/```([\s\S]*?)```/g, (m, code) => { blocks.push(code.replace(/^\n/, '').replace(/\n$/, '')); return '\x01' + (blocks.length - 1) + '\x01' })
     const lines = src.split('\n')
     let html = ''
     let i = 0
-    const isSpecial = (ln) => /^\d+$/.test(ln) || /^(#{1,6})\s/.test(ln) || /^\s*>/.test(ln) || /^\s*[-*+]\s/.test(ln) || /^\s*\d+\.\s/.test(ln) || /^\s*([-*_])\1\1+\s*$/.test(ln) || /^\s*$/.test(ln)
+    const isSpecial = (ln) => /^\x01\d+\x01$/.test(ln) || /^(#{1,6})\s/.test(ln) || /^\s*>/.test(ln) || /^\s*[-*+]\s/.test(ln) || /^\s*\d+\.\s/.test(ln) || /^\s*([-*_])\1\1+\s*$/.test(ln) || /^\s*$/.test(ln)
     while (i < lines.length) {
         const line = lines[i]
-        const cm = line.match(/^(\d+)$/)
+        const cm = line.match(/^\x01(\d+)\x01$/)
         if (cm) { html += `<pre><code>${escapeHtml(blocks[+cm[1]])}</code></pre>`; i++; continue }
         if (/^\s*$/.test(line)) { i++; continue }
         const h = line.match(/^(#{1,6})\s+(.*)$/)
