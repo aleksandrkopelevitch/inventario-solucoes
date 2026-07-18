@@ -62,21 +62,6 @@ window.globalModules = {
 -------------------------------------------------*/
 document.addEventListener('DOMContentLoaded', () => {
     initAllModules()
-
-    if (document.keyboardShortcutEventAdded !== true) {
-        let ignoreKeys = ['ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'Alt', 'Shift', 'Meta']
-        document.addEventListener('keydown', (event) => {
-            if (ignoreKeys.indexOf(event.key) <= -1 && event.ctrlKey && event.key === 'b') {
-                // some action / click / etc
-            }
-
-            if (ignoreKeys.indexOf(event.key) <= -1 && event.key === 'Escape') {
-                // some action / click / etc
-                // Example: Modal.close('main-modal')
-            }
-        }, {once: false})
-        document.keyboardShortcutEventAdded = true
-    }
 })
 
 /*------------------------------------------------
