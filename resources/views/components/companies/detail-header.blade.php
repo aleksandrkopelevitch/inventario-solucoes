@@ -1,4 +1,4 @@
-<div id="{{ $domId }}" class="rounded-card border border-line bg-surface p-6 shadow-[0_1px_3px_rgba(20,58,34,0.04)]">
+<div id="{{ $domId }}" class="rounded-card border border-line bg-surface p-6 shadow-card">
     <div class="flex flex-wrap items-start gap-4">
         <x-ui.logo :name="$company->name" :src="$company->logo_path" size="lg" />
         <div class="min-w-0 flex-1">

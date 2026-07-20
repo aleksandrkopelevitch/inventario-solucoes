@@ -16,7 +16,7 @@
             'Soluções' => $counters['solutions'],
             'Integrações' => $counters['integrations'],
         ] as $label => $counter)
-            <div class="rounded-card border border-line bg-surface p-5 shadow-[0_1px_3px_rgba(20,58,34,0.04)]">
+            <div class="rounded-card border border-line bg-surface p-5 shadow-card">
                 <div class="flex items-baseline justify-between gap-2">
                     <div class="text-xs uppercase tracking-wide text-faint">{{ $label }} documentadas</div>
                     <div class="text-sm text-muted">{{ $counter['percent'] }}%</div>

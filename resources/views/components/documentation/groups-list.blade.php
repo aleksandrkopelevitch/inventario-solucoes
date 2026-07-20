@@ -1,4 +1,4 @@
-<div id="{{ $domId }}" class="rounded-card border border-line bg-surface p-5 shadow-[0_1px_3px_rgba(20,58,34,0.04)]">
+<div id="{{ $domId }}" class="rounded-card border border-line bg-surface p-5 shadow-card">
     <div class="flex items-center justify-between gap-3">
         <div>
             <h2 class="font-display text-lg font-semibold text-ink">Grupos</h2>

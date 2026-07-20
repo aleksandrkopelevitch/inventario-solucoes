@@ -1,4 +1,4 @@
-<div id="{{ $domId }}" class="mt-5 rounded-card border border-line bg-surface p-6 shadow-[0_1px_3px_rgba(20,58,34,0.04)]">
+<div id="{{ $domId }}" class="mt-5 rounded-card border border-line bg-surface p-6 shadow-card">
     <div class="flex items-start justify-between gap-3">
         <div class="flex items-baseline gap-2.5">
             <span class="inline-flex items-center rounded-md bg-accent px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-white">Docs</span>

@@ -20,7 +20,7 @@
                 $lastErrors = $attempts > 0 ? (end($meta['attempts'])['errors'] ?? []) : [];
             @endphp
 
-            <div class="mr-auto w-full max-w-[95%] rounded-card rounded-bl-sm border border-line bg-surface p-4 shadow-[0_1px_3px_rgba(20,58,34,0.04)]">
+            <div class="mr-auto w-full max-w-[95%] rounded-card rounded-bl-sm border border-line bg-surface p-4 shadow-card">
                 <p @class(['text-sm text-body whitespace-pre-line', 'text-crit' => $failed])>{{ $message->content }}</p>
 
                 {{-- Botões de "adicionar documentação" — só numa resposta conversacional

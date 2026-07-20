@@ -5,7 +5,7 @@
     </div>
 
     {{-- New conversation --}}
-    <div class="rounded-card border border-line bg-surface p-5 shadow-[0_1px_3px_rgba(20,58,34,0.04)]">
+    <div class="rounded-card border border-line bg-surface p-5 shadow-card">
         <h2 class="font-display text-lg font-semibold text-ink">Nova conversa</h2>
 
         <form id="flowspec-new-chat-form" class="mt-4 flex flex-col gap-4">
