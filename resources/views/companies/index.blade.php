@@ -13,10 +13,9 @@
             <p class="mt-1 text-sm text-muted">Fornecedores, parceiros e áreas internas.</p>
         </div>
         @can('create', \App\Models\Company::class)
-            <a href="#" data-ak-panel-open data-ak-panel-url="{{ route('companies.create', ['filter' => $filters]) }}"
-               class="inline-flex items-center gap-2 rounded-field bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-press">
+            <x-forms.button href="#" data-ak-panel-open data-ak-panel-url="{{ route('companies.create', ['filter' => $filters]) }}">
                 <x-heroicon-o-plus class="size-4" /> Nova empresa
-            </a>
+            </x-forms.button>
         @endcan
     </div>
 

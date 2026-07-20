@@ -2,14 +2,18 @@
 
 @php
     // Button system (3 roles, hierarchy by weight — not by motion):
-    //   primary → solid green. THE ONLY green. Main CTA (Save, Log in…).
+    //   primary → graphite near-black (green-tinted). THE main CTA (Save, Log
+    //             in, "Nova …"). Wins by contrast, not hue — green is now
+    //             reserved for brand/state, not action (see the --color-btn note
+    //             in app.css). Soft shadow + top-edge highlight give tactility;
+    //             focus ring stays green (brand tie).
     //   glass   → neutral translucent. Secondary action (Edit, Manage).
     //   ghost   → transparent, icon/text only. Row-level actions (pencil, trash,
     //             canvas controls). Light, doesn't inherit green or shadow.
     // Contained micro-interaction: hover changes color/shadow (subtle), click presses in 1px.
     // No hover lift, no glow — nothing exaggerated.
     $variants = [
-        'primary' => 'bg-accent text-white shadow-sm hover:bg-accent-press hover:shadow-md',
+        'primary' => 'bg-btn text-white shadow-btn hover:bg-btn-hover hover:shadow-btn-hover',
         'glass'   => 'border border-white/60 bg-white/55 text-ink shadow-sm ring-1 ring-line/70 backdrop-blur-md hover:bg-white/90 hover:ring-line-2',
         'ghost'   => 'text-muted hover:bg-raised hover:text-ink',
     ];
