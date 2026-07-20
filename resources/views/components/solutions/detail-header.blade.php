@@ -1,11 +1,13 @@
+@use('App\Support\CategoryPalette')
 <div id="{{ $domId }}">
-    <div class="overflow-hidden rounded-card border border-line bg-surface shadow-[0_1px_3px_rgba(20,58,34,0.04)]">
+    <div class="overflow-hidden rounded-card border border-line bg-surface shadow-card">
         {{-- Identity strip: logo, name, vendor, description and action --}}
         <div class="relative flex flex-wrap items-start gap-4 p-6">
             {{-- Subtle green tint at the top of the card (Leo identity) --}}
             <div class="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-accent-soft/60 to-transparent"></div>
 
-            <x-ui.logo :name="$solution->name" :src="$solution->logo_path" size="lg" class="relative shadow-sm" />
+            <x-ui.logo :name="$solution->name" :src="$solution->logo_path" size="lg" class="relative shadow-sm"
+                :tone="CategoryPalette::tileClass($solution->category)" />
 
             <div class="relative min-w-0 flex-1">
                 <h1 class="font-display text-[28px] font-semibold leading-tight text-ink">{{ $solution->name }}</h1>
@@ -55,6 +57,11 @@
                 // The viewer's `<span>` doesn't need this (no component to
                 // beat), hence the two maps.
                 $important = fn (string $classes) => '!' . str_replace(' ', ' !', trim($classes));
+                // Category is colored by its family (CategoryPalette), not a
+                // fixed tone — resolve per value; everything else uses the map.
+                $toneClasses = fn (array $fact) => $fact['tone'] === 'category'
+                    ? CategoryPalette::chipClass($fact['value'])
+                    : ($factTones[$fact['tone']] ?? $factTones['neutral']);
                 $canEditAttributes = \Illuminate\Support\Facades\Gate::allows('update', $solution);
             @endphp
             <dl @if ($canEditAttributes) data-solution-attributes data-action="{{ route('solutions.attributes.update', $solution) }}" @endif
@@ -70,7 +77,7 @@
                                 @elseif (blank($fact['value']))
                                     <span class="inline-flex items-center rounded-md border border-dashed border-line-2 px-2.5 py-1 text-xs font-medium text-faint">Não informado</span>
                                 @else
-                                    <span class="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold {{ $factTones[$fact['tone']] ?? $factTones['neutral'] }}">{{ $fact['displayLabel'] }}</span>
+                                    <span class="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold {{ $toneClasses($fact) }}">{{ $fact['displayLabel'] }}</span>
                                 @endif
                             @elseif ($fact['tone'] === 'plain')
                                 <x-forms.select name="{{ $fact['group'] }}" title="Editar {{ $fact['label'] }}"
@@ -86,7 +93,7 @@
                                 <x-forms.select name="{{ $fact['group'] }}" title="Editar {{ $fact['label'] }}"
                                     data-ak-solution-attribute data-ak-attribute-select="{{ $fact['group'] }}"
                                     data-ak-attribute-options-url="{{ route('attribute-options.options', $fact['group']) }}"
-                                    class="!h-[26px] !rounded-md !py-0 !pl-2.5 !pr-6 !text-xs !font-semibold {{ blank($fact['value']) ? '!border !border-dashed !border-line-2 !bg-transparent !text-faint' : '!border-0 ' . $important($factTones[$fact['tone']] ?? $factTones['neutral']) }}">
+                                    class="!h-[26px] !rounded-md !py-0 !pl-2.5 !pr-6 !text-xs !font-semibold {{ blank($fact['value']) ? '!border !border-dashed !border-line-2 !bg-transparent !text-faint' : '!border-0 ' . $important($toneClasses($fact)) }}">
                                     @if ($fact['nullable'])
                                         <option value="" @selected(blank($fact['value']))>Não informado</option>
                                     @endif

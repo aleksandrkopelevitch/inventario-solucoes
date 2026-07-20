@@ -20,12 +20,14 @@ it('renders the solution header badges with semantic tones instead of a single g
     // $solution prop) — this way the HTML is just the header, no layout chrome.
     $html = Blade::render('<x-solutions.detail-header :solution="$solution" />', ['solution' => $solution]);
 
-    // Category = solid green block (anchor); high criticality = red;
-    // no gray `rounded-full bg-raised` pill. Guest (no edit permission)
-    // renders the usual <span> — the tones stay the same; the editable
-    // version (<select>) uses the same classes with a `!` prefix (see
-    // Solutions\DetailHeader).
-    expect($html)->toContain('bg-accent text-white')           // category anchor
+    // Category = its color family (iam → rose, via CategoryPalette) instead of
+    // the old solid-green anchor — green is no longer the only color. The logo
+    // tile takes the same family (`bg-cat-rose`). High criticality = red; no
+    // gray `rounded-full bg-raised` pill. Guest (no edit permission) renders a
+    // <span>; the editable <select> uses the same classes with a `!` prefix.
+    expect($html)->toContain('bg-cat-rose-soft')                // category chip = rose family
+        ->and($html)->toContain('text-cat-rose-ink')
+        ->and($html)->toContain('bg-cat-rose')                  // logo tile = rose family
         ->and($html)->toContain('ring-crit-line')               // high criticality = red
         ->and($html)->not->toContain('rounded-full bg-raised'); // no gray pill
 });

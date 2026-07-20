@@ -2,6 +2,11 @@
     'name' => '',
     'src' => null,
     'size' => 'md',
+    // Background class for the letter-fallback tile. Defaults to the green
+    // brand anchor; solution cards pass a category color via
+    // `App\Support\CategoryPalette::tileClass()`. No effect when `src` is a
+    // real image. Text stays white for every tone (all tiles are saturated).
+    'tone' => 'bg-accent',
 ])
 
 @php
@@ -25,7 +30,7 @@
     <img src="{{ $url }}" alt="{{ $name }}"
         {{ $attributes->class([$sizeClass, 'shrink-0 rounded-field border border-line bg-surface object-contain p-1']) }}>
 @else
-    <span {{ $attributes->class([$sizeClass, 'inline-flex shrink-0 items-center justify-center rounded-field bg-accent font-display font-bold text-white']) }}>
+    <span {{ $attributes->class([$sizeClass, $tone, 'inline-flex shrink-0 items-center justify-center rounded-field font-display font-bold text-white']) }}>
         {{ $initial ?: '?' }}
     </span>
 @endif

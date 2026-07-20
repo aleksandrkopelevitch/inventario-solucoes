@@ -53,7 +53,7 @@ class DetailHeader extends Component
             // needs it to mark the selected option; `nullable` decides
             // whether the card accepts clearing the field back to "Não informado".
             'facts' => collect([
-                ['group' => 'category',        'label' => 'Categoria',   'value' => $s->category,        'displayLabel' => $s->category_label,        'tone' => 'anchor',                 'nullable' => false],
+                ['group' => 'category',        'label' => 'Categoria',   'value' => $s->category,        'displayLabel' => $s->category_label,        'tone' => 'category',               'nullable' => false],
                 ['group' => 'status',          'label' => 'Status',      'value' => $s->status,          'displayLabel' => $s->status_label,          'tone' => 'green',                  'nullable' => false],
                 ['group' => 'criticality',     'label' => 'Criticidade', 'value' => $s->criticality,     'displayLabel' => $s->criticality_label,     'tone' => $this->criticalityTone(), 'nullable' => true],
                 ['group' => 'environment',     'label' => 'Ambiente',    'value' => $s->environment,     'displayLabel' => $s->environment_label,     'tone' => 'green',                  'nullable' => true],

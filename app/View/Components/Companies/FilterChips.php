@@ -3,6 +3,7 @@
 namespace App\View\Components\Companies;
 
 use App\Enums\CompanyKind;
+use App\Support\CategoryPalette;
 use App\View\Components\Concerns\Renderable;
 use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
@@ -35,20 +36,40 @@ class FilterChips extends Component
         ]);
     }
 
-    /** @return array<int, array{field: string, label: ?string, value: string}> */
+    /**
+     * Each chip wears its dimension's color family + icon (same treatment as the
+     * solutions catalog) so the active-filters row is a colorful summary, not
+     * identical pale-green pills.
+     *
+     * @return array<int, array{field: string, label: ?string, value: string, chip: string, icon: string}>
+     */
     private function chips(): array
     {
         $f = $this->filters;
         $chips = [];
 
         if (filled($f['search'] ?? null)) {
-            $chips[] = ['field' => 'filter[search]', 'label' => 'Busca', 'value' => $f['search']];
+            $chips[] = $this->chip('filter[search]', 'Busca', $f['search'], 'slate', 'magnifying-glass');
         }
 
         if (filled($f['kind'] ?? null)) {
-            $chips[] = ['field' => 'filter[kind]', 'label' => 'Tipo', 'value' => CompanyKind::from($f['kind'])->label()];
+            $chips[] = $this->chip('filter[kind]', 'Tipo', CompanyKind::from($f['kind'])->label(), 'teal', 'tag');
         }
 
         return $chips;
+    }
+
+    /**
+     * @return array{field: string, label: ?string, value: string, chip: string, icon: string}
+     */
+    private function chip(string $field, ?string $label, string $value, string $family, string $icon): array
+    {
+        return [
+            'field' => $field,
+            'label' => $label,
+            'value' => $value,
+            'chip'  => CategoryPalette::chipClassForFamily($family),
+            'icon'  => $icon,
+        ];
     }
 }
