@@ -7,6 +7,10 @@
 @source "../**/*.blade.php";
 @source "../**/*.js";
 @source "../**/*.vue";
+/* The category color classes (bg-cat-…, text-cat-…-ink, ring-cat-…-line) are
+   only ever named as literals inside CategoryPalette — scan it so the JIT
+   emits them (a concatenated "bg-cat-{family}" elsewhere would never be seen). */
+@source "../../app/Support/CategoryPalette.php";
 
 @font-face {
     font-family: 'InterVariable';
@@ -82,20 +86,36 @@
     /* ── Identidade visual Leo Madeiras ──────────────────
        Verde institucional #1B4D2E + lime #AADB1E. Superfícies
        claras, sidebar verde-escuro. Ver modelo inventario_app. */
-    --color-canvas:       #f6f8f6;   /* fundo da aplicação   */
+    /* Neutros com mais ESCADA de valor (2026-07-20): canvas/surface/line eram
+       três quase-brancos (#f6f8f6/#fff/#e7ede8) — controles e cards se
+       dissolviam no fundo, tudo lia "morto". Canvas baixado p/ os cards brancos
+       flutuarem; bordas um tom mais fortes p/ terem definição; raised mais
+       escuro p/ poços/hovers ainda lerem sobre o canvas novo. */
+    --color-canvas:       #edf0ee;   /* fundo da aplicação (mais escuro p/ cards flutuarem) */
     --color-surface:      #ffffff;   /* cards, inputs        */
-    --color-raised:       #eef2ee;   /* trilhas, hovers      */
+    --color-raised:       #e3e9e4;   /* trilhas, hovers, poços */
     --color-ink:          #1B4D2E;   /* títulos, texto forte */
     --color-body:         #384439;   /* texto corrido        */
     --color-muted:        #5c7563;   /* secundário (verde-musgo) */
     --color-faint:        #9aa89c;   /* placeholder, ícones  */
-    --color-line:         #e7ede8;   /* bordas               */
-    --color-line-2:       #dbe3dc;   /* bordas mais fortes   */
+    --color-line:         #d9e1da;   /* bordas (visíveis, não somem) */
+    --color-line-2:       #cbd6cd;   /* bordas mais fortes   */
 
-    --color-accent:       #1B4D2E;   /* ação primária        */
-    --color-accent-press: #143a22;   /* primária pressionada */
+    --color-accent:       #1B4D2E;   /* verde de marca (selos, estados, foco) */
+    --color-accent-press: #143a22;   /* verde pressionado    */
     --color-accent-soft:  #eaf2ec;   /* fundo suave verde    */
     --color-accent-line:  #cfe0d4;   /* borda suave verde    */
+
+    /* Botão primário = grafite quase-preto com leve fundo verde (2026-07-20).
+       Antes era `bg-accent` verde sólido; com o catálogo agora colorido, um CTA
+       verde competia em matiz com as categorias. Grafite vence por CONTRASTE,
+       não por cor — verde fica reservado a marca/estado. Foco continua no anel
+       verde (elo com a marca). Sombra suave + realce no topo (bisel) dão tato
+       sem glow. Ver [[color-system-blocos-leo]]. */
+    --color-btn:          #1a201d;   /* fundo do CTA primário */
+    --color-btn-hover:    #252d29;   /* CTA em hover (clareia um respiro) */
+    --shadow-btn:         0 1px 2px rgba(10, 15, 12, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+    --shadow-btn-hover:   0 6px 16px -4px rgba(10, 15, 12, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.11);
 
     --color-lime:         #AADB1E;   /* destaque / ativo     */
     --color-lime-ink:     #3f5708;   /* texto sobre lime     */
@@ -109,13 +129,41 @@
     --color-crit-soft:    #f7ecec;
     --color-crit-line:    #eccccc;   /* borda vermelha       */
 
-    --color-sidebar:      #11331f;   /* fundo da sidebar     */
+    /* Sidebar (2026-07-20): o verde-floresta #11331f dominava demais (crítica
+       do usuário). Baixado meio tom para #173021 — ainda nitidamente floresta,
+       só um respiro mais calmo. Lima e texto branco/pálido seguem com contraste
+       de sobra. Este é o dial: subir o croma volta pro original, descer leva a
+       um grafite verde (#1c2a23) ou quase-neutro (#242926). */
+    --color-sidebar:      #173021;   /* fundo da sidebar     */
     --color-sidebar-ink:  #cfe0d4;   /* texto da sidebar     */
     --color-sidebar-faint:#7fa088;   /* texto fraco sidebar  */
 
     /* raios da identidade */
     --radius-card:  14px;   /* -> rounded-card  */
-    --radius-field: 10px;   /* -> rounded-field */
+    --radius-field: 5px;    /* -> rounded-field (baixado de 10px em 2026-07-20: 10px arredondava demais campos/botões/selos; 5px = mais crisp, casa com o CTA grafite) */
+
+    /* Sombra padrão de card (-> shadow-card). Substituiu o inline
+       `shadow-[0_1px_3px_rgba(20,58,34,0.04)]` (quase invisível) em massa —
+       agora os cards têm um aterro suave e flutuam sobre o canvas mais escuro. */
+    --shadow-card: 0 1px 2px rgba(20, 58, 34, 0.05), 0 6px 16px -10px rgba(20, 58, 34, 0.12);
+
+    /* ── Paleta de categorias — identidade cromática por TIPO de sistema ──
+       O verde segue âncora da marca (sidebar, botões, títulos), mas o
+       conteúdo — 92 cards que eram uma parede verde+cinza — ganha 8 famílias
+       harmônicas, ~igualmente espaçadas no círculo, para escaneabilidade por
+       categoria. Cada família segue o mesmo triplo `soft`/`ink`/`line` de
+       `hot`/`crit`/`lime`, mais a cor sólida (tile de logo, texto branco).
+       O mapeamento categoria→família vive em `App\Support\CategoryPalette`
+       (só ele é escaneado pelo Tailwind via o @source lá embaixo). Light-only
+       de propósito: o app inteiro não tem variantes `dark:` hoje. */
+    --color-cat-emerald: #2f8f5b; --color-cat-emerald-soft: #e6f3ea; --color-cat-emerald-ink: #1f6b41; --color-cat-emerald-line: #c8e6d3;
+    --color-cat-teal:    #0c8892; --color-cat-teal-soft:    #dff3f4; --color-cat-teal-ink:    #0a6670; --color-cat-teal-line:    #bce4e7;
+    --color-cat-blue:    #2f6fed; --color-cat-blue-soft:    #e8f0fe; --color-cat-blue-ink:    #1f52c0; --color-cat-blue-line:    #cadcf9;
+    --color-cat-indigo:  #7c5cf0; --color-cat-indigo-soft:  #eeeafe; --color-cat-indigo-ink:  #5738c7; --color-cat-indigo-line:  #ddd3f9;
+    --color-cat-fuchsia: #c53aae; --color-cat-fuchsia-soft: #fbe9f6; --color-cat-fuchsia-ink: #9c1f88; --color-cat-fuchsia-line: #f2cde9;
+    --color-cat-rose:    #e0416b; --color-cat-rose-soft:    #fdeaef; --color-cat-rose-ink:    #b32048; --color-cat-rose-line:    #f6ccd7;
+    --color-cat-amber:   #bd7908; --color-cat-amber-soft:   #f9f0dd; --color-cat-amber-ink:   #8a560a; --color-cat-amber-line:   #eddbb6;
+    --color-cat-slate:   #64748b; --color-cat-slate-soft:   #eef1f5; --color-cat-slate-ink:   #45526a; --color-cat-slate-line:   #dbe1ea;
     /* ─────────────────────────────────────────────────── */
 
     /* Animações herdadas do akop-pro na Etapa 0 continham ~40 variáveis para
@@ -127,9 +175,43 @@
     --animate-slide-out-right: slide-out-right 1s ease-out;    /* smart-select-multiple.js */
     --animate-chip-pop: chip-pop 0.18s ease-out;               /* components/solutions/filter-chips.blade.php */
 
+    /* ── Motion system — "sóbrio com alma" ────────────────────────────
+       Purposeful entrance + feedback motion for an app that was correct
+       but inert. Deliberately restrained (the project's button system
+       still says "nothing exaggerated"): short durations, small travel,
+       ease-out. `both` fill-mode holds the start frame through the
+       stagger delay so nothing flashes in at full opacity first.
+       EVERYTHING here is neutralised by the prefers-reduced-motion guard
+       at the bottom of this file — a user who asks for less motion gets
+       none of it. Applied via `animate-ak-rise` / `animate-ak-pop` /
+       `animate-ak-fade`, staggered with an inline `--ak-delay`. */
+    --animate-ak-rise: ak-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+    --animate-ak-fade: ak-fade 0.45s ease-out both;
+    --animate-ak-pop:  ak-pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    /* Progress-bar fill: the element carries its final width; scaleX animates
+       it growing from the left. Origin-left + will not reflow siblings. */
+    --animate-ak-grow: ak-grow 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+
     @keyframes chip-pop {
         from { transform: scale(.9); opacity: 0; }
         to   { transform: scale(1);  opacity: 1; }
+    }
+
+    @keyframes ak-rise {
+        from { opacity: 0; transform: translateY(10px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes ak-fade {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+    }
+    @keyframes ak-pop {
+        0%   { opacity: 0; transform: scale(.92); }
+        100% { opacity: 1; transform: scale(1); }
+    }
+    @keyframes ak-grow {
+        from { transform: scaleX(0); }
+        to   { transform: scaleX(1); }
     }
 
     @keyframes fade-in {
@@ -154,9 +236,35 @@
     --backdrop-blur: 0.15rem
 }
 
+/* ── Accessibility: honour prefers-reduced-motion ──────────────────────
+   The one hard rule for the motion system above: a user whose OS asks for
+   reduced motion gets essentially none of it. Entrance animations collapse
+   to their final frame instantly (fill-mode `both` means that frame is the
+   resting state, so nothing disappears), transitions become imperceptible,
+   and the toast timer / spinners stop spinning distractingly. */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
 dialog::backdrop {
     background: rgba(56, 61, 72, 0.75);
     backdrop-filter: blur(var(--backdrop-blur));
+}
+
+/* Modals ease in on open instead of snapping. The centered dialogs
+   (#alert-modal, #main-modal) scale up gently from their own centre; the
+   backdrop fades so the blur doesn't slam on. Both are gated by the
+   reduced-motion guard above. */
+dialog[open] {
+    animation: ak-pop 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+dialog[open]::backdrop {
+    animation: ak-fade 0.22s ease-out;
 }
 
 /* ------------------------------------------------
