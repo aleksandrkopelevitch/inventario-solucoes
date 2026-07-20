@@ -46,6 +46,52 @@ npm run build && php artisan optimize
 cadastrado vira `admin`; os demais começam como `viewer`. O papel `agent` é
 bloqueado de toda a web (`App\Http\Middleware\BlockAgentFromWeb`).
 
+## Arquitetura em resumo
+
+O app é **server-authoritative** ("HTML over the wire"): o servidor renderiza o
+HTML — inclusive as **atualizações parciais** — e o cliente só troca pedaços já
+prontos. **Não há framework de renderização no cliente** (React/Vue). A UI é
+Blade + JS vanilla organizado em módulos. Isso é uma decisão deliberada, não
+falta de ferramenta: o app é majoritariamente CRUD/catálogo (formulários,
+listas, filtros) com round-trip ao servidor por ação — cenário em que um SPA
+adicionaria hidratação, bundle e um segundo modelo mental sobre o Blade sem
+ganho. As duas telas de fato interativas (o canvas de integração e o mapa do
+ecossistema) são SVG/DOM imperativo, que um framework tampouco simplificaria.
+Se um dia surgir reatividade local complexa, o caminho é **Alpine.js** (ilha
+declarativa) ou **Livewire** (componente server-driven) — ambos preservam este
+modelo —, nunca um rewrite em SPA.
+
+**Ciclo de uma requisição que muta dados:**
+
+```
+Ação do usuário
+  → <x-forms.button data-ak-ajax> dispara POST (ajax-post.js, via ajax.js/fetch)
+  → Rota nomeada → Controller fino
+       ├─ Form Request valida a entrada (nunca $request->validate() inline)
+       ├─ Service (lógica ampla) / Action (operação única, DI no construtor)
+       └─ response()->json({ message, type, updatableSlots: [Componente::slot()] })
+  → ajax-slot.js troca os nós por id e re-inicializa os módulos JS
+  → Toast/Modal refletem message/type
+```
+
+A mesma action serve HTML (GET normal) e JSON (AJAX) decidindo por
+`$request->wantsJson()` — nunca há uma action separada só para o AJAX.
+
+**Pilares que se repetem no código** (regras completas em `CLAUDE.md`):
+
+- **Updatable slots** — primitivo de "reatividade": um Componente de View
+  renderiza um trecho, o controller o devolve após a mutação, o cliente
+  substitui por id. Ver abaixo.
+- **Controllers finos** — lógica ampla em Services, operações únicas em Actions;
+  validação sempre em Form Requests; toda mutação passa por `authorize()`/Policy.
+- **Fonte de verdade única por domínio** — a topologia de integração vive só na
+  `chain`; colunas derivadas são reconstruídas por uma Action, nunca escritas à
+  mão (ver "Notas técnicas").
+- **Assíncrono por job + polling** — features de IA disparam um job e o front
+  faz polling do status até sair de `pending`; sem broadcasting.
+- **Strict mode do Eloquent** fora de produção — relação não carregada lança
+  exceção em vez de lazy-load silencioso (ver "Notas técnicas").
+
 ## Sistema de Slots (atualização parcial via AJAX)
 
 Componentes de View usam a trait `App\View\Components\Concerns\Renderable`
@@ -120,11 +166,72 @@ alta/crítica → vermelho). Botões têm 3 variantes por peso (`primary`/
 (hovers, trilhas, placeholders, texto terciário). Referência:
 `Solutions\DetailHeader`, `resources/views/components/solutions/detail-header.blade.php`.
 
-## Módulos JS
+## Frontend — módulos JS, delegação e reatividade
 
-Registrados em `window.globalModules` (`resources/js/app.js`). Convenção de
-hooks `data-ak-*`. Antes de criar um módulo novo, verifique se um existente
-em `resources/js/modules/` já cobre o comportamento.
+Todo o JS vive em `resources/js/modules/` e é registrado em
+`window.globalModules` (`resources/js/app.js`). Comportamentos são acionados por
+atributos `data-ak-*` no HTML (o `app.js` traz a tabela completa dos hooks).
+Antes de criar um módulo novo, confira se um existente já cobre o caso.
+
+**Dois formatos de módulo.** Cada módulo exporta uma função `init()`, mas há
+duas famílias:
+
+1. **Delegação pura (a maioria).** O listener é anexado **uma vez** ao
+   `document` no carregamento do módulo, fora do `init()`, e casa o alvo com
+   `e.target.closest('[data-ak-…]')`. Como o listener é global, ele já pega
+   HTML inserido depois — então `init()` é um **no-op** (existe só para manter a
+   interface de `globalModules`). Exemplos: `toggle`, `chips`, `side-panel`,
+   `execute-filters`.
+
+   ```js
+   document.addEventListener('click', (e) => {
+       const trigger = e.target.closest('[data-ak-my-thing]')
+       if (!trigger) return
+       // ...
+   })
+   export function init() {} // no-op
+   ```
+
+2. **Init por-elemento (quando é preciso montar uma instância de biblioteca).**
+   O `init()` varre `querySelectorAll('[data-ak-…]')` e monta cada elemento —
+   mas precisa ser **idempotente**, porque `init()` roda de novo a cada troca de
+   slot (ver adiante). A guarda é um **`WeakSet`** de elementos já
+   inicializados. Usado por `docs-editor`, `integration-viz`, `ecosystem-map`,
+   `tabs`.
+
+   ```js
+   const initialized = new WeakSet()
+   export function init() {
+       document.querySelectorAll('[data-ak-docs-editor]').forEach((el) => {
+           if (initialized.has(el)) return  // já montei este elemento → pula
+           initialized.add(el)
+           mount(el)                          // monta só uma vez
+       })
+   }
+   ```
+
+   **Por que `WeakSet` e não `Set`?** Ele guarda os elementos por referência
+   **fraca**: quando uma troca de slot substitui aquele nó, o elemento antigo
+   fica inalcançável, o garbage collector o coleta **e a entrada some do
+   `WeakSet` sozinha** — sem limpeza manual e sem vazamento. Um `Set` comum
+   "prenderia" cada nó já visto na memória para sempre. O elemento **novo** (que
+   é outro objeto) não está no set → é montado normalmente, que é o desejado.
+   O `WeakSet` também mantém esse flag fora do DOM (nada de `data-initialized`).
+
+**Re-inicialização após troca de slot.** Quando `ajax-slot.js` substitui os nós
+de um `updatableSlots`, o HTML novo pode conter hooks `data-ak-*` que precisam
+de init. Como o swapper é **genérico** (não sabe o que veio no HTML), ele chama
+`window.initAllModules()`, que roda o `init()` de **todos** os módulos — barato
+porque os de delegação são no-op e os de init-por-elemento são guardados por
+`WeakSet`. Para re-init dirigido em fluxos onde você **sabe** o conteúdo
+injetado, existe `window.initListOfModules(['toggle', 'chips'])`; use-o em
+código próprio, mas **não** troque o `initAllModules` do swapper genérico por
+uma lista fixa — qualquer hook fora dela quebraria em silêncio.
+
+**Contrato do `ajax.js`.** `ajaxModule.init(method, url, formData?)` é
+`fetch`-based e retorna uma **`Promise<Response>`** (rejeita em `!ok`); não tem
+API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
+(`.then/.catch` ou `await`). Detalhes e armadilhas em `CLAUDE.md`.
 
 ## Funcionalidades
 
