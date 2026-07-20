@@ -1,12 +1,12 @@
 <x-layouts.layout title="Mapa de integrações">
-    <div class="mb-6">
+    <div class="mb-6 animate-ak-rise">
         <h1 class="font-display text-[32px] font-semibold leading-tight text-ink">Mapa de integrações</h1>
         <p class="mt-1 text-sm text-muted">Ecossistema completo: soluções como nós, integrações como arestas. O grafo é derivado da tabela de integrações.</p>
     </div>
 
     {{-- Grid (not flex): x-forms.select wraps itself in a w-full wrapper, which
          in a flex row would force each item to take 100% width and wrap. --}}
-    <div class="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:items-center">
+    <div class="mb-4 grid animate-ak-rise grid-cols-2 gap-2 sm:grid-cols-4 sm:items-center" style="animation-delay: 70ms">
         <x-forms.select data-ak-graph-filter="status">
             <option value="all">Todos os status</option>
             <option value="active">Ativas</option>
@@ -31,7 +31,9 @@
 
     </div>
 
-    <x-ecosystem-map id="global-map" :source-url="route('solutions.map.data')" height="620px" />
+    <div class="animate-ak-rise" style="animation-delay: 140ms">
+        <x-ecosystem-map id="global-map" :source-url="route('solutions.map.data')" height="620px" />
+    </div>
 
     {{-- Page glue: rebuilds the query string from the filters above and
          tells the map to reload — not the map engine itself, just the

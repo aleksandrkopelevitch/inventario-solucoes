@@ -1,6 +1,12 @@
+@use('App\Support\CategoryPalette')
 @php
     $filterBind = ['formId' => 'solutions-filter-form', 'url' => route('solutions.index'), 'event' => 'change'];
     $activeClass = '!border-accent !bg-accent-soft !text-accent !font-semibold';
+    // Active category filter wears its family color (matches its chip + cards);
+    // the other active filters keep the plain green highlight.
+    $categoryActive = filled($filters['category'] ?? null)
+        ? '!font-semibold '.CategoryPalette::selectActiveClass($filters['category'])
+        : '';
 @endphp
 
 <x-layouts.layout title="Soluções">
@@ -13,10 +19,9 @@
             <p class="mt-1 text-sm text-muted">Catálogo das soluções de software da Leo Madeiras.</p>
         </div>
         @can('create', \App\Models\Solution::class)
-            <a href="#" data-ak-panel-open data-ak-panel-url="{{ route('solutions.create', ['filter' => $filters]) }}"
-               class="inline-flex items-center gap-2 rounded-field bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-press">
+            <x-forms.button href="#" data-ak-panel-open data-ak-panel-url="{{ route('solutions.create', ['filter' => $filters]) }}">
                 <x-heroicon-o-plus class="size-4" /> Nova solução
-            </a>
+            </x-forms.button>
         @endcan
     </div>
 
@@ -39,7 +44,7 @@
 
         <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
             <x-forms.select name="filter[category]" data-ak-filters="{{ json_encode($filterBind) }}"
-                class="{{ filled($filters['category'] ?? null) ? $activeClass : '' }}">
+                class="{{ $categoryActive }}">
                 <option value="">Categoria</option>
                 @foreach ($categories as $option)
                     <option value="{{ $option->value }}" @selected(($filters['category'] ?? '') === $option->value)>{{ $option->label }}</option>

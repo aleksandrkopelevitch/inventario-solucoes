@@ -5,7 +5,7 @@
 
     <x-people.detail-header :person="$person" />
 
-    <div class="mt-5 rounded-card border border-line bg-surface p-6 shadow-[0_1px_3px_rgba(20,58,34,0.04)]">
+    <div class="mt-5 rounded-card border border-line bg-surface p-6 shadow-card">
         <h2 class="font-display text-[18px] font-semibold text-ink">Sistemas ({{ $person->solutions->count() }})</h2>
         @if ($person->solutions->isEmpty())
             <p class="mt-2 text-sm text-muted">Nenhum sistema vinculado.</p>

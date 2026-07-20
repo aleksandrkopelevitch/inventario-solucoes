@@ -14,7 +14,7 @@
             <x-flowspec.thread :chat="$chat" />
 
             {{-- Composer --}}
-            <form id="flowspec-message-form" class="flex flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-[0_1px_3px_rgba(20,58,34,0.04)]">
+            <form id="flowspec-message-form" class="flex flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-card">
                 @csrf
 
                 <x-forms.field name="message">
@@ -34,7 +34,7 @@
              the `form="flowspec-message-form"` on the x-forms.chips inputs associates
              the chips to the composer anyway — see forms/chips.blade.php. --}}
         <aside class="w-full shrink-0 lg:w-80">
-            <div class="rounded-card border border-line bg-surface p-4 shadow-[0_1px_3px_rgba(20,58,34,0.04)] lg:sticky lg:top-6">
+            <div class="rounded-card border border-line bg-surface p-4 shadow-card lg:sticky lg:top-6">
                 <h2 class="text-sm font-semibold text-ink">Documentação usada</h2>
                 <p class="mt-1 text-xs text-muted">Adicione sistemas para priorizar a documentação deles no prompt da próxima mensagem. Sem seleção, são inferidos do texto do pedido.</p>
                 <x-forms.chips name="solutions" form="flowspec-message-form" :search-url="route('solutions.search')"

@@ -6,7 +6,7 @@
     <x-companies.detail-header :company="$company" />
 
     <div class="mt-5 grid gap-5 lg:grid-cols-2">
-        <div class="rounded-card border border-line bg-surface p-6 shadow-[0_1px_3px_rgba(20,58,34,0.04)]">
+        <div class="rounded-card border border-line bg-surface p-6 shadow-card">
             <h2 class="font-display text-[18px] font-semibold text-ink">Pessoas ({{ $company->people->count() }})</h2>
             @if ($company->people->isEmpty())
                 <p class="mt-2 text-sm text-muted">Nenhuma pessoa cadastrada.</p>
@@ -25,7 +25,7 @@
             @endif
         </div>
 
-        <div class="rounded-card border border-line bg-surface p-6 shadow-[0_1px_3px_rgba(20,58,34,0.04)]">
+        <div class="rounded-card border border-line bg-surface p-6 shadow-card">
             <h2 class="font-display text-[18px] font-semibold text-ink">Sistemas fornecidos ({{ $company->providedSolutions->count() }})</h2>
             @if ($company->providedSolutions->isEmpty())
                 <p class="mt-2 text-sm text-muted">Nenhum sistema fornecido.</p>

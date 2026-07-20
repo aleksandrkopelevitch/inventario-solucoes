@@ -17,7 +17,7 @@
         <div class="space-y-3">
             @foreach ($groups as $group)
                 @php ($solution = $group['solution'])
-                <div class="rounded-card border border-line bg-surface shadow-[0_1px_3px_rgba(20,58,34,0.04)]">
+                <div class="rounded-card border border-line bg-surface shadow-card">
                     {{-- Group header: the solution --}}
                     <div class="flex items-center justify-between gap-3 px-4 py-3">
                         <div class="flex min-w-0 items-center gap-2.5">

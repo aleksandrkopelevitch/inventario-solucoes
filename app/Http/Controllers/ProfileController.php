@@ -4,7 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Enums\BackgroundTheme;
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\Company;
 use App\Models\FlowspecMessage;
+use App\Models\Integration;
+use App\Models\Person;
+use App\Models\Solution;
+use App\Services\DocumentationCoverageService;
 use App\Support\BackgroundPhoto;
 use App\View\Components\Layouts\UserMenu;
 use Illuminate\Http\Request;
@@ -12,81 +17,46 @@ use Illuminate\Support\Facades\Cache;
 
 class ProfileController extends Controller
 {
-    public function show()
+    public function show(DocumentationCoverageService $coverage)
     {
         $user = auth()->user();
 
-        // Placeholder dashboard content. Real catalog/coverage widgets land in the
-        // feature etapas (F1/F7) — this only exercises the post-login landing layout.
+        $counters = $coverage->counters();
+
+        // Live inventory snapshot — each card links to its section, so the
+        // landing page doubles as the fastest way into the four catalogs.
         $metrics = [
-            ['label' => 'Soluções catalogadas', 'value' => '81', 'detail' => 'no inventário', 'icon' => 'squares-2x2'],
-            ['label' => 'Integrações mapeadas', 'value' => '—', 'detail' => 'a detalhar (F2)', 'icon' => 'arrows-right-left'],
-            ['label' => 'Cobertura de documentação', 'value' => '—', 'detail' => 'a medir (F7)', 'icon' => 'document-text'],
-            [
-                'label'  => 'flowSpecs gerados',
-                'value'  => (string) FlowspecMessage::query()->where('role', 'assistant')->whereNotNull('flow_spec')->count(),
-                'detail' => 'no gerador (F8)',
-                'icon'   => 'cpu-chip',
-            ],
+            ['label' => 'Soluções', 'value' => Solution::query()->count(), 'detail' => 'catalogadas', 'icon' => 'squares-2x2', 'url' => route('solutions.index')],
+            ['label' => 'Integrações', 'value' => Integration::query()->count(), 'detail' => 'mapeadas', 'icon' => 'arrows-right-left', 'url' => route('solutions.map')],
+            ['label' => 'Pessoas', 'value' => Person::query()->count(), 'detail' => 'responsáveis', 'icon' => 'users', 'url' => route('people.index')],
+            ['label' => 'Empresas', 'value' => Company::query()->count(), 'detail' => 'fornecedores', 'icon' => 'building-office-2', 'url' => route('companies.index')],
         ];
 
-        $columns = [
-            [
-                'title'  => 'A documentar',
-                'accent' => 'rgba(20, 184, 166, 0.10)',
-                'border' => 'rgba(20, 184, 166, 0.20)',
-                'icon'   => 'inbox-stack',
-                'cards'  => [
-                    ['title' => 'Importar inventário', 'meta' => '81 soluções (F1)', 'tag' => 'Etapa 1', 'tagColor' => '#0f766e'],
-                ],
-            ],
-            [
-                'title'  => 'Em documentação',
-                'accent' => 'rgba(59, 130, 246, 0.10)',
-                'border' => 'rgba(59, 130, 246, 0.18)',
-                'icon'   => 'bolt',
-                'cards'  => [
-                    ['title' => 'Detalhar integrações', 'meta' => 'endpoints e contratos (F2)', 'tag' => 'Etapa 3', 'tagColor' => '#2563eb'],
-                ],
-            ],
-            [
-                'title'  => 'Em revisão',
-                'accent' => 'rgba(99, 102, 241, 0.10)',
-                'border' => 'rgba(99, 102, 241, 0.20)',
-                'icon'   => 'clipboard-document-check',
-                'cards'  => [
-                    ['title' => 'Mapa visual', 'meta' => 'canvas derivado (F3)', 'tag' => 'Etapa 4', 'tagColor' => '#4f46e5'],
-                ],
-            ],
-            [
-                'title'  => 'Publicado',
-                'accent' => 'rgba(34, 197, 94, 0.10)',
-                'border' => 'rgba(34, 197, 94, 0.20)',
-                'icon'   => 'check-circle',
-                'cards'  => [
-                    ['title' => 'Fundação do projeto', 'meta' => 'infra portada (Etapa 0)', 'tag' => 'Concluído', 'tagColor' => '#15803d'],
-                ],
-            ],
+        // Real documentation coverage (whole inventory), measured by content.
+        $coverageBars = [
+            ['label' => 'Soluções', 'icon' => 'squares-2x2'] + $counters['solutions'],
+            ['label' => 'Integrações', 'icon' => 'arrows-right-left'] + $counters['integrations'],
         ];
 
-        $agenda = [
-            ['time' => 'F4', 'title' => 'Documentação por blocos', 'detail' => 'GitbookRenderer · docBlocks.js'],
-            ['time' => 'F5', 'title' => 'People & Companies', 'detail' => 'responsáveis por solução'],
+        // Shortcuts into the work — the things staff actually come here to do.
+        $shortcuts = [
+            ['label' => 'Documentação', 'detail' => 'Hub de cobertura por conteúdo', 'icon' => 'book-open', 'url' => route('documentation.index')],
+            ['label' => 'Mapa do ecossistema', 'detail' => 'Grafo das integrações', 'icon' => 'share', 'url' => route('solutions.map')],
+            ['label' => 'Gerador de flowSpec', 'detail' => 'Assistente de especificação', 'icon' => 'cpu-chip', 'url' => route('flowspec.index')],
         ];
 
-        $feed = [
-            ['title' => 'Infra genérica portada', 'detail' => 'Forms, slots, módulos JS e shells de layout.', 'color' => '#2563eb'],
-            ['title' => 'Domínio legado removido', 'detail' => 'Multi-tenancy e módulos do projeto de referência fora deste escopo.', 'color' => '#d95f02'],
-            ['title' => 'Gerador de flowSpec publicado', 'detail' => 'Chat em /flowspec: corpus curado + laravel/ai + validação (F8).', 'color' => '#15803d'],
-        ];
+        $flowspecCount = FlowspecMessage::query()
+            ->where('role', 'assistant')
+            ->whereNotNull('flow_spec')
+            ->count();
 
         return view('profile.index', [
-            'user'      => $user,
-            'firstName' => explode(' ', $user->name)[0],
-            'metrics'   => $metrics,
-            'columns'   => $columns,
-            'agenda'    => $agenda,
-            'feed'      => $feed,
+            'user'          => $user,
+            'firstName'     => explode(' ', $user->name)[0],
+            'metrics'       => $metrics,
+            'coverageBars'  => $coverageBars,
+            'shortcuts'     => $shortcuts,
+            'flowspecCount' => $flowspecCount,
         ]);
     }
 

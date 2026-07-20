@@ -1,37 +1,119 @@
+@php
+    // Coverage tone → literal Tailwind classes. Built as a map (not
+    // `bg-{{ $tone }}`) so the JIT scanner actually emits bg-hot / bg-crit,
+    // which appear nowhere else as a solid fill — only their -soft variants do.
+    $toneClasses = [
+        'accent' => ['bar' => 'bg-accent', 'text' => 'text-accent'],
+        'hot'    => ['bar' => 'bg-hot',    'text' => 'text-hot'],
+        'crit'   => ['bar' => 'bg-crit',   'text' => 'text-crit'],
+    ];
+@endphp
+
 <x-layouts.layout title="Visão geral">
-    <div class="mb-6">
+    {{-- Hero --}}
+    <div class="mb-6 animate-ak-rise">
         <h1 class="font-display text-[32px] font-semibold leading-tight text-ink">Olá, {{ $firstName }}</h1>
         <p class="mt-1 text-sm text-muted">Portfólio de soluções da Leo Madeiras e estado da documentação.</p>
     </div>
 
+    {{-- Live inventory snapshot — each card is a doorway into its section --}}
     <div class="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
-        @foreach ($metrics as $metric)
-            <div class="rounded-card border border-line bg-surface p-5 shadow-[0_1px_3px_rgba(20,58,34,0.04)]">
-                <div class="flex items-center gap-2 text-xs text-muted">
-                    <x-dynamic-component :component="'heroicon-o-'.$metric['icon']" class="size-4 text-accent" />
-                    {{ $metric['label'] }}
+        @foreach ($metrics as $i => $metric)
+            <a href="{{ $metric['url'] }}"
+               class="group animate-ak-rise rounded-card border border-line bg-surface p-5 no-underline shadow-card transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-accent-line hover:shadow-[0_8px_24px_-8px_rgba(20,58,34,0.18)]"
+               style="animation-delay: {{ $i * 60 }}ms">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2 text-xs font-medium text-muted">
+                        <x-dynamic-component :component="'heroicon-o-'.$metric['icon']" class="size-4 text-accent" />
+                        {{ $metric['label'] }}
+                    </div>
+                    <x-heroicon-o-arrow-up-right class="size-3.5 text-faint opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
                 </div>
                 <div class="mt-2 font-display text-[34px] font-semibold leading-none text-ink">
                     {{ $metric['value'] }}
-                    <span class="ml-1 font-sans text-[13px] font-semibold text-muted">{{ $metric['detail'] }}</span>
+                    <span class="ml-1 font-sans text-[13px] font-medium text-muted">{{ $metric['detail'] }}</span>
                 </div>
-            </div>
+            </a>
         @endforeach
     </div>
 
-    <div class="mt-5 flex flex-wrap items-center gap-5 rounded-card border border-[#eccccc] bg-crit-soft p-5">
-        <div class="font-display text-[40px] font-semibold leading-none text-crit">0 / 81</div>
-        <div class="min-w-[200px] flex-1">
-            <b class="text-[15px] text-ink">Lacuna de documentação</b>
-            <p class="mt-0.5 text-[13px] text-muted">Nenhuma solução possui arquitetura macro, componentes detalhados ou fluxos de negócio documentados. A cobertura será medida na Etapa 6 (F7).</p>
-        </div>
-    </div>
+    <div class="mt-5 grid gap-3.5 lg:grid-cols-5">
+        {{-- Documentation coverage — real, content-based, honest about the gap --}}
+        <div class="animate-ak-rise rounded-card border border-line bg-surface p-6 shadow-card lg:col-span-3"
+             style="animation-delay: 240ms">
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <h2 class="font-display text-[22px] font-semibold text-ink">Cobertura de documentação</h2>
+                    <p class="mt-0.5 text-[13px] text-muted">Medida pelo conteúdo real de cada item.</p>
+                </div>
+                <a href="{{ route('documentation.index') }}"
+                   class="inline-flex shrink-0 items-center gap-1 rounded-field px-2.5 py-1.5 text-[13px] font-semibold text-accent no-underline transition-colors hover:bg-accent-soft">
+                    Abrir hub <x-heroicon-o-arrow-right class="size-3.5" />
+                </a>
+            </div>
 
-    <div class="mt-8 rounded-card border border-line bg-surface p-6 shadow-[0_1px_3px_rgba(20,58,34,0.04)]">
-        <div class="flex items-baseline gap-2.5">
-            <span class="inline-flex items-center rounded-md bg-accent px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-white">Etapa 1</span>
-            <h2 class="font-display text-[22px] font-semibold text-ink">Fundação de dados concluída</h2>
+            <div class="mt-5 space-y-4">
+                @foreach ($coverageBars as $j => $bar)
+                    @php
+                        $pct = (int) $bar['percent'];
+                        $tone = $pct >= 60 ? 'accent' : ($pct >= 25 ? 'hot' : 'crit');
+                        $cls = $toneClasses[$tone];
+                    @endphp
+                    <div>
+                        <div class="mb-1.5 flex items-center justify-between text-[13px]">
+                            <span class="flex items-center gap-1.5 font-medium text-body">
+                                <x-dynamic-component :component="'heroicon-o-'.$bar['icon']" class="size-3.5 text-muted" />
+                                {{ $bar['label'] }}
+                            </span>
+                            <span class="font-mono text-xs text-muted">
+                                <b class="text-ink">{{ $bar['documented'] }}</b> / {{ $bar['total'] }}
+                                <span class="ml-1 text-faint">·</span>
+                                <b class="{{ $cls['text'] }}">{{ $pct }}%</b>
+                            </span>
+                        </div>
+                        <div class="h-2 overflow-hidden rounded-full bg-raised">
+                            <div class="animate-ak-grow h-full origin-left rounded-full {{ $cls['bar'] }}"
+                                 style="width: {{ max($pct, 2) }}%; animation-delay: {{ 380 + $j * 120 }}ms"></div>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+
+            <p class="mt-5 border-t border-line pt-4 text-[13px] leading-relaxed text-muted">
+                A maior parte do inventário ainda não tem arquitetura, componentes ou fluxos documentados.
+                O <a href="{{ route('documentation.index') }}" class="font-medium text-accent hover:underline">hub de documentação</a>
+                mostra exatamente o que falta, solução por solução.
+            </p>
         </div>
-        <p class="mt-2 text-sm text-muted">88 soluções (81 do inventário + 7 planejadas), 55 empresas, 106 pessoas e 10 integrações importadas. As telas de catálogo, integrações, pessoas e mapa entram nas próximas etapas.</p>
+
+        {{-- Quick access into the work --}}
+        <div class="animate-ak-rise rounded-card border border-line bg-surface p-6 shadow-card lg:col-span-2"
+             style="animation-delay: 300ms">
+            <h2 class="font-display text-[22px] font-semibold text-ink">Atalhos</h2>
+            <p class="mt-0.5 text-[13px] text-muted">Ir direto ao ponto.</p>
+
+            <div class="mt-4 flex flex-col gap-2">
+                @foreach ($shortcuts as $shortcut)
+                    <a href="{{ $shortcut['url'] }}"
+                       class="group flex items-center gap-3 rounded-field border border-line p-3 no-underline transition-[background-color,border-color] duration-150 hover:border-accent-line hover:bg-accent-soft">
+                        <span class="flex size-9 shrink-0 items-center justify-center rounded-field bg-accent-soft text-accent transition-colors group-hover:bg-accent group-hover:text-white">
+                            <x-dynamic-component :component="'heroicon-o-'.$shortcut['icon']" class="size-[18px]" />
+                        </span>
+                        <span class="min-w-0 flex-1">
+                            <span class="block truncate text-sm font-semibold text-ink">{{ $shortcut['label'] }}</span>
+                            <span class="block truncate text-xs text-muted">{{ $shortcut['detail'] }}</span>
+                        </span>
+                        <x-heroicon-o-chevron-right class="size-4 shrink-0 text-faint transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-accent" />
+                    </a>
+                @endforeach
+
+                @if ($flowspecCount > 0)
+                    <p class="mt-1 px-1 text-xs text-muted">
+                        <b class="font-semibold text-ink">{{ $flowspecCount }}</b>
+                        {{ \Illuminate\Support\Str::plural('flowSpec', $flowspecCount) }} já {{ $flowspecCount === 1 ? 'gerado' : 'gerados' }} no assistente.
+                    </p>
+                @endif
+            </div>
+        </div>
     </div>
 </x-layouts.layout>
