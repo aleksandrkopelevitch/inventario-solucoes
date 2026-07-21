@@ -42,7 +42,7 @@ return [
     */
     'flowspec' => [
         'provider' => env('DIGIBEE_FLOWSPEC_AI_PROVIDER', 'gemini'),
-        'model'    => env('DIGIBEE_FLOWSPEC_AI_MODEL', 'gemini-3.5-flash'),
+        'model'    => env('DIGIBEE_FLOWSPEC_AI_MODEL', 'gemini-3.6-flash'),
 
         // Context selection (FlowspecContextResolver) and correction loop
         // (FlowspecGenerationService). 2-3 examples: more dilutes the signal.
@@ -73,7 +73,7 @@ return [
     */
     'documentation_ai' => [
         'provider' => env('DOCS_AI_PROVIDER', 'gemini'),
-        'model'    => env('DOCS_AI_MODEL', 'gemini-3.5-flash'),
+        'model'    => env('DOCS_AI_MODEL', 'gemini-3.6-flash'),
         'timeout'  => env('DOCS_AI_TIMEOUT', 180),
         // Character budget for TEXT context documents embedded in the prompt
         // (PDF/image go as attachments, outside this limit).
