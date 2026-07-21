@@ -94,9 +94,50 @@ A mesma action serve HTML (GET normal) e JSON (AJAX) decidindo por
 
 ## Sistema de Slots (atualização parcial via AJAX)
 
-Componentes de View usam a trait `App\View\Components\Concerns\Renderable`
-para se renderizar em um payload de "updatable slot" consumido por
-`resources/js/modules/ajax-slot.js`.
+**O problema que resolve.** Sem framework de cliente (§ Arquitetura em
+resumo), como uma lista/widget volta a refletir o servidor depois de um
+create/edit feito num side panel — sem recarregar a página inteira e sem
+duplicar a lógica de montagem daquele HTML no JS? A resposta é o *updatable
+slot*: um trecho de HTML com um `id` estável que **o servidor sabe
+re-renderizar isoladamente** e **o cliente sabe trocar no lugar**. É o
+primitivo de "reatividade" do app — reatividade dirigida pelo servidor, não
+por um estado espelhado no cliente.
+
+**Por que a lógica de render mora num View Component — e nunca no Model.**
+Um Model descreve *dados e regras de domínio*; ele não deve saber que existe
+uma grade de cards nem qual `id` de DOM aquele HTML ocupa. Amarrar
+`render()`/`slot()` no Model acoplaria o domínio a uma decisão de
+apresentação e tornaria impossível ter duas visões diferentes do mesmo
+registro. O View Component é exatamente a *costura* entre um pedaço de dado e
+**um pedaço específico de HTML** — e, por ser uma classe, ele pode ser
+instanciado e renderizado no servidor **fora do fluxo de uma página inteira**,
+que é o que a atualização parcial exige. Por isso o método que produz o slot
+vive no componente, junto do markup que ele possui, e **nunca** no Model.
+
+**Por que uma trait (`Concerns\Renderable`) e não uma classe-base.** Todo
+View Component já estende `Illuminate\View\Component`; não dá para inserir uma
+classe-base nossa nessa cadeia sem reescrever a hierarquia do framework. A
+capacidade "sei me empacotar como slot" é **ortogonal** ao que o componente é
+— vale para uma grade, um cabeçalho, um contador, um chip. Isso é
+precisamente o caso de uma trait: composição *horizontal* de um comportamento
+compartilhado sobre classes que não têm (nem devem ter) ancestral comum. Ver
+`## Concerns (traits)` abaixo para o padrão geral.
+
+**Por que `slot()` é `static`.** O controller devolve `Componente::slot()`
+sem precisar conhecer o construtor nem o estado interno do componente — o
+contrato é só "me dê `{id, content}` fresco". E, decisivo, **o `id` do DOM
+mora dentro do componente que possui aquele markup**, não espalhado por N
+controllers; trocar o `id` é uma edição num arquivo só, e nenhum controller
+fica sabendo.
+
+**Como funciona, ponta a ponta.** `toSlot($id)` chama
+`Blade::renderComponent($this)` para renderizar o componente a uma string e
+devolve `['id' => $id, 'content' => $html]`. O controller põe isso em
+`updatableSlots`; `resources/js/modules/ajax-slot.js` acha o nó por `id`,
+substitui o `outerHTML` e chama `window.initAllModules()` para religar os
+hooks `data-ak-*` do HTML novo (§ Frontend). Um `id` que não existe na página
+atual é silenciosamente ignorado — por isso é seguro devolver sempre todos os
+slots onde o registro *poderia* aparecer (índice **e** cabeçalho de detalhe).
 
 ```php
 use App\View\Components\Concerns\Renderable;
@@ -105,6 +146,8 @@ class Index extends Component
 {
     use Renderable;
 
+    // static: o controller chama Index::slot() sem conhecer o componente por dentro;
+    // o id do DOM ('catalog-index-slot') mora aqui, junto do markup que ele possui.
     public static function slot(): array
     {
         return (new static)->toSlot('catalog-index-slot');
@@ -127,8 +170,65 @@ return response()->json([
 
 Ver `App\View\Components\Examples\SlotExample` como implementação de
 referência e `tests/Feature/RenderableTest.php`. IDs podem ser
-pipe-separados para substituir vários nós:
-`toSlot('header-widget-slot|sidebar-widget-slot')`.
+pipe-separados para substituir vários nós com o **mesmo** HTML
+(`toSlot('header-widget-slot|sidebar-widget-slot')`); para devolver slots
+*diferentes* de uma mesma mutação (grade + contador + chips, ou índice +
+cabeçalho de detalhe), retorne vários itens no array — ver `CLAUDE.md`
+§ "Multiple *different* slots from one mutation".
+
+## Concerns (traits) — composição horizontal de comportamento
+
+`Concerns` é onde vivem as traits que **compartilham uma capacidade entre
+classes que não têm ancestral comum**. Sempre que dois ou mais pontos do
+mesmo tipo (dois View Components, dois controllers, dois Form Requests)
+precisam do *mesmo* comportamento, mas herança seria errada — porque a
+classe-base já é do framework (`Component`, `Controller`, `FormRequest`) e
+porque o comportamento é ortogonal ao que cada classe *é* —, ele nasce como
+trait em um subdiretório `Concerns`. É o mesmo raciocínio do
+`Illuminate\...\Concerns` do próprio Laravel. Onde o app usa isso hoje:
+
+- **`App\View\Components\Concerns\Renderable`** — "sei me empacotar como
+  updatable slot" (`toSlot()`). Aplicável a qualquer componente que apareça
+  num slot; ver § acima.
+- **`App\Http\Controllers\Concerns\*`** (`EditsDocumentation`,
+  `AssistsDocumentation`, `NavigatesSolutionDocs`) — a mesma tela de
+  documentação serve **Solução e Integração**, mas cada uma resolve seu
+  próprio model, rotas e breadcrumb. A trait guarda o que é idêntico (montar
+  a página do editor, salvar o Markdown, subir mídia, o painel e o polling do
+  Assiste IA, a árvore de navegação consolidada) e recebe do controller só o
+  que difere. Assim `SolutionDocumentationController` e
+  `IntegrationDocumentationController` renderizam a mesma coisa sem um
+  herdar do outro nem uma classe-base artificial.
+- **`App\Http\Requests\Concerns\ParsesFlowspecContextInput`** — regras de
+  validação + parsing do contexto (solutions citadas, refs de documento)
+  reaproveitados por mais de um Form Request do flowSpec.
+
+Quando é herança e não trait? Quando há mesmo uma relação "é-um" e um estado/
+contrato comum a compartilhar — mas nesta base isso quase não aparece: a
+regra prática é **traits em `Concerns` para capacidade compartilhada,
+Services/Actions para lógica de negócio** (§ abaixo).
+
+## Services e Actions — quando cada um
+
+Controllers são finos de propósito (§ Arquitetura). A lógica sai deles para
+dois lugares, por *forma* e não por tamanho:
+
+- **Action** = uma operação única, com um verbo, invocada de vários gatilhos.
+  Classe com um `handle()` e DI no construtor. `App\Actions\
+  SyncIntegrationFromChain` (rederiva as colunas da topologia a cada mutação
+  da `chain`) e `PromoteFlowspecExample` (promove uma resposta ao corpus) são
+  os exemplos: cada uma faz *uma* coisa, chamada de vários controllers/pontos,
+  e por isso merece um objeto testável e injetável em vez de um método privado
+  repetido.
+- **Service** = lógica *ampla* de um subdomínio, coordenando mais de um passo
+  ou consulta. `DocumentationCoverageService` (agrega cobertura por conteúdo
+  real), `IntegrationGraphService` (monta/deduplica o grafo do ecossistema),
+  os `Services\Documentation\*` e `Services\Flowspec\*`. Não é "um verbo" — é
+  um conjunto coeso de operações de uma área.
+
+Regra de bolso: **se você diria o nome com um verbo no imperativo
+("Sincroniza…", "Promove…"), é Action; se diria com um substantivo de área
+("…de cobertura", "…do grafo"), é Service.**
 
 ## Form components
 

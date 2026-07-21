@@ -44,13 +44,13 @@ class FlowspecMessageController extends Controller
         return response()->json([
             'updatableSlots' => [Thread::slot($chat)],
             // Clears the composer — the thread (with "generating…") is already
-            // back in the slot. Also resets the context chips: they live in
-            // the aside (outside the slot) and only apply to this message;
-            // without clearing, the same system/document would be resent on
-            // every following message.
-            'js' => "document.getElementById('flowspec-message-input').value = '';"
-                . "document.getElementById('flowspec-reference-input').value = '';"
-                . "document.dispatchEvent(new CustomEvent('ak:chips-reset', {detail: {names: ['solutions', 'documents']}}));",
+            // back in the slot. Also resets the context chips and the composer
+            // attachment UI (reference pill/panel, textarea height): the
+            // composer lives outside the slot and its attachments only apply to
+            // this message; without clearing, the same system/document/reference
+            // would be resent on every following message.
+            'js' => "document.dispatchEvent(new CustomEvent('ak:chips-reset', {detail: {names: ['solutions', 'documents']}}));"
+                . "document.dispatchEvent(new CustomEvent('ak:flowspec-composer-reset', {detail: {formId: 'flowspec-message-form'}}));",
         ]);
     }
 }

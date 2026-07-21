@@ -8,7 +8,7 @@
 <div id="{{ $domId }}" class="flex flex-col gap-4">
     @forelse ($messages as $message)
         @if ($message->role === 'user')
-            <div class="ml-auto max-w-[85%] rounded-card rounded-br-sm bg-accent-soft px-4 py-3 text-sm text-ink">
+            <div class="ml-auto max-w-[85%] whitespace-pre-line rounded-card rounded-br-sm bg-accent px-4 py-2.5 text-sm leading-relaxed text-white shadow-sm">
                 {{ $message->content }}
             </div>
         @else
@@ -21,7 +21,13 @@
             @endphp
 
             <div class="mr-auto w-full max-w-[95%] rounded-card rounded-bl-sm border border-line bg-surface p-4 shadow-card">
-                <p @class(['text-sm text-body whitespace-pre-line', 'text-crit' => $failed])>{{ $message->content }}</p>
+                <div class="mb-2.5 flex items-center gap-2">
+                    <span class="flex size-6 items-center justify-center rounded-lg bg-lime text-lime-ink shadow-sm">
+                        <x-heroicon-o-sparkles class="size-3.5" />
+                    </span>
+                    <span class="text-xs font-semibold uppercase tracking-wide text-muted">flowSpec IA</span>
+                </div>
+                <p @class(['text-sm leading-relaxed whitespace-pre-line', 'text-crit' => $failed, 'text-ink' => ! $failed])>{{ $message->content }}</p>
 
                 {{-- Botões de "adicionar documentação" — só numa resposta conversacional
                      (FlowspecGenerationService::suggestedDocuments()). Cada botão reusa a

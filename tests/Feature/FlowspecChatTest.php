@@ -109,7 +109,11 @@ it('renders the chat page composer with the reference flowspec field', function 
     $this->actingAs($user)
         ->get(route('flowspec.show', $chat))
         ->assertOk()
-        ->assertSee('flowSpec de referência (opcional)');
+        // Composer renders with both the message input and the reference
+        // flowSpec field (revealed from the 📎 attach menu).
+        ->assertSee('id="flowspec-message-input"', false)
+        ->assertSee('id="flowspec-reference-input"', false)
+        ->assertSee('flowSpec de referência');
 });
 
 it('normalizes a pasted reference flowspec into meta (minified, canvas meta dropped)', function () {

@@ -1,11 +1,15 @@
 <x-layouts.layout :title="$company->name">
-    <div class="mb-6">
-        <a href="{{ route('companies.index') }}" class="text-sm text-accent hover:underline">&larr; Empresas</a>
+    <div class="mb-6 animate-ak-fade">
+        <a href="{{ route('companies.index') }}" class="group inline-flex items-center gap-1 text-sm text-accent hover:underline">
+            <x-heroicon-o-arrow-left class="size-4 transition-transform duration-150 group-hover:-translate-x-0.5" /> Empresas
+        </a>
     </div>
 
-    <x-companies.detail-header :company="$company" />
+    <div class="animate-ak-rise">
+        <x-companies.detail-header :company="$company" />
+    </div>
 
-    <div class="mt-5 grid gap-5 lg:grid-cols-2">
+    <div class="animate-ak-rise mt-5 grid gap-5 lg:grid-cols-2" style="animation-delay: 90ms">
         <div class="rounded-card border border-line bg-surface p-6 shadow-card">
             <h2 class="font-display text-[18px] font-semibold text-ink">Pessoas ({{ $company->people->count() }})</h2>
             @if ($company->people->isEmpty())

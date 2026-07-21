@@ -1,60 +1,32 @@
-<x-layouts.layout :title="$chat->title" :breadcrumbs="[
-    ['label' => 'Gerador de flowSpec', 'url' => route('flowspec.index')],
-    ['label' => $chat->title],
-]">
-    <div class="mx-auto flex w-full max-w-6xl flex-col items-start gap-6 lg:flex-row">
-        <div class="flex w-full min-w-0 max-w-3xl flex-1 flex-col gap-6">
-            <div>
-                <h1 class="font-display text-2xl font-semibold leading-tight text-ink">{{ $chat->title }}</h1>
+<x-layouts.layout :title="$chat->title" :fluid="true">
+    <div class="flex min-h-0 flex-1">
+        <x-flowspec.chat-list :chats="$chats" :current="$chat" />
+
+        <section class="flex min-h-0 min-w-0 flex-1 flex-col">
+            <x-flowspec.top-bar>
+                <p class="truncate text-sm font-semibold text-ink">{{ $chat->title }}</p>
                 @if ($chat->integration)
-                    <p class="mt-1 text-xs text-muted">Vinculado à integração <span class="font-medium text-ink">{{ $chat->integration->name }}</span></p>
+                    <p class="truncate text-xs text-muted">Vinculado à integração <span class="font-medium text-ink">{{ $chat->integration->name }}</span></p>
                 @endif
-            </div>
+            </x-flowspec.top-bar>
 
-            <x-flowspec.thread :chat="$chat" />
-
-            {{-- Composer --}}
-            <form id="flowspec-message-form" class="flex flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-card">
-                @csrf
-
-                <x-forms.field name="message">
-                    <x-forms.textarea id="flowspec-message-input" name="message" rows="3"
-                        placeholder="Peça um ajuste no flowSpec ou descreva a próxima geração…" />
-                </x-forms.field>
-
-                <details class="rounded-field border border-line p-3">
-                    <summary class="cursor-pointer select-none text-xs font-medium text-muted">flowSpec de referência (opcional)</summary>
-                    <x-forms.field name="reference_flowspec"
-                        hint="Cole um flowSpec existente para usar como base do ajuste — as posições do canvas são descartadas automaticamente.">
-                        <x-forms.textarea id="flowspec-reference-input" name="reference_flowspec" rows="6"
-                            class="mt-2 font-mono text-xs"
-                            placeholder='{"meta": {...}, "flowSpec": {...}}' />
-                    </x-forms.field>
-                </details>
-
-                <div class="flex justify-end">
-                    <x-forms.button type="button" data-ak-ajax="flowspec-message-form" data-ak-action="{{ route('flowspec.messages.store', $chat) }}">
-                        Enviar
-                    </x-forms.button>
+            {{-- Scrollable thread (full width) --}}
+            <div data-ak-fs-scroll class="min-h-0 flex-1 overflow-y-auto">
+                <div class="w-full px-4 py-6 md:px-6">
+                    <x-flowspec.thread :chat="$chat" />
                 </div>
-            </form>
-        </div>
-
-        {{-- Documentation used: sits outside the <form> (positioned in the sidebar), but
-             the `form="flowspec-message-form"` on the x-forms.chips inputs associates
-             the chips to the composer anyway — see forms/chips.blade.php. --}}
-        <aside class="w-full shrink-0 lg:w-80">
-            <div class="rounded-card border border-line bg-surface p-4 shadow-card lg:sticky lg:top-6">
-                <h2 class="text-sm font-semibold text-ink">Documentação usada</h2>
-                <p class="mt-1 text-xs text-muted">Adicione sistemas para priorizar a documentação deles no prompt da próxima mensagem. Sem seleção, são inferidos do texto do pedido.</p>
-                <x-forms.chips name="solutions" form="flowspec-message-form" :search-url="route('solutions.search')"
-                    placeholder="Buscar sistema…" class="mt-3" centered />
-
-                <h2 class="mt-4 text-sm font-semibold text-ink">Documentos específicos</h2>
-                <p class="mt-1 text-xs text-muted">Opcional — escolha páginas ou integrações específicas para usar exatamente essas, sem a seleção automática por relevância.</p>
-                <x-forms.chips name="documents" form="flowspec-message-form" :search-url="route('flowspec.documents.search')"
-                    placeholder="Buscar página ou integração…" class="mt-3" centered />
             </div>
-        </aside>
+
+            {{-- Composer — pinned to the bottom, full width --}}
+            <div class="border-t border-line bg-canvas/50 px-4 py-3 md:px-6">
+                <x-flowspec.composer
+                    formId="flowspec-message-form"
+                    :action="route('flowspec.messages.store', $chat)"
+                    messageId="flowspec-message-input"
+                    referenceId="flowspec-reference-input"
+                    submitLabel="Enviar"
+                    placeholder="Peça um ajuste no flowSpec ou descreva a próxima geração…" />
+            </div>
+        </section>
     </div>
 </x-layouts.layout>

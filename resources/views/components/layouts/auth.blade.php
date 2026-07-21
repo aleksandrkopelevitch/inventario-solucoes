@@ -19,7 +19,7 @@
         <span class="font-display text-xl font-semibold tracking-tight text-ink">{{ config('app.name') }}</span>
     </a>
 
-    <div class="w-full max-w-sm rounded-card border border-line bg-surface p-8 shadow-[0_1px_3px_rgba(20,58,34,0.04),0_14px_32px_-16px_rgba(20,58,34,0.12)]">
+    <div class="w-full max-w-sm rounded-card border border-line bg-surface p-8 shadow-card">
         {{ $slot }}
     </div>
 

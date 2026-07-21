@@ -58,7 +58,8 @@ class FlowspecChatController extends Controller
         $this->authorize('view', $chat);
 
         return view('flowspec.show', [
-            'chat' => $chat->load('integration:id,name'),
+            'chat'  => $chat->load('integration:id,name'),
+            'chats' => $request->user()->flowspecChats()->latest('updated_at')->withCount('messages')->get(),
         ]);
     }
 
