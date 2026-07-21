@@ -6,6 +6,7 @@
     'searchUrl' => null,      // optional: GET {searchUrl}?q=... -> {"results":[{"id":,"name":}]}. When set, chips can only be added by picking a result — no free-text Enter.
     'form' => null,           // optional: id of an external <form> — lets this component render outside the <form> tag (e.g. a sidebar) while its hidden inputs still submit with it
     'centered' => false,      // optional: the search input opens in a centered overlay (same idea as the Ctrl+K palette in ecosystem-map.js) instead of an inline dropdown — pick this for a standalone search field; opened only by clicking the trigger, never a keyboard shortcut (a page can have more than one `centered` field, so a global shortcut would be ambiguous about which one to open)
+    'triggerHidden' => false, // optional (centered only): render the trigger button hidden so the overlay is opened elsewhere (e.g. the flowSpec composer's 📎 attach menu does `trigger.click()`) while the selected chips still show wherever this component is placed
 ])
 
 @php
@@ -58,8 +59,10 @@
     </div>
 
     @if ($centered)
-        <button type="button" data-ak-chips-trigger
-            class="flex w-full items-center gap-2 rounded-field border border-line-2 bg-surface px-3 py-2 text-left text-sm text-faint transition hover:border-accent-line focus:outline-none focus:border-accent focus:shadow-[0_0_0_3px_var(--color-accent-soft)]">
+        <button type="button" data-ak-chips-trigger @class([
+                'flex w-full items-center gap-2 rounded-field border border-line-2 bg-surface px-3 py-2 text-left text-sm text-faint transition hover:border-accent-line focus:outline-none focus:border-accent focus:shadow-[0_0_0_3px_var(--color-accent-soft)]' => ! $triggerHidden,
+                'hidden' => $triggerHidden,
+            ])>
             <x-heroicon-o-magnifying-glass class="size-4 shrink-0" />
             <span class="truncate">{{ $placeholder }}</span>
         </button>

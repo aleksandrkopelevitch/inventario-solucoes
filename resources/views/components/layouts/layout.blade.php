@@ -71,7 +71,13 @@
     </aside>
 
     {{-- Main --}}
-    <div class="flex min-w-0 flex-col">
+    {{-- `fluid` (opt-in per page, e.g. the flowSpec chat) pins the column to the
+         viewport height so the page can build its own internal scroll + footer
+         (composer) instead of the default document-scroll canvas. --}}
+    <div @class(['flex min-w-0 flex-col', 'h-screen overflow-hidden' => ($fluid ?? false)])>
+        {{-- `fluid` pages (the flowSpec chat) run edge-to-edge without the
+             breadcrumb header — they own their whole viewport height. --}}
+        @unless ($fluid ?? false)
         <header class="sticky top-0 z-30 flex h-14 items-center justify-between gap-4 border-b border-line bg-canvas/[0.86] px-5 backdrop-blur-md md:px-8">
             <div class="flex min-w-0 items-center gap-2 text-[13.5px] text-faint">
                 <a href="{{ route('profile.show') }}" class="text-muted no-underline hover:text-ink">Inventário</a>
@@ -95,8 +101,12 @@
                 {{ $actions ?? '' }}
             </div>
         </header>
+        @endunless
 
-        <main class="mx-auto w-full max-w-[1080px] px-5 pb-24 pt-7 md:px-8">
+        <main @class([
+            'mx-auto w-full max-w-[1080px] px-5 pb-24 pt-7 md:px-8' => ! ($fluid ?? false),
+            'flex min-h-0 flex-1 flex-col' => ($fluid ?? false),
+        ])>
             {{ $slot }}
         </main>
     </div>

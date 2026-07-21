@@ -1,11 +1,15 @@
 <x-layouts.layout :title="$person->name">
-    <div class="mb-6">
-        <a href="{{ route('people.index') }}" class="text-sm text-accent hover:underline">&larr; Pessoas</a>
+    <div class="mb-6 animate-ak-fade">
+        <a href="{{ route('people.index') }}" class="group inline-flex items-center gap-1 text-sm text-accent hover:underline">
+            <x-heroicon-o-arrow-left class="size-4 transition-transform duration-150 group-hover:-translate-x-0.5" /> Pessoas
+        </a>
     </div>
 
-    <x-people.detail-header :person="$person" />
+    <div class="animate-ak-rise">
+        <x-people.detail-header :person="$person" />
+    </div>
 
-    <div class="mt-5 rounded-card border border-line bg-surface p-6 shadow-card">
+    <div class="animate-ak-rise mt-5 rounded-card border border-line bg-surface p-6 shadow-card" style="animation-delay: 90ms">
         <h2 class="font-display text-[18px] font-semibold text-ink">Sistemas ({{ $person->solutions->count() }})</h2>
         @if ($person->solutions->isEmpty())
             <p class="mt-2 text-sm text-muted">Nenhum sistema vinculado.</p>

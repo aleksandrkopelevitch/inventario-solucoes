@@ -184,7 +184,9 @@
        EVERYTHING here is neutralised by the prefers-reduced-motion guard
        at the bottom of this file — a user who asks for less motion gets
        none of it. Applied via `animate-ak-rise` / `animate-ak-pop` /
-       `animate-ak-fade`, staggered with an inline `--ak-delay`. */
+       `animate-ak-fade`; lists stagger with an inline
+       `style="animation-delay: …ms"` (capped, e.g. `min($loop->index, 11) * 35`
+       so a long list doesn't cascade forever). */
     --animate-ak-rise: ak-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
     --animate-ak-fade: ak-fade 0.45s ease-out both;
     --animate-ak-pop:  ak-pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both;

@@ -6,7 +6,7 @@
             <p class="mt-1 text-sm text-muted">Identidade Leo Madeiras — verde institucional e lime, tipografia Barlow.</p>
         </div>
 
-        <div class="space-y-6 rounded-card border border-line bg-surface p-8 text-body shadow-[0_1px_3px_rgba(20,58,34,0.04),0_14px_32px_-16px_rgba(20,58,34,0.12)]">
+        <div class="space-y-6 rounded-card border border-line bg-surface p-8 text-body shadow-card">
             <form id="showcase-form" class="space-y-6">
                 @csrf
 
