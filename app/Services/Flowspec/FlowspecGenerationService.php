@@ -88,9 +88,9 @@ class FlowspecGenerationService
             $text = $response->text;
             $tokens['prompt'] += $response->usage->promptTokens;
             $tokens['completion'] += $response->usage->completionTokens;
-            // Zero today (laravel/ai 0.3.2's AnthropicProvider doesn't set
-            // cache_control) — accumulated to give visibility once prompt
-            // caching lands (see optimization plan, Phase 2).
+            // Zero today (laravel/ai 0.3.2 doesn't surface prompt-cache token
+            // counts for the configured provider) — accumulated to give
+            // visibility once prompt caching lands (see optimization plan, Phase 2).
             $tokens['cache_write'] += $response->usage->cacheWriteInputTokens;
             $tokens['cache_read'] += $response->usage->cacheReadInputTokens;
 

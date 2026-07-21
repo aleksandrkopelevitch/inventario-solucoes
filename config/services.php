@@ -41,8 +41,8 @@ return [
     | stays env-driven.
     */
     'flowspec' => [
-        'provider' => env('DIGIBEE_FLOWSPEC_AI_PROVIDER', 'anthropic'),
-        'model'    => env('DIGIBEE_FLOWSPEC_AI_MODEL', 'claude-sonnet-5'),
+        'provider' => env('DIGIBEE_FLOWSPEC_AI_PROVIDER', 'gemini'),
+        'model'    => env('DIGIBEE_FLOWSPEC_AI_MODEL', 'gemini-3.5-flash'),
 
         // Context selection (FlowspecContextResolver) and correction loop
         // (FlowspecGenerationService). 2-3 examples: more dilutes the signal.
@@ -62,20 +62,20 @@ return [
     | Documentation "AI assist" — populates the current page via LLM based on
     | a prompt + Solution context documents (App\Services\Documentation).
     | Same env-driven pattern as flowspec; the API key is read by config/ai.php
-    | from the laravel/ai package (provider anthropic => ANTHROPIC_API_KEY).
+    | from the laravel/ai package (provider gemini => GEMINI_API_KEY).
     */
     'documentation_ai' => [
-        'provider' => env('DOCS_AI_PROVIDER', 'anthropic'),
-        'model'    => env('DOCS_AI_MODEL', 'claude-sonnet-5'),
+        'provider' => env('DOCS_AI_PROVIDER', 'gemini'),
+        'model'    => env('DOCS_AI_MODEL', 'gemini-3.5-flash'),
         'timeout'  => env('DOCS_AI_TIMEOUT', 180),
         // Character budget for TEXT context documents embedded in the prompt
         // (PDF/image go as attachments, outside this limit).
         'doc_budget_chars'      => env('DOCS_AI_DOC_BUDGET_CHARS', 60000),
         'max_context_documents' => env('DOCS_AI_MAX_CONTEXT_DOCUMENTS', 10),
         // Aggregate byte ceiling for native attachments (PDF/image) in one
-        // generation — below the Claude API's ~32MB per-request limit; once
+        // generation — below the Gemini API's ~20MB inline-request limit; once
         // exceeded, further attachments are omitted (flagged in meta.omitted_attachments).
-        'max_attachment_bytes' => env('DOCS_AI_MAX_ATTACHMENT_BYTES', 28000000),
+        'max_attachment_bytes' => env('DOCS_AI_MAX_ATTACHMENT_BYTES', 18000000),
     ],
 
 ];

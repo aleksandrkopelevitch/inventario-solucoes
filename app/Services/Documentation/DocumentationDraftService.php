@@ -74,9 +74,9 @@ class DocumentationDraftService
                 'tokens'   => [
                     'prompt'     => $response->usage->promptTokens,
                     'completion' => $response->usage->completionTokens,
-                    // Zero today (laravel/ai 0.3.2's AnthropicProvider doesn't
-                    // set cache_control) — recorded to give visibility once
-                    // prompt caching lands (see optimization plan, Phase 2).
+                    // Zero today (laravel/ai 0.3.2 doesn't surface prompt-cache
+                    // token counts for the configured provider) — recorded to give
+                    // visibility once prompt caching lands (see optimization plan, Phase 2).
                     'cache_write' => $response->usage->cacheWriteInputTokens,
                     'cache_read'  => $response->usage->cacheReadInputTokens,
                 ],
