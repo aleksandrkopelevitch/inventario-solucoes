@@ -61,7 +61,7 @@ it('creates documentation from scratch when the page is empty', function () {
 
     expect($service->capturedPrompt)->toContain('A página está vazia')
         ->and($result->markdown)->toContain('## Objetivo')
-        ->and($result->meta['model'])->toBe('claude-sonnet-5')
+        ->and($result->meta['model'])->toBe(config('services.documentation_ai.model'))
         // Cache fields recorded (zeroed out since the package has no prompt caching).
         ->and($result->meta['tokens'])->toHaveKeys(['prompt', 'completion', 'cache_write', 'cache_read']);
 });

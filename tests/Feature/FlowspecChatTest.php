@@ -102,6 +102,79 @@ it('extracts document refs from the chips payload (page:{id}/integration:{id})',
     ]);
 });
 
+it('renders the chat page composer with the reference flowspec field', function () {
+    $user = flowspecUser();
+    $chat = $user->flowspecChats()->create(['title' => 'Chat']);
+
+    $this->actingAs($user)
+        ->get(route('flowspec.show', $chat))
+        ->assertOk()
+        ->assertSee('flowSpec de referência (opcional)');
+});
+
+it('normalizes a pasted reference flowspec into meta (minified, canvas meta dropped)', function () {
+    Queue::fake();
+    $user = flowspecUser();
+
+    $reference = json_encode([
+        'meta'     => ['abc' => ['position' => ['x' => 200, 'y' => 0]]],
+        'flowSpec' => ['disconnected-root:x' => [[
+            'id'       => 'abc', 'type' => 'connector', 'name' => 'log-connector',
+            'stepName' => 'Log', 'params' => ['message' => 'oi'],
+        ]]],
+    ], JSON_PRETTY_PRINT);
+
+    $this->actingAs($user)->postJson(route('flowspec.store'), [
+        'message'            => 'ajusta esse pipeline',
+        'reference_flowspec' => $reference,
+    ])->assertOk();
+
+    $stored = FlowspecChat::query()->firstOrFail()->messages()->firstOrFail()->meta['reference_flowspec'];
+
+    expect($stored)->toBeString()
+        ->and($stored)->not->toContain("\n") // minified
+        ->and(json_decode($stored, true))->not->toHaveKey('meta') // canvas positions dropped
+        ->and(json_decode($stored, true))->toHaveKey('flowSpec');
+});
+
+it('persists a reference flowspec on a follow-up message too', function () {
+    Queue::fake();
+    $user = flowspecUser();
+    $chat = $user->flowspecChats()->create(['title' => 'Chat']);
+
+    $this->actingAs($user)->postJson(route('flowspec.messages.store', $chat), [
+        'message'            => 'ajusta o timeout',
+        'reference_flowspec' => '{"meta":{"a":1},"flowSpec":{"x":[]}}',
+    ])->assertOk();
+
+    $stored = $chat->messages()->firstOrFail()->meta['reference_flowspec'];
+
+    expect(json_decode($stored, true))->toBe(['flowSpec' => ['x' => []]]);
+});
+
+it('rejects a reference flowspec that is not valid JSON', function () {
+    Queue::fake();
+    $user = flowspecUser();
+
+    $response = $this->actingAs($user)->postJson(route('flowspec.store'), [
+        'message'            => 'ajusta esse pipeline',
+        'reference_flowspec' => '{ isto não é json',
+    ])->assertStatus(422)->assertJson(['type' => 'warning']);
+
+    expect($response->json('message'))->toContain('JSON')
+        ->and(FlowspecChat::query()->count())->toBe(0);
+    Queue::assertNotPushed(GenerateFlowspecReply::class);
+});
+
+it('stores a null reference_flowspec when the field is omitted', function () {
+    Queue::fake();
+    $user = flowspecUser();
+
+    $this->actingAs($user)->postJson(route('flowspec.store'), ['message' => 'gera aí'])->assertOk();
+
+    expect(FlowspecChat::query()->firstOrFail()->messages()->firstOrFail()->meta['reference_flowspec'])->toBeNull();
+});
+
 it('rejects a malformed document reference', function () {
     Queue::fake();
     $user = flowspecUser();

@@ -22,6 +22,16 @@
                         placeholder="Peça um ajuste no flowSpec ou descreva a próxima geração…" />
                 </x-forms.field>
 
+                <details class="rounded-field border border-line p-3">
+                    <summary class="cursor-pointer select-none text-xs font-medium text-muted">flowSpec de referência (opcional)</summary>
+                    <x-forms.field name="reference_flowspec"
+                        hint="Cole um flowSpec existente para usar como base do ajuste — as posições do canvas são descartadas automaticamente.">
+                        <x-forms.textarea id="flowspec-reference-input" name="reference_flowspec" rows="6"
+                            class="mt-2 font-mono text-xs"
+                            placeholder='{"meta": {...}, "flowSpec": {...}}' />
+                    </x-forms.field>
+                </details>
+
                 <div class="flex justify-end">
                     <x-forms.button type="button" data-ak-ajax="flowspec-message-form" data-ak-action="{{ route('flowspec.messages.store', $chat) }}">
                         Enviar
