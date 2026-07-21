@@ -62,7 +62,12 @@ class FlowspecGenerationService
             ...$context->toMeta(),
         ]);
 
-        $basePrompt = $this->prompts->userPrompt($context, $userMessage->content, $history);
+        $basePrompt = $this->prompts->userPrompt(
+            $context,
+            $userMessage->content,
+            $history,
+            $userMessage->meta['reference_flowspec'] ?? null,
+        );
 
         $maxAttempts = (int) config('services.flowspec.max_attempts');
         $attempts = [];

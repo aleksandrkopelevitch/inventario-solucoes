@@ -52,6 +52,13 @@ return [
         'fallback_example' => env('DIGIBEE_FLOWSPEC_FALLBACK_EXAMPLE', 'update-bigquery-rest'),
         'timeout'          => env('DIGIBEE_FLOWSPEC_AI_TIMEOUT', 180),
 
+        // Char ceiling for the optional reference flowSpec pasted into the
+        // composer (NormalizeReferenceFlowspec minifies it and drops the
+        // canvas `meta` before it reaches the prompt). The prose `message`
+        // stays capped at 8000 — this is separate headroom for a full pasted
+        // pipeline JSON, which easily exceeds that.
+        'max_reference_chars' => env('DIGIBEE_FLOWSPEC_MAX_REFERENCE_CHARS', 200000),
+
         // "Add documentation" buttons offered alongside a conversational
         // reply (FlowspecContextResolver::suggestDocumentsFor) — more than
         // this turns into noise in the chat bubble.

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Flowspec\NormalizeReferenceFlowspec;
 use App\Http\Requests\StoreFlowspecChatRequest;
 use App\Jobs\GenerateFlowspecReply;
 use App\Models\DocumentationPage;
@@ -29,18 +30,21 @@ class FlowspecChatController extends Controller
         ]);
     }
 
-    public function store(StoreFlowspecChatRequest $request)
+    public function store(StoreFlowspecChatRequest $request, NormalizeReferenceFlowspec $normalize)
     {
         $chat = $request->user()->flowspecChats()->create([
             'title' => Str::limit($request->validated('message'), 80),
         ]);
 
+        $reference = $request->referenceFlowspec();
+
         $message = $chat->messages()->create([
             'role'    => 'user',
             'content' => $request->validated('message'),
             'meta'    => [
-                'solution_ids'  => $request->solutionIds(),
-                'document_refs' => $request->documentRefs(),
+                'solution_ids'       => $request->solutionIds(),
+                'document_refs'      => $request->documentRefs(),
+                'reference_flowspec' => $reference ? $normalize->handle($reference) : null,
             ],
         ]);
 

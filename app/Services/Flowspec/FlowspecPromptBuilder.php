@@ -46,11 +46,12 @@ class FlowspecPromptBuilder
     }
 
     /** @param Collection<int, FlowspecMessage> $history */
-    public function userPrompt(FlowspecContext $context, string $request, Collection $history): string
+    public function userPrompt(FlowspecContext $context, string $request, Collection $history, ?string $referenceFlowspec = null): string
     {
         $sections = array_filter([
             $this->examplesSection($context->examples),
             $this->documentationSection($context),
+            $this->referenceFlowspecSection($referenceFlowspec),
             $this->historySection($history),
             "# PEDIDO\n\n{$request}",
         ]);
@@ -106,6 +107,23 @@ class FlowspecPromptBuilder
         });
 
         return "# EXEMPLOS DE PIPELINES REAIS\n\n" . $blocks->implode("\n\n");
+    }
+
+    /**
+     * The pipeline the user pasted as the base for this request — already
+     * minified with the canvas `meta` stripped (NormalizeReferenceFlowspec).
+     * Placed as reference material before the request itself, like the docs
+     * and examples above it.
+     */
+    private function referenceFlowspecSection(?string $referenceFlowspec): string
+    {
+        if ($referenceFlowspec === null || $referenceFlowspec === '') {
+            return '';
+        }
+
+        return "# FLOWSPEC DE REFERÊNCIA\n\n"
+            . "(pipeline anexado pelo usuário como base do pedido — ajuste/estenda sobre ele; gere UUIDs novos, não reaproveite os deste anexo)\n\n"
+            . $referenceFlowspec;
     }
 
     private function documentationSection(FlowspecContext $context): string

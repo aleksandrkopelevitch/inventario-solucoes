@@ -17,6 +17,13 @@
                     placeholder="Ex.: com base na documentação do SVL e do IAM, crie um flowSpec que receba o colaborador, gerencie cache de token JWT por 30 min e faça POST no SVL." />
             </x-forms.field>
 
+            <x-forms.field label="flowSpec de referência (opcional)" for="flowspec-new-reference" name="reference_flowspec"
+                hint="Cole um flowSpec existente para usar como base — as posições do canvas são descartadas automaticamente.">
+                <x-forms.textarea id="flowspec-new-reference" name="reference_flowspec" rows="6"
+                    class="font-mono text-xs"
+                    placeholder='{"meta": {...}, "flowSpec": {...}}' />
+            </x-forms.field>
+
             <x-forms.field label="Documentação usada" name="solutions"
                 hint="Busque e adicione sistemas para priorizar a documentação deles no prompt. Sem seleção, são inferidos do texto.">
                 <x-forms.chips name="solutions" :search-url="route('solutions.search')" placeholder="Buscar sistema…" centered />

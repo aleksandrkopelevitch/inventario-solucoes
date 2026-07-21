@@ -3,13 +3,16 @@
 namespace App\Http\Requests\Concerns;
 
 use App\Rules\FlowspecDocumentReference;
+use App\Rules\ValidJson;
 
 /**
  * Rules and parsing shared by StoreFlowspecChatRequest and
  * StoreFlowspecMessageRequest for the composer's two chips pickers:
  * `solutions` (explicit Solutions — takes priority over name-based inference)
  * and `documents` (specific pages/integrations — when present,
- * FlowspecContextResolver uses exactly those, with no scoring or budget cutoff).
+ * FlowspecContextResolver uses exactly those, with no scoring or budget
+ * cutoff) — plus the optional `reference_flowspec` field (a pasted pipeline
+ * JSON used as the base for the request, normalized before it hits the prompt).
  */
 trait ParsesFlowspecContextInput
 {
@@ -29,7 +32,15 @@ trait ParsesFlowspecContextInput
             'documents'         => ['nullable', 'array', 'max:20'],
             'documents.*.value' => ['required', 'string', new FlowspecDocumentReference],
             'documents.*.label' => ['nullable', 'string'],
+            // Optional pasted pipeline used as the base for the request. Its
+            // own (large) ceiling — the prose `message` stays at max:8000.
+            'reference_flowspec' => ['nullable', 'string', 'max:' . config('services.flowspec.max_reference_chars'), new ValidJson],
         ];
+    }
+
+    public function referenceFlowspec(): ?string
+    {
+        return $this->validated('reference_flowspec') ?: null;
     }
 
     /** @return list<int> */

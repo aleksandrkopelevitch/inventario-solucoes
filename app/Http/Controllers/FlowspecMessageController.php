@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Flowspec\NormalizeReferenceFlowspec;
 use App\Http\Requests\StoreFlowspecMessageRequest;
 use App\Jobs\GenerateFlowspecReply;
 use App\Models\FlowspecChat;
@@ -10,7 +11,7 @@ use Illuminate\Validation\ValidationException;
 
 class FlowspecMessageController extends Controller
 {
-    public function store(StoreFlowspecMessageRequest $request, FlowspecChat $chat)
+    public function store(StoreFlowspecMessageRequest $request, FlowspecChat $chat, NormalizeReferenceFlowspec $normalize)
     {
         // One pending turn at a time: the composer stays enabled during
         // "generating…" (it lives outside the thread slot), so the server
@@ -24,12 +25,15 @@ class FlowspecMessageController extends Controller
             ]);
         }
 
+        $reference = $request->referenceFlowspec();
+
         $message = $chat->messages()->create([
             'role'    => 'user',
             'content' => $request->validated('message'),
             'meta'    => [
-                'solution_ids'  => $request->solutionIds(),
-                'document_refs' => $request->documentRefs(),
+                'solution_ids'       => $request->solutionIds(),
+                'document_refs'      => $request->documentRefs(),
+                'reference_flowspec' => $reference ? $normalize->handle($reference) : null,
             ],
         ]);
 
@@ -45,6 +49,7 @@ class FlowspecMessageController extends Controller
             // without clearing, the same system/document would be resent on
             // every following message.
             'js' => "document.getElementById('flowspec-message-input').value = '';"
+                . "document.getElementById('flowspec-reference-input').value = '';"
                 . "document.dispatchEvent(new CustomEvent('ak:chips-reset', {detail: {names: ['solutions', 'documents']}}));",
         ]);
     }
