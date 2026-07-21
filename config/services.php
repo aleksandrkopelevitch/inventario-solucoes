@@ -83,6 +83,15 @@ return [
         // generation — below the Gemini API's ~20MB inline-request limit; once
         // exceeded, further attachments are omitted (flagged in meta.omitted_attachments).
         'max_attachment_bytes' => env('DOCS_AI_MAX_ATTACHMENT_BYTES', 18000000),
+        // A generation stuck in `pending` past this many seconds is treated as
+        // orphaned: its worker died mid-job (e.g. `composer dev` restarted)
+        // without running handle() (=> completed) or failed() (=> failed), so
+        // it never leaves `pending` on its own and blocks every future draft
+        // for the same target. Matches the queue's retry_after (900s) — the
+        // point past which Laravel itself assumes a reserved job is dead — and
+        // stays well above the job's own $timeout (600s), so a slow-but-alive
+        // generation is never reaped by mistake.
+        'stale_after' => (int) env('DOCS_AI_STALE_AFTER', 900),
     ],
 
 ];

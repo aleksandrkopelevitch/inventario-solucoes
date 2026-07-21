@@ -125,6 +125,79 @@ it('rejects a second generation for the same target while one is pending', funct
     Queue::assertPushed(GenerateDocumentationDraft::class, 1);
 });
 
+it('reaps an orphaned pending generation so a new draft can be created for the same target', function () {
+    Queue::fake();
+    $solution = Solution::factory()->create();
+    $page = assistPage($solution);
+    $admin = assistAdmin();
+
+    // A worker killed mid-job (e.g. `composer dev` restarted) never ran
+    // handle()/failed(), so this record is stuck 'pending' from long ago.
+    $orphan = DocumentationAiGeneration::create([
+        'target_type' => $page->getMorphClass(),
+        'target_id'   => $page->getKey(),
+        'solution_id' => $solution->id,
+        'user_id'     => $admin->id,
+        'status'      => 'pending',
+        'prompt'      => 'antigo',
+    ]);
+    $orphan->forceFill(['created_at' => now()->subSeconds(1000)])->save();
+
+    // Without reaping, this would 409; the orphan must not block a fresh draft.
+    $this->actingAs($admin)
+        ->postJson(route('solutions.docs.assist.generate', [$solution, $page]), ['prompt' => 'novo'])
+        ->assertOk()
+        ->assertJson(['status' => 'pending']);
+
+    expect($orphan->fresh()->status)->toBe('failed');
+    Queue::assertPushed(GenerateDocumentationDraft::class, 1);
+});
+
+it('resolves an orphaned pending generation to failed on a status poll', function () {
+    $solution = Solution::factory()->create();
+    $page = assistPage($solution);
+    $gen = DocumentationAiGeneration::create([
+        'target_type' => $page->getMorphClass(),
+        'target_id'   => $page->getKey(),
+        'solution_id' => $solution->id,
+        'user_id'     => assistAdmin()->id,
+        'status'      => 'pending',
+        'prompt'      => 'x',
+    ]);
+    $gen->forceFill(['created_at' => now()->subSeconds(1000)])->save();
+
+    $this->actingAs(assistAdmin())
+        ->getJson(route('solutions.docs.assist.status', [$solution, $gen]))
+        ->assertOk()
+        ->assertJson(['pending' => false, 'failed' => true]);
+
+    expect($gen->fresh()->status)->toBe('failed');
+});
+
+it('keeps blocking a second draft while a recent generation is still pending', function () {
+    Queue::fake();
+    $solution = Solution::factory()->create();
+    $page = assistPage($solution);
+    $admin = assistAdmin();
+
+    // A genuinely in-flight (recent) pending generation must still 409 — the
+    // staleness reaping must not weaken the concurrency guard.
+    DocumentationAiGeneration::create([
+        'target_type' => $page->getMorphClass(),
+        'target_id'   => $page->getKey(),
+        'solution_id' => $solution->id,
+        'user_id'     => $admin->id,
+        'status'      => 'pending',
+        'prompt'      => 'em andamento',
+    ]);
+
+    $this->actingAs($admin)
+        ->postJson(route('solutions.docs.assist.generate', [$solution, $page]), ['prompt' => 'novo'])
+        ->assertStatus(409);
+
+    Queue::assertNotPushed(GenerateDocumentationDraft::class);
+});
+
 it('returns a generic error, never the raw exception, for a failed generation', function () {
     $solution = Solution::factory()->create();
     $page = assistPage($solution);
