@@ -9,9 +9,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * A flowSpec generator (F8) conversation. Optionally linked to the
- * Integration that will receive the generated pipeline
- * (`integrations.generated_flowspec`).
+ * A flowSpec generator (F8) conversation: a thread of user prompts and the
+ * assistant's generated flowSpec replies.
  */
 class FlowspecChat extends Model
 {
@@ -20,18 +19,12 @@ class FlowspecChat extends Model
 
     protected $fillable = [
         'user_id',
-        'integration_id',
         'title',
     ];
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
-    }
-
-    public function integration(): BelongsTo
-    {
-        return $this->belongsTo(Integration::class);
     }
 
     public function messages(): HasMany

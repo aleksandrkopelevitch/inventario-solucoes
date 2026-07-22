@@ -247,7 +247,7 @@ it('lists the solution pages alongside its integrations when viewing an integrat
         ->toContain(route('solutions.docs.page.edit', [$solution, $page]));
 });
 
-it('breadcrumbs a solution page as Solução > Documentação, and labels the top bar with the page title', function () {
+it('links a solution doc page back to the solution and lists it in the pages rail', function () {
     $solution = Solution::factory()->create(['name' => 'AllStrategy']);
     $page = solutionPage($solution, '# Doc');
     $page->update(['title' => 'Visão geral']);
@@ -257,15 +257,17 @@ it('breadcrumbs a solution page as Solução > Documentação, and labels the to
         ->assertOk();
 
     expect($response->getContent())
+        // Top-bar back link points at the Solution.
         ->toContain('href="' . route('solutions.show', $solution) . '"')
-        ->toContain('href="' . route('solutions.docs.edit', $solution) . '"')
-        ->toContain('>Documentação<')
-        ->toContain('>AllStrategy<')
-        // The top bar (back) shows the page title, not the solution name again.
-        ->toMatch('/>\s*Visão geral\s*<\/a>/');
+        // The current page is listed (and linked) in the collapsible pages rail.
+        ->toMatch('/>\s*Visão geral\s*<\/a>/')
+        // Collapsible pages rail (mirrors flowSpec): the aside + its toggle.
+        ->toContain('id="docs-sidebar"')
+        ->toContain('data-ak-toggle="docs-sidebar"')
+        ->toContain('data-ak-toggle-classes="!w-0 !border-r-0"');
 });
 
-it('breadcrumbs an integration doc as Solução > Documentação too, labeling the top bar with the integration name', function () {
+it('links an integration doc back to the solution and lists it under Integrações', function () {
     $solution = Solution::factory()->create(['name' => 'AllStrategy']);
     $integration = Integration::factory()->create([
         'name'  => 'SAP -> AllStrategy',
@@ -279,9 +281,6 @@ it('breadcrumbs an integration doc as Solução > Documentação too, labeling t
 
     expect($response->getContent())
         ->toContain('href="' . route('solutions.show', $solution) . '"')
-        ->toContain('href="' . route('solutions.docs.edit', $solution) . '"')
-        ->toContain('>Documentação<')
-        ->toContain('>AllStrategy<')
         ->toMatch('/>\s*SAP -&gt; AllStrategy\s*<\/a>/');
 });
 

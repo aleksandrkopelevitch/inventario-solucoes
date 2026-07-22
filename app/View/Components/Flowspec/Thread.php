@@ -3,7 +3,6 @@
 namespace App\View\Components\Flowspec;
 
 use App\Models\FlowspecChat;
-use App\Models\Integration;
 use App\View\Components\Concerns\Renderable;
 use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
@@ -11,7 +10,7 @@ use Illuminate\View\Component;
 /**
  * Thread for a flowSpec generator (F8) chat, renderable as an updatable slot
  * (`flowspec-thread-slot`): messages, JSON block with copy, validation badge,
- * attach/promote forms and the "gerando…" marker that triggers polling
+ * the promote-to-corpus form and the "gerando…" marker that triggers polling
  * (flowspec-chat.js).
  */
 class Thread extends Component
@@ -32,10 +31,9 @@ class Thread extends Component
         $messages = $this->chat->messages()->get();
 
         return view('components.flowspec.thread', [
-            'domId'        => self::DOM_ID,
-            'chat'         => $this->chat,
-            'messages'     => $messages,
-            'integrations' => Integration::query()->orderBy('name')->get(['id', 'name']),
+            'domId'    => self::DOM_ID,
+            'chat'     => $this->chat,
+            'messages' => $messages,
             // Derives from the collection already fetched — avoids the extra
             // query from isAwaitingReply() while applying the same stall bound.
             'awaiting' => $this->chat->awaitsReplyFor($messages->last()),

@@ -5,9 +5,6 @@
         <section class="flex min-h-0 min-w-0 flex-1 flex-col">
             <x-flowspec.top-bar>
                 <p class="truncate text-sm font-semibold text-ink">{{ $chat->title }}</p>
-                @if ($chat->integration)
-                    <p class="truncate text-xs text-muted">Vinculado à integração <span class="font-medium text-ink">{{ $chat->integration->name }}</span></p>
-                @endif
             </x-flowspec.top-bar>
 
             {{-- Scrollable thread (full width) --}}

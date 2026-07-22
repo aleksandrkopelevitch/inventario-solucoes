@@ -222,7 +222,7 @@ class IntegrationsMap extends Component
     {
         return $this->solution->integrations()
             ->orderBy('integrations.name')
-            ->get(['integrations.id', 'integrations.name', 'integrations.slug', 'integrations.status', 'integrations.chain', 'integrations.viz_layout', 'integrations.flowspec_status'])
+            ->get(['integrations.id', 'integrations.name', 'integrations.slug', 'integrations.status', 'integrations.chain', 'integrations.viz_layout'])
             ->unique('id')
             ->values();
     }
