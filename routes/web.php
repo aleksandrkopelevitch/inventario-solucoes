@@ -8,7 +8,6 @@ use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\DocumentationGroupController;
 use App\Http\Controllers\DocumentationGroupPageController;
 use App\Http\Controllers\DocumentationHubController;
-use App\Http\Controllers\FlowspecAttachmentController;
 use App\Http\Controllers\FlowspecChatController;
 use App\Http\Controllers\FlowspecExamplePromotionController;
 use App\Http\Controllers\FlowspecMessageController;
@@ -84,8 +83,6 @@ Route::middleware(['auth', BlockAgentFromWeb::class])->group(function () {
         // documents belong to the Solution (solutions.docs.context.* routes).
         Route::get('solutions/{solution}/integrations/{integration}/documentation/assistant', [IntegrationDocumentationController::class, 'assistantPanel'])->name('solutions.integrations.docs.assist.panel');
         Route::post('solutions/{solution}/integrations/{integration}/documentation/assistant', [IntegrationDocumentationController::class, 'generateDraft'])->name('solutions.integrations.docs.assist.generate');
-        // Side panel with the attached flowSpec (F8 -> "Anexar à integração") — read-only.
-        Route::get('solutions/{solution}/integrations/{integration}/flowspec', [SolutionIntegrationController::class, 'flowspec'])->name('solutions.integrations.flowspec');
         // Title of a single node (data-viz F3) — {node} is the index in the chain, not a model.
         Route::patch('solutions/{solution}/integrations/{integration}/chain/nodes/{node}', [SolutionIntegrationController::class, 'updateNode'])
             ->whereNumber('node')
@@ -194,7 +191,6 @@ Route::middleware(['auth', BlockAgentFromWeb::class])->group(function () {
     Route::get('flowspec/{chat}/status', [FlowspecChatController::class, 'status'])->name('flowspec.status');
     Route::post('flowspec/{chat}/messages', [FlowspecMessageController::class, 'store'])->name('flowspec.messages.store');
     Route::scopeBindings()->group(function () {
-        Route::post('flowspec/{chat}/messages/{message}/attach', [FlowspecAttachmentController::class, 'store'])->name('flowspec.messages.attach');
         Route::post('flowspec/{chat}/messages/{message}/promote', [FlowspecExamplePromotionController::class, 'store'])->name('flowspec.messages.promote');
     });
 

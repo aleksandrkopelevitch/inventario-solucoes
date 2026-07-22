@@ -58,15 +58,15 @@ class FlowspecChatController extends Controller
         $this->authorize('view', $chat);
 
         return view('flowspec.show', [
-            'chat'  => $chat->load('integration:id,name'),
+            'chat'  => $chat,
             'chats' => $request->user()->flowspecChats()->latest('updated_at')->withCount('messages')->get(),
         ]);
     }
 
     /**
      * Thread polling while the generation job runs (flowspec-chat.js). Only
-     * builds the slot (messages + integrations + Blade render) once the
-     * reply has arrived — while `pending`, the client discards the slot, and
+     * builds the slot (messages + Blade render) once the reply has
+     * arrived — while `pending`, the client discards the slot, and
      * generation can take minutes, so none of this should run on every tick.
      */
     public function status(Request $request, FlowspecChat $chat)

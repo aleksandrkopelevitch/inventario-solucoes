@@ -331,24 +331,6 @@ it('rejects a context selection larger than the allowed maximum', function () {
     Queue::assertNotPushed(GenerateFlowspecReply::class);
 });
 
-it('blocks attaching a flowspec that carries a literal credential', function () {
-    $admin = flowspecUser(UserRole::Admin);
-    $chat = $admin->flowspecChats()->create(['title' => 'Chat']);
-    $leaky = assistantFlowspec();
-    $rootKey = array_key_first($leaky['flowSpec']);
-    $leaky['flowSpec'][$rootKey][0]['params']['json'] = '{"x-api-key": "chave-literal-123"}';
-    $message = $chat->messages()->create(['role' => 'assistant', 'content' => 'pronto', 'flow_spec' => $leaky, 'meta' => ['validated' => false]]);
-    $integration = Integration::factory()->create();
-
-    $response = $this->actingAs($admin)
-        ->postJson(route('flowspec.messages.attach', [$chat, $message]), ['integration_id' => $integration->id])
-        ->assertStatus(422)
-        ->assertJson(['type' => 'warning']);
-
-    expect($response->json('message'))->toContain('credencial literal')
-        ->and($integration->refresh()->generated_flowspec)->toBeNull();
-});
-
 it('reports pending status while the last message is from the user', function () {
     $user = flowspecUser();
     $chat = $user->flowspecChats()->create(['title' => 'Chat']);
@@ -402,39 +384,6 @@ it('blocks another user from viewing or messaging a chat', function () {
 
     $this->actingAs($intruder)->get(route('flowspec.show', $chat))->assertForbidden();
     $this->actingAs($intruder)->postJson(route('flowspec.messages.store', $chat), ['message' => 'oi'])->assertForbidden();
-});
-
-it('attaches a generated flowspec to an integration (admin)', function () {
-    $admin = flowspecUser(UserRole::Admin);
-    $chat = $admin->flowspecChats()->create(['title' => 'Chat']);
-    $message = $chat->messages()->create(['role' => 'assistant', 'content' => 'pronto', 'flow_spec' => assistantFlowspec(), 'meta' => ['validated' => true]]);
-    $integration = Integration::factory()->create();
-
-    $this->actingAs($admin)
-        ->postJson(route('flowspec.messages.attach', [$chat, $message]), ['integration_id' => $integration->id])
-        ->assertOk()
-        ->assertJson(['type' => 'success']);
-
-    $integration->refresh();
-
-    expect($integration->generated_flowspec)->not->toBeNull()
-        ->and($integration->flowspec_status)->toBe('validated')
-        ->and($integration->flowspec_generated_at)->not->toBeNull()
-        ->and($chat->refresh()->integration_id)->toBe($integration->id);
-});
-
-it('rejects attaching a message that carries no flowspec', function () {
-    $admin = flowspecUser(UserRole::Admin);
-    $chat = $admin->flowspecChats()->create(['title' => 'Chat']);
-    $message = $chat->messages()->create(['role' => 'assistant', 'content' => 'sem json']);
-    $integration = Integration::factory()->create();
-
-    $response = $this->actingAs($admin)
-        ->postJson(route('flowspec.messages.attach', [$chat, $message]), ['integration_id' => $integration->id])
-        ->assertStatus(422)
-        ->assertJson(['type' => 'warning']);
-
-    expect($response->json('message'))->toContain('não carrega um flowSpec');
 });
 
 it('promotes a validated flowspec to a corpus example (admin)', function () {
@@ -521,9 +470,8 @@ it('404s when the message belongs to another chat (scoped binding)', function ()
     $chat = $admin->flowspecChats()->create(['title' => 'A']);
     $otherChat = $admin->flowspecChats()->create(['title' => 'B']);
     $foreign = $otherChat->messages()->create(['role' => 'assistant', 'content' => 'x', 'flow_spec' => assistantFlowspec()]);
-    $integration = Integration::factory()->create();
 
     $this->actingAs($admin)
-        ->postJson(route('flowspec.messages.attach', [$chat, $foreign]), ['integration_id' => $integration->id])
+        ->postJson(route('flowspec.messages.promote', [$chat, $foreign]), ['name' => 'X', 'description' => 'Y', 'tags' => ['rest']])
         ->assertNotFound();
 });

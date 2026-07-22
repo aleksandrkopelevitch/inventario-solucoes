@@ -1,7 +1,6 @@
 @php
     use App\Enums\FlowspecTag;
 
-    $canAttach  = auth()->user()?->can('create', App\Models\Integration::class);
     $canPromote = auth()->user()?->can('create', App\Models\FlowspecExample::class);
 @endphp
 
@@ -117,27 +116,6 @@
                             <x-heroicon-o-clipboard-document class="size-3.5" /> Copiar JSON
                         </x-forms.button>
                     </div>
-
-                    {{-- Anexar a uma Integration (grava generated_flowspec) --}}
-                    @if ($canAttach && $integrations->isNotEmpty())
-                        <form id="flowspec-attach-{{ $message->id }}" class="mt-3 flex flex-wrap items-end gap-2">
-                            @csrf
-                            <div class="w-full max-w-xs">
-                                <x-forms.field label="Anexar à integração" for="flowspec-attach-select-{{ $message->id }}">
-                                    <x-forms.select id="flowspec-attach-select-{{ $message->id }}" name="integration_id">
-                                        @foreach ($integrations as $integration)
-                                            <option value="{{ $integration->id }}" @selected($chat->integration_id === $integration->id)>{{ $integration->name }}</option>
-                                        @endforeach
-                                    </x-forms.select>
-                                </x-forms.field>
-                            </div>
-                            <x-forms.button type="button" variant="glass" class="!px-3 !py-2 !text-xs"
-                                data-ak-ajax="flowspec-attach-{{ $message->id }}"
-                                data-ak-action="{{ route('flowspec.messages.attach', [$chat, $message]) }}">
-                                Anexar
-                            </x-forms.button>
-                        </form>
-                    @endif
 
                     {{-- Promover a exemplo do corpus (curadoria, admin) --}}
                     @if ($message->isPromoted())

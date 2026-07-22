@@ -123,7 +123,7 @@ it('lets an admin create, rename, move and delete pages inside a group', functio
     expect($destroy->json('redirect'))->toBe(route('documentation.groups.pages.edit', [$group, $second]));
 });
 
-it('breadcrumbs a group page as Documentação > Grupo, labeling the top bar with the page title', function () {
+it('links a group page back to the documentation hub and lists it in the pages rail', function () {
     $group = DocumentationGroup::factory()->create(['name' => 'Integrações Leo']);
     $page = DocumentationPage::factory()->for($group, 'container')->create(['title' => 'SAP S/4']);
 
@@ -132,10 +132,9 @@ it('breadcrumbs a group page as Documentação > Grupo, labeling the top bar wit
         ->assertOk();
 
     expect($response->getContent())
+        // Top-bar back link points at the documentation hub.
         ->toContain('href="' . route('documentation.index') . '"')
-        ->toContain('href="' . route('documentation.groups.show', $group) . '"')
-        ->toContain('>Documentação<')
-        ->toContain('>Integrações Leo<')
+        // The current page is listed (and linked) in the collapsible pages rail.
         ->toMatch('/>\s*SAP S\/4\s*<\/a>/');
 });
 
