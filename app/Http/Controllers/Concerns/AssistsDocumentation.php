@@ -65,6 +65,17 @@ trait AssistsDocumentation
         $lockKey = 'docs-ai-generate:' . $target->getMorphClass() . ':' . $target->getKey();
 
         $response = Cache::lock($lockKey, 10)->get(function () use ($request, $solution, $target, $pollUrl) {
+            // Reap orphaned generations for this target first: a worker killed
+            // mid-job (e.g. `composer dev` restarted) never runs
+            // handle()/failed(), so its record stays `pending` forever — and
+            // the guard below would then refuse every future draft for this
+            // target. Anything older than `stale_after` can't still be running.
+            DocumentationAiGeneration::query()
+                ->where('target_type', $target->getMorphClass())
+                ->where('target_id', $target->getKey())
+                ->stale()
+                ->update(['status' => 'failed', 'error' => DocumentationAiGeneration::INTERRUPTED_ERROR]);
+
             $pending = DocumentationAiGeneration::query()
                 ->where('target_type', $target->getMorphClass())
                 ->where('target_id', $target->getKey())
@@ -109,6 +120,14 @@ trait AssistsDocumentation
     {
         $this->authorize('update', $solution);
         abort_unless($generation->solution_id === $solution->id, 404);
+
+        // Orphaned mid-job (worker died): it never leaves `pending` on its own,
+        // so resolve it to `failed` here too — otherwise a still-open editor
+        // polls it until its client-side ceiling (~10min) instead of getting a
+        // clean error, and the target stays blocked for new drafts meanwhile.
+        if ($generation->isStale()) {
+            $generation->update(['status' => 'failed', 'error' => DocumentationAiGeneration::INTERRUPTED_ERROR]);
+        }
 
         if ($generation->isPending()) {
             return response()->json(['pending' => true]);
