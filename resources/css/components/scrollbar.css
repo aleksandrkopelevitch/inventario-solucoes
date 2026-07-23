@@ -24,7 +24,6 @@
     }
 
     ::-webkit-scrollbar-thumb:hover {
-        background: #f5c6b3;
-        cursor: crosshair;
+        background: #9a9a9a;
     }
 }

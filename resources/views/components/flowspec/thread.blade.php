@@ -1,7 +1,6 @@
 @php
-    use App\Enums\FlowspecTag;
-
-    $canPromote = auth()->user()?->can('create', App\Models\FlowspecExample::class);
+    // Admins see the generation-context debug panel below each answer.
+    $canDebug = auth()->user()?->can('viewAny', App\Models\FlowspecExample::class);
 @endphp
 
 <div id="{{ $domId }}" class="flex flex-col gap-4">
@@ -69,7 +68,7 @@
                         </ul>
                     @endif
 
-                    @if ($canPromote)
+                    @if ($canDebug)
                         <details class="mt-3">
                             <summary class="cursor-pointer text-xs font-medium text-muted hover:text-ink">Contexto usado (debug)</summary>
                             <dl class="mt-2 flex flex-col gap-2 rounded-field border border-line bg-canvas p-3 text-xs text-body">
@@ -116,40 +115,6 @@
                             <x-heroicon-o-clipboard-document class="size-3.5" /> Copiar JSON
                         </x-forms.button>
                     </div>
-
-                    {{-- Promover a exemplo do corpus (curadoria, admin) --}}
-                    @if ($message->isPromoted())
-                        <p class="mt-3 inline-flex items-center gap-1 text-xs font-medium text-accent">
-                            <x-heroicon-o-check-circle class="size-3.5" /> Promovido ao corpus.
-                        </p>
-                    @elseif ($canPromote && $validated)
-                        <details class="mt-3">
-                            <summary class="cursor-pointer text-xs font-medium text-muted hover:text-ink">Promover a exemplo do corpus</summary>
-                            <form id="flowspec-promote-{{ $message->id }}" class="mt-2 flex flex-col gap-3 rounded-field border border-line bg-canvas p-3">
-                                @csrf
-                                <x-forms.field label="Nome" for="flowspec-promote-name-{{ $message->id }}" name="name" required>
-                                    <x-forms.input id="flowspec-promote-name-{{ $message->id }}" name="name" :value="$chat->title" />
-                                </x-forms.field>
-                                <x-forms.field label="Descrição (o que o pipeline faz)" for="flowspec-promote-description-{{ $message->id }}" name="description" required>
-                                    <x-forms.textarea id="flowspec-promote-description-{{ $message->id }}" name="description" rows="3" />
-                                </x-forms.field>
-                                <x-forms.field label="Tags" for="flowspec-promote-tags-{{ $message->id }}" name="tags" required hint="Segure Ctrl/Cmd para marcar mais de uma.">
-                                    <x-forms.select id="flowspec-promote-tags-{{ $message->id }}" name="tags[]" multiple size="5">
-                                        @foreach (FlowspecTag::cases() as $tag)
-                                            <option value="{{ $tag->value }}" @selected(in_array($tag->value, $meta['tags'] ?? [], true))>{{ $tag->value }}</option>
-                                        @endforeach
-                                    </x-forms.select>
-                                </x-forms.field>
-                                <div>
-                                    <x-forms.button type="button" variant="glass" class="!px-3 !py-2 !text-xs"
-                                        data-ak-ajax="flowspec-promote-{{ $message->id }}"
-                                        data-ak-action="{{ route('flowspec.messages.promote', [$chat, $message]) }}">
-                                        Promover
-                                    </x-forms.button>
-                                </div>
-                            </form>
-                        </details>
-                    @endif
                 @endif
             </div>
         @endif

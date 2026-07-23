@@ -83,39 +83,50 @@
                 </div>
             </div>
 
-            {{-- Scrollable content — fills the remaining height, full width. --}}
-            <div class="min-h-0 flex-1 overflow-y-auto">
-                <div class="px-6 py-8 md:px-10">
-                    @if ($canEdit)
-                        {{-- Raw source Markdown; the editor builds the blocks from here.
-                             The <textarea> preserves the content with safe escaping. --}}
-                        <textarea data-ak-docs-source hidden>{{ $documentation }}</textarea>
+            {{-- Scrollable content — fills the remaining height. A centered
+                 reading column (GitBook/Medium/Substack) plus an "on this page"
+                 headings navigator on the right (docs-toc.js), even though the
+                 layout is fluid. --}}
+            <div class="ak-docs-scroll min-h-0 flex-1 overflow-y-auto">
+                <div class="mx-auto flex w-full max-w-[64rem] gap-8 px-6 py-8 md:px-10">
+                    <div class="min-w-0 max-w-3xl flex-1">
+                        @if ($canEdit)
+                            {{-- Raw source Markdown; the editor builds the blocks from here.
+                                 The <textarea> preserves the content with safe escaping. --}}
+                            <textarea data-ak-docs-source hidden>{{ $documentation }}</textarea>
 
-                        {{-- Editor.js mount point (resources/js/modules/docs-editor.js).
-                             Block borders only appear on hover; the block menu opens with "/". --}}
-                        <div class="ak-docs-editor" data-ak-docs-editor
-                            data-config="{{ json_encode(['uploadUrl' => $uploadUrl]) }}"></div>
+                            {{-- Editor.js mount point (resources/js/modules/docs-editor.js).
+                                 Block borders only appear on hover; the block menu opens with "/". --}}
+                            <div class="ak-docs-editor" data-ak-docs-editor
+                                data-config="{{ json_encode(['uploadUrl' => $uploadUrl]) }}"></div>
 
-                        <p class="mt-6 text-xs text-muted">
-                            Dica: digite <kbd class="rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-[11px]">/</kbd>
-                            no início de um bloco para inserir títulos, listas, tabelas, hints, abas, imagens e arquivos —
-                            ou use Markdown direto (<code>## </code>, <code>- </code>, <code>> </code>, <code>```</code>).
-                        </p>
-                    @else
-                        @if (trim($renderedHtml) !== '')
-                            {{-- Raw Markdown for the "Copiar Markdown" button (docs-copy.js) — there's no
-                                 editor on this read-only screen, so this textarea is the source. --}}
-                            <textarea data-ak-docs-markdown hidden>{{ $documentation }}</textarea>
-
-                            <div class="html-content">
-                                {!! $renderedHtml !!}
-                            </div>
-                        @else
-                            <p class="rounded-field border border-dashed border-line px-4 py-10 text-center text-sm text-muted">
-                                Nenhuma documentação cadastrada ainda.
+                            <p class="mt-6 text-xs text-muted">
+                                Dica: digite <kbd class="rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-[11px]">/</kbd>
+                                no início de um bloco para inserir títulos, listas, tabelas, hints, abas, imagens e arquivos —
+                                ou use Markdown direto (<code>## </code>, <code>- </code>, <code>> </code>, <code>```</code>).
                             </p>
+                        @else
+                            @if (trim($renderedHtml) !== '')
+                                {{-- Raw Markdown for the "Copiar Markdown" button (docs-copy.js) — there's no
+                                     editor on this read-only screen, so this textarea is the source. --}}
+                                <textarea data-ak-docs-markdown hidden>{{ $documentation }}</textarea>
+
+                                <div class="html-content" data-ak-docs-content>
+                                    {!! $renderedHtml !!}
+                                </div>
+                            @else
+                                <p class="rounded-field border border-dashed border-line px-4 py-10 text-center text-sm text-muted">
+                                    Nenhuma documentação cadastrada ainda.
+                                </p>
+                            @endif
                         @endif
-                    @endif
+                    </div>
+
+                    {{-- "Nesta página" headings navigator (H1/H2). Reads the live
+                         Editor.js headings while editing, and the .html-content
+                         permalinks when read-only. Built by docs-toc.js. --}}
+                    <aside data-ak-docs-toc
+                           class="hidden w-52 shrink-0 self-start xl:sticky xl:top-4 xl:block"></aside>
                 </div>
             </div>
         </section>

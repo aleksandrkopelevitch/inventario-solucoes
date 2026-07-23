@@ -264,7 +264,7 @@ class GitbookRenderer
         }
 
         return '<div class="ak-doc-tabs my-6">'
-            . '<div role="tablist" class="flex gap-1 overflow-x-auto border-b border-gray-200">' . $tablist . '</div>'
+            . '<div role="tablist" class="flex flex-wrap gap-1 border-b border-gray-200">' . $tablist . '</div>'
             . '<div id="' . $containerId . '">' . $panels . '</div>'
             . '</div>';
     }

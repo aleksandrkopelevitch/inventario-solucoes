@@ -16,10 +16,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="min-h-screen bg-white text-body font-sans text-[14.5px] antialiased">
+<body class="ak-docs-scroll min-h-screen bg-canvas text-body font-sans text-[14.5px] antialiased">
 
-    {{-- Top bar: Leo brand + solution name --}}
-    <header class="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-white/90 px-4 py-3 backdrop-blur sm:px-6">
+    {{-- Top bar: Leo brand + solution name (stays white over the cream canvas) --}}
+    <header class="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-white px-4 py-3 sm:px-6">
         <span class="flex size-8 shrink-0 items-center justify-center rounded-field bg-sidebar font-display text-sm font-bold text-white">L</span>
         <div class="min-w-0">
             <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-accent">Documentação</p>
@@ -27,11 +27,14 @@
         </div>
     </header>
 
-    <div class="mx-auto grid w-full max-w-6xl grid-cols-1 gap-8 px-4 py-6 md:grid-cols-[260px_1fr] md:px-6 md:py-10">
+    {{-- Three-pane docs shell (GitBook/Substack/Medium): pages rail pinned to
+         the left, a centered reading column, and an "on this page" headings
+         navigator on the right. Full-bleed so the pages rail sits flush left. --}}
+    <div class="flex w-full items-start gap-6 px-4 md:gap-8 md:px-6 lg:px-8">
 
-        {{-- Side index: all documentation pages for this solution --}}
+        {{-- Pages index: all documentation pages for this solution --}}
         @if ($nav)
-            <aside class="md:sticky md:top-[4.5rem] md:h-max">
+            <aside class="hidden w-60 shrink-0 md:sticky md:top-14 md:block md:max-h-[calc(100vh_-_3.5rem)] md:overflow-y-auto md:py-10">
                 <p class="px-2 pb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-muted">Nesta solução</p>
                 <nav class="flex flex-col gap-0.5">
                     @foreach ($nav as $item)
@@ -51,10 +54,17 @@
             </aside>
         @endif
 
-        {{-- Content --}}
-        <main class="min-w-0">
-            {{ $slot }}
+        {{-- Content — centered reading measure (GitBook/Medium/Substack). --}}
+        <main class="min-w-0 flex-1 py-8 md:py-10">
+            <div class="mx-auto w-full max-w-3xl">
+                {{ $slot }}
+            </div>
         </main>
+
+        {{-- "Nesta página" headings navigator (H1/H2), built by docs-toc.js.
+             Collapses itself when the content has no headings. --}}
+        <aside data-ak-docs-toc
+               class="hidden w-56 shrink-0 lg:sticky lg:top-14 lg:block lg:max-h-[calc(100vh_-_3.5rem)] lg:overflow-y-auto lg:py-10"></aside>
     </div>
 
     {{-- Toast — same shell as the main layout (Toast.show for "Copiar Markdown"). --}}

@@ -9,7 +9,7 @@ use App\Http\Controllers\DocumentationGroupController;
 use App\Http\Controllers\DocumentationGroupPageController;
 use App\Http\Controllers\DocumentationHubController;
 use App\Http\Controllers\FlowspecChatController;
-use App\Http\Controllers\FlowspecExamplePromotionController;
+use App\Http\Controllers\FlowspecExampleController;
 use App\Http\Controllers\FlowspecMessageController;
 use App\Http\Controllers\HeroiconController;
 use App\Http\Controllers\IntegrationDocumentationController;
@@ -187,12 +187,18 @@ Route::middleware(['auth', BlockAgentFromWeb::class])->group(function () {
     Route::get('flowspec', [FlowspecChatController::class, 'index'])->name('flowspec.index');
     Route::post('flowspec', [FlowspecChatController::class, 'store'])->name('flowspec.store');
     Route::get('flowspec/documents/search', [FlowspecChatController::class, 'searchDocuments'])->name('flowspec.documents.search');
+
+    // Corpus curation (admin) — manage the flowSpec reference base directly,
+    // in a modal (FlowspecExampleController). Static paths must precede the
+    // `flowspec/{chat}` catch-all below, like documents/search above.
+    Route::get('flowspec/exemplos', [FlowspecExampleController::class, 'index'])->name('flowspec.examples.index');
+    Route::post('flowspec/exemplos', [FlowspecExampleController::class, 'store'])->name('flowspec.examples.store');
+    Route::patch('flowspec/exemplos/{example}', [FlowspecExampleController::class, 'update'])->name('flowspec.examples.update');
+    Route::delete('flowspec/exemplos/{example}', [FlowspecExampleController::class, 'destroy'])->name('flowspec.examples.destroy');
+
     Route::get('flowspec/{chat}', [FlowspecChatController::class, 'show'])->name('flowspec.show');
     Route::get('flowspec/{chat}/status', [FlowspecChatController::class, 'status'])->name('flowspec.status');
     Route::post('flowspec/{chat}/messages', [FlowspecMessageController::class, 'store'])->name('flowspec.messages.store');
-    Route::scopeBindings()->group(function () {
-        Route::post('flowspec/{chat}/messages/{message}/promote', [FlowspecExamplePromotionController::class, 'store'])->name('flowspec.messages.promote');
-    });
 
     // Documentation Hub — cross-cutting view of what's documented (solutions +
     // integrations) and what's missing. Replaces the old coverage panel.

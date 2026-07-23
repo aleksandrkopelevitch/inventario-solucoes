@@ -220,13 +220,15 @@ it('treats a conversational answer mentioning double-braces syntax as conversati
         ->and($result->meta['attempts'][0]['errors'])->toBe([]);
 });
 
-it('still treats a fenced but malformed JSON block as a real correction-worthy error', function () {
+it('still treats a fenced but malformed flowSpec JSON block as a real correction-worthy error', function () {
     $this->seed(FlowspecExampleSeeder::class);
 
     $chat = chatWithUserMessage('gera o flowspec de token');
     $valid = FlowspecExample::query()->where('slug', 'get-token-svl')->firstOrFail()->flow_spec;
 
-    $broken = "Aqui está:\n```json\n{ this is not valid json }\n```";
+    // Fenced JSON that clearly INTENDS a flowSpec (mentions "meta"/"flowSpec")
+    // but is malformed — a broken generation attempt to correct.
+    $broken = "Aqui está:\n```json\n{ \"meta\": {}, \"flowSpec\": }\n```";
 
     $result = fakeGenerationService([$broken, json_encode($valid)])
         ->generate($chat->messages()->firstOrFail());
@@ -234,4 +236,23 @@ it('still treats a fenced but malformed JSON block as a real correction-worthy e
     expect($result->validated)->toBeTrue()
         ->and($result->meta['attempts'])->toHaveCount(2)
         ->and($result->meta['attempts'][0]['errors'][0])->toContain('não é um JSON parseável');
+});
+
+it('treats a conversational answer containing a non-flowSpec JSON snippet as conversational', function () {
+    $this->seed(FlowspecExampleSeeder::class);
+
+    $chat = chatWithUserMessage('o que esse trecho de params faz?');
+
+    // A fenced JSON FRAGMENT cited to illustrate a text answer — it decodes
+    // fine but has no `meta`/`flowSpec` key, so it must NOT be treated as a
+    // flowSpec attempt (no validation, no correction, no document).
+    $answer = "Esse bloco define o corpo da requisição:\n```json\n{ \"failOnError\": false, \"timeout\": 30 }\n```\nEle não altera o roteamento.";
+
+    $result = fakeGenerationService([$answer])->generate($chat->messages()->firstOrFail());
+
+    expect($result->document)->toBeNull()
+        ->and($result->validated)->toBeFalse()
+        ->and($result->text)->toBe($answer)
+        ->and($result->meta['attempts'])->toHaveCount(1)
+        ->and($result->meta['attempts'][0]['errors'])->toBe([]);
 });

@@ -110,15 +110,17 @@
     border-radius: 10px;
     overflow: hidden;
     --color-border: transparent;
+    background: #ffffff;
 }
 .ak-docs-editor .tc-row {
     border-bottom: 1px solid #e5e7eb;
 }
 .ak-docs-editor .tc-row:last-child { border-bottom: none; }
 .ak-docs-editor .tc-cell { border: none !important; padding: 0.6rem 0.9rem; }
+/* Cabeçalho: branco puxando levemente pro verde (espelha .html-content th em app.css). */
 .ak-docs-editor .tc-table--heading .tc-row--selected .tc-cell,
 .ak-docs-editor .tc-table--heading .tc-row:first-child {
-    background: #f9fafb;
+    background: #eef6f0;
     font-weight: 600;
     color: #111827;
 }
@@ -173,15 +175,35 @@
     color: #9ca3af;
 }
 
+/* ── Scroll das superfícies de documentação — scrollbar "overlay" ───
+   O scrollbar global de 3px (scrollbar.css) fica flutuando no vão à direita
+   da coluna de leitura centralizada e lê como uma "barra vertical solta"
+   colada no fim do componente — foi o que o usuário reportou como glitch nas
+   abas (era o scrollbar do painel, não das abas: só há UM scroller em volta
+   delas, o `.ak-docs-scroll`). Some no repouso, aparece sutil no hover. */
+.ak-docs-scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+.ak-docs-scroll:hover { scrollbar-color: color-mix(in srgb, var(--color-ink) 25%, transparent) transparent; }
+.ak-docs-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.ak-docs-scroll::-webkit-scrollbar-thumb {
+    background: transparent;
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+}
+.ak-docs-scroll:hover::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--color-ink) 25%, transparent);
+    background-clip: content-box;
+}
+
 /* ── Tabs com blocos aninhados (editor) ─────────────────────────── */
 .ak-tabs {
     margin: 0.5rem 0;
 }
 .ak-tabs__bar {
     display: flex;
+    flex-wrap: wrap;
     align-items: flex-end;
     gap: 0.25rem;
-    overflow-x: auto;
     border-bottom: 1px solid var(--color-line);
 }
 .ak-tabs__tab {

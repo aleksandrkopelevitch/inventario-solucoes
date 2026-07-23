@@ -28,21 +28,20 @@
     ];
 @endphp
 
-<div class="grid min-h-screen md:grid-cols-[244px_1fr]">
+<div class="grid min-h-screen md:grid-cols-[72px_1fr]">
 
-    {{-- Sidebar --}}
-    <aside class="sticky top-0 z-40 flex h-screen flex-col gap-1.5 bg-sidebar px-3.5 py-4 text-sidebar-ink max-md:hidden">
-        <a href="{{ route('profile.show') }}" class="flex items-center gap-3 px-2 pb-3.5 pt-1.5 no-underline">
-            <span class="flex size-9 shrink-0 items-center justify-center rounded-field bg-white font-display text-base font-bold text-sidebar">L</span>
-            <span class="font-display text-lg font-semibold leading-none text-white">
-                Leo Madeiras
-                <span class="mt-0.5 block font-sans text-[10.5px] font-medium uppercase tracking-[0.14em] text-sidebar-faint">Inventário</span>
-            </span>
+    {{-- Sidebar — icon-only rail; each item projects its label as a flyout on
+         hover (see the hover flyout <span> below). --}}
+    <aside class="sticky top-0 z-40 flex h-screen flex-col items-center gap-1 bg-sidebar px-3 py-4 text-sidebar-ink max-md:hidden">
+        <a href="{{ route('profile.show') }}" class="mb-1.5 flex size-10 shrink-0 items-center justify-center no-underline" title="Leo Madeiras — Inventário">
+            <span class="flex size-9 items-center justify-center rounded-field bg-white font-display text-base font-bold text-sidebar">L</span>
         </a>
 
         @foreach ($sections as $sectionLabel => $items)
-            <div class="px-2.5 pb-1.5 pt-3.5 text-[10px] font-bold uppercase tracking-[0.12em] text-sidebar-faint">{{ $sectionLabel }}</div>
-            <nav class="flex flex-col gap-0.5">
+            @unless ($loop->first)
+                <div class="my-1 h-px w-7 bg-white/10"></div>
+            @endunless
+            <nav class="flex w-full flex-col items-center gap-1" aria-label="{{ $sectionLabel }}">
                 @foreach ($items as $item)
                     @php
                         $has = \Illuminate\Support\Facades\Route::has($item['route']);
@@ -50,16 +49,22 @@
                     @endphp
                     <a href="{{ $has ? route($item['route']) : '#' }}"
                        @class([
-                           'relative flex h-10 items-center gap-3 rounded-field px-3 text-sm font-medium transition-colors',
-                           'text-sidebar-ink hover:bg-white/[0.06] hover:text-white' => ! $on,
-                           'bg-white/10 font-semibold text-white' => $on,
+                           'group relative flex h-10 w-full items-center justify-center rounded-field transition-colors',
+                           'text-sidebar-ink hover:bg-white/[0.06]' => ! $on,
+                           'bg-white/10' => $on,
                            'pointer-events-none opacity-40' => ! $has,
                        ])>
                         @if ($on)
-                            <span class="absolute -left-3.5 inset-y-2 w-[3px] rounded-r bg-lime"></span>
+                            <span class="absolute -left-3 inset-y-2 w-[3px] rounded-r bg-lime"></span>
                         @endif
-                        <x-dynamic-component :component="'heroicon-o-'.$item['icon']" @class(['size-[18px]', 'text-lime' => $on, 'text-sidebar-faint' => ! $on]) />
-                        {{ $item['label'] }}
+                        <x-dynamic-component :component="'heroicon-o-'.$item['icon']" @class(['size-5 transition-colors', 'text-lime' => $on, 'text-sidebar-faint group-hover:text-white' => ! $on]) />
+
+                        {{-- Hover flyout: label projects out to the right of the
+                             icon, continuing the sidebar green, rounded on the
+                             outer (right) corners. Purely visual (pointer-events-none). --}}
+                        <span class="pointer-events-none absolute left-full top-0 z-50 flex h-10 translate-x-1 items-center whitespace-nowrap rounded-r-field bg-sidebar pl-3 pr-4 text-sm font-medium text-white opacity-0 shadow-[8px_0_20px_-6px_rgba(0,0,0,0.35)] transition-[opacity,transform] duration-150 group-hover:translate-x-0 group-hover:opacity-100">
+                            {{ $item['label'] }}
+                        </span>
                     </a>
                 @endforeach
             </nav>
@@ -80,6 +85,10 @@
         @unless ($fluid ?? false)
         <header class="sticky top-0 z-30 flex h-14 items-center justify-between gap-4 border-b border-line bg-canvas/[0.86] px-5 backdrop-blur-md md:px-8">
             <div class="flex min-w-0 items-center gap-2 text-[13.5px] text-faint">
+                <x-forms.button type="button" variant="ghost" data-ak-mobile-nav-open aria-label="Abrir menu"
+                    class="md:hidden !size-9 !justify-center !rounded-field !p-0 !text-muted hover:!bg-raised hover:!text-ink">
+                    <x-heroicon-o-bars-3 class="size-5" />
+                </x-forms.button>
                 <a href="{{ route('profile.show') }}" class="text-muted no-underline hover:text-ink">Inventário</a>
                 @forelse ($breadcrumbs ?? [] as $crumb)
                     <x-heroicon-o-chevron-right class="size-4 shrink-0" />
@@ -180,6 +189,66 @@
             <span class="size-2 animate-bounce rounded-full bg-line-2" style="animation-delay:.15s"></span>
             <span class="size-2 animate-bounce rounded-full bg-line-2" style="animation-delay:.3s"></span>
         </div>
+    </div>
+</aside>
+
+{{-- Mobile navigation drawer — the section nav (desktop icon rail is hidden
+     below md) as a left slide-in panel with expanded icons + labels. Opened
+     by any [data-ak-mobile-nav-open] trigger; closed by the overlay, the
+     close button, each nav link, or Esc (see mobile-nav.js). --}}
+<div id="mobile-nav-overlay"
+     class="pointer-events-none fixed inset-0 z-[60] bg-black/40 opacity-0 transition-opacity duration-300 md:hidden"
+     data-ak-mobile-nav-close></div>
+
+<aside id="mobile-nav" aria-hidden="true"
+       class="fixed left-0 top-0 z-[70] flex h-full w-72 max-w-[82%] -translate-x-full flex-col bg-sidebar text-sidebar-ink shadow-2xl transition-transform duration-300 md:hidden">
+    <div class="flex items-center justify-between px-4 py-4">
+        <a href="{{ route('profile.show') }}" class="flex items-center gap-2 no-underline">
+            <span class="flex size-9 items-center justify-center rounded-field bg-white font-display text-base font-bold text-sidebar">L</span>
+            <span class="font-display text-sm font-semibold text-white">Inventário</span>
+        </a>
+        <x-forms.button type="button" variant="ghost" data-ak-mobile-nav-close aria-label="Fechar menu"
+            class="!size-9 !justify-center !rounded-field !p-0 !text-sidebar-faint hover:!bg-white/[0.06] hover:!text-white">
+            <x-heroicon-o-x-mark class="size-5" />
+        </x-forms.button>
+    </div>
+
+    <nav class="flex-1 overflow-y-auto px-3 pb-4">
+        @foreach ($sections as $sectionLabel => $items)
+            <p class="px-3 pb-1.5 pt-4 text-[11px] font-semibold uppercase tracking-wide text-sidebar-faint">{{ $sectionLabel }}</p>
+            @foreach ($items as $item)
+                @php
+                    $has = \Illuminate\Support\Facades\Route::has($item['route']);
+                    $on = $has && request()->routeIs(...(array) $item['active']);
+                @endphp
+                <a href="{{ $has ? route($item['route']) : '#' }}"
+                   data-ak-mobile-nav-close
+                   @class([
+                       'group relative flex items-center gap-3 rounded-field px-3 py-2.5 text-sm font-medium no-underline transition-colors',
+                       'text-sidebar-ink hover:bg-white/[0.06] hover:text-white' => ! $on,
+                       'bg-white/10 text-white' => $on,
+                       'pointer-events-none opacity-40' => ! $has,
+                   ])>
+                    @if ($on)
+                        <span class="absolute left-0 inset-y-2 w-[3px] rounded-r bg-lime"></span>
+                    @endif
+                    <x-dynamic-component :component="'heroicon-o-'.$item['icon']" @class(['size-5 shrink-0 transition-colors', 'text-lime' => $on, 'text-sidebar-faint group-hover:text-white' => ! $on]) />
+                    {{ $item['label'] }}
+                </a>
+            @endforeach
+        @endforeach
+    </nav>
+
+    <div class="flex items-center gap-3 border-t border-white/10 px-4 py-3">
+        <x-ui.avatar :name="auth()->user()->name" :src="auth()->user()->avatarUrl()" size="md" />
+        <div class="min-w-0 flex-1">
+            <p class="truncate text-sm font-medium text-white">{{ auth()->user()->name }}</p>
+        </div>
+        <a href="#" data-ak-modal-open="main-modal" data-ak-modal-url="{{ route('profile.edit') }}"
+           data-ak-mobile-nav-close aria-label="Editar perfil"
+           class="flex size-9 shrink-0 items-center justify-center rounded-field text-sidebar-faint no-underline hover:bg-white/[0.06] hover:text-white">
+            <x-heroicon-o-user-circle class="size-5" />
+        </a>
     </div>
 </aside>
 

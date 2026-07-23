@@ -23,8 +23,10 @@ import * as docsAnchors from './modules/docs-anchors.js'
 import * as docsLightbox from './modules/docs-lightbox.js'
 import * as docsShare from './modules/docs-share.js'
 import * as docsCopy from './modules/docs-copy.js'
+import * as docsToc from './modules/docs-toc.js'
 import * as docsAi from './modules/docs-ai.js'
 import * as flowspecChat from './modules/flowspec-chat.js'
+import * as mobileNav from './modules/mobile-nav.js'
 
 import.meta.glob([
     '../img/**',
@@ -53,8 +55,10 @@ window.globalModules = {
     "docsLightbox"      : docsLightbox,
     "docsShare"         : docsShare,
     "docsCopy"          : docsCopy,
+    "docsToc"           : docsToc,
     "docsAi"            : docsAi,
     "flowspecChat"      : flowspecChat,
+    "mobileNav"         : mobileNav,
 }
 
 /*------------------------------------------------

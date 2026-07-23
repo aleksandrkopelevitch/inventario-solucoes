@@ -386,53 +386,71 @@ it('blocks another user from viewing or messaging a chat', function () {
     $this->actingAs($intruder)->postJson(route('flowspec.messages.store', $chat), ['message' => 'oi'])->assertForbidden();
 });
 
-it('promotes a validated flowspec to a corpus example (admin)', function () {
+it('adds a hand-entered example to the corpus (admin)', function () {
     $admin = flowspecUser(UserRole::Admin);
-    $chat = $admin->flowspecChats()->create(['title' => 'Chat']);
-    $message = $chat->messages()->create(['role' => 'assistant', 'content' => 'pronto', 'flow_spec' => assistantFlowspec(), 'meta' => ['validated' => true]]);
 
     $this->actingAs($admin)
-        ->postJson(route('flowspec.messages.promote', [$chat, $message]), [
+        ->postJson(route('flowspec.examples.store'), [
             'name'        => 'Resposta simples',
             'description' => 'Gera uma resposta ok.',
             'tags'        => ['rest'],
+            'flow_spec'   => json_encode(assistantFlowspec()),
         ])
         ->assertOk()
         ->assertJson(['type' => 'success']);
 
     $example = FlowspecExample::query()->where('slug', 'resposta-simples')->firstOrFail();
 
-    expect($example->source)->toBe('chat')
+    // connectors are always re-derived from the flowSpec, never trusted as input.
+    expect($example->source)->toBe('manual')
+        ->and($example->is_active)->toBeTrue()
         ->and($example->connectors)->toBe(['json-generator-connector'])
-        ->and($message->refresh()->flowspec_example_id)->toBe($example->id);
+        ->and($example->tags)->toBe(['rest']);
 });
 
-it('refuses to promote the same message twice (idempotent)', function () {
+it('rejects an example whose flowSpec is not a valid {meta, flowSpec} document', function () {
     $admin = flowspecUser(UserRole::Admin);
-    $chat = $admin->flowspecChats()->create(['title' => 'Chat']);
-    $message = $chat->messages()->create(['role' => 'assistant', 'content' => 'pronto', 'flow_spec' => assistantFlowspec(), 'meta' => ['validated' => true]]);
-    $payload = ['name' => 'Resposta simples', 'description' => 'Gera uma resposta ok.', 'tags' => ['rest']];
-
-    $this->actingAs($admin)->postJson(route('flowspec.messages.promote', [$chat, $message]), $payload)->assertOk();
 
     $response = $this->actingAs($admin)
-        ->postJson(route('flowspec.messages.promote', [$chat, $message]), $payload)
+        ->postJson(route('flowspec.examples.store'), [
+            'name'        => 'Quebrado',
+            'description' => 'Y',
+            'tags'        => ['rest'],
+            'flow_spec'   => '{ not valid json',
+        ])
         ->assertStatus(422)
         ->assertJson(['type' => 'warning']);
 
-    expect($response->json('message'))->toContain('já foi promovida')
-        ->and(FlowspecExample::query()->count())->toBe(1);
+    expect($response->json('message'))->toContain('JSON válido')
+        ->and(FlowspecExample::query()->count())->toBe(0);
 });
 
-it('generates a distinct slug when two messages promote under the same name', function () {
+it('rejects an example carrying a literal credential', function () {
     $admin = flowspecUser(UserRole::Admin);
-    $chat = $admin->flowspecChats()->create(['title' => 'Chat']);
-    $first = $chat->messages()->create(['role' => 'assistant', 'content' => 'a', 'flow_spec' => assistantFlowspec(), 'meta' => ['validated' => true]]);
-    $second = $chat->messages()->create(['role' => 'assistant', 'content' => 'b', 'flow_spec' => assistantFlowspec(), 'meta' => ['validated' => true]]);
-    $payload = ['name' => 'Mesmo nome', 'description' => 'Y', 'tags' => ['rest']];
+    $leaky = assistantFlowspec();
+    $rootKey = array_key_first($leaky['flowSpec']);
+    $leaky['flowSpec'][$rootKey][0]['params']['json'] = '{"x-api-key": "chave-literal-123"}';
 
-    $this->actingAs($admin)->postJson(route('flowspec.messages.promote', [$chat, $first]), $payload)->assertOk();
-    $this->actingAs($admin)->postJson(route('flowspec.messages.promote', [$chat, $second]), $payload)->assertOk();
+    $response = $this->actingAs($admin)
+        ->postJson(route('flowspec.examples.store'), [
+            'name'        => 'Vazado',
+            'description' => 'Y',
+            'tags'        => ['rest'],
+            'flow_spec'   => json_encode($leaky),
+        ])
+        ->assertStatus(422)
+        ->assertJson(['type' => 'warning']);
+
+    expect($response->json('message'))->toContain('credenciais literais')
+        ->and(FlowspecExample::query()->count())->toBe(0);
+});
+
+it('generates a distinct slug when two examples share the same name', function () {
+    $admin = flowspecUser(UserRole::Admin);
+    $payload = fn () => ['name' => 'Mesmo nome', 'description' => 'Y', 'tags' => ['rest'], 'flow_spec' => json_encode(assistantFlowspec())];
+
+    $this->actingAs($admin)->postJson(route('flowspec.examples.store'), $payload())->assertOk();
+    $this->actingAs($admin)->postJson(route('flowspec.examples.store'), $payload())->assertOk();
 
     $slugs = FlowspecExample::query()->pluck('slug');
 
@@ -441,37 +459,61 @@ it('generates a distinct slug when two messages promote under the same name', fu
         ->and($slugs)->toContain('mesmo-nome');
 });
 
-it('blocks promotion for non-admins and for leaky flowspecs', function () {
-    $viewer = flowspecUser();
-    $chat = $viewer->flowspecChats()->create(['title' => 'Chat']);
-    $message = $chat->messages()->create(['role' => 'assistant', 'content' => 'pronto', 'flow_spec' => assistantFlowspec(), 'meta' => ['validated' => true]]);
-
-    $this->actingAs($viewer)
-        ->postJson(route('flowspec.messages.promote', [$chat, $message]), ['name' => 'X', 'description' => 'Y', 'tags' => ['rest']])
-        ->assertForbidden();
-
+it('updates an example, re-deriving connectors and toggling it inactive', function () {
     $admin = flowspecUser(UserRole::Admin);
-    $leakyChat = $admin->flowspecChats()->create(['title' => 'Chat vazado']);
-    $leaky = assistantFlowspec();
-    $rootKey = array_key_first($leaky['flowSpec']);
-    $leaky['flowSpec'][$rootKey][0]['params']['json'] = '{"x-api-key": "chave-literal-123"}';
-    $leakyMessage = $leakyChat->messages()->create(['role' => 'assistant', 'content' => 'pronto', 'flow_spec' => $leaky, 'meta' => ['validated' => true]]);
-
-    $response = $this->actingAs($admin)
-        ->postJson(route('flowspec.messages.promote', [$leakyChat, $leakyMessage]), ['name' => 'Vazado', 'description' => 'Y', 'tags' => ['rest']])
-        ->assertStatus(422)
-        ->assertJson(['type' => 'warning']);
-
-    expect($response->json('message'))->toContain('credencial literal');
-});
-
-it('404s when the message belongs to another chat (scoped binding)', function () {
-    $admin = flowspecUser(UserRole::Admin);
-    $chat = $admin->flowspecChats()->create(['title' => 'A']);
-    $otherChat = $admin->flowspecChats()->create(['title' => 'B']);
-    $foreign = $otherChat->messages()->create(['role' => 'assistant', 'content' => 'x', 'flow_spec' => assistantFlowspec()]);
+    $example = FlowspecExample::factory()->create(['name' => 'Antigo', 'slug' => 'antigo', 'tags' => ['rest'], 'is_active' => true]);
 
     $this->actingAs($admin)
-        ->postJson(route('flowspec.messages.promote', [$chat, $foreign]), ['name' => 'X', 'description' => 'Y', 'tags' => ['rest']])
-        ->assertNotFound();
+        ->patchJson(route('flowspec.examples.update', $example), [
+            'name'        => 'Novo nome',
+            'description' => 'Atualizado.',
+            'tags'        => ['rest', 'token'],
+            'flow_spec'   => json_encode(assistantFlowspec()),
+            // is_active omitted → treated as false (toggle unchecked).
+        ])
+        ->assertOk()
+        ->assertJson(['type' => 'success']);
+
+    $example->refresh();
+
+    expect($example->name)->toBe('Novo nome')
+        ->and($example->slug)->toBe('antigo') // slug is a stable key — not renamed
+        ->and($example->tags)->toBe(['rest', 'token'])
+        ->and($example->connectors)->toBe(['json-generator-connector'])
+        ->and($example->is_active)->toBeFalse();
+});
+
+it('deletes an example from the corpus', function () {
+    $admin = flowspecUser(UserRole::Admin);
+    $example = FlowspecExample::factory()->create();
+
+    $this->actingAs($admin)
+        ->deleteJson(route('flowspec.examples.destroy', $example))
+        ->assertOk()
+        ->assertJson(['type' => 'success']);
+
+    $this->assertModelMissing($example);
+});
+
+it('renders the corpus management modal for an admin', function () {
+    FlowspecExample::factory()->count(2)->create();
+    $admin = flowspecUser(UserRole::Admin);
+
+    $response = $this->actingAs($admin)->getJson(route('flowspec.examples.index'))->assertOk();
+
+    expect($response->json('content'))
+        ->toContain('Gerenciar referências')
+        ->toContain('Novo exemplo')
+        ->toContain('flowspec-example-list-slot');
+});
+
+it('forbids non-admins from managing the corpus', function () {
+    $viewer = flowspecUser();
+    $example = FlowspecExample::factory()->create();
+    $payload = ['name' => 'X', 'description' => 'Y', 'tags' => ['rest'], 'flow_spec' => json_encode(assistantFlowspec())];
+
+    $this->actingAs($viewer)->getJson(route('flowspec.examples.index'))->assertForbidden();
+    $this->actingAs($viewer)->postJson(route('flowspec.examples.store'), $payload)->assertForbidden();
+    $this->actingAs($viewer)->patchJson(route('flowspec.examples.update', $example), $payload)->assertForbidden();
+    $this->actingAs($viewer)->deleteJson(route('flowspec.examples.destroy', $example))->assertForbidden();
 });

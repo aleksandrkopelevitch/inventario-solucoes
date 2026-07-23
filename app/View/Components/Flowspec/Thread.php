@@ -9,9 +9,8 @@ use Illuminate\View\Component;
 
 /**
  * Thread for a flowSpec generator (F8) chat, renderable as an updatable slot
- * (`flowspec-thread-slot`): messages, JSON block with copy, validation badge,
- * the promote-to-corpus form and the "gerando…" marker that triggers polling
- * (flowspec-chat.js).
+ * (`flowspec-thread-slot`): messages, JSON block with copy, validation badge
+ * and the "gerando…" marker that triggers polling (flowspec-chat.js).
  */
 class Thread extends Component
 {

@@ -90,8 +90,12 @@
        três quase-brancos (#f6f8f6/#fff/#e7ede8) — controles e cards se
        dissolviam no fundo, tudo lia "morto". Canvas baixado p/ os cards brancos
        flutuarem; bordas um tom mais fortes p/ terem definição; raised mais
-       escuro p/ poços/hovers ainda lerem sobre o canvas novo. */
-    --color-canvas:       #edf0ee;   /* fundo da aplicação (mais escuro p/ cards flutuarem) */
+       escuro p/ poços/hovers ainda lerem sobre o canvas novo.
+       2026-07-23: canvas trocado p/ #faf8f4 (papel quente) a pedido — o cinza
+       esverdeado #edf0ee foi considerado feio. Fica bem PERTO do surface branco,
+       então cards agora flutuam pela borda (border-line) + shadow-card; se
+       lerem "chapados" sobre o fundo, reforçar esses dois. */
+    --color-canvas:       #faf8f4;   /* fundo da aplicação (papel quente)   */
     --color-surface:      #ffffff;   /* cards, inputs        */
     --color-raised:       #e3e9e4;   /* trilhas, hovers, poços */
     --color-ink:          #1B4D2E;   /* títulos, texto forte */
@@ -422,9 +426,12 @@ dialog[open]::backdrop {
     border: 1px solid #E5E7EB;
     border-radius: 10px;
     overflow: hidden;
+    background: #ffffff;   /* fundo branco (destaca do canvas creme) */
 }
-:where(.dark, .dark *) .html-content table { border-color: #374151; }
-.html-content th { @apply text-left font-semibold text-gray-900 dark:text-gray-50 bg-gray-50 dark:bg-gray-800; }
+:where(.dark, .dark *) .html-content table { border-color: #374151; background: #111827; }
+/* Cabeçalho: branco puxando levemente pro verde, pra diferenciar do corpo. */
+.html-content th { @apply text-left font-semibold text-gray-900 dark:text-gray-50; background: #eef6f0; }
+:where(.dark, .dark *) .html-content th { background: #1f2937; }
 .html-content th, .html-content td { @apply px-3.5 py-2.5 align-top border-b border-gray-200 dark:border-gray-700; }
 .html-content tbody tr:last-child td { border-bottom: none; }
 

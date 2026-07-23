@@ -111,26 +111,41 @@ class FlowspecGenerationService
             ]);
 
             $fenced = $this->fencedJsonBlock($text);
+            $candidate = null;
+            $brokenFlowspec = false;
 
             if ($fenced !== null) {
-                $candidate = json_decode($fenced, true);
+                $decoded = json_decode($fenced, true);
 
-                if (! is_array($candidate)) {
-                    $errors = ['A resposta não é um JSON parseável: ' . json_last_error_msg() . '.'];
-                    $attempts[] = ['attempt' => $attempt, 'errors' => $errors];
-                    $prompt = $this->prompts->correctionPrompt($basePrompt, $text, $errors);
-
-                    continue;
+                if (is_array($decoded) && $this->isFlowspecShape($decoded)) {
+                    $candidate = $decoded; // a deliberate, well-formed flowSpec
+                } elseif (! is_array($decoded) && $this->mentionsFlowspecKeys($fenced)) {
+                    // The fence clearly INTENDS a flowSpec ("meta"/"flowSpec")
+                    // but the JSON is malformed — a broken generation attempt to
+                    // correct. A fenced fragment that is NOT a flowSpec (a
+                    // snippet cited to illustrate a conversational answer) falls
+                    // through and must not burn a correction attempt.
+                    $brokenFlowspec = true;
                 }
-            } else {
+            }
+
+            if ($candidate === null && ! $brokenFlowspec) {
                 $candidate = $this->heuristicJsonCandidate($text);
+            }
 
-                if ($candidate === null) {
-                    $attempts[] = ['attempt' => $attempt, 'errors' => [], 'conversational' => true];
-                    $conversational = true;
+            if ($brokenFlowspec) {
+                $errors = ['A resposta não é um JSON parseável: ' . json_last_error_msg() . '.'];
+                $attempts[] = ['attempt' => $attempt, 'errors' => $errors];
+                $prompt = $this->prompts->correctionPrompt($basePrompt, $text, $errors);
 
-                    break; // question/clarification — nothing to correct
-                }
+                continue;
+            }
+
+            if ($candidate === null) {
+                $attempts[] = ['attempt' => $attempt, 'errors' => [], 'conversational' => true];
+                $conversational = true;
+
+                break; // question/clarification/analysis — nothing to correct
             }
 
             $normalization = $this->normalizer->normalize($candidate);
@@ -252,8 +267,31 @@ class FlowspecGenerationService
 
         $candidate = json_decode(substr($text, $start, $end - $start + 1), true);
 
-        return is_array($candidate) && (array_key_exists('meta', $candidate) || array_key_exists('flowSpec', $candidate))
+        return is_array($candidate) && $this->isFlowspecShape($candidate)
             ? $candidate
             : null;
+    }
+
+    /**
+     * A decoded value is a flowSpec document (as opposed to some other JSON
+     * fragment the model cited in a conversational answer) only if it carries
+     * a `meta` or `flowSpec` key.
+     *
+     * @param  array<string, mixed>  $decoded
+     */
+    private function isFlowspecShape(array $decoded): bool
+    {
+        return array_key_exists('meta', $decoded) || array_key_exists('flowSpec', $decoded);
+    }
+
+    /**
+     * Cheap textual check that a malformed fenced block was MEANT to be a
+     * flowSpec — used to decide whether a JSON that failed to parse is a
+     * broken generation attempt (correct it) or just an illustrative snippet
+     * in a conversational answer (ignore it).
+     */
+    private function mentionsFlowspecKeys(string $json): bool
+    {
+        return str_contains($json, '"meta"') || str_contains($json, '"flowSpec"');
     }
 }

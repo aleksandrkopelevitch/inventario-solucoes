@@ -18,7 +18,7 @@
         {{-- Raw Markdown (media rewritten for public routes) — source for docs-copy.js. --}}
         <textarea data-ak-docs-markdown hidden>{{ $markdown }}</textarea>
 
-        <div class="html-content mt-6 rounded-card border border-line bg-white px-6 py-8 shadow-sm sm:px-8">
+        <div class="html-content mt-6" data-ak-docs-content>
             {!! $renderedHtml !!}
         </div>
     @else
