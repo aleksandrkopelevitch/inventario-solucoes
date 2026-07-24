@@ -18,8 +18,11 @@
             @foreach ($solutions as $solution)
                 {{-- Stagger is capped so a 90-item result set doesn't cascade for
                      seconds; it replays gently on each filter/search AJAX swap. --}}
-                <div class="animate-ak-rise flex flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-card transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-accent-line hover:shadow-[0_10px_28px_-10px_rgba(20,58,34,0.22)]"
-                     style="animation-delay: {{ min($loop->index, 11) * 35 }}ms">
+                {{-- On hover the border adopts the card's category family color
+                     (subtle `-line` tone via the inline --cat-line var) so the grid
+                     reads as a system organized by color — no colored rail needed. --}}
+                <div class="animate-ak-rise flex flex-col gap-3 rounded-card border border-line bg-surface p-4 shadow-card transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-[color:var(--cat-line)] hover:shadow-[0_10px_28px_-10px_rgba(20,58,34,0.22)]"
+                     style="animation-delay: {{ min($loop->index, 11) * 35 }}ms; --cat-line: var(--color-cat-{{ CategoryPalette::family($solution->category) }}-line)">
                     <div class="flex items-start gap-3">
                         <x-ui.logo :name="$solution->name" :src="$solution->logo_path" size="md"
                             :tone="CategoryPalette::tileClass($solution->category)" />

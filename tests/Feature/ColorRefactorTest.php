@@ -22,12 +22,13 @@ it('renders the solution header badges with semantic tones instead of a single g
 
     // Category = its color family (iam → rose, via CategoryPalette) instead of
     // the old solid-green anchor — green is no longer the only color. The logo
-    // tile takes the same family (`bg-cat-rose`). High criticality = red; no
-    // gray `rounded-full bg-raised` pill. Guest (no edit permission) renders a
-    // <span>; the editable <select> uses the same classes with a `!` prefix.
+    // tile takes the same family as a discreet gradient (`from-cat-rose …`).
+    // High criticality = red; no gray `rounded-full bg-raised` pill. Guest (no
+    // edit permission) renders a <span>; the editable <select> uses the same
+    // classes with a `!` prefix.
     expect($html)->toContain('bg-cat-rose-soft')                // category chip = rose family
         ->and($html)->toContain('text-cat-rose-ink')
-        ->and($html)->toContain('bg-cat-rose')                  // logo tile = rose family
+        ->and($html)->toContain('from-cat-rose')                // logo tile = rose family (gradient)
         ->and($html)->toContain('ring-crit-line')               // high criticality = red
         ->and($html)->not->toContain('rounded-full bg-raised'); // no gray pill
 });

@@ -10,7 +10,11 @@
 @endphp
 
 <x-layouts.layout title="Soluções">
-    <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
+    {{-- Subtle lime "morning light" wash behind the title (Leo identity, matches
+         the approved model): purely decorative, sits under the header row. --}}
+    <div class="relative mb-6">
+        <div aria-hidden="true" class="pointer-events-none absolute -inset-x-6 -top-12 h-44 bg-[radial-gradient(120%_130%_at_0%_0%,rgba(170,219,30,0.15),transparent_58%)]"></div>
+        <div class="relative flex flex-wrap items-end justify-between gap-3">
         <div>
             <h1 class="font-display text-[32px] font-semibold leading-tight text-ink">
                 Soluções
@@ -23,6 +27,7 @@
                 <x-heroicon-o-plus class="size-4" /> Nova solução
             </x-forms.button>
         @endcan
+        </div>
     </div>
 
     {{-- Search + filters (same form: search is a filter[] field preserved when filtering) --}}

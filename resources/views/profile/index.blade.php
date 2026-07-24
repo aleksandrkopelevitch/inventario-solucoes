@@ -10,10 +10,13 @@
 @endphp
 
 <x-layouts.layout title="Visão geral">
-    {{-- Hero --}}
-    <div class="mb-6 animate-ak-rise">
-        <h1 class="font-display text-[32px] font-semibold leading-tight text-ink">Olá, {{ $firstName }}</h1>
-        <p class="mt-1 text-sm text-muted">Portfólio de soluções da Leo Madeiras e estado da documentação.</p>
+    {{-- Hero — with the subtle lime "morning light" wash behind the greeting. --}}
+    <div class="relative mb-6 animate-ak-rise">
+        <div aria-hidden="true" class="pointer-events-none absolute -inset-x-6 -top-12 h-44 bg-[radial-gradient(120%_130%_at_0%_0%,rgba(170,219,30,0.15),transparent_58%)]"></div>
+        <div class="relative">
+            <h1 class="font-display text-[32px] font-semibold leading-tight text-ink">Olá, {{ $firstName }}</h1>
+            <p class="mt-1 text-sm text-muted">Portfólio de soluções da Leo Madeiras e estado da documentação.</p>
+        </div>
     </div>
 
     {{-- Live inventory snapshot — each card is a doorway into its section --}}

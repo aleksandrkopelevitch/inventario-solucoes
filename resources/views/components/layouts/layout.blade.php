@@ -32,7 +32,7 @@
 
     {{-- Sidebar — icon-only rail; each item projects its label as a flyout on
          hover (see the hover flyout <span> below). --}}
-    <aside class="sticky top-0 z-40 flex h-screen flex-col items-center gap-1 bg-sidebar px-3 py-4 text-sidebar-ink max-md:hidden">
+    <aside class="sticky top-0 z-40 flex h-screen flex-col items-center gap-1 bg-sidebar bg-linear-to-b from-sidebar-top to-sidebar-bottom px-3 py-4 text-sidebar-ink max-md:hidden">
         <a href="{{ route('profile.show') }}" class="mb-1.5 flex size-10 shrink-0 items-center justify-center no-underline" title="Leo Madeiras — Inventário">
             <span class="flex size-9 items-center justify-center rounded-field bg-white font-display text-base font-bold text-sidebar">L</span>
         </a>
@@ -51,11 +51,13 @@
                        @class([
                            'group relative flex h-10 w-full items-center justify-center rounded-field transition-colors',
                            'text-sidebar-ink hover:bg-white/[0.06]' => ! $on,
-                           'bg-white/10' => $on,
+                           'bg-lime/15' => $on,
                            'pointer-events-none opacity-40' => ! $has,
                        ])>
                         @if ($on)
-                            <span class="absolute -left-3 inset-y-2 w-[3px] rounded-r bg-lime"></span>
+                            {{-- Active indicator: the lime bar now carries a soft lime glow
+                                 (the brand's one vivid color, finally in a lead role). --}}
+                            <span class="absolute -left-3 inset-y-2 w-[3px] rounded-r bg-lime shadow-[0_0_10px_1px_rgba(170,219,30,0.55)]"></span>
                         @endif
                         <x-dynamic-component :component="'heroicon-o-'.$item['icon']" @class(['size-5 transition-colors', 'text-lime' => $on, 'text-sidebar-faint group-hover:text-white' => ! $on]) />
 
@@ -201,7 +203,7 @@
      data-ak-mobile-nav-close></div>
 
 <aside id="mobile-nav" aria-hidden="true"
-       class="fixed left-0 top-0 z-[70] flex h-full w-72 max-w-[82%] -translate-x-full flex-col bg-sidebar text-sidebar-ink shadow-2xl transition-transform duration-300 md:hidden">
+       class="fixed left-0 top-0 z-[70] flex h-full w-72 max-w-[82%] -translate-x-full flex-col bg-sidebar bg-linear-to-b from-sidebar-top to-sidebar-bottom text-sidebar-ink shadow-2xl transition-transform duration-300 md:hidden">
     <div class="flex items-center justify-between px-4 py-4">
         <a href="{{ route('profile.show') }}" class="flex items-center gap-2 no-underline">
             <span class="flex size-9 items-center justify-center rounded-field bg-white font-display text-base font-bold text-sidebar">L</span>
@@ -226,11 +228,11 @@
                    @class([
                        'group relative flex items-center gap-3 rounded-field px-3 py-2.5 text-sm font-medium no-underline transition-colors',
                        'text-sidebar-ink hover:bg-white/[0.06] hover:text-white' => ! $on,
-                       'bg-white/10 text-white' => $on,
+                       'bg-lime/15 text-white' => $on,
                        'pointer-events-none opacity-40' => ! $has,
                    ])>
                     @if ($on)
-                        <span class="absolute left-0 inset-y-2 w-[3px] rounded-r bg-lime"></span>
+                        <span class="absolute left-0 inset-y-2 w-[3px] rounded-r bg-lime shadow-[0_0_10px_1px_rgba(170,219,30,0.55)]"></span>
                     @endif
                     <x-dynamic-component :component="'heroicon-o-'.$item['icon']" @class(['size-5 shrink-0 transition-colors', 'text-lime' => $on, 'text-sidebar-faint group-hover:text-white' => ! $on]) />
                     {{ $item['label'] }}
