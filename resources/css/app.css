@@ -81,7 +81,13 @@
 
     --font-sans: 'Barlow', system-ui, -apple-system, sans-serif;
     --font-mono: 'Space Mono', ui-monospace, monospace;
-    --font-display: 'Barlow Condensed', system-ui, sans-serif;
+    /* Display = Barlow (não-condensada) desde 2026-07-24. Era 'Barlow Condensed':
+       o usuário comparou com o modelo aprovado (que renderizou títulos numa
+       grotesca bold NÃO-condensada) e preferiu — a condensada lia estreita/leve
+       demais nos títulos de módulo. Barlow já está carregada (link no layout).
+       Os selos F3/DOCS usam font-mono (não afetados); logos/wordmarks usam
+       font-display e passam a Barlow bold também (ok, ainda encorpados). */
+    --font-display: 'Barlow', system-ui, sans-serif;
 
     /* ── Identidade visual Leo Madeiras ──────────────────
        Verde institucional #1B4D2E + lime #AADB1E. Superfícies
@@ -118,8 +124,11 @@
        sem glow. Ver [[color-system-blocos-leo]]. */
     --color-btn:          #1a201d;   /* fundo do CTA primário */
     --color-btn-hover:    #252d29;   /* CTA em hover (clareia um respiro) */
-    --shadow-btn:         0 1px 2px rgba(10, 15, 12, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.09);
-    --shadow-btn-hover:   0 6px 16px -4px rgba(10, 15, 12, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.11);
+    /* Relevo do CTA suavizado (2026-07-24): bisel e drop reduzidos a pedido —
+       o grafite "refinado" ganha tato discreto, sem parecer botão estufado.
+       Base era .09/.11 de bisel + drop de 16px; agora bem mais sutil. */
+    --shadow-btn:         0 1px 1.5px rgba(10, 15, 12, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    --shadow-btn-hover:   0 3px 9px -3px rgba(10, 15, 12, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.07);
 
     --color-lime:         #AADB1E;   /* destaque / ativo     */
     --color-lime-ink:     #3f5708;   /* texto sobre lime     */
@@ -138,7 +147,14 @@
        só um respiro mais calmo. Lima e texto branco/pálido seguem com contraste
        de sobra. Este é o dial: subir o croma volta pro original, descer leva a
        um grafite verde (#1c2a23) ou quase-neutro (#242926). */
-    --color-sidebar:      #173021;   /* fundo da sidebar     */
+    --color-sidebar:      #173021;   /* fundo da sidebar (fallback + flyout) */
+    /* Gradiente vertical sutil da sidebar (2026-07-24): a laje chapada lia
+       "pesada/dominante" (crítica antiga); estas duas paradas bracketam o
+       #173021 (~mesmo matiz, pequena variação de valor) e dão profundidade.
+       Aplicadas como `bg-linear-to-b from-sidebar-top to-sidebar-bottom`, com
+       `bg-sidebar` mantido como cor de fallback por baixo. */
+    --color-sidebar-top:    #22412c;
+    --color-sidebar-bottom: #0f2416;
     --color-sidebar-ink:  #cfe0d4;   /* texto da sidebar     */
     --color-sidebar-faint:#7fa088;   /* texto fraco sidebar  */
 
@@ -148,8 +164,13 @@
 
     /* Sombra padrão de card (-> shadow-card). Substituiu o inline
        `shadow-[0_1px_3px_rgba(20,58,34,0.04)]` (quase invisível) em massa —
-       agora os cards têm um aterro suave e flutuam sobre o canvas mais escuro. */
-    --shadow-card: 0 1px 2px rgba(20, 58, 34, 0.05), 0 6px 16px -10px rgba(20, 58, 34, 0.12);
+       agora os cards têm um aterro suave e flutuam sobre o canvas mais escuro.
+       2026-07-24: reescrita em CAMADAS (contato + ambiente + chave) tingidas de
+       verde, mais um bisel de luz de 1px no topo — o card branco "pega luz"
+       sobre o papel quente #faf8f4 (canvas e surface quase se fundiam). Ainda
+       contida: profundidade por luz, não sombra pesada. Propaga a todo o app
+       (todo lugar que usa `shadow-card`). */
+    --shadow-card: 0 1px 1px rgba(20, 58, 34, 0.05), 0 3px 8px -3px rgba(20, 58, 34, 0.08), 0 12px 26px -14px rgba(20, 58, 34, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.7);
 
     /* ── Paleta de categorias — identidade cromática por TIPO de sistema ──
        O verde segue âncora da marca (sidebar, botões, títulos), mas o

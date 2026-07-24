@@ -46,21 +46,24 @@ class CategoryPalette
     ];
 
     /**
-     * Per-family literal classes. `tile` = solid block for the logo fallback
-     * (paired with the component's `text-white`); `chip` = soft badge matching
-     * the `soft/ink/line` shape of the other metadata badges; `icon` = a
-     * heroicon (outline) slug so every chip reads even when the DB option has
+     * Per-family literal classes. `tile` = the logo fallback block, a discreet
+     * gradient from the family base down to its darker `-ink` (2026-07-24: was
+     * a flat `bg-cat-*`; the subtle vertical gradient + the component's
+     * `text-white` gives the tile a bit of realce and makes the color-by-family
+     * catalog read as a lit system, not flat swatches). `chip` = soft badge
+     * matching the `soft/ink/line` shape of the other metadata badges; `icon` =
+     * a heroicon (outline) slug so every chip reads even when the DB option has
      * no icon of its own.
      */
     private const CLASSES = [
-        'emerald' => ['tile' => 'bg-cat-emerald', 'chip' => 'bg-cat-emerald-soft text-cat-emerald-ink ring-1 ring-cat-emerald-line', 'icon' => 'cog-6-tooth'],
-        'teal'    => ['tile' => 'bg-cat-teal',    'chip' => 'bg-cat-teal-soft text-cat-teal-ink ring-1 ring-cat-teal-line',          'icon' => 'shopping-cart'],
-        'blue'    => ['tile' => 'bg-cat-blue',    'chip' => 'bg-cat-blue-soft text-cat-blue-ink ring-1 ring-cat-blue-line',          'icon' => 'chart-bar'],
-        'indigo'  => ['tile' => 'bg-cat-indigo',  'chip' => 'bg-cat-indigo-soft text-cat-indigo-ink ring-1 ring-cat-indigo-line',    'icon' => 'cube'],
-        'fuchsia' => ['tile' => 'bg-cat-fuchsia', 'chip' => 'bg-cat-fuchsia-soft text-cat-fuchsia-ink ring-1 ring-cat-fuchsia-line', 'icon' => 'megaphone'],
-        'rose'    => ['tile' => 'bg-cat-rose',    'chip' => 'bg-cat-rose-soft text-cat-rose-ink ring-1 ring-cat-rose-line',          'icon' => 'shield-check'],
-        'amber'   => ['tile' => 'bg-cat-amber',   'chip' => 'bg-cat-amber-soft text-cat-amber-ink ring-1 ring-cat-amber-line',       'icon' => 'credit-card'],
-        'slate'   => ['tile' => 'bg-cat-slate',   'chip' => 'bg-cat-slate-soft text-cat-slate-ink ring-1 ring-cat-slate-line',       'icon' => 'tag'],
+        'emerald' => ['tile' => 'bg-linear-to-br from-cat-emerald to-cat-emerald-ink', 'chip' => 'bg-cat-emerald-soft text-cat-emerald-ink ring-1 ring-cat-emerald-line', 'icon' => 'cog-6-tooth'],
+        'teal'    => ['tile' => 'bg-linear-to-br from-cat-teal to-cat-teal-ink',       'chip' => 'bg-cat-teal-soft text-cat-teal-ink ring-1 ring-cat-teal-line',          'icon' => 'shopping-cart'],
+        'blue'    => ['tile' => 'bg-linear-to-br from-cat-blue to-cat-blue-ink',       'chip' => 'bg-cat-blue-soft text-cat-blue-ink ring-1 ring-cat-blue-line',          'icon' => 'chart-bar'],
+        'indigo'  => ['tile' => 'bg-linear-to-br from-cat-indigo to-cat-indigo-ink',   'chip' => 'bg-cat-indigo-soft text-cat-indigo-ink ring-1 ring-cat-indigo-line',    'icon' => 'cube'],
+        'fuchsia' => ['tile' => 'bg-linear-to-br from-cat-fuchsia to-cat-fuchsia-ink', 'chip' => 'bg-cat-fuchsia-soft text-cat-fuchsia-ink ring-1 ring-cat-fuchsia-line', 'icon' => 'megaphone'],
+        'rose'    => ['tile' => 'bg-linear-to-br from-cat-rose to-cat-rose-ink',       'chip' => 'bg-cat-rose-soft text-cat-rose-ink ring-1 ring-cat-rose-line',          'icon' => 'shield-check'],
+        'amber'   => ['tile' => 'bg-linear-to-br from-cat-amber to-cat-amber-ink',     'chip' => 'bg-cat-amber-soft text-cat-amber-ink ring-1 ring-cat-amber-line',       'icon' => 'credit-card'],
+        'slate'   => ['tile' => 'bg-linear-to-br from-cat-slate to-cat-slate-ink',     'chip' => 'bg-cat-slate-soft text-cat-slate-ink ring-1 ring-cat-slate-line',       'icon' => 'tag'],
     ];
 
     /**

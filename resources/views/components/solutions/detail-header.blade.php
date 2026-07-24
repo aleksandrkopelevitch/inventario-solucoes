@@ -13,8 +13,11 @@
                 <h1 class="font-display text-[28px] font-semibold leading-tight text-ink">{{ $solution->name }}</h1>
 
                 @if ($solution->vendor)
+                    {{-- Vendor chip: a rounded-rect tag matching the squared logo
+                         (company logos are rounded-rects app-wide; only people are
+                         circles). Was `rounded-full`, which fought the square logo. --}}
                     <a href="{{ route('companies.show', $solution->vendor) }}"
-                       class="mt-2 inline-flex items-center gap-2 rounded-full border border-line bg-surface/70 py-0.5 pl-0.5 pr-3 text-sm text-muted backdrop-blur transition hover:border-line-2 hover:text-accent">
+                       class="mt-2 inline-flex items-center gap-2 rounded-lg border border-line bg-surface/70 py-1 pl-1 pr-3 text-sm text-muted backdrop-blur transition hover:border-line-2 hover:text-accent">
                         <x-ui.logo :name="$solution->vendor->name" :src="$solution->vendor->logo_path" size="sm" />
                         <span class="min-w-0 truncate">{{ $solution->vendor->name }}</span>
                     </a>
