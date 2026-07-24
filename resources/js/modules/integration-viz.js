@@ -442,12 +442,12 @@ function mount(root) {
         saveSep?.classList.add('hidden')
         addNodeBtn?.classList.add('!hidden')
         metaEditBtn?.classList.add('!hidden')
-        if (topbarTitle) topbarTitle.textContent = name || 'Selecione uma integração à esquerda'
-        if (emptyTitle) emptyTitle.textContent = name || 'Selecione uma integração à esquerda'
+        if (topbarTitle) topbarTitle.textContent = name || 'Selecione uma integração'
+        if (emptyTitle) emptyTitle.textContent = name || 'Nenhuma integração selecionada'
         if (emptyHint) {
             emptyHint.textContent = name
-                ? 'Esta integração não tem uma cadeia definida.'
-                : 'A visualização gráfica aparecerá aqui.'
+                ? 'Esta integração ainda não tem uma cadeia definida.'
+                : 'Escolha uma na lista para ver o diagrama.'
         }
     }
 
@@ -1334,7 +1334,7 @@ function mount(root) {
 
     // Mantém a linha (lista à esquerda) e a topbar consistentes sem precisar
     // reselecionar a integração — mesma ideia de `patchRowGraph()`.
-    function patchRowMeta(slugArg, name, statusLabel) {
+    function patchRowMeta(slugArg, name, statusLabel, statusValue) {
         if (topbarTitle) topbarTitle.textContent = name
         if (!slugArg) return
         const row = document.querySelector(`[data-ak-integration-select="${CSS.escape(slugArg)}"]`)
@@ -1342,6 +1342,12 @@ function mount(root) {
 
         row.setAttribute('data-integration-name', name)
         row.querySelector('[data-ak-integration-name]')?.replaceChildren(document.createTextNode(name))
+        // The row's status dot/pill are tinted purely off `data-status` (via
+        // `group-data-[status=…]:` utilities), so swapping this one attribute
+        // recolors them — no class juggling, no tone map duplicated here.
+        // Hyphenated to match the blade token (`in_development` → `in-development`):
+        // Tailwind reads an underscore in an arbitrary variant value as a space.
+        if (statusValue) row.setAttribute('data-status', statusValue.replace(/_/g, '-'))
         if (statusLabel) row.querySelector('[data-ak-integration-status]')?.replaceChildren(document.createTextNode(statusLabel))
     }
 
@@ -1374,7 +1380,7 @@ function mount(root) {
 
             graphRef.status = status
             const statusLabel = getStatusesList().find((s) => s.value === status)?.label ?? null
-            patchRowMeta(slug, name, statusLabel)
+            patchRowMeta(slug, name, statusLabel, status)
             window.Toast?.show?.(data.message || 'Integração atualizada.')
             closeMetaEditor()
         } catch (err) {

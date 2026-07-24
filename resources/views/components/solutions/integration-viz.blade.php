@@ -47,7 +47,7 @@
     custom CSS" in this view).
 --}}
 <div data-integration-viz
-    class="ak-viz relative flex min-h-[360px] flex-1 flex-col overflow-hidden rounded-card border border-line bg-surface">
+    class="ak-viz relative flex min-h-[360px] flex-1 flex-col overflow-hidden bg-surface">
 
     {{-- Top bar: logo + selected integration + view actions (organize
          default layout / center / fullscreen / save). No topology-authoring
@@ -55,19 +55,27 @@
          nodes and edges. --}}
     <div data-viz-topbar class="ak-viz-topbar flex shrink-0 items-center gap-3 border-b border-line bg-surface px-3 py-2">
     
-        <p data-viz-title class="min-w-0 flex-1 truncate text-sm font-medium text-ink">Selecione uma integração à esquerda</p>
+        <p data-viz-title class="min-w-0 flex-1 truncate text-sm font-medium text-ink">Selecione uma integração</p>
 
-        {{-- Rename / change status of the selected integration — the only
-             metadata that data-viz doesn't yet edit on the block/edge itself.
-             Only visible when editable and an integration is selected. --}}
-        <x-forms.button type="button" variant="ghost" data-viz-meta-edit title="Renomear / mudar status"
-            class="!hidden !shrink-0 !rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
-            <x-heroicon-o-pencil-square class="size-4" />
+        {{-- Interaction hint, condensed into a discreet "?" so the (often
+             long) integration title keeps its room in this narrow bar.
+             `data-viz-hint` is presentational only — no JS hook reads it. --}}
+        <x-forms.button type="button" variant="ghost" data-viz-hint title="clique seleciona · arraste move · roda dá zoom"
+            class="!shrink-0 !rounded-md !p-1.5 !text-faint hover:!bg-accent-soft hover:!text-ink">
+            <x-heroicon-o-question-mark-circle class="size-4" />
         </x-forms.button>
 
-        <span data-viz-hint class="hidden shrink-0 text-xs text-faint lg:inline">clique seleciona · arraste move · roda dá zoom</span>
-
+        {{-- Authoring cluster: rename/status, add block, organize layout,
+             save. Viewport controls (zoom / center / fullscreen) live ONLY in
+             the floating bottom bar now — they used to be duplicated here. --}}
         <div class="flex shrink-0 items-center gap-1">
+            {{-- Rename / change status of the selected integration — the only
+                 metadata that data-viz doesn't edit on the block/edge itself.
+                 Only visible when editable and an integration is selected. --}}
+            <x-forms.button type="button" variant="ghost" data-viz-meta-edit title="Renomear / mudar status"
+                class="!hidden !rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
+                <x-heroicon-o-pencil-square class="size-4" />
+            </x-forms.button>
             {{-- Add block: always at the END of the chain (root → ... → new)
                  — opens the `data-viz-add-editor` panel, anchored to this
                  button. Only visible when the integration is editable (same
@@ -79,15 +87,6 @@
             <x-forms.button type="button" variant="ghost" data-viz-organize title="Organizar layout padrão"
                 class="!rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
                 <x-heroicon-o-squares-2x2 class="size-4" />
-            </x-forms.button>
-            <x-forms.button type="button" variant="ghost" data-viz-fit-top title="Centralizar"
-                class="!rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
-                <x-heroicon-o-arrows-pointing-in class="size-4" />
-            </x-forms.button>
-            <x-forms.button type="button" variant="ghost" data-viz-fullscreen-top title="Tela cheia"
-                class="!rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
-                <x-heroicon-o-arrows-pointing-out data-viz-fs-open-top class="size-4" />
-                <x-heroicon-o-arrows-pointing-in data-viz-fs-close-top class="hidden size-4" />
             </x-forms.button>
             {{-- Save layout — the JS reveals it (removes `hidden`) only when
                  the integration is editable, and enables it when there's an
@@ -127,12 +126,22 @@
             </div>
         </div>
 
-        {{-- Empty state / no chain — overlaid, hidden when there's a drawing --}}
+        {{-- Empty state / no chain — overlaid, hidden when there's a drawing.
+             The ghost graph previews what a drawn chain looks like (nodes +
+             links in the canvas palette) so the empty canvas reads as
+             intentional, not unfinished. The title/hint text below are set by
+             integration-viz.js (`showEmpty`) — keep these hooks. --}}
         <div data-viz-empty
             class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
-            <x-heroicon-o-share class="size-8 text-faint" />
-            <p data-viz-empty-title class="text-sm font-medium text-muted">Selecione uma integração à esquerda</p>
-            <p data-viz-empty-hint class="text-xs text-faint">A visualização gráfica aparecerá aqui.</p>
+            <div class="ak-viz-ghost" aria-hidden="true">
+                <span class="ak-viz-ghost-node"><span class="ak-viz-ghost-av"></span>Solução</span>
+                <span class="ak-viz-ghost-link"></span>
+                <span class="ak-viz-ghost-node"><span class="ak-viz-ghost-av"></span>Middleware</span>
+                <span class="ak-viz-ghost-link"></span>
+                <span class="ak-viz-ghost-node is-free">Externo</span>
+            </div>
+            <p data-viz-empty-title class="mt-1 text-sm font-medium text-muted">Nenhuma integração selecionada</p>
+            <p data-viz-empty-hint class="text-xs text-faint">Escolha uma na lista para ver o diagrama.</p>
         </div>
 
         {{-- "Link mode" (data-viz-toolbar-link): active after clicking the
@@ -616,6 +625,56 @@
                 border-radius: 0;
             }
             [data-integration-viz]:fullscreen .ak-viz-viewport { border-radius: 0; }
+
+            /* Empty-state ghost graph — a faded preview of what a drawn chain
+               looks like (nodes + dashed links), in the canvas palette. Purely
+               decorative (aria-hidden; clicks pass through via the parent
+               `data-viz-empty`'s pointer-events:none). Flex row, so it needs no
+               coordinate math to line the links up between the nodes. */
+            .ak-viz-ghost {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin-bottom: 10px;
+                max-width: 100%;
+                opacity: .9;
+            }
+            .ak-viz-ghost-node {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 7px 11px;
+                border-radius: 12px;
+                background: var(--viz-node);
+                color: #3a3f57;
+                font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+                font-size: 11px;
+                font-weight: 600;
+                white-space: nowrap;
+                box-shadow: 0 1px 2px rgba(16, 24, 40, .08);
+            }
+            .ak-viz-ghost-node.is-free {
+                background: var(--viz-node-free);
+                border: 1px dashed var(--viz-line);
+                color: #5b6788;
+                box-shadow: none;
+            }
+            .ak-viz-ghost-av {
+                flex: none;
+                width: 15px;
+                height: 15px;
+                border-radius: 50%;
+                background: #fff;
+                box-shadow: 0 0 0 1px rgba(16, 24, 40, .08);
+            }
+            .ak-viz-ghost-link {
+                flex: none;
+                width: 26px;
+                border-top: 1.6px dashed var(--viz-line);
+            }
+            @media (max-width: 400px) {
+                .ak-viz-ghost { display: none; }
+            }
 
             /* Markdown comment preview — arbitrary content with no fixed
                element to attach a class to (same exception as .html-content
