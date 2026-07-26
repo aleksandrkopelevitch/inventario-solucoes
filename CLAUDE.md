@@ -103,10 +103,36 @@ class AnalyzeProposal
 ### Integration topology invariant — the chain is the single source of truth
 
 An `Integration`'s topology lives in its `chain` json — a genuinely free
-graph: `{nodes: [{solution_id, label}], edges: [{from, to, arrow, protocol}]}`,
+graph: `{nodes: [{solution_id, label, kind}], edges: [{from, to, arrow, protocol}]}`,
 where `from`/`to` are indices into `nodes` (not consecutive positions) and
-each edge carries its own direction (`'->'|'<-'|'<->'`) and protocol. A node
-can have zero edges (isolated block). `App\Actions\SyncIntegrationFromChain`
+each edge carries its own direction (`'->'|'<-'|'<->'`) and protocol.
+
+**Nodes and edges are created independently.** `addNode()` appends a PURE
+node — kind + Solution/free text, never an edge —, so a block is always born
+isolated; wiring is a separate gesture (dragging an arrow out of a block's
+port, "modo ligar", or retargeting an existing edge), which is why a node with
+zero edges is a normal state, not a leftover. `kind`
+(`App\Enums\ChainNodeKind`: `system` | `decision` | `actor`) is what each
+block *is*: only `system` may reference a Solution (`solution_id`) —
+decision/actor blocks are free text and therefore never participants. Nodes
+written before kinds existed have no `kind` key at all and read as `system`
+(`ChainNodeKind::fromNode()`); the three consumers that care —
+`SyncIntegrationFromChain`, `ChainLabeler::nodeLabel()` and
+`IntegrationsMap::resolveNode()` — all decide via
+`ChainNodeKind::referencesSolution()`, so a stale `solution_id` on a
+decision/actor node can never resurrect it as a participant. Both endpoints
+that write a node (`addNode`/`updateNode`) validate the same three fields via
+the `ValidatesChainNode` trait.
+
+Two edges between the same pair of blocks are legitimate when they say
+something different (A `->` B over REST *and* over SFTP, or one edge each
+way), so `AddIntegrationChainEdgeRequest` refuses only an **exact** duplicate
+(same `from`/`to`/`arrow`/`protocol`) — dragging an arrow out of a port creates
+`->`/no-protocol with no dialog on the way, so repeating the gesture is easy to
+do by accident, and the second arrow would double-count in the degree math
+above while being indistinguishable in the canvas.
+
+`App\Actions\SyncIntegrationFromChain`
 is the ONLY thing that writes the derived columns (`participants` pivot with
 `position`, `source/target_solution_id`, `direction`, and the summary scalar
 `protocol` = first non-null edge protocol) — it runs after every mutation to
@@ -613,10 +639,16 @@ All JS hooks use the `data-ak-*` prefix. Internal slots (`data-spinner`, `data-l
 | `data-ak-integration-select="slug"` (on a row) + `data-ak-integration-list` (on the container) | `integration-select.js` | Selects an integration row (`aria-pressed`), dispatches `ak:integration-selected` `{name, slug, graph}` |
 | `data-ak-flowspec-poll="status-url"` | `flowspec-chat.js` | Presence in the thread slot = a reply is still generating; module polls the URL every 2.5s (capped at `MAX_POLL_ATTEMPTS`) until the slot swap removes this marker |
 | `data-ak-flowspec-copy="pre-id"` | `flowspec-chat.js` | Copies the target element's `textContent` (not `innerHTML` — the flowSpec JSON's `jsonPath` has literal `&&`) to the clipboard |
-| `data-ak-docs-ai-generate` (+ `data-action="url"`) | `docs-ai.js` | "Assiste IA": collects the prompt, checked context docs and the editor's current Markdown (`window.__akDocsGetMarkdown`), POSTs to start the generation job, closes the panel and polls the returned `pollUrl` until the draft loads into the editor (`window.__akDocsSetMarkdown`) |
+| `data-ak-docs-ai-generate` (+ `data-action="url"`) | `docs-ai.js` | "Assiste IA": collects the prompt, checked context docs and the editor's current Markdown (`window.__akDocsGetMarkdown`), POSTs to start the generation job, closes the panel, LOCKS the editor and polls the returned `pollUrl` until the draft is ready for review |
 | `data-ak-docs-ai-prompt` | `docs-ai.js` | The prompt `<textarea>` read by the generate action |
-| `data-ak-docs-ai-status` | `docs-ai.js` | "Gerando com IA…" indicator, revealed (`hidden`→`inline-flex`) while a generation job runs |
+| `data-ak-docs-ai-status` | `docs-ai.js` | "Gerando com o especialista…" indicator, revealed (`hidden`→`inline-flex`) while a generation job runs |
+| `data-ak-docs-ai-trigger` | `docs-ai.js` | The button that opens the assistant panel — `disabled` while a generation runs, so a second one can't be started |
+| `data-ak-docs-ai-resume` (+ `data-poll-url`/`data-consume-url`/`data-pending`) | `docs-ai.js` | Server-rendered marker (`AssistsDocumentation::aiResumeFor()`): this user has an unresolved generation for this page/integration. On load the module re-locks + polls a pending one, or opens the review for a finished one — this is what survives navigating away mid-generation |
+| `data-ak-docs-ai-review-template` + `-review-body` / `-review-warning` / `-apply` / `-discard` | `docs-ai.js` | `<template>` cloned into `#main-modal` to review the draft as a diff (`docs-diff.js`) before it touches the editor. Apply and Discard are the intended exits and each resolves the generation server-side; `closeOnEsc = false` only suppresses the FIRST Esc (the browser's close watcher honours a second one regardless — verified), so the actual guarantee is the `close`-event handler: any other way out leaves the generation unconsumed and the review comes back on the next load |
 | `data-ak-context-doc` (on a checkbox, `value`=media id) | `docs-ai.js` | A Solution context document the AI should consider; checked ids are sent as `media_ids[]` |
+| `data-ak-context-upload` (on a file input, + `data-action="url"`) | `docs-ai.js` | Uploads the chosen context document immediately on `change` — there's no separate "Anexar" button, which users kept skipping |
+| `data-ak-context-uploading` | `docs-ai.js` | "Enviando documento…" indicator for the upload above |
+| `data-ak-node-kinds` (on the integrations-map root) | `integration-viz.js` | `App\Enums\ChainNodeKind` as JSON (`{value,label,system,placeholder}`), read once and cached: feeds the kind `<select>` of both block panels. `system` is the only kind that gets the Solution select |
 
 ## `ajax.js` — Promise contract, not XHR
 
