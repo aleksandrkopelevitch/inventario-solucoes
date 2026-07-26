@@ -98,10 +98,17 @@ class IntegrationsMap extends Component
      * end of any link to any block (`retargetEdge()`/`edgeRetargetUrl` below),
      * making the chain a free graph, not a straight line.
      *
+     * Public because `SolutionIntegrationController::removeNode()` returns a
+     * WHOLE rebuilt graph instead of a patch: removing a node shifts every node
+     * index above it, so there's nothing the client could surgically patch —
+     * it re-renders. Reusing this method (rather than reindexing a second time
+     * in JS) is what keeps the delete response identical in shape to the
+     * `data-integration-graph` the page was first drawn from.
+     *
      * @param  Collection<int, Solution>  $solutions
      * @return array{nodes: array<int, array{label: string, kind: string, icon: string|null, solution: bool, solutionId: int|null, url: string|null, comment: string|null, logo: string|null, environment: array{label: string, icon: string|null}|null, cloud: array{label: string, icon: string|null}|null}>, edges: array<int, array{from: int, to: int, arrow: string, protocol: array{value: string, label: string}|null}>}|null
      */
-    private function graph(Integration $integration, ChainLabeler $labeler, Collection $solutions): ?array
+    public function graph(Integration $integration, ChainLabeler $labeler, Collection $solutions): ?array
     {
         $chain = $integration->chain;
         if (! $chain) {
@@ -144,6 +151,10 @@ class IntegrationsMap extends Component
             // root node (index 0) is locked in the controller, never on the client;
             // every link (edge) is editable and reconnectable.
             'nodeUpdateUrl' => route('solutions.integrations.chain.node.update', [$this->solution, $integration, 'NODE_INDEX']),
+            // DELETE that removes a block AND every link touching it (a node
+            // can't go while an edge still points at its index). The root node
+            // (index 0) is rejected server-side; the trash is also hidden for it.
+            'nodeRemoveUrl' => route('solutions.integrations.chain.node.remove', [$this->solution, $integration, 'NODE_INDEX']),
             // PATCH that updates the protocol and/or direction (arrow) of an existing link.
             'edgeUpdateUrl' => route('solutions.integrations.chain.protocol.update', [$this->solution, $integration, 'EDGE_INDEX']),
             // POST from the "Adicionar bloco" panel — appends a pure, isolated

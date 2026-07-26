@@ -427,6 +427,8 @@ function mount(root) {
     const toolbarTitleBtn = root.querySelector('[data-viz-toolbar-title]')
     const toolbarComment = root.querySelector('[data-viz-toolbar-comment]')
     const toolbarLinkBtn = root.querySelector('[data-viz-toolbar-link]')
+    const toolbarRemoveBtn = root.querySelector('[data-viz-toolbar-remove]')
+    const toolbarRemoveSep = root.querySelector('[data-viz-toolbar-remove-sep]')
     const toolbarOpen = root.querySelector('[data-viz-toolbar-open]')
     const linkHint = root.querySelector('[data-viz-link-hint]')
     const linkCancelBtn = root.querySelector('[data-viz-link-cancel]')
@@ -792,6 +794,10 @@ function mount(root) {
             // originar uma ligação nova.
             toolbarTitleBtn?.classList.toggle('hidden', !editable || index === 0)
             toolbarLinkBtn?.classList.toggle('!hidden', !editable)
+            // A lixeira segue a mesma regra do lápis: o nó raiz não sai (o
+            // servidor recusa índice 0 de qualquer forma).
+            toolbarRemoveBtn?.classList.toggle('!hidden', !editable || index === 0)
+            toolbarRemoveSep?.classList.toggle('hidden', !editable || index === 0)
             if (editable) {
                 buildSwatches()
                 refreshToolbarControls()
@@ -995,6 +1001,22 @@ function mount(root) {
                 // cache malformado — ignora, a próxima seleção completa recarrega do servidor
             }
         }
+        if (typeof summary === 'string') {
+            row.querySelector('[data-ak-integration-summary]')?.replaceChildren(document.createTextNode(summary))
+        }
+    }
+
+    // Substitui o grafo cacheado da linha por inteiro, em vez de remendar um
+    // nó/edge: é o que a exclusão de bloco precisa, já que os índices de TODOS
+    // os nós acima do removido mudaram. Mesmo motivo de sempre para não usar
+    // `updateSlots()` aqui — trocar o slot inteiro zera o `aria-pressed` e
+    // derruba a seleção do usuário (ver `integration-select.js`).
+    function patchRowGraphReplace(slugArg, graph, summary) {
+        if (!slugArg || !graph) return
+        const row = document.querySelector(`[data-ak-integration-select="${CSS.escape(slugArg)}"]`)
+        if (!row) return
+
+        row.setAttribute('data-integration-graph', JSON.stringify(graph))
         if (typeof summary === 'string') {
             row.querySelector('[data-ak-integration-summary]')?.replaceChildren(document.createTextNode(summary))
         }
@@ -1727,6 +1749,56 @@ function mount(root) {
             window.Toast?.show?.(err.message || 'Não foi possível desligar a ligação.', 'error')
         } finally {
             protocolDelete.disabled = false
+        }
+    })
+
+    // ── excluir bloco ──────────────────────────────────────────────
+    // Diferente de tudo o mais que edita a chain, aqui NÃO existe patch local
+    // possível: tirar um nó reindexa `chain.nodes`, e com ela todo `from`/`to`
+    // de `chain.edges` acima do índice removido — mais as posições, comentários
+    // e âncoras em `viz_layout`. O servidor faz esse reindex e devolve o GRAFO
+    // INTEIRO já resolvido (mesma forma do `data-integration-graph` inicial),
+    // então o caminho honesto é redesenhar com `render()` em vez de tentar
+    // remendar os arrays locais. Ver `SolutionIntegrationController::removeNode()`.
+    toolbarRemoveBtn?.addEventListener('click', async () => {
+        if (!editable || selectedIndex === null || selectedIndex === 0) return
+
+        const index = selectedIndex
+        const label = nodes[index]?.label || 'este bloco'
+        // Quantas ligações vão embora junto — o usuário decide sabendo disso.
+        const linked = (graphRef?.edges || []).filter((e) => e.from === index || e.to === index).length
+        const warning = linked
+            ? `\n\n${linked} ${linked === 1 ? 'ligação será removida' : 'ligações serão removidas'} junto.`
+            : ''
+        if (!window.confirm(`Excluir "${label}"?${warning}`)) return
+
+        const url = graphRef?.nodeRemoveUrl?.replace('NODE_INDEX', String(index))
+        if (!url) return
+
+        toolbarRemoveBtn.disabled = true
+        try {
+            const res = await fetch(url, {
+                method: 'DELETE',
+                headers: {
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': csrfToken(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            })
+            const data = await res.json().catch(() => null)
+            if (!res.ok) throw new Error(data?.message || 'Não foi possível excluir o bloco.')
+
+            // O layout salvo na sessão está indexado pela contagem ANTIGA de
+            // nós; deixá-lo no cache faria `render()` reaplicá-lo por cima do
+            // layout já reindexado que veio do servidor.
+            savedLayouts.delete(slug)
+            patchRowGraphReplace(slug, data.graph, data.summary)
+            render(data.graph, topbarTitle?.textContent || '', slug)
+            window.Toast?.show?.(data.message || 'Bloco excluído.')
+        } catch (err) {
+            window.Toast?.show?.(err.message || 'Não foi possível excluir o bloco.', 'error')
+        } finally {
+            toolbarRemoveBtn.disabled = false
         }
     })
 

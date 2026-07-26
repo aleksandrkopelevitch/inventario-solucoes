@@ -8,6 +8,7 @@ use App\Enums\Direction;
 use App\Http\Requests\AddIntegrationChainEdgeRequest;
 use App\Http\Requests\AddIntegrationChainNodeRequest;
 use App\Http\Requests\RemoveIntegrationChainEdgeRequest;
+use App\Http\Requests\RemoveIntegrationChainNodeRequest;
 use App\Http\Requests\RetargetIntegrationChainEdgeRequest;
 use App\Http\Requests\SaveIntegrationLayoutRequest;
 use App\Http\Requests\StoreIntegrationRequest;
@@ -136,6 +137,83 @@ class SolutionIntegrationController extends Controller
             'type'    => 'success',
             'message' => 'Bloco atualizado.',
             'node'    => IntegrationsMap::resolveNode($integration->chain['nodes'][$node], $solutions, $comment),
+            'summary' => $this->labeler->label($integration->chain, $solutions),
+        ]);
+    }
+
+    /**
+     * Removes a block from the chain (the trash in the block's contextual
+     * toolbar) and, necessarily, every link touching it — `chain.edges`
+     * references nodes BY INDEX, so a node can't leave while an edge still
+     * points at it, and every index above the removed one shifts down by one.
+     *
+     * This is the only chain mutation that has to REINDEX, and it has to do so
+     * in four parallel structures at once. Miss one and the canvas silently
+     * shows the wrong thing:
+     *
+     *  - `chain.edges`: edges touching the node are dropped; on the survivors,
+     *    a `from`/`to` above the removed index is decremented.
+     *  - `viz_layout.nodes` and `viz_layout.comments`: both indexed BY NODE
+     *    INDEX — splice the same position, or every block below inherits its
+     *    neighbour's position and comment.
+     *  - `viz_layout.edges`: indexed BY EDGE INDEX (parallel to `chain.edges`)
+     *    — keep only the anchors of the edges that survived, in order. Same
+     *    trap `removeEdge()` already documents, one dimension wider.
+     *
+     * The root node (index 0) is fixed, exactly as in `updateNode()`.
+     *
+     * The response carries a WHOLE rebuilt graph (`IntegrationsMap::graph()`,
+     * the same shape the page was first drawn from) rather than a patch: after
+     * a reindex there is no local surgery the client could safely do, so it
+     * re-renders. That also keeps the reindexing logic in one language.
+     */
+    public function removeNode(RemoveIntegrationChainNodeRequest $request, Solution $solution, Integration $integration, int $node): JsonResponse
+    {
+        $chain = $integration->chain;
+        abort_if(! $chain || $node <= 0 || ! isset($chain['nodes'][$node]), 404);
+
+        $nodes = array_values($chain['nodes']);
+        array_splice($nodes, $node, 1);
+
+        // Which edges survive, and where they used to live — the old positions
+        // are what `viz_layout.edges` is still keyed by.
+        $keptEdges = [];
+        $keptAnchorIndexes = [];
+        foreach (array_values($chain['edges'] ?? []) as $i => $edge) {
+            $from = $edge['from'] ?? null;
+            $to = $edge['to'] ?? null;
+
+            if ($from === $node || $to === $node) {
+                continue;
+            }
+
+            if (is_int($from) && $from > $node) {
+                $edge['from'] = $from - 1;
+            }
+            if (is_int($to) && $to > $node) {
+                $edge['to'] = $to - 1;
+            }
+
+            $keptEdges[] = $edge;
+            $keptAnchorIndexes[] = $i;
+        }
+
+        $chain['nodes'] = $nodes;
+        $chain['edges'] = $keptEdges;
+
+        $integration->update([
+            'chain'      => $chain,
+            'viz_layout' => $this->layoutWithoutNode($integration->viz_layout, $node, $keptAnchorIndexes),
+        ]);
+        $this->sync->handle($integration);
+
+        $integration = $integration->fresh();
+        $solutions = $this->labeler->resolveSolutions(collect([$integration->chain]));
+
+        return response()->json([
+            'type'    => 'success',
+            'message' => 'Bloco excluído.',
+            'graph'   => (new IntegrationsMap($solution))->graph($integration, $this->labeler, $solutions),
             'summary' => $this->labeler->label($integration->chain, $solutions),
         ]);
     }
@@ -338,6 +416,43 @@ class SolutionIntegrationController extends Controller
             'message'        => 'Integração removida.',
             'updatableSlots' => [IntegrationsMap::slot($solution)],
         ]);
+    }
+
+    /**
+     * `viz_layout` with a removed node's entries taken out and everything
+     * reindexed to match the new `chain` — see `removeNode()` for why all three
+     * arrays have to move together. Returns null unchanged when there's no
+     * layout saved yet (nothing to reindex).
+     *
+     * @param  array<string, mixed>|null  $layout
+     * @param  array<int, int>  $keptAnchorIndexes  old `chain.edges` positions that survived, in order
+     * @return array<string, mixed>|null
+     */
+    private function layoutWithoutNode(?array $layout, int $node, array $keptAnchorIndexes): ?array
+    {
+        if (! $layout) {
+            return $layout;
+        }
+
+        // Positions and comments are per NODE index.
+        foreach (['nodes', 'comments'] as $key) {
+            if (isset($layout[$key]) && is_array($layout[$key]) && array_key_exists($node, $layout[$key])) {
+                $values = array_values($layout[$key]);
+                array_splice($values, $node, 1);
+                $layout[$key] = $values;
+            }
+        }
+
+        // Anchors are per EDGE index: rebuild from the surviving positions.
+        if (isset($layout['edges']) && is_array($layout['edges'])) {
+            $anchors = array_values($layout['edges']);
+            $layout['edges'] = array_values(array_map(
+                fn (int $old) => $anchors[$old] ?? ['from' => 'r', 'to' => 'l'],
+                $keptAnchorIndexes,
+            ));
+        }
+
+        return $layout;
     }
 
     /**

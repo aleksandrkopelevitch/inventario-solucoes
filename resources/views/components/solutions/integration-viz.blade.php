@@ -245,6 +245,16 @@
                     class="!rounded-md !p-1.5 !text-ink hover:!bg-accent-soft disabled:!cursor-not-allowed disabled:!opacity-40">
                     <x-heroicon-o-arrow-top-right-on-square class="size-4" />
                 </x-forms.button>
+                {{-- Delete the block. Same gate as the pencil (editable + not the
+                     root), since removing index 0 is rejected server-side too.
+                     Destructive, so it's set apart by a separator and tinted
+                     `crit` — and it takes every link touching the block with it,
+                     which is what the confirm spells out. --}}
+                <span class="mx-0.5 h-6 w-px shrink-0 bg-line" data-viz-toolbar-remove-sep></span>
+                <x-forms.button type="button" variant="ghost" data-viz-toolbar-remove title="Excluir bloco"
+                    class="!rounded-md !p-1.5 !text-crit hover:!bg-crit-soft">
+                    <x-heroicon-o-trash class="size-4" />
+                </x-forms.button>
             </div>
 
             {{-- Node editor — kind of block (sistema / decisão / ator) +
