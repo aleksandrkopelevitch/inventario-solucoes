@@ -72,6 +72,7 @@ class SolutionDocumentationController extends Controller
             'integrationsNav' => $this->solutionIntegrationsNav($solution, null),
             'createPageUrl'   => route('solutions.docs.pages.store', $solution),
             'assistPanelUrl'  => route('solutions.docs.assist.panel', [$solution, $page]),
+            'aiResume'        => $this->aiResumeFor($solution, $page),
             // Share (public link) only exists on the Solution's own docs — the
             // generic view (shared with IntegrationDocumentationController)
             // treats it as optional via @isset.
@@ -172,6 +173,12 @@ class SolutionDocumentationController extends Controller
     public function draftStatus(Solution $solution, DocumentationAiGeneration $generation): JsonResponse
     {
         return $this->draftStatusResponse($solution, $generation);
+    }
+
+    /** Marks a finished generation as resolved — serves pages and integrations. */
+    public function consumeDraft(Solution $solution, DocumentationAiGeneration $generation): JsonResponse
+    {
+        return $this->consumeDraftResponse($solution, $generation);
     }
 
     /** Generates (if it doesn't exist yet) the public link token and returns the panel. */

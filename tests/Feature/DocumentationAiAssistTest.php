@@ -32,9 +32,13 @@ it('renders the assistant side panel with the context document list', function (
         ->assertOk();
 
     expect($response->json('content'))
-        ->toContain('Assiste IA')
+        ->toContain('Especialista em Documentação')
         ->toContain('context-documents-slot')
-        ->toContain('data-ak-docs-ai-generate');
+        ->toContain('data-ak-docs-ai-generate')
+        // The context document uploads automatically on selection (no separate
+        // "Anexar" click), pointed at the store endpoint.
+        ->toContain('data-ak-context-upload')
+        ->toContain(route('solutions.docs.context.store', $solution));
 });
 
 it('dispatches a generation job and returns a poll url', function () {
@@ -81,6 +85,149 @@ it('reports pending, then the generated markdown, via the status endpoint', func
     $this->actingAs(assistAdmin())
         ->getJson(route('solutions.docs.assist.status', [$solution, $gen]))
         ->assertOk()->assertJson(['pending' => false, 'result' => '# pronto']);
+});
+
+it('returns the existing_content and a consume url so the client can resume/diff', function () {
+    Queue::fake();
+    $solution = Solution::factory()->create();
+    $page = assistPage($solution);
+
+    // The generate response carries the consume url (used to resolve the
+    // generation so it won't resume on reload).
+    $generate = $this->actingAs(assistAdmin())
+        ->postJson(route('solutions.docs.assist.generate', [$solution, $page]), [
+            'prompt'           => 'x',
+            'existing_content' => '# antes',
+        ])->assertOk();
+    expect($generate->json('consumeUrl'))->toContain('/consume');
+
+    $gen = DocumentationAiGeneration::first();
+    $gen->update(['status' => 'completed', 'result' => '# depois']);
+
+    // The status endpoint returns the "before" (existing_content) so the client
+    // can diff even after a reload, when the submit-time snapshot is gone.
+    $this->actingAs(assistAdmin())
+        ->getJson(route('solutions.docs.assist.status', [$solution, $gen]))
+        ->assertOk()
+        ->assertJson(['result' => '# depois', 'existing_content' => '# antes']);
+});
+
+it('marks a generation consumed and 404s / forbids the same as status', function () {
+    $solution = Solution::factory()->create();
+    $other = Solution::factory()->create();
+    $page = assistPage($solution);
+    $admin = assistAdmin();
+
+    $make = fn (Solution $s) => DocumentationAiGeneration::create([
+        'target_type' => $page->getMorphClass(),
+        'target_id'   => $page->getKey(),
+        'solution_id' => $s->id,
+        'user_id'     => $admin->id,
+        'status'      => 'completed',
+        'result'      => '# r',
+        'prompt'      => 'x',
+    ]);
+
+    $gen = $make($solution);
+    $this->actingAs($admin)
+        ->postJson(route('solutions.docs.assist.consume', [$solution, $gen]))
+        ->assertOk()->assertJson(['ok' => true]);
+    expect($gen->fresh()->consumed_at)->not->toBeNull();
+
+    // Cross-solution mismatch 404s (same guard as status).
+    $mismatch = $make($other);
+    $this->actingAs($admin)
+        ->postJson(route('solutions.docs.assist.consume', [$solution, $mismatch]))
+        ->assertNotFound();
+
+    // Non-admin can't consume.
+    $viewer = User::factory()->create(['role' => UserRole::Viewer->value]);
+    $this->actingAs($viewer)
+        ->postJson(route('solutions.docs.assist.consume', [$solution, $make($solution)]))
+        ->assertForbidden();
+});
+
+it('renders a resume marker on the editor when an unconsumed generation exists', function () {
+    $solution = Solution::factory()->create();
+    $page = assistPage($solution);
+    $admin = assistAdmin();
+
+    // No generation → no marker.
+    $this->actingAs($admin)
+        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->assertOk()
+        ->assertDontSee('data-ak-docs-ai-resume', false);
+
+    $gen = DocumentationAiGeneration::create([
+        'target_type' => $page->getMorphClass(),
+        'target_id'   => $page->getKey(),
+        'solution_id' => $solution->id,
+        'user_id'     => $admin->id,
+        'status'      => 'pending',
+        'prompt'      => 'x',
+    ]);
+
+    // A recent pending generation → marker present, flagged pending.
+    $this->actingAs($admin)
+        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->assertOk()
+        ->assertSee('data-ak-docs-ai-resume', false)
+        ->assertSee('data-pending="1"', false);
+
+    // Once consumed, it no longer resumes.
+    $gen->update(['status' => 'completed', 'result' => '# r', 'consumed_at' => now()]);
+    $this->actingAs($admin)
+        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->assertOk()
+        ->assertDontSee('data-ak-docs-ai-resume', false);
+});
+
+it('does not resume another user\'s generation', function () {
+    $solution = Solution::factory()->create();
+    $page = assistPage($solution);
+
+    DocumentationAiGeneration::create([
+        'target_type' => $page->getMorphClass(),
+        'target_id'   => $page->getKey(),
+        'solution_id' => $solution->id,
+        'user_id'     => assistAdmin()->id, // a different admin
+        'status'      => 'pending',
+        'prompt'      => 'x',
+    ]);
+
+    $this->actingAs(assistAdmin())
+        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->assertOk()
+        ->assertDontSee('data-ak-docs-ai-resume', false);
+});
+
+it('reaps a generation orphaned mid-job instead of resuming it as pending', function () {
+    $solution = Solution::factory()->create();
+    $page = assistPage($solution);
+    $admin = assistAdmin();
+
+    // Worker killed mid-job (`composer dev` restarted): the record never leaves
+    // `pending` on its own. The reap happens on the record the page is about to
+    // resume — the marker must offer it as a finished (failed) generation, not
+    // as one still generating, or the editor locks itself waiting forever.
+    $gen = DocumentationAiGeneration::create([
+        'target_type' => $page->getMorphClass(),
+        'target_id'   => $page->getKey(),
+        'solution_id' => $solution->id,
+        'user_id'     => $admin->id,
+        'status'      => 'pending',
+        'prompt'      => 'x',
+    ]);
+    $gen->forceFill(['created_at' => now()->subSeconds((int) config('services.documentation_ai.stale_after') + 60)])->save();
+
+    $this->actingAs($admin)
+        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->assertOk()
+        ->assertSee('data-ak-docs-ai-resume', false)
+        ->assertSee('data-pending="0"', false);
+
+    expect($gen->fresh()->status)->toBe('failed')
+        ->and($gen->fresh()->error)->toBe(DocumentationAiGeneration::INTERRUPTED_ERROR);
 });
 
 it('404s a status request for a generation of another solution', function () {

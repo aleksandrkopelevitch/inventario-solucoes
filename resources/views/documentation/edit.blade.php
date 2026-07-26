@@ -47,14 +47,14 @@
                         {{-- "Assiste IA" indicator while the job generates (docs-ai.js reveals it). --}}
                         <span data-ak-docs-ai-status class="hidden items-center gap-1.5 text-xs text-accent" aria-live="polite">
                             <x-heroicon-o-sparkles class="size-4 animate-pulse" />
-                            Gerando com IA…
+                            Gerando com o especialista…
                         </span>
 
                         @isset($assistPanelUrl)
-                            <x-forms.button type="button" variant="ghost" data-ak-panel-open data-ak-panel-url="{{ $assistPanelUrl }}"
+                            <x-forms.button type="button" variant="ghost" data-ak-docs-ai-trigger data-ak-panel-open data-ak-panel-url="{{ $assistPanelUrl }}"
                                 class="!h-9 !px-3 !text-sm">
                                 <x-heroicon-o-sparkles class="size-4" />
-                                <span>Assiste IA</span>
+                                <span>Abrir especialista</span>
                             </x-forms.button>
                         @endisset
 
@@ -100,11 +100,66 @@
                             <div class="ak-docs-editor" data-ak-docs-editor
                                 data-config="{{ json_encode(['uploadUrl' => $uploadUrl]) }}"></div>
 
+                            {{-- Resume marker: present when this user has an unresolved "Assiste IA"
+                                 generation for this page/integration (e.g. they left while it was
+                                 generating). docs-ai.js picks the flow back up on load — locks the
+                                 editor and polls if still pending, or opens the review modal if it
+                                 already finished. See AssistsDocumentation::aiResumeFor(). --}}
+                            @if ($aiResume ?? null)
+                                <div data-ak-docs-ai-resume
+                                    data-poll-url="{{ $aiResume['pollUrl'] }}"
+                                    data-consume-url="{{ $aiResume['consumeUrl'] }}"
+                                    data-pending="{{ $aiResume['pending'] ? '1' : '0' }}"
+                                    hidden></div>
+                            @endif
+
                             <p class="mt-6 text-xs text-muted">
                                 Dica: digite <kbd class="rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-[11px]">/</kbd>
                                 no início de um bloco para inserir títulos, listas, tabelas, hints, abas, imagens e arquivos —
                                 ou use Markdown direto (<code>## </code>, <code>- </code>, <code>> </code>, <code>```</code>).
                             </p>
+
+                            {{-- Review modal shell for "Assiste IA". docs-ai.js clones this into
+                                 #main-modal after a draft is generated, injects the diff into
+                                 [data-ak-docs-ai-review-body] and opens it — the draft only replaces
+                                 the editor when "Aplicar rascunho" is clicked, never unseen. --}}
+                            <template data-ak-docs-ai-review-template>
+                                <div class="flex max-h-[82vh] flex-col">
+                                    <div class="flex items-start justify-between gap-3 border-b border-line px-6 py-4">
+                                        <div class="min-w-0">
+                                            <h2 class="flex items-center gap-2 text-base font-bold text-ink">
+                                                <x-heroicon-o-sparkles class="size-5 text-accent" />
+                                                Revisar rascunho do especialista
+                                            </h2>
+                                            <p class="mt-0.5 text-xs text-muted">
+                                                <span class="text-accent">Verde</span> = adicionado ·
+                                                <span class="text-crit">vermelho</span> = removido. Nada muda até você aplicar.
+                                            </p>
+                                        </div>
+                                        <x-forms.button type="button" variant="ghost" data-ak-docs-ai-discard
+                                            class="!h-8 !w-8 shrink-0 !p-0" aria-label="Fechar">
+                                            <x-heroicon-o-x-mark class="size-5" />
+                                        </x-forms.button>
+                                    </div>
+
+                                    <div data-ak-docs-ai-review-warning
+                                        class="mx-6 mt-4 hidden rounded-field border border-hot-line bg-hot-soft px-3 py-2 text-xs text-hot">
+                                        Você editou a página enquanto o especialista gerava. Aplicar vai substituir o conteúdo atual do editor.
+                                    </div>
+
+                                    <div data-ak-docs-ai-review-body class="min-h-0 flex-1 overflow-y-auto px-6 py-4"></div>
+
+                                    <div class="flex items-center justify-end gap-2 border-t border-line px-6 py-4">
+                                        <x-forms.button type="button" variant="ghost" data-ak-docs-ai-discard>
+                                            Descartar
+                                        </x-forms.button>
+                                        <x-forms.button type="button" data-ak-docs-ai-apply>
+                                            <x-heroicon-o-check class="size-5" />
+                                            Aplicar rascunho
+                                        </x-forms.button>
+                                    </div>
+                                </div>
+                            </template>
                         @else
                             @if (trim($renderedHtml) !== '')
                                 {{-- Raw Markdown for the "Copiar Markdown" button (docs-copy.js) — there's no

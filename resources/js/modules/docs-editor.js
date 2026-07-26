@@ -15,6 +15,7 @@
 
 import * as ajaxModule from './ajax'
 import {updateSlots} from './ajax-slot'
+import {setButtonLoading} from './button-loading'
 import {parse, serialize} from './docs-markdown'
 import {EDITOR_I18N} from './docs-tools/i18n'
 
@@ -24,6 +25,27 @@ const editors = new WeakMap()
 let dirty = false
 let autosaveTimer = null
 let DragDrop = null
+// Editing lock, owned here and raised by docs-ai.js while an "Assiste IA"
+// generation runs: nothing may be saved (button, Ctrl+S or autosave) while the
+// user can't see or edit the content. It lives at module level, NOT inside
+// mount(), so the lock can go up before the Editor.js chunk finishes loading —
+// docs-ai.js locks on page load when it resumes a pending generation.
+let locked = false
+
+/**
+ * Blocks/unblocks every save path. Exported (instead of another
+ * `window.__akDocs*` global) because it only touches this module's state and
+ * the save button — no editor instance needed, so no async mount to wait for.
+ */
+export function setEditorLocked(on) {
+    locked = !!on
+    if (locked) clearTimeout(autosaveTimer)
+
+    const btn = document.querySelector('[data-ak-docs-save]')
+    if (!btn) return
+    if (locked) btn.setAttribute('disabled', 'disabled')
+    else btn.removeAttribute('disabled')
+}
 
 function csrf() {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
@@ -287,6 +309,7 @@ function markDirty() {
     dirty = true
     setStatus('Não salvo')
     clearTimeout(autosaveTimer)
+    if (locked) return // no autosave while "Assiste IA" holds the editor
     autosaveTimer = setTimeout(() => {
         const btn = document.querySelector('[data-ak-docs-save]')
         if (btn && dirty) save(btn, {silent: true})
@@ -294,6 +317,9 @@ function markDirty() {
 }
 
 async function save(btn, {silent = false} = {}) {
+    // The button is `disabled` while locked, but Ctrl+S reaches here directly.
+    if (locked) return
+
     const holder = document.querySelector('[data-ak-docs-editor]')
     const editor = holder ? editors.get(holder) : null
     if (!editor) return
@@ -331,6 +357,10 @@ async function save(btn, {silent = false} = {}) {
         Toast.open({content: message, title: 'Atenção', type: 'warning'})
     } finally {
         setButtonLoading(btn, false)
+        // A lock may have gone up while this save was in flight (an autosave
+        // armed just before "Assiste IA" started): setButtonLoading() re-enables
+        // the button unconditionally, which would silently release the lock.
+        if (locked) btn.setAttribute('disabled', 'disabled')
     }
 }
 
@@ -342,23 +372,6 @@ function timeNow() {
 function setStatus(text) {
     const el = document.querySelector('[data-ak-docs-status]')
     if (el) el.textContent = text
-}
-
-function setButtonLoading(button, loading) {
-    const spinner = button.querySelector('[data-spinner]')
-    const label = button.querySelector('[data-label]')
-    if (loading) {
-        spinner?.classList.remove('opacity-0')
-        spinner?.classList.add('absolute')
-        label?.classList.add('opacity-0')
-        button.setAttribute('disabled', 'disabled')
-        button.classList.add('cursor-progress')
-    } else {
-        spinner?.classList.add('opacity-0', 'absolute')
-        label?.classList.remove('opacity-0')
-        button.removeAttribute('disabled')
-        button.classList.remove('cursor-progress')
-    }
 }
 
 /* ------------------------------------------------------------------ */
