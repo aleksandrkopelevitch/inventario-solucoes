@@ -113,7 +113,7 @@
                 @if ($flowspecCount > 0)
                     <p class="mt-1 px-1 text-xs text-muted">
                         <b class="font-semibold text-ink">{{ $flowspecCount }}</b>
-                        {{ \Illuminate\Support\Str::plural('flowSpec', $flowspecCount) }} já {{ $flowspecCount === 1 ? 'gerado' : 'gerados' }} no assistente.
+                        {{ \Illuminate\Support\Str::plural('flowSpec', $flowspecCount) }} já {{ $flowspecCount === 1 ? 'gerado' : 'gerados' }} com o Especialista em Integrações.
                     </p>
                 @endif
             </div>
