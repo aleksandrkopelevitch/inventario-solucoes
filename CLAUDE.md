@@ -233,12 +233,19 @@ Route::get('/proposals/{proposal}/analyses/{analysis}', ...)
     ->scopeBindings();
 ```
 
+**URL paths in this app are in English** (`/solutions`, `/companies`,
+`/people`, `/documentation`, `/map`, `/flowspec`) even though every label the
+user reads is PT-BR. Keep new paths English too, and always build URLs with
+`route()` rather than a literal. When you need a path, `php artisan route:list
+--path=<fragment>` is the only reliable source — this file has already drifted
+from reality once by citing Portuguese paths that 404.
+
 Reference implementation in this app: `routes/web.php`'s
 `Route::scopeBindings()->group(...)` around the
-`solucoes/{solution}/integracoes/{integration}/...` routes. `{integration}`
+`solutions/{solution}/integrations/{integration}/...` routes. `{integration}`
 404s unless the `{solution}` participates in it (resolved via
 `Solution::integrations()`). The nested chain-editing routes under it
-(`chain/nos/{node}`, `chain/protocolo/{edge}`, `chain/aresta/{edge}`) take a
+(`chain/nodes/{node}`, `chain/protocol/{edge}`, `chain/edge/{edge}`) take a
 plain integer index into `chain.nodes`/`chain.edges` (`whereNumber(...)`), not
 a model — those aren't scoped bindings, just route params validated as
 numeric and range-checked inside the controller.
@@ -469,7 +476,8 @@ whether it's inside a component tag's attribute or a plain tag's — unlike
 different, mutually incompatible compiler passes.
 
 Real incident (2026-07-02): this exact bug silently broke **all** filter and
-search UI on `/solucoes`, `/integracoes`, `/empresas`, and `/pessoas` — every
+search UI on `/solutions`, `/companies`, `/people` and the standalone
+integrations index (since removed) — every
 `<x-forms.select>`/`<x-forms.input>`/`<x-forms.checkbox>` carried
 `data-ak-filters='@json($filterBind)'` or `data-ak-search='@json([...])'`.
 Confirmed via curl that the rendered HTML contained the literal uncompiled
@@ -800,7 +808,7 @@ only needs to be added in one place.
 ### Preserving filters when a mutation refreshes a filtered index slot
 
 When a side panel (create/edit) is opened *from* a filtered index page
-(`/solucoes?filter[category]=iam`) and the mutation's response re-renders
+(`/solutions?filter[category]=iam`) and the mutation's response re-renders
 that page's index slot, the slot must be rebuilt with the **same filters**
 the user had applied — otherwise saving/editing a record while filtered
 silently resets the visible list to everything, even though the URL still
