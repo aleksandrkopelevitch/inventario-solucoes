@@ -282,16 +282,18 @@ function openReview(before, after, concurrentEdit) {
 
     modal.querySelector('[data-content]').replaceChildren(node)
     modal.querySelector('[data-loading]')?.classList.add('hidden')
-    // closeOnEsc = false makes the first Esc a no-op (Modal.open's `cancel`
-    // listener calls preventDefault), because Esc wipes [data-content] and
+    // closeOnEsc = false makes the first Esc a no-op (modal.js's module-level
+    // `cancel` listener calls preventDefault), because Esc wipes [data-content] and
     // there's no way to reopen a review in the same page — "Aplicar" and
     // "Descartar" should be the two exits.
     //
     // It is NOT a guarantee, and don't write code that assumes it is: verified
-    // in headless Chrome (2026-07-25) that a SECOND Esc closes the dialog
-    // anyway. That's the close-watcher anti-trap rule — a repeated close
-    // request with no user activation in between ignores preventDefault, by
-    // design, so a page can't imprison the user. Same for browser chrome.
+    // in headless Chrome (2026-07-25) that REPEATED Esc presses close the
+    // dialog anyway — it took a 3rd press there, and the exact count is
+    // browser-internal, so never rely on a specific number. That's the
+    // close-watcher anti-trap rule — repeated close requests with no user
+    // activation in between stop honouring preventDefault, by design, so a
+    // page can't imprison the user. Same for browser chrome.
     window.Modal.open('main-modal', false)
     // Hence this is the real guarantee, not a corner case: whenever the dialog
     // closes without going through either button, the draft must not vanish

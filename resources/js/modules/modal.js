@@ -19,6 +19,39 @@ document.addEventListener('click', (e) => {
     Modal.loadFromURLAndOpen(opener.dataset.akModalOpen, opener.dataset.akModalUrl)
 })
 
+// Per-dialog behavior read by the two module-level listeners below, written by
+// open(). Both listeners MUST live out here: registering them inside open()
+// added one more on every open of the same dialog, and they were never removed
+// — so a `closeOnEsc = true` from an earlier use kept closing a later use that
+// explicitly asked for false (docs-ai's draft review is the caller that cares).
+// Keyed by element, so the newest open() always wins.
+const modalBehavior = new WeakMap()
+
+// Esc key. `cancel` doesn't bubble, so the capture phase is what lets a single
+// document-level listener see it for every dialog.
+document.addEventListener('cancel', (event) => {
+    const modal = event.target
+
+    if (!(modal instanceof HTMLDialogElement)) return
+
+    if (modalBehavior.get(modal)?.closeOnEsc === false) {
+        event.preventDefault()
+        return
+    }
+
+    Modal.close(modal.id)
+}, true)
+
+// Backdrop click — the event target is the <dialog> itself only when the click
+// landed outside the dialog's own box.
+document.addEventListener('click', (event) => {
+    const modal = event.target
+
+    if (!(modal instanceof HTMLDialogElement)) return
+
+    if (modalBehavior.get(modal)?.closeOnBackdropClick) Modal.close(modal.id)
+})
+
 // Solution form selects (data-ak-attribute-select="category", etc.) are fed
 // by attribute_options at render time. If the user opens the "Gerenciar
 // atributos" modal from an already-open create/edit panel, adds/edits/deletes
@@ -57,7 +90,7 @@ export default window.Modal = {
                 return false
             }
 
-            Modal.open(modal.id)
+            Modal.open(modal.id, closeOnEsc)
 
             // Navigation within an already-open modal (e.g. integrations
             // list → edit form): resets to the loading placeholder before
@@ -72,7 +105,6 @@ export default window.Modal = {
                     modal.querySelector('[data-content]').innerHTML = data.content
                     ajaxModule.includeScripts(modal)
                     initAllModules()
-                    Modal.addCloseEventListenerToHeaderButton(modal)
                     modal.scrollTop = 0
                 })
                 .catch(() => {
@@ -130,8 +162,10 @@ export default window.Modal = {
                 Modal.resumeTimer(modal, timerToClose)
             }
 
+            // {once: true} — this callback belongs to THIS alert, not to every
+            // future one shown in the shared #alert-modal.
             if (params.onClose) {
-                modal.addEventListener('close', params.onClose)
+                modal.addEventListener('close', params.onClose, {once: true})
             }
 
         }
@@ -168,22 +202,7 @@ export default window.Modal = {
 
         document.body.classList.add('overflow-y-hidden')
 
-        // Esc key pressed listener
-        modal.addEventListener('cancel', (event) => {
-            if (closeOnEsc === false) {
-                event.preventDefault()
-            } else {
-                Modal.close(modal.id)
-            }
-        })
-
-        if (closeOnBackdropClick) {
-            modal.addEventListener('click', (event) => {
-                if (event.target.nodeName === 'DIALOG')
-                    Modal.close(modal.id)
-            })
-        }
-
+        modalBehavior.set(modal, { closeOnEsc, closeOnBackdropClick })
     },
 
     close(modalId) {
@@ -211,13 +230,5 @@ export default window.Modal = {
             if (modalId === 'main-modal') refreshAttributeSelects()
         }, 200);
 
-    },
-
-    addCloseEventListenerToHeaderButton(modal) {
-        modal.querySelectorAll('[data-close]').forEach((element) => {
-            element.addEventListener('click', () => {
-                Modal.close(modal.id)
-            })
-        })
     },
 }
