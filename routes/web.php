@@ -83,10 +83,14 @@ Route::middleware(['auth', BlockAgentFromWeb::class])->group(function () {
         // documents belong to the Solution (solutions.docs.context.* routes).
         Route::get('solutions/{solution}/integrations/{integration}/documentation/assistant', [IntegrationDocumentationController::class, 'assistantPanel'])->name('solutions.integrations.docs.assist.panel');
         Route::post('solutions/{solution}/integrations/{integration}/documentation/assistant', [IntegrationDocumentationController::class, 'generateDraft'])->name('solutions.integrations.docs.assist.generate');
-        // Title of a single node (data-viz F3) — {node} is the index in the chain, not a model.
+        // Kind/title of a single node (data-viz F3) — {node} is the index in the chain, not a model.
         Route::patch('solutions/{solution}/integrations/{integration}/chain/nodes/{node}', [SolutionIntegrationController::class, 'updateNode'])
             ->whereNumber('node')
             ->name('solutions.integrations.chain.node.update');
+        // Removes a block AND every link touching it (indices shift — see removeNode()).
+        Route::delete('solutions/{solution}/integrations/{integration}/chain/nodes/{node}', [SolutionIntegrationController::class, 'removeNode'])
+            ->whereNumber('node')
+            ->name('solutions.integrations.chain.node.remove');
         // Protocol of a single edge (data-viz F3) — {edge} is the index in chain.edges.
         Route::patch('solutions/{solution}/integrations/{integration}/chain/protocol/{edge}', [SolutionIntegrationController::class, 'updateProtocol'])
             ->whereNumber('edge')

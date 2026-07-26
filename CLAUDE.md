@@ -124,6 +124,18 @@ decision/actor node can never resurrect it as a participant. Both endpoints
 that write a node (`addNode`/`updateNode`) validate the same three fields via
 the `ValidatesChainNode` trait.
 
+**Removing a node is the one mutation that REINDEXES.** `removeNode()` drops
+the block, every edge touching it, and decrements every surviving `from`/`to`
+above the removed index — then reindexes `viz_layout` in three places, because
+`nodes` and `comments` there are keyed by NODE index while `edges` (anchors) is
+keyed by EDGE index. Miss one and blocks silently inherit their neighbour's
+position or comment. Root (index 0) is never removable. It's also the only
+chain endpoint that returns a **whole rebuilt graph** (`IntegrationsMap::graph()`,
+public for this reason) instead of a patch: after a reindex there's nothing the
+client can safely patch, so it calls `render()` again — and drops its
+`savedLayouts` cache entry first, since that cache is keyed by the old node
+count.
+
 Two edges between the same pair of blocks are legitimate when they say
 something different (A `->` B over REST *and* over SFTP, or one edge each
 way), so `AddIntegrationChainEdgeRequest` refuses only an **exact** duplicate
