@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\SyncIntegrationFromChain;
+use App\Enums\ChainNodeKind;
 use App\Enums\Direction;
 use App\Http\Requests\AddIntegrationChainEdgeRequest;
 use App\Http\Requests\AddIntegrationChainNodeRequest;
@@ -41,15 +42,15 @@ class SolutionIntegrationController extends Controller
     /**
      * Creates a brand-new Integration with the context solution as the root
      * node — chain = {nodes: [root], edges: []}, ready for the data-viz to
-     * freely add blocks (`addNode()`) and rewire (`retargetEdge()`). Name is
-     * optional (falls back to the root solution's name); initial status is
-     * "planned", adjustable afterwards via `update()`.
+     * freely add blocks (`addNode()`) and wire them (`addEdge()`/`retargetEdge()`).
+     * Name is optional (falls back to the root solution's name); initial status
+     * is "planned", adjustable afterwards via `update()`.
      */
     public function store(StoreIntegrationRequest $request, Solution $solution): JsonResponse
     {
         $data = $request->validated();
         $chain = [
-            'nodes' => [['solution_id' => $solution->id, 'label' => null]],
+            'nodes' => [['solution_id' => $solution->id, 'label' => null, 'kind' => ChainNodeKind::System->value]],
             'edges' => [],
         ];
 
@@ -108,10 +109,12 @@ class SolutionIntegrationController extends Controller
     }
 
     /**
-     * Updates the title of a single node (F3 data-viz block) — chosen from a
-     * registered Solution (pulls name/logo/attributes) or free text. Still
-     * edits the `chain` (source of truth for topology), so
-     * SyncIntegrationFromChain runs again: swapping a node's Solution can
+     * Updates a single node (F3 data-viz block): its kind (system / decision /
+     * actor — a block can be converted between them) and its title, chosen
+     * from a registered Solution (pulls name/logo/attributes) or free text.
+     * Still edits the `chain` (source of truth for topology), so
+     * SyncIntegrationFromChain runs again: swapping a node's Solution — or
+     * turning it into a decision/actor, which never references one — can
      * change participants/source/target/direction. The root node (index 0)
      * is fixed — it never reaches here (blocked client-side, enforced by the
      * 404 below).
@@ -121,7 +124,7 @@ class SolutionIntegrationController extends Controller
         $chain = $integration->chain;
         abort_if(! $chain || $node <= 0 || ! isset($chain['nodes'][$node]), 404);
 
-        $chain['nodes'][$node] = $request->validated();
+        $chain['nodes'][$node] = $this->chainNode($request->validated());
         $integration->update(['chain' => $chain]);
         $this->sync->handle($integration);
 
@@ -131,7 +134,7 @@ class SolutionIntegrationController extends Controller
 
         return response()->json([
             'type'    => 'success',
-            'message' => 'Título do nó atualizado.',
+            'message' => 'Bloco atualizado.',
             'node'    => IntegrationsMap::resolveNode($integration->chain['nodes'][$node], $solutions, $comment),
             'summary' => $this->labeler->label($integration->chain, $solutions),
         ]);
@@ -172,37 +175,23 @@ class SolutionIntegrationController extends Controller
     }
 
     /**
-     * Appends a new block to the end of the chain (the F3 data-viz's "Add
-     * block" panel) — chosen from a registered Solution or free text. When
-     * the panel supplies an arrow (`data['arrow']` present), links the new
-     * block to the node currently at the end via a new edge (arrow/protocol
-     * from the panel); when it doesn't ("No connection"), the block is born
-     * isolated, with no edge at all. Either way this is just the starting
-     * point: the user can then drag any edge's endpoint to this block
-     * (`retargetEdge()`) or use "connect mode" to create a new edge to it
-     * (`addEdge()`), rewiring the chain into a free graph. Still edits the
-     * `chain` (source of truth for topology), so SyncIntegrationFromChain
-     * runs again.
+     * Appends a new block to the chain (the F3 data-viz's "Adicionar bloco"
+     * panel) — a PURE node: its kind (system / decision / actor) plus a
+     * registered Solution or free text, with NO edge and no protocol. Every
+     * block is born isolated; wiring is a separate, later gesture — drag an
+     * arrow out of any block's port or use "connect mode" (`addEdge()`), or
+     * drag an existing edge's endpoint onto it (`retargetEdge()`). Still
+     * edits the `chain` (source of truth for topology), so
+     * SyncIntegrationFromChain runs again — a solution-backed block becomes a
+     * participant even with no edge yet.
      */
     public function addNode(AddIntegrationChainNodeRequest $request, Solution $solution, Integration $integration): JsonResponse
     {
         $chain = $integration->chain;
         abort_if(! $chain, 404);
 
-        $data = $request->validated();
-        $chain['nodes'][] = ['solution_id' => $data['solution_id'], 'label' => $data['label']];
+        $chain['nodes'][] = $this->chainNode($request->validated());
         $newIndex = count($chain['nodes']) - 1;
-
-        $edge = null;
-        if ($data['arrow']) {
-            $edge = [
-                'from'     => max(0, $newIndex - 1),
-                'to'       => $newIndex,
-                'arrow'    => $data['arrow'],
-                'protocol' => $data['protocol'],
-            ];
-            $chain['edges'][] = $edge;
-        }
 
         $integration->update(['chain' => $chain]);
         $this->sync->handle($integration);
@@ -211,13 +200,10 @@ class SolutionIntegrationController extends Controller
         $solutions = $this->labeler->resolveSolutions(collect([$integration->chain]));
 
         return response()->json([
-            'type'     => 'success',
-            'message'  => 'Bloco adicionado.',
-            'node'     => IntegrationsMap::resolveNode($integration->chain['nodes'][$newIndex], $solutions, null),
-            'from'     => $edge['from'] ?? null,
-            'arrow'    => $edge['arrow'] ?? null,
-            'protocol' => $edge ? IntegrationsMap::resolveProtocol($edge['protocol']) : null,
-            'summary'  => $this->labeler->label($integration->chain, $solutions),
+            'type'    => 'success',
+            'message' => 'Bloco adicionado.',
+            'node'    => IntegrationsMap::resolveNode($integration->chain['nodes'][$newIndex], $solutions, null),
+            'summary' => $this->labeler->label($integration->chain, $solutions),
         ]);
     }
 
@@ -277,6 +263,7 @@ class SolutionIntegrationController extends Controller
             'arrow'    => $data['arrow'],
             'protocol' => $data['protocol'],
         ];
+        $newIndex = count($chain['edges']) - 1;
 
         $integration->update(['chain' => $chain]);
         $this->sync->handle($integration);
@@ -285,8 +272,14 @@ class SolutionIntegrationController extends Controller
         $solutions = $this->labeler->resolveSolutions(collect([$integration->chain]));
 
         return response()->json([
-            'type'     => 'success',
-            'message'  => 'Ligação criada.',
+            'type'    => 'success',
+            'message' => 'Ligação criada.',
+            // The index this edge got in `chain.edges` — every other edge
+            // endpoint (protocol update, retarget, remove) addresses edges BY
+            // INDEX, so the client must not infer it from its own insertion
+            // order: two creates in flight whose responses land out of order
+            // would leave every later PATCH/DELETE pointing at the wrong edge.
+            'index'    => $newIndex,
             'from'     => $data['from'],
             'to'       => $data['to'],
             'arrow'    => $data['arrow'],
@@ -345,6 +338,25 @@ class SolutionIntegrationController extends Controller
             'message'        => 'Integração removida.',
             'updatableSlots' => [IntegrationsMap::slot($solution)],
         ]);
+    }
+
+    /**
+     * A chain node in storage shape, from the validated fields of
+     * `AddIntegrationChainNodeRequest`/`UpdateIntegrationChainNodeRequest`
+     * (both validate the same three fields — see `ValidatesChainNode`).
+     * Built explicitly, in a fixed key order, so `chain.nodes` never depends
+     * on which keys the request happened to carry.
+     *
+     * @param  array{solution_id?: int|null, label?: string|null, kind?: string|null}  $data
+     * @return array{solution_id: int|null, label: string|null, kind: string}
+     */
+    private function chainNode(array $data): array
+    {
+        return [
+            'solution_id' => $data['solution_id'] ?? null,
+            'label'       => $data['label'] ?? null,
+            'kind'        => $data['kind'] ?? ChainNodeKind::System->value,
+        ];
     }
 
     private function uniqueSlug(string $name): string

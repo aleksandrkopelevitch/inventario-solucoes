@@ -42,7 +42,7 @@ class ProfileController extends Controller
         $shortcuts = [
             ['label' => 'Documentação', 'detail' => 'Hub de cobertura por conteúdo', 'icon' => 'book-open', 'url' => route('documentation.index')],
             ['label' => 'Mapa do ecossistema', 'detail' => 'Grafo das integrações', 'icon' => 'share', 'url' => route('solutions.map')],
-            ['label' => 'Gerador de flowSpec', 'detail' => 'Assistente de especificação', 'icon' => 'cpu-chip', 'url' => route('flowspec.index')],
+            ['label' => 'Especialista em Integrações', 'detail' => 'Gera flowSpecs para a Digibee', 'icon' => 'cpu-chip', 'url' => route('flowspec.index')],
         ];
 
         $flowspecCount = FlowspecMessage::query()

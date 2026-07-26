@@ -2,6 +2,7 @@
     data-ak-solutions="{{ json_encode($solutionsList) }}"
     data-ak-protocols="{{ json_encode($protocolsList) }}"
     data-ak-statuses="{{ json_encode($statusesList) }}"
+    data-ak-node-kinds="{{ json_encode($kindsList) }}"
     class="flex flex-col gap-3" aria-label="Integrações da solução">
     @if ($rows->count())
         {{-- Rail count — lives inside the slot, so create/delete keep it in

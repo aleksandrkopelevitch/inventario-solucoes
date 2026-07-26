@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Enums\ChainNodeKind;
 use App\Models\Solution;
 use Illuminate\Support\Collection;
 
@@ -101,9 +102,21 @@ class ChainLabeler
         return true;
     }
 
-    /** @param  array{solution_id?: int|null, label?: string|null}  $node */
+    /**
+     * A node's text: the referenced Solution's name, or the free text. Only a
+     * system node can reference a Solution (`ChainNodeKind`), so on a
+     * decision/actor node the free text always wins — a `solution_id` left
+     * behind by an earlier conversion (or by hand-written chain JSON) never
+     * shadows it.
+     *
+     * @param  array{solution_id?: int|null, label?: string|null, kind?: string|null}  $node
+     */
     public function nodeLabel(array $node, Collection $solutions): string
     {
+        if (! ChainNodeKind::fromNode($node)->referencesSolution()) {
+            return $node['label'] ?? '?';
+        }
+
         return $solutions[$node['solution_id'] ?? null]?->name ?? $node['label'] ?? '?';
     }
 }

@@ -229,6 +229,39 @@ it('draws no edges for an integration without a chain, even though its participa
     expect($graph['edges'])->toBeEmpty();
 });
 
+it('draws no edge through a decision/actor node, even one carrying a stale solution_id', function () {
+    // Only a `system` node may reference a Solution (`ChainNodeKind`), so a
+    // decision/actor node is never a solution endpoint — not even when a
+    // hand-written chain (or a block converted before that rule existed) left a
+    // `solution_id` behind on it. Otherwise the map would draw a phantom A<->B
+    // edge for a flow that really goes A -> "Pedido aprovado?" -> B.
+    $service = new IntegrationGraphService;
+
+    $a = Solution::factory()->create();
+    $b = Solution::factory()->create();
+    $ghost = Solution::factory()->create();
+
+    $integration = Integration::factory()->active()->create([
+        'chain' => [
+            'nodes' => [
+                ['solution_id' => $a->id, 'label' => null, 'kind' => 'system'],
+                ['solution_id' => $ghost->id, 'label' => 'Pedido aprovado?', 'kind' => 'decision'],
+                ['solution_id' => $b->id, 'label' => null, 'kind' => 'system'],
+            ],
+            'edges' => [
+                ['from' => 0, 'to' => 1, 'arrow' => '->', 'protocol' => null],
+                ['from' => 1, 'to' => 2, 'arrow' => '->', 'protocol' => null],
+            ],
+        ],
+    ]);
+    attachParticipants($integration, [[$a, 0], [$b, 2]]);
+
+    $graph = $service->globalMap();
+
+    expect($graph['edges'])->toBeEmpty()
+        ->and(collect($graph['nodes'])->pluck('id'))->not->toContain("sol-{$ghost->id}");
+});
+
 it('draws edges exactly as defined in chain.edges, not by pivot-position adjacency (regression)', function () {
     // Pivot order is A, B, C — but the real topology only connects A->C and B->C.
     // The fixed bug used to draw A->B and B->C (position adjacency) instead

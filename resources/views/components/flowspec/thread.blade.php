@@ -23,7 +23,7 @@
                     <span class="flex size-6 items-center justify-center rounded-lg bg-lime text-lime-ink shadow-sm">
                         <x-heroicon-o-sparkles class="size-3.5" />
                     </span>
-                    <span class="text-xs font-semibold uppercase tracking-wide text-muted">flowSpec IA</span>
+                    <span class="text-xs font-semibold uppercase tracking-wide text-muted">Especialista em Integrações</span>
                 </div>
                 <p @class(['text-sm leading-relaxed whitespace-pre-line', 'text-crit' => $failed, 'text-ink' => ! $failed])>{{ $message->content }}</p>
 
@@ -130,7 +130,7 @@
                 <span class="size-1.5 animate-bounce rounded-full bg-accent [animation-delay:150ms]"></span>
                 <span class="size-1.5 animate-bounce rounded-full bg-accent [animation-delay:300ms]"></span>
             </span>
-            Gerando flowSpec — monta contexto, chama o modelo e valida (pode levar alguns minutos)…
+            O especialista está montando o flowSpec — reúne o contexto, chama o modelo e valida (pode levar alguns minutos)…
         </div>
     @endif
 </div>

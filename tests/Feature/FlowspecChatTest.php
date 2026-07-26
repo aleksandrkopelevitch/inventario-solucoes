@@ -42,7 +42,7 @@ it('renders the chat index with previous conversations', function () {
     $this->actingAs($user)
         ->get(route('flowspec.index'))
         ->assertOk()
-        ->assertSee('Gerador de flowSpec')
+        ->assertSee('Especialista em Integrações')
         ->assertSee('Cache de token SVL');
 });
 

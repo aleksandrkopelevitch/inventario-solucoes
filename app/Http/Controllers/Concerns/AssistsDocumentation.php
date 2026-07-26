@@ -102,8 +102,9 @@ trait AssistsDocumentation
             GenerateDocumentationDraft::dispatch($generation);
 
             return response()->json([
-                'status'  => 'pending',
-                'pollUrl' => $pollUrl($generation),
+                'status'     => 'pending',
+                'pollUrl'    => $pollUrl($generation),
+                'consumeUrl' => route('solutions.docs.assist.consume', [$solution, $generation]),
             ]);
         });
 
@@ -147,7 +148,85 @@ trait AssistsDocumentation
         return response()->json([
             'pending' => false,
             'result'  => $generation->result,
-            'meta'    => $generation->meta,
+            // The content the draft was generated FROM — the "before" side of
+            // the review diff. On a fresh page load (resume after navigating
+            // away) the client no longer has the submit-time snapshot in memory,
+            // so it relies on this to diff against.
+            'existing_content' => $generation->existing_content,
+            'meta'             => $generation->meta,
         ]);
+    }
+
+    /**
+     * Marks a finished generation as resolved so the editor stops resuming it
+     * on reload. Called when the user applies/discards a draft or acknowledges
+     * a failure. Idempotent.
+     */
+    protected function consumeDraftResponse(Solution $solution, DocumentationAiGeneration $generation): JsonResponse
+    {
+        $this->authorize('update', $solution);
+        abort_unless($generation->solution_id === $solution->id, 404);
+
+        if ($generation->consumed_at === null) {
+            $generation->update(['consumed_at' => now()]);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Payload describing a generation the editor should RESUME on page load, or
+     * null if there's nothing to resume. This is what closes the "navigate away
+     * while generating, come back later" gap: the job runs to completion on the
+     * server regardless of the browser, so on the next load we hand the client
+     * the URLs to pick the flow back up (poll a pending one, or open the review
+     * for a finished one).
+     *
+     * A stale pending generation (worker died mid-job) is reaped, so a dead job
+     * never shows as "generating" forever. Bounded to the last hour so an old,
+     * never-resolved draft doesn't resurface out of nowhere.
+     */
+    protected function aiResumeFor(Solution $solution, Documentable $target): ?array
+    {
+        // Same gate as every other endpoint in this trait (panel / status /
+        // consume): the Solution that owns the documentation, never the target
+        // itself. They agree today (all three policies are role-based, and
+        // DocumentationPagePolicy just delegates to its container), but a marker
+        // rendered under one rule and polled under another is how you get a
+        // "generating…" indicator that 403s on its first tick.
+        $user = request()->user();
+
+        if (! $user?->can('update', $solution)) {
+            return null;
+        }
+
+        $generation = DocumentationAiGeneration::query()
+            ->where('target_type', $target->getMorphClass())
+            ->where('target_id', $target->getKey())
+            ->where('user_id', $user->id)
+            ->whereNull('consumed_at')
+            ->where('created_at', '>', now()->subHour())
+            ->latest()
+            ->first();
+
+        if (! $generation) {
+            return null;
+        }
+
+        // Reap only the record we're actually about to hand the client, and only
+        // when it really is orphaned — a blanket `stale()->update()` before the
+        // read would write on EVERY editor page load for a case that is rare by
+        // definition. Nothing accumulates behind us: `createDraft()` still reaps
+        // the target's stale records wholesale before its pending guard, which is
+        // the one place where a leftover would actually block something.
+        if ($generation->isStale()) {
+            $generation->update(['status' => 'failed', 'error' => DocumentationAiGeneration::INTERRUPTED_ERROR]);
+        }
+
+        return [
+            'pending'    => $generation->isPending(),
+            'pollUrl'    => route('solutions.docs.assist.status', [$solution, $generation]),
+            'consumeUrl' => route('solutions.docs.assist.consume', [$solution, $generation]),
+        ];
     }
 }

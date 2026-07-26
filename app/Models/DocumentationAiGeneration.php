@@ -36,6 +36,7 @@ class DocumentationAiGeneration extends Model
         'result',
         'error',
         'meta',
+        'consumed_at',
     ];
 
     protected function casts(): array
@@ -43,6 +44,7 @@ class DocumentationAiGeneration extends Model
         return [
             'context_media_ids' => 'array',
             'meta'              => 'array',
+            'consumed_at'       => 'datetime',
         ];
     }
 

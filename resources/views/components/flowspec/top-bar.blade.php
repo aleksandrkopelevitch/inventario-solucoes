@@ -22,7 +22,7 @@
     @can('viewAny', App\Models\FlowspecExample::class)
         <a href="#" data-ak-modal-open="main-modal" data-ak-modal-url="{{ route('flowspec.examples.index') }}"
            class="inline-flex shrink-0 items-center gap-1.5 rounded-field px-2.5 py-1.5 text-xs font-medium text-muted hover:bg-raised hover:text-ink"
-           title="Gerenciar a base de referência do gerador">
+           title="Gerenciar a base de referência do especialista">
             <x-heroicon-o-book-open class="size-4" /> Referências
         </a>
     @endcan

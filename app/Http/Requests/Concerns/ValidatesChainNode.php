@@ -1,0 +1,86 @@
+<?php
+
+namespace App\Http\Requests\Concerns;
+
+use App\Enums\ChainNodeKind;
+use Illuminate\Validation\Rules\Enum;
+
+/**
+ * The three fields that make up a chain node (`chain.nodes[i]`) in the F3
+ * data-viz — `kind` + `solution_id`/`label` —, shared by
+ * AddIntegrationChainNodeRequest (a brand-new block) and
+ * UpdateIntegrationChainNodeRequest (retitling / converting an existing one),
+ * which validate exactly the same shape: the block panel and the block's title
+ * editor are the same form, one creating and the other editing.
+ *
+ * Only a system node may reference a registered Solution (see
+ * `ChainNodeKind`), so for a decision/actor block `solution_id` is dropped
+ * before validation and the free-text label becomes required.
+ */
+trait ValidatesChainNode
+{
+    /** The requested kind, defaulting to system (the shape used before kinds existed). */
+    protected function chainNodeKind(): ChainNodeKind
+    {
+        return ChainNodeKind::tryFrom((string) $this->input('kind')) ?? ChainNodeKind::System;
+    }
+
+    /**
+     * On a decision/actor block `solution_id` isn't a field that exists at all,
+     * so it's left OUT of the rules rather than allowed-and-ignored: absent from
+     * the rules means absent from `validated()`, and the controller's
+     * `chainNode()` writes the node with `solution_id => null`. A client that
+     * sends one anyway is silently dropped, which is the intent.
+     *
+     * @return array<string, mixed>
+     */
+    protected function chainNodeRules(): array
+    {
+        if (! $this->chainNodeKind()->referencesSolution()) {
+            return [
+                'kind'  => ['nullable', new Enum(ChainNodeKind::class)],
+                'label' => ['required', 'string', 'max:255'],
+            ];
+        }
+
+        return [
+            'kind'        => ['nullable', new Enum(ChainNodeKind::class)],
+            'solution_id' => ['nullable', 'integer', 'exists:solutions,id', 'required_without:label'],
+            'label'       => ['nullable', 'string', 'max:255', 'required_without:solution_id'],
+        ];
+    }
+
+    /** @return array<string, string> */
+    protected function chainNodeMessages(): array
+    {
+        return [
+            'solution_id.required_without' => 'Escolha um sistema ou informe o texto livre.',
+            'label.required_without'       => 'Escolha um sistema ou informe o texto livre.',
+            'label.required'               => 'Informe o texto do bloco.',
+        ];
+    }
+
+    /**
+     * Normalizes the select's "free" sentinel (free text) to a null
+     * solution_id — and forces it to null for the kinds that can't point at a
+     * Solution, so a decision/actor block always ends up as pure free text.
+     *
+     * An OMITTED kind is filled in with the default (system); an unknown one
+     * is deliberately left untouched, so the `Enum` rule rejects it instead of
+     * this silently coercing a client bug into a system block.
+     */
+    protected function prepareForValidation(): void
+    {
+        $solutionId = $this->input('solution_id');
+        $solutionId = is_numeric($solutionId) && $this->chainNodeKind()->referencesSolution() ? (int) $solutionId : null;
+
+        $this->merge([
+            'solution_id' => $solutionId,
+            'label'       => $solutionId ? null : (trim((string) $this->input('label', '')) ?: null),
+        ]);
+
+        if (blank($this->input('kind'))) {
+            $this->merge(['kind' => ChainNodeKind::System->value]);
+        }
+    }
+}

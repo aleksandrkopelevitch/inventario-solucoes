@@ -40,6 +40,7 @@ class IntegrationDocumentationController extends Controller
             'integrationsNav' => $this->solutionIntegrationsNav($solution, $integration),
             'createPageUrl'   => route('solutions.docs.pages.store', $solution),
             'assistPanelUrl'  => route('solutions.integrations.docs.assist.panel', [$solution, $integration]),
+            'aiResume'        => $this->aiResumeFor($solution, $integration),
             'breadcrumbs'     => [
                 ['label' => $solution->name, 'url' => route('solutions.show', $solution)],
                 ['label' => 'Documentação', 'url' => route('solutions.docs.edit', $solution)],

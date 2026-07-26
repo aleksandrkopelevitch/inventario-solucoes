@@ -1,10 +1,10 @@
-<x-layouts.layout title="Gerador de flowSpec" :fluid="true">
+<x-layouts.layout title="Especialista em Integrações" :fluid="true">
     <div class="flex min-h-0 flex-1">
         <x-flowspec.chat-list :chats="$chats" />
 
         <section class="flex min-h-0 min-w-0 flex-1 flex-col">
             <x-flowspec.top-bar>
-                <p class="truncate text-sm font-semibold text-ink">Gerador de flowSpec</p>
+                <p class="truncate text-sm font-semibold text-ink">Especialista em Integrações</p>
             </x-flowspec.top-bar>
 
             {{-- Greeting (scrolls); composer stays pinned below --}}

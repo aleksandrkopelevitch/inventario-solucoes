@@ -140,6 +140,9 @@ Route::middleware(['auth', BlockAgentFromWeb::class])->group(function () {
     // need {page}/{integration} in the URL (and avoids scopeBindings'
     // auto-scope trying to resolve {generation} as their child).
     Route::get('solutions/{solution}/documentation/assistant/{generation}/status', [SolutionDocumentationController::class, 'draftStatus'])->name('solutions.docs.assist.status');
+    // Marks a finished generation as resolved (applied/discarded/acknowledged),
+    // so the editor stops resuming it on reload. Shared by pages and integrations.
+    Route::post('solutions/{solution}/documentation/assistant/{generation}/consume', [SolutionDocumentationController::class, 'consumeDraft'])->name('solutions.docs.assist.consume');
 
     // {page} resolves via Solution::pages() (same mechanism as the
     // {integration} scoped in Solution::integrations() above).

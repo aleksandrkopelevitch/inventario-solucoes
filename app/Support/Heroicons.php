@@ -14,6 +14,18 @@ use Illuminate\Support\Facades\Cache;
  */
 class Heroicons
 {
+    /**
+     * Per-request memo of rendered SVGs, keyed by name+class. `Factory::svg()`
+     * reads the file and rebuilds the markup on every call, and the callers here
+     * ask for the SAME handful of icons once per graph node: a solution's
+     * environment/cloud badges plus the block kind's glyph, for every node of
+     * every integration on the page. Values include null (icon doesn't exist),
+     * so misses are memoized too.
+     *
+     * @var array<string, string|null>
+     */
+    private static array $memo = [];
+
     /** Rendered (outline) SVG, or null if `$name` is empty or doesn't exist. */
     public static function outlineSvg(?string $name, string $class = ''): ?string
     {
@@ -21,10 +33,16 @@ class Heroicons
             return null;
         }
 
+        $key = $name . '|' . $class;
+
+        if (array_key_exists($key, self::$memo)) {
+            return self::$memo[$key];
+        }
+
         try {
-            return app(Factory::class)->svg("heroicon-o-{$name}", $class)->toHtml();
+            return self::$memo[$key] = app(Factory::class)->svg("heroicon-o-{$name}", $class)->toHtml();
         } catch (SvgNotFound) {
-            return null;
+            return self::$memo[$key] = null;
         }
     }
 

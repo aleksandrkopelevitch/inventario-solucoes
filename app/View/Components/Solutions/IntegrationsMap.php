@@ -2,6 +2,7 @@
 
 namespace App\View\Components\Solutions;
 
+use App\Enums\ChainNodeKind;
 use App\Enums\IntegrationStatus;
 use App\Enums\Protocol;
 use App\Models\Integration;
@@ -58,7 +59,17 @@ class IntegrationsMap extends Component
             // topbar pencil) — fixed enum, resolved here so it never
             // diverges from `App\Enums\IntegrationStatus`.
             'statusesList' => collect(IntegrationStatus::cases())->map(fn (IntegrationStatus $s) => ['value' => $s->value, 'label' => $s->label()])->values(),
-            'rows'         => $integrations->map(fn (Integration $integration) => [
+            // Kinds of block offered by the "Adicionar bloco" panel and by a
+            // block's title editor (data-viz F3). `system` carries the
+            // Solution select; the others are free text only, so the JS hides
+            // that select and swaps the input's placeholder.
+            'kindsList' => collect(ChainNodeKind::cases())->map(fn (ChainNodeKind $k) => [
+                'value'       => $k->value,
+                'label'       => $k->label(),
+                'system'      => $k->referencesSolution(),
+                'placeholder' => $k->placeholder(),
+            ])->values(),
+            'rows' => $integrations->map(fn (Integration $integration) => [
                 'integration' => $integration,
                 'summary'     => $integration->chain ? $labeler->label($integration->chain, $solutions) : null,
                 'graph'       => $this->graph($integration, $labeler, $solutions),
@@ -88,7 +99,7 @@ class IntegrationsMap extends Component
      * making the chain a free graph, not a straight line.
      *
      * @param  Collection<int, Solution>  $solutions
-     * @return array{nodes: array<int, array{label: string, solution: bool, solutionId: int|null, url: string|null, comment: string|null, logo: string|null, environment: array{label: string, icon: string|null}|null, cloud: array{label: string, icon: string|null}|null}>, edges: array<int, array{from: int, to: int, arrow: string, protocol: array{value: string, label: string}|null}>}|null
+     * @return array{nodes: array<int, array{label: string, kind: string, icon: string|null, solution: bool, solutionId: int|null, url: string|null, comment: string|null, logo: string|null, environment: array{label: string, icon: string|null}|null, cloud: array{label: string, icon: string|null}|null}>, edges: array<int, array{from: int, to: int, arrow: string, protocol: array{value: string, label: string}|null}>}|null
      */
     private function graph(Integration $integration, ChainLabeler $labeler, Collection $solutions): ?array
     {
@@ -135,15 +146,15 @@ class IntegrationsMap extends Component
             'nodeUpdateUrl' => route('solutions.integrations.chain.node.update', [$this->solution, $integration, 'NODE_INDEX']),
             // PATCH that updates the protocol and/or direction (arrow) of an existing link.
             'edgeUpdateUrl' => route('solutions.integrations.chain.protocol.update', [$this->solution, $integration, 'EDGE_INDEX']),
-            // POST from the "Adicionar bloco" panel — always appends to the end
-            // of the chain (or is born isolated, if the panel doesn't choose an
-            // arrow); the user can reconnect this (or any other) link later,
-            // by dragging the arrow's endpoint (see `edgeRetargetUrl`).
+            // POST from the "Adicionar bloco" panel — appends a pure, isolated
+            // block (kind + Solution/free text, no edge and no protocol); the
+            // wiring is a separate gesture afterwards (`edgeAddUrl`/`edgeRetargetUrl`).
             'nodeAddUrl' => route('solutions.integrations.chain.node.add', [$this->solution, $integration]),
             // PATCH that reconnects the endpoint of a link to another block —
             // dragging the arrow's handle to a node different from the current one.
             'edgeRetargetUrl' => route('solutions.integrations.chain.edge.retarget', [$this->solution, $integration, 'EDGE_INDEX']),
-            // POST that creates a new link between two existing blocks — "link mode".
+            // POST that creates a new link between two existing blocks — dragging
+            // an arrow out of a block's port, or "connect mode".
             'edgeAddUrl' => route('solutions.integrations.chain.edge.add', [$this->solution, $integration]),
             // DELETE that removes an existing link, without removing the nodes — this is what allows leaving a block without any connection.
             'edgeRemoveUrl' => route('solutions.integrations.chain.edge.remove', [$this->solution, $integration, 'EDGE_INDEX']),
@@ -169,20 +180,30 @@ class IntegrationsMap extends Component
 
     /**
      * Resolves a chain node into the format consumed by the data-viz. Used
-     * both when building the entire graph (above) and by the endpoint for
-     * single-field title editing of a node (`SolutionIntegrationController::updateNode()`),
-     * so the two routes never diverge in the format of the resolved fields.
+     * both when building the entire graph (above) and by the endpoints that
+     * add or edit a single node (`SolutionIntegrationController::addNode()`/
+     * `updateNode()`), so the routes never diverge in the format of the
+     * resolved fields.
      *
-     * @param  array{solution_id?: int|null, label?: string|null}  $node
+     * `kind` (`ChainNodeKind`) drives the block's shape/colour in the canvas —
+     * a decision block is drawn as a chamfered hexagon, an actor as a rounded
+     * badge —, with `icon` bringing that kind's heroicon already rendered
+     * (the JS builds nodes in plain DOM, without Blade). Nodes stored before
+     * kinds existed have no `kind` key: they read as `system`.
+     *
+     * @param  array{solution_id?: int|null, label?: string|null, kind?: string|null}  $node
      * @param  Collection<int, Solution>  $solutions
-     * @return array{label: string, solution: bool, solutionId: int|null, url: string|null, comment: string|null, logo: string|null, environment: array{label: string, icon: string|null}|null, cloud: array{label: string, icon: string|null}|null}
+     * @return array{label: string, kind: string, icon: string|null, solution: bool, solutionId: int|null, url: string|null, comment: string|null, logo: string|null, environment: array{label: string, icon: string|null}|null, cloud: array{label: string, icon: string|null}|null}
      */
     public static function resolveNode(array $node, Collection $solutions, ?string $comment = null): array
     {
-        $solution = $solutions[$node['solution_id'] ?? null] ?? null;
+        $kind = ChainNodeKind::fromNode($node);
+        $solution = $kind->referencesSolution() ? ($solutions[$node['solution_id'] ?? null] ?? null) : null;
 
         return [
             'label'       => (new ChainLabeler)->nodeLabel($node, $solutions),
+            'kind'        => $kind->value,
+            'icon'        => Heroicons::outlineSvg($kind->icon()),
             'solution'    => (bool) $solution,
             'solutionId'  => $solution?->id,
             'url'         => $solution ? route('solutions.show', $solution) : null,
