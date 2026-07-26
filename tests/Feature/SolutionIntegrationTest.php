@@ -25,7 +25,7 @@ it('creates an integration with the solution as the root node, ready for the dat
 
     expect($integration->status->value)->toBe('planned')
         ->and($integration->chain)->toBe([
-            'nodes' => [['solution_id' => $solution->id, 'label' => null]],
+            'nodes' => [['solution_id' => $solution->id, 'label' => null, 'kind' => 'system']],
             'edges' => [],
         ])
         ->and($integration->participants->pluck('id')->all())->toBe([$solution->id])

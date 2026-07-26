@@ -2,17 +2,21 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\ValidatesChainNode;
 use App\Models\Integration;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Updates the title of a single node already present in the chain (a
- * data-viz F3 block) — chosen from a registered Solution or free text. The
- * root node (index 0) never reaches here — blocked in the controller before
- * any content authorization.
+ * Edits a single node already present in the chain (a data-viz F3 block) — its
+ * kind (`ChainNodeKind`, so a block can be converted from system to
+ * decision/actor and back) and its title, chosen from a registered Solution or
+ * free text. The root node (index 0) never reaches here — blocked in the
+ * controller before any content authorization.
  */
 class UpdateIntegrationChainNodeRequest extends FormRequest
 {
+    use ValidatesChainNode;
+
     public function authorize(): bool
     {
         $integration = $this->route('integration');
@@ -26,10 +30,7 @@ class UpdateIntegrationChainNodeRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
-            'solution_id' => ['nullable', 'integer', 'exists:solutions,id', 'required_without:label'],
-            'label'       => ['nullable', 'string', 'max:255', 'required_without:solution_id'],
-        ];
+        return $this->chainNodeRules();
     }
 
     /**
@@ -37,21 +38,6 @@ class UpdateIntegrationChainNodeRequest extends FormRequest
      */
     public function messages(): array
     {
-        return [
-            'solution_id.required_without' => 'Escolha um sistema ou informe o texto livre.',
-            'label.required_without'       => 'Escolha um sistema ou informe o texto livre.',
-        ];
-    }
-
-    /** Normalizes the select's "free" sentinel (free text) to a null solution_id. */
-    protected function prepareForValidation(): void
-    {
-        $solutionId = $this->input('solution_id');
-        $solutionId = is_numeric($solutionId) ? (int) $solutionId : null;
-
-        $this->merge([
-            'solution_id' => $solutionId,
-            'label'       => $solutionId ? null : (trim((string) $this->input('label', '')) ?: null),
-        ]);
+        return $this->chainNodeMessages();
     }
 }

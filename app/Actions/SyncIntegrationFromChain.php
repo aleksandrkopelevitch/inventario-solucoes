@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Enums\ChainNodeKind;
 use App\Enums\Direction;
 use App\Models\Integration;
 use Illuminate\Support\Facades\DB;
@@ -13,10 +14,11 @@ use Illuminate\Support\Facades\DB;
  * truth for topology since decoupling from `diagram` (which went back to
  * being a free-form drawing, with no side effect on participants).
  *
- * `chain = {nodes: [{solution_id, label}], edges: [{from, to, arrow, protocol}]}`
+ * `chain = {nodes: [{solution_id, label, kind}], edges: [{from, to, arrow, protocol}]}`
  * — `from`/`to` are indices into `nodes`, no longer consecutive positions.
- * Free-text nodes (solution_id null) count toward neighbors' in/out degree
- * but don't become participants (the pivot references solutions).
+ * Nodes with no solution (free text, and every decision/actor node — see
+ * `ChainNodeKind`) count toward neighbors' in/out degree but don't become
+ * participants (the pivot references solutions).
  */
 class SyncIntegrationFromChain
 {
@@ -50,8 +52,14 @@ class SyncIntegrationFromChain
             }
         }
 
+        // Only a system node can reference a Solution (`ChainNodeKind`), so a
+        // decision/actor node never becomes a participant — not even if some
+        // hand-written chain left a `solution_id` on it.
         $solutionNodes = collect($nodes)
-            ->map(fn ($node, $i) => ['index' => $i, 'solution_id' => $node['solution_id'] ?? null])
+            ->map(fn ($node, $i) => [
+                'index'       => $i,
+                'solution_id' => ChainNodeKind::fromNode($node)->referencesSolution() ? ($node['solution_id'] ?? null) : null,
+            ])
             ->filter(fn ($node) => ! empty($node['solution_id']))
             ->values();
 
@@ -78,8 +86,21 @@ class SyncIntegrationFromChain
             $positions[$sid] = min($positions[$sid] ?? PHP_INT_MAX, $node['index']);
         }
 
-        $sourceId = ($solutionNodes->first(fn ($n) => $inBySolution[$n['solution_id']] === 0) ?? $solutionNodes->first())['solution_id'];
-        $targetId = ($solutionNodes->last(fn ($n) => $outBySolution[$n['solution_id']] === 0) ?? $solutionNodes->last())['solution_id'];
+        // The flow's endpoints can only be solutions that are IN the flow. An
+        // isolated block — which is how EVERY block is born now, see
+        // `addNode()` — has in === 0 *and* out === 0, so without this filter it
+        // would win both picks below (`first()` on in === 0, `last()` on
+        // out === 0, being the last node) and silently become the integration's
+        // source/target despite having no edge at all. When nothing is
+        // connected yet, there's no flow to describe: fall back to the whole
+        // set, which keeps the "single node" case (`store()`) pointing at itself.
+        $connected = $solutionNodes->filter(
+            fn ($n) => $inBySolution[$n['solution_id']] + $outBySolution[$n['solution_id']] > 0
+        );
+        $endpoints = $connected->isNotEmpty() ? $connected : $solutionNodes;
+
+        $sourceId = ($endpoints->first(fn ($n) => $inBySolution[$n['solution_id']] === 0) ?? $endpoints->first())['solution_id'];
+        $targetId = ($endpoints->last(fn ($n) => $outBySolution[$n['solution_id']] === 0) ?? $endpoints->last())['solution_id'];
 
         $bidirectional = $sawForward && $sawBackward;
 

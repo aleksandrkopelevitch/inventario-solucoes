@@ -3,28 +3,28 @@
     section). JS-driven canvas (legitimate exception to "utilities over custom
     CSS", like flow-canvas): absolutely-positioned nodes + SVG edges, with
     pan/zoom and browser fullscreen. Draws the chain (`chain = {nodes, edges}`,
-    each edge `{from, to, arrow, protocol}` by node index) of the integration
-    chosen in the list on the left — a genuinely FREE GRAPH, not a straight
-    line, and it doesn't require every block to be linked to something: a
-    block can stay isolated, either because it was born that way ("Sem
-    conexão" in the "Adicionar bloco" panel) or because its last link was
-    removed (the "Desligar" button in the link editor). Editable/extensible
-    things in place: a node's title (except the root, index 0), via the
-    pencil in the block's contextual toolbar; direction + protocol of any
+    each node `{solution_id, label, kind}` and each edge
+    `{from, to, arrow, protocol}` by node index) of the integration chosen in
+    the list on the left — a genuinely FREE GRAPH, not a straight line, and it
+    doesn't require every block to be linked to something: blocks and links
+    are created independently of each other. Editable/extensible things in
+    place: a NEW block, via the "+" button in the topbar ("Adicionar bloco"
+    panel) — a PURE block, with no arrow and no protocol: its kind
+    (`App\Enums\ChainNodeKind`: sistema, decisão, ator) plus a registered
+    Solution or free text; a block's kind/title (except the root, index 0),
+    via the pencil in the block's contextual toolbar; a NEW link, by dragging
+    an arrow out of any block's connection port (the 4 small circles that show
+    up on hover) and dropping it on any other block — created straight away as
+    `->` with no protocol, refined afterwards on the pill; the same link via
+    "modo ligar" (the link icon in the block's toolbar, for click-click instead
+    of drag) — click a block, it activates the mode, click any other block
+    opens the panel for direction + protocol; direction + protocol of any
     link, by clicking the pill above the arrow (including the dashed "+
     protocolo" pill, when it doesn't have one yet) — the same editor has a
-    "Desligar" button that removes only the link, never the blocks; a NEW
-    block at the END of the chain, via the "+" button in the topbar
-    ("Adicionar bloco" panel — pick a registered Solution or free text, plus
-    the arrow/protocol of the new link, or "Sem conexão" to be born isolated);
-    retargeting any link (one just created or any other existing one) to a
-    different block, by dragging the arrow's tip to it; and "link mode" (the
-    link icon in the block's toolbar) — click a block, it activates the mode,
-    click any other block creates a NEW link between the two, without
-    depending on an existing link to drag (this is what lets you link two
-    blocks that were never connected, or reconnect an isolated block). All of
-    these actions touch `chain` (the topology's source of truth) and re-run
-    SyncIntegrationFromChain on the server — they aren't "purely visual"
+    "Desligar" button that removes only the link, never the blocks; and
+    retargeting any link to a different block, by dragging the arrow's tip to
+    it. All of these actions touch `chain` (the topology's source of truth) and
+    re-run SyncIntegrationFromChain on the server — they aren't "purely visual"
     tweaks like position/color/comment (those stay only in `viz_layout`).
     This is the app's only topology editor — there's no separate form/modal
     anymore. Data arrives already resolved in each row's
@@ -60,7 +60,7 @@
         {{-- Interaction hint, condensed into a discreet "?" so the (often
              long) integration title keeps its room in this narrow bar.
              `data-viz-hint` is presentational only — no JS hook reads it. --}}
-        <x-forms.button type="button" variant="ghost" data-viz-hint title="clique seleciona · arraste move · roda dá zoom"
+        <x-forms.button type="button" variant="ghost" data-viz-hint title="clique seleciona · arraste move · puxe a bolinha da borda até outro bloco pra ligar · roda dá zoom"
             class="!shrink-0 !rounded-md !p-1.5 !text-faint hover:!bg-accent-soft hover:!text-ink">
             <x-heroicon-o-question-mark-circle class="size-4" />
         </x-forms.button>
@@ -247,14 +247,25 @@
                 </x-forms.button>
             </div>
 
-            {{-- Node title editor — select of registered Solutions + free text,
-                 editing an already-existing node directly on the selected
-                 block. Choosing a Solution pulls in name/logo/attributes as
-                 always; the "Outro" option accepts free text. Solution
-                 options come from `[data-ak-solutions]` (rendered once in
+            {{-- Node editor — kind of block (sistema / decisão / ator) +
+                 select of registered Solutions + free text, editing an
+                 already-existing node directly on the selected block. On a
+                 system block, choosing a Solution pulls in
+                 name/logo/attributes as always and the "Outro" option accepts
+                 free text; decisão/ator are free text only, so the JS hides
+                 the Solution select for them. Kind options come from
+                 `[data-ak-node-kinds]` and Solution options from
+                 `[data-ak-solutions]` (both rendered once in
                  integrations-map.blade.php), read and cached in JS. --}}
             <div data-viz-title-editor class="pointer-events-auto hidden w-[min(280px,80vw)] flex-col gap-2">
-                <x-forms.select data-viz-title-select class="!h-8 !w-full !rounded-md !border-line !bg-surface !py-0 !text-xs"></x-forms.select>
+                <x-forms.select data-viz-title-kind aria-label="Tipo do bloco" class="!h-8 !w-full !rounded-md !border-line !bg-surface !py-0 !text-xs"></x-forms.select>
+                {{-- The Solution select is hidden whole on a decisão/ator block
+                     — hence this wrapper: `x-forms.select` renders the `<select>`
+                     inside a `relative` div that also holds the chevron, so
+                     hiding only the `<select>` would leave that chevron floating. --}}
+                <div data-viz-title-solution-field>
+                    <x-forms.select data-viz-title-select class="!h-8 !w-full !rounded-md !border-line !bg-surface !py-0 !text-xs"></x-forms.select>
+                </div>
                 <x-forms.input type="text" data-viz-title-label placeholder="Nome do sistema externo"
                     class="hidden !h-8 !w-full !rounded-md !border-line !bg-surface !text-xs" />
                 <div class="flex items-center justify-end gap-1.5">
@@ -270,34 +281,28 @@
             </div>
         </div>
 
-        {{-- "Adicionar bloco" panel: creates a new node at the END of the
-             chain, linked to whichever node is currently last by a new link
-             (arrow/protocol chosen here). This is only the starting point —
-             the created link can be dragged to any other block afterwards
-             (the arrow's handle on the canvas), re-linking the chain into a
-             free graph; there's no second panel to "choose who to connect
-             to" because dragging already handles that. Anchored to the
-             topbar's "+" button (not to a node), which is why it's its own
-             panel, outside the block's contextual toolbar. System:
-             registered Solution (same list as `[data-ak-solutions]`) or
-             free text — same pair as the node title editor. Arrow: 3
-             hardcoded options (not from an enum). Protocol: same list as
-             `[data-ak-protocols]` from the link's protocol editor. --}}
+        {{-- "Adicionar bloco" panel: creates a PURE block — kind (sistema /
+             decisão / ator) + registered Solution or free text, and nothing
+             else. No arrow, no protocol: the block is born isolated, and the
+             wiring is a separate gesture afterwards (drag an arrow out of any
+             block's port, or "modo ligar"). Anchored to the topbar's "+"
+             button (not to a node), which is why it's its own panel, outside
+             the block's contextual toolbar. Kind options come from
+             `[data-ak-node-kinds]` and Solution options from
+             `[data-ak-solutions]` — same pair of controls as the block's own
+             editor above, since creating and editing a block validate the
+             same three fields on the server (`ValidatesChainNode`). --}}
         <div data-viz-add-editor
             class="pointer-events-auto absolute z-20 hidden w-[min(260px,80vw)] flex-col gap-2 rounded-xl border border-line bg-surface p-2.5 shadow-[0_8px_28px_rgba(16,24,40,.16)]">
-            <x-forms.select data-viz-add-select class="!h-8 !w-full !rounded-md !border-line !bg-surface !py-0 !text-xs"></x-forms.select>
+            <x-forms.select data-viz-add-kind aria-label="Tipo do bloco" class="!h-8 !w-full !rounded-md !border-line !bg-surface !py-0 !text-xs"></x-forms.select>
+            {{-- Wrapper for the same reason as in the block editor above: the
+                 whole field (select + chevron) is hidden on a decisão/ator block. --}}
+            <div data-viz-add-solution-field>
+                <x-forms.select data-viz-add-select class="!h-8 !w-full !rounded-md !border-line !bg-surface !py-0 !text-xs"></x-forms.select>
+            </div>
             <x-forms.input type="text" data-viz-add-label placeholder="Nome do sistema externo"
                 class="hidden !h-8 !w-full !rounded-md !border-line !bg-surface !text-xs" />
-            <x-forms.select data-viz-add-arrow aria-label="Sentido do fluxo"
-                class="!h-8 !w-full !rounded-md !border-line !bg-surface !py-0 !text-xs">
-                <option value="->">&rarr; envia</option>
-                <option value="<-">&larr; recebe</option>
-                <option value="<->">&harr; envia e recebe</option>
-                <option value="">Sem conexão — bloco isolado</option>
-            </x-forms.select>
-            <x-forms.select data-viz-add-protocol class="!h-8 !w-full !rounded-md !border-line !bg-surface !py-0 !text-xs">
-                <option value="">Sem protocolo</option>
-            </x-forms.select>
+            <p class="text-[11px] leading-snug text-faint">O bloco nasce solto — depois arraste uma seta de qualquer bloco até ele.</p>
             <div class="flex items-center justify-end gap-1.5">
                 <x-forms.button type="button" variant="ghost" data-viz-add-cancel
                     class="!rounded-md !px-2.5 !py-1 !text-xs !text-muted hover:!bg-accent-soft">
@@ -418,6 +423,8 @@
                 --viz-line: #94A3C4;
                 --viz-node: #C9D4F7;
                 --viz-node-free: #EBF4FC;
+                --viz-node-decision: #FBE6A8; /* decision block (chamfered hexagon) */
+                --viz-node-actor: #CFEBDA;    /* actor block (person/area) */
                 --viz-ink: #1A1A2E;
                 --viz-select: #4A90D9; /* selection ring + comment badge */
                 --viz-highlight: #AADB1E; /* highlighted anchor/handle */
@@ -453,6 +460,12 @@
                 fill: none;
                 stroke: var(--viz-line);
                 stroke-width: 2;
+            }
+            /* Arrow being pulled out of a port, until the mouse is released
+               (there's no edge in the chain yet — see `drag.type === 'connect'`). */
+            .ak-viz-edges path.ak-viz-edge.is-preview {
+                stroke: var(--viz-select);
+                stroke-dasharray: 5 4;
             }
             .ak-viz-edges marker path { fill: var(--viz-line); }
             .ak-viz-edges .ak-viz-plabel-box {
@@ -527,7 +540,14 @@
                 width: 10px;
                 height: 10px;
             }
-            /* Block body: avatar (logo or initial) + name. */
+            /* Block body: avatar (logo or initial) + name. `position: relative`
+               on both content rows so they paint ABOVE the `::before` shape
+               layer of a decision block (an absolutely-positioned pseudo
+               element would otherwise cover static in-flow content). */
+            .ak-viz-node-attrs,
+            .ak-viz-node-body {
+                position: relative;
+            }
             .ak-viz-node-body {
                 display: flex;
                 align-items: center;
@@ -562,9 +582,56 @@
                 border: 1px dashed var(--viz-line);
                 box-shadow: none;
             }
+            /* Actor block (`ChainNodeKind::Actor`): person/area — mint, fully
+               rounded, with the kind's icon where a solution would show its logo. */
+            .ak-viz-node.is-actor {
+                background: var(--viz-node-actor);
+                border-radius: 999px;
+                padding-left: 12px;
+                padding-right: 16px;
+            }
+            /* Decision block (`ChainNodeKind::Decision`): the flow's branch, a
+               chamfered hexagon. The shape is a `::before` layer, NOT
+               `clip-path` on the block itself — clipping the element would also
+               cut off its children (connection ports, comment badge), which sit
+               on/outside its edges on purpose. The bounding box stays
+               rectangular either way, so every edge/anchor calculation in
+               integration-viz.js keeps working unchanged. */
+            .ak-viz-node.is-decision {
+                background: transparent;
+                box-shadow: none;
+                padding-left: 26px;
+                padding-right: 26px;
+            }
+            .ak-viz-node.is-decision::before {
+                content: '';
+                position: absolute;
+                inset: 0;
+                background: var(--viz-node-decision);
+                clip-path: polygon(18px 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 18px 100%, 0 50%);
+            }
+            /* Kind icon (decision/actor) — same slot as the solution avatar,
+               but transparent: it's a stroked glyph, not a logo. */
+            .ak-viz-node-avatar.is-kind {
+                background: transparent;
+                box-shadow: none;
+                color: inherit;
+                width: 16px;
+                height: 16px;
+                overflow: visible;
+            }
+            .ak-viz-node-avatar.is-kind svg {
+                width: 16px;
+                height: 16px;
+            }
             /* Selected: highlighted blue ring. */
             .ak-viz-node.is-selected {
                 box-shadow: 0 0 0 2px var(--viz-bg), 0 0 0 4px var(--viz-select), 0 4px 14px rgba(16, 24, 40, .14);
+            }
+            /* Block under the pointer while an arrow is being dragged out of
+               another block's port — the drop target of the new link. */
+            .ak-viz-node.is-link-target {
+                box-shadow: 0 0 0 2px var(--viz-bg), 0 0 0 4px var(--viz-highlight), 0 4px 14px rgba(16, 24, 40, .14);
             }
             /* Comment badge — node's top-right corner. */
             .ak-viz-comment-badge {
@@ -582,6 +649,45 @@
             /* Blocks are draggable when the integration is editable. */
             [data-integration-viz][data-editable] .ak-viz-node { cursor: grab; }
             [data-integration-viz][data-editable] .ak-viz-node.is-dragging { cursor: grabbing; }
+            /* Connection ports — 4 per block (top/right/bottom/left), the
+               "pull an arrow out of here" grip. Children of the block, so they
+               follow it around with no coordinate math; only rendered when the
+               integration is editable, and only visible on hover/selection so
+               the canvas stays clean. */
+            .ak-viz-port {
+                position: absolute;
+                width: 11px;
+                height: 11px;
+                border-radius: 50%;
+                background: #fff;
+                border: 1.5px solid var(--viz-select);
+                transform: translate(-50%, -50%);
+                opacity: 0;
+                cursor: crosshair;
+                transition: opacity .12s ease, transform .1s ease;
+                box-shadow: 0 1px 2px rgba(16, 24, 40, .18);
+                /* Below `.ak-viz-handle` (z-index 6) on purpose: an existing
+                   arrow's handle lands on exactly the same spot as the port of
+                   the anchor it's glued to, and dragging THAT must keep meaning
+                   "retarget this arrow", not "start a new one". The block's
+                   other three ports stay available. */
+                z-index: 5;
+            }
+            [data-integration-viz]:not([data-editable]) .ak-viz-port { display: none; }
+            .ak-viz-port.is-t { left: 50%; top: 0; }
+            .ak-viz-port.is-b { left: 50%; top: 100%; }
+            .ak-viz-port.is-l { left: 0; top: 50%; }
+            .ak-viz-port.is-r { left: 100%; top: 50%; }
+            .ak-viz-node:hover .ak-viz-port,
+            .ak-viz-node.is-selected .ak-viz-port { opacity: 1; }
+            .ak-viz-port:hover {
+                background: var(--viz-select);
+                transform: translate(-50%, -50%) scale(1.35);
+            }
+            /* Ports would only get in the way while a block is being dragged
+               or while the whole canvas is in "modo ligar". */
+            .ak-viz-node.is-dragging .ak-viz-port,
+            .ak-viz-viewport.is-linking .ak-viz-port { display: none; }
             /* Arrow-tip handles (draggable) — subtle. */
             .ak-viz-handle {
                 position: absolute;

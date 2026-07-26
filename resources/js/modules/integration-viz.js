@@ -1,7 +1,13 @@
 // Visualização gráfica da integração selecionada (seção F3 do detalhe da
 // solução). Desenha a cadeia (`chain`) escolhida na lista à esquerda como um
-// grafo — nós (soluções ou texto livre) ligados por setas cujo sentido segue o
-// segmento (`->` ida, `<-` volta, `<->` ambos) e cujo rótulo é o protocolo.
+// grafo — nós ligados por setas cujo sentido segue o segmento (`->` ida, `<-`
+// volta, `<->` ambos) e cujo rótulo é o protocolo. Cada nó tem um TIPO
+// (`kind`, ver `App\Enums\ChainNodeKind`): `system` (uma Solução cadastrada ou
+// um sistema externo em texto livre), `decision` (a bifurcação do fluxo,
+// desenhada como hexágono chanfrado) ou `actor` (pessoa/área, desenhada como
+// badge arredondado com ícone). O tipo vem resolvido no grafo (`nodes[i].kind`
+// + `nodes[i].icon`, SVG já renderizado no servidor); nós salvos antes dos
+// tipos existirem chegam como `system`.
 //
 // Nós em <div> com sombra + arestas em SVG dentro de um #world com transform.
 // Os dados vêm resolvidos no `data-integration-graph` de cada linha
@@ -20,9 +26,10 @@
 // topologia.
 //
 // O lápis da toolbar (indisponível no nó raiz, índice 0) abre um editor
-// inline de título — select de Soluções cadastradas + opção de texto livre.
-// Ao salvar, isso SIM mexe na `chain` (fonte de verdade) via PATCH em
-// `graph.nodeUpdateUrl`, então o
+// inline do bloco — select de TIPO (sistema/decisão/ator) + select de Soluções
+// cadastradas + opção de texto livre (decisão/ator são só texto livre, então o
+// select de Soluções fica escondido nesses tipos). Ao salvar, isso SIM mexe na
+// `chain` (fonte de verdade) via PATCH em `graph.nodeUpdateUrl`, então o
 // servidor pode rederivar participants/source/target/direction — a resposta
 // já vem no formato resolvido (ver `Solutions\IntegrationsMap::resolveNode`),
 // aplicado ao nó local sem precisar redesenhar o grafo inteiro.
@@ -38,19 +45,28 @@
 // DELETE em `graph.edgeRemoveUrl` (desligar); não há ligação "raiz"
 // protegida aqui, qualquer edge pode ser editada/removida.
 //
-// O botão "+" da topbar (`openAddEditor()`) acrescenta um bloco novo ao FINAL
-// da cadeia — mesmo par "select de Soluções + texto livre" do editor de
-// título, mais a seta/protocolo da nova ligação (ou "Sem conexão", que
-// acrescenta o bloco sem ligação nenhuma — nasce isolado). POST em
-// `graph.nodeAddUrl`; a resposta traz o nó já resolvido (mesmo formato de
-// `resolveNode()`), que `appendNode()` desenha e posiciona à direita do
-// último bloco, sem redesenhar o grafo inteiro.
+// O botão "+" da topbar (`openAddEditor()`) acrescenta um bloco NOVO E PURO:
+// só o tipo (sistema/decisão/ator) + a Solução cadastrada ou o texto livre —
+// sem seta e sem protocolo. Todo bloco nasce solto; ligar é um gesto separado,
+// depois (ver as três formas abaixo). POST em `graph.nodeAddUrl`; a resposta
+// traz o nó já resolvido (mesmo formato de `resolveNode()`), que
+// `appendNode()` desenha e posiciona à direita do último bloco, sem redesenhar
+// o grafo inteiro.
 //
 // A chain é um GRAFO LIVRE, não uma linha reta, e não exige que todo bloco
 // esteja ligado a algo: `graph.edges[i]` traz `{from, to, arrow, protocol}`
 // com índices de nó explícitos, e o número de edges é independente do número
-// de nós. Duas formas de (re)ligar blocos:
-//   1. Arrastar o handle de uma ponta de seta JÁ EXISTENTE para dentro de
+// de nós. Três formas de ligar/religar blocos, todas disponíveis em TODOS os
+// nós (inclusive o raiz):
+//   1. Arrastar uma seta pra fora de uma das 4 PORTAS de um bloco (os
+//      circulinhos que aparecem no hover, filhos do nó — ver `paintNode()` e
+//      `startPortDrag()`) e soltar sobre qualquer outro bloco cria uma ligação
+//      NOVA na hora: POST em `graph.edgeAddUrl` com `->` e sem protocolo,
+//      sem diálogo nenhum no caminho — sentido/protocolo se ajustam depois na
+//      pill. Durante o arraste, `drag.type === 'connect'` desenha uma prévia
+//      tracejada até o ponteiro e destaca o bloco sob ele; soltar fora de um
+//      bloco (ou no bloco de origem) cancela.
+//   2. Arrastar o handle de uma ponta de seta JÁ EXISTENTE para dentro de
 //      OUTRO bloco (não só pra outra âncora do mesmo par de nós) religa
 //      aquela ligação pra esse bloco — `nodeAtPoint()` decide, durante o
 //      arraste, se o ponteiro está sobre um nó diferente do nó original
@@ -59,20 +75,18 @@
 //      "voltar" visualmente enquanto o request está em voo — reverte em caso
 //      de erro). Um bloco não pode se ligar a ele mesmo: soltar sobre a
 //      ponta oposta da MESMA ligação é ignorado, mantendo o nó original.
-//   2. "Modo ligar" (`data-viz-toolbar-link` na toolbar do bloco, ver
-//      `startLinking()`): clique num bloco ativa o modo (cursor crosshair +
-//      hint no topo do canvas), clique em outro bloco qualquer abre
+//   3. "Modo ligar" (`data-viz-toolbar-link` na toolbar do bloco, ver
+//      `startLinking()`) — a variante clique-clique da forma 1, pra quem
+//      prefere não arrastar: clique num bloco ativa o modo (cursor crosshair
+//      + hint no topo do canvas), clique em outro bloco qualquer abre
 //      `openConnectEditor()` (mesmo painel do protocolo, em modo "create"),
-//      que ao salvar faz POST em `graph.edgeAddUrl` — cria uma ligação NOVA
-//      do zero entre os dois, sem depender de nenhuma ligação existente pra
-//      arrastar. É o que permite ligar dois blocos que nunca estiveram
-//      conectados (ou reconectar um bloco isolado) sem passar por
-//      `addNode()`. Esc, o botão do hint, ou clicar no fundo do canvas
-//      cancelam o modo.
-// Entre as duas formas de religar + "Sem conexão" no painel de adicionar +
+//      que ao salvar faz POST no mesmo `graph.edgeAddUrl` — a diferença é que
+//      aqui dá pra escolher sentido/protocolo antes de criar. Esc, o botão do
+//      hint, ou clicar no fundo do canvas cancelam o modo.
+// Entre as três formas de ligar + o bloco puro do painel de adicionar +
 // "Desligar" no editor de ligação, a topologia é um grafo livre de verdade —
-// sem precisar de uma ferramenta separada de "desenhar ligação do zero" nem
-// de forçar todo bloco a estar conectado.
+// nós e ligações são criados independentemente, sem forçar todo bloco a estar
+// conectado.
 //
 // O lápis da TOPBAR (`data-viz-meta-edit`, distinto do lápis de título do
 // bloco) edita nome/status da integração selecionada — o único metadado que
@@ -102,6 +116,9 @@ const ANCHORS = {
     br: { fx: 0.75, fy: 1,   nx: 0,  ny: 1 },  // intermediária base
 }
 const ANCHOR_KEYS = Object.keys(ANCHORS)
+// Lados que ganham uma porta de ligação no bloco (as 4 âncoras principais —
+// as intermediárias do topo/base existem só pra grudar ponta de seta).
+const ANCHOR_SIDES = ['t', 'r', 'b', 'l']
 
 // Paleta de cor de bloco (mesma lógica do mapa mental de referência: presets
 // + cor personalizada) e famílias de fonte selecionáveis por bloco.
@@ -143,7 +160,9 @@ function buildAttrChip(attr) {
 
 // Avatar do bloco: logo da solução, ou (sem logo) um badge com a inicial do
 // nome — mesmo fallback do catálogo (`x-ui.logo`), refeito aqui em DOM puro
-// porque os nós do data-viz não passam por Blade.
+// porque os nós do data-viz não passam por Blade. Em bloco de decisão/ator,
+// o lugar do logo é ocupado pelo ícone do tipo (`data.icon`, heroicon já
+// renderizado no servidor — ver `ChainNodeKind::icon()`).
 function buildAvatar(data) {
     const avatar = document.createElement('span')
     avatar.className = 'ak-viz-node-avatar'
@@ -159,12 +178,39 @@ function buildAvatar(data) {
     return avatar
 }
 
+function buildKindIcon(icon) {
+    const avatar = document.createElement('span')
+    avatar.className = 'ak-viz-node-avatar is-kind'
+    avatar.innerHTML = icon
+    return avatar
+}
+
+// 4 portas de ligação por bloco (topo/direita/base/esquerda) — o "puxe uma
+// seta daqui". São filhas do nó (acompanham posição/tamanho sem conta
+// nenhuma) e não têm listener próprio: `startNodePointer()` reconhece o
+// `[data-viz-port]` no alvo do mousedown e inicia o arraste de ligação em vez
+// do arraste do bloco. Visíveis só no hover/seleção e só quando editável (CSS).
+function buildPorts(el) {
+    ANCHOR_SIDES.forEach((side) => {
+        const port = document.createElement('span')
+        port.className = 'ak-viz-port is-' + side
+        port.setAttribute('data-viz-port', side)
+        port.title = 'Arraste até outro bloco para criar uma ligação'
+        el.appendChild(port)
+    })
+}
+
 // (Re)desenha o conteúdo de um bloco a partir dos dados resolvidos do nó —
 // usado tanto ao montar o grafo inteiro (`render()`) quanto após editar o
 // título de um nó pontualmente (`applyNodeData()`), para as duas rotas nunca
 // divergirem na montagem do DOM do bloco.
 function paintNode(el, data) {
-    el.classList.toggle('is-free', !data.solution)
+    const kind = data.kind || 'system'
+    // `is-free` (tracejado de "externo à Leo") é só do bloco de sistema sem
+    // Solução — decisão/ator têm forma/cor próprias, ver as classes abaixo.
+    el.classList.toggle('is-free', kind === 'system' && !data.solution)
+    el.classList.toggle('is-decision', kind === 'decision')
+    el.classList.toggle('is-actor', kind === 'actor')
     el.classList.toggle('has-comment', !!data.comment)
     el.innerHTML = ''
 
@@ -180,10 +226,12 @@ function paintNode(el, data) {
     }
 
     // Corpo do bloco: avatar (logo da solução, ou inicial do nome quando não
-    // há logo) + nome. Nós de texto livre não têm avatar.
+    // há logo; ícone do tipo em decisão/ator) + nome. Nó de sistema em texto
+    // livre não tem avatar nenhum.
     const body = document.createElement('div')
     body.className = 'ak-viz-node-body'
     if (data.solution) body.appendChild(buildAvatar(data))
+    else if (data.icon) body.appendChild(buildKindIcon(data.icon))
     const text = document.createElement('span')
     text.className = 'ak-viz-node-text'
     text.textContent = data.label ?? '?'
@@ -193,6 +241,8 @@ function paintNode(el, data) {
     const badge = document.createElement('span')
     badge.className = 'ak-viz-comment-badge'
     el.appendChild(badge)
+
+    buildPorts(el)
 }
 
 const mounted = new WeakSet()
@@ -202,6 +252,7 @@ let uidCounter = 0
 let solutionsListCache = null // [{id,name}] — lido uma vez de [data-ak-solutions] (integrations-map.blade.php)
 let protocolsListCache = null // [{value,label}] — lido uma vez de [data-ak-protocols] (integrations-map.blade.php)
 let statusesListCache = null // [{value,label}] — lido uma vez de [data-ak-statuses] (integrations-map.blade.php)
+let kindsListCache = null // [{value,label,system,placeholder}] — lido uma vez de [data-ak-node-kinds] (integrations-map.blade.php)
 
 function getSolutionsList() {
     if (solutionsListCache) return solutionsListCache
@@ -234,6 +285,25 @@ function getStatusesList() {
         statusesListCache = []
     }
     return statusesListCache
+}
+
+// Tipos de bloco (`App\Enums\ChainNodeKind`) — resolvidos no servidor, nunca
+// hardcoded aqui: `system` é o único que aceita Solução cadastrada, e cada
+// tipo traz o placeholder do input de texto livre.
+function getNodeKindsList() {
+    if (kindsListCache) return kindsListCache
+    const raw = document.querySelector('[data-ak-node-kinds]')?.getAttribute('data-ak-node-kinds')
+    try {
+        kindsListCache = raw ? JSON.parse(raw) : []
+    } catch {
+        kindsListCache = []
+    }
+    return kindsListCache
+}
+
+function nodeKind(value) {
+    const kinds = getNodeKindsList()
+    return kinds.find((k) => k.value === value) ?? kinds.find((k) => k.system) ?? { value: 'system', system: true, placeholder: '' }
 }
 
 export function init() {
@@ -338,10 +408,10 @@ function mount(root) {
     const organizeBtn = root.querySelector('[data-viz-organize]')
     const addNodeBtn = root.querySelector('[data-viz-add-node]')
     const addEditor = root.querySelector('[data-viz-add-editor]')
+    const addKindSelect = root.querySelector('[data-viz-add-kind]')
+    const addSolutionField = root.querySelector('[data-viz-add-solution-field]')
     const addSelect = root.querySelector('[data-viz-add-select]')
     const addLabelInput = root.querySelector('[data-viz-add-label]')
-    const addArrowSelect = root.querySelector('[data-viz-add-arrow]')
-    const addProtocolSelect = root.querySelector('[data-viz-add-protocol]')
     const addSave = root.querySelector('[data-viz-add-save]')
     const addSaveLabel = root.querySelector('[data-viz-add-save-label]')
     const addCancel = root.querySelector('[data-viz-add-cancel]')
@@ -361,6 +431,8 @@ function mount(root) {
     const linkHint = root.querySelector('[data-viz-link-hint]')
     const linkCancelBtn = root.querySelector('[data-viz-link-cancel]')
     const titleEditor = root.querySelector('[data-viz-title-editor]')
+    const titleKindSelect = root.querySelector('[data-viz-title-kind]')
+    const titleSolutionField = root.querySelector('[data-viz-title-solution-field]')
     const titleSelect = root.querySelector('[data-viz-title-select]')
     const titleLabelInput = root.querySelector('[data-viz-title-label]')
     const titleSave = root.querySelector('[data-viz-title-save]')
@@ -387,6 +459,7 @@ function mount(root) {
     let nodes = []          // { label, solution, url, comment, logo, environment, cloud, el, w, h, x, y }
     let graphRef = null
     let edgeAnchors = []    // [{from, to}] por índice de edge (âncora visual — from/to aqui são anchor keys, não nós)
+    let creatingEdge = false // POST de ligação nova em voo — ver `appendEdgeLocally()`
     let slug = ''
     let editable = false
     let saveUrl = null
@@ -631,6 +704,7 @@ function mount(root) {
         })
 
         if (drag?.type === 'handle' && nodes[drag.targetNode]) drawAnchorDots(drag.targetNode, edgeAnchors[drag.edge][drag.end])
+        if (drag?.type === 'connect') drawConnectPreview()
         positionToolbar()
         positionProtocolEditor()
     }
@@ -787,7 +861,90 @@ function mount(root) {
     toolbarTextColor?.addEventListener('input', (e) => setNodeTextColor(e.target.value))
     toolbarFont?.addEventListener('change', (e) => setNodeFont(e.target.value))
 
-    // ── título do nó: select de Soluções cadastradas + texto livre ─────
+    // ── campos de bloco, compartilhados pelos dois painéis ─────────────
+    // O painel "Adicionar bloco" (topbar) e o editor do bloco selecionado
+    // (lápis da toolbar) são o MESMO formulário — tipo do bloco + Solução
+    // cadastrada ou texto livre —, e o servidor valida os dois com as mesmas
+    // regras (`ValidatesChainNode`), então a montagem dos selects, a
+    // sincronia entre eles e a leitura do payload moram aqui, uma vez só.
+    function fillKindSelect(select, current) {
+        if (!select) return
+        select.innerHTML = ''
+        getNodeKindsList().forEach((k) => {
+            const opt = document.createElement('option')
+            opt.value = k.value
+            opt.textContent = k.label
+            if (k.value === current) opt.selected = true
+            select.appendChild(opt)
+        })
+    }
+
+    function fillSolutionSelect(select, currentId, selectFree) {
+        if (!select) return
+        select.innerHTML = ''
+        const placeholder = document.createElement('option')
+        placeholder.value = ''
+        placeholder.textContent = 'Selecione um sistema…'
+        select.appendChild(placeholder)
+
+        getSolutionsList().forEach((s) => {
+            const opt = document.createElement('option')
+            opt.value = String(s.id)
+            opt.textContent = s.name
+            if (currentId && Number(currentId) === Number(s.id)) opt.selected = true
+            select.appendChild(opt)
+        })
+
+        const freeOpt = document.createElement('option')
+        freeOpt.value = 'free'
+        freeOpt.textContent = 'Outro (texto livre)…'
+        if (selectFree) freeOpt.selected = true
+        select.appendChild(freeOpt)
+    }
+
+    // Deixa os campos coerentes com o tipo escolhido: só `system` tem select
+    // de Soluções (e aí o texto livre só aparece na opção "Outro"); decisão e
+    // ator são texto livre puro, cada um com o seu próprio placeholder.
+    function syncKindFields(kindSelect, solutionField, solutionSelect, labelInput, focusLabel = false) {
+        const kind = nodeKind(kindSelect?.value)
+        solutionField?.classList.toggle('hidden', !kind.system)
+        const freeText = !kind.system || solutionSelect?.value === 'free'
+        if (labelInput) {
+            labelInput.placeholder = kind.placeholder
+            labelInput.classList.toggle('hidden', !freeText)
+            if (freeText && focusLabel) labelInput.focus()
+        }
+    }
+
+    // Payload do endpoint de bloco (`kind` + `solution_id`/`label`), ou null
+    // quando falta preencher algo — nesse caso o aviso já foi mostrado.
+    function readNodeForm(kindSelect, solutionSelect, labelInput) {
+        const kind = nodeKind(kindSelect?.value)
+        const label = (labelInput?.value ?? '').trim()
+
+        if (!kind.system) {
+            if (!label) {
+                window.Toast?.show?.('Informe o texto do bloco.', 'warning')
+                return null
+            }
+            return { kind: kind.value, solution_id: null, label }
+        }
+
+        const value = solutionSelect?.value ?? ''
+        if (!value) {
+            window.Toast?.show?.('Escolha um sistema ou informe o texto livre.', 'warning')
+            return null
+        }
+        const isFree = value === 'free'
+        if (isFree && !label) {
+            window.Toast?.show?.('Informe o texto livre do bloco.', 'warning')
+            return null
+        }
+
+        return { kind: kind.value, solution_id: isFree ? null : value, label: isFree ? label : null }
+    }
+
+    // ── editor do bloco: tipo + select de Soluções cadastradas + texto livre ──
     // Aplica os campos resolvidos que vêm do servidor (mesmo formato de
     // `graph.nodes[i]`) num nó já desenhado, sem precisar redesenhar o grafo
     // inteiro. O tamanho do bloco pode mudar (texto novo) — recalcula w/h e
@@ -797,6 +954,8 @@ function mount(root) {
         if (!n) return
         Object.assign(n, {
             label: data.label,
+            kind: data.kind || 'system',
+            icon: data.icon ?? null,
             solution: data.solution,
             solutionId: data.solutionId ?? null,
             url: data.url,
@@ -946,31 +1105,10 @@ function mount(root) {
         titleEditor?.classList.remove('hidden')
         titleEditor?.classList.add('flex')
 
-        if (titleSelect) {
-            titleSelect.innerHTML = ''
-            const placeholder = document.createElement('option')
-            placeholder.value = ''
-            placeholder.textContent = 'Selecione um sistema…'
-            titleSelect.appendChild(placeholder)
-
-            getSolutionsList().forEach((s) => {
-                const opt = document.createElement('option')
-                opt.value = String(s.id)
-                opt.textContent = s.name
-                if (n.solutionId && Number(n.solutionId) === Number(s.id)) opt.selected = true
-                titleSelect.appendChild(opt)
-            })
-
-            const freeOpt = document.createElement('option')
-            freeOpt.value = 'free'
-            freeOpt.textContent = 'Outro (texto livre)…'
-            if (!n.solutionId) freeOpt.selected = true
-            titleSelect.appendChild(freeOpt)
-        }
-        if (titleLabelInput) {
-            titleLabelInput.value = n.solutionId ? '' : (n.label ?? '')
-            titleLabelInput.classList.toggle('hidden', !!n.solutionId)
-        }
+        fillKindSelect(titleKindSelect, n.kind || 'system')
+        fillSolutionSelect(titleSelect, n.solutionId, !n.solutionId)
+        if (titleLabelInput) titleLabelInput.value = n.solutionId ? '' : (n.label ?? '')
+        syncKindFields(titleKindSelect, titleSolutionField, titleSelect, titleLabelInput)
         positionToolbar()
     }
 
@@ -985,28 +1123,22 @@ function mount(root) {
 
     toolbarTitleBtn?.addEventListener('click', () => { if (selectedIndex !== null) openTitleEditor(selectedIndex) })
     titleCancel?.addEventListener('click', closeTitleEditor)
+    // Trocar o tipo preserva o texto já digitado (decisão → ator é a mesma
+    // frase, com outra forma) — só o select de Soluções e o placeholder mudam.
+    titleKindSelect?.addEventListener('change', () => {
+        syncKindFields(titleKindSelect, titleSolutionField, titleSelect, titleLabelInput, true)
+        positionToolbar()
+    })
     titleSelect?.addEventListener('change', () => {
-        const isFree = titleSelect.value === 'free'
-        titleLabelInput?.classList.toggle('hidden', !isFree)
-        if (isFree) {
-            titleLabelInput.value = ''
-            titleLabelInput.focus()
-        }
+        if (titleSelect.value === 'free' && titleLabelInput) titleLabelInput.value = ''
+        syncKindFields(titleKindSelect, titleSolutionField, titleSelect, titleLabelInput, true)
+        positionToolbar()
     })
 
     titleSave?.addEventListener('click', async () => {
         if (selectedIndex === null || !nodes[selectedIndex]) return
-        const value = titleSelect?.value ?? ''
-        if (!value) {
-            window.Toast?.show?.('Escolha um sistema ou informe o texto livre.', 'warning')
-            return
-        }
-        const isFree = value === 'free'
-        const label = isFree ? (titleLabelInput?.value ?? '').trim() : null
-        if (isFree && !label) {
-            window.Toast?.show?.('Informe o texto livre do nó.', 'warning')
-            return
-        }
+        const payload = readNodeForm(titleKindSelect, titleSelect, titleLabelInput)
+        if (!payload) return
 
         const url = graphRef?.nodeUpdateUrl?.replace('NODE_INDEX', String(selectedIndex))
         if (!url) return
@@ -1022,28 +1154,28 @@ function mount(root) {
                     'X-CSRF-TOKEN': csrfToken(),
                     'X-Requested-With': 'XMLHttpRequest',
                 },
-                body: JSON.stringify({ solution_id: isFree ? null : value, label }),
+                body: JSON.stringify(payload),
             })
             const data = await res.json().catch(() => null)
-            if (!res.ok) throw new Error(data?.message || 'Não foi possível atualizar o título.')
+            if (!res.ok) throw new Error(data?.message || 'Não foi possível atualizar o bloco.')
 
             applyNodeData(selectedIndex, data.node)
             patchRowGraph(slug, selectedIndex, data.node, data.summary)
-            window.Toast?.show?.(data.message || 'Título atualizado.')
+            window.Toast?.show?.(data.message || 'Bloco atualizado.')
             closeTitleEditor()
         } catch (err) {
-            window.Toast?.show?.(err.message || 'Não foi possível atualizar o título.', 'error')
+            window.Toast?.show?.(err.message || 'Não foi possível atualizar o bloco.', 'error')
         } finally {
             titleSave.disabled = false
             if (titleSaveLabel) titleSaveLabel.textContent = 'Salvar'
         }
     })
 
-    // ── adicionar bloco ao final da cadeia ─────────────────────────
+    // ── adicionar bloco (puro, sem ligação) ────────────────────────
     // Painel ancorado ao botão "+" da topbar (não a um nó nem a uma aresta),
-    // mesmo par "select de Soluções + texto livre" do editor de título, mais
-    // seta/protocolo do novo segmento (mesmas 3 opções hardcoded do form
-    // completo de cadeia).
+    // com os mesmos campos do editor do bloco (tipo + Solução/texto livre) e
+    // nada mais: sem seta, sem protocolo. O bloco nasce solto e o usuário liga
+    // depois, arrastando uma seta da porta de qualquer bloco até ele.
     function openAddEditor() {
         if (!editable || !graphRef) return
         selectNode(null)
@@ -1052,45 +1184,10 @@ function mount(root) {
         addEditor?.classList.remove('hidden')
         addEditor?.classList.add('flex')
 
-        if (addSelect) {
-            addSelect.innerHTML = ''
-            const placeholder = document.createElement('option')
-            placeholder.value = ''
-            placeholder.textContent = 'Selecione um sistema…'
-            addSelect.appendChild(placeholder)
-
-            getSolutionsList().forEach((s) => {
-                const opt = document.createElement('option')
-                opt.value = String(s.id)
-                opt.textContent = s.name
-                addSelect.appendChild(opt)
-            })
-
-            const freeOpt = document.createElement('option')
-            freeOpt.value = 'free'
-            freeOpt.textContent = 'Outro (texto livre)…'
-            addSelect.appendChild(freeOpt)
-        }
-        if (addLabelInput) {
-            addLabelInput.value = ''
-            addLabelInput.classList.add('hidden')
-        }
-        if (addArrowSelect) addArrowSelect.value = '->'
-        addProtocolSelect?.classList.remove('hidden')
-        if (addProtocolSelect) {
-            addProtocolSelect.innerHTML = ''
-            const noneOpt = document.createElement('option')
-            noneOpt.value = ''
-            noneOpt.textContent = 'Sem protocolo'
-            addProtocolSelect.appendChild(noneOpt)
-
-            getProtocolsList().forEach((p) => {
-                const opt = document.createElement('option')
-                opt.value = p.value
-                opt.textContent = p.label
-                addProtocolSelect.appendChild(opt)
-            })
-        }
+        fillKindSelect(addKindSelect, 'system')
+        fillSolutionSelect(addSelect, null, false)
+        if (addLabelInput) addLabelInput.value = ''
+        syncKindFields(addKindSelect, addSolutionField, addSelect, addLabelInput)
         positionAddEditor()
     }
 
@@ -1128,30 +1225,22 @@ function mount(root) {
     })
     addEditor?.addEventListener('mousedown', (e) => e.stopPropagation())
     addCancel?.addEventListener('click', closeAddEditor)
-    addSelect?.addEventListener('change', () => {
-        const isFree = addSelect.value === 'free'
-        addLabelInput?.classList.toggle('hidden', !isFree)
-        if (isFree) {
-            addLabelInput.value = ''
-            addLabelInput.focus()
-        }
+    addKindSelect?.addEventListener('change', () => {
+        syncKindFields(addKindSelect, addSolutionField, addSelect, addLabelInput, true)
+        positionAddEditor()
     })
-    // "Sem conexão" (arrow === '') não tem protocolo — esconde o select
-    // nesse caso pra não sugerir um campo que não vai ser enviado.
-    addArrowSelect?.addEventListener('change', () => {
-        addProtocolSelect?.classList.toggle('hidden', !addArrowSelect.value)
+    addSelect?.addEventListener('change', () => {
+        if (addSelect.value === 'free' && addLabelInput) addLabelInput.value = ''
+        syncKindFields(addKindSelect, addSolutionField, addSelect, addLabelInput, true)
+        positionAddEditor()
     })
 
-    // Desenha e posiciona o bloco novo à direita do nó ao qual se ligou
-    // (`from`, mesmo espaçamento do layout padrão), acrescenta a ligação
-    // correspondente e seleciona o bloco novo — sem redesenhar o grafo
-    // inteiro. Fica dirty (posição ainda não salva em `viz_layout`), mesmo
-    // espírito de `organize()`. `from` pode ser `null` ("Sem conexão" no
-    // painel "Adicionar bloco") — o bloco nasce isolado, só posicionado à
-    // direita do último bloco, sem nenhuma ligação. De qualquer forma, o
-    // usuário pode religar uma ligação existente pra este bloco depois
-    // (arrastando a seta) ou usar o "modo ligar" pra criar uma nova até ele.
-    function appendNode(data, from, arrow, protocol) {
+    // Desenha o bloco novo à direita do último bloco (mesmo espaçamento do
+    // layout padrão) e o seleciona — sem redesenhar o grafo inteiro. Nasce
+    // SEM LIGAÇÃO nenhuma: quem liga é o arraste da porta (ou o "modo ligar",
+    // ou religar uma seta existente até ele). Fica dirty (a posição ainda não
+    // está salva em `viz_layout`), mesmo espírito de `organize()`.
+    function appendNode(data) {
         const index = nodes.length
         const el = document.createElement('div')
         el.className = 'ak-viz-node'
@@ -1159,8 +1248,7 @@ function mount(root) {
         el.addEventListener('mousedown', (e) => startNodePointer(e, index))
         world.appendChild(el)
 
-        const hasEdge = from !== null && from !== undefined
-        const prev = hasEdge ? nodes[from] : nodes[index - 1]
+        const prev = nodes[index - 1]
         const entry = { ...data, el, w: 0, h: 0, x: 0, y: 0, color: null, textColor: null, font: 'sans' }
         nodes.push(entry)
         entry.w = el.offsetWidth
@@ -1175,13 +1263,6 @@ function mount(root) {
             graphRef.nodes = graphRef.nodes || []
             graphRef.nodes.push(data)
         }
-        if (hasEdge) {
-            edgeAnchors.push({ from: 'r', to: 'l' })
-            if (graphRef) {
-                graphRef.edges = graphRef.edges || []
-                graphRef.edges.push({ from, to: index, arrow, protocol })
-            }
-        }
 
         draw()
         setDirty(true)
@@ -1190,10 +1271,9 @@ function mount(root) {
     }
 
     // Mesma ideia de `patchRowGraph()`, mas acrescentando (não substituindo)
-    // um nó (e, quando houver, a ligação dele) — mantém a linha (lista à
-    // esquerda) consistente sem precisar re-selecionar a integração. `from`
-    // pode ser `null` (bloco isolado, "Sem conexão").
-    function patchRowGraphAppend(slugArg, nodeData, from, arrow, protocolData, summary) {
+    // um nó — mantém a linha (lista à esquerda) consistente sem precisar
+    // re-selecionar a integração. Não mexe em `edges`: o bloco nasce solto.
+    function patchRowGraphAppend(slugArg, nodeData, summary) {
         if (!slugArg) return
         const row = document.querySelector(`[data-ak-integration-select="${CSS.escape(slugArg)}"]`)
         if (!row) return
@@ -1205,10 +1285,6 @@ function mount(root) {
                 if (g) {
                     g.nodes = g.nodes || []
                     g.nodes.push(nodeData)
-                    if (from !== null && from !== undefined) {
-                        g.edges = g.edges || []
-                        g.edges.push({ from, to: g.nodes.length - 1, arrow, protocol: protocolData })
-                    }
                     row.setAttribute('data-integration-graph', JSON.stringify(g))
                 }
             } catch {
@@ -1221,17 +1297,8 @@ function mount(root) {
     }
 
     addSave?.addEventListener('click', async () => {
-        const value = addSelect?.value ?? ''
-        if (!value) {
-            window.Toast?.show?.('Escolha um sistema ou informe o texto livre.', 'warning')
-            return
-        }
-        const isFree = value === 'free'
-        const label = isFree ? (addLabelInput?.value ?? '').trim() : null
-        if (isFree && !label) {
-            window.Toast?.show?.('Informe o texto livre do bloco.', 'warning')
-            return
-        }
+        const payload = readNodeForm(addKindSelect, addSelect, addLabelInput)
+        if (!payload) return
 
         const url = graphRef?.nodeAddUrl
         if (!url) return
@@ -1247,18 +1314,13 @@ function mount(root) {
                     'X-CSRF-TOKEN': csrfToken(),
                     'X-Requested-With': 'XMLHttpRequest',
                 },
-                body: JSON.stringify({
-                    solution_id: isFree ? null : value,
-                    label,
-                    arrow: addArrowSelect?.value || null,
-                    protocol: addArrowSelect?.value ? (addProtocolSelect?.value || null) : null,
-                }),
+                body: JSON.stringify(payload),
             })
             const data = await res.json().catch(() => null)
             if (!res.ok) throw new Error(data?.message || 'Não foi possível adicionar o bloco.')
 
-            appendNode(data.node, data.from, data.arrow, data.protocol)
-            patchRowGraphAppend(slug, data.node, data.from, data.arrow, data.protocol, data.summary)
+            appendNode(data.node)
+            patchRowGraphAppend(slug, data.node, data.summary)
             window.Toast?.show?.(data.message || 'Bloco adicionado.')
             closeAddEditor()
         } catch (err) {
@@ -1571,12 +1633,35 @@ function mount(root) {
     // em `graphRef.edgeAddUrl`, sem tocar em nós. Acrescenta a ligação
     // localmente (mesmo espírito de `appendNode()`), sem redesenhar o grafo
     // inteiro.
+    // Acrescenta ao grafo local uma ligação recém-criada, NO ÍNDICE QUE O
+    // SERVIDOR deu a ela (`data.index`). Todo o resto do editor de ligação
+    // (protocolo, religar, desligar) endereça edge POR ÍNDICE, então inferir o
+    // índice pela ordem de inserção local desalinha tudo silenciosamente quando
+    // dois POSTs estão em voo e as respostas chegam fora de ordem. O
+    // `creatingEdge` das duas chamadas impede esse cenário; a checagem de
+    // comprimento aqui é a asserção disso — e cobre também o caso de outra
+    // pessoa ter mexido na mesma integração enquanto esta aba estava aberta.
+    // Preferimos não desenhar (e pedir reload) a desenhar com índice errado.
+    function appendEdgeLocally(data, fromSide, toSide) {
+        graphRef.edges = graphRef.edges || []
+
+        if (data.index !== graphRef.edges.length) {
+            window.Toast?.show?.('A ligação foi criada, mas este desenho está defasado — recarregue a página.', 'warning')
+            return false
+        }
+
+        graphRef.edges.push({ from: data.from, to: data.to, arrow: data.arrow, protocol: data.protocol })
+        edgeAnchors.push({ from: fromSide, to: toSide })
+        return true
+    }
+
     async function createEdge() {
-        if (!pendingConnect || !graphRef?.edgeAddUrl) return
+        if (!pendingConnect || !graphRef?.edgeAddUrl || creatingEdge) return
         const { from, to } = pendingConnect
         const arrow = protocolArrowSelect?.value || '->'
         const protocol = protocolSelect?.value ?? ''
 
+        creatingEdge = true
         protocolSave.disabled = true
         if (protocolSaveLabel) protocolSaveLabel.textContent = 'Ligando…'
         try {
@@ -1593,16 +1678,16 @@ function mount(root) {
             const data = await res.json().catch(() => null)
             if (!res.ok) throw new Error(data?.message || 'Não foi possível criar a ligação.')
 
-            graphRef.edges = graphRef.edges || []
-            graphRef.edges.push({ from: data.from, to: data.to, arrow: data.arrow, protocol: data.protocol })
-            edgeAnchors.push({ from: 'r', to: 'l' })
-            patchRowGraphAddEdge(slug, data.from, data.to, data.arrow, data.protocol, data.summary)
-            draw()
-            window.Toast?.show?.(data.message || 'Ligação criada.')
+            if (appendEdgeLocally(data, 'r', 'l')) {
+                patchRowGraphAddEdge(slug, data.from, data.to, data.arrow, data.protocol, data.summary)
+                draw()
+                window.Toast?.show?.(data.message || 'Ligação criada.')
+            }
             closeProtocolEditor()
         } catch (err) {
             window.Toast?.show?.(err.message || 'Não foi possível criar a ligação.', 'error')
         } finally {
+            creatingEdge = false
             protocolSave.disabled = false
             if (protocolSaveLabel) protocolSaveLabel.textContent = 'Ligar'
         }
@@ -1768,6 +1853,86 @@ function mount(root) {
     linkHint?.addEventListener('mousedown', (e) => e.stopPropagation())
     linkCancelBtn?.addEventListener('click', cancelLinking)
 
+    // ── puxar uma seta de uma porta do bloco (ligação nova) ────────
+    // Disponível em TODOS os blocos, inclusive o raiz: a ligação não existe
+    // ainda enquanto o mouse está pressionado — só a prévia tracejada
+    // (`drawConnectPreview()`). Soltar sobre outro bloco cria a ligação
+    // (`createEdgeFrom()`); soltar fora de qualquer bloco, ou sobre o próprio
+    // bloco de origem, cancela sem efeito nenhum.
+    function startPortDrag(e, index, side) {
+        if (e.button !== 0) return // same guard as startHandleDrag (the caller has one too)
+        const w = screenToWorld(e.clientX, e.clientY)
+        selectNode(null)
+        drag = { type: 'connect', from: index, side, wx: w.x, wy: w.y, targetNode: null, toSide: 'l' }
+        draw()
+    }
+
+    // Destaca o bloco sob o ponteiro durante o arraste (o destino da ligação).
+    function setLinkTarget(index) {
+        nodes.forEach((n, i) => n.el.classList.toggle('is-link-target', i === index))
+    }
+
+    function drawConnectPreview() {
+        const from = nodes[drag.from]
+        if (!from) return
+
+        const a0 = anchorPoint(from, drag.side)
+        const p0 = { x: a0.x + a0.nx * EDGE_GAP, y: a0.y + a0.ny * EDGE_GAP }
+        let p1 = { x: drag.wx, y: drag.wy }
+        // Sobre um bloco: a prévia gruda na âncora onde a seta vai nascer, não
+        // no ponteiro — é exatamente o que será salvo em `viz_layout`.
+        if (drag.targetNode !== null && nodes[drag.targetNode]) {
+            const a1 = anchorPoint(nodes[drag.targetNode], drag.toSide)
+            p1 = { x: a1.x + a1.nx * EDGE_GAP, y: a1.y + a1.ny * EDGE_GAP }
+        }
+
+        const path = document.createElementNS(SVG_NS, 'path')
+        path.setAttribute('class', 'ak-viz-edge is-preview')
+        path.setAttribute('d', `M ${p0.x} ${p0.y} L ${p1.x} ${p1.y}`)
+        path.setAttribute('marker-end', `url(#${markerEnd.id})`)
+        edges.appendChild(path)
+    }
+
+    // POST da ligação nova (mesmo endpoint do "modo ligar"), já com `->` e sem
+    // protocolo — sem diálogo no caminho: sentido e protocolo se ajustam
+    // depois na pill da seta. A ligação entra no grafo local só depois do OK
+    // do servidor, igual a `createEdge()`. As âncoras vêm do próprio gesto (a
+    // porta de origem e o lado onde foi solta), e como âncora é visual
+    // (`viz_layout`), isso deixa o layout pendente de salvar.
+    async function createEdgeFrom(from, to, fromSide, toSide) {
+        // Um POST de ligação por vez: o gesto é rápido o bastante pra dois
+        // arrastes se sobreporem, e é a ordem das RESPOSTAS que define o índice
+        // local da edge (ver `appendEdgeLocally()`).
+        if (!graphRef?.edgeAddUrl || creatingEdge) return
+        creatingEdge = true
+
+        try {
+            const res = await fetch(graphRef.edgeAddUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': csrfToken(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ from, to, arrow: '->', protocol: null }),
+            })
+            const data = await res.json().catch(() => null)
+            if (!res.ok) throw new Error(data?.message || 'Não foi possível criar a ligação.')
+
+            if (appendEdgeLocally(data, fromSide, toSide)) {
+                patchRowGraphAddEdge(slug, data.from, data.to, data.arrow, data.protocol, data.summary)
+                draw()
+                setDirty(true)
+                window.Toast?.show?.(data.message || 'Ligação criada.')
+            }
+        } catch (err) {
+            window.Toast?.show?.(err.message || 'Não foi possível criar a ligação.', 'error')
+        } finally {
+            creatingEdge = false
+        }
+    }
+
     // ── arrastar ponta de seta (reposicionar âncora OU religar pra outro bloco) ──
     function startHandleDrag(e, edgeIndex, end) {
         if (e.button !== 0) return
@@ -1839,6 +2004,14 @@ function mount(root) {
             const fromIndex = linking
             cancelLinking()
             if (index !== fromIndex) openConnectEditor(fromIndex, index)
+            return
+        }
+        // Porta de ligação: em vez de mover o bloco, começa a puxar uma seta
+        // dele até outro bloco (`startPortDrag()`). As portas só existem
+        // quando editável (CSS), mas a checagem também está aqui.
+        const port = editable ? e.target.closest?.('[data-viz-port]') : null
+        if (port) {
+            startPortDrag(e, index, port.getAttribute('data-viz-port'))
             return
         }
         const w = screenToWorld(e.clientX, e.clientY)
@@ -1970,6 +2143,19 @@ function mount(root) {
             }
             return
         }
+        if (drag?.type === 'connect') {
+            const w = screenToWorld(e.clientX, e.clientY)
+            drag.wx = w.x
+            drag.wy = w.y
+            const hover = nodeAtPoint(w.x, w.y)
+            // Só outro bloco vale como destino — um bloco não pode se ligar a
+            // ele mesmo (o servidor também recusa, ver `to.different`).
+            drag.targetNode = (hover !== null && hover !== drag.from) ? hover : null
+            drag.toSide = drag.targetNode !== null ? nearestAnchor(nodes[drag.targetNode], w.x, w.y) : 'l'
+            setLinkTarget(drag.targetNode)
+            draw()
+            return
+        }
         if (drag?.type === 'handle') {
             const w = screenToWorld(e.clientX, e.clientY)
             // Sobre outro bloco (que não a ponta oposta da mesma ligação —
@@ -2001,6 +2187,11 @@ function mount(root) {
                 } else {
                     setDirty(true)
                 }
+            } else if (drag.type === 'connect') {
+                // Soltou sobre outro bloco: cria a ligação. Fora de qualquer
+                // bloco (ou no de origem): só descarta a prévia.
+                setLinkTarget(null)
+                if (drag.targetNode !== null) createEdgeFrom(drag.from, drag.targetNode, drag.side, drag.toSide)
             }
             drag = null
             draw()

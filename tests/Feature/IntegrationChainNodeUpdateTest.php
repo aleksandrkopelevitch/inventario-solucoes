@@ -42,7 +42,7 @@ it('retitles a chain node to a different registered solution, resyncing particip
 
     $integration->refresh();
 
-    expect($integration->chain['nodes'][1])->toBe(['solution_id' => $viasoft->id, 'label' => null])
+    expect($integration->chain['nodes'][1])->toBe(['solution_id' => $viasoft->id, 'label' => null, 'kind' => 'system'])
         ->and($integration->target_solution_id)->toBe($viasoft->id)
         ->and($integration->participants->pluck('name')->sort()->values()->all())
         ->toBe(['SVL', 'Viasoft']);
@@ -72,10 +72,71 @@ it('retitles a chain node to free text, dropping it from participants but keepin
 
     // The only remaining participant (SVL) becomes both source and target by fallback —
     // same rule as SyncIntegrationFromChain when only one Solution node is left.
-    expect($integration->chain['nodes'][1])->toBe(['solution_id' => null, 'label' => 'Sistema legado'])
+    expect($integration->chain['nodes'][1])->toBe(['solution_id' => null, 'label' => 'Sistema legado', 'kind' => 'system'])
         ->and($integration->participants->pluck('name')->all())->toBe(['SVL'])
         ->and($integration->source_solution_id)->toBe($svl->id)
         ->and($integration->target_solution_id)->toBe($svl->id);
+});
+
+it('converts a solution block into a decision block, dropping it from participants', function () {
+    $svl = Solution::factory()->create(['name' => 'SVL']);
+    $sap = Solution::factory()->create(['name' => 'SAP']);
+
+    $integration = Integration::factory()->create([
+        'chain' => [
+            'nodes' => [['solution_id' => $svl->id, 'label' => null], ['solution_id' => $sap->id, 'label' => null]],
+            'edges' => [['from' => 0, 'to' => 1, 'arrow' => '->', 'protocol' => null]],
+        ],
+    ]);
+    attachParticipants($integration, [[$svl, 0], [$sap, 1]]);
+
+    $response = $this->actingAs(nodeUpdateAdmin())
+        ->patchJson(route('solutions.integrations.chain.node.update', [$svl, $integration, 1]), [
+            'kind'        => 'decision',
+            'label'       => 'Estoque disponível?',
+            'solution_id' => $sap->id, // a decision block never keeps a solution
+        ])
+        ->assertOk();
+
+    expect($response->json('node.kind'))->toBe('decision')
+        ->and($response->json('node.solution'))->toBeFalse()
+        ->and($response->json('node.icon'))->toContain('<svg')
+        ->and($response->json('summary'))->toBe('SVL -> Estoque disponível?');
+
+    $integration->refresh();
+
+    expect($integration->chain['nodes'][1])->toBe(['solution_id' => null, 'label' => 'Estoque disponível?', 'kind' => 'decision'])
+        // The edge is untouched: converting a block never rewires the graph.
+        ->and($integration->chain['edges'])->toBe([['from' => 0, 'to' => 1, 'arrow' => '->', 'protocol' => null]])
+        ->and($integration->participants->pluck('name')->all())->toBe(['SVL']);
+});
+
+it('converts an actor block back into a registered solution', function () {
+    $svl = Solution::factory()->create(['name' => 'SVL']);
+    $sap = Solution::factory()->create(['name' => 'SAP']);
+
+    $integration = Integration::factory()->create([
+        'chain' => [
+            'nodes' => [
+                ['solution_id' => $svl->id, 'label' => null, 'kind' => 'system'],
+                ['solution_id' => null, 'label' => 'Vendedor', 'kind' => 'actor'],
+            ],
+            'edges' => [['from' => 0, 'to' => 1, 'arrow' => '->', 'protocol' => null]],
+        ],
+    ]);
+    attachParticipants($integration, [[$svl, 0]]);
+
+    $this->actingAs(nodeUpdateAdmin())
+        ->patchJson(route('solutions.integrations.chain.node.update', [$svl, $integration, 1]), [
+            'kind'        => 'system',
+            'solution_id' => $sap->id,
+        ])
+        ->assertOk();
+
+    $integration->refresh();
+
+    expect($integration->chain['nodes'][1])->toBe(['solution_id' => $sap->id, 'label' => null, 'kind' => 'system'])
+        ->and($integration->participants->pluck('name')->sort()->values()->all())->toBe(['SAP', 'SVL']);
 });
 
 it('never allows retitling the root node (index 0)', function () {

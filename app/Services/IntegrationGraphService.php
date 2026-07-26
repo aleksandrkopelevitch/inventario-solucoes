@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\ChainNodeKind;
 use App\Enums\Direction;
 use App\Enums\IntegrationStatus;
 use App\Enums\Protocol;
@@ -117,11 +118,12 @@ class IntegrationGraphService
             $chainEdges = array_values($integration->chain['edges'] ?? []);
 
             foreach ($chainEdges as $edge) {
-                $fromSid = $chainNodes[$edge['from'] ?? -1]['solution_id'] ?? null;
-                $toSid = $chainNodes[$edge['to'] ?? -1]['solution_id'] ?? null;
+                $fromSid = $this->nodeSolutionId($chainNodes, $edge['from'] ?? null);
+                $toSid = $this->nodeSolutionId($chainNodes, $edge['to'] ?? null);
 
-                // An endpoint on a free-text node doesn't produce a solution
-                // pair — there's no edge to draw on the global map.
+                // An endpoint on a node with no solution (free text, decision or
+                // actor) doesn't produce a solution pair — there's no edge to
+                // draw on the global map.
                 if ($fromSid === null || $toSid === null) {
                     continue;
                 }
@@ -147,6 +149,28 @@ class IntegrationGraphService
             'nodes' => array_values($nodes),
             'edges' => $this->dedupePairs($edges),
         ];
+    }
+
+    /**
+     * Solution referenced by one endpoint of a chain edge, or null when that
+     * endpoint isn't a solution at all. Goes through `ChainNodeKind` for the
+     * same reason as `SyncIntegrationFromChain`, `ChainLabeler::nodeLabel()` and
+     * `IntegrationsMap::resolveNode()`: only a `system` node may reference a
+     * Solution, so a `solution_id` left behind on a decision/actor node (by an
+     * earlier conversion, or by hand-written chain JSON) must never draw a
+     * phantom edge between two solutions on the global map.
+     *
+     * @param  array<int, array<string, mixed>>  $chainNodes
+     */
+    private function nodeSolutionId(array $chainNodes, mixed $index): ?int
+    {
+        $node = is_int($index) ? ($chainNodes[$index] ?? null) : null;
+
+        if ($node === null || ! ChainNodeKind::fromNode($node)->referencesSolution()) {
+            return null;
+        }
+
+        return $node['solution_id'] ?? null;
     }
 
     /**
