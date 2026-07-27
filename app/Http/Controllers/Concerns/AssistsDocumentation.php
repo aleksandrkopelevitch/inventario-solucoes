@@ -122,6 +122,16 @@ trait AssistsDocumentation
         $this->authorize('update', $solution);
         abort_unless($generation->solution_id === $solution->id, 404);
 
+        // Already resolved (Aplicar/Descartar) from another tab/session — e.g.
+        // this same generation was rendered as an unconsumed `aiResumeFor()`
+        // marker in two open tabs before either acted on it. Without this
+        // check the poller in the other tab, unaware the user already
+        // resolved it, would keep getting the full `result` back and reopen
+        // the review for a draft that's no longer pending action.
+        if ($generation->consumed_at !== null) {
+            return response()->json(['pending' => false, 'consumed' => true]);
+        }
+
         // Orphaned mid-job (worker died): it never leaves `pending` on its own,
         // so resolve it to `failed` here too — otherwise a still-open editor
         // polls it until its client-side ceiling (~10min) instead of getting a

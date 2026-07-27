@@ -129,16 +129,25 @@
         {{-- Empty state / no chain — overlaid, hidden when there's a drawing.
              The ghost graph previews what a drawn chain looks like (nodes +
              links in the canvas palette) so the empty canvas reads as
-             intentional, not unfinished. The title/hint text below are set by
+             intentional, not unfinished. Static Blade markup (unlike the real
+             `.ak-viz-node` canvas nodes, which are JS-built and exempt from
+             the Tailwind-utilities rule per CLAUDE.md) — so it's plain
+             utility classes, reusing the same `--viz-*` scoped tokens rather
+             than new hardcoded colors. The title/hint text below are set by
              integration-viz.js (`showEmpty`) — keep these hooks. --}}
         <div data-viz-empty
             class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
-            <div class="ak-viz-ghost" aria-hidden="true">
-                <span class="ak-viz-ghost-node"><span class="ak-viz-ghost-av"></span>Solução</span>
-                <span class="ak-viz-ghost-link"></span>
-                <span class="ak-viz-ghost-node"><span class="ak-viz-ghost-av"></span>Middleware</span>
-                <span class="ak-viz-ghost-link"></span>
-                <span class="ak-viz-ghost-node is-free">Externo</span>
+            @php
+                $ghostNode = 'inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl bg-[var(--viz-node)] px-[11px] py-[7px] font-[Space_Grotesk,Inter,system-ui,sans-serif] text-[11px] font-semibold text-[color:var(--viz-ink)] shadow-[0_1px_2px_rgba(16,24,40,.08)]';
+                $ghostAvatar = 'size-[15px] shrink-0 rounded-full bg-white shadow-[0_0_0_1px_rgba(16,24,40,.08)]';
+                $ghostLink = 'w-[26px] shrink-0 border-t-[1.6px] border-dashed border-[color:var(--viz-line)]';
+            @endphp
+            <div aria-hidden="true" class="mb-2.5 flex max-w-full items-center justify-center opacity-90 max-[400px]:hidden">
+                <span class="{{ $ghostNode }}"><span class="{{ $ghostAvatar }}"></span>Solução</span>
+                <span class="{{ $ghostLink }}"></span>
+                <span class="{{ $ghostNode }}"><span class="{{ $ghostAvatar }}"></span>Middleware</span>
+                <span class="{{ $ghostLink }}"></span>
+                <span class="inline-flex items-center whitespace-nowrap rounded-xl border border-dashed border-[color:var(--viz-line)] bg-[var(--viz-node-free)] px-[11px] py-[7px] font-[Space_Grotesk,Inter,system-ui,sans-serif] text-[11px] font-semibold text-[color:var(--viz-ink)]/70">Externo</span>
             </div>
             <p data-viz-empty-title class="mt-1 text-sm font-medium text-muted">Nenhuma integração selecionada</p>
             <p data-viz-empty-hint class="text-xs text-faint">Escolha uma na lista para ver o diagrama.</p>
@@ -741,56 +750,6 @@
                 border-radius: 0;
             }
             [data-integration-viz]:fullscreen .ak-viz-viewport { border-radius: 0; }
-
-            /* Empty-state ghost graph — a faded preview of what a drawn chain
-               looks like (nodes + dashed links), in the canvas palette. Purely
-               decorative (aria-hidden; clicks pass through via the parent
-               `data-viz-empty`'s pointer-events:none). Flex row, so it needs no
-               coordinate math to line the links up between the nodes. */
-            .ak-viz-ghost {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                margin-bottom: 10px;
-                max-width: 100%;
-                opacity: .9;
-            }
-            .ak-viz-ghost-node {
-                display: inline-flex;
-                align-items: center;
-                gap: 6px;
-                padding: 7px 11px;
-                border-radius: 12px;
-                background: var(--viz-node);
-                color: #3a3f57;
-                font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
-                font-size: 11px;
-                font-weight: 600;
-                white-space: nowrap;
-                box-shadow: 0 1px 2px rgba(16, 24, 40, .08);
-            }
-            .ak-viz-ghost-node.is-free {
-                background: var(--viz-node-free);
-                border: 1px dashed var(--viz-line);
-                color: #5b6788;
-                box-shadow: none;
-            }
-            .ak-viz-ghost-av {
-                flex: none;
-                width: 15px;
-                height: 15px;
-                border-radius: 50%;
-                background: #fff;
-                box-shadow: 0 0 0 1px rgba(16, 24, 40, .08);
-            }
-            .ak-viz-ghost-link {
-                flex: none;
-                width: 26px;
-                border-top: 1.6px dashed var(--viz-line);
-            }
-            @media (max-width: 400px) {
-                .ak-viz-ghost { display: none; }
-            }
 
             /* Markdown comment preview — arbitrary content with no fixed
                element to attach a class to (same exception as .html-content

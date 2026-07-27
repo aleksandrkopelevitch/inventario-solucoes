@@ -230,6 +230,12 @@ async function poll(pollUrl) {
         showStatus(false)
         unlockEditor()
 
+        // Resolved (Aplicar/Descartar) from another tab/session already — this
+        // poller was still running against the same generation (e.g. two tabs
+        // both resumed the same unconsumed marker). Nothing to review anymore;
+        // don't reopen a draft the user already acted on elsewhere.
+        if (data.consumed) return
+
         if (data.failed) {
             consumeGeneration()
             Toast.open({content: data.error || 'Falha ao gerar a documentação.', title: 'Atenção', type: 'error'})

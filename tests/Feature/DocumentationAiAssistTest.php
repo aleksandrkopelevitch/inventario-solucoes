@@ -147,6 +147,33 @@ it('marks a generation consumed and 404s / forbids the same as status', function
         ->assertForbidden();
 });
 
+it('reports consumed instead of replaying the result once a generation is resolved', function () {
+    $solution = Solution::factory()->create();
+    $page = assistPage($solution);
+    $gen = DocumentationAiGeneration::create([
+        'target_type' => $page->getMorphClass(),
+        'target_id'   => $page->getKey(),
+        'solution_id' => $solution->id,
+        'user_id'     => assistAdmin()->id,
+        'status'      => 'completed',
+        'result'      => '# pronto',
+        'prompt'      => 'x',
+    ]);
+
+    $admin = assistAdmin();
+    $this->actingAs($admin)
+        ->postJson(route('solutions.docs.assist.consume', [$solution, $gen]))
+        ->assertOk();
+
+    // A poller left running against this same generation (e.g. a second tab
+    // that resumed the same unconsumed marker before either tab acted on it)
+    // must not get the full result back and reopen an already-resolved review.
+    $this->actingAs($admin)
+        ->getJson(route('solutions.docs.assist.status', [$solution, $gen]))
+        ->assertOk()
+        ->assertExactJson(['pending' => false, 'consumed' => true]);
+});
+
 it('renders a resume marker on the editor when an unconsumed generation exists', function () {
     $solution = Solution::factory()->create();
     $page = assistPage($solution);
@@ -180,6 +207,47 @@ it('renders a resume marker on the editor when an unconsumed generation exists',
         ->get(route('solutions.docs.page.edit', [$solution, $page]))
         ->assertOk()
         ->assertDontSee('data-ak-docs-ai-resume', false);
+});
+
+it('resumes a completed, unconsumed generation with a working poll/consume round trip', function () {
+    $solution = Solution::factory()->create();
+    $page = assistPage($solution);
+    $admin = assistAdmin();
+
+    // The most common resume path: the job finished successfully while the
+    // user was away, and they haven't applied/discarded it yet.
+    $gen = DocumentationAiGeneration::create([
+        'target_type'      => $page->getMorphClass(),
+        'target_id'        => $page->getKey(),
+        'solution_id'      => $solution->id,
+        'user_id'          => $admin->id,
+        'status'           => 'completed',
+        'result'           => '# rascunho pronto',
+        'existing_content' => '# antes',
+        'prompt'           => 'x',
+    ]);
+
+    $response = $this->actingAs($admin)
+        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->assertOk()
+        ->assertSee('data-ak-docs-ai-resume', false)
+        // Not pending — the marker must reflect it's already finished, so the
+        // client opens the review directly instead of locking/polling.
+        ->assertSee('data-pending="0"', false);
+
+    expect($response->getContent())->toContain(route('solutions.docs.assist.status', [$solution, $gen]))
+        ->and($response->getContent())->toContain(route('solutions.docs.assist.consume', [$solution, $gen]));
+
+    // The URLs handed to the client actually resolve to the finished draft —
+    // the full resume round trip, not just the marker's own flags.
+    $this->actingAs($admin)
+        ->getJson(route('solutions.docs.assist.status', [$solution, $gen]))
+        ->assertOk()
+        ->assertJson([
+            'pending'          => false,
+            'result'           => '# rascunho pronto',
+            'existing_content' => '# antes',
+        ]);
 });
 
 it('does not resume another user\'s generation', function () {

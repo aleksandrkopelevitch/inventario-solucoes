@@ -5,7 +5,8 @@ Madeiras: cadastro de soluções/pessoas/empresas, um editor gráfico de
 topologia de integrações por solução, um mapa read-only do ecossistema
 completo, documentação rica (estilo GitBook) para soluções e integrações — com
 um assistente de IA que gera rascunhos —, um hub que reúne a cobertura dessa
-documentação, e um gerador de flowSpec Digibee em formato de chat.
+documentação, e um Especialista em Integrações que gera flowSpec Digibee em
+formato de chat.
 
 A base de infraestrutura genérica (form components, sistema de slots, módulos
 JS, shells de layout, autenticação) foi portada do projeto de referência
@@ -406,19 +407,20 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   nada é salvo automaticamente. Textos entram embutidos no prompt (com orçamento
   de caracteres); PDFs/imagens vão como anexos nativos ao modelo (`laravel/ai`).
   Uma geração por alvo de cada vez (`WithoutOverlapping`).
-- **Gerador de flowSpec Digibee** (`/flowspec`): chat que gera o JSON de
-  flowSpec a partir de um pedido em linguagem natural. Contexto **sem RAG** —
-  Solutions citadas (explícitas via chips, ou inferidas casando o nome no
-  texto), documentação recortada por orçamento de caracteres (páginas das
+- **Especialista em Integrações** (`/flowspec`): chat que gera o JSON de
+  flowSpec Digibee a partir de um pedido em linguagem natural. Contexto **sem
+  RAG** — Solutions citadas (explícitas via chips, ou inferidas casando o nome
+  no texto), documentação recortada por orçamento de caracteres (páginas das
   Solutions + documentação das integrações em que participam) e 2-3 exemplos de
   um corpus curado por tags (`FlowspecExample`). A resposta é gerada em job
   assíncrono (`GenerateFlowspecReply`, uma vez por thread via
   `WithoutOverlapping`) com polling do thread; um loop **normaliza/valida** o
   JSON e re-prompta com os erros concretos até `max_attempts`. Respostas
   conversacionais (dúvidas) sugerem documentação real que possa faltar. O
-  resultado pode ser **anexado a uma integração** (painel read-only na lista de
-  integrações da solução) ou **promovido ao corpus** como novo `FlowspecExample`.
-  Um `CredentialScrubber` barra segredo literal no que é gerado/promovido.
+  corpus de referência (`FlowspecExample`) é curado à parte, num modal de
+  "Gerenciar referências" (admin, `FlowspecExampleController`) — não a partir
+  do resultado de uma conversa. Um `CredentialScrubber` barra segredo literal
+  no que é cadastrado no corpus.
 - **Hub de Documentação** (`/documentacao`): visão gerencial transversal do
   que está documentado e do que falta — soluções **e** integrações, cada uma
   com um selo por **conteúdo real** (não um flag manual), agrupadas por
@@ -452,7 +454,7 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
 - **Busca e filtros de Soluções/Pessoas/Empresas** rodam via
   `execute-filters.js`/`execute-search.js` sobre `ajax.js` (contrato Promise
   baseado em `fetch`, não `XMLHttpRequest`) — ver `CLAUDE.md` § `ajax.js`.
-- **As duas features de IA (Assiste IA e flowSpec) refletem o job por
+- **As duas features de IA (Assiste IA e Especialista em Integrações) refletem o job por
   polling, nunca broadcasting.** O front dispara a geração, recebe uma URL de
   status e faz polling até o registro sair de `pending` (com teto de tentativas
   + Toast de desistência). O endpoint de status fica barato enquanto pende:
@@ -474,6 +476,6 @@ adicionais), `DocumentationTest` (editor de blocos de Solução/Integração),
 documentação, content-based), `DocumentationAiAssistTest`/
 `DocumentationDraftServiceTest` (Assiste IA — job, polling e montagem do
 prompt), `FlowspecChatTest`/`FlowspecContextResolverTest`/
-`FlowspecGenerationServiceTest` (gerador de flowSpec — chat, resolução de
+`FlowspecGenerationServiceTest` (Especialista em Integrações — chat, resolução de
 contexto e loop de normalização/validação), `ColorRefactorTest`,
 `PageCrawlSmokeTest` (crawl de todas as páginas seedadas).

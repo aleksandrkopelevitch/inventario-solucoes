@@ -198,10 +198,10 @@ Route::middleware(['auth', BlockAgentFromWeb::class])->group(function () {
     // Corpus curation (admin) — manage the flowSpec reference base directly,
     // in a modal (FlowspecExampleController). Static paths must precede the
     // `flowspec/{chat}` catch-all below, like documents/search above.
-    Route::get('flowspec/exemplos', [FlowspecExampleController::class, 'index'])->name('flowspec.examples.index');
-    Route::post('flowspec/exemplos', [FlowspecExampleController::class, 'store'])->name('flowspec.examples.store');
-    Route::patch('flowspec/exemplos/{example}', [FlowspecExampleController::class, 'update'])->name('flowspec.examples.update');
-    Route::delete('flowspec/exemplos/{example}', [FlowspecExampleController::class, 'destroy'])->name('flowspec.examples.destroy');
+    Route::get('flowspec/examples', [FlowspecExampleController::class, 'index'])->name('flowspec.examples.index');
+    Route::post('flowspec/examples', [FlowspecExampleController::class, 'store'])->name('flowspec.examples.store');
+    Route::patch('flowspec/examples/{example}', [FlowspecExampleController::class, 'update'])->name('flowspec.examples.update');
+    Route::delete('flowspec/examples/{example}', [FlowspecExampleController::class, 'destroy'])->name('flowspec.examples.destroy');
 
     Route::get('flowspec/{chat}', [FlowspecChatController::class, 'show'])->name('flowspec.show');
     Route::get('flowspec/{chat}/status', [FlowspecChatController::class, 'status'])->name('flowspec.status');
