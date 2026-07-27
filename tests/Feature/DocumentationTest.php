@@ -385,6 +385,25 @@ it('rejects an external image url that is not http(s)', function () {
         ->assertJson(['type' => 'warning']);
 });
 
+it('rejects a paste-image-url pointing at a private/loopback/link-local address', function (string $url) {
+    // Blocked by App\Rules\PublicUrl before the controller ever calls
+    // addMediaFromUrl() — no outbound request happens for any of these.
+    $solution = Solution::factory()->create();
+    $page = solutionPage($solution);
+
+    $this->actingAs(docsAdmin())
+        ->postJson(route('solutions.docs.media', [$solution, $page]), ['url' => $url])
+        ->assertStatus(422)
+        ->assertJson(['type' => 'warning']);
+
+    expect($page->fresh()->getMedia('docs'))->toHaveCount(0);
+})->with([
+    'loopback'                    => 'http://127.0.0.1/x.png',
+    'link-local / cloud metadata' => 'http://169.254.169.254/latest/meta-data/',
+    'private RFC1918'             => 'http://10.0.0.5/x.png',
+    'IPv6 loopback'               => 'http://[::1]/x.png',
+]);
+
 /*
 |--------------------------------------------------------------------------
 | GitbookRenderer — extended notation

@@ -481,3 +481,21 @@ it('removes a context document from the solution', function () {
 
     expect($solution->fresh()->getMedia(Solution::CONTEXT_COLLECTION))->toHaveCount(0);
 });
+
+it('forbids a non-admin from storing or removing a context document', function () {
+    Storage::fake('public');
+    $solution = Solution::factory()->create();
+    $media = $solution->addMediaFromString('x')->usingFileName('a.txt')->toMediaCollection(Solution::CONTEXT_COLLECTION);
+    $viewer = User::factory()->create(['role' => UserRole::Viewer->value]);
+
+    $this->actingAs($viewer)
+        ->post(route('solutions.docs.context.store', $solution), [
+            'file' => UploadedFile::fake()->create('contrato.pdf', 100, 'application/pdf'),
+        ])->assertForbidden();
+
+    $this->actingAs($viewer)
+        ->deleteJson(route('solutions.docs.context.destroy', [$solution, $media->id]))
+        ->assertForbidden();
+
+    expect($solution->fresh()->getMedia(Solution::CONTEXT_COLLECTION))->toHaveCount(1);
+});

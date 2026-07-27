@@ -564,13 +564,19 @@ Proposal::factory()->analyzed()->forUser($user)->create();
 
 ## Media (Spatie MediaLibrary)
 
-Each model has a single-file collection (e.g. `post-image`). Three conversions are registered: `thumb` (180×180), `medium` (497×290), `large` (1100×500).
+Only 4 models use `HasMedia`/`InteractsWithMedia`, each with its own single collection and its own purpose — there is no generic shared collection/conversion pair to reuse:
 
-```php
-$post->image('medium')
-```
+- `User` — `avatar` (single-file), with one registered conversion, `thumb` (120×120, `nonQueued()` since the source is tiny). `User::avatarUrl()` falls back to `ui-avatars.com` (an external, third-party image, requested client-side from the `<img src>`) when no avatar was uploaded — a deliberate, low-risk default, not an oversight.
+- `Solution` — `context_documents` (`Solution::CONTEXT_COLLECTION`), the "Assiste IA" context documents (PDF/image/text), served by `SolutionContextDocumentController` — never through `MediaController`/`files.show`.
+- `Integration` and `DocumentationPage` — both implement `App\Contracts\Documentable` and share the `docs` collection (`Documentable::DOCS_COLLECTION = 'docs'`): images/files embedded in Markdown documentation, referenced as `/files/{id}` and served by `MediaController`/`files.show` (authenticated) or `PublicDocumentationController::file()` (magic-link, token-scoped).
 
-Never register new conversions or collections without checking existing ones first.
+No model has more than one conversion, and nothing uses a `->image()` accessor. **`Solution` and `Company` logos are NOT MediaLibrary** — `logo_path` is a plain string column, uploaded via `$request->file('logo')->store('{solution,company}-logos', 'public')` directly in `SolutionController`/`CompanyController`, a deliberately simpler mechanism since a logo needs no conversions/metadata.
+
+Never register a new collection/conversion without checking the 4 above first — and note `MediaController::show()`'s guard should compare against `Documentable::DOCS_COLLECTION`, not a hardcoded `'docs'` literal (the two happen to match; don't let them drift apart silently).
+
+### SSRF surface — documentation editor's "paste image URL"
+
+`EditsDocumentation::storeDocumentationMedia()` (shared by `SolutionDocumentationController`/`IntegrationDocumentationController`/`DocumentationGroupPageController`) has two upload paths: a multipart `file`, or a `url` the SERVER downloads via Spatie's `addMediaFromUrl()` (Editor.js's Image plugin "paste a URL" flow). `UploadDocumentationMediaRequest` only validates `starts_with:http://,https://` — same as Spatie's own internal check — with **no private/loopback/link-local guard**, so without `App\Rules\PublicUrl` (validates the resolved IP via `FILTER_FLAG_NO_PRIV_RANGE|FILTER_FLAG_NO_RES_RANGE`) an admin could make the server fetch an internal-only URL (cloud metadata endpoint, internal admin panel, etc.) — exploitability is admin-scoped (only `update` on Solution/Integration/DocumentationGroupPage reaches this), but still real. The guard resolves DNS at validation time, so it does **not** close a DNS-rebinding race (attacker's DNS answers public at validation, private moments later at fetch time) — accepted as a documented residual risk, not something this rule claims to solve.
 
 ## Style
 
@@ -582,7 +588,7 @@ Never register new conversions or collections without checking existing ones fir
 
 ## JavaScript — use modules before creating new ones
 
-Before writing any new JS behavior, check if an existing module in `resources/js/modules/` already handles it. The project has modules for: toggle, tabs, side panel, AJAX form submission, file upload, filters, search, chips (multi-select with autocomplete), and more. (Modules inherited from akop-pro with zero consumers — mask, standalone autocomplete, copy-content, url-location, event-helpers, string-helpers, search-in-container, switch-button, radio-group — were removed on 2026-07-16; they weren't even part of `app.js`'s bundle.)
+Before writing any new JS behavior, check if an existing module in `resources/js/modules/` already handles it. The project has modules for: toggle, tabs, side panel, AJAX form submission, filters, search, chips (multi-select with autocomplete), and more. (Modules inherited from akop-pro with zero consumers — mask, standalone autocomplete, copy-content, url-location, event-helpers, string-helpers, search-in-container, switch-button, radio-group — were removed on 2026-07-16; they weren't even part of `app.js`'s bundle. `file-upload.js` was removed on 2026-07-27 for the same reason, just discovered later — it WAS registered in `app.js`'s `globalModules`, but no Blade view ever rendered its `data-ak-file-upload` hook; actual image/logo upload UI goes through `avatar-upload.js`/`<x-forms.image-upload>` instead.)
 
 Only create a new module when the behavior is genuinely not covered. When creating one, follow the delegation pattern:
 
@@ -619,7 +625,7 @@ After slot updates, prefer re-initializing only the affected modules instead of 
 window.initAllModules()
 
 // Preferred after partial updates — only re-init what's needed
-window.initListOfModules(['toggle', 'fileUpload'])
+window.initListOfModules(['toggle', 'avatarUpload'])
 ```
 
 All JS hooks use `data-ak-*` attributes. Internal component slots (`data-spinner`, `data-label`, `data-content`, etc.) are exempt.
@@ -651,7 +657,6 @@ All JS hooks use the `data-ak-*` prefix. Internal slots (`data-spinner`, `data-l
 | `data-ak-filters-dim` | `execute-filters.js` | Dimmed (`opacity-50 pointer-events-none`) while a filter/search AJAX request is in flight — put on a persistent wrapper *around* the swapped slot, not the slot node itself, since the slot node gets replaced wholesale |
 | `data-ak-search='{"inputId":"…"}'` | `execute-search.js` | Debounced (350ms) search-as-you-type; searches immediately on Enter |
 | `data-ak-search-hint="input-id"` | `execute-search.js` | Element whose text is set to the "digite N+ letras" hint while 1–2 chars are typed, cleared otherwise |
-| `data-ak-file-upload` | `file-upload.js` | File upload root element |
 | `data-ak-avatar-upload='{"inputId":"…"}'` | `avatar-upload.js` | Avatar upload trigger |
 | `data-ak-top-nav` | `top-nav.js` | Element that receives scroll shadow |
 | `data-ak-solution-attribute` (on a `<select>`) + `data-solution-attributes`/`data-action="url"` (on the wrapping `<dl>`) | `solution-attributes.js` | Auto-persists one Solution attribute on `change`, no save button |

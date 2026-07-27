@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Contracts\Documentable;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -16,7 +17,7 @@ class MediaController extends Controller
 {
     public function show(Media $media): BinaryFileResponse
     {
-        abort_unless($media->collection_name === 'docs', 404);
+        abort_unless($media->collection_name === Documentable::DOCS_COLLECTION, 404);
 
         return response()->file($media->getPath(), [
             'Content-Type'        => $media->mime_type,

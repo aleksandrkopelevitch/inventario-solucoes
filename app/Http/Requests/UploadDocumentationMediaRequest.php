@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\PublicUrl;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UploadDocumentationMediaRequest extends FormRequest
@@ -32,6 +33,7 @@ class UploadDocumentationMediaRequest extends FormRequest
                 'required_without:file',
                 'url',
                 'starts_with:http://,https://',
+                new PublicUrl,
             ],
         ];
     }

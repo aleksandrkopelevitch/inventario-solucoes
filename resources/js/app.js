@@ -7,7 +7,6 @@ import * as themeSwitch from './modules/theme-switch.js'
 import * as formSubmit from './modules/form-submit.js'
 import * as sidePanel from './modules/side-panel.js'
 import * as topNav from './modules/top-nav.js'
-import * as fileUpload from './modules/file-upload.js'
 import * as avatarUpload from './modules/avatar-upload.js'
 import * as chips from './modules/chips.js'
 import * as personContacts from './modules/person-contacts.js'
@@ -39,7 +38,6 @@ window.globalModules = {
     "formSubmit"   : formSubmit,
     "sidePanel"    : sidePanel,
     "topNav"        : topNav,
-    "fileUpload"    : fileUpload,
     "avatarUpload"  : avatarUpload,
     "chips"         : chips,
     "personContacts": personContacts,
