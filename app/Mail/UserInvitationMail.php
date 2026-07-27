@@ -10,23 +10,23 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class WelcomeMail extends Mailable implements ShouldQueue
+class UserInvitationMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
-    public function __construct(public User $user) {}
+    public function __construct(public User $user, public string $setPasswordUrl) {}
 
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Bem-vindo ao ' . config('app.name') . '!',
+            subject: 'Você foi convidado(a) para o ' . config('app.name'),
         );
     }
 
     public function content(): Content
     {
         return new Content(
-            view: 'emails.welcome',
+            view: 'emails.user-invitation',
         );
     }
 }

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Bem-vindo ao {{ config('app.name') }}</title>
+    <title>Convite para o {{ config('app.name') }}</title>
     <style>
         body { margin: 0; padding: 0; background-color: #f9fafb; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
         .wrapper { max-width: 560px; margin: 40px auto; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; }
@@ -26,11 +26,11 @@
 
         <div class="body">
             <p class="greeting">Olá, {{ $user->name }}!</p>
-            <p>Sua conta foi criada com sucesso. Estamos felizes em ter você com a gente.</p>
-            <p>Acesse seu painel para completar seu perfil e começar a usar a plataforma.</p>
+            <p>Um administrador criou uma conta para você no {{ config('app.name') }}, o catálogo de soluções e integrações da Leo Madeiras.</p>
+            <p>Defina sua senha para começar a usar a plataforma.</p>
 
             <div class="cta">
-                <a href="{{ route('profile.show') }}">Acessar meu painel</a>
+                <a href="{{ $setPasswordUrl }}">Definir minha senha</a>
             </div>
         </div>
 

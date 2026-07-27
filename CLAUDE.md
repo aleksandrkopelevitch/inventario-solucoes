@@ -733,7 +733,7 @@ No `onsubmit` needed on the form. Enter and click both work automatically.
 
 ## AJAX and Updatable Slots
 
-Use updatable slots when content can change dynamically after a user action (e.g., a list updated by a modal or side panel). Do **not** use for simple one-way forms like login, registration, or password reset — a redirect is enough there.
+Use updatable slots when content can change dynamically after a user action (e.g., a list updated by a modal or side panel). Do **not** use for simple one-way forms like login or password reset — a redirect is enough there.
 
 **When to use slots:**
 - A list/table that can be edited via a popup or panel
@@ -741,7 +741,7 @@ Use updatable slots when content can change dynamically after a user action (e.g
 - Any partial that needs to reflect server state without a full reload
 
 **When NOT to use slots:**
-- Login, registration, password reset
+- Login, password reset
 - Single-step forms that always redirect after success
 - Static content that never changes after load
 

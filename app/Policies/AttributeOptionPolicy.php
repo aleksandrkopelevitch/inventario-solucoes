@@ -8,7 +8,7 @@ use App\Models\User;
 /**
  * Managing attribute values (Category, Status, Directorate, etc.) is
  * configuration that cuts across the whole catalog — restricted to
- * administrators, same rule as `SolutionPolicy::create/update` (section 15).
+ * administrators, same rule as `SolutionPolicy::create/update`.
  */
 class AttributeOptionPolicy
 {

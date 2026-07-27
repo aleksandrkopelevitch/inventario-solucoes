@@ -19,7 +19,7 @@ class IntegrationPolicy
         return true;
     }
 
-    /** Creation and editing restricted to administrators (section 9.3). */
+    /** Creation and editing restricted to administrators. */
     public function create(User $user): bool
     {
         return $user->role === UserRole::Admin;

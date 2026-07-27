@@ -22,5 +22,12 @@
                 <x-heroicon-o-adjustments-horizontal class="size-4 text-muted" /> Gerenciar atributos
             </a>
         @endcan
+        @can('manage', \App\Models\User::class)
+            <a href="#" data-ak-modal-open="main-modal" data-ak-modal-url="{{ route('users.index') }}"
+               data-ak-toggle="sidebar-user-dropdown" data-ak-toggle-classes="hidden"
+               class="flex items-center gap-2 px-3 py-2 text-[13px] font-medium text-ink no-underline hover:bg-raised">
+                <x-heroicon-o-user-plus class="size-4 text-muted" /> Usuários
+            </a>
+        @endcan
     </div>
 </div>

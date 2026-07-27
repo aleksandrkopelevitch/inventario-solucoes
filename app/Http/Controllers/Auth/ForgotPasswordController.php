@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\ForgotPasswordRequest;
 use Illuminate\Support\Facades\Password;
-use Illuminate\Validation\ValidationException;
 
 class ForgotPasswordController extends Controller
 {
@@ -14,18 +13,18 @@ class ForgotPasswordController extends Controller
         return view('auth.forgot-password');
     }
 
+    /**
+     * Always responds with the same generic success message, whether or not
+     * the email matches an account — surfacing `Password::INVALID_USER`
+     * distinctly from `RESET_LINK_SENT` would let anyone enumerate which
+     * emails have an account just by trying this form.
+     */
     public function store(ForgotPasswordRequest $request)
     {
-        $status = Password::sendResetLink($request->only('email'));
-
-        if ($status !== Password::RESET_LINK_SENT) {
-            throw ValidationException::withMessages([
-                'email' => __($status),
-            ]);
-        }
+        Password::sendResetLink($request->only('email'));
 
         return response()->json([
-            'message' => __($status),
+            'message' => __('passwords.sent'),
             'type'    => 'success',
         ]);
     }

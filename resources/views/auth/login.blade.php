@@ -25,9 +25,8 @@
             Entrar
         </x-forms.button>
 
-        <p class="mt-5 text-center text-sm text-muted">
-            Não tem uma conta?
-            <a href="{{ route('register.create') }}" class="font-medium text-accent hover:underline">Criar conta</a>
+        <p class="mt-5 text-center text-xs text-faint">
+            Não tem uma conta? Peça a um administrador para te convidar.
         </p>
     </form>
 

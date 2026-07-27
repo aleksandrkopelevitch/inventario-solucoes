@@ -10,7 +10,6 @@
         "blade-ui-kit/blade-heroicons": "^2.7",
         "laravel/ai": "^0.3.2",
         "laravel/framework": "^13.0",
-        "laravel/sanctum": "^4.3",
         "laravel/tinker": "^3.0",
         "league/commonmark": "^2.8",
         "predis/predis": "^3.4",

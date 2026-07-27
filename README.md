@@ -19,7 +19,7 @@ parte deste projeto.
 - **Backend:** Laravel 13+, PHP 8.3+, SQLite (dev) / PostgreSQL (prod)
 - **Frontend:** Blade, Vanilla JS (sem jQuery), Tailwind CSS 4
 - **Build:** Vite 8 (requer **Node 20+**)
-- **Auth:** sessão web (Sanctum disponível para futuros endpoints de API)
+- **Auth:** sessão web, sem self-registration (contas só por convite de admin)
 - **Testes:** Pest 4
 
 ## Setup
@@ -43,9 +43,13 @@ npm run build && php artisan optimize
 
 ## Papéis de usuário
 
-`App\Enums\UserRole`: **viewer**, **agent**, **admin**. O primeiro usuário
-cadastrado vira `admin`; os demais começam como `viewer`. O papel `agent` é
-bloqueado de toda a web (`App\Http\Middleware\BlockAgentFromWeb`).
+`App\Enums\UserRole`: **viewer**, **admin**. Não existe self-registration —
+toda conta é criada por um admin na área "Usuários" (menu do usuário na
+sidebar, `App\Http\Controllers\UserController`), que envia um convite por
+e-mail; a pessoa convidada define a própria senha pelo fluxo de reset de
+senha já existente (`Password::createToken()`/`ResetPasswordController`),
+sem um sistema de token separado. O primeiro admin vem do
+`DatabaseSeeder` (`admin@leomadeiras.com.br`).
 
 ## Arquitetura em resumo
 
@@ -479,4 +483,6 @@ documentação, content-based), `DocumentationAiAssistTest`/
 prompt), `FlowspecChatTest`/`FlowspecContextResolverTest`/
 `FlowspecGenerationServiceTest` (Especialista em Integrações — chat, resolução de
 contexto e loop de normalização/validação), `ColorRefactorTest`,
-`PageCrawlSmokeTest` (crawl de todas as páginas seedadas).
+`PageCrawlSmokeTest` (crawl de todas as páginas seedadas),
+`UserInvitationTest` (convite de usuário por admin + fluxo de definir senha),
+`AuthenticationTest` (login/throttle/reset de senha — sem self-registration).

@@ -3,7 +3,6 @@
 use App\Http\Controllers\AttributeOptionController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginController;
-use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\DocumentationGroupController;
 use App\Http\Controllers\DocumentationGroupPageController;
@@ -23,26 +22,29 @@ use App\Http\Controllers\SolutionContextDocumentController;
 use App\Http\Controllers\SolutionDocumentationController;
 use App\Http\Controllers\SolutionIntegrationController;
 use App\Http\Controllers\SolutionMapController;
-use App\Http\Middleware\BlockAgentFromWeb;
+use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 // Guest routes
 Route::middleware('guest')->group(function () {
-    Route::get('register', [RegisterController::class, 'create'])->name('register.create');
-    Route::post('register', [RegisterController::class, 'store'])->name('register.store');
-
     Route::get('login', [LoginController::class, 'create'])->name('login.create');
-    Route::post('login', [LoginController::class, 'store'])->name('login.store');
+    Route::post('login', [LoginController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('login.store');
 
     Route::get('forgot-password', [ForgotPasswordController::class, 'create'])->name('password.request');
-    Route::post('forgot-password', [ForgotPasswordController::class, 'store'])->name('password.email');
+    Route::post('forgot-password', [ForgotPasswordController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('password.email');
 
     Route::get('reset-password/{token}', [ResetPasswordController::class, 'create'])->name('password.reset');
-    Route::post('reset-password', [ResetPasswordController::class, 'store'])->name('password.update');
+    Route::post('reset-password', [ResetPasswordController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('password.update');
 });
 
-// Authenticated routes (the `agent` role is blocked from the web — section 15)
-Route::middleware(['auth', BlockAgentFromWeb::class])->group(function () {
+// Authenticated routes
+Route::middleware('auth')->group(function () {
     Route::get('profile', [ProfileController::class, 'show'])->name('profile.show');
     Route::get('profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -183,6 +185,13 @@ Route::middleware(['auth', BlockAgentFromWeb::class])->group(function () {
     Route::post('attributes/{group}', [AttributeOptionController::class, 'store'])->name('attribute-options.store');
     Route::patch('attributes/{option}', [AttributeOptionController::class, 'update'])->name('attribute-options.update');
     Route::delete('attributes/{option}', [AttributeOptionController::class, 'destroy'])->name('attribute-options.destroy');
+
+    // "Usuários" area (admin-only) — only exists inside #main-modal (see
+    // user-menu.blade.php). Accounts are admin-created by invite, never
+    // self-registered; the invited user sets their own password through the
+    // existing password-reset flow (UserController::store).
+    Route::get('users', [UserController::class, 'index'])->name('users.index');
+    Route::post('users', [UserController::class, 'store'])->name('users.store');
 
     Route::get('map', [SolutionMapController::class, 'index'])->name('solutions.map');
     Route::get('map/data', [SolutionMapController::class, 'data'])->name('solutions.map.data');
