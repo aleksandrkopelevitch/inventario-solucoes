@@ -400,3 +400,25 @@ it('filters the global map by category', function () {
         ->not->toContain("sol-{$mkt->id}", "sol-{$tms->id}");
     expect($graph['edges'])->toHaveCount(1);
 });
+
+it('filters the global map by directorate', function () {
+    $service = new IntegrationGraphService;
+
+    $ti = Solution::factory()->create(['directorate' => 'TI']);
+    $financeiro = Solution::factory()->create(['directorate' => 'Financeiro']);
+    $comercial = Solution::factory()->create(['directorate' => 'Comercial']);
+    $logistica = Solution::factory()->create(['directorate' => 'Logística']);
+
+    $withTi = Integration::factory()->active()->create(['source_solution_id' => $ti->id, 'target_solution_id' => $financeiro->id]);
+    attachParticipants($withTi, [[$ti, 0], [$financeiro, 1]]);
+
+    $withoutTi = Integration::factory()->active()->create(['source_solution_id' => $comercial->id, 'target_solution_id' => $logistica->id]);
+    attachParticipants($withoutTi, [[$comercial, 0], [$logistica, 1]]);
+
+    $graph = $service->globalMap(['directorate' => 'TI']);
+
+    expect(collect($graph['nodes'])->pluck('id'))
+        ->toContain("sol-{$ti->id}", "sol-{$financeiro->id}")
+        ->not->toContain("sol-{$comercial->id}", "sol-{$logistica->id}");
+    expect($graph['edges'])->toHaveCount(1);
+});

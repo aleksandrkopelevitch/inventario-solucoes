@@ -42,9 +42,8 @@
     class="ak-viz relative w-full overflow-hidden rounded-card border border-line bg-surface"
     style="height: {{ $height }}"
     data-source-url="{{ $sourceUrl }}"
-    data-nav-base="{{ url('/solutions') }}"
 >
-    <div data-eco-stage class="relative h-full min-h-0">
+    <div class="relative h-full min-h-0">
         <div data-eco-viewport class="ak-viz-viewport">
             <div data-eco-world class="ak-viz-world">
                 <svg data-eco-edges class="ak-viz-edges" xmlns="http://www.w3.org/2000/svg">

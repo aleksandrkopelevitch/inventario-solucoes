@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Integration;
+use App\Models\Solution;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 
@@ -17,4 +19,38 @@ it('renders the map page container', function () {
         ->get(route('solutions.map'))
         ->assertOk()
         ->assertSee('Mapa de integrações');
+});
+
+it('wires the category and directorate query params through to the graph filters', function () {
+    // IntegrationGraphServiceTest covers the filtering logic itself in
+    // isolation — this proves the controller actually reads these two query
+    // params (not typo'd/swapped) and passes them through on a real request.
+    $erp = Solution::factory()->create(['category' => 'erp', 'directorate' => 'TI']);
+    $crm = Solution::factory()->create(['category' => 'crm', 'directorate' => 'TI']);
+    $mkt = Solution::factory()->create(['category' => 'marketing', 'directorate' => 'Comercial']);
+    $tms = Solution::factory()->create(['category' => 'tms', 'directorate' => 'Comercial']);
+
+    $withErp = Integration::factory()->active()->create(['source_solution_id' => $erp->id, 'target_solution_id' => $crm->id]);
+    attachParticipants($withErp, [[$erp, 0], [$crm, 1]]);
+
+    $withoutErp = Integration::factory()->active()->create(['source_solution_id' => $mkt->id, 'target_solution_id' => $tms->id]);
+    attachParticipants($withoutErp, [[$mkt, 0], [$tms, 1]]);
+
+    $user = User::factory()->create();
+
+    $byCategory = $this->actingAs($user)
+        ->getJson(route('solutions.map.data', ['category' => 'erp']))
+        ->assertOk()
+        ->json();
+    expect(collect($byCategory['nodes'])->pluck('id'))
+        ->toContain("sol-{$erp->id}", "sol-{$crm->id}")
+        ->not->toContain("sol-{$mkt->id}", "sol-{$tms->id}");
+
+    $byDirectorate = $this->actingAs($user)
+        ->getJson(route('solutions.map.data', ['directorate' => 'Comercial']))
+        ->assertOk()
+        ->json();
+    expect(collect($byDirectorate['nodes'])->pluck('id'))
+        ->toContain("sol-{$mkt->id}", "sol-{$tms->id}")
+        ->not->toContain("sol-{$erp->id}", "sol-{$crm->id}");
 });

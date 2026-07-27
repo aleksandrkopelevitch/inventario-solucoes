@@ -374,7 +374,7 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   ligar"), e desligar uma ligação. Posição/cor/comentário de cada bloco no
   canvas são só visuais, persistidos em `Integration.viz_layout` — nunca
   tocam a chain nem os campos derivados.
-- **Mapa do ecossistema** (`/mapa`): derivado (somente leitura), layout radial
+- **Mapa do ecossistema** (`/map`): derivado (somente leitura), layout radial
   hub-and-spoke — cada solução é um hub com seus vizinhos diretos num círculo
   ao redor (`<x-ecosystem-map>`, DOM+SVG, mesmo visual do canvas de integração
   de cada solução; posicionamento por grid empacotado, não por rank — a

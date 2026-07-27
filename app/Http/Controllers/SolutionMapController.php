@@ -14,8 +14,10 @@ class SolutionMapController extends Controller
     public function __construct(private readonly IntegrationGraphService $graph) {}
 
     /**
-     * Global map page (F3). Renders the graph container; the canvas drawing
-     * lands in Stage 4. Accepts `?json` to serve the contract itself.
+     * Global ecosystem map page — renders the graph container that
+     * `ecosystem-map.js` draws into (DOM+SVG, radial hub-and-spoke). A
+     * `wantsJson()` request short-circuits straight to `data()`'s JSON
+     * contract instead of the full page.
      */
     public function index(Request $request)
     {
