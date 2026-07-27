@@ -323,11 +323,26 @@ function escapeHtml(s) {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
+// escapeHtml() alone doesn't touch quotes, which is fine for HTML content but
+// not for a value going inside a quoted attribute — a literal `"` in a
+// user-authored comment (e.g. an image alt text) would otherwise break out of
+// `src="…"`/`alt="…"` and inject arbitrary attributes.
+function escapeAttr(s) {
+    return escapeHtml(s).replace(/"/g, '&quot;')
+}
+
+// Blocks `javascript:`/`data:`/`vbscript:` etc. in a comment's link/image
+// target — only http(s) and root-relative/hash URLs render as a real link;
+// anything else falls back to `#` rather than executing on click.
+function safeUrl(u) {
+    return /^(https?:\/\/|\/|#)/i.test(u) ? u : '#'
+}
+
 function mdInline(s) {
     const codes = []
     s = s.replace(/`([^`]+)`/g, (m, c) => { codes.push(c); return '\x00' + (codes.length - 1) + '\x00' })
-    s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (m, a, u) => `<img src="${u}" alt="${a}" style="max-width:100%;border-radius:6px">`)
-    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, t, u) => `<a href="${u}" target="_blank" rel="noopener">${t}</a>`)
+    s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (m, a, u) => `<img src="${escapeAttr(safeUrl(u))}" alt="${escapeAttr(a)}" style="max-width:100%;border-radius:6px">`)
+    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, t, u) => `<a href="${escapeAttr(safeUrl(u))}" target="_blank" rel="noopener">${t}</a>`)
     s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     s = s.replace(/__([^_]+)__/g, '<strong>$1</strong>')
     s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
@@ -2305,27 +2320,21 @@ function mount(root) {
     root.querySelector('[data-viz-zoom-in]')?.addEventListener('click', () => zoomAt(1.12))
     root.querySelector('[data-viz-zoom-out]')?.addEventListener('click', () => zoomAt(1 / 1.12))
     root.querySelector('[data-viz-fit]')?.addEventListener('click', fit)
-    root.querySelector('[data-viz-fit-top]')?.addEventListener('click', fit)
     organizeBtn?.addEventListener('click', organize)
     saveBtn?.addEventListener('click', save)
 
-    // ── tela cheia do navegador (botão do rodapé + botão da barra do topo) ──
+    // ── tela cheia do navegador (botão do rodapé) ──
     const fsOpen = root.querySelector('[data-viz-fs-open]')
     const fsClose = root.querySelector('[data-viz-fs-close]')
-    const fsOpenTop = root.querySelector('[data-viz-fs-open-top]')
-    const fsCloseTop = root.querySelector('[data-viz-fs-close-top]')
     function toggleFullscreen() {
         if (document.fullscreenElement === root) document.exitFullscreen?.()
         else root.requestFullscreen?.()
     }
     root.querySelector('[data-viz-fullscreen]')?.addEventListener('click', toggleFullscreen)
-    root.querySelector('[data-viz-fullscreen-top]')?.addEventListener('click', toggleFullscreen)
     document.addEventListener('fullscreenchange', () => {
         const isFs = document.fullscreenElement === root
         fsOpen?.classList.toggle('hidden', isFs)
         fsClose?.classList.toggle('hidden', !isFs)
-        fsOpenTop?.classList.toggle('hidden', isFs)
-        fsCloseTop?.classList.toggle('hidden', !isFs)
         requestAnimationFrame(() => requestAnimationFrame(() => { fit(); positionAddEditor(); positionMetaEditor() }))
     })
 

@@ -149,7 +149,7 @@ is the ONLY thing that writes the derived columns (`participants` pivot with
 `position`, `source/target_solution_id`, `direction`, and the summary scalar
 `protocol` = first non-null edge protocol) — it runs after every mutation to
 `chain` (`SolutionIntegrationController::store/updateNode/updateProtocol/
-addNode/retargetEdge/addEdge/removeEdge`). `Integration.viz_layout`
+addNode/retargetEdge/addEdge/removeEdge/removeNode`). `Integration.viz_layout`
 (`{nodes: [{x,y}], edges: [{from,to}], comments}`) is a purely **visual**
 concern — node position/style and per-block comments in the graphical canvas
 (`resources/js/modules/integration-viz.js`) — and must NEVER drive topology;
@@ -679,6 +679,8 @@ All JS hooks use the `data-ak-*` prefix. Internal slots (`data-spinner`, `data-l
 | `data-ak-docs-copy` | `docs-copy.js` | "Copiar Markdown" button — reads `window.__akDocsGetMarkdown()` while editing, or the `data-ak-docs-markdown` textarea on the read-only view |
 | `data-ak-docs-markdown` | `docs-copy.js` | Hidden `<textarea>` with the raw Markdown, rendered only on the read-only view (no live editor there to query) |
 | `data-ak-node-kinds` (on the integrations-map root) | `integration-viz.js` | `App\Enums\ChainNodeKind` as JSON (`{value,label,system,placeholder}`), read once and cached: feeds the kind `<select>` of both block panels. `system` is the only kind that gets the Solution select |
+| `data-ak-solutions`/`data-ak-protocols`/`data-ak-statuses` (on the integrations-map root) | `integration-viz.js` | Same read-once-and-cache pattern as `data-ak-node-kinds` — the Solution/protocol/status option lists (JSON) feeding the block/edge editor panels |
+| `data-ak-integration-name`/`-summary`/`-status` (on an integration row, `integrations-map.blade.php`) | `integration-viz.js` | Patched via `replaceChildren(document.createTextNode(...))` (never `innerHTML`) after any chain mutation, so the left-pane integration list stays current without a page reload |
 
 ## `ajax.js` — Promise contract, not XHR
 
