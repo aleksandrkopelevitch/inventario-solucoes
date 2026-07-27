@@ -262,8 +262,6 @@ plain integer index into `chain.nodes`/`chain.edges` (`whereNumber(...)`), not
 a model — those aren't scoped bindings, just route params validated as
 numeric and range-checked inside the controller.
 
-- Catch-all `Route::get('{post:slug}', ...)` must remain the **last** route in `web.php`
-
 ## Security
 
 - Every model must define `$fillable` — no `$guarded = []` shortcuts
@@ -660,6 +658,7 @@ All JS hooks use the `data-ak-*` prefix. Internal slots (`data-spinner`, `data-l
 | `data-ak-avatar-upload='{"inputId":"…"}'` | `avatar-upload.js` | Avatar upload trigger |
 | `data-ak-top-nav` | `top-nav.js` | Element that receives scroll shadow |
 | `data-ak-solution-attribute` (on a `<select>`) + `data-solution-attributes`/`data-action="url"` (on the wrapping `<dl>`) | `solution-attributes.js` | Auto-persists one Solution attribute on `change`, no save button |
+| `data-ak-contacts` (root, + `data-ak-contacts-next` counter) + `data-ak-contacts-list`/`data-ak-contact-row`/`data-ak-contact-add`/`data-ak-contact-remove` | `person-contacts.js` | Additional-contacts repeater on the Person form — add/remove rows client-side; synced server-side by `PersonController::syncContacts()` |
 | `data-ak-chips` (root) + `data-ak-chips-input`/`data-ak-chips-list`/`data-ak-chips-results`/`data-ak-chips-result`/`data-ak-chip`/`data-ak-chip-remove` | `chips.js` | Multi-select-with-autocomplete chips input (e.g. Person↔Solution role linking) |
 | `data-ak-chips-add='{"name":"…","value":"…","label":"…"}'` | `chips.js` | Adds a chip straight to the named field from a JSON config, skipping the picker overlay entirely (e.g. flowSpec's "adicionar ao contexto" suggestion buttons, `thread.blade.php`) |
 | `data-ak-chips-trigger` | `chips.js` | Opens the chips picker overlay; can be triggered externally via `.click()` from outside the component (e.g. flowSpec's 📎 attach menu, `data-ak-fs-open` below) |

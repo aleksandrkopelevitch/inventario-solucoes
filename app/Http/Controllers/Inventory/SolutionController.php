@@ -125,9 +125,12 @@ class SolutionController extends Controller
         $solution->update($request->validated());
 
         return response()->json([
-            'type'           => 'success',
-            'message'        => 'Atributo atualizado.',
-            'updatableSlots' => [DetailHeader::slot($solution), SolutionsIndex::slot()],
+            'type'    => 'success',
+            'message' => 'Atributo atualizado.',
+            // Only the detail-header badges reflect this — there is no
+            // solutions-index-slot on this (detail) page for the catalog
+            // list/ResultsCount/FilterChips to land in.
+            'updatableSlots' => [DetailHeader::slot($solution)],
         ]);
     }
 

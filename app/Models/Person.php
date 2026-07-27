@@ -65,6 +65,11 @@ class Person extends Model
                 ->orWhereHas('company', fn (Builder $c) => $c->where('name', 'like', "%{$search}%"))
                 ->orWhereHas('solutions', fn (Builder $s) => $s->where('name', 'like', "%{$search}%"))))
             ->when($filters['company'] ?? null, fn (Builder $q, $v) => $q->where('company_id', $v))
-            ->when($filters['role'] ?? null, fn (Builder $q, $v) => $q->whereHas('solutions', fn (Builder $s) => $s->wherePivot('role', $v)));
+            // `wherePivot()` only exists on the BelongsToMany relation itself, not on
+            // the plain Builder a whereHas() closure receives — calling it here silently
+            // resolved to Eloquent's dynamic-where magic method instead (`where('pivot', $v)`,
+            // a literal column that doesn't exist), so this filter matched nothing, ever.
+            // Reference the pivot table's real column name directly.
+            ->when($filters['role'] ?? null, fn (Builder $q, $v) => $q->whereHas('solutions', fn (Builder $s) => $s->where('person_solution.role', $v)));
     }
 }

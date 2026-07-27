@@ -25,8 +25,11 @@ it('updates a single attribute inline from the detail-header card, resyncing the
         ->assertOk()
         ->assertJson(['type' => 'success']);
 
+    // Only the detail-header badges reflect this — the detail page has no
+    // solutions-index-slot/ResultsCount/FilterChips for the catalog list
+    // widgets to land in.
     $ids = collect($response->json('updatableSlots'))->pluck('id');
-    expect($ids)->toContain('solution-detail-header-slot', 'solutions-index-slot');
+    expect($ids)->toEqual(collect(['solution-detail-header-slot']));
 
     $headerSlot = collect($response->json('updatableSlots'))->firstWhere('id', 'solution-detail-header-slot');
     expect($headerSlot['content'])->toContain('Alta');

@@ -81,6 +81,30 @@ it('lets an admin update a solution', function () {
     $this->assertDatabaseHas('solutions', ['id' => $solution->id, 'name' => 'Renomeado']);
 });
 
+it('preserves the active filter when updating a solution refreshes the index slot', function () {
+    // Regression coverage for the "preserving filters when a mutation
+    // refreshes a filtered index slot" chain (CLAUDE.md) — editing a
+    // Solution while filtered must not silently reset the visible list to
+    // everything, even though the store()/update() wiring already does this
+    // correctly (this just proves it end-to-end).
+    $this->seed(AttributeOptionSeeder::class);
+
+    $matching = Solution::factory()->create(['name' => 'Alpha ERP', 'category' => 'erp', 'status' => 'active']);
+    Solution::factory()->create(['name' => 'Beta CRM', 'category' => 'crm', 'status' => 'active']);
+
+    $response = $this->actingAs(admin())
+        ->patchJson(route('solutions.update', ['solution' => $matching, 'filter' => ['category' => 'erp']]), [
+            'name'     => 'Alpha ERP Renomeado',
+            'category' => 'erp',
+            'status'   => 'active',
+        ])
+        ->assertOk();
+
+    $indexSlot = collect($response->json('updatableSlots'))->firstWhere('id', 'solutions-index-slot');
+    expect($indexSlot['content'])->toContain('Alpha ERP Renomeado')
+        ->and($indexSlot['content'])->not->toContain('Beta CRM');
+});
+
 it('forbids a viewer from creating a solution', function () {
     $this->actingAs(User::factory()->create()) // viewer
         ->postJson(route('solutions.store'), ['name' => 'X', 'category' => 'erp', 'status' => 'active'])
