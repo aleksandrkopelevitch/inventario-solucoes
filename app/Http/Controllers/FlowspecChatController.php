@@ -14,7 +14,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 /**
- * Chat for the Digibee flowSpec generator (F8). The conversation is async:
+ * Chat for the Especialista em Integrações (F8), which generates Digibee
+ * flowSpec JSON. The conversation is async:
  * the POST persists the user's message and dispatches GenerateFlowspecReply;
  * the thread (Flowspec\Thread, updatable slot) shows "generating…" and the
  * `status` polling swaps the slot once the reply arrives.

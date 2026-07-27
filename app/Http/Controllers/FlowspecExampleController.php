@@ -11,8 +11,9 @@ use Illuminate\Http\JsonResponse;
 
 /**
  * "Gerenciar referências" area (F8) — CRUD for the flowSpec example corpus
- * that feeds the generator's prompt. Admin-only, lives only inside the shared
- * `#main-modal` (never its own page), opened from the flowSpec chat top bar.
+ * that feeds the Especialista em Integrações' prompt. Admin-only, lives only
+ * inside the shared `#main-modal` (never its own page), opened from the
+ * flowSpec chat top bar.
  * Follows the AttributeOptionController pattern: `index` returns rendered
  * modal HTML, mutations return the refreshed list slot.
  */

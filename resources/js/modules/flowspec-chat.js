@@ -2,7 +2,7 @@ import * as ajaxModule from './ajax.js'
 import { updateSlots } from './ajax-slot.js'
 
 /**
- * flowSpec generator chat (F8).
+ * Especialista em Integrações chat (F8) — generates Digibee flowSpec JSON.
  *
  * Polling: while the thread renders the [data-ak-flowspec-poll] marker
  * (last message is from the user — the GenerateFlowspecReply job is still

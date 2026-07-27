@@ -11,11 +11,12 @@ use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
- * Generates the assistant's reply to a flowSpec chat message (F8). The UI
- * doesn't wait for the job: the thread shows "generating…" while the last
- * chat message is from the user, and a lightweight poll (flowspec-chat.js)
- * updates the slot once this reply is persisted — including the failure
- * reply created in failed(), so the chat never stays pending forever.
+ * Generates the assistant's reply to an Especialista em Integrações (F8)
+ * chat message. The UI doesn't wait for the job: the thread shows
+ * "generating…" while the last chat message is from the user, and a
+ * lightweight poll (flowspec-chat.js) updates the slot once this reply is
+ * persisted — including the failure reply created in failed(), so the chat
+ * never stays pending forever.
  */
 class GenerateFlowspecReply implements ShouldQueue
 {

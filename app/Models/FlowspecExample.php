@@ -10,8 +10,8 @@ use Illuminate\Database\Eloquent\Model;
 /**
  * A curated example from the Digibee flowSpec corpus (F8). Selected by tags
  * and text search (no RAG) by FlowspecContextResolver to compose the
- * generator's prompt. `connectors` is derived from `flow_spec` by the
- * seeder/curation — never maintained by hand.
+ * Especialista em Integrações' prompt. `connectors` is derived from
+ * `flow_spec` by the seeder/curation — never maintained by hand.
  */
 class FlowspecExample extends Model
 {

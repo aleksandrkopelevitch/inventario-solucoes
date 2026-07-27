@@ -11,10 +11,11 @@ use Illuminate\Validation\Validator;
 /**
  * Shared validation for creating/editing a corpus example (F8). The reference
  * base is admin-curated, so the flowSpec is entered as raw JSON: it must be a
- * well-formed {meta, flowSpec} document and — like the old "promote" flow —
- * must never carry a literal credential (CredentialScrubber). The full
- * platform validator is deliberately NOT run here, so a legitimate real
- * pipeline that doesn't match every Digibee rule can still be curated in.
+ * well-formed {meta, flowSpec} document and must never carry a literal
+ * credential (CredentialScrubber — the same guard the generation loop applies
+ * to a generated reply). The full platform validator is deliberately NOT run
+ * here, so a legitimate real pipeline that doesn't match every Digibee rule
+ * can still be curated in.
  */
 abstract class FlowspecExampleRequest extends FormRequest
 {

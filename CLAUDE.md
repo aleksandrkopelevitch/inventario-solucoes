@@ -348,8 +348,8 @@ public function backoff(): array
 - Use `ShouldDispatchAfterCommit` on jobs dispatched inside DB transactions to avoid race conditions
 - **UI reflects a queued job's outcome via polling, not broadcasting**
   (`resources/js/modules/websocket.js` was removed as dead code with zero
-  consumers). Reference implementation: `App\Jobs\GenerateFlowspecReply` (F8
-  flowSpec chat generator) + `resources/js/modules/flowspec-chat.js` — a
+  consumers). Reference implementation: `App\Jobs\GenerateFlowspecReply` (F8,
+  Especialista em Integrações chat) + `resources/js/modules/flowspec-chat.js` — a
   `data-ak-*-poll` marker rendered inside the slot, a module-level
   `setInterval` that stops itself once the marker disappears from the DOM
   after a slot swap, and a **client-side give-up ceiling with a user-visible
@@ -656,9 +656,12 @@ All JS hooks use the `data-ak-*` prefix. Internal slots (`data-spinner`, `data-l
 | `data-ak-top-nav` | `top-nav.js` | Element that receives scroll shadow |
 | `data-ak-solution-attribute` (on a `<select>`) + `data-solution-attributes`/`data-action="url"` (on the wrapping `<dl>`) | `solution-attributes.js` | Auto-persists one Solution attribute on `change`, no save button |
 | `data-ak-chips` (root) + `data-ak-chips-input`/`data-ak-chips-list`/`data-ak-chips-results`/`data-ak-chips-result`/`data-ak-chip`/`data-ak-chip-remove` | `chips.js` | Multi-select-with-autocomplete chips input (e.g. Person↔Solution role linking) |
+| `data-ak-chips-add='{"name":"…","value":"…","label":"…"}'` | `chips.js` | Adds a chip straight to the named field from a JSON config, skipping the picker overlay entirely (e.g. flowSpec's "adicionar ao contexto" suggestion buttons, `thread.blade.php`) |
+| `data-ak-chips-trigger` | `chips.js` | Opens the chips picker overlay; can be triggered externally via `.click()` from outside the component (e.g. flowSpec's 📎 attach menu, `data-ak-fs-open` below) |
 | `data-ak-integration-select="slug"` (on a row) + `data-ak-integration-list` (on the container) | `integration-select.js` | Selects an integration row (`aria-pressed`), dispatches `ak:integration-selected` `{name, slug, graph}` |
 | `data-ak-flowspec-poll="status-url"` | `flowspec-chat.js` | Presence in the thread slot = a reply is still generating; module polls the URL every 2.5s (capped at `MAX_POLL_ATTEMPTS`) until the slot swap removes this marker |
 | `data-ak-flowspec-copy="pre-id"` | `flowspec-chat.js` | Copies the target element's `textContent` (not `innerHTML` — the flowSpec JSON's `jsonPath` has literal `&&`) to the clipboard |
+| `data-ak-fs-*` (`-input`/`-send`/`-pills`/`-menu`/`-open="name"`/`-toggle-reference`/`-reference-input`/`-reference-pill`/`-reference-clear`/`-scroll`) | `flowspec-chat.js` | Private hooks of the flowSpec composer (`resources/views/components/flowspec/composer.blade.php`) — message textarea, 📎 attach menu (`-open="name"` clicks the matching chips field's `-trigger`), reference-flowSpec panel toggle/clear. Not reused outside that component |
 | `data-ak-docs-ai-generate` (+ `data-action="url"`) | `docs-ai.js` | "Assiste IA": collects the prompt, checked context docs and the editor's current Markdown (`window.__akDocsGetMarkdown`), POSTs to start the generation job, closes the panel, LOCKS the editor and polls the returned `pollUrl` until the draft is ready for review |
 | `data-ak-docs-ai-prompt` | `docs-ai.js` | The prompt `<textarea>` read by the generate action |
 | `data-ak-docs-ai-status` | `docs-ai.js` | "Gerando com o especialista…" indicator, revealed (`hidden`→`inline-flex`) while a generation job runs |
@@ -668,6 +671,13 @@ All JS hooks use the `data-ak-*` prefix. Internal slots (`data-spinner`, `data-l
 | `data-ak-context-doc` (on a checkbox, `value`=media id) | `docs-ai.js` | A Solution context document the AI should consider; checked ids are sent as `media_ids[]` |
 | `data-ak-context-upload` (on a file input, + `data-action="url"`) | `docs-ai.js` | Uploads the chosen context document immediately on `change` — there's no separate "Anexar" button, which users kept skipping |
 | `data-ak-context-uploading` | `docs-ai.js` | "Enviando documento…" indicator for the upload above |
+| `data-ak-docs-editor` (`data-config='{"uploadUrl":"…"}'`) | `docs-editor.js` | Editor.js mount point for a documentation page/integration; the module also self-tags the same element `data-ak-docs-holder` once mounted, for its own click-outside scoping |
+| `data-ak-docs-source` | `docs-editor.js` | Hidden `<textarea>` with the raw Markdown the editor is built from on mount |
+| `data-ak-docs-save` | `docs-editor.js` | Save button — the one thing `Ctrl/Cmd+S`, autosave and `setEditorLocked()` (raised by `docs-ai.js` during a generation) all enable/disable together |
+| `data-ak-docs-status` | `docs-editor.js` | Autosave feedback text ("Salvando…"/"Salvo") |
+| `data-ak-docs-toc` (nav target) + `data-ak-docs-content` (scope, read-only view) | `docs-toc.js` | "Nesta página" headings navigator — reads live Editor.js headings while editing, or the `.html-content`/`data-ak-docs-content` permalinks read-only |
+| `data-ak-docs-copy` | `docs-copy.js` | "Copiar Markdown" button — reads `window.__akDocsGetMarkdown()` while editing, or the `data-ak-docs-markdown` textarea on the read-only view |
+| `data-ak-docs-markdown` | `docs-copy.js` | Hidden `<textarea>` with the raw Markdown, rendered only on the read-only view (no live editor there to query) |
 | `data-ak-node-kinds` (on the integrations-map root) | `integration-viz.js` | `App\Enums\ChainNodeKind` as JSON (`{value,label,system,placeholder}`), read once and cached: feeds the kind `<select>` of both block panels. `system` is the only kind that gets the Solution select |
 
 ## `ajax.js` — Promise contract, not XHR

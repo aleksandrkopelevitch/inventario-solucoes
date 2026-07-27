@@ -9,8 +9,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * A flowSpec generator (F8) conversation: a thread of user prompts and the
- * assistant's generated flowSpec replies.
+ * An Especialista em Integrações (F8) conversation: a thread of user prompts
+ * and the assistant's generated Digibee flowSpec replies.
  */
 class FlowspecChat extends Model
 {

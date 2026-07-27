@@ -420,7 +420,8 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   corpus de referência (`FlowspecExample`) é curado à parte, num modal de
   "Gerenciar referências" (admin, `FlowspecExampleController`) — não a partir
   do resultado de uma conversa. Um `CredentialScrubber` barra segredo literal
-  no que é cadastrado no corpus.
+  tanto no que é gerado (o documento é descartado se um literal sobreviver a
+  todas as tentativas do loop) quanto no que é cadastrado no corpus.
 - **Hub de Documentação** (`/documentacao`): visão gerencial transversal do
   que está documentado e do que falta — soluções **e** integrações, cada uma
   com um selo por **conteúdo real** (não um flag manual), agrupadas por
