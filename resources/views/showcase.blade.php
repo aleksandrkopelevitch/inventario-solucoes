@@ -3,7 +3,7 @@
         <div class="mb-6">
             <span class="inline-flex items-center rounded-md bg-accent px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-white">Design system</span>
             <h1 class="font-display text-[32px] font-semibold leading-tight text-ink">Componentes de formulário</h1>
-            <p class="mt-1 text-sm text-muted">Identidade Leo Madeiras — verde institucional e lime, tipografia Barlow.</p>
+            <p class="mt-1 text-sm text-muted">Identidade Leo Madeiras — verde institucional e lime, tipografia do sistema.</p>
         </div>
 
         <div class="space-y-6 rounded-card border border-line bg-surface p-8 text-body shadow-card">

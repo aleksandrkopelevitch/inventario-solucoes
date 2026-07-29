@@ -1,6 +1,6 @@
 // docs-diff.js — client-side unified diff between two Markdown strings, used
-// by the "Assiste IA" review modal (docs-ai.js) to preview what a generated
-// draft changes before it replaces the editor content. No dependency: a small
+// by the Documentation Assistant's review modal (docs-chat.js) to preview what
+// a proposed draft changes before it replaces the editor content. No dependency: a small
 // LCS over lines, with word-level refinement on the lines that changed.
 //
 // Nothing here is persisted — it only builds the read-only diff HTML shown in

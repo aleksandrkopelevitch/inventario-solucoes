@@ -10,12 +10,15 @@
     --ak-docs-orange: #d97706;
     --ak-docs-red: #dc2626;
     --ak-docs-green: #1a7f4e;
-    font-family: 'InterVariable', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    font-family: var(--font-sans);
 }
 
-/* Editor.js: chrome discreto, tipografia estilo GitBook (mesmos tons neutros
-   de .html-content em app.css — deliberadamente fora da paleta verde da
-   marca só aqui, pra casar visualmente com o editor e com o resultado final). */
+/* Editor.js: chrome discreto, tipografia estilo GitBook — até 2026-07-28 em
+   tons neutros (mesmos de .html-content em app.css), deliberadamente fora da
+   paleta verde da marca. O usuário comparou com o mock aprovado (headings e
+   blockquote na cor da marca, fonte do sistema) e pediu para casar
+   exatamente com aquilo, então headings/blockquote passaram a usar os
+   tokens de sempre (`--color-ink`/`--color-muted`/`--color-accent`). */
 .ak-docs-editor .ce-block__content,
 .ak-docs-editor .ce-toolbar__content {
     max-width: 100%;
@@ -30,14 +33,15 @@
    longe, abaixo do heading. Por isso aqui só ajustamos padding, seguindo a
    mesma proporção (topo bem maior que a base) que o próprio core usa. */
 .ak-docs-editor .ce-header {
-    color: #111827;
     font-weight: 700;
     letter-spacing: -0.01em;
     margin: 0;
 }
-.ak-docs-editor h1.ce-header { font-size: 2.25rem; padding: 0.9em 0 3px; }
-.ak-docs-editor h2.ce-header { font-size: 1.75rem; padding: 0.9em 0 3px; }
-.ak-docs-editor h3.ce-header { font-size: 1.25rem; padding: 0.7em 0 3px; }
+/* H1 cinza quase preto (título de página) — H2/H3 em `accent-press` (verde
+   mais escuro que `ink`), espelhando .html-content em app.css (2026-07-28). */
+.ak-docs-editor h1.ce-header { font-size: 2.25rem; padding: 0.9em 0 3px; color: #111827; }
+.ak-docs-editor h2.ce-header { font-size: 1.75rem; padding: 0.9em 0 3px; color: var(--color-accent-press); }
+.ak-docs-editor h3.ce-header { font-size: 1.25rem; padding: 0.7em 0 3px; color: var(--color-accent-press); }
 
 /* `.ce-toolbar` (core) tem `will-change: opacity, top` sem `z-index` próprio —
    isso cria um novo contexto de empilhamento, mas sem valor explícito ele cai
@@ -65,7 +69,7 @@
 
 .ak-docs-editor .ce-paragraph,
 .ak-docs-editor .cdx-block {
-    color: #374151;
+    color: var(--color-body);
     line-height: 1.7;
 }
 
@@ -84,13 +88,13 @@
 /* ── Quote (Editor.js Quote tool) — filete simples, sem glifo decorativo,
    pra casar com .html-content blockquote (app.css). ──────────────────── */
 .ak-docs-editor .cdx-quote {
-    border-left: 3px solid var(--color-line-2, #dbe3dc);
+    border-left: 3px solid var(--color-accent);
     padding-left: 1rem;
     margin: 0.75rem 0;
 }
 .ak-docs-editor .cdx-quote__text {
     font-style: italic;
-    color: #4b5563;
+    color: var(--color-muted);
 }
 .ak-docs-editor .cdx-quote-icon { display: none; }
 

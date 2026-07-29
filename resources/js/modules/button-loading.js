@@ -1,7 +1,7 @@
 // button-loading.js — the `<x-forms.button>` loading state (spinner in, label
 // out, button disabled), shared by the modules that submit without going
 // through ajax-post.js: docs-editor.js (save serializes the editor first) and
-// docs-ai.js (generate collects the panel's fields first).
+// docs-chat.js (send collects the composer's fields first).
 //
 // Helper module, not a behavior module: no `init()`, nothing registered in
 // window.globalModules — same shape as docs-diff.js / docs-markdown.js.

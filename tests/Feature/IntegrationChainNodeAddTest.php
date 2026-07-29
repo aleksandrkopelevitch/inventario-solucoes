@@ -192,6 +192,58 @@ it('rejects a new block without a system and without free text', function () {
     expect($response->json('message'))->toContain('Escolha um sistema');
 });
 
+it('creates a start/end block with no text, defaulting to "Início"/"Fim"', function () {
+    $svl = Solution::factory()->create(['name' => 'SVL']);
+
+    $integration = Integration::factory()->create([
+        'chain' => ['nodes' => [['solution_id' => $svl->id, 'label' => null]], 'edges' => []],
+    ]);
+    attachParticipants($integration, [[$svl, 0]]);
+
+    $start = $this->actingAs(nodeAddAdmin())
+        ->postJson(route('solutions.integrations.chain.node.add', [$svl, $integration]), [
+            'kind' => 'start',
+        ])
+        ->assertOk();
+
+    $end = $this->actingAs(nodeAddAdmin())
+        ->postJson(route('solutions.integrations.chain.node.add', [$svl, $integration]), [
+            'kind' => 'end',
+        ])
+        ->assertOk();
+
+    expect($start->json('node.label'))->toBe('Início')
+        ->and($start->json('node.kind'))->toBe('start')
+        ->and($start->json('node.icon'))->toContain('<svg')
+        ->and($end->json('node.label'))->toBe('Fim')
+        ->and($end->json('node.kind'))->toBe('end');
+
+    $integration->refresh();
+
+    expect($integration->chain['nodes'][1])->toBe(['solution_id' => null, 'label' => 'Início', 'kind' => 'start'])
+        ->and($integration->chain['nodes'][2])->toBe(['solution_id' => null, 'label' => 'Fim', 'kind' => 'end'])
+        // Neither kind can be a catalog solution, so participants don't change.
+        ->and($integration->participants->pluck('name')->all())->toBe(['SVL']);
+});
+
+it('lets a start/end block still take custom free text instead of the default', function () {
+    $svl = Solution::factory()->create(['name' => 'SVL']);
+
+    $integration = Integration::factory()->create([
+        'chain' => ['nodes' => [['solution_id' => $svl->id, 'label' => null]], 'edges' => []],
+    ]);
+    attachParticipants($integration, [[$svl, 0]]);
+
+    $response = $this->actingAs(nodeAddAdmin())
+        ->postJson(route('solutions.integrations.chain.node.add', [$svl, $integration]), [
+            'kind'  => 'start',
+            'label' => 'Início do lote noturno',
+        ])
+        ->assertOk();
+
+    expect($response->json('node.label'))->toBe('Início do lote noturno');
+});
+
 it('forbids non-admins from adding a chain node', function () {
     $svl = Solution::factory()->create(['name' => 'SVL']);
 

@@ -12,22 +12,6 @@
    emits them (a concatenated "bg-cat-{family}" elsewhere would never be seen). */
 @source "../../app/Support/CategoryPalette.php";
 
-@font-face {
-    font-family: 'InterVariable';
-    src: url('../fonts/InterVariable.woff2') format('woff2');
-    font-weight: 100 900;
-    font-style: normal;
-    font-display: swap;
-}
-
-@font-face {
-    font-family: 'InterVariable';
-    src: url('../fonts/InterVariable-Italic.woff2') format('woff2');
-    font-weight: 100 900;
-    font-style: italic;
-    font-display: swap;
-}
-
 /* Carrega Instrument Sans (Variable) */
 @font-face {
     font-family: 'Instrument Sans';
@@ -77,17 +61,15 @@
 
 @theme {
 
-    /*--font-sans: InterVariable;*/
-
-    --font-sans: 'Barlow', system-ui, -apple-system, sans-serif;
+    /* Sans/display trocados de 'Barlow' para a pilha de fontes do sistema
+       (2026-07-28) — o usuário comparou um print onde o Google Fonts não
+       carregou (caiu no fallback) e preferiu essa aparência neutra à
+       identidade Barlow anterior; pediu explicitamente para trocar em todo o
+       app, não só na tela que gerou o print. `font-mono` (Space Mono, selos
+       F3/DOCS e rótulos de protocolo) não foi mencionado e continua igual. */
+    --font-sans: system-ui, -apple-system, sans-serif;
     --font-mono: 'Space Mono', ui-monospace, monospace;
-    /* Display = Barlow (não-condensada) desde 2026-07-24. Era 'Barlow Condensed':
-       o usuário comparou com o modelo aprovado (que renderizou títulos numa
-       grotesca bold NÃO-condensada) e preferiu — a condensada lia estreita/leve
-       demais nos títulos de módulo. Barlow já está carregada (link no layout).
-       Os selos F3/DOCS usam font-mono (não afetados); logos/wordmarks usam
-       font-display e passam a Barlow bold também (ok, ainda encorpados). */
-    --font-display: 'Barlow', system-ui, sans-serif;
+    --font-display: system-ui, -apple-system, sans-serif;
 
     /* ── Identidade visual Leo Madeiras ──────────────────
        Verde institucional #1B4D2E + lime #AADB1E. Superfícies
@@ -298,22 +280,28 @@ dialog[open]::backdrop {
    HTML Content (rich text) enhancements
    Headings, lists, links, code blocks, tables, etc.
 -------------------------------------------------- */
-/* Tipografia estilo GitBook (ver docs-editor.css): fonte e tons neutros,
-   deliberadamente fora da paleta verde da marca só dentro do conteúdo de
-   documentação — para casar com o editor e com o GitBook legado. */
+/* Tipografia estilo GitBook (ver docs-editor.css). Até 2026-07-28 os tons
+   eram deliberadamente neutros (cinza), fora da paleta verde da marca — o
+   usuário comparou com o mock aprovado (headings/blockquote na cor `ink`/
+   `muted`/`accent` da marca, fonte do sistema) e pediu para casar exatamente
+   com aquilo, então os headings e o blockquote passaram a usar os tokens da
+   marca como qualquer outro texto do app. `font-family` também não é mais
+   hardcoded em InterVariable — herda `--font-sans` (fonte do sistema). */
 .html-content {
-    font-family: 'InterVariable', ui-sans-serif, system-ui, -apple-system, sans-serif;
-    @apply text-gray-600 dark:text-gray-300 leading-relaxed;
+    @apply text-body leading-relaxed;
 }
 .html-content > * + * {
     @apply mt-4;
 }
-.html-content h1 { @apply text-4xl font-bold tracking-tight text-gray-900 dark:text-gray-50 mt-8 mb-3; }
-.html-content h2 { @apply text-[1.75rem] font-bold tracking-tight text-gray-900 dark:text-gray-50 mt-8 mb-3; }
-.html-content h3 { @apply text-xl font-bold text-gray-900 dark:text-gray-50 mt-6 mb-2; }
-.html-content h4 { @apply text-lg font-semibold text-gray-900 dark:text-gray-50 mt-4 mb-2; }
-.html-content h5 { @apply text-base font-semibold text-gray-900 dark:text-gray-50 mt-4 mb-2; }
-.html-content h6 { @apply text-sm font-semibold text-gray-900 dark:text-gray-50 mt-4 mb-2; }
+/* H1 fica cinza quase preto (título de página, não confunde com o corpo
+   verde) — H2+ usam `accent-press` (verde mais escuro que `ink`) a pedido
+   do usuário (2026-07-28), pra diferenciar hierarquia de título vs. seções. */
+.html-content h1 { @apply text-4xl font-bold tracking-tight text-gray-900 mt-8 mb-3; }
+.html-content h2 { @apply text-[1.75rem] font-bold tracking-tight text-accent-press mt-8 mb-3; }
+.html-content h3 { @apply text-xl font-bold text-accent-press mt-6 mb-2; }
+.html-content h4 { @apply text-lg font-semibold text-accent-press mt-4 mb-2; }
+.html-content h5 { @apply text-base font-semibold text-accent-press mt-4 mb-2; }
+.html-content h6 { @apply text-sm font-semibold text-accent-press mt-4 mb-2; }
 
 .html-content p { @apply mt-4; }
 .html-content a { @apply text-accent font-medium hover:underline; }
@@ -325,19 +313,15 @@ dialog[open]::backdrop {
 .html-content li > ol { @apply mt-2; }
 
 .html-content blockquote {
-    border-left: 3px solid var(--color-line-2, #dbe3dc);
+    border-left: 3px solid var(--color-accent);
     padding: 2px 0 2px 16px;
     font-style: italic;
-    color: #4B5563;
+    color: var(--color-muted);
     background: transparent;
     line-height: 1.75;
     margin: 1.25rem 0;
 }
 .html-content blockquote p { margin: 0; padding: 0; }
-:where(.dark, .dark *) .html-content blockquote {
-    color: #9CA3AF;
-    border-left-color: #374151;
-}
 
 /* ── Callout boxes — <aside data-callout="note|tip|warning|danger"> ──────
    Estilo GitBook: caixa com fundo pastel cheio + badge circular do ícone à

@@ -23,7 +23,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Str;
 
 /**
- * Integrations for a solution's detail page (F3). The F3 data-viz
+ * Integrations for a solution — mutation endpoints for the F3 chain data-viz,
+ * mounted on the integration's own unified page (`Solutions\IntegrationWorkspace`,
+ * the Diagrama tab), not the solution's detail page. The F3 data-viz
  * (`integration-viz.js`) is what authors the topology (chain: nodes/edges,
  * via `updateNode()`/`updateProtocol()`/`addNode()`/`retargetEdge()` below)
  * and the visual layout (`saveLayout()`) — this controller only covers what
@@ -92,15 +94,16 @@ class SolutionIntegrationController extends Controller
 
     /**
      * Saves the F3 graph's visual layout (block positions, edge endpoint
-     * anchors, and each block's markdown comment, all keyed by the node's
-     * index in the chain). Presentation only — the `chain` remains the
-     * source of topology, so we do NOT call SyncIntegrationFromChain here
-     * nor touch participants/source/target/direction.
+     * anchors, each block's markdown comment — all keyed by the node's index
+     * in the chain —, whether a block/edge is drawn dashed, and the
+     * freestanding swimlanes, `lanes`, drawn behind the canvas). Presentation
+     * only — the `chain` remains the source of topology, so we do NOT call
+     * SyncIntegrationFromChain here nor touch participants/source/target/direction.
      */
     public function saveLayout(SaveIntegrationLayoutRequest $request, Solution $solution, Integration $integration): JsonResponse
     {
         $integration->update([
-            'viz_layout' => $request->safe()->only(['nodes', 'edges', 'comments']),
+            'viz_layout' => $request->safe()->only(['nodes', 'edges', 'comments', 'lanes']),
         ]);
 
         return response()->json([
@@ -111,11 +114,11 @@ class SolutionIntegrationController extends Controller
 
     /**
      * Updates a single node (F3 data-viz block): its kind (system / decision /
-     * actor — a block can be converted between them) and its title, chosen
-     * from a registered Solution (pulls name/logo/attributes) or free text.
-     * Still edits the `chain` (source of truth for topology), so
+     * actor / start / end — a block can be converted between them) and its
+     * title, chosen from a registered Solution (pulls name/logo/attributes) or
+     * free text. Still edits the `chain` (source of truth for topology), so
      * SyncIntegrationFromChain runs again: swapping a node's Solution — or
-     * turning it into a decision/actor, which never references one — can
+     * turning it into a decision/actor/start/end, which never references one — can
      * change participants/source/target/direction. The root node (index 0)
      * is fixed — it never reaches here (blocked client-side, enforced by the
      * 404 below).
@@ -254,8 +257,8 @@ class SolutionIntegrationController extends Controller
 
     /**
      * Appends a new block to the chain (the F3 data-viz's "Adicionar bloco"
-     * panel) — a PURE node: its kind (system / decision / actor) plus a
-     * registered Solution or free text, with NO edge and no protocol. Every
+     * panel) — a PURE node: its kind (system / decision / actor / start / end)
+     * plus a registered Solution or free text, with NO edge and no protocol. Every
      * block is born isolated; wiring is a separate, later gesture — drag an
      * arrow out of any block's port or use "connect mode" (`addEdge()`), or
      * drag an existing edge's endpoint onto it (`retargetEdge()`). Still

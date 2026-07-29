@@ -1,20 +1,42 @@
-// Visualização gráfica da integração selecionada (seção F3 do detalhe da
-// solução). Desenha a cadeia (`chain`) escolhida na lista à esquerda como um
-// grafo — nós ligados por setas cujo sentido segue o segmento (`->` ida, `<-`
+// Visualização gráfica da integração — aba "Diagrama" da página unificada da
+// integração (Solutions\IntegrationWorkspace; a página também tem a aba
+// "Documentação"). Desenha a cadeia (`chain`) da integração como um grafo —
+// nós ligados por setas cujo sentido segue o segmento (`->` ida, `<-`
 // volta, `<->` ambos) e cujo rótulo é o protocolo. Cada nó tem um TIPO
 // (`kind`, ver `App\Enums\ChainNodeKind`): `system` (uma Solução cadastrada ou
 // um sistema externo em texto livre), `decision` (a bifurcação do fluxo,
-// desenhada como hexágono chanfrado) ou `actor` (pessoa/área, desenhada como
-// badge arredondado com ícone). O tipo vem resolvido no grafo (`nodes[i].kind`
-// + `nodes[i].icon`, SVG já renderizado no servidor); nós salvos antes dos
-// tipos existirem chegam como `system`.
+// desenhada como hexágono chanfrado), `actor` (pessoa/área, desenhada como
+// badge arredondado com ícone) ou `start`/`end` (início/fim do fluxo,
+// desenhados como um círculo de cor sólida — verde/vermelho — com o ícone do
+// tipo dentro e o rótulo escrito ABAIXO do círculo, não ao lado). O tipo vem
+// resolvido no grafo (`nodes[i].kind` + `nodes[i].icon`, SVG já renderizado no
+// servidor); nós salvos antes dos tipos existirem chegam como `system`.
 //
 // Nós em <div> com sombra + arestas em SVG dentro de um #world com transform.
-// Os dados vêm resolvidos no `data-integration-graph` de cada linha
+// Os dados vêm resolvidos no `data-integration-graph` da única linha (oculta,
+// auto-selecionada) que `integration-workspace.blade.php` renderiza
 // (`integration-select.js` emite `ak:integration-selected`). Nós que
 // referenciam uma Solução também trazem `logo`, `environment` e `cloud`
 // (rótulo + SVG de ícone já renderizado no servidor) — exibidos como avatar
 // e chips discretos em cima do bloco.
+//
+// Duas camadas são puramente visuais (`viz_layout`, nunca `chain`): a borda
+// de um bloco e uma seta podem ser marcadas tracejadas independentemente uma
+// da outra (botão da toolbar / checkbox do editor de protocolo), e raias
+// (`lanes`) — retângulos de fundo livres e coloridos, com uma etiqueta
+// vertical de altura cheia na borda esquerda, num tom mais escuro pra se
+// destacar (`darkenHex()`) — marcam uma área do fluxo; uma raia nunca
+// referencia um nó, o usuário só arrasta os blocos pra dentro da área
+// desejada como já faz em qualquer lugar do canvas. O botão "Raias" da
+// topbar cria uma na hora (centrada no viewport atual, sem painel/diálogo no
+// caminho) e já a seleciona. Posição/tamanho se editam direto no canvas
+// (`rebuildLanes()`): arrastar o CORPO da raia (etiqueta inclusa) move
+// (`drag.type === 'lane-move'`), arrastar uma de suas 3 alças redimensiona —
+// direita (só largura), embaixo (só altura) ou o canto (ambas, `drag.type
+// === 'lane-resize'`). Só um clique SEM arraste NA ETIQUETA (`drag.onLabel`)
+// abre o toolbar de cor/nome/remover (`selectLane()`) — clicar sem arrastar
+// no resto do corpo não faz nada, de propósito: a etiqueta escura é o único
+// alvo de seleção.
 //
 // Clicar (sem arrastar) um nó seleciona e ancora uma toolbar contextual
 // (título / comentário / abrir solução) — funciona com ou sem `editable`.
@@ -26,8 +48,13 @@
 // topologia.
 //
 // O lápis da toolbar (indisponível no nó raiz, índice 0) abre um editor
-// inline do bloco — select de TIPO (sistema/decisão/ator) + select de Soluções
-// cadastradas + opção de texto livre (decisão/ator são só texto livre, então o
+// inline do bloco — TIPO (sistema/decisão/ator/início/fim), escolhido numa
+// lista de cartões ícone+texto (`buildKindPicker()`, a partir de
+// `[data-ak-node-kinds]`) em vez de um dropdown, já que só existem esses 5
+// tipos fixos — +
+// select de Soluções cadastradas + opção de texto livre (decisão/ator/
+// início/fim são só texto livre — início/fim com um padrão próprio,
+// "Início"/"Fim", que preenche o texto quando fica em branco — então o
 // select de Soluções fica escondido nesses tipos). Ao salvar, isso SIM mexe na
 // `chain` (fonte de verdade) via PATCH em `graph.nodeUpdateUrl`, então o
 // servidor pode rederivar participants/source/target/direction — a resposta
@@ -46,12 +73,16 @@
 // protegida aqui, qualquer edge pode ser editada/removida.
 //
 // O botão "+" da topbar (`openAddEditor()`) acrescenta um bloco NOVO E PURO:
-// só o tipo (sistema/decisão/ator) + a Solução cadastrada ou o texto livre —
-// sem seta e sem protocolo. Todo bloco nasce solto; ligar é um gesto separado,
-// depois (ver as três formas abaixo). POST em `graph.nodeAddUrl`; a resposta
-// traz o nó já resolvido (mesmo formato de `resolveNode()`), que
-// `appendNode()` desenha e posiciona à direita do último bloco, sem redesenhar
-// o grafo inteiro.
+// só o tipo — cartão ícone+texto, mesmo `buildKindPicker()` do editor do
+// bloco acima — + a Solução cadastrada ou o texto livre — sem seta e sem
+// protocolo. Todo bloco nasce solto; ligar é um gesto separado, depois (ver
+// as três formas abaixo). POST em `graph.nodeAddUrl`; a resposta traz o nó já
+// resolvido (mesmo formato de `resolveNode()`), que `appendNode()` desenha e
+// posiciona à direita do último bloco, sem redesenhar o grafo inteiro. O
+// MESMO painel reabre (`openQuickAddEditor()`) ancorado no ponto do canvas
+// onde uma seta puxada de uma porta foi solta em espaço vazio (ver a forma 1
+// abaixo) — nesse caso o bloco nasce ali (não à direita do último) e, ao
+// salvar, liga automaticamente com a porta de origem.
 //
 // A chain é um GRAFO LIVRE, não uma linha reta, e não exige que todo bloco
 // esteja ligado a algo: `graph.edges[i]` traz `{from, to, arrow, protocol}`
@@ -64,8 +95,11 @@
 //      NOVA na hora: POST em `graph.edgeAddUrl` com `->` e sem protocolo,
 //      sem diálogo nenhum no caminho — sentido/protocolo se ajustam depois na
 //      pill. Durante o arraste, `drag.type === 'connect'` desenha uma prévia
-//      tracejada até o ponteiro e destaca o bloco sob ele; soltar fora de um
-//      bloco (ou no bloco de origem) cancela.
+//      tracejada até o ponteiro e destaca o bloco sob ele; soltar sobre o
+//      próprio bloco de origem cancela, mas soltar em CANVAS VAZIO abre o
+//      painel "Adicionar bloco" ali mesmo (`openQuickAddEditor()`, ver acima)
+//      — puxar uma seta pro vazio ganha um bloco novo já ligado, em vez de
+//      simplesmente não fazer nada.
 //   2. Arrastar o handle de uma ponta de seta JÁ EXISTENTE para dentro de
 //      OUTRO bloco (não só pra outra âncora do mesmo par de nós) religa
 //      aquela ligação pra esse bloco — `nodeAtPoint()` decide, durante o
@@ -121,13 +155,30 @@ const ANCHOR_KEYS = Object.keys(ANCHORS)
 const ANCHOR_SIDES = ['t', 'r', 'b', 'l']
 
 // Paleta de cor de bloco (mesma lógica do mapa mental de referência: presets
-// + cor personalizada) e famílias de fonte selecionáveis por bloco.
-const PALETTE = ['#C9D4F7', '#4A90D9', '#EBF4FC', '#1A1A2E', '#7FCFC0', '#9BD9A8', '#F6CE7E', '#F2A6A6', '#CBD5E1']
+// + cor personalizada) e famílias de fonte selecionáveis por bloco. Tons bem
+// claros de propósito (2026-07-28: a paleta anterior tinha cores fortes
+// demais) + branco puro como primeira opção — o texto permanece escuro em
+// todas (ver `textColorFor()`), já que a luminância de qualquer uma delas é
+// alta.
+const PALETTE = ['#FFFFFF', '#E9EDFB', '#E6F1FC', '#E3F4EA', '#FCF1D4', '#FBE7EC', '#EFE7FB', '#EDF1F5']
 const FONTS = {
     sans: "'Space Grotesk', 'Inter', system-ui, sans-serif",
     serif: "Georgia, 'Times New Roman', serif",
     mono: "ui-monospace, 'SF Mono', Menlo, Consolas, monospace",
 }
+
+// Cores padrão de uma raia nova (ciclo, uma por `lanes.length` no momento da
+// criação) e tamanho inicial (px de mundo) — ambos só sugestões, editáveis
+// depois arrastando a raia/suas alças, ou pelo painel "Raias".
+const LANE_COLORS = ['#2F6FED', '#7C3AED', '#16A34A', '#EA580C', '#DB2777', '#0891B2']
+const LANE_DEFAULT_WIDTH = 420
+const LANE_DEFAULT_HEIGHT = 240
+// Tamanho mínimo/máximo (px de mundo) de uma raia em qualquer dimensão —
+// mesmo clamp aplicado tanto ao redimensionar arrastando uma alça
+// (`drag.type === 'lane-resize'`) quanto na validação do servidor
+// (`SaveIntegrationLayoutRequest`).
+const LANE_MIN_SIZE = 100
+const LANE_MAX_SIZE = 6000
 
 function luminance(hex) {
     const h = hex.replace('#', '')
@@ -138,6 +189,25 @@ function luminance(hex) {
 }
 const textColorFor = (hex) => (luminance(hex) < 0.55 ? '#FFFFFF' : '#1A1A2E')
 const isHex = (v) => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v)
+function hexToRgba(hex, alpha) {
+    const h = hex.replace('#', '')
+    const r = parseInt(h.substr(0, 2), 16)
+    const g = parseInt(h.substr(2, 2), 16)
+    const b = parseInt(h.substr(4, 2), 16)
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+// Mesma cor, um tom mais escuro — usado pela etiqueta de uma raia (a
+// faixa esquerda com o título) se destacar contra o preenchimento bem
+// claro do resto do retângulo (`rebuildLanes()`), sem precisar de uma
+// segunda cor configurável.
+function darkenHex(hex, amount) {
+    const h = hex.replace('#', '')
+    const scale = (v) => Math.max(0, Math.min(255, Math.round(v * (1 - amount))))
+    const r = scale(parseInt(h.substr(0, 2), 16))
+    const g = scale(parseInt(h.substr(2, 2), 16))
+    const b = scale(parseInt(h.substr(4, 2), 16))
+    return `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`
+}
 
 // Chip discreto de atributo (hospedagem/cloud) em cima do bloco: ícone (SVG já
 // renderizado no servidor — ver `IntegrationsMap::attributeBadge()`, nome vem
@@ -207,12 +277,34 @@ function buildPorts(el) {
 function paintNode(el, data) {
     const kind = data.kind || 'system'
     // `is-free` (tracejado de "externo à Leo") é só do bloco de sistema sem
-    // Solução — decisão/ator têm forma/cor próprias, ver as classes abaixo.
+    // Solução — decisão/ator/início/fim têm forma/cor próprias, ver as
+    // classes abaixo.
     el.classList.toggle('is-free', kind === 'system' && !data.solution)
     el.classList.toggle('is-decision', kind === 'decision')
     el.classList.toggle('is-actor', kind === 'actor')
+    el.classList.toggle('is-start', kind === 'start')
+    el.classList.toggle('is-end', kind === 'end')
     el.classList.toggle('has-comment', !!data.comment)
+    el.classList.toggle('is-dashed', !!data.dashed)
     el.innerHTML = ''
+
+    // Início/Fim: só o ícone dentro do círculo sólido + o rótulo escrito
+    // ABAIXO dele (`.ak-viz-node-endcap-label`), nunca ao lado — layout
+    // totalmente diferente dos demais tipos, ver CSS (`.is-start`/`.is-end`).
+    if (kind === 'start' || kind === 'end') {
+        if (data.icon) el.appendChild(buildKindIcon(data.icon))
+        const label = document.createElement('span')
+        label.className = 'ak-viz-node-endcap-label'
+        label.textContent = data.label ?? (kind === 'start' ? 'Início' : 'Fim')
+        el.appendChild(label)
+
+        const badge = document.createElement('span')
+        badge.className = 'ak-viz-comment-badge'
+        el.appendChild(badge)
+
+        buildPorts(el)
+        return
+    }
 
     // Linha discreta em cima do bloco com hospedagem/cloud da solução (ícone +
     // rótulo), só para nós que referenciam uma Solução e têm ao menos um dos
@@ -249,10 +341,10 @@ const mounted = new WeakSet()
 const roots = new Set()
 const savedLayouts = new Map() // slug -> último layout salvo na sessão (mantém consistência sem reload)
 let uidCounter = 0
-let solutionsListCache = null // [{id,name}] — lido uma vez de [data-ak-solutions] (integrations-map.blade.php)
-let protocolsListCache = null // [{value,label}] — lido uma vez de [data-ak-protocols] (integrations-map.blade.php)
-let statusesListCache = null // [{value,label}] — lido uma vez de [data-ak-statuses] (integrations-map.blade.php)
-let kindsListCache = null // [{value,label,system,placeholder}] — lido uma vez de [data-ak-node-kinds] (integrations-map.blade.php)
+let solutionsListCache = null // [{id,name}] — lido uma vez de [data-ak-solutions] (integration-workspace.blade.php)
+let protocolsListCache = null // [{value,label}] — lido uma vez de [data-ak-protocols] (integration-workspace.blade.php)
+let statusesListCache = null // [{value,label}] — lido uma vez de [data-ak-statuses] (integration-workspace.blade.php)
+let kindsListCache = null // [{value,label,system,placeholder}] — lido uma vez de [data-ak-node-kinds] (integration-workspace.blade.php)
 
 function getSolutionsList() {
     if (solutionsListCache) return solutionsListCache
@@ -422,8 +514,14 @@ function mount(root) {
     const metaCancel = root.querySelector('[data-viz-meta-cancel]')
     const organizeBtn = root.querySelector('[data-viz-organize]')
     const addNodeBtn = root.querySelector('[data-viz-add-node]')
+    const lanesBtn = root.querySelector('[data-viz-lanes]')
+    const laneToolbar = root.querySelector('[data-viz-lane-toolbar]')
+    const laneToolbarSwatches = root.querySelector('[data-viz-lane-toolbar-swatches]')
+    const laneToolbarLabel = root.querySelector('[data-viz-lane-toolbar-label]')
+    const laneToolbarRemove = root.querySelector('[data-viz-lane-toolbar-remove]')
     const addEditor = root.querySelector('[data-viz-add-editor]')
     const addKindSelect = root.querySelector('[data-viz-add-kind]')
+    const addKindPicker = root.querySelector('[data-viz-add-kind-picker]')
     const addSolutionField = root.querySelector('[data-viz-add-solution-field]')
     const addSelect = root.querySelector('[data-viz-add-select]')
     const addLabelInput = root.querySelector('[data-viz-add-label]')
@@ -438,6 +536,7 @@ function mount(root) {
     const toolbarTextColor = root.querySelector('[data-viz-text-color]')
     const toolbarTextColorWrap = root.querySelector('[data-viz-text-color-wrap]')
     const toolbarFont = root.querySelector('[data-viz-font]')
+    const toolbarDashedBtn = root.querySelector('[data-viz-toolbar-dashed]')
     const toolbarActions = root.querySelector('[data-viz-toolbar-actions]')
     const toolbarTitleBtn = root.querySelector('[data-viz-toolbar-title]')
     const toolbarComment = root.querySelector('[data-viz-toolbar-comment]')
@@ -449,6 +548,7 @@ function mount(root) {
     const linkCancelBtn = root.querySelector('[data-viz-link-cancel]')
     const titleEditor = root.querySelector('[data-viz-title-editor]')
     const titleKindSelect = root.querySelector('[data-viz-title-kind]')
+    const titleKindPicker = root.querySelector('[data-viz-title-kind-picker]')
     const titleSolutionField = root.querySelector('[data-viz-title-solution-field]')
     const titleSelect = root.querySelector('[data-viz-title-select]')
     const titleLabelInput = root.querySelector('[data-viz-title-label]')
@@ -458,6 +558,7 @@ function mount(root) {
     const protocolEditor = root.querySelector('[data-viz-protocol-editor]')
     const protocolArrowSelect = root.querySelector('[data-viz-protocol-arrow]')
     const protocolSelect = root.querySelector('[data-viz-protocol-select]')
+    const protocolDashedCheckbox = root.querySelector('[data-viz-protocol-dashed]')
     const protocolDelete = root.querySelector('[data-viz-protocol-delete]')
     const protocolSave = root.querySelector('[data-viz-protocol-save]')
     const protocolSaveLabel = root.querySelector('[data-viz-protocol-save-label]')
@@ -475,7 +576,10 @@ function mount(root) {
     const view = { x: FIT_PAD, y: FIT_PAD, scale: 1 }
     let nodes = []          // { label, solution, url, comment, logo, environment, cloud, el, w, h, x, y }
     let graphRef = null
-    let edgeAnchors = []    // [{from, to}] por índice de edge (âncora visual — from/to aqui são anchor keys, não nós)
+    let edgeAnchors = []    // [{from, to, dashed}] por índice de edge (âncora visual — from/to aqui são anchor keys, não nós)
+    let lanes = []          // [{label, color, x, y, width, height}] — raias (viz_layout.lanes), puramente visual
+    let laneEls = []        // [{wrap, label, handles:{e,s,se}}] — elementos DOM das raias, paralelos a `lanes`
+    let selectedLane = null // índice da raia com o toolbar (cor/nome/remover) aberto, ou null
     let creatingEdge = false // POST de ligação nova em voo — ver `appendEdgeLocally()`
     let slug = ''
     let editable = false
@@ -489,12 +593,29 @@ function mount(root) {
     let linking = null        // índice do nó de origem, enquanto o "modo ligar" está ativo
     let edgeEditorMode = null // 'edit' (ligação existente, ancorado à pill) | 'create' (ligação nova, ancorado ao nó de destino)
     let pendingConnect = null // {from, to} — só em modo 'create', até o POST confirmar
+    // Preenchidos só quando o painel "Adicionar bloco" abre a partir de
+    // soltar uma seta no CANVAS VAZIO (não no botão "+" da topbar) — ver
+    // `openQuickAddEditor()`. `quickAddOrigin` é a porta de onde a seta
+    // saiu (pra `createEdgeFrom()` depois de criar o bloco); `quickAddPos`
+    // é o ponto de MUNDO onde soltar, pra o bloco novo nascer ali (em vez de
+    // à direita do último bloco, como o "+" da topbar faz); `quickAddScreen`
+    // é o ponto de TELA que ancora o painel flutuante. Os três voltam a
+    // `null` juntos em `closeAddEditor()`.
+    let quickAddOrigin = null
+    let quickAddPos = null
+    let quickAddScreen = null
 
     function applyView() {
         world.style.transform = `translate(${view.x}px,${view.y}px) scale(${view.scale})`
         if (zoomLabel) zoomLabel.textContent = Math.round(view.scale * 100) + '%'
         positionToolbar()
         positionProtocolEditor()
+        // A RAIA em si não precisa de nada aqui: é filha de `world` (espaço
+        // de mundo, como um bloco), então pan/zoom já a move/escala de graça
+        // via a própria transform CSS acima. Só o toolbar flutuante (quando
+        // uma raia está selecionada) precisa reancorar — ele vive em espaço
+        // de TELA, mesmo motivo de `positionToolbar()` acima.
+        positionLaneToolbar()
     }
 
     function screenToWorld(clientX, clientY) {
@@ -513,6 +634,15 @@ function mount(root) {
     function clearWorld() {
         nodes.forEach((n) => n.el.remove())
         nodes = []
+        // Raias são um estado por integração, não por sessão da página — sem
+        // isto, trocar para uma integração sem raias (ou com menos) deixaria
+        // raias da integração anterior penduradas em `world` —
+        // `nodes.forEach(...).remove()` acima só limpa os nós, nenhum deles
+        // é uma raia. `entry.wrap.remove()` basta: label/alças são filhas
+        // dele, saem junto.
+        laneEls.forEach((entry) => entry.wrap.remove())
+        laneEls = []
+        lanes = []
         clearOverlays()
     }
 
@@ -532,6 +662,7 @@ function mount(root) {
         saveSep?.classList.add('hidden')
         addNodeBtn?.classList.add('!hidden')
         metaEditBtn?.classList.add('!hidden')
+        lanesBtn?.classList.add('!hidden')
         if (topbarTitle) topbarTitle.textContent = name || 'Selecione uma integração'
         if (emptyTitle) emptyTitle.textContent = name || 'Nenhuma integração selecionada'
         if (emptyHint) {
@@ -547,6 +678,7 @@ function mount(root) {
         closeComment()
         closeAddEditor()
         closeMetaEditor()
+        closeLaneToolbar()
         clearWorld()
         graphRef = graph
         slug = slugArg || ''
@@ -561,11 +693,12 @@ function mount(root) {
         empty.style.display = 'none'
         if (topbarTitle) topbarTitle.textContent = name || ''
 
-        // botão salvar/adicionar bloco/renomear visíveis só quando editável
+        // botão salvar/adicionar bloco/renomear/raias visíveis só quando editável
         saveBtn?.classList.toggle('!hidden', !editable)
         saveSep?.classList.toggle('hidden', !editable)
         addNodeBtn?.classList.toggle('!hidden', !editable)
         metaEditBtn?.classList.toggle('!hidden', !editable)
+        lanesBtn?.classList.toggle('!hidden', !editable)
 
         graph.nodes.forEach((data, i) => {
             const el = document.createElement('div')
@@ -585,7 +718,7 @@ function mount(root) {
         // Uma âncora visual por ligação (`graph.edges`), não por par consecutivo
         // de nós — a chain é um grafo livre, o número de edges é independente
         // do número de nós.
-        edgeAnchors = Array.from({ length: (graph.edges || []).length }, () => ({ from: 'r', to: 'l' }))
+        edgeAnchors = Array.from({ length: (graph.edges || []).length }, () => ({ from: 'r', to: 'l', dashed: false }))
 
         applyLayout(savedLayouts.get(slug) ?? graph.layout)
         nodes.forEach((n) => {
@@ -609,6 +742,7 @@ function mount(root) {
         n.el.style.background = n.color || ''
         n.el.style.color = n.textColor || (n.color ? textColorFor(n.color) : '')
         n.el.style.fontFamily = FONTS[n.font] || FONTS.sans
+        n.el.classList.toggle('is-dashed', !!n.dashed)
     }
 
     // Layout padrão esquerda→direita, centros na linha y=0.
@@ -622,11 +756,12 @@ function mount(root) {
     }
 
     // "Organizar": só reposiciona os blocos e reseta as âncoras das setas
-    // para o padrão — não toca em rótulos/topologia.
+    // para o padrão — não toca em rótulos/topologia. `dashed` de cada aresta
+    // é preservado (só from/to voltam ao padrão).
     function organize() {
         if (!nodes.length) return
         layoutDefault()
-        edgeAnchors = edgeAnchors.map(() => ({ from: 'r', to: 'l' }))
+        edgeAnchors = edgeAnchors.map((a) => ({ from: 'r', to: 'l', dashed: !!a.dashed }))
         nodes.forEach((n) => {
             n.el.style.left = n.x + 'px'
             n.el.style.top = n.y + 'px'
@@ -636,9 +771,16 @@ function mount(root) {
         fit()
     }
 
-    // Aplica um layout salvo (posições + âncoras + comentários), se compatível com a cadeia atual.
+    // Aplica um layout salvo (posições + âncoras + comentários + raias), se
+    // compatível com a cadeia atual. `lanes` já foi resetado por
+    // `clearWorld()` no início de `render()` — aqui só sobrescreve quando o
+    // layout salvo realmente traz algo, e sempre termina redesenhando as
+    // raias (vazio ou não).
     function applyLayout(layout) {
-        if (!layout) return
+        if (!layout) {
+            rebuildLanes()
+            return
+        }
         if (Array.isArray(layout.nodes) && layout.nodes.length === nodes.length) {
             nodes.forEach((n, i) => {
                 const p = layout.nodes[i]
@@ -649,11 +791,12 @@ function mount(root) {
                 if (isHex(p?.color)) n.color = p.color
                 if (isHex(p?.textColor)) n.textColor = p.textColor
                 if (p && FONTS[p.font]) n.font = p.font
+                if (p && typeof p.dashed === 'boolean') n.dashed = p.dashed
             })
         }
         if (Array.isArray(layout.edges) && layout.edges.length === edgeAnchors.length) {
             layout.edges.forEach((e, i) => {
-                if (e && ANCHORS[e.from] && ANCHORS[e.to]) edgeAnchors[i] = { from: e.from, to: e.to }
+                if (e && ANCHORS[e.from] && ANCHORS[e.to]) edgeAnchors[i] = { from: e.from, to: e.to, dashed: !!e.dashed }
             })
         }
         if (Array.isArray(layout.comments) && layout.comments.length === nodes.length) {
@@ -664,10 +807,290 @@ function mount(root) {
                 }
             })
         }
+        if (Array.isArray(layout.lanes)) {
+            const clampSize = (v, fallback) => (Number.isFinite(v) ? Math.round(Math.max(LANE_MIN_SIZE, Math.min(LANE_MAX_SIZE, v))) : fallback)
+            lanes = layout.lanes
+                .filter((l) => l && typeof l.label === 'string')
+                .map((l) => ({
+                    label: l.label,
+                    color: isHex(l.color) ? l.color : LANE_COLORS[0],
+                    x: Number.isFinite(l.x) ? l.x : 0,
+                    y: Number.isFinite(l.y) ? l.y : 0,
+                    width: clampSize(l.width, LANE_DEFAULT_WIDTH),
+                    height: clampSize(l.height, LANE_DEFAULT_HEIGHT),
+                }))
+        }
+        rebuildLanes()
     }
+
+    // Bounding box (espaço do mundo) de todos os nós — usado por `fit()`.
+    // `null` quando não há nó nenhum. Raias NÃO entram nesta conta — só
+    // `fit()` centraliza/enquadra os BLOCOS; uma raia vazia arrastada bem
+    // longe deles não deveria "puxar" o enquadramento atrás de si.
+    function nodesBBox() {
+        if (!nodes.length) return null
+        let minX = Infinity
+        let minY = Infinity
+        let maxX = -Infinity
+        let maxY = -Infinity
+        nodes.forEach((n) => {
+            minX = Math.min(minX, n.x)
+            minY = Math.min(minY, n.y)
+            maxX = Math.max(maxX, n.x + n.w)
+            maxY = Math.max(maxY, n.y + n.h)
+        })
+        return { minX, minY, maxX, maxY }
+    }
+
+    // ── raias — retângulos de fundo livres, puramente visuais ──────
+    // Reconstrói do zero os `<div>` das raias a partir de `lanes` (chamado
+    // sempre que a lista muda: adicionar/remover/recolorir/renomear/mover/
+    // redimensionar) — a contagem é pequena, então recriar tudo é mais
+    // simples do que remendar incrementalmente. Cada raia é UMA raia (área
+    // colorida + etiqueta + 3 alças de redimensionamento, todas filhas do
+    // mesmo `wrap`) filha de `world` — espaço de MUNDO, exatamente como um
+    // bloco: `x`/`y`/`width`/`height` viram `left`/`top`/`width`/`height` em
+    // CSS direto, sem conversão nenhuma, e pan/zoom as movem/escalam de
+    // graça via a transform de `world` (nada a recalcular em `applyView()`).
+    // Isso só é possível porque uma raia deixou de ser obrigatoriamente
+    // 100% da largura do viewport — a versão anterior (raia = faixa
+    // horizontal sempre full-width, empilhada com as vizinhas) vivia em
+    // espaço de TELA de propósito, pra a largura ficar presa ao viewport
+    // independente do zoom; um retângulo livre não tem mais esse motivo.
+    //
+    // Tudo entra ANTES dos nós em `world` (`prepend`) — ordem de documento,
+    // não z-index negativo (a lição de sempre: nem `.ak-viz-viewport` nem
+    // `[data-integration-viz]` estabelecem um contexto de empilhamento
+    // próprio, então um z-index negativo escaparia e pintaria atrás do
+    // `bg-surface` do componente inteiro em vez de só atrás dos nós) —
+    // assim um bloco por cima de uma raia sempre fica visível/clicável;
+    // só a área da raia NÃO coberta por nenhum bloco reage ao arraste do
+    // próprio corpo (mover) ou das alças (redimensionar).
+    function rebuildLanes() {
+        laneEls.forEach((entry) => entry.wrap.remove())
+        laneEls = lanes.map((lane, i) => {
+            const wrap = document.createElement('div')
+            wrap.className = 'ak-viz-lane'
+            wrap.style.left = lane.x + 'px'
+            wrap.style.top = lane.y + 'px'
+            wrap.style.width = lane.width + 'px'
+            wrap.style.height = lane.height + 'px'
+            // Preenchimento bem sutil de propósito, mas a BORDA sólida
+            // precisa se ler como o contorno real do retângulo — e o
+            // título, na cor cheia, é o que fica mais vívido de tudo.
+            wrap.style.background = hexToRgba(lane.color, 0.08)
+            wrap.style.borderColor = hexToRgba(lane.color, 0.7)
+            // Arrastar o CORPO inteiro (fora da etiqueta/alças) move a raia
+            // (`x`/`y`) — mas só a etiqueta abre o toolbar de cor/nome/remover
+            // num clique sem arraste (`onLabel`, ver o `mouseup` global);
+            // clicar o resto do corpo sem arrastar não faz nada. Mesma
+            // distinção clique-vs-arraste de um bloco (`drag.moved`, ver
+            // `startNodePointer()`), só que o "vira seleção" de um clique
+            // puro fica condicionado a QUAL parte do retângulo começou o
+            // gesto.
+            wrap.addEventListener('mousedown', (e) => {
+                if (e.button !== 0 || !editable) return
+                e.stopPropagation()
+                e.preventDefault()
+                drag = { type: 'lane-move', index: i, startClientX: e.clientX, startClientY: e.clientY, startX: lane.x, startY: lane.y, moved: false, onLabel: false }
+            })
+
+            // Etiqueta: faixa esquerda de altura cheia com o TÍTULO — cor
+            // sólida mais escura que o preenchimento do resto da raia
+            // (`darkenHex()`), pra se destacar como uma lombada/cabeçalho.
+            // Tem `pointer-events: auto` própria (editável) pra virar o único
+            // alvo que abre o toolbar num clique — precisa do seu próprio
+            // `mousedown` (com `stopPropagation`) em vez de deixar borbulhar
+            // pro `wrap`, senão o `onLabel` acima sempre veria `false`.
+            const label = document.createElement('span')
+            label.className = 'ak-viz-lane-label'
+            label.style.background = darkenHex(lane.color, 0.35)
+            label.textContent = lane.label
+            label.addEventListener('mousedown', (e) => {
+                if (e.button !== 0 || !editable) return
+                e.stopPropagation()
+                e.preventDefault()
+                drag = { type: 'lane-move', index: i, startClientX: e.clientX, startClientY: e.clientY, startX: lane.x, startY: lane.y, moved: false, onLabel: true }
+            })
+            wrap.appendChild(label)
+
+            // 3 alças de redimensionamento — direita (só largura), embaixo
+            // (só altura) e o canto (ambas de uma vez), mesmo padrão de
+            // qualquer editor de retângulos (Figma, Miro, Excalidraw). Só
+            // interativas quando editável, mesmo CSS attribute do label
+            // acima. O canto entra por último (depois de posicionado pelo
+            // CSS) só pra ganhar da alça de baixo/direita no pixel exato
+            // onde as três se encontram.
+            const handles = {}
+            ;['e', 's', 'se'].forEach((dir) => {
+                const handle = document.createElement('div')
+                handle.className = `ak-viz-lane-resize ak-viz-lane-resize-${dir}`
+                handle.addEventListener('mousedown', (e) => {
+                    if (e.button !== 0 || !editable) return
+                    e.stopPropagation()
+                    e.preventDefault()
+                    drag = {
+                        type: 'lane-resize',
+                        index: i,
+                        dir,
+                        startClientX: e.clientX,
+                        startClientY: e.clientY,
+                        startW: lane.width,
+                        startH: lane.height,
+                    }
+                    handle.classList.add('is-resizing')
+                })
+                handles[dir] = handle
+                wrap.appendChild(handle)
+            })
+
+            return { wrap, label, handles }
+        })
+        if (laneEls.length) world.prepend(...laneEls.map((entry) => entry.wrap))
+    }
+
+    function removeLane(index) {
+        lanes.splice(index, 1)
+        closeLaneToolbar()
+        rebuildLanes()
+        setDirty(true)
+    }
+
+    // Nasce centrada no meio do viewport ATUAL (não num canto fixo do
+    // mundo) — mesma ideia de `appendNode()` nascer perto do que já existe:
+    // o usuário provavelmente quer a raia nova perto do que está olhando
+    // agora, não em (0,0). Sem painel/diálogo no caminho: clicar o botão
+    // "Raias" da topbar já cria e seleciona a raia (`selectLane()` abre o
+    // toolbar na hora, pronta pra renomear).
+    function addLane() {
+        if (!editable || !graphRef) return
+        const vpRect = viewport.getBoundingClientRect()
+        const center = screenToWorld(vpRect.left + vpRect.width / 2, vpRect.top + vpRect.height / 2)
+        lanes.push({
+            label: `Raia ${lanes.length + 1}`,
+            color: LANE_COLORS[lanes.length % LANE_COLORS.length],
+            x: Math.round(center.x - LANE_DEFAULT_WIDTH / 2),
+            y: Math.round(center.y - LANE_DEFAULT_HEIGHT / 2),
+            width: LANE_DEFAULT_WIDTH,
+            height: LANE_DEFAULT_HEIGHT,
+        })
+        rebuildLanes()
+        setDirty(true)
+        selectLane(lanes.length - 1)
+    }
+
+    // ── toolbar da raia selecionada (cor/nome/remover) ──────────────
+    // Aberto por um clique (sem arraste) em qualquer raia — mesmo espírito
+    // do toolbar contextual de um bloco (`selectNode()`), só que com cor
+    // (presets, `buildLaneSwatches()`) + nome (input direto, sem lápis
+    // separado) + remover, já que uma raia não tem título/comentário/link
+    // pra editar. Mutuamente exclusivo com o toolbar do bloco: `selectNode()`
+    // fecha este; este fecha aquele.
+    function selectLane(index) {
+        if (!editable || !laneEls[index]) return
+        selectNode(null)
+        closeProtocolEditor()
+        closeAddEditor()
+        closeMetaEditor()
+        cancelLinking()
+        closeLaneToolbar()
+        selectedLane = index
+        laneEls[index].wrap.classList.add('is-selected')
+        if (laneToolbarLabel) laneToolbarLabel.value = lanes[index].label
+        buildLaneSwatches()
+        laneToolbar?.classList.remove('hidden')
+        laneToolbar?.classList.add('flex')
+        positionLaneToolbar()
+    }
+
+    function closeLaneToolbar() {
+        if (selectedLane !== null && laneEls[selectedLane]) laneEls[selectedLane].wrap.classList.remove('is-selected')
+        selectedLane = null
+        if (!laneToolbar || laneToolbar.classList.contains('hidden')) return
+        laneToolbar.classList.add('hidden')
+        laneToolbar.classList.remove('flex')
+    }
+
+    // Ancorado à raia selecionada — mesma lógica de `positionToolbar()`
+    // (bloco), só que a base é `laneEls[selectedLane].wrap.getBoundingClientRect()`
+    // em vez do nó: como a raia é filha de `world`, seu retângulo em tela já
+    // reflete pan/zoom sozinho, então isso funciona sem nenhuma conversão
+    // adicional.
+    function positionLaneToolbar() {
+        if (!laneToolbar || selectedLane === null || !laneEls[selectedLane]) return
+        if (laneToolbar.classList.contains('hidden')) return
+
+        const stageRect = stage.getBoundingClientRect()
+        const laneRect = laneEls[selectedLane].wrap.getBoundingClientRect()
+        const laneLeft = laneRect.left - stageRect.left
+        const laneTop = laneRect.top - stageRect.top
+
+        const tw = laneToolbar.offsetWidth
+        const th = laneToolbar.offsetHeight
+        const sidebarWidth = isSidebarOpen() ? sidebar.offsetWidth : 0
+        const maxLeft = stageRect.width - sidebarWidth - tw - 8
+
+        let left = laneLeft + laneRect.width / 2 - tw / 2
+        let top = laneTop - th - PANEL_GAP
+        if (top < 8) top = laneTop + laneRect.height + PANEL_GAP
+        left = Math.max(8, Math.min(left, Math.max(8, maxLeft)))
+
+        laneToolbar.style.left = left + 'px'
+        laneToolbar.style.top = top + 'px'
+    }
+
+    // Presets fixos (`LANE_COLORS`), mesmo padrão de `buildSwatches()`
+    // (bloco) — sem cor personalizada aqui de propósito, só as predefinidas.
+    function buildLaneSwatches() {
+        if (!laneToolbarSwatches || selectedLane === null) return
+        const current = lanes[selectedLane]?.color
+        laneToolbarSwatches.innerHTML = ''
+        LANE_COLORS.forEach((color) => {
+            const sw = document.createElement('button')
+            sw.type = 'button'
+            sw.className = 'size-[22px] shrink-0 cursor-pointer rounded-md border border-black/10 transition-transform hover:scale-110'
+            sw.style.background = color
+            sw.title = color
+            sw.style.boxShadow = current && current.toLowerCase() === color.toLowerCase()
+                ? '0 0 0 2px var(--viz-bg), 0 0 0 3.5px var(--viz-select)'
+                : ''
+            sw.addEventListener('click', () => setLaneColor(color))
+            laneToolbarSwatches.appendChild(sw)
+        })
+    }
+
+    function setLaneColor(color) {
+        if (selectedLane === null || !lanes[selectedLane]) return
+        lanes[selectedLane].color = color
+        const entry = laneEls[selectedLane]
+        if (entry) {
+            entry.wrap.style.background = hexToRgba(color, 0.08)
+            entry.wrap.style.borderColor = hexToRgba(color, 0.7)
+            entry.label.style.background = darkenHex(color, 0.35)
+        }
+        buildLaneSwatches()
+        setDirty(true)
+    }
+
+    laneToolbarLabel?.addEventListener('input', () => {
+        if (selectedLane === null || !lanes[selectedLane]) return
+        lanes[selectedLane].label = laneToolbarLabel.value
+        if (laneEls[selectedLane]) laneEls[selectedLane].label.textContent = laneToolbarLabel.value
+        setDirty(true)
+    })
+    laneToolbarRemove?.addEventListener('click', () => {
+        if (selectedLane === null) return
+        removeLane(selectedLane)
+    })
+
+    laneToolbar?.addEventListener('mousedown', (e) => e.stopPropagation())
+    lanesBtn?.addEventListener('click', addLane)
 
     function draw() {
         clearOverlays()
+        // Raias não precisam de nada aqui: são filhas de `world`, então
+        // arrastar um bloco (que roda `draw()` a cada `mousemove`) não as
+        // afeta em nada — pan/zoom idem, via a própria transform CSS.
         edgeLabelEls = []
         const edgeList = graphRef.edges || []
 
@@ -682,7 +1105,7 @@ function mount(root) {
             const toNode = nodes[toIndex]
             if (!fromNode || !toNode) return
 
-            const anchors = edgeAnchors[i] || { from: 'r', to: 'l' }
+            const anchors = edgeAnchors[i] || { from: 'r', to: 'l', dashed: false }
             const a0 = anchorPoint(fromNode, anchors.from)
             const a3 = anchorPoint(toNode, anchors.to)
             // afasta as pontas da linha do centro do handle, para a seta não invadir o círculo
@@ -696,7 +1119,7 @@ function mount(root) {
             const c2y = p3.y + p3.ny * d
 
             const path = document.createElementNS(SVG_NS, 'path')
-            path.setAttribute('class', 'ak-viz-edge')
+            path.setAttribute('class', 'ak-viz-edge' + (anchors.dashed ? ' is-dashed' : ''))
             path.setAttribute('d', `M ${p0.x} ${p0.y} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p3.x} ${p3.y}`)
             const arrow = edge.arrow || '->'
             if (arrow === '->' || arrow === '<->') path.setAttribute('marker-end', `url(#${markerEnd.id})`)
@@ -721,7 +1144,11 @@ function mount(root) {
         })
 
         if (drag?.type === 'handle' && nodes[drag.targetNode]) drawAnchorDots(drag.targetNode, edgeAnchors[drag.edge][drag.end])
-        if (drag?.type === 'connect') drawConnectPreview()
+        // Também desenha a prévia enquanto o quick-add está aberto (soltou a
+        // seta em canvas vazio) — não só durante o arraste em si —, pra dar
+        // continuidade visual: "esse bloco novo vai ligar ali" continua
+        // claro enquanto o usuário escolhe o tipo/Solução no painel.
+        if (drag?.type === 'connect' || quickAddOrigin) drawConnectPreview()
         positionToolbar()
         positionProtocolEditor()
     }
@@ -795,6 +1222,7 @@ function mount(root) {
         closeTitleEditor()
         closeProtocolEditor()
         closeAddEditor()
+        closeLaneToolbar()
         if (selectedIndex !== null && nodes[selectedIndex]) nodes[selectedIndex].el.classList.remove('is-selected')
         selectedIndex = index
 
@@ -851,7 +1279,21 @@ function mount(root) {
         if (toolbarTextColor) toolbarTextColor.value = isHex(effectiveTextColor) ? effectiveTextColor : '#1A1A2E'
         if (toolbarTextColorWrap) toolbarTextColorWrap.style.color = effectiveTextColor
         if (toolbarFont) toolbarFont.value = n.font || 'sans'
+        if (toolbarDashedBtn) {
+            toolbarDashedBtn.classList.toggle('border-dashed', !!n.dashed)
+            toolbarDashedBtn.classList.toggle('!bg-accent-soft', !!n.dashed)
+        }
     }
+
+    // Borda tracejada do bloco selecionado — puramente visual
+    // (`viz_layout.nodes[i].dashed`), independente de cor/fonte/forma.
+    toolbarDashedBtn?.addEventListener('click', () => {
+        if (!editable || selectedIndex === null || !nodes[selectedIndex]) return
+        nodes[selectedIndex].dashed = !nodes[selectedIndex].dashed
+        applyNodeStyle(nodes[selectedIndex])
+        refreshToolbarControls()
+        setDirty(true)
+    })
 
     function setNodeColor(color) {
         if (!editable || selectedIndex === null || !nodes[selectedIndex]) return
@@ -900,6 +1342,49 @@ function mount(root) {
         })
     }
 
+    // Lista de linhas ícone+texto (Excalidraw-like) pro TIPO do bloco — o que
+    // o usuário realmente vê/clica agora, no lugar do `<select>` puro acima.
+    // `select` continua existindo (visualmente escondido, ver a Blade) só
+    // como o dono do valor: `syncKindFields()`/`readNodeForm()` abaixo seguem
+    // lendo `.value` sem precisar saber que a UI virou visual, e um `change`
+    // disparado nele continua acionando os listeners já ligados a ele (troca
+    // o campo de Solução/texto livre, reposiciona o painel). Tailwind
+    // utilities puras (mesmo padrão de `buildSwatches()` acima) em vez de uma
+    // classe CSS própria — a lista é pequena (≤5 itens), então reconstruir
+    // tudo a cada clique é mais simples do que remendar a seleção anterior.
+    function buildKindPicker(container, select) {
+        if (!container || !select) return
+        container.innerHTML = ''
+        getNodeKindsList().forEach((k) => {
+            const active = k.value === select.value
+            const card = document.createElement('button')
+            card.type = 'button'
+            card.title = k.label
+            card.className = 'flex w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-xs font-medium transition-colors ' +
+                (active
+                    ? 'border-accent bg-accent-soft text-accent'
+                    : 'border-line text-ink hover:bg-accent-soft/60')
+            if (k.icon) {
+                const icon = document.createElement('span')
+                icon.className = 'flex size-4 shrink-0 items-center justify-center [&>svg]:size-4'
+                icon.innerHTML = k.icon
+                card.appendChild(icon)
+            }
+            const label = document.createElement('span')
+            label.className = 'truncate'
+            label.textContent = k.label
+            card.appendChild(label)
+            card.addEventListener('click', () => {
+                if (select.value !== k.value) {
+                    select.value = k.value
+                    select.dispatchEvent(new Event('change'))
+                }
+                buildKindPicker(container, select)
+            })
+            container.appendChild(card)
+        })
+    }
+
     function fillSolutionSelect(select, currentId, selectFree) {
         if (!select) return
         select.innerHTML = ''
@@ -944,11 +1429,14 @@ function mount(root) {
         const label = (labelInput?.value ?? '').trim()
 
         if (!kind.system) {
-            if (!label) {
+            // `optionalLabel` (só `início`/`fim`) — o servidor preenche o texto
+            // padrão (`ChainNodeKind::defaultLabel()`) quando fica em branco, então
+            // aqui não bloqueia o envio como bloqueia decisão/ator.
+            if (!label && !kind.optionalLabel) {
                 window.Toast?.show?.('Informe o texto do bloco.', 'warning')
                 return null
             }
-            return { kind: kind.value, solution_id: null, label }
+            return { kind: kind.value, solution_id: null, label: label || null }
         }
 
         const value = solutionSelect?.value ?? ''
@@ -1143,6 +1631,7 @@ function mount(root) {
         titleEditor?.classList.add('flex')
 
         fillKindSelect(titleKindSelect, n.kind || 'system')
+        buildKindPicker(titleKindPicker, titleKindSelect)
         fillSolutionSelect(titleSelect, n.solutionId, !n.solutionId)
         if (titleLabelInput) titleLabelInput.value = n.solutionId ? '' : (n.label ?? '')
         syncKindFields(titleKindSelect, titleSolutionField, titleSelect, titleLabelInput)
@@ -1217,11 +1706,42 @@ function mount(root) {
         if (!editable || !graphRef) return
         selectNode(null)
         closeProtocolEditor()
+        quickAddOrigin = null
+        quickAddPos = null
+        quickAddScreen = null
 
         addEditor?.classList.remove('hidden')
         addEditor?.classList.add('flex')
 
         fillKindSelect(addKindSelect, 'system')
+        buildKindPicker(addKindPicker, addKindSelect)
+        fillSolutionSelect(addSelect, null, false)
+        if (addLabelInput) addLabelInput.value = ''
+        syncKindFields(addKindSelect, addSolutionField, addSelect, addLabelInput)
+        positionAddEditor()
+    }
+
+    // MESMO painel, aberto ao soltar uma seta puxada de uma porta (`drag.type
+    // === 'connect'`) sobre canvas vazio, em vez do botão "+" — ver o
+    // `mouseup` de `drag.type === 'connect'` mais abaixo. `fromIndex`/
+    // `fromSide` é a porta de origem (pra ligar depois de criar, ver
+    // `addSave` abaixo); `wx`/`wy` é o ponto de MUNDO onde soltar (onde o
+    // bloco novo nasce); `screenX`/`screenY` é o ponto de TELA que ancora o
+    // painel (`positionAddEditor()` usa `quickAddScreen` em vez do botão "+"
+    // quando ele está preenchido).
+    function openQuickAddEditor(fromIndex, fromSide, wx, wy, screenX, screenY) {
+        if (!editable || !graphRef) return
+        selectNode(null)
+        closeProtocolEditor()
+        quickAddOrigin = { index: fromIndex, side: fromSide }
+        quickAddPos = { x: wx, y: wy }
+        quickAddScreen = { x: screenX, y: screenY }
+
+        addEditor?.classList.remove('hidden')
+        addEditor?.classList.add('flex')
+
+        fillKindSelect(addKindSelect, 'system')
+        buildKindPicker(addKindPicker, addKindSelect)
         fillSolutionSelect(addSelect, null, false)
         if (addLabelInput) addLabelInput.value = ''
         syncKindFields(addKindSelect, addSolutionField, addSelect, addLabelInput)
@@ -1229,27 +1749,44 @@ function mount(root) {
     }
 
     function closeAddEditor() {
+        // A prévia tracejada da ligação pendente (`drawConnectPreview()`)
+        // só existe enquanto `quickAddOrigin` está preenchido — sem este
+        // redesenho, cancelar o quick-add deixaria a linha tracejada
+        // pendurada na tela até o próximo `draw()` por outro motivo.
+        const hadQuickAdd = !!quickAddOrigin
+        quickAddOrigin = null
+        quickAddPos = null
+        quickAddScreen = null
+        if (hadQuickAdd) draw()
         if (!addEditor || addEditor.classList.contains('hidden')) return
         addEditor.classList.add('hidden')
         addEditor.classList.remove('flex')
     }
 
     // Ancorado ao botão "+" da topbar — mesma base `stage` (não `root`) da
-    // toolbar/editor de protocolo, pelo mesmo motivo (ver `positionToolbar()`).
+    // toolbar/editor de protocolo, pelo mesmo motivo (ver `positionToolbar()`)
+    // — EXCETO quando `quickAddScreen` está preenchido (aberto soltando uma
+    // seta no canvas vazio), aí ancora no ponto onde o mouse soltou em vez do
+    // botão.
     function positionAddEditor() {
-        if (!addEditor || !addNodeBtn || addEditor.classList.contains('hidden')) return
+        if (!addEditor || addEditor.classList.contains('hidden')) return
+        if (!quickAddScreen && !addNodeBtn) return
 
         const stageRect = stage.getBoundingClientRect()
-        const btnRect = addNodeBtn.getBoundingClientRect()
-        const btnLeft = btnRect.left - stageRect.left
-        const btnTop = btnRect.top - stageRect.top
-
         const pw = addEditor.offsetWidth
         const sidebarWidth = isSidebarOpen() ? sidebar.offsetWidth : 0
         const maxLeft = stageRect.width - sidebarWidth - pw - 8
 
-        let left = btnLeft + btnRect.width / 2 - pw / 2
-        const top = btnTop + btnRect.height + PANEL_GAP
+        let left
+        let top
+        if (quickAddScreen) {
+            left = quickAddScreen.x - stageRect.left - pw / 2
+            top = quickAddScreen.y - stageRect.top + PANEL_GAP
+        } else {
+            const btnRect = addNodeBtn.getBoundingClientRect()
+            left = btnRect.left - stageRect.left + btnRect.width / 2 - pw / 2
+            top = btnRect.top - stageRect.top + btnRect.height + PANEL_GAP
+        }
         left = Math.max(8, Math.min(left, Math.max(8, maxLeft)))
 
         addEditor.style.left = left + 'px'
@@ -1272,12 +1809,16 @@ function mount(root) {
         positionAddEditor()
     })
 
-    // Desenha o bloco novo à direita do último bloco (mesmo espaçamento do
-    // layout padrão) e o seleciona — sem redesenhar o grafo inteiro. Nasce
-    // SEM LIGAÇÃO nenhuma: quem liga é o arraste da porta (ou o "modo ligar",
-    // ou religar uma seta existente até ele). Fica dirty (a posição ainda não
-    // está salva em `viz_layout`), mesmo espírito de `organize()`.
-    function appendNode(data) {
+    // Desenha o bloco novo e o seleciona — sem redesenhar o grafo inteiro.
+    // Nasce SEM LIGAÇÃO nenhuma: quem liga é o arraste da porta (ou o "modo
+    // ligar", ou religar uma seta existente até ele) — EXCETO quando vem de
+    // `openQuickAddEditor()` (soltar uma seta em canvas vazio), que liga logo
+    // em seguida (ver `addSave` abaixo). Fica dirty (a posição ainda não está
+    // salva em `viz_layout`), mesmo espírito de `organize()`. `pos` (ponto de
+    // MUNDO) centra o bloco ali — vem preenchido só nesse fluxo de soltar a
+    // seta; sem ele, nasce à direita do último bloco (mesmo espaçamento do
+    // layout padrão), o comportamento de sempre do "+" da topbar.
+    function appendNode(data, pos) {
         const index = nodes.length
         const el = document.createElement('div')
         el.className = 'ak-viz-node'
@@ -1290,8 +1831,13 @@ function mount(root) {
         nodes.push(entry)
         entry.w = el.offsetWidth
         entry.h = el.offsetHeight
-        entry.x = prev ? prev.x + prev.w + LEVEL_GAP : 0
-        entry.y = prev ? prev.y + prev.h / 2 - entry.h / 2 : 0
+        if (pos) {
+            entry.x = pos.x - entry.w / 2
+            entry.y = pos.y - entry.h / 2
+        } else {
+            entry.x = prev ? prev.x + prev.w + LEVEL_GAP : 0
+            entry.y = prev ? prev.y + prev.h / 2 - entry.h / 2 : 0
+        }
         el.style.left = entry.x + 'px'
         el.style.top = entry.y + 'px'
         applyNodeStyle(entry)
@@ -1340,6 +1886,12 @@ function mount(root) {
         const url = graphRef?.nodeAddUrl
         if (!url) return
 
+        // Capturados ANTES do request — `closeAddEditor()` no fim (sucesso
+        // OU erro, ver `finally`... na verdade só no sucesso, abaixo) zera
+        // `quickAddPos`/`quickAddOrigin`, então lê-los depois seria tarde.
+        const pos = quickAddPos
+        const origin = quickAddOrigin
+
         addSave.disabled = true
         if (addSaveLabel) addSaveLabel.textContent = 'Adicionando…'
         try {
@@ -1356,10 +1908,14 @@ function mount(root) {
             const data = await res.json().catch(() => null)
             if (!res.ok) throw new Error(data?.message || 'Não foi possível adicionar o bloco.')
 
-            appendNode(data.node)
+            appendNode(data.node, pos)
             patchRowGraphAppend(slug, data.node, data.summary)
             window.Toast?.show?.(data.message || 'Bloco adicionado.')
             closeAddEditor()
+            // Veio de soltar uma seta em canvas vazio (`openQuickAddEditor()`)
+            // — completa a ligação com o bloco recém-criado, mesmo POST que
+            // soltar a seta sobre um bloco já existente usaria.
+            if (origin) createEdgeFrom(origin.index, nodes.length - 1, origin.side, 'l')
         } catch (err) {
             window.Toast?.show?.(err.message || 'Não foi possível adicionar o bloco.', 'error')
         } finally {
@@ -1517,6 +2073,7 @@ function mount(root) {
         const current = edge?.protocol ?? null
 
         if (protocolArrowSelect) protocolArrowSelect.value = edge?.arrow || '->'
+        if (protocolDashedCheckbox) protocolDashedCheckbox.checked = !!edgeAnchors[index]?.dashed
         if (protocolSelect) {
             protocolSelect.innerHTML = ''
             const noneOpt = document.createElement('option')
@@ -1553,6 +2110,7 @@ function mount(root) {
         protocolAnchorNode = toIndex
 
         if (protocolArrowSelect) protocolArrowSelect.value = '->'
+        if (protocolDashedCheckbox) protocolDashedCheckbox.checked = false
         if (protocolSelect) {
             protocolSelect.innerHTML = ''
             const noneOpt = document.createElement('option')
@@ -1630,6 +2188,9 @@ function mount(root) {
         if (selectedEdge === null) return
         const protocol = protocolSelect?.value ?? ''
         const arrow = protocolArrowSelect?.value || '->'
+        // Tracejado é só `viz_layout` (nunca `chain`) — aplicado localmente,
+        // sem PATCH próprio; entra no ar só quando "Salvar" (layout) rodar.
+        const dashed = !!protocolDashedCheckbox?.checked
 
         const url = graphRef?.edgeUpdateUrl?.replace('EDGE_INDEX', String(selectedEdge))
         if (!url) return
@@ -1654,8 +2215,10 @@ function mount(root) {
                 graphRef.edges[selectedEdge].protocol = data.protocol
                 graphRef.edges[selectedEdge].arrow = data.arrow
             }
+            if (edgeAnchors[selectedEdge]) edgeAnchors[selectedEdge].dashed = dashed
             patchRowEdge(slug, selectedEdge, data.protocol, data.arrow)
             draw()
+            setDirty(true)
             window.Toast?.show?.(data.message || 'Ligação atualizada.')
             closeProtocolEditor()
         } catch (err) {
@@ -1679,7 +2242,7 @@ function mount(root) {
     // comprimento aqui é a asserção disso — e cobre também o caso de outra
     // pessoa ter mexido na mesma integração enquanto esta aba estava aberta.
     // Preferimos não desenhar (e pedir reload) a desenhar com índice errado.
-    function appendEdgeLocally(data, fromSide, toSide) {
+    function appendEdgeLocally(data, fromSide, toSide, dashed = false) {
         graphRef.edges = graphRef.edges || []
 
         if (data.index !== graphRef.edges.length) {
@@ -1688,7 +2251,7 @@ function mount(root) {
         }
 
         graphRef.edges.push({ from: data.from, to: data.to, arrow: data.arrow, protocol: data.protocol })
-        edgeAnchors.push({ from: fromSide, to: toSide })
+        edgeAnchors.push({ from: fromSide, to: toSide, dashed })
         return true
     }
 
@@ -1697,6 +2260,7 @@ function mount(root) {
         const { from, to } = pendingConnect
         const arrow = protocolArrowSelect?.value || '->'
         const protocol = protocolSelect?.value ?? ''
+        const dashed = !!protocolDashedCheckbox?.checked
 
         creatingEdge = true
         protocolSave.disabled = true
@@ -1715,9 +2279,10 @@ function mount(root) {
             const data = await res.json().catch(() => null)
             if (!res.ok) throw new Error(data?.message || 'Não foi possível criar a ligação.')
 
-            if (appendEdgeLocally(data, 'r', 'l')) {
+            if (appendEdgeLocally(data, 'r', 'l', dashed)) {
                 patchRowGraphAddEdge(slug, data.from, data.to, data.arrow, data.protocol, data.summary)
                 draw()
+                if (dashed) setDirty(true)
                 window.Toast?.show?.(data.message || 'Ligação criada.')
             }
             closeProtocolEditor()
@@ -1959,17 +2524,24 @@ function mount(root) {
         nodes.forEach((n, i) => n.el.classList.toggle('is-link-target', i === index))
     }
 
+    // Fonte da prévia: o arraste em si (`drag.type === 'connect'`) OU, depois
+    // de soltar em canvas vazio, o quick-add ainda aberto (`quickAddOrigin`/
+    // `quickAddPos` — `targetNode` sempre `null` aí, já que não há bloco
+    // nenhum sob o ponto onde a seta foi solta).
     function drawConnectPreview() {
-        const from = nodes[drag.from]
+        const src = drag?.type === 'connect'
+            ? drag
+            : { from: quickAddOrigin.index, side: quickAddOrigin.side, wx: quickAddPos.x, wy: quickAddPos.y, targetNode: null, toSide: 'l' }
+        const from = nodes[src.from]
         if (!from) return
 
-        const a0 = anchorPoint(from, drag.side)
+        const a0 = anchorPoint(from, src.side)
         const p0 = { x: a0.x + a0.nx * EDGE_GAP, y: a0.y + a0.ny * EDGE_GAP }
-        let p1 = { x: drag.wx, y: drag.wy }
+        let p1 = { x: src.wx, y: src.wy }
         // Sobre um bloco: a prévia gruda na âncora onde a seta vai nascer, não
         // no ponteiro — é exatamente o que será salvo em `viz_layout`.
-        if (drag.targetNode !== null && nodes[drag.targetNode]) {
-            const a1 = anchorPoint(nodes[drag.targetNode], drag.toSide)
+        if (src.targetNode !== null && nodes[src.targetNode]) {
+            const a1 = anchorPoint(nodes[src.targetNode], src.toSide)
             p1 = { x: a1.x + a1.nx * EDGE_GAP, y: a1.y + a1.ny * EDGE_GAP }
         }
 
@@ -2121,27 +2693,18 @@ function mount(root) {
     }
 
     function fit() {
-        if (!nodes.length) {
+        const bbox = nodesBBox()
+        if (!bbox) {
             applyView()
             return
         }
-        let minX = Infinity
-        let minY = Infinity
-        let maxX = -Infinity
-        let maxY = -Infinity
-        nodes.forEach((n) => {
-            minX = Math.min(minX, n.x)
-            minY = Math.min(minY, n.y)
-            maxX = Math.max(maxX, n.x + n.w)
-            maxY = Math.max(maxY, n.y + n.h)
-        })
         const vw = viewport.clientWidth
         const vh = viewport.clientHeight
-        const cw = maxX - minX + FIT_PAD * 2
-        const ch = maxY - minY + FIT_PAD * 2
+        const cw = bbox.maxX - bbox.minX + FIT_PAD * 2
+        const ch = bbox.maxY - bbox.minY + FIT_PAD * 2
         view.scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.min(vw / cw, vh / ch)))
-        view.x = (vw - (maxX + minX) * view.scale) / 2
-        view.y = (vh - (maxY + minY) * view.scale) / 2
+        view.x = (vw - (bbox.maxX + bbox.minX) * view.scale) / 2
+        view.y = (vh - (bbox.maxY + bbox.minY) * view.scale) / 2
         applyView()
     }
 
@@ -2166,9 +2729,11 @@ function mount(root) {
                 color: n.color || null,
                 textColor: n.textColor || null,
                 font: n.font || 'sans',
+                dashed: !!n.dashed,
             })),
-            edges: edgeAnchors.map((a) => ({ from: a.from, to: a.to })),
+            edges: edgeAnchors.map((a) => ({ from: a.from, to: a.to, dashed: !!a.dashed })),
             comments: nodes.map((n) => n.comment || null),
+            lanes: lanes.map((l) => ({ label: l.label, color: l.color, x: l.x, y: l.y, width: l.width, height: l.height })),
         }
         saveBtn.disabled = true
         if (saveLabel) saveLabel.textContent = 'Salvando…'
@@ -2202,6 +2767,23 @@ function mount(root) {
     let sy = 0
     let ox = 0
     let oy = 0
+
+    // Última posição conhecida do cursor sobre o canvas — usada pelos botões
+    // +/- da topbar para ancorar o zoom nela (em vez do centro do viewport,
+    // ver `zoomAt()` abaixo), igual à roda do mouse já faz. `null` até o
+    // cursor entrar no canvas pela primeira vez (`zoomAt` cai pro centro
+    // nesse caso, via `clientX ?? ...`). Não é limpo ao sair do canvas de
+    // propósito: o usuário tipicamente move o mouse PARA o botão +/- (fora
+    // do viewport) antes de clicar, então "esquecer" a última posição ali
+    // dentro derrotaria o propósito — like todo editor de canvas (Figma,
+    // Miro), os botões de zoom devem continuar ancorados em torno de onde o
+    // usuário estava olhando, não pular pro centro só porque o mouse saiu.
+    let lastPointerX = null
+    let lastPointerY = null
+    viewport.addEventListener('mousemove', (e) => {
+        lastPointerX = e.clientX
+        lastPointerY = e.clientY
+    })
 
     viewport.addEventListener('mousedown', (e) => {
         if (e.button !== 0 || drag) return
@@ -2255,12 +2837,55 @@ function mount(root) {
             draw()
             return
         }
+        if (drag?.type === 'lane-resize') {
+            // Delta em TELA convertido pra MUNDO (`/ view.scale`) — mesmo
+            // raciocínio de `screenToWorld()`: arrastar 10px de tela deve
+            // mudar o tamanho por menos "mundo" quanto mais zoom, senão a
+            // raia cresceria/encolheria rápido demais em zooms altos. `dir`
+            // decide quais eixos mudam: 'e' só largura, 's' só altura, 'se'
+            // ambos (mesma raia, um único drag).
+            const lane = lanes[drag.index]
+            const entry = laneEls[drag.index]
+            if (!lane || !entry) return
+            if (drag.dir.includes('e')) {
+                const dx = (e.clientX - drag.startClientX) / view.scale
+                lane.width = Math.round(Math.max(LANE_MIN_SIZE, Math.min(LANE_MAX_SIZE, drag.startW + dx)))
+                entry.wrap.style.width = lane.width + 'px'
+            }
+            if (drag.dir.includes('s')) {
+                const dy = (e.clientY - drag.startClientY) / view.scale
+                lane.height = Math.round(Math.max(LANE_MIN_SIZE, Math.min(LANE_MAX_SIZE, drag.startH + dy)))
+                entry.wrap.style.height = lane.height + 'px'
+            }
+            // Segue redimensionando a raia SELECIONADA (toolbar já aberto de
+            // um clique anterior) — sem isto o painel ficaria pra trás
+            // enquanto a borda se move.
+            positionLaneToolbar()
+            return
+        }
+        if (drag?.type === 'lane-move') {
+            const lane = lanes[drag.index]
+            const entry = laneEls[drag.index]
+            if (!lane || !entry) return
+            const dx = (e.clientX - drag.startClientX) / view.scale
+            const dy = (e.clientY - drag.startClientY) / view.scale
+            // Mesma distinção clique-vs-arraste de um bloco (`MOVE_TOLERANCE`,
+            // ver `startNodePointer()`) — decide no `mouseup` se isto vira
+            // "selecionar a raia" (abre o toolbar) ou "confirma o arraste".
+            if (Math.abs(dx) > MOVE_TOLERANCE || Math.abs(dy) > MOVE_TOLERANCE) drag.moved = true
+            lane.x = Math.round(drag.startX + dx)
+            lane.y = Math.round(drag.startY + dy)
+            entry.wrap.style.left = lane.x + 'px'
+            entry.wrap.style.top = lane.y + 'px'
+            positionLaneToolbar()
+            return
+        }
         if (!panning) return
         view.x = ox + (e.clientX - sx)
         view.y = oy + (e.clientY - sy)
         applyView()
     })
-    window.addEventListener('mouseup', () => {
+    window.addEventListener('mouseup', (e) => {
         if (drag) {
             if (drag.type === 'node') {
                 nodes[drag.index]?.el.classList.remove('is-dragging')
@@ -2275,10 +2900,27 @@ function mount(root) {
                     setDirty(true)
                 }
             } else if (drag.type === 'connect') {
-                // Soltou sobre outro bloco: cria a ligação. Fora de qualquer
-                // bloco (ou no de origem): só descarta a prévia.
+                // Soltou sobre outro bloco: cria a ligação. Sobre canvas
+                // vazio: abre o "Adicionar bloco" ancorado ali, que ao salvar
+                // cria o bloco NAQUELE ponto e completa a ligação (ver
+                // `openQuickAddEditor()`/`addSave`) — puxar uma seta pro
+                // vazio e soltar é como se ganha um bloco novo já ligado, ao
+                // invés de simplesmente cancelar.
                 setLinkTarget(null)
                 if (drag.targetNode !== null) createEdgeFrom(drag.from, drag.targetNode, drag.side, drag.toSide)
+                else openQuickAddEditor(drag.from, drag.side, drag.wx, drag.wy, e.clientX, e.clientY)
+            } else if (drag.type === 'lane-resize') {
+                laneEls[drag.index]?.handles[drag.dir]?.classList.remove('is-resizing')
+                setDirty(true)
+            } else if (drag.type === 'lane-move') {
+                // Clique sem arraste NA ETIQUETA: seleciona a raia (abre o
+                // toolbar de cor/nome/remover). Clique sem arraste no resto
+                // do corpo: não faz nada — só a etiqueta é alvo de seleção.
+                // Arraste de fato (de qualquer parte do corpo): só confirma a
+                // posição nova, mesma distinção de `drag.type === 'node'`
+                // acima.
+                if (!drag.moved) { if (drag.onLabel) selectLane(drag.index) }
+                else setDirty(true)
             }
             drag = null
             draw()
@@ -2317,8 +2959,16 @@ function mount(root) {
     })
 
     // ── controles ────────────────────────────────────────────────
-    root.querySelector('[data-viz-zoom-in]')?.addEventListener('click', () => zoomAt(1.12))
-    root.querySelector('[data-viz-zoom-out]')?.addEventListener('click', () => zoomAt(1 / 1.12))
+    // Ancorado na última posição do cursor sobre o canvas (`lastPointerX/Y`),
+    // não no centro do viewport — clicar + repetidamente antes empurrava
+    // qualquer bloco longe do centro (ex.: o mais à esquerda de uma chain
+    // comprida) rumo à borda da tela a cada clique, mesmo com o zoom
+    // matematicamente correto (verificado: a fórmula batia exatamente com
+    // "zoom ancorado no centro do viewport" a cada passo) — só não era o que
+    // o usuário esperava ao focar visualmente num bloco específico antes de
+    // ampliar.
+    root.querySelector('[data-viz-zoom-in]')?.addEventListener('click', () => zoomAt(1.12, lastPointerX, lastPointerY))
+    root.querySelector('[data-viz-zoom-out]')?.addEventListener('click', () => zoomAt(1 / 1.12, lastPointerX, lastPointerY))
     root.querySelector('[data-viz-fit]')?.addEventListener('click', fit)
     organizeBtn?.addEventListener('click', organize)
     saveBtn?.addEventListener('click', save)
@@ -2335,7 +2985,7 @@ function mount(root) {
         const isFs = document.fullscreenElement === root
         fsOpen?.classList.toggle('hidden', isFs)
         fsClose?.classList.toggle('hidden', !isFs)
-        requestAnimationFrame(() => requestAnimationFrame(() => { fit(); positionAddEditor(); positionMetaEditor() }))
+        requestAnimationFrame(() => requestAnimationFrame(() => { fit(); positionAddEditor(); positionMetaEditor(); positionLaneToolbar() }))
     })
 
     window.addEventListener('resize', () => {
@@ -2343,13 +2993,16 @@ function mount(root) {
         else positionToolbar()
         positionAddEditor()
         positionMetaEditor()
+        positionLaneToolbar()
         positionBottomBar()
     })
 
-    // Esc cancela o "modo ligar" (se ativo) ou fecha a sidebar de comentário.
+    // Esc cancela o "modo ligar" (se ativo), fecha o toolbar de uma raia
+    // selecionada, ou fecha a sidebar de comentário.
     window.addEventListener('keydown', (e) => {
         if (e.key !== 'Escape') return
         if (linking !== null) { cancelLinking(); return }
+        if (selectedLane !== null) { closeLaneToolbar(); return }
         if (isSidebarOpen()) closeComment()
     })
 

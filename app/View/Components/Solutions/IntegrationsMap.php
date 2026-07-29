@@ -3,7 +3,6 @@
 namespace App\View\Components\Solutions;
 
 use App\Enums\ChainNodeKind;
-use App\Enums\IntegrationStatus;
 use App\Enums\Protocol;
 use App\Models\Integration;
 use App\Models\Solution;
@@ -17,13 +16,13 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\View\Component;
 
 /**
- * List of integrations the solution participates in (solution detail) —
- * rendered on the left of the F3 section (name + chain summary + status), with
- * a creation form (optional name) and a delete action; renaming/changing the
- * status of an existing one is done via the pencil in the data-viz topbar on
- * the right (`integration-viz.js`), not here. Selecting a row feeds the
- * graphical visualization on the right (via `integration-select.js`). It's an
- * updatable slot to instantly reflect integrations created/edited/deleted.
+ * Plain nav list of the integrations the solution participates in (solution
+ * detail): name, chain summary and status, with a creation form (optional
+ * name) and a delete action. Each row links straight to the integration's
+ * own unified page (`Solutions\IntegrationWorkspace`, the Documentação/
+ * Diagrama tabs) — the graphical chain editor no longer lives inline here,
+ * it's authored on that page instead. It's an updatable slot to instantly
+ * reflect integrations created/deleted.
  */
 class IntegrationsMap extends Component
 {
@@ -47,39 +46,18 @@ class IntegrationsMap extends Component
         return view('components.solutions.integrations-map', [
             'domId'    => self::DOM_ID,
             'solution' => $this->solution,
-            // Full list for the node title selector in the data-viz (same
-            // source as the full chain form) — one query per component
-            // render, not per node/row.
-            'solutionsList' => Solution::orderBy('name')->get(['id', 'name']),
-            // Same for the protocol selector of an edge — fixed enum, no
-            // query, but resolved here (not hardcoded in JS) so it never
-            // diverges from `App\Enums\Protocol`.
-            'protocolsList' => collect(Protocol::cases())->map(fn (Protocol $p) => ['value' => $p->value, 'label' => $p->label()])->values(),
-            // Same for the status select in the name/status editor (data-viz
-            // topbar pencil) — fixed enum, resolved here so it never
-            // diverges from `App\Enums\IntegrationStatus`.
-            'statusesList' => collect(IntegrationStatus::cases())->map(fn (IntegrationStatus $s) => ['value' => $s->value, 'label' => $s->label()])->values(),
-            // Kinds of block offered by the "Adicionar bloco" panel and by a
-            // block's title editor (data-viz F3). `system` carries the
-            // Solution select; the others are free text only, so the JS hides
-            // that select and swaps the input's placeholder.
-            'kindsList' => collect(ChainNodeKind::cases())->map(fn (ChainNodeKind $k) => [
-                'value'       => $k->value,
-                'label'       => $k->label(),
-                'system'      => $k->referencesSolution(),
-                'placeholder' => $k->placeholder(),
-            ])->values(),
-            'rows' => $integrations->map(fn (Integration $integration) => [
+            'rows'     => $integrations->map(fn (Integration $integration) => [
                 'integration' => $integration,
                 'summary'     => $integration->chain ? $labeler->label($integration->chain, $solutions) : null,
-                'graph'       => $this->graph($integration, $labeler, $solutions),
+                'editUrl'     => route('solutions.integrations.docs.edit', [$this->solution, $integration]),
             ]),
         ]);
     }
 
     /**
-     * Resolved graph consumed by the visualization on the right (`integration-viz.js`):
-     * already-resolved node labels (solution name or free text), link to
+     * Resolved graph consumed by the Diagrama tab's canvas (`integration-viz.js`,
+     * mounted by `Solutions\IntegrationWorkspace`): already-resolved node
+     * labels (solution name or free text), link to
      * the solution detail page (when the node references one), saved comment
      * (`viz_layout.comments`, by node index), arrows per segment
      * (`->`/`<-`/`<->`) and the protocol of each step already translated to the
@@ -198,9 +176,10 @@ class IntegrationsMap extends Component
      *
      * `kind` (`ChainNodeKind`) drives the block's shape/colour in the canvas —
      * a decision block is drawn as a chamfered hexagon, an actor as a rounded
-     * badge —, with `icon` bringing that kind's heroicon already rendered
-     * (the JS builds nodes in plain DOM, without Blade). Nodes stored before
-     * kinds existed have no `kind` key: they read as `system`.
+     * badge, start/end as a small solid-color circle (green/red) with the
+     * label written below it —, with `icon` bringing that kind's heroicon
+     * already rendered (the JS builds nodes in plain DOM, without Blade).
+     * Nodes stored before kinds existed have no `kind` key: they read as `system`.
      *
      * @param  array{solution_id?: int|null, label?: string|null, kind?: string|null}  $node
      * @param  Collection<int, Solution>  $solutions

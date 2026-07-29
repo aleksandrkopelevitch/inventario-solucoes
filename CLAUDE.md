@@ -735,6 +735,40 @@ The `ajax-post.js` module intercepts **clicks** on `[data-ak-ajax]` and also for
 
 No `onsubmit` needed on the form. Enter and click both work automatically.
 
+### Never pass `type="button"` on a button with `data-ak-ajax`
+
+The click still works either way, but **Enter stops working**, with no
+visible error. The cause is the HTML, not the module: implicit submission
+(Enter inside a text field) only fires if the form has a **submit** button.
+Without one, the browser only auto-submits when there's exactly one text
+field — so the bug disappears in single-field forms and shows up in forms
+with two or more, which makes it look intermittent.
+
+With no `submit` button there's no `submit` event, so `ajax-post.js`'s
+listener never runs.
+
+```blade
+{{-- ✅ the default — omit `type` and the component already uses submit --}}
+<x-forms.button data-ak-ajax="my-form" data-ak-action="{{ route('my.route') }}">Salvar</x-forms.button>
+
+{{-- ❌ Enter dies silently --}}
+<x-forms.button type="button" data-ak-ajax="my-form" data-ak-action="{{ route('my.route') }}">Salvar</x-forms.button>
+```
+
+**Button outside the form** (e.g. a side panel's footer): associate it via
+the `form` attribute — that's what gets Enter through to `ajax-post.js`.
+
+```blade
+<form id="my-form"> ... </form>
+
+<x-forms.button form="my-form" data-ak-ajax="my-form" data-ak-action="{{ route('my.route') }}">Salvar</x-forms.button>
+```
+
+`type="button"` is still correct on an action button with no fields to
+submit — like the trash-icon delete button next to the "Salvar" button in
+`attribute-options/group-list.blade.php`, which posts to its own
+`data-ak-ajax` target and has nothing for Enter to submit.
+
 ## AJAX and Updatable Slots
 
 Use updatable slots when content can change dynamically after a user action (e.g., a list updated by a modal or side panel). Do **not** use for simple one-way forms like login or password reset — a redirect is enough there.
@@ -903,8 +937,12 @@ The `<x-forms.button>` component handles the `data-spinner` / `data-label` patte
 
 ```html
 <x-forms.button>Salvar</x-forms.button>
-<x-forms.button type="button" data-ak-ajax="form-id" data-ak-action="/url">Salvar</x-forms.button>
+<x-forms.button type="button">Cancelar</x-forms.button>
 ```
+
+Never pass `type="button"` on a button that also carries `data-ak-ajax` — see
+"Never pass `type=\"button\"` on a button with `data-ak-ajax`" under AJAX
+Form submission.
 
 Icons: `<x-heroicon-o-home class="w-5 h-5" />` (outline) or `<x-heroicon-s-home />` (solid).
 

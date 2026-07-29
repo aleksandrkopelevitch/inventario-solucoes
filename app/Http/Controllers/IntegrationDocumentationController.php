@@ -5,10 +5,9 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\AssistsDocumentation;
 use App\Http\Controllers\Concerns\EditsDocumentation;
 use App\Http\Controllers\Concerns\NavigatesSolutionDocs;
-use App\Http\Requests\GenerateDocumentationDraftRequest;
 use App\Http\Requests\SaveDocumentationRequest;
+use App\Http\Requests\StoreDocumentationChatMessageRequest;
 use App\Http\Requests\UploadDocumentationMediaRequest;
-use App\Models\DocumentationAiGeneration;
 use App\Models\Integration;
 use App\Models\Solution;
 use Illuminate\Contracts\View\View;
@@ -36,11 +35,17 @@ class IntegrationDocumentationController extends Controller
             'upload' => route('solutions.integrations.docs.media', [$solution, $integration]),
             'back'   => route('solutions.show', $solution),
         ], eyebrow: 'Integração · ' . $solution->name, backLabel: $integration->name)->with([
+            // Only set here (never by SolutionDocumentationController /
+            // DocumentationGroupPageController) — documentation/edit.blade.php
+            // uses `isset($integration)` as the single signal to render the
+            // Documentação/Diagrama tabs and mount the chain canvas.
+            'solution'        => $solution,
+            'integration'     => $integration,
             'pagesNav'        => $this->solutionPagesNav($solution, null),
             'integrationsNav' => $this->solutionIntegrationsNav($solution, $integration),
             'createPageUrl'   => route('solutions.docs.pages.store', $solution),
-            'assistPanelUrl'  => route('solutions.integrations.docs.assist.panel', [$solution, $integration]),
-            'aiResume'        => $this->aiResumeFor($solution, $integration),
+            'chatPanelUrl'    => route('solutions.integrations.docs.chat.panel', [$solution, $integration]),
+            'chatResume'      => $this->chatResumeFor($solution, $integration),
             'breadcrumbs'     => [
                 ['label' => $solution->name, 'url' => route('solutions.show', $solution)],
                 ['label' => 'Documentação', 'url' => route('solutions.docs.edit', $solution)],
@@ -58,26 +63,19 @@ class IntegrationDocumentationController extends Controller
         return $this->storeDocumentationMedia($request, $integration);
     }
 
-    /* --- AI Assist (generates the integration's doc content via LLM) ----- */
+    /* --- Documentation Assistant (chat that helps write the integration's doc) --- */
 
-    public function assistantPanel(Solution $solution, Integration $integration): JsonResponse
+    public function chatPanel(Solution $solution, Integration $integration): JsonResponse
     {
-        return $this->assistantPanelResponse(
+        return $this->chatPanelResponse(
             $solution,
             $integration,
-            route('solutions.integrations.docs.assist.generate', [$solution, $integration]),
+            route('solutions.integrations.docs.chat.messages.store', [$solution, $integration]),
         );
     }
 
-    public function generateDraft(GenerateDocumentationDraftRequest $request, Solution $solution, Integration $integration): JsonResponse
+    public function sendMessage(StoreDocumentationChatMessageRequest $request, Solution $solution, Integration $integration): JsonResponse
     {
-        return $this->createDraft(
-            $request,
-            $solution,
-            $integration,
-            // Single status endpoint (solutions.docs.assist.status) — serves
-            // both pages and integrations; the record carries its own target.
-            fn (DocumentationAiGeneration $g) => route('solutions.docs.assist.status', [$solution, $g]),
-        );
+        return $this->sendChatMessage($request, $solution, $integration);
     }
 }

@@ -1,24 +1,33 @@
 {{--
-    Graphical visualization of the selected integration (right side of the F3
-    section). JS-driven canvas (legitimate exception to "utilities over custom
-    CSS", like flow-canvas): absolutely-positioned nodes + SVG edges, with
-    pan/zoom and browser fullscreen. Draws the chain (`chain = {nodes, edges}`,
-    each node `{solution_id, label, kind}` and each edge
-    `{from, to, arrow, protocol}` by node index) of the integration chosen in
-    the list on the left — a genuinely FREE GRAPH, not a straight line, and it
-    doesn't require every block to be linked to something: blocks and links
-    are created independently of each other. Editable/extensible things in
+    Graphical visualization of the integration — mounted by
+    `Solutions\IntegrationWorkspace` inside the Diagrama tab of the
+    integration's own unified page (Documentação/Diagrama). JS-driven canvas
+    (legitimate exception to "utilities over custom CSS", like flow-canvas):
+    absolutely-positioned nodes + SVG edges, with pan/zoom and browser
+    fullscreen. Draws the chain (`chain = {nodes, edges}`, each node
+    `{solution_id, label, kind}` and each edge `{from, to, arrow, protocol}`
+    by node index) of the integration in scope on this page — a genuinely
+    FREE GRAPH, not a straight line, and it doesn't require every block to be
+    linked to something: blocks and links are created independently of each
+    other. Editable/extensible things in
     place: a NEW block, via the "+" button in the topbar ("Adicionar bloco"
     panel) — a PURE block, with no arrow and no protocol: its kind
-    (`App\Enums\ChainNodeKind`: sistema, decisão, ator) plus a registered
-    Solution or free text; a block's kind/title (except the root, index 0),
-    via the pencil in the block's contextual toolbar; a NEW link, by dragging
-    an arrow out of any block's connection port (the 4 small circles that show
-    up on hover) and dropping it on any other block — created straight away as
-    `->` with no protocol, refined afterwards on the pill; the same link via
-    "modo ligar" (the link icon in the block's toolbar, for click-click instead
-    of drag) — click a block, it activates the mode, click any other block
-    opens the panel for direction + protocol; direction + protocol of any
+    (`App\Enums\ChainNodeKind`: sistema, decisão, ator, início, fim), chosen
+    from a vertical list of icon+label cards (`integration-viz.js::buildKindPicker()`)
+    rather than a plain dropdown, plus a registered Solution or free text
+    (início/fim default their own free text to "Início"/"Fim" when left
+    blank); a block's kind/title (except the root, index 0), via the pencil
+    in the block's contextual toolbar — same icon+label card picker; a NEW
+    link, by dragging an arrow out of any block's connection port (the 4
+    small circles that show up on hover) and dropping it on any other block —
+    created straight away as `->` with no protocol, refined afterwards on the
+    pill — or dropping it on EMPTY canvas, which opens the same "Adicionar
+    bloco" panel anchored right there and, on save, creates the block at that
+    spot and links it to the port it was dragged from in one motion; the same
+    link via "modo ligar" (the link icon in the block's toolbar, for
+    click-click instead of drag) — click a block, it activates the mode,
+    click any other block opens the panel for direction + protocol; direction
+    + protocol of any
     link, by clicking the pill above the arrow (including the dashed "+
     protocolo" pill, when it doesn't have one yet) — the same editor has a
     "Desligar" button that removes only the link, never the blocks; and
@@ -38,6 +47,26 @@
     node/edge. Creating a new Integration is the "Nova" form in the list on
     the left (`integrations-map.blade.php`), which already delivers the chain
     with only the root node; from there on, it's all done here.
+
+    Two more adjustments are purely visual (`viz_layout`, never `chain`):
+    a block's border and an arrow can each be toggled dashed independently
+    (toolbar button / protocol editor checkbox), and lanes (`data-viz-lanes`)
+    — plain rectangles (solid border, no rounding) drawn behind the canvas,
+    with a vertical title running the full height of their left edge, filled
+    a shade darker than the rest of the rectangle to stand out — mark an area
+    of the flow as a background layout aid; a lane never references a node,
+    the user just drags blocks into it like anywhere else on the canvas.
+    Clicking the topbar's "Raias" button adds one straight away, centered on
+    the current viewport, no panel/dialog in between. Position and size are
+    edited directly on the canvas: dragging a lane's body (including its
+    title strip) moves it, dragging one of its 3 edge/corner handles resizes
+    it — right edge width-only, bottom edge height-only, corner both at once.
+    A plain click (no drag) specifically on the darker title strip — not
+    anywhere else on the body — opens the lane's own small toolbar
+    (`data-viz-lane-toolbar`): preset color swatches (same palette-of-presets
+    pattern as a block's own toolbar), a name field (typing renames it live),
+    and a remove button; mutually exclusive with a block's toolbar, the same
+    way selecting a block closes this one and vice versa.
 
     Chrome (top bar, contextual selection toolbar, comment sidebar) in
     Tailwind utilities + `x-forms.button`, following the Leo brand. The
@@ -83,6 +112,17 @@
             <x-forms.button type="button" variant="ghost" data-viz-add-node title="Adicionar bloco"
                 class="!hidden !rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
                 <x-heroicon-o-plus class="size-4" />
+            </x-forms.button>
+            {{-- Adds a new lane (free background rectangle, `viz_layout.lanes`)
+                 straight away — no panel/dialog in between
+                 (`integration-viz.js::addLane()`), centered on the current
+                 viewport and immediately selected so its toolbar opens ready
+                 to rename. Only visible when editable; lanes themselves
+                 (once saved) still render for a viewer, same as any other
+                 viz_layout content. --}}
+            <x-forms.button type="button" variant="ghost" data-viz-lanes title="Adicionar raia"
+                class="!hidden !rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
+                <x-heroicon-o-rectangle-group class="size-4" />
             </x-forms.button>
             <x-forms.button type="button" variant="ghost" data-viz-organize title="Organizar layout padrão"
                 class="!rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
@@ -227,6 +267,18 @@
                 </div>
 
                 <span class="mx-0.5 h-6 w-px shrink-0 bg-line"></span>
+
+                {{-- Dashed border toggle — purely visual (`viz_layout.nodes[i].dashed`),
+                     independent of the block's color/shape. The button's OWN
+                     border switches solid/dashed to show the current state
+                     (`integration-viz.js::refreshToolbarControls()`), instead
+                     of a separate icon. --}}
+                <x-forms.button type="button" variant="ghost" data-viz-toolbar-dashed title="Borda tracejada do bloco"
+                    class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
+                    <span class="pointer-events-none block h-0 w-4 border-t-2 border-dashed border-current"></span>
+                </x-forms.button>
+
+                <span class="mx-0.5 h-6 w-px shrink-0 bg-line"></span>
             </div>
 
             <div data-viz-toolbar-actions class="pointer-events-auto flex items-center gap-1.5">
@@ -275,9 +327,23 @@
                  the Solution select for them. Kind options come from
                  `[data-ak-node-kinds]` and Solution options from
                  `[data-ak-solutions]` (both rendered once in
-                 integrations-map.blade.php), read and cached in JS. --}}
+                 integrations-map.blade.php), read and cached in JS. The kind
+                 `<select>` itself stays in the DOM but entirely hidden — it's
+                 still the value/`change`-event owner
+                 (`integration-viz.js::syncKindFields()`/`readNodeForm()`
+                 read/write it directly), but what the user actually sees and
+                 clicks is the icon+text card list built into the sibling
+                 `data-viz-title-kind-picker` (`buildKindPicker()`). Wrapped
+                 (rather than `class="hidden"` straight on `x-forms.select`)
+                 for the same reason as the Solution field below: the
+                 component always renders its chevron in a sibling of the
+                 `<select>`, so hiding only the select would leave the
+                 chevron floating alone. --}}
             <div data-viz-title-editor class="pointer-events-auto hidden w-[min(280px,80vw)] flex-col gap-2">
-                <x-forms.select data-viz-title-kind aria-label="Tipo do bloco" class="!h-8 !w-full !rounded-md !border-line !bg-surface !py-0 !text-xs"></x-forms.select>
+                <div class="hidden">
+                    <x-forms.select data-viz-title-kind aria-label="Tipo do bloco"></x-forms.select>
+                </div>
+                <div data-viz-title-kind-picker class="flex flex-col gap-1"></div>
                 {{-- The Solution select is hidden whole on a decisão/ator block
                      — hence this wrapper: `x-forms.select` renders the `<select>`
                      inside a `relative` div that also holds the chevron, so
@@ -313,7 +379,14 @@
              same three fields on the server (`ValidatesChainNode`). --}}
         <div data-viz-add-editor
             class="pointer-events-auto absolute z-20 hidden w-[min(260px,80vw)] flex-col gap-2 rounded-xl border border-line bg-surface p-2.5 shadow-[0_8px_28px_rgba(16,24,40,.16)]">
-            <x-forms.select data-viz-add-kind aria-label="Tipo do bloco" class="!h-8 !w-full !rounded-md !border-line !bg-surface !py-0 !text-xs"></x-forms.select>
+            {{-- Kind `<select>` hidden entirely (same reasoning as the block
+                 editor above) — the icon+text card list right below it
+                 (`data-viz-add-kind-picker`) is what the user actually sees/
+                 clicks. --}}
+            <div class="hidden">
+                <x-forms.select data-viz-add-kind aria-label="Tipo do bloco"></x-forms.select>
+            </div>
+            <div data-viz-add-kind-picker class="flex flex-col gap-1"></div>
             {{-- Wrapper for the same reason as in the block editor above: the
                  whole field (select + chevron) is hidden on a decisão/ator block. --}}
             <div data-viz-add-solution-field>
@@ -330,6 +403,31 @@
                 <x-forms.button type="button" data-viz-add-save
                     class="!rounded-md !px-2.5 !py-1 !text-xs">
                     <span data-viz-add-save-label>Adicionar</span>
+                </x-forms.button>
+            </div>
+        </div>
+
+        {{-- Lane toolbar: opened by a click (no drag) on any lane
+             (`integration-viz.js::selectLane()`) — same click-vs-drag
+             distinction a block already makes, and the same spirit as the
+             block's own contextual toolbar (`data-viz-toolbar` above), just
+             scoped to what a lane actually has: preset color (swatches built
+             from `LANE_COLORS`, same pattern as a block's palette), name
+             (plain input, no separate pencil — a lane has no title/comment/
+             link to edit) and remove. Position/size aren't edited here —
+             dragging the lane's body (move) or its edge/corner handles
+             (resize), directly on the canvas, is the UI for that. Anchored
+             to the selected lane itself (`positionLaneToolbar()`), same base
+             `stage` as the block toolbar. --}}
+        <div data-viz-lane-toolbar
+            class="pointer-events-auto absolute z-20 hidden w-[min(220px,80vw)] flex-col gap-2 rounded-xl border border-line bg-surface p-2.5 shadow-[0_8px_28px_rgba(16,24,40,.16)]">
+            <div data-viz-lane-toolbar-swatches class="flex flex-wrap items-center gap-1"></div>
+            <x-forms.input type="text" data-viz-lane-toolbar-label placeholder="Nome da raia"
+                class="!h-8 !w-full !rounded-md !border-line !bg-surface !text-xs" />
+            <div class="flex items-center justify-end">
+                <x-forms.button type="button" variant="ghost" data-viz-lane-toolbar-remove title="Remover raia"
+                    class="!rounded-md !px-2.5 !py-1 !text-xs !text-crit hover:!bg-crit-soft">
+                    <x-heroicon-o-trash class="size-3.5" /> Remover
                 </x-forms.button>
             </div>
         </div>
@@ -385,6 +483,13 @@
             <x-forms.select data-viz-protocol-select class="!h-8 !w-full !rounded-md !border-line !bg-surface !py-0 !text-xs">
                 <option value="">Sem protocolo</option>
             </x-forms.select>
+            {{-- Dashed arrow — purely visual (`viz_layout.edges[i].dashed`),
+                 independent of direction/protocol; available in both "edit"
+                 and "create" mode. --}}
+            <x-forms.label for="viz-protocol-dashed-input" class="!m-0 flex items-center gap-1.5 !text-xs !font-normal text-ink">
+                <x-forms.checkbox id="viz-protocol-dashed-input" data-viz-protocol-dashed />
+                Seta tracejada
+            </x-forms.label>
             <div class="flex items-center justify-between gap-1.5">
                 <x-forms.button type="button" variant="ghost" data-viz-protocol-delete title="Desligar (remove só a ligação, não os blocos)"
                     class="!rounded-md !p-1.5 !text-muted hover:!bg-accent-soft hover:!text-crit">
@@ -428,8 +533,8 @@
         </div>
     </div>
 
-    {{-- Inline (not @push): the layout has no @stack and the F3 section mounts
-         this component only once per page, so there's no risk of duplication. --}}
+    {{-- Inline (not @push): the layout has no @stack and the Diagrama tab
+         mounts this component only once per page, so there's no risk of duplication. --}}
     <style>
             @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
 
@@ -440,10 +545,12 @@
                 --viz-bg: #F7F9FC;
                 --viz-grid: #E7ECF4;
                 --viz-line: #94A3C4;
-                --viz-node: #C9D4F7;
-                --viz-node-free: #EBF4FC;
-                --viz-node-decision: #FBE6A8; /* decision block (chamfered hexagon) */
-                --viz-node-actor: #CFEBDA;    /* actor block (person/area) */
+                --viz-node: #E9EDFB;         /* lightened 2026-07-28 — was a much stronger lavender */
+                --viz-node-free: #EFF6FD;
+                --viz-node-decision: #FCF1D4; /* decision block (chamfered hexagon) — lightened */
+                --viz-node-actor: #E3F4EA;    /* actor block (person/area) — lightened */
+                --viz-node-start: #22C55E;    /* início block (solid circle) — bold on purpose, flow terminal */
+                --viz-node-end: #EF4444;      /* fim block (solid circle) — bold on purpose, flow terminal */
                 --viz-ink: #1A1A2E;
                 --viz-select: #4A90D9; /* selection ring + comment badge */
                 --viz-highlight: #AADB1E; /* highlighted anchor/handle */
@@ -475,6 +582,118 @@
                 overflow: visible;
                 pointer-events: none;
             }
+            /* Lane (`viz_layout.lanes`) — a free rectangle drawn behind the
+               canvas, child of `#world` (real WORLD-space position, like a
+               node): `x`/`y`/`width`/`height` become `left`/`top`/`width`/
+               `height` in `integration-viz.js::rebuildLanes()` with no unit
+               conversion, so pan/zoom move/scale it for free through
+               `world`'s own CSS transform — nothing to recompute per frame,
+               unlike the previous "always full viewport width" design (which
+               had to live in screen space specifically so its width could
+               stay pinned to the viewport regardless of zoom; a free
+               rectangle has no such constraint).
+
+               NO z-index here on purpose. Behind-nodes ordering comes from
+               plain DOM order instead: `rebuildLanes()` prepends every lane
+               before the nodes already in `world`, so a lane always paints
+               behind every block — dragging a block on top of a lane must
+               keep the block fully visible/clickable, never buried behind
+               the lane's tint. A positive z-index would paint above any
+               `z-index: auto` sibling regardless of DOM order (wrong: it'd
+               permanently occlude any block under it); a negative one
+               escapes to the nearest REAL stacking context, and neither
+               `.ak-viz-viewport` nor `[data-integration-viz]` establish one
+               (both are `position` + `z-index: auto`, which doesn't count),
+               so it would paint behind the component's own `bg-surface`
+               instead of just behind the nodes. Plain document order has no
+               such escape hatch — the lesson that already burned this
+               feature once, still true after the world-space move. */
+            .ak-viz-lane {
+                position: absolute;
+                border: 1.5px solid rgba(148, 163, 196, .5);
+                pointer-events: none;
+            }
+            /* Selected (`integration-viz.js::selectLane()`, a click with no
+               drag) — thicker, tinted border instead of the node's glowing
+               ring: a lane can be very large, and a big box-shadow halo
+               around its whole perimeter would read as noisy rather than a
+               clean selection cue. */
+            .ak-viz-lane.is-selected {
+                border-width: 2px;
+                border-color: var(--viz-select);
+            }
+            /* Editable: the lane's own body becomes the "move" handle
+               (`integration-viz.js`'s `drag.type === 'lane-move'`) — grabbing
+               empty lane background repositions it, same gesture as
+               dragging a block; a click with no drag opens the lane's
+               toolbar instead (`selectLane()`). Resize handles below stop
+               their own `mousedown` from reaching this, so they don't also
+               trigger a move. Read-only mode leaves it inert (nothing to
+               grab/click). */
+            [data-integration-viz][data-editable] .ak-viz-lane {
+                pointer-events: auto;
+                cursor: grab;
+            }
+            [data-integration-viz][data-editable] .ak-viz-lane:active { cursor: grabbing; }
+            /* Lane label — a vertical title running the full height of the
+               lane's LEFT edge (a child of `.ak-viz-lane`, positioned
+               relative to it, not the viewport), the classic swimlane
+               convention. Solid fill in a DARKER shade of the lane's own
+               color (`integration-viz.js::darkenHex()`) so it stands out
+               against the rest of the rectangle's much lighter tint — white
+               text always reads fine on it, every preset darkens into a
+               background dark enough for that. It's the ONLY part of the
+               lane that opens the toolbar on a plain click (`selectLane()`)
+               — clicking anywhere else on the body only moves the lane if
+               actually dragged, same gesture but no selection — hence its
+               own `pointer-events`/cursor when editable, instead of falling
+               through to `.ak-viz-lane` like everything else drawn on top of
+               the body. */
+            .ak-viz-lane-label {
+                position: absolute;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                width: 26px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                writing-mode: vertical-rl;
+                transform: rotate(180deg);
+                text-orientation: mixed;
+                font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+                font-size: 11px;
+                font-weight: 700;
+                letter-spacing: .02em;
+                color: #fff;
+                white-space: nowrap;
+                overflow: hidden;
+                pointer-events: none;
+            }
+            [data-integration-viz][data-editable] .ak-viz-lane-label {
+                pointer-events: auto;
+                cursor: pointer;
+            }
+            /* Resize handles — thin invisible strips (edges) or a small
+               square (corner), all children of `.ak-viz-lane`: `-e` (right
+               edge) changes only `width`, `-s` (bottom edge) only `height`,
+               `-se` (corner) both at once — same 3-handle convention as any
+               rectangle editor (Figma, Miro, Excalidraw). Read-only mode
+               turns every one of them off entirely (nothing to drag). */
+            .ak-viz-lane-resize {
+                position: absolute;
+                pointer-events: none;
+            }
+            [data-integration-viz][data-editable] .ak-viz-lane-resize {
+                pointer-events: auto;
+            }
+            .ak-viz-lane-resize-e { top: 0; right: -5px; width: 10px; height: 100%; cursor: ew-resize; }
+            .ak-viz-lane-resize-s { left: 0; bottom: -5px; width: 100%; height: 10px; cursor: ns-resize; }
+            .ak-viz-lane-resize-se { right: -6px; bottom: -6px; width: 14px; height: 14px; border-radius: 4px; cursor: nwse-resize; }
+            [data-integration-viz][data-editable] .ak-viz-lane-resize:hover,
+            [data-integration-viz][data-editable] .ak-viz-lane-resize.is-resizing {
+                background: rgba(16, 24, 40, .18);
+            }
             .ak-viz-edges path.ak-viz-edge {
                 fill: none;
                 stroke: var(--viz-line);
@@ -485,6 +704,11 @@
             .ak-viz-edges path.ak-viz-edge.is-preview {
                 stroke: var(--viz-select);
                 stroke-dasharray: 5 4;
+            }
+            /* Dashed arrow toggle (`viz_layout.edges[i].dashed`) — purely
+               visual, independent of direction/protocol. */
+            .ak-viz-edges path.ak-viz-edge.is-dashed {
+                stroke-dasharray: 7 5;
             }
             .ak-viz-edges marker path { fill: var(--viz-line); }
             .ak-viz-edges .ak-viz-plabel-box {
@@ -510,8 +734,13 @@
             .ak-viz-edges .ak-viz-plabel.is-empty .ak-viz-plabel-text { fill: var(--viz-line); }
             .ak-viz-edges .ak-viz-plabel.is-editable:hover .ak-viz-plabel-box { stroke: var(--viz-select); }
             .ak-viz-edges .ak-viz-plabel.is-editable:hover .ak-viz-plabel-text { fill: var(--viz-select); }
-            /* Lavender/blue-ish nodes (mind-map palette), 13px radius. Column
-               layout: attribute line (optional) + body (avatar + name). */
+            /* Lavender/blue-ish nodes (mind-map palette), 10px radius (a bit
+               tighter than the original 13px). Column layout: attribute line
+               (optional) + body (avatar + name). The ring in the box-shadow
+               is the node's only border — bumped from .03 to .14 opacity
+               (2026-07-28) so it still delimits the block now that fills are
+               much lighter (including plain white), where the old barely-there
+               ring all but disappeared. */
             .ak-viz-node {
                 position: absolute;
                 display: flex;
@@ -521,7 +750,7 @@
                 min-width: 54px;
                 max-width: 240px;
                 padding: 10px 14px;
-                border-radius: 13px;
+                border-radius: 10px;
                 background: var(--viz-node);
                 color: var(--viz-ink);
                 font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
@@ -531,7 +760,7 @@
                 white-space: normal;
                 overflow-wrap: break-word;
                 user-select: none;
-                box-shadow: 0 1px 2px rgba(16, 24, 40, .08), 0 0 0 1px rgba(16, 24, 40, .03);
+                box-shadow: 0 1px 2px rgba(16, 24, 40, .08), 0 0 0 1px rgba(16, 24, 40, .14);
             }
             /* Discreet line above the block: solution's hosting/cloud
                (icon + label), only when the solution has that attribute set. */
@@ -627,7 +856,73 @@
                 position: absolute;
                 inset: 0;
                 background: var(--viz-node-decision);
+                border: 1px solid rgba(16, 24, 40, .14);
                 clip-path: polygon(18px 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 18px 100%, 0 50%);
+            }
+            /* Início/Fim (`ChainNodeKind::Start`/`End`): a small solid-color
+               circle with the kind's icon inside — the flowchart convention
+               for a process' entry/exit point. The label is written BELOW the
+               circle (`.ak-viz-node-endcap-label`, absolutely positioned,
+               `top:100%`) instead of beside the icon like every other kind,
+               and stays out of the node's own box on purpose: `node.w`/`h`
+               (read from `offsetWidth`/`offsetHeight`) must stay exactly the
+               circle's size, or the connection ports/edge anchors would drift
+               off-center toward whatever the label's height happens to be. */
+            .ak-viz-node.is-start,
+            .ak-viz-node.is-end {
+                width: 52px;
+                height: 52px;
+                min-width: 0;
+                max-width: none;
+                padding: 0;
+                border-radius: 999px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 2px 8px rgba(16, 24, 40, .22);
+            }
+            .ak-viz-node.is-start { background: var(--viz-node-start); }
+            .ak-viz-node.is-end { background: var(--viz-node-end); }
+            .ak-viz-node.is-start .ak-viz-node-avatar.is-kind,
+            .ak-viz-node.is-end .ak-viz-node-avatar.is-kind {
+                color: #fff;
+                width: 22px;
+                height: 22px;
+            }
+            .ak-viz-node.is-start .ak-viz-node-avatar.is-kind svg,
+            .ak-viz-node.is-end .ak-viz-node-avatar.is-kind svg {
+                width: 22px;
+                height: 22px;
+            }
+            .ak-viz-node-endcap-label {
+                position: absolute;
+                top: 100%;
+                left: 50%;
+                transform: translateX(-50%);
+                margin-top: 6px;
+                white-space: nowrap;
+                font-size: 11px;
+                font-weight: 600;
+                color: var(--viz-ink);
+                pointer-events: none;
+            }
+            /* Dashed border toggle (`viz_layout.nodes[i].dashed`) — purely
+               visual, independent of the block's kind/color. The decision
+               block's visible shape is the `::before` layer (clip-path
+               hexagon), so its outer box gets no border at all — the dash
+               goes on `::before` instead, clipped by the same polygon so it
+               traces the hexagon's edge rather than the bounding rectangle. */
+            .ak-viz-node.is-dashed {
+                border: 1.5px dashed rgba(26, 26, 46, .4);
+            }
+            .ak-viz-node.is-free.is-dashed {
+                border-color: var(--viz-line);
+            }
+            .ak-viz-node.is-decision.is-dashed {
+                border: none;
+            }
+            .ak-viz-node.is-decision.is-dashed::before {
+                border: 1.5px dashed rgba(26, 26, 46, .4);
             }
             /* Kind icon (decision/actor) — same slot as the solution avatar,
                but transparent: it's a stroked glyph, not a logo. */

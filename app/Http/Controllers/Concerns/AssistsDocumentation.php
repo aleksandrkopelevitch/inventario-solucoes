@@ -3,240 +3,172 @@
 namespace App\Http\Controllers\Concerns;
 
 use App\Contracts\Documentable;
-use App\Http\Requests\GenerateDocumentationDraftRequest;
-use App\Jobs\GenerateDocumentationDraft;
-use App\Models\DocumentationAiGeneration;
+use App\Http\Requests\StoreDocumentationChatMessageRequest;
+use App\Jobs\GenerateDocumentationChatReply;
+use App\Models\DocumentationChat;
+use App\Models\DocumentationChatMessage;
 use App\Models\Solution;
+use App\Support\Documentation\DocumentationRequirements;
+use App\View\Components\Documentation\ChatThread;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Validation\ValidationException;
 
 /**
- * Documentation "AI assist", shared by SolutionDocumentationController and
- * IntegrationDocumentationController. Each controller resolves its own
- * target (DocumentationPage or Integration) and the Solution that owns the
- * context documents, and delegates to this trait the side panel, creating
- * the generation request (async job) and status polling. The draft is
- * loaded into the editor for review — nothing is persisted to the page
- * until the user saves.
+ * Documentation Assistant ("Assiste IA"), shared by SolutionDocumentationController
+ * and IntegrationDocumentationController. A conversation (DocumentationChat),
+ * one per (user, target) — reopening the panel resumes the same thread. Each
+ * controller resolves its own target (DocumentationPage or Integration) and
+ * the Solution that owns the context documents, and delegates to this trait
+ * the side panel, sending a message (async job + polling) and applying a
+ * proposed draft. Nothing is persisted to the page itself until the user saves.
  */
 trait AssistsDocumentation
 {
-    /** Side panel with prompt + the Solution's context documents. */
-    protected function assistantPanelResponse(Solution $solution, Documentable $target, string $generateUrl): JsonResponse
+    /** Side panel: the requirements checklist, the thread so far, and the composer. */
+    protected function chatPanelResponse(Solution $solution, Documentable $target, string $sendUrl): JsonResponse
     {
         $this->authorize('update', $solution);
 
+        $chat = $this->resolveChat($solution, $target);
+
         return response()->json([
-            'content' => view('documentation.panels.assistant', [
+            'content' => view('documentation.panels.chat', [
                 'solution'        => $solution,
                 'targetLabel'     => $target->documentationTitle(),
-                'generateUrl'     => $generateUrl,
+                'chat'            => $chat,
+                'sendUrl'         => $sendUrl,
                 'contextStoreUrl' => route('solutions.docs.context.store', $solution),
+                'requirements'    => DocumentationRequirements::for($target),
             ])->render(),
         ]);
     }
 
     /**
-     * Creates the generation record and dispatches the job. Returns the
-     * polling URL (built from the record just created by the controller's
-     * callback).
-     *
-     * @param  callable(DocumentationAiGeneration): string  $pollUrl
+     * Persists the user's message and dispatches the reply job. One pending
+     * turn at a time — the composer stays enabled during "gerando…" (it lives
+     * outside the thread slot), so the server refuses a second message while
+     * the chat isAwaitingReply(): without this, a second send would dispatch a
+     * concurrent job that WithoutOverlapping would just queue, generated
+     * against a history that ignores the new message.
      */
-    protected function createDraft(
-        GenerateDocumentationDraftRequest $request,
-        Solution $solution,
-        Documentable $target,
-        callable $pollUrl,
-    ): JsonResponse {
-        // Is there already a pending generation for the same target? Do NOT
-        // silently reuse its pollUrl: this request may carry a different
-        // prompt/context, and returning the previous request's draft would be
-        // a wrong result with no warning. The job's WithoutOverlapping (keyed
-        // by the target) also prevents a second one from running in
-        // parallel — creating a second record/job would just waste a queue
-        // slot and an API call for nothing. So we flag it and ask the caller
-        // to wait (409 -> Toast in docs-ai.js).
-        //
-        // Cache::lock closes the check-then-create window: two near-
-        // simultaneous clicks would both pass the exists() check and create
-        // two records/jobs — with the lock, the second request fails to
-        // acquire it and falls into the same 409.
-        $lockKey = 'docs-ai-generate:' . $target->getMorphClass() . ':' . $target->getKey();
-
-        $response = Cache::lock($lockKey, 10)->get(function () use ($request, $solution, $target, $pollUrl) {
-            // Reap orphaned generations for this target first: a worker killed
-            // mid-job (e.g. `composer dev` restarted) never runs
-            // handle()/failed(), so its record stays `pending` forever — and
-            // the guard below would then refuse every future draft for this
-            // target. Anything older than `stale_after` can't still be running.
-            DocumentationAiGeneration::query()
-                ->where('target_type', $target->getMorphClass())
-                ->where('target_id', $target->getKey())
-                ->stale()
-                ->update(['status' => 'failed', 'error' => DocumentationAiGeneration::INTERRUPTED_ERROR]);
-
-            $pending = DocumentationAiGeneration::query()
-                ->where('target_type', $target->getMorphClass())
-                ->where('target_id', $target->getKey())
-                ->where('status', 'pending')
-                ->exists();
-
-            if ($pending) {
-                return null;
-            }
-
-            $data = $request->validated();
-
-            $generation = DocumentationAiGeneration::create([
-                'target_type'       => $target->getMorphClass(),
-                'target_id'         => $target->getKey(),
-                'solution_id'       => $solution->id,
-                'user_id'           => $request->user()->id,
-                'status'            => 'pending',
-                'prompt'            => $data['prompt'],
-                'context_media_ids' => array_map(intval(...), $data['media_ids'] ?? []),
-                'existing_content'  => $data['existing_content'] ?? null,
-            ]);
-
-            GenerateDocumentationDraft::dispatch($generation);
-
-            return response()->json([
-                'status'     => 'pending',
-                'pollUrl'    => $pollUrl($generation),
-                'consumeUrl' => route('solutions.docs.assist.consume', [$solution, $generation]),
-            ]);
-        });
-
-        // false = lock busy (another request is creating one right now); null = already pending.
-        return $response ?: response()->json([
-            'message' => 'Já existe um rascunho sendo gerado para este conteúdo. Aguarde a conclusão antes de gerar outro.',
-            'title'   => 'Geração em andamento',
-            'type'    => 'warning',
-        ], 409);
-    }
-
-    /** Polling: `{pending}` while generating; on completion, the Markdown; on failure, the error. */
-    protected function draftStatusResponse(Solution $solution, DocumentationAiGeneration $generation): JsonResponse
+    protected function sendChatMessage(StoreDocumentationChatMessageRequest $request, Solution $solution, Documentable $target): JsonResponse
     {
-        $this->authorize('update', $solution);
-        abort_unless($generation->solution_id === $solution->id, 404);
+        $chat = $this->resolveChat($solution, $target);
 
-        // Already resolved (Aplicar/Descartar) from another tab/session — e.g.
-        // this same generation was rendered as an unconsumed `aiResumeFor()`
-        // marker in two open tabs before either acted on it. Without this
-        // check the poller in the other tab, unaware the user already
-        // resolved it, would keep getting the full `result` back and reopen
-        // the review for a draft that's no longer pending action.
-        if ($generation->consumed_at !== null) {
-            return response()->json(['pending' => false, 'consumed' => true]);
-        }
-
-        // Orphaned mid-job (worker died): it never leaves `pending` on its own,
-        // so resolve it to `failed` here too — otherwise a still-open editor
-        // polls it until its client-side ceiling (~10min) instead of getting a
-        // clean error, and the target stays blocked for new drafts meanwhile.
-        if ($generation->isStale()) {
-            $generation->update(['status' => 'failed', 'error' => DocumentationAiGeneration::INTERRUPTED_ERROR]);
-        }
-
-        if ($generation->isPending()) {
-            return response()->json(['pending' => true]);
-        }
-
-        if ($generation->status === 'failed') {
-            return response()->json([
-                'pending' => false,
-                'failed'  => true,
-                // Generic message — the raw exception (which may carry the
-                // provider's URL or response body) stays only in `error` on
-                // the record, for auditing, and never reaches the user's Toast.
-                'error' => 'Não consegui gerar a documentação. Tente novamente em instantes.',
+        if ($chat->isAwaitingReply()) {
+            throw ValidationException::withMessages([
+                'message' => 'Aguarde a resposta atual terminar antes de enviar outra mensagem.',
             ]);
         }
+
+        $data = $request->validated();
+
+        $message = $chat->messages()->create([
+            'role'              => 'user',
+            'content'           => $data['message'],
+            'existing_content'  => $data['existing_content'] ?? null,
+            'context_media_ids' => array_map(intval(...), $data['media_ids'] ?? []),
+        ]);
+
+        $chat->touch();
+
+        GenerateDocumentationChatReply::dispatch($message);
 
         return response()->json([
-            'pending' => false,
-            'result'  => $generation->result,
-            // The content the draft was generated FROM — the "before" side of
-            // the review diff. On a fresh page load (resume after navigating
-            // away) the client no longer has the submit-time snapshot in memory,
-            // so it relies on this to diff against.
-            'existing_content' => $generation->existing_content,
-            'meta'             => $generation->meta,
+            'updatableSlots' => [ChatThread::slot($chat)],
+            // Clears the composer — the thread (with "gerando…") is already
+            // back in the slot. The composer lives outside the slot and its
+            // attachments only apply to this message; without clearing, the
+            // same context docs would be resent on every following message.
+            'js' => "document.dispatchEvent(new CustomEvent('ak:docs-chat-composer-reset', {detail: {formId: 'docs-chat-message-form'}}));",
+        ]);
+    }
+
+    /** Polling while the reply job runs (docs-chat.js). */
+    protected function chatStatusResponse(Solution $solution, DocumentationChat $chat): JsonResponse
+    {
+        $this->authorize('update', $solution);
+        abort_unless($chat->solution_id === $solution->id, 404);
+
+        $pending = $chat->isAwaitingReply();
+
+        return response()->json([
+            'pending'        => $pending,
+            'updatableSlots' => $pending ? [] : [ChatThread::slot($chat)],
         ]);
     }
 
     /**
-     * Marks a finished generation as resolved so the editor stops resuming it
-     * on reload. Called when the user applies/discards a draft or acknowledges
-     * a failure. Idempotent.
+     * Marks a message's draft as applied (bookkeeping only — the actual
+     * Markdown push into the editor happens client-side via
+     * `__akDocsSetMarkdown`, same as the old flow's "Aplicar"). Idempotent.
      */
-    protected function consumeDraftResponse(Solution $solution, DocumentationAiGeneration $generation): JsonResponse
+    protected function applyChatMessageResponse(Solution $solution, DocumentationChatMessage $message): JsonResponse
     {
         $this->authorize('update', $solution);
-        abort_unless($generation->solution_id === $solution->id, 404);
+        $message->loadMissing('chat');
+        abort_unless($message->chat->solution_id === $solution->id, 404);
 
-        if ($generation->consumed_at === null) {
-            $generation->update(['consumed_at' => now()]);
+        if ($message->applied_at === null) {
+            $message->update(['applied_at' => now()]);
         }
 
         return response()->json(['ok' => true]);
     }
 
     /**
-     * Payload describing a generation the editor should RESUME on page load, or
-     * null if there's nothing to resume. This is what closes the "navigate away
-     * while generating, come back later" gap: the job runs to completion on the
-     * server regardless of the browser, so on the next load we hand the client
-     * the URLs to pick the flow back up (poll a pending one, or open the review
-     * for a finished one).
-     *
-     * A stale pending generation (worker died mid-job) is reaped, so a dead job
-     * never shows as "generating" forever. Bounded to the last hour so an old,
-     * never-resolved draft doesn't resurface out of nowhere.
+     * An Integration's doc is reachable via ANY of its participating
+     * Solutions' URLs (`solutions/{solution}/integrations/{integration}/...`),
+     * so the same (user, target) chat can be opened under a different
+     * `$solution` than the one it was created under — keep `solution_id`
+     * synced to whichever Solution the current request is scoped to, since
+     * that's what the context documents (and 404 guards) key off.
      */
-    protected function aiResumeFor(Solution $solution, Documentable $target): ?array
+    private function resolveChat(Solution $solution, Documentable $target): DocumentationChat
     {
-        // Same gate as every other endpoint in this trait (panel / status /
-        // consume): the Solution that owns the documentation, never the target
-        // itself. They agree today (all three policies are role-based, and
-        // DocumentationPagePolicy just delegates to its container), but a marker
-        // rendered under one rule and polled under another is how you get a
-        // "generating…" indicator that 403s on its first tick.
+        $chat = DocumentationChat::firstOrCreate([
+            'user_id'     => request()->user()->id,
+            'target_type' => $target->getMorphClass(),
+            'target_id'   => $target->getKey(),
+        ], [
+            'solution_id' => $solution->id,
+        ]);
+
+        if ($chat->solution_id !== $solution->id) {
+            $chat->update(['solution_id' => $solution->id]);
+        }
+
+        return $chat;
+    }
+
+    /**
+     * Payload for the main editor page (not the side panel) to resume polling
+     * on load if a reply is still generating — e.g. the user closed the panel
+     * or navigated away mid-generation. Deliberately does NOT create a chat
+     * (unlike resolveChat()): most page loads have no conversation yet, and
+     * creating one just to check would be a write on every view. Null when
+     * there's no chat yet, or it exists but isn't awaiting a reply.
+     */
+    protected function chatResumeFor(Solution $solution, Documentable $target): ?array
+    {
         $user = request()->user();
 
         if (! $user?->can('update', $solution)) {
             return null;
         }
 
-        $generation = DocumentationAiGeneration::query()
+        $chat = DocumentationChat::query()
+            ->where('user_id', $user->id)
             ->where('target_type', $target->getMorphClass())
             ->where('target_id', $target->getKey())
-            ->where('user_id', $user->id)
-            ->whereNull('consumed_at')
-            ->where('created_at', '>', now()->subHour())
-            ->latest()
             ->first();
 
-        if (! $generation) {
+        if (! $chat || ! $chat->isAwaitingReply()) {
             return null;
         }
 
-        // Reap only the record we're actually about to hand the client, and only
-        // when it really is orphaned — a blanket `stale()->update()` before the
-        // read would write on EVERY editor page load for a case that is rare by
-        // definition. Nothing accumulates behind us: `createDraft()` still reaps
-        // the target's stale records wholesale before its pending guard, which is
-        // the one place where a leftover would actually block something.
-        if ($generation->isStale()) {
-            $generation->update(['status' => 'failed', 'error' => DocumentationAiGeneration::INTERRUPTED_ERROR]);
-        }
-
         return [
-            'pending'    => $generation->isPending(),
-            'pollUrl'    => route('solutions.docs.assist.status', [$solution, $generation]),
-            'consumeUrl' => route('solutions.docs.assist.consume', [$solution, $generation]),
+            'statusUrl' => route('solutions.docs.chat.status', [$solution, $chat]),
         ];
     }
 }

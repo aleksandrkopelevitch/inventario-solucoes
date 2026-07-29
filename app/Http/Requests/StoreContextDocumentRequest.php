@@ -19,7 +19,7 @@ class StoreContextDocumentRequest extends FormRequest
     {
         return [
             // Formats Claude ingests natively (PDF/image as an attachment,
-            // text embedded in the prompt — see DocumentationDraftService).
+            // text embedded in the prompt — see ContextDocumentResolver).
             'file' => [
                 'required',
                 'file',

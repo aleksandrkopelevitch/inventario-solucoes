@@ -1,10 +1,14 @@
-// Selects an integration in the solution detail list
-// (`Solutions\IntegrationsMap`). Highlights the clicked row (aria-pressed)
-// and fires `ak:integration-selected` (bubbling) with that integration's
-// resolved graph — the actual drawing is done by `integration-viz.js`,
-// keeping this module responsible only for selection. Pure event
-// delegation — clicks on the delete button (which fires AJAX) are ignored
-// so they don't also select the row.
+// Selects an integration row. Highlights it (aria-pressed) and fires
+// `ak:integration-selected` (bubbling) with that integration's resolved
+// graph — the actual drawing is done by `integration-viz.js`, keeping this
+// module responsible only for selection. Pure event delegation — clicks on
+// the delete button (which fires AJAX) are ignored so they don't also
+// select the row.
+//
+// The single-integration workspace (`Solutions\IntegrationWorkspace`, the
+// unified documentation+diagram page) renders exactly one row, hidden —
+// there's nothing else to pick from, so init() auto-selects it instead of
+// waiting for a click.
 
 document.addEventListener('click', (e) => {
     const row = e.target.closest('[data-ak-integration-select]')
@@ -47,4 +51,15 @@ function selectRow(row) {
     }))
 }
 
-export function init() {} // no-op — listeners are module-level (delegation)
+export function init() {
+    // Deferred to a microtask: `initAllModules()` calls every module's
+    // init() synchronously in one pass, and `integration-viz.js`'s own
+    // init() (which mounts the canvas and populates the roots this event
+    // draws into) may run before OR after this one depending on registration
+    // order in app.js. Queuing the dispatch guarantees it fires only once
+    // that whole synchronous pass has finished, regardless of order.
+    const rows = document.querySelectorAll('[data-ak-integration-select]')
+    if (rows.length !== 1 || rows[0].getAttribute('aria-pressed') === 'true') return
+
+    queueMicrotask(() => selectRow(rows[0]))
+}
