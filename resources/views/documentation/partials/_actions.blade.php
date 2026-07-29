@@ -20,7 +20,7 @@
     </span>
 
     @isset($chatPanelUrl)
-        <x-forms.button type="button" variant="ghost" data-ak-docs-chat-trigger data-ak-panel-open data-ak-panel-url="{{ $chatPanelUrl }}"
+        <x-forms.button type="button" variant="ghost" data-ak-docs-chat-trigger data-ak-panel-open data-ak-panel-url="{{ $chatPanelUrl }}" data-ak-panel-size="large"
             class="!h-9 !px-3 !text-sm">
             <x-heroicon-o-sparkles class="size-4" />
             <span>Abrir especialista</span>

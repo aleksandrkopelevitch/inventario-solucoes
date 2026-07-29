@@ -647,6 +647,7 @@ All JS hooks use the `data-ak-*` prefix. Internal slots (`data-spinner`, `data-l
 | `data-ak-panel-url="url"` | `side-panel.js` | URL to fetch content from |
 | `data-ak-panel-close` | `side-panel.js` | Closes `#side-panel` and clears content |
 | `data-ak-panel-overlay="false"` | `side-panel.js` | Open without overlay |
+| `data-ak-panel-size="small\|medium\|large"` | `side-panel.js` | Panel width — 1/4 (`w-96`, default), 1/2, or 3/4 of the viewport |
 | `data-ak-tabs='{"targetId":"…"}'` | `tabs.js` | JSON config for tab switching |
 | `data-ak-filters='{"formId":"…"}'` | `execute-filters.js` | JSON config for filter execution |
 | `data-ak-filters-clear='{"formId":"…","field":"filter[x]","url":"…"}'` | `execute-filters.js` | Clears one filter field (active-filter chip ✕) and resubmits via AJAX |
@@ -987,6 +988,11 @@ placeholder).
 {{-- Open without overlay --}}
 <button data-ak-panel-open data-ak-panel-url="{{ route('my.route.panel') }}" data-ak-panel-overlay="false">
     Abrir sem overlay
+</button>
+
+{{-- Wider panel — "small" (default, current width) | "medium" (1/2) | "large" (3/4) --}}
+<button data-ak-panel-open data-ak-panel-url="{{ route('my.route.panel') }}" data-ak-panel-size="large">
+    Abrir grande
 </button>
 
 {{-- Close from inside the injected content --}}

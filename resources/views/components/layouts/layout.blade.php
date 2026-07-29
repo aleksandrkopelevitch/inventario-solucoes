@@ -187,7 +187,7 @@
      data-ak-panel-close></div>
 
 <aside id="side-panel"
-       class="fixed right-0 top-0 z-50 flex h-full w-96 translate-x-full flex-col bg-surface text-body shadow-2xl transition-transform duration-300">
+       class="fixed right-0 top-0 z-50 flex h-full w-96 max-w-full translate-x-full flex-col bg-surface text-body shadow-2xl transition-transform duration-300">
     <div data-panel-placeholder class="flex flex-1 items-center justify-center">
         <div class="flex gap-1.5">
             <span class="size-2 animate-bounce rounded-full bg-line-2" style="animation-delay:0s"></span>
