@@ -5,12 +5,13 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\AssistsDocumentation;
 use App\Http\Controllers\Concerns\EditsDocumentation;
 use App\Http\Controllers\Concerns\NavigatesSolutionDocs;
-use App\Http\Requests\GenerateDocumentationDraftRequest;
 use App\Http\Requests\MoveDocumentationPageRequest;
 use App\Http\Requests\SaveDocumentationPageTitleRequest;
 use App\Http\Requests\SaveDocumentationRequest;
+use App\Http\Requests\StoreDocumentationChatMessageRequest;
 use App\Http\Requests\UploadDocumentationMediaRequest;
-use App\Models\DocumentationAiGeneration;
+use App\Models\DocumentationChat;
+use App\Models\DocumentationChatMessage;
 use App\Models\DocumentationPage;
 use App\Models\Solution;
 use App\Services\DocumentationPageService;
@@ -71,8 +72,8 @@ class SolutionDocumentationController extends Controller
             'pagesNav'        => $this->solutionPagesNav($solution, $page),
             'integrationsNav' => $this->solutionIntegrationsNav($solution, null),
             'createPageUrl'   => route('solutions.docs.pages.store', $solution),
-            'assistPanelUrl'  => route('solutions.docs.assist.panel', [$solution, $page]),
-            'aiResume'        => $this->aiResumeFor($solution, $page),
+            'chatPanelUrl'    => route('solutions.docs.chat.panel', [$solution, $page]),
+            'chatResume'      => $this->chatResumeFor($solution, $page),
             // Share (public link) only exists on the Solution's own docs — the
             // generic view (shared with IntegrationDocumentationController)
             // treats it as optional via @isset.
@@ -145,40 +146,36 @@ class SolutionDocumentationController extends Controller
         return $this->storeDocumentationMedia($request, $page);
     }
 
-    /* --- AI Assist (generates the page's content via LLM) ----------------- */
+    /* --- Documentation Assistant (chat that helps write the page's content) --- */
 
-    public function assistantPanel(Solution $solution, DocumentationPage $page): JsonResponse
+    public function chatPanel(Solution $solution, DocumentationPage $page): JsonResponse
     {
         $page->setRelation('container', $solution);
 
-        return $this->assistantPanelResponse(
+        return $this->chatPanelResponse(
             $solution,
             $page,
-            route('solutions.docs.assist.generate', [$solution, $page]),
+            route('solutions.docs.chat.messages.store', [$solution, $page]),
         );
     }
 
-    public function generateDraft(GenerateDocumentationDraftRequest $request, Solution $solution, DocumentationPage $page): JsonResponse
+    public function sendMessage(StoreDocumentationChatMessageRequest $request, Solution $solution, DocumentationPage $page): JsonResponse
     {
         $page->setRelation('container', $solution);
 
-        return $this->createDraft(
-            $request,
-            $solution,
-            $page,
-            fn (DocumentationAiGeneration $g) => route('solutions.docs.assist.status', [$solution, $g]),
-        );
+        return $this->sendChatMessage($request, $solution, $page);
     }
 
-    public function draftStatus(Solution $solution, DocumentationAiGeneration $generation): JsonResponse
+    /** Polling — serves pages and integrations, the chat carries its own target. */
+    public function chatStatus(Solution $solution, DocumentationChat $chat): JsonResponse
     {
-        return $this->draftStatusResponse($solution, $generation);
+        return $this->chatStatusResponse($solution, $chat);
     }
 
-    /** Marks a finished generation as resolved — serves pages and integrations. */
-    public function consumeDraft(Solution $solution, DocumentationAiGeneration $generation): JsonResponse
+    /** Marks a message's draft as applied — serves pages and integrations. */
+    public function applyChatMessage(Solution $solution, DocumentationChatMessage $message): JsonResponse
     {
-        return $this->consumeDraftResponse($solution, $generation);
+        return $this->applyChatMessageResponse($solution, $message);
     }
 
     /** Generates (if it doesn't exist yet) the public link token and returns the panel. */

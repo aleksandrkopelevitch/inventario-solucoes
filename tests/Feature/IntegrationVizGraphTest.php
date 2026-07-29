@@ -4,12 +4,12 @@ use App\Models\AttributeOption;
 use App\Models\Integration;
 use App\Models\Solution;
 use App\Support\Heroicons;
-use App\View\Components\Solutions\IntegrationsMap;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\Blade;
 
 uses(LazilyRefreshDatabase::class);
 
-it('embeds a resolved graph (labels, per-step protocol, arrow direction) on each list row', function () {
+it('embeds a resolved graph (labels, per-step protocol, arrow direction) on the workspace row', function () {
     $a = Solution::factory()->create(['name' => 'Alpha ERP']);
     $b = Solution::factory()->create(['name' => 'Bravo iPaaS']);
 
@@ -30,7 +30,10 @@ it('embeds a resolved graph (labels, per-step protocol, arrow direction) on each
     $integration->participants()->attach($a->id, ['position' => 0]);
     $integration->participants()->attach($b->id, ['position' => 1]);
 
-    $html = (new IntegrationsMap($a))->render()->render();
+    $html = Blade::render(
+        '<x-solutions.integration-workspace :solution="$a" :integration="$integration" />',
+        ['a' => $a, 'integration' => $integration],
+    );
 
     // Extracts the JSON from data-integration-graph and validates the shape consumed by JS.
     expect($html)->toContain('data-integration-graph=');
@@ -66,7 +69,10 @@ it('carries logo and hosting/cloud badges (label + icon) for nodes with a soluti
     $integration->participants()->attach($a->id, ['position' => 0]);
     $integration->participants()->attach($b->id, ['position' => 1]);
 
-    $html = (new IntegrationsMap($a))->render()->render();
+    $html = Blade::render(
+        '<x-solutions.integration-workspace :solution="$a" :integration="$integration" />',
+        ['a' => $a, 'integration' => $integration],
+    );
     preg_match('/data-integration-graph="([^"]*)"/', $html, $m);
     $graph = json_decode(html_entity_decode($m[1]), true);
 
@@ -96,7 +102,10 @@ it('resolves decision and actor blocks with their kind icon and no solution data
     ]);
     $integration->participants()->attach($a->id, ['position' => 0]);
 
-    $html = (new IntegrationsMap($a))->render()->render();
+    $html = Blade::render(
+        '<x-solutions.integration-workspace :solution="$a" :integration="$integration" />',
+        ['a' => $a, 'integration' => $integration],
+    );
     preg_match('/data-integration-graph="([^"]*)"/', $html, $m);
     $graph = json_decode(html_entity_decode($m[1]), true);
 
@@ -111,6 +120,6 @@ it('resolves decision and actor blocks with their kind icon and no solution data
         ->and($graph['nodes'][2]['logo'])->toBeNull()
         ->and($graph['nodes'][2]['url'])->toBeNull();
 
-    // The kinds list feeding both block panels ships with the row list.
+    // The kinds list feeding both block panels ships with the workspace.
     expect($html)->toContain('data-ak-node-kinds=');
 });

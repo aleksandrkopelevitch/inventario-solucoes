@@ -8,7 +8,7 @@ use Illuminate\Foundation\Http\FormRequest;
 
 /**
  * Appends a new block to the chain (data-viz F3) — a PURE node: its kind
- * (`ChainNodeKind`: system / decision / actor) plus a registered Solution or
+ * (`ChainNodeKind`: system / decision / actor / start / end) plus a registered Solution or
  * free text, and nothing else. It never creates an edge: every block is born
  * isolated, and the wiring comes afterwards, by dragging an arrow out of any
  * block's port or via "connect mode" (both `AddIntegrationChainEdgeRequest`),

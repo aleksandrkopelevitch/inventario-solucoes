@@ -23,7 +23,7 @@ import * as docsLightbox from './modules/docs-lightbox.js'
 import * as docsShare from './modules/docs-share.js'
 import * as docsCopy from './modules/docs-copy.js'
 import * as docsToc from './modules/docs-toc.js'
-import * as docsAi from './modules/docs-ai.js'
+import * as docsChat from './modules/docs-chat.js'
 import * as flowspecChat from './modules/flowspec-chat.js'
 import * as mobileNav from './modules/mobile-nav.js'
 
@@ -54,7 +54,7 @@ window.globalModules = {
     "docsShare"         : docsShare,
     "docsCopy"          : docsCopy,
     "docsToc"           : docsToc,
-    "docsAi"            : docsAi,
+    "docsChat"          : docsChat,
     "flowspecChat"      : flowspecChat,
     "mobileNav"         : mobileNav,
 }

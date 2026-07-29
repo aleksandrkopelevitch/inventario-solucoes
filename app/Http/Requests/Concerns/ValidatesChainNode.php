@@ -63,7 +63,10 @@ trait ValidatesChainNode
     /**
      * Normalizes the select's "free" sentinel (free text) to a null
      * solution_id — and forces it to null for the kinds that can't point at a
-     * Solution, so a decision/actor block always ends up as pure free text.
+     * Solution, so a decision/actor/start/end block always ends up as pure
+     * free text. A blank label falls back to the kind's `defaultLabel()`
+     * (only `start`/`end` have one — "Início"/"Fim" — so those two are the
+     * only kinds a client can create without typing anything).
      *
      * An OMITTED kind is filled in with the default (system); an unknown one
      * is deliberately left untouched, so the `Enum` rule rejects it instead of
@@ -74,9 +77,12 @@ trait ValidatesChainNode
         $solutionId = $this->input('solution_id');
         $solutionId = is_numeric($solutionId) && $this->chainNodeKind()->referencesSolution() ? (int) $solutionId : null;
 
+        $label = trim((string) $this->input('label', '')) ?: null;
+        $label ??= $solutionId ? null : $this->chainNodeKind()->defaultLabel();
+
         $this->merge([
             'solution_id' => $solutionId,
-            'label'       => $solutionId ? null : (trim((string) $this->input('label', '')) ?: null),
+            'label'       => $solutionId ? null : $label,
         ]);
 
         if (blank($this->input('kind'))) {

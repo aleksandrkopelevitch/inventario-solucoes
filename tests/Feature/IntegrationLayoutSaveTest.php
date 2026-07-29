@@ -106,3 +106,38 @@ it('rejects an invalid font or a malformed hex color on a block', function () {
         ])
         ->assertStatus(422);
 });
+
+it('persists swimlanes and per-block/per-edge dashed toggles', function () {
+    [$solution, $integration] = layoutSolutionAndIntegration();
+
+    $payload = [
+        'nodes' => [
+            ['x' => 0, 'y' => 0, 'dashed' => true],
+            ['x' => 240, 'y' => 30, 'dashed' => false],
+        ],
+        'edges' => [['from' => 'r', 'to' => 'l', 'dashed' => true]],
+        'lanes' => [
+            ['label' => 'GCP', 'color' => '#2F6FED', 'x' => -50, 'y' => -50, 'width' => 420, 'height' => 220],
+            ['label' => 'Digibee', 'color' => '#7C3AED', 'x' => 400, 'y' => -50, 'width' => 360, 'height' => 180],
+        ],
+    ];
+
+    $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]))
+        ->patchJson(route('solutions.integrations.layout.save', [$solution, $integration]), $payload)
+        ->assertOk()
+        ->assertJson(['type' => 'success']);
+
+    expect($integration->fresh()->viz_layout)->toBe($payload);
+});
+
+it('rejects a swimlane with an invalid color or an out-of-range height', function () {
+    [$solution, $integration] = layoutSolutionAndIntegration();
+
+    $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]))
+        ->patchJson(route('solutions.integrations.layout.save', [$solution, $integration]), [
+            'nodes' => [['x' => 0, 'y' => 0]],
+            'edges' => [],
+            'lanes' => [['label' => 'GCP', 'color' => 'not-a-color', 'x' => 0, 'y' => 0, 'width' => 400, 'height' => 20]],
+        ])
+        ->assertStatus(422);
+});

@@ -81,10 +81,11 @@ Route::middleware('auth')->group(function () {
         Route::get('solutions/{solution}/integrations/{integration}/documentation', [IntegrationDocumentationController::class, 'edit'])->name('solutions.integrations.docs.edit');
         Route::patch('solutions/{solution}/integrations/{integration}/documentation', [IntegrationDocumentationController::class, 'update'])->name('solutions.integrations.docs.update');
         Route::post('solutions/{solution}/integrations/{integration}/documentation/media', [IntegrationDocumentationController::class, 'media'])->name('solutions.integrations.docs.media');
-        // AI Assist — populates the integration doc via LLM (job + polling). Context
-        // documents belong to the Solution (solutions.docs.context.* routes).
-        Route::get('solutions/{solution}/integrations/{integration}/documentation/assistant', [IntegrationDocumentationController::class, 'assistantPanel'])->name('solutions.integrations.docs.assist.panel');
-        Route::post('solutions/{solution}/integrations/{integration}/documentation/assistant', [IntegrationDocumentationController::class, 'generateDraft'])->name('solutions.integrations.docs.assist.generate');
+        // Documentation Assistant — a chat that helps write the integration doc
+        // (job + polling per turn). Context documents belong to the Solution
+        // (solutions.docs.context.* routes).
+        Route::get('solutions/{solution}/integrations/{integration}/documentation/chat', [IntegrationDocumentationController::class, 'chatPanel'])->name('solutions.integrations.docs.chat.panel');
+        Route::post('solutions/{solution}/integrations/{integration}/documentation/chat/messages', [IntegrationDocumentationController::class, 'sendMessage'])->name('solutions.integrations.docs.chat.messages.store');
         // Kind/title of a single node (data-viz F3) — {node} is the index in the chain, not a model.
         Route::patch('solutions/{solution}/integrations/{integration}/chain/nodes/{node}', [SolutionIntegrationController::class, 'updateNode'])
             ->whereNumber('node')
@@ -141,14 +142,13 @@ Route::middleware('auth')->group(function () {
     Route::get('solutions/{solution}/documentation/context/{media}', [SolutionContextDocumentController::class, 'show'])->name('solutions.docs.context.show');
     Route::delete('solutions/{solution}/documentation/context/{media}', [SolutionContextDocumentController::class, 'destroy'])->name('solutions.docs.context.destroy');
 
-    // "AI Assist" polling — a single endpoint for both pages AND integrations:
-    // the generation record carries its own target/solution, so it doesn't
+    // Documentation Assistant polling — a single endpoint for both pages AND
+    // integrations: the chat carries its own target/solution, so it doesn't
     // need {page}/{integration} in the URL (and avoids scopeBindings'
-    // auto-scope trying to resolve {generation} as their child).
-    Route::get('solutions/{solution}/documentation/assistant/{generation}/status', [SolutionDocumentationController::class, 'draftStatus'])->name('solutions.docs.assist.status');
-    // Marks a finished generation as resolved (applied/discarded/acknowledged),
-    // so the editor stops resuming it on reload. Shared by pages and integrations.
-    Route::post('solutions/{solution}/documentation/assistant/{generation}/consume', [SolutionDocumentationController::class, 'consumeDraft'])->name('solutions.docs.assist.consume');
+    // auto-scope trying to resolve {chat} as their child).
+    Route::get('solutions/{solution}/documentation/chat/{chat}/status', [SolutionDocumentationController::class, 'chatStatus'])->name('solutions.docs.chat.status');
+    // Marks a message's draft as applied. Shared by pages and integrations.
+    Route::post('solutions/{solution}/documentation/chat/messages/{message}/apply', [SolutionDocumentationController::class, 'applyChatMessage'])->name('solutions.docs.chat.messages.apply');
 
     // {page} resolves via Solution::pages() (same mechanism as the
     // {integration} scoped in Solution::integrations() above).
@@ -159,9 +159,9 @@ Route::middleware('auth')->group(function () {
         Route::delete('solutions/{solution}/documentation/{page}', [SolutionDocumentationController::class, 'destroy'])->name('solutions.docs.pages.destroy');
         Route::patch('solutions/{solution}/documentation/{page}/move', [SolutionDocumentationController::class, 'move'])->name('solutions.docs.pages.move');
         Route::post('solutions/{solution}/documentation/{page}/media', [SolutionDocumentationController::class, 'media'])->name('solutions.docs.media');
-        // AI Assist — populates the page via LLM (job + polling).
-        Route::get('solutions/{solution}/documentation/{page}/assistant', [SolutionDocumentationController::class, 'assistantPanel'])->name('solutions.docs.assist.panel');
-        Route::post('solutions/{solution}/documentation/{page}/assistant', [SolutionDocumentationController::class, 'generateDraft'])->name('solutions.docs.assist.generate');
+        // Documentation Assistant — a chat that helps write the page (job + polling per turn).
+        Route::get('solutions/{solution}/documentation/{page}/chat', [SolutionDocumentationController::class, 'chatPanel'])->name('solutions.docs.chat.panel');
+        Route::post('solutions/{solution}/documentation/{page}/chat/messages', [SolutionDocumentationController::class, 'sendMessage'])->name('solutions.docs.chat.messages.store');
     });
 
     // F5 — people and companies (Stage 2).

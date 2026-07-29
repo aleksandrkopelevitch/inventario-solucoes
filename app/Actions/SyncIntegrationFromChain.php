@@ -16,9 +16,9 @@ use Illuminate\Support\Facades\DB;
  *
  * `chain = {nodes: [{solution_id, label, kind}], edges: [{from, to, arrow, protocol}]}`
  * — `from`/`to` are indices into `nodes`, no longer consecutive positions.
- * Nodes with no solution (free text, and every decision/actor node — see
- * `ChainNodeKind`) count toward neighbors' in/out degree but don't become
- * participants (the pivot references solutions).
+ * Nodes with no solution (free text, and every decision/actor/start/end node
+ * — see `ChainNodeKind`) count toward neighbors' in/out degree but don't
+ * become participants (the pivot references solutions).
  */
 class SyncIntegrationFromChain
 {

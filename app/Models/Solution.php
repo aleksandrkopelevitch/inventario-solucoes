@@ -21,8 +21,8 @@ class Solution extends Model implements HasMedia
 
     /**
      * Context documents (PDF/image/text) attached to the Solution and reused
-     * by the documentation "Assiste IA" — they feed the LLM generation
-     * (App\Services\Documentation\DocumentationDraftService). Separate from
+     * by the Documentation Assistant chat — they feed the LLM generation
+     * (App\Services\Documentation\ContextDocumentResolver). Separate from
      * the `docs` collection (media embedded in the documentation): these
      * files never appear in the Markdown, they only go into the model's
      * prompt.

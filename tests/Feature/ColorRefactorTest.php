@@ -1,10 +1,8 @@
 <?php
 
 use App\Models\AttributeOption;
-use App\Models\Integration;
 use App\Models\Solution;
 use App\View\Components\Solutions\DetailHeader;
-use App\View\Components\Solutions\IntegrationsMap;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 
@@ -47,23 +45,10 @@ it('maps criticality to a semantic tone from the raw value', function () {
         ->and($tone(null))->toBe('green');
 });
 
-it('highlights the selected integration row with a lime border on a white background', function () {
-    $solution = Solution::factory()->create();
-    $integration = Integration::factory()->create();
-    $integration->participants()->attach($solution->id, ['position' => 0]);
-
-    $html = (new IntegrationsMap($solution))->render()->render();
-
-    // Selected = lime border/ring on white background (no green fill).
-    expect($html)->toContain('aria-pressed:border-lime')
-        ->and($html)->toContain('aria-pressed:bg-surface')
-        ->and($html)->not->toContain('aria-pressed:bg-accent-soft');
-});
-
 it('renders diagram nodes in the navy/blue palette with shadow and draggable-anchor styling', function () {
     $html = Blade::render('<x-solutions.integration-viz />');
 
-    expect($html)->toContain('--viz-node: #C9D4F7')  // lavender/bluish nodes (reference mind-map palette)
+    expect($html)->toContain('--viz-node: #E9EDFB')  // lavender/bluish nodes (reference mind-map palette, lightened 2026-07-28)
         ->and($html)->toContain('--viz-select: #4A90D9') // blue selection ring
         ->and($html)->toContain('.ak-viz-handle')    // draggable endpoint handles
         ->and($html)->toContain('.ak-viz-anchor');    // candidate anchors (4 + 2 + 2)

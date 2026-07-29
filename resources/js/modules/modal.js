@@ -23,7 +23,7 @@ document.addEventListener('click', (e) => {
 // open(). Both listeners MUST live out here: registering them inside open()
 // added one more on every open of the same dialog, and they were never removed
 // — so a `closeOnEsc = true` from an earlier use kept closing a later use that
-// explicitly asked for false (docs-ai's draft review is the caller that cares).
+// explicitly asked for false (docs-chat's draft review is the caller that cares).
 // Keyed by element, so the newest open() always wins.
 const modalBehavior = new WeakMap()
 

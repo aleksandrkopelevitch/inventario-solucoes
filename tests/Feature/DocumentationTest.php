@@ -286,6 +286,65 @@ it('links an integration doc back to the solution and lists it under Integraçõ
 
 /*
 |--------------------------------------------------------------------------
+| Unified page — Documentação/Diagrama tabs (the F3 canvas moved here)
+|--------------------------------------------------------------------------
+*/
+
+it('renders the Documentação/Diagrama tabs and mounts the chain canvas on the integration doc page', function () {
+    $solution = Solution::factory()->create();
+    $integration = Integration::factory()->create([
+        'name'  => 'SAP -> AllStrategy',
+        'chain' => ['nodes' => [['solution_id' => $solution->id, 'label' => null]], 'edges' => []],
+    ]);
+    attachParticipants($integration, [[$solution, 0]]);
+
+    $response = $this->actingAs(docsAdmin())
+        ->get(route('solutions.integrations.docs.edit', [$solution, $integration]))
+        ->assertOk();
+
+    expect($response->getContent())
+        ->toContain('integration-tab-docs')
+        ->toContain('integration-tab-diagram')
+        ->toContain('data-integration-viz')
+        ->toContain('data-integration-graph=')
+        // The doc-specific actions live inside the Documentação panel now,
+        // not the persistent top bar (only one Salvar visible per tab).
+        ->toContain('data-ak-docs-save');
+});
+
+it('does not embed the chain canvas on a plain Solution documentation page', function () {
+    $solution = Solution::factory()->create();
+    $page = solutionPage($solution, '# Visão geral');
+
+    $response = $this->actingAs(docsAdmin())
+        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->assertOk();
+
+    expect($response->getContent())
+        ->not->toContain('data-integration-viz')
+        ->not->toContain('integration-tab-panels');
+});
+
+it('lists the solution integrations as plain links, without the F3 canvas, on the solution page', function () {
+    $solution = Solution::factory()->create();
+    $integration = Integration::factory()->create([
+        'name'  => 'SAP -> AllStrategy',
+        'chain' => ['nodes' => [['solution_id' => $solution->id, 'label' => null]], 'edges' => []],
+    ]);
+    attachParticipants($integration, [[$solution, 0]]);
+
+    $response = $this->actingAs(docsAdmin())
+        ->get(route('solutions.show', $solution))
+        ->assertOk();
+
+    expect($response->getContent())
+        ->not->toContain('data-integration-viz')
+        ->toContain('href="' . route('solutions.integrations.docs.edit', [$solution, $integration]) . '"')
+        ->toContain('SAP -&gt; AllStrategy');
+});
+
+/*
+|--------------------------------------------------------------------------
 | Integration — scopeBindings + save (single-page, unchanged)
 |--------------------------------------------------------------------------
 */

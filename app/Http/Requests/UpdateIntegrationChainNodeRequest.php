@@ -9,7 +9,7 @@ use Illuminate\Foundation\Http\FormRequest;
 /**
  * Edits a single node already present in the chain (a data-viz F3 block) — its
  * kind (`ChainNodeKind`, so a block can be converted from system to
- * decision/actor and back) and its title, chosen from a registered Solution or
+ * decision/actor/start/end and back) and its title, chosen from a registered Solution or
  * free text. The root node (index 0) never reaches here — blocked in the
  * controller before any content authorization.
  */

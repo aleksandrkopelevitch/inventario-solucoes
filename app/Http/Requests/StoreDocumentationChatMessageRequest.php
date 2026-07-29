@@ -4,9 +4,9 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class GenerateDocumentationDraftRequest extends FormRequest
+class StoreDocumentationChatMessageRequest extends FormRequest
 {
-    /** Only someone who can edit the Solution can generate an AI draft. */
+    /** Only someone who can edit the Solution can talk to the Documentation Assistant. */
     public function authorize(): bool
     {
         $solution = $this->route('solution');
@@ -18,10 +18,10 @@ class GenerateDocumentationDraftRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'prompt'      => ['required', 'string', 'max:4000'],
+            'message'     => ['required', 'string', 'max:4000'],
             'media_ids'   => ['array'],
             'media_ids.*' => ['integer'],
-            // Snapshot of the editor at the moment of the request (serialized Markdown).
+            // Editor's live Markdown snapshot at send time (may include unsaved edits).
             'existing_content' => ['nullable', 'string', 'max:500000'],
         ];
     }

@@ -7,7 +7,10 @@
     <title>{{ $title ?? config('app.name') }}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    {{-- Barlow/Barlow Condensed dropped 2026-07-28 — --font-sans/--font-display
+         now use the system font stack (see app.css); only Space Mono is still
+         a webfont. --}}
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="min-h-screen bg-canvas text-body font-sans text-[14.5px] antialiased">
