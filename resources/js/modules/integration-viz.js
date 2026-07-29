@@ -2997,6 +2997,35 @@ function mount(root) {
         positionBottomBar()
     })
 
+    // `render()` measures every node's w/h via offsetWidth/offsetHeight right
+    // after creating its <div> (see below) — but this canvas lives inside the
+    // unified Documentação/Diagrama tabs, and integration-select.js
+    // auto-selects the (only) integration on page load via a microtask
+    // REGARDLESS of which tab is active. When "Documentação" is the one
+    // shown first, `render()` runs while this whole root sits under a
+    // `hidden` (display:none) tab panel, so every node measures 0×0 and that
+    // measurement is never retaken — anchorPoint()/nodeAtPoint() then divide
+    // every side (`node.w * fx`, `node.h * fy`) down to 0, so EVERY arrow
+    // renders at each node's raw top-left corner instead of its real side,
+    // and dragging an edge's handle can never detect hovering a block (its
+    // w×h hit-box is degenerate). A ResizeObserver on the viewport reliably
+    // fires the moment the tab panel is unhidden (content box goes from 0×0
+    // to its real size, unlike `window`'s 'resize', which never fires for a
+    // display:none→block toggle) — re-measure then and redraw/refit so a
+    // stale zero from a hidden first render is never load-bearing again.
+    const viewportResizeObserver = new ResizeObserver((entries) => {
+        const entry = entries[entries.length - 1]
+        if (!entry || entry.contentRect.width === 0 || entry.contentRect.height === 0 || !nodes.length) return
+        const wasZeroSized = nodes.every((n) => n.w === 0 && n.h === 0)
+        nodes.forEach((n) => {
+            n.w = n.el.offsetWidth
+            n.h = n.el.offsetHeight
+        })
+        draw()
+        if (wasZeroSized) fit()
+    })
+    viewportResizeObserver.observe(viewport)
+
     // Esc cancela o "modo ligar" (se ativo), fecha o toolbar de uma raia
     // selecionada, ou fecha a sidebar de comentário.
     window.addEventListener('keydown', (e) => {
