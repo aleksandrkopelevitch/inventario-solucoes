@@ -176,6 +176,24 @@ it('rejects an unknown block kind', function () {
         ->assertStatus(422);
 });
 
+it('rejects "image" as a block kind here — only addImageNode() may create one', function () {
+    $svl = Solution::factory()->create(['name' => 'SVL']);
+
+    $integration = Integration::factory()->create([
+        'chain' => ['nodes' => [['solution_id' => $svl->id, 'label' => null]], 'edges' => []],
+    ]);
+    attachParticipants($integration, [[$svl, 0]]);
+
+    $this->actingAs(nodeAddAdmin())
+        ->postJson(route('solutions.integrations.chain.node.add', [$svl, $integration]), [
+            'kind'  => 'image',
+            'label' => 'Qualquer coisa',
+        ])
+        ->assertStatus(422);
+
+    expect($integration->fresh()->chain['nodes'])->toHaveCount(1);
+});
+
 it('rejects a new block without a system and without free text', function () {
     $svl = Solution::factory()->create(['name' => 'SVL']);
 

@@ -107,6 +107,36 @@ it('rejects an invalid font or a malformed hex color on a block', function () {
         ->assertStatus(422);
 });
 
+it('persists an image block\'s light border color', function () {
+    [$solution, $integration] = layoutSolutionAndIntegration();
+
+    $payload = [
+        'nodes' => [
+            ['x' => 0, 'y' => 0, 'imageBorderColor' => '#FFFFFF'],
+            ['x' => 240, 'y' => 30, 'imageBorderColor' => null],
+        ],
+        'edges' => [['from' => 'r', 'to' => 'l']],
+    ];
+
+    $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]))
+        ->patchJson(route('solutions.integrations.layout.save', [$solution, $integration]), $payload)
+        ->assertOk()
+        ->assertJson(['type' => 'success']);
+
+    expect($integration->fresh()->viz_layout)->toBe($payload);
+});
+
+it('rejects a malformed hex color for a block\'s image border', function () {
+    [$solution, $integration] = layoutSolutionAndIntegration();
+
+    $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]))
+        ->patchJson(route('solutions.integrations.layout.save', [$solution, $integration]), [
+            'nodes' => [['x' => 0, 'y' => 0, 'imageBorderColor' => 'not-a-color']],
+            'edges' => [],
+        ])
+        ->assertStatus(422);
+});
+
 it('persists swimlanes and per-block/per-edge dashed toggles', function () {
     [$solution, $integration] = layoutSolutionAndIntegration();
 

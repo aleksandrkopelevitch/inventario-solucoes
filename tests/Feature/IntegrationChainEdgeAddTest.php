@@ -158,6 +158,31 @@ it('rejects an edge identical to one already in the chain, but allows a second o
     expect($integration->fresh()->chain['edges'])->toHaveCount(3);
 });
 
+it('accepts a free-text protocol not in the Protocol enum', function () {
+    $a = Solution::factory()->create();
+    $b = Solution::factory()->create();
+
+    $integration = Integration::factory()->create([
+        'chain' => [
+            'nodes' => [['solution_id' => $a->id, 'label' => null], ['solution_id' => $b->id, 'label' => null]],
+            'edges' => [],
+        ],
+    ]);
+    attachParticipants($integration, [[$a, 0], [$b, 1]]);
+
+    $response = $this->actingAs(edgeAddAdmin())
+        ->postJson(route('solutions.integrations.chain.edge.add', [$a, $integration]), [
+            'from'     => 0,
+            'to'       => 1,
+            'arrow'    => '->',
+            'protocol' => 'carrier-pigeon',
+        ])
+        ->assertOk();
+
+    expect($response->json('protocol'))->toBe(['value' => 'carrier-pigeon', 'label' => 'carrier-pigeon']);
+    expect($integration->fresh()->chain['edges'][0]['protocol'])->toBe('carrier-pigeon');
+});
+
 it('rejects a from/to index outside the chain', function () {
     $a = Solution::factory()->create();
     $b = Solution::factory()->create();

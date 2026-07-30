@@ -5,7 +5,6 @@ namespace App\Models;
 use App\Contracts\Documentable;
 use App\Enums\Direction;
 use App\Enums\IntegrationStatus;
-use App\Enums\Protocol;
 use App\Enums\SyncMode;
 use Database\Factories\IntegrationFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -39,8 +38,14 @@ class Integration extends Model implements Documentable
     protected function casts(): array
     {
         return [
-            'direction'  => Direction::class,
-            'protocol'   => Protocol::class,
+            'direction' => Direction::class,
+            // `protocol` (the summary scalar — the first edge with a protocol,
+            // see SyncIntegrationFromChain) is a plain string, NOT cast to
+            // `App\Enums\Protocol`: since the per-edge protocol accepts free
+            // text, an Eloquent enum cast would throw a ValueError the moment
+            // it tried to save a value outside the enum's cases. Resolve a
+            // label the same way `IntegrationsMap::resolveProtocol()` does:
+            // `Protocol::tryFrom($value)?->label() ?? $value`.
             'sync_mode'  => SyncMode::class,
             'status'     => IntegrationStatus::class,
             'chain'      => 'array',

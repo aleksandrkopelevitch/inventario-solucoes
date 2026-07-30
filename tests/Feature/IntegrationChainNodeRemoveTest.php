@@ -59,7 +59,7 @@ it('removes a block, drops its links and reindexes the ones above it', function 
         ->and($integration->participants->pluck('name')->sort()->values()->all())->toBe(['A', 'C', 'D'])
         ->and($integration->target_solution_id)->toBe($d->id)
         // The scalar protocol is re-derived from the surviving edge.
-        ->and($integration->protocol->value)->toBe('sftp');
+        ->and($integration->protocol)->toBe('sftp');
 
     // The response rebuilds the whole graph, in the same shape as the page's
     // data-integration-graph — the client re-renders instead of patching.

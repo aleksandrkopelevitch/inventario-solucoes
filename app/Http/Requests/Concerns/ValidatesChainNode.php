@@ -3,7 +3,7 @@
 namespace App\Http\Requests\Concerns;
 
 use App\Enums\ChainNodeKind;
-use Illuminate\Validation\Rules\Enum;
+use Illuminate\Validation\Rule;
 
 /**
  * The three fields that make up a chain node (`chain.nodes[i]`) in the F3
@@ -26,6 +26,20 @@ trait ValidatesChainNode
     }
 
     /**
+     * `kind` is validated against only the PICKABLE kinds (`ChainNodeKind::pickable()`)
+     * — not every enum case — so a client can never create or convert a block
+     * into `Image` through these generic endpoints; that kind is only ever
+     * produced by `SolutionIntegrationController::addImageNode()`, which always
+     * pairs it with an uploaded `media_id` in the same request.
+     *
+     * @return array<int, string>
+     */
+    private function pickableKindValues(): array
+    {
+        return array_map(fn (ChainNodeKind $k) => $k->value, array_filter(ChainNodeKind::cases(), fn (ChainNodeKind $k) => $k->pickable()));
+    }
+
+    /**
      * On a decision/actor block `solution_id` isn't a field that exists at all,
      * so it's left OUT of the rules rather than allowed-and-ignored: absent from
      * the rules means absent from `validated()`, and the controller's
@@ -38,13 +52,13 @@ trait ValidatesChainNode
     {
         if (! $this->chainNodeKind()->referencesSolution()) {
             return [
-                'kind'  => ['nullable', new Enum(ChainNodeKind::class)],
+                'kind'  => ['nullable', Rule::in($this->pickableKindValues())],
                 'label' => ['required', 'string', 'max:255'],
             ];
         }
 
         return [
-            'kind'        => ['nullable', new Enum(ChainNodeKind::class)],
+            'kind'        => ['nullable', Rule::in($this->pickableKindValues())],
             'solution_id' => ['nullable', 'integer', 'exists:solutions,id', 'required_without:label'],
             'label'       => ['nullable', 'string', 'max:255', 'required_without:solution_id'],
         ];

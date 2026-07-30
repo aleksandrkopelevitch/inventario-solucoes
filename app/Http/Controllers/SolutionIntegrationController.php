@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Actions\SyncIntegrationFromChain;
+use App\Contracts\Documentable;
 use App\Enums\ChainNodeKind;
 use App\Enums\Direction;
 use App\Http\Requests\AddIntegrationChainEdgeRequest;
+use App\Http\Requests\AddIntegrationChainImageRequest;
 use App\Http\Requests\AddIntegrationChainNodeRequest;
 use App\Http\Requests\RemoveIntegrationChainEdgeRequest;
 use App\Http\Requests\RemoveIntegrationChainNodeRequest;
@@ -283,6 +285,46 @@ class SolutionIntegrationController extends Controller
         return response()->json([
             'type'    => 'success',
             'message' => 'Bloco adicionado.',
+            'node'    => IntegrationsMap::resolveNode($integration->chain['nodes'][$newIndex], $solutions, null),
+            'summary' => $this->labeler->label($integration->chain, $solutions),
+        ]);
+    }
+
+    /**
+     * Appends a new IMAGE block to the chain — pasting a picture directly onto
+     * the F3 canvas (Ctrl+V), the only way an `App\Enums\ChainNodeKind::Image`
+     * block is created. Stores the upload in `Integration`'s `docs` media
+     * collection (same collection/serving route as documentation-embedded
+     * images) and appends the node referencing it in one request, response
+     * shaped exactly like `addNode()`'s so the client reuses the same
+     * append-without-redrawing path. Like every other new block, it's born
+     * isolated — the image can still send/receive arrows afterwards, exactly
+     * like any other block, since edges only ever reference a node by index.
+     */
+    public function addImageNode(AddIntegrationChainImageRequest $request, Solution $solution, Integration $integration): JsonResponse
+    {
+        $chain = $integration->chain;
+        abort_if(! $chain, 404);
+
+        $media = $integration->addMediaFromRequest('image')->toMediaCollection(Documentable::DOCS_COLLECTION);
+
+        $chain['nodes'][] = [
+            'solution_id' => null,
+            'label'       => 'Imagem',
+            'kind'        => ChainNodeKind::Image->value,
+            'media_id'    => $media->id,
+        ];
+        $newIndex = count($chain['nodes']) - 1;
+
+        $integration->update(['chain' => $chain]);
+        $this->sync->handle($integration);
+
+        $integration = $integration->fresh();
+        $solutions = $this->labeler->resolveSolutions(collect([$integration->chain]));
+
+        return response()->json([
+            'type'    => 'success',
+            'message' => 'Imagem adicionada.',
             'node'    => IntegrationsMap::resolveNode($integration->chain['nodes'][$newIndex], $solutions, null),
             'summary' => $this->labeler->label($integration->chain, $solutions),
         ]);

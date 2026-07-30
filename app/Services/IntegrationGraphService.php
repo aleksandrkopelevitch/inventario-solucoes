@@ -137,9 +137,7 @@ class IntegrationGraphService
                 }
 
                 $bidirectional = ($edge['arrow'] ?? '->') === '<->';
-                $protocol = filled($edge['protocol'] ?? null)
-                    ? Protocol::tryFrom($edge['protocol'])
-                    : $integration->protocol;
+                $protocol = filled($edge['protocol'] ?? null) ? $edge['protocol'] : $integration->protocol;
 
                 $edges[] = $this->edge($integration, "sol-{$fromSid}", "sol-{$toSid}", $bidirectional, $protocol, $seq++);
             }
@@ -303,16 +301,20 @@ class IntegrationGraphService
 
     /**
      * Candidate edge (per segment) — input to `dedupePairs()`, never returned directly.
+     * `$protocol` is the raw stored value (free text or an `App\Enums\Protocol`
+     * case's value) — resolved to its human label the same way
+     * `IntegrationsMap::resolveProtocol()` does, so a free-text protocol still
+     * shows up on the global map instead of being silently dropped.
      *
      * @return array<string, mixed>
      */
-    private function edge(Integration $integration, string $source, string $target, bool $bidirectional, ?Protocol $protocol, int $seq): array
+    private function edge(Integration $integration, string $source, string $target, bool $bidirectional, ?string $protocol, int $seq): array
     {
         return [
             'id'               => "int-{$integration->id}-{$seq}",
             'source'           => $source,
             'target'           => $target,
-            'label'            => $protocol?->label() ?? '',
+            'label'            => filled($protocol) ? (Protocol::tryFrom($protocol)?->label() ?? $protocol) : '',
             'status'           => $integration->status->value,
             'direction'        => ($bidirectional ? Direction::Bidirectional : Direction::Unidirectional)->value,
             'slug'             => $integration->slug,
