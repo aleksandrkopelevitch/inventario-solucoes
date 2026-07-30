@@ -63,6 +63,13 @@ return [
         // reply (FlowspecContextResolver::suggestDocumentsFor) — more than
         // this turns into noise in the chat bubble.
         'max_suggested_documents' => env('DIGIBEE_FLOWSPEC_MAX_SUGGESTED_DOCUMENTS', 6),
+
+        // Validation ceiling for a single FlowspecGuideline document (always
+        // folded into systemPrompt() in full — no runtime budget/omission
+        // like doc_budget_chars, since this content is curated, not an open
+        // corpus). 20k chars is several pages — enough for any legitimate
+        // note, small enough to catch someone pasting a whole document in.
+        'max_guideline_chars' => env('DIGIBEE_FLOWSPEC_MAX_GUIDELINE_CHARS', 20000),
     ],
 
     /*

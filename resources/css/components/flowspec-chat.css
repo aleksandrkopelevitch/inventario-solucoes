@@ -1,0 +1,83 @@
+/* ------------------------------------------------------------------
+   flowSpec chat (F8, Especialista em Integrações) — assistant replies
+   are GitbookRenderer output (arbitrary Markdown → HTML), so they need
+   real typography for headings/lists/code with no fixed element to
+   attach a utility class to beforehand. Same legitimate-CSS-exception
+   reasoning as `.ak-viz-md` (integration-viz.blade.php) — kept as a
+   separate class rather than sharing that one because it's scoped to
+   the unrelated F3 canvas. Deliberately NOT `.html-content` either:
+   that class is sized for full documentation pages (h1 at text-4xl,
+   mt-8 spacing) — far too large for a chat bubble.
+-------------------------------------------------------------------- */
+
+.ak-flowspec-md { line-height: 1.6; }
+.ak-flowspec-md h1, .ak-flowspec-md h2, .ak-flowspec-md h3, .ak-flowspec-md h4 {
+    font-weight: 600;
+    color: var(--color-ink);
+    line-height: 1.25;
+    margin: .6em 0 .35em;
+    position: relative;
+}
+/* HeadingPermalinkExtension (same renderer as .html-content) adds a "#"
+   anchor to every heading — hidden until hover, same treatment as
+   .html-content, since a chat message has no stable URL fragment to link to. */
+.ak-flowspec-md .heading-permalink {
+    margin-left: .4em;
+    color: var(--color-muted);
+    text-decoration: none;
+    font-weight: 400;
+    opacity: 0;
+    transition: opacity .12s;
+}
+.ak-flowspec-md :is(h1, h2, h3, h4):hover .heading-permalink,
+.ak-flowspec-md .heading-permalink:focus { opacity: 1; }
+.ak-flowspec-md .heading-permalink:hover { color: var(--color-accent); }
+.ak-flowspec-md h1 { font-size: 1.3em; }
+.ak-flowspec-md h2 { font-size: 1.15em; }
+.ak-flowspec-md h3 { font-size: 1.05em; }
+.ak-flowspec-md h4 { font-size: .95em; }
+.ak-flowspec-md > :first-child { margin-top: 0; }
+.ak-flowspec-md p { margin: .5em 0; }
+.ak-flowspec-md ul, .ak-flowspec-md ol { margin: .5em 0; padding-left: 1.4em; }
+.ak-flowspec-md ul { list-style: disc; }
+.ak-flowspec-md ol { list-style: decimal; }
+.ak-flowspec-md li { margin: .2em 0; }
+.ak-flowspec-md li > p { margin: 0; }
+.ak-flowspec-md a { color: var(--color-accent); text-decoration: underline; }
+.ak-flowspec-md code {
+    background: var(--color-raised);
+    padding: .12em .4em;
+    border-radius: 5px;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: .88em;
+}
+.ak-flowspec-md pre {
+    background: var(--color-ink);
+    color: #fff;
+    padding: 12px 14px;
+    border-radius: 9px;
+    overflow-x: auto;
+    margin: .6em 0;
+}
+.ak-flowspec-md pre code { background: transparent; color: inherit; padding: 0; font-size: .85em; }
+.ak-flowspec-md blockquote {
+    border-left: 3px solid var(--color-accent);
+    margin: .6em 0;
+    padding: .1em 0 .1em 14px;
+    color: var(--color-muted);
+}
+.ak-flowspec-md hr { border: none; border-top: 1px solid var(--color-line); margin: .9em 0; }
+.ak-flowspec-md strong { font-weight: 700; color: var(--color-ink); }
+.ak-flowspec-md del { color: var(--color-faint); }
+.ak-flowspec-md table {
+    width: 100%;
+    margin: .6em 0;
+    font-size: .9em;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid var(--color-line);
+    border-radius: 8px;
+    overflow: hidden;
+}
+.ak-flowspec-md th, .ak-flowspec-md td { padding: .35em .6em; border-top: 1px solid var(--color-line); text-align: left; }
+.ak-flowspec-md th { background: var(--color-raised); border-top: none; font-weight: 600; }

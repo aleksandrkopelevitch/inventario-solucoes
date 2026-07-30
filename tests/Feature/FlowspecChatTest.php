@@ -5,6 +5,7 @@ use App\Jobs\GenerateFlowspecReply;
 use App\Models\DocumentationPage;
 use App\Models\FlowspecChat;
 use App\Models\FlowspecExample;
+use App\Models\FlowspecGuideline;
 use App\Models\Integration;
 use App\Models\Solution;
 use App\Models\User;
@@ -516,4 +517,106 @@ it('forbids non-admins from managing the corpus', function () {
     $this->actingAs($viewer)->postJson(route('flowspec.examples.store'), $payload)->assertForbidden();
     $this->actingAs($viewer)->patchJson(route('flowspec.examples.update', $example), $payload)->assertForbidden();
     $this->actingAs($viewer)->deleteJson(route('flowspec.examples.destroy', $example))->assertForbidden();
+});
+
+it('adds a hand-entered guideline document (admin)', function () {
+    $admin = flowspecUser(UserRole::Admin);
+
+    $this->actingAs($admin)
+        ->postJson(route('flowspec.guidelines.store'), [
+            'title'   => 'Boas práticas Digibee',
+            'content' => 'Prefira sempre reaproveitar conectores existentes antes de propor um novo.',
+        ])
+        ->assertOk()
+        ->assertJson(['type' => 'success']);
+
+    $guideline = FlowspecGuideline::query()->where('slug', 'boas-praticas-digibee')->firstOrFail();
+
+    expect($guideline->source)->toBe('manual')
+        ->and($guideline->is_active)->toBeTrue();
+});
+
+it('rejects a guideline carrying a literal credential', function () {
+    $admin = flowspecUser(UserRole::Admin);
+
+    $response = $this->actingAs($admin)
+        ->postJson(route('flowspec.guidelines.store'), [
+            'title'   => 'Vazado',
+            'content' => 'Exemplo de header: {"x-api-key":"chave-literal-123"}',
+        ])
+        ->assertStatus(422)
+        ->assertJson(['type' => 'warning']);
+
+    expect($response->json('message'))->toContain('credenciais literais')
+        ->and(FlowspecGuideline::query()->count())->toBe(0);
+});
+
+it('generates a distinct slug when two guidelines share the same title', function () {
+    $admin = flowspecUser(UserRole::Admin);
+    $payload = fn () => ['title' => 'Mesmo título', 'content' => 'Conteúdo qualquer.'];
+
+    $this->actingAs($admin)->postJson(route('flowspec.guidelines.store'), $payload())->assertOk();
+    $this->actingAs($admin)->postJson(route('flowspec.guidelines.store'), $payload())->assertOk();
+
+    $slugs = FlowspecGuideline::query()->pluck('slug');
+
+    expect($slugs)->toHaveCount(2)
+        ->and($slugs->unique())->toHaveCount(2)
+        ->and($slugs)->toContain('mesmo-titulo');
+});
+
+it('updates a guideline, keeping its slug stable and toggling it inactive', function () {
+    $admin = flowspecUser(UserRole::Admin);
+    $guideline = FlowspecGuideline::factory()->create(['title' => 'Antiga', 'slug' => 'antiga', 'is_active' => true]);
+
+    $this->actingAs($admin)
+        ->patchJson(route('flowspec.guidelines.update', $guideline), [
+            'title'   => 'Novo título',
+            'content' => 'Conteúdo atualizado.',
+            // is_active omitted → treated as false (toggle unchecked).
+        ])
+        ->assertOk()
+        ->assertJson(['type' => 'success']);
+
+    $guideline->refresh();
+
+    expect($guideline->title)->toBe('Novo título')
+        ->and($guideline->slug)->toBe('antiga') // slug is a stable key — not renamed
+        ->and($guideline->content)->toBe('Conteúdo atualizado.')
+        ->and($guideline->is_active)->toBeFalse();
+});
+
+it('deletes a guideline document', function () {
+    $admin = flowspecUser(UserRole::Admin);
+    $guideline = FlowspecGuideline::factory()->create();
+
+    $this->actingAs($admin)
+        ->deleteJson(route('flowspec.guidelines.destroy', $guideline))
+        ->assertOk()
+        ->assertJson(['type' => 'success']);
+
+    $this->assertModelMissing($guideline);
+});
+
+it('renders the guideline management modal for an admin', function () {
+    FlowspecGuideline::factory()->count(2)->create();
+    $admin = flowspecUser(UserRole::Admin);
+
+    $response = $this->actingAs($admin)->getJson(route('flowspec.guidelines.index'))->assertOk();
+
+    expect($response->json('content'))
+        ->toContain('Gerenciar diretrizes')
+        ->toContain('Nova diretriz')
+        ->toContain('flowspec-guideline-list-slot');
+});
+
+it('forbids non-admins from managing guidelines', function () {
+    $viewer = flowspecUser();
+    $guideline = FlowspecGuideline::factory()->create();
+    $payload = ['title' => 'X', 'content' => 'Y'];
+
+    $this->actingAs($viewer)->getJson(route('flowspec.guidelines.index'))->assertForbidden();
+    $this->actingAs($viewer)->postJson(route('flowspec.guidelines.store'), $payload)->assertForbidden();
+    $this->actingAs($viewer)->patchJson(route('flowspec.guidelines.update', $guideline), $payload)->assertForbidden();
+    $this->actingAs($viewer)->deleteJson(route('flowspec.guidelines.destroy', $guideline))->assertForbidden();
 });

@@ -19,6 +19,14 @@
         {{ $slot }}
     </div>
 
+    @can('viewAny', App\Models\FlowspecGuideline::class)
+        <a href="#" data-ak-modal-open="main-modal" data-ak-modal-url="{{ route('flowspec.guidelines.index') }}"
+           class="inline-flex shrink-0 items-center gap-1.5 rounded-field px-2.5 py-1.5 text-xs font-medium text-muted hover:bg-raised hover:text-ink"
+           title="Gerenciar as diretrizes que o especialista deve seguir">
+            <x-heroicon-o-clipboard-document-list class="size-4" /> Diretrizes
+        </a>
+    @endcan
+
     @can('viewAny', App\Models\FlowspecExample::class)
         <a href="#" data-ak-modal-open="main-modal" data-ak-modal-url="{{ route('flowspec.examples.index') }}"
            class="inline-flex shrink-0 items-center gap-1.5 rounded-field px-2.5 py-1.5 text-xs font-medium text-muted hover:bg-raised hover:text-ink"
