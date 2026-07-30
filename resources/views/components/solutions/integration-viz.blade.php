@@ -87,12 +87,29 @@
         <p data-viz-title class="min-w-0 flex-1 truncate text-sm font-medium text-ink">Selecione uma integração</p>
 
         {{-- Interaction hint, condensed into a discreet "?" so the (often
-             long) integration title keeps its room in this narrow bar.
-             `data-viz-hint` is presentational only — no JS hook reads it. --}}
-        <x-forms.button type="button" variant="ghost" data-viz-hint title="clique seleciona · arraste move · puxe a bolinha da borda até outro bloco pra ligar · roda dá zoom"
-            class="!shrink-0 !rounded-md !p-1.5 !text-faint hover:!bg-accent-soft hover:!text-ink">
-            <x-heroicon-o-question-mark-circle class="size-4" />
-        </x-forms.button>
+             long) integration title keeps its room in this narrow bar. A
+             click-triggered popover (`data-ak-toggle`, same pattern as the
+             user menu/share dropdowns), not just a hover `title` — a hover
+             tooltip never reaches touch users, and Ctrl+V-to-paste-an-image
+             has NO other on-screen affordance at all, so it has to be
+             discoverable here. `data-viz-hint` itself is presentational only
+             — no JS hook in integration-viz.js reads it. --}}
+        <div class="relative shrink-0">
+            <x-forms.button type="button" variant="ghost" data-viz-hint data-ak-toggle="viz-hint-popover" data-ak-toggle-classes="hidden" data-ak-toggle-blur="true"
+                title="Atalhos do canvas" aria-label="Atalhos do canvas"
+                class="!rounded-md !p-1.5 !text-faint hover:!bg-accent-soft hover:!text-ink">
+                <x-heroicon-o-question-mark-circle class="size-4" />
+            </x-forms.button>
+            <div id="viz-hint-popover" class="hidden absolute right-0 top-full z-30 mt-1.5 w-64 rounded-field border border-line bg-surface p-3 text-xs text-ink shadow-xl">
+                <ul class="flex flex-col gap-1.5">
+                    <li><strong class="font-semibold">Clique</strong> seleciona um bloco ou uma seta</li>
+                    <li><strong class="font-semibold">Arraste</strong> um bloco pra mover</li>
+                    <li><strong class="font-semibold">Puxe</strong> a bolinha da borda até outro bloco pra ligar</li>
+                    <li><strong class="font-semibold">Roda do mouse</strong> dá zoom</li>
+                    <li><strong class="font-semibold">Ctrl+V</strong> cola uma imagem direto no canvas</li>
+                </ul>
+            </div>
+        </div>
 
         {{-- Authoring cluster: rename/status, add block, organize layout,
              save. Viewport controls (zoom / center / fullscreen) live ONLY in
@@ -277,6 +294,23 @@
                     class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
                     <span class="pointer-events-none block h-0 w-4 border-t-2 border-dashed border-current"></span>
                 </x-forms.button>
+
+                {{-- Light image border — image blocks only (hidden for every
+                     other kind, toggled in `integration-viz.js::selectNode()`).
+                     Toggle turns a solid border on/off (defaults to white the
+                     first time); the color input customizes it — changing it
+                     always implies "on" too. Purely visual
+                     (`viz_layout.nodes[i].imageBorderColor`), independent of
+                     the block's background color. --}}
+                <div data-viz-toolbar-image-border class="hidden items-center gap-1.5">
+                    <span class="mx-0.5 h-6 w-px shrink-0 bg-line"></span>
+                    <x-forms.button type="button" variant="ghost" data-viz-toolbar-image-border-toggle title="Borda leve da imagem"
+                        class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
+                        <span class="pointer-events-none block size-3.5 rounded-[3px] border-2 border-current"></span>
+                    </x-forms.button>
+                    <x-forms.input type="color" data-viz-image-border-color title="Cor da borda"
+                        class="!size-[22px] !shrink-0 !cursor-pointer !rounded-md !border !border-line !bg-transparent !p-0 [&::-webkit-color-swatch]:!rounded-md [&::-webkit-color-swatch]:!border-none [&::-webkit-color-swatch-wrapper]:!p-0" />
+                </div>
 
                 <span class="mx-0.5 h-6 w-px shrink-0 bg-line"></span>
             </div>
@@ -469,20 +503,30 @@
                         block. Chooses direction + protocol of the new
                         link; no "Desligar" (there's nothing to disconnect
                         yet).
-             Protocol options come from `[data-ak-protocols]` (same
-             source/format as the `App\Enums\Protocol` enum), read and
-             cached in JS. --}}
+             Direction is two independent toggle buttons (not a 3-option
+             `<select>`) — clicking the left/right arrow flips it on/off; both
+             can be active at once (a double-headed arrow, `<->`), and turning
+             the last active one off is a no-op (`->`/`<-`/`<->` are the only
+             valid arrows — there's no "headless line" state to fall back to).
+             Protocol is free text (`data-viz-protocol-input`), with a
+             `<datalist>` of `[data-ak-protocols]` values (same source as the
+             `App\Enums\Protocol` enum) as suggestions only — anything typed
+             is accepted, not just those. --}}
         <div data-viz-protocol-editor
             class="pointer-events-auto absolute z-20 hidden w-[min(220px,80vw)] flex-col gap-2 rounded-xl border border-line bg-surface p-2.5 shadow-[0_8px_28px_rgba(16,24,40,.16)]">
-            <x-forms.select data-viz-protocol-arrow aria-label="Sentido do fluxo"
-                class="!h-8 !w-full !rounded-md !border-line !bg-surface !py-0 !text-xs">
-                <option value="->">&rarr; envia</option>
-                <option value="<-">&larr; recebe</option>
-                <option value="<->">&harr; envia e recebe</option>
-            </x-forms.select>
-            <x-forms.select data-viz-protocol-select class="!h-8 !w-full !rounded-md !border-line !bg-surface !py-0 !text-xs">
-                <option value="">Sem protocolo</option>
-            </x-forms.select>
+            <div class="flex items-center gap-1.5">
+                <x-forms.button type="button" variant="ghost" data-viz-protocol-arrow-left title="Seta para a origem (recebe)"
+                    class="!flex !flex-1 !items-center !justify-center !gap-1 !rounded-md !border !border-line !py-1.5 !text-ink hover:!bg-accent-soft">
+                    <x-heroicon-o-arrow-left class="size-3.5" />
+                </x-forms.button>
+                <x-forms.button type="button" variant="ghost" data-viz-protocol-arrow-right title="Seta para o destino (envia)"
+                    class="!flex !flex-1 !items-center !justify-center !gap-1 !rounded-md !border !border-line !py-1.5 !text-ink hover:!bg-accent-soft">
+                    <x-heroicon-o-arrow-right class="size-3.5" />
+                </x-forms.button>
+            </div>
+            <x-forms.input type="text" data-viz-protocol-input list="viz-protocol-options" autocomplete="off" placeholder="Protocolo (opcional, texto livre)"
+                class="!h-8 !w-full !rounded-md !border-line !bg-surface !text-xs" />
+            <datalist id="viz-protocol-options" data-viz-protocol-datalist></datalist>
             {{-- Dashed arrow — purely visual (`viz_layout.edges[i].dashed`),
                  independent of direction/protocol; available in both "edit"
                  and "create" mode. --}}
@@ -493,7 +537,7 @@
             <div class="flex items-center justify-between gap-1.5">
                 <x-forms.button type="button" variant="ghost" data-viz-protocol-delete title="Desligar (remove só a ligação, não os blocos)"
                     class="!rounded-md !p-1.5 !text-muted hover:!bg-accent-soft hover:!text-crit">
-                    <x-heroicon-o-link-slash class="size-4" />
+                    <x-heroicon-o-trash class="size-4" />
                 </x-forms.button>
                 <div class="flex items-center gap-1.5">
                     <x-forms.button type="button" variant="ghost" data-viz-protocol-cancel
@@ -906,6 +950,57 @@
                 color: var(--viz-ink);
                 pointer-events: none;
             }
+            /* Imagem colada (Ctrl+V, `ChainNodeKind::Image`): moldura mínima
+               (a foto já é o conteúdo), sem o padding/largura mínima dos
+               demais blocos — `max-width` casa com o `max-width` padrão do
+               bloco (240px) pra não destoar de tamanho no meio do grafo. SEM
+               fundo forçado — uma imagem com transparência real (PNG/SVG
+               com alfa) deve deixar o grid pontilhado do canvas aparecer por
+               trás dela, não ganhar uma chapa branca imposta; quem quiser uma
+               moldura visível usa a borda opcional do toolbar
+               (`imageBorderColor`, ver `.ak-viz-node.is-image` inline style
+               em `applyNodeStyle()`), não este `background`. */
+            .ak-viz-node.is-image {
+                padding: 4px;
+                min-width: 0;
+                /* Explicit, not just "omitted" — the base `.ak-viz-node` rule
+                   above already sets `background: var(--viz-node)` (the
+                   lavender fill), which would otherwise show through any
+                   transparent pixel just the same as a forced white would.
+                   `applyNodeStyle()` still overrides this with an inline
+                   style when the user picks a custom block color from the
+                   toolbar (that escape hatch is intentional — e.g. a colored
+                   mat behind a transparent-background logo). */
+                background: transparent;
+            }
+            .ak-viz-node.is-image img {
+                display: block;
+                max-width: 232px;
+                max-height: 232px;
+                width: auto;
+                height: auto;
+                border-radius: 6px;
+                object-fit: contain;
+                pointer-events: none; /* o drag do bloco já é tratado no `mousedown` do próprio nó */
+            }
+            /* Mídia removida por fora (ou um nó `image` mal formado sem
+               `media_id`) — quadro vazio com o ícone de fallback em vez de
+               quebrar/ficar em branco sem nenhuma pista visual. */
+            .ak-viz-node-image-fallback {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 120px;
+                height: 90px;
+                border-radius: 6px;
+                background: var(--viz-node-free);
+                border: 1px dashed var(--viz-line);
+                color: var(--viz-line);
+            }
+            .ak-viz-node-image-fallback svg {
+                width: 28px;
+                height: 28px;
+            }
             /* Dashed border toggle (`viz_layout.nodes[i].dashed`) — purely
                visual, independent of the block's kind/color. The decision
                block's visible shape is the `::before` layer (clip-path
@@ -977,6 +1072,14 @@
                 border: 1.5px solid var(--viz-select);
                 transform: translate(-50%, -50%);
                 opacity: 0;
+                /* Invisible until hover/selection (below) — MUST also ignore
+                   clicks while invisible, or its 11px hit target silently
+                   steals clicks meant for whatever's underneath/around it
+                   (a protocol pill drawn close to the block, an edge, empty
+                   canvas to pan) with zero visual cue anything was even
+                   there. Found via a scripted click on a protocol pill that
+                   landed on a neighboring block's invisible port instead. */
+                pointer-events: none;
                 cursor: crosshair;
                 transition: opacity .12s ease, transform .1s ease;
                 box-shadow: 0 1px 2px rgba(16, 24, 40, .18);
@@ -993,7 +1096,7 @@
             .ak-viz-port.is-l { left: 0; top: 50%; }
             .ak-viz-port.is-r { left: 100%; top: 50%; }
             .ak-viz-node:hover .ak-viz-port,
-            .ak-viz-node.is-selected .ak-viz-port { opacity: 1; }
+            .ak-viz-node.is-selected .ak-viz-port { opacity: 1; pointer-events: auto; }
             .ak-viz-port:hover {
                 background: var(--viz-select);
                 transform: translate(-50%, -50%) scale(1.35);

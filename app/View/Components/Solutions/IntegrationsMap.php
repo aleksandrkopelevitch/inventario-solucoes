@@ -14,6 +14,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\Component;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 /**
  * Plain nav list of the integrations the solution participates in (solution
@@ -84,7 +85,7 @@ class IntegrationsMap extends Component
      * `data-integration-graph` the page was first drawn from.
      *
      * @param  Collection<int, Solution>  $solutions
-     * @return array{nodes: array<int, array{label: string, kind: string, icon: string|null, solution: bool, solutionId: int|null, url: string|null, comment: string|null, logo: string|null, environment: array{label: string, icon: string|null}|null, cloud: array{label: string, icon: string|null}|null}>, edges: array<int, array{from: int, to: int, arrow: string, protocol: array{value: string, label: string}|null}>}|null
+     * @return array{nodes: array<int, array{label: string, kind: string, icon: string|null, solution: bool, solutionId: int|null, url: string|null, comment: string|null, logo: string|null, environment: array{label: string, icon: string|null}|null, cloud: array{label: string, icon: string|null}|null, mediaUrl: string|null}>, edges: array<int, array{from: int, to: int, arrow: string, protocol: array{value: string, label: string}|null}>}|null
      */
     public function graph(Integration $integration, ChainLabeler $labeler, Collection $solutions): ?array
     {
@@ -100,9 +101,21 @@ class IntegrationsMap extends Component
         // "stuck" at the wrong position — see note in the PR.
         $comments = $integration->viz_layout['comments'] ?? [];
 
+        // One query for every image node's media, instead of one per node —
+        // `resolveNode()` receives this batch and never queries on its own
+        // when it's given (only single-node call sites, updateNode()/addNode()/
+        // addImageNode(), fall back to querying by themselves).
+        $mediaIds = collect($chain['nodes'] ?? [])
+            ->filter(fn ($node) => ChainNodeKind::fromNode($node) === ChainNodeKind::Image)
+            ->pluck('media_id')
+            ->filter()
+            ->unique()
+            ->values();
+        $mediaById = $mediaIds->isEmpty() ? collect() : Media::whereIn('id', $mediaIds)->get()->keyBy('id');
+
         return [
             'nodes' => collect($chain['nodes'] ?? [])
-                ->map(fn ($node, $i) => self::resolveNode($node, $solutions, $comments[$i] ?? null))
+                ->map(fn ($node, $i) => self::resolveNode($node, $solutions, $comments[$i] ?? null, $mediaById))
                 ->values()
                 ->all(),
             'edges' => collect($chain['edges'] ?? [])
@@ -139,6 +152,10 @@ class IntegrationsMap extends Component
             // block (kind + Solution/free text, no edge and no protocol); the
             // wiring is a separate gesture afterwards (`edgeAddUrl`/`edgeRetargetUrl`).
             'nodeAddUrl' => route('solutions.integrations.chain.node.add', [$this->solution, $integration]),
+            // POST (multipart) from pasting an image directly on the canvas
+            // (Ctrl+V) — appends an isolated Image block, same spirit as
+            // `nodeAddUrl` above but carrying the picture instead of kind/Solution.
+            'imageAddUrl' => route('solutions.integrations.chain.image.add', [$this->solution, $integration]),
             // PATCH that reconnects the endpoint of a link to another block —
             // dragging the arrow's handle to a node different from the current one.
             'edgeRetargetUrl' => route('solutions.integrations.chain.edge.retarget', [$this->solution, $integration, 'EDGE_INDEX']),
@@ -181,14 +198,23 @@ class IntegrationsMap extends Component
      * already rendered (the JS builds nodes in plain DOM, without Blade).
      * Nodes stored before kinds existed have no `kind` key: they read as `system`.
      *
-     * @param  array{solution_id?: int|null, label?: string|null, kind?: string|null}  $node
+     * `media_id` (Image nodes only) resolves to `mediaUrl` — the authenticated
+     * `/files/{id}` URL (same convention as documentation-embedded images),
+     * never a raw disk URL. `$mediaById`, when given, is a batch already
+     * loaded by `graph()` (avoids N+1 across every image node); single-node
+     * call sites (`addNode()`, `updateNode()`, `addImageNode()`) leave it null
+     * and this queries for that one node's media on its own.
+     *
+     * @param  array{solution_id?: int|null, label?: string|null, kind?: string|null, media_id?: int|null}  $node
      * @param  Collection<int, Solution>  $solutions
-     * @return array{label: string, kind: string, icon: string|null, solution: bool, solutionId: int|null, url: string|null, comment: string|null, logo: string|null, environment: array{label: string, icon: string|null}|null, cloud: array{label: string, icon: string|null}|null}
+     * @param  Collection<int, Media>|null  $mediaById
+     * @return array{label: string, kind: string, icon: string|null, solution: bool, solutionId: int|null, url: string|null, comment: string|null, logo: string|null, environment: array{label: string, icon: string|null}|null, cloud: array{label: string, icon: string|null}|null, mediaUrl: string|null}
      */
-    public static function resolveNode(array $node, Collection $solutions, ?string $comment = null): array
+    public static function resolveNode(array $node, Collection $solutions, ?string $comment = null, ?Collection $mediaById = null): array
     {
         $kind = ChainNodeKind::fromNode($node);
         $solution = $kind->referencesSolution() ? ($solutions[$node['solution_id'] ?? null] ?? null) : null;
+        $media = $kind === ChainNodeKind::Image ? self::resolveMedia($node['media_id'] ?? null, $mediaById) : null;
 
         return [
             'label'       => (new ChainLabeler)->nodeLabel($node, $solutions),
@@ -201,7 +227,23 @@ class IntegrationsMap extends Component
             'logo'        => $solution?->logo_path ? Storage::disk('public')->url($solution->logo_path) : null,
             'environment' => self::attributeBadge($solution?->environment_label, $solution?->environment_icon),
             'cloud'       => self::attributeBadge($solution?->cloud_label, $solution?->cloud_icon),
+            'mediaUrl'    => $media ? route('files.show', $media) : null,
         ];
+    }
+
+    /** @param  Collection<int, Media>|null  $mediaById */
+    private static function resolveMedia(mixed $mediaId, ?Collection $mediaById): ?Media
+    {
+        if (! is_int($mediaId) && ! is_numeric($mediaId)) {
+            return null;
+        }
+        $mediaId = (int) $mediaId;
+
+        if ($mediaById?->has($mediaId)) {
+            return $mediaById->get($mediaId);
+        }
+
+        return Media::find($mediaId);
     }
 
     /**

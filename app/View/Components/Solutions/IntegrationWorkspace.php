@@ -43,7 +43,10 @@ class IntegrationWorkspace extends Component
             'solutionsList' => Solution::orderBy('name')->get(['id', 'name']),
             'protocolsList' => collect(Protocol::cases())->map(fn (Protocol $p) => ['value' => $p->value, 'label' => $p->label()])->values(),
             'statusesList'  => collect(IntegrationStatus::cases())->map(fn (IntegrationStatus $s) => ['value' => $s->value, 'label' => $s->label()])->values(),
-            'kindsList'     => collect(ChainNodeKind::cases())->map(fn (ChainNodeKind $k) => [
+            // Only the PICKABLE kinds — `Image` is excluded, since the kind
+            // picker cards are never how an image block gets created (pasting
+            // a picture on the canvas is, see `ChainNodeKind::pickable()`).
+            'kindsList' => collect(ChainNodeKind::cases())->filter(fn (ChainNodeKind $k) => $k->pickable())->map(fn (ChainNodeKind $k) => [
                 'value'         => $k->value,
                 'label'         => $k->label(),
                 'system'        => $k->referencesSolution(),

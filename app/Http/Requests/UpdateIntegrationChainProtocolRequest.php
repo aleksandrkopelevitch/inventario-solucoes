@@ -2,11 +2,9 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\Protocol;
 use App\Models\Integration;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Enum;
 
 /**
  * Updates the protocol and/or direction (`arrow`) of a single step (segment/
@@ -16,6 +14,12 @@ use Illuminate\Validation\Rules\Enum;
  * have its protocol (nullable) and direction freely edited. `arrow` is
  * `sometimes` — the panel always sends it together with the protocol, but
  * this keeps it compatible with a call that only wants to update the protocol.
+ *
+ * `protocol` accepts free text, not just `App\Enums\Protocol` values — the
+ * editor's field is a text input with a datalist of the enum's values as
+ * suggestions, not a closed `<select>`. A value that happens to match an enum
+ * case still resolves to that case's human label (`IntegrationsMap::resolveProtocol()`);
+ * anything else is displayed as typed.
  */
 class UpdateIntegrationChainProtocolRequest extends FormRequest
 {
@@ -33,7 +37,7 @@ class UpdateIntegrationChainProtocolRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'protocol' => ['nullable', new Enum(Protocol::class)],
+            'protocol' => ['nullable', 'string', 'max:60'],
             'arrow'    => ['sometimes', Rule::in(['->', '<-', '<->'])],
         ];
     }

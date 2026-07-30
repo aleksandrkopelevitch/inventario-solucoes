@@ -284,9 +284,37 @@ function paintNode(el, data) {
     el.classList.toggle('is-actor', kind === 'actor')
     el.classList.toggle('is-start', kind === 'start')
     el.classList.toggle('is-end', kind === 'end')
+    el.classList.toggle('is-image', kind === 'image')
     el.classList.toggle('has-comment', !!data.comment)
     el.classList.toggle('is-dashed', !!data.dashed)
     el.innerHTML = ''
+
+    // Imagem colada (Ctrl+V): só a própria imagem, sem avatar/rótulo — o
+    // conteúdo já É a imagem. Continua um bloco como qualquer outro (porta,
+    // badge de comentário), então pode enviar/receber setas normalmente.
+    // `data.mediaUrl` ausente (mídia removida por fora, ou um nó `image` mal
+    // formado) cai num quadro vazio com o ícone de fallback em vez de quebrar.
+    if (kind === 'image') {
+        if (data.mediaUrl) {
+            const img = document.createElement('img')
+            img.src = data.mediaUrl
+            img.alt = data.label || 'Imagem'
+            img.draggable = false
+            el.appendChild(img)
+        } else {
+            const fallback = document.createElement('span')
+            fallback.className = 'ak-viz-node-image-fallback'
+            if (data.icon) fallback.innerHTML = data.icon
+            el.appendChild(fallback)
+        }
+
+        const badge = document.createElement('span')
+        badge.className = 'ak-viz-comment-badge'
+        el.appendChild(badge)
+
+        buildPorts(el)
+        return
+    }
 
     // Início/Fim: só o ícone dentro do círculo sólido + o rótulo escrito
     // ABAIXO dele (`.ak-viz-node-endcap-label`), nunca ao lado — layout
@@ -537,6 +565,9 @@ function mount(root) {
     const toolbarTextColorWrap = root.querySelector('[data-viz-text-color-wrap]')
     const toolbarFont = root.querySelector('[data-viz-font]')
     const toolbarDashedBtn = root.querySelector('[data-viz-toolbar-dashed]')
+    const toolbarImageBorderWrap = root.querySelector('[data-viz-toolbar-image-border]')
+    const toolbarImageBorderToggle = root.querySelector('[data-viz-toolbar-image-border-toggle]')
+    const toolbarImageBorderColor = root.querySelector('[data-viz-image-border-color]')
     const toolbarActions = root.querySelector('[data-viz-toolbar-actions]')
     const toolbarTitleBtn = root.querySelector('[data-viz-toolbar-title]')
     const toolbarComment = root.querySelector('[data-viz-toolbar-comment]')
@@ -556,8 +587,10 @@ function mount(root) {
     const titleSaveLabel = root.querySelector('[data-viz-title-save-label]')
     const titleCancel = root.querySelector('[data-viz-title-cancel]')
     const protocolEditor = root.querySelector('[data-viz-protocol-editor]')
-    const protocolArrowSelect = root.querySelector('[data-viz-protocol-arrow]')
-    const protocolSelect = root.querySelector('[data-viz-protocol-select]')
+    const protocolArrowLeft = root.querySelector('[data-viz-protocol-arrow-left]')
+    const protocolArrowRight = root.querySelector('[data-viz-protocol-arrow-right]')
+    const protocolInput = root.querySelector('[data-viz-protocol-input]')
+    const protocolDatalist = root.querySelector('[data-viz-protocol-datalist]')
     const protocolDashedCheckbox = root.querySelector('[data-viz-protocol-dashed]')
     const protocolDelete = root.querySelector('[data-viz-protocol-delete]')
     const protocolSave = root.querySelector('[data-viz-protocol-save]')
@@ -580,6 +613,11 @@ function mount(root) {
     let lanes = []          // [{label, color, x, y, width, height}] — raias (viz_layout.lanes), puramente visual
     let laneEls = []        // [{wrap, label, handles:{e,s,se}}] — elementos DOM das raias, paralelos a `lanes`
     let selectedLane = null // índice da raia com o toolbar (cor/nome/remover) aberto, ou null
+    // Fração (0–1) de onde, ao longo da ALTURA da etiqueta, o clique que abriu
+    // o toolbar aconteceu — usada por `positionLaneToolbar()` pra ancorar o
+    // painel perto do clique de verdade em vez do topo/base do retângulo
+    // inteiro da raia, que pode ter centenas de px de altura/largura.
+    let selectedLaneClickFrac = 0.5
     let creatingEdge = false // POST de ligação nova em voo — ver `appendEdgeLocally()`
     let slug = ''
     let editable = false
@@ -593,6 +631,19 @@ function mount(root) {
     let linking = null        // índice do nó de origem, enquanto o "modo ligar" está ativo
     let edgeEditorMode = null // 'edit' (ligação existente, ancorado à pill) | 'create' (ligação nova, ancorado ao nó de destino)
     let pendingConnect = null // {from, to} — só em modo 'create', até o POST confirmar
+    // Espelho local dos dois botões-toggle de sentido do editor de ligação
+    // (`data-viz-protocol-arrow-left/right`) — `left` = cabeça de seta na
+    // origem (`<-`), `right` = cabeça de seta no destino (`->`); ambos juntos
+    // formam `<->`. Nunca fica com os dois desligados: '->'/'<-'/'<->' são os
+    // únicos valores válidos, então `toggleArrowSide()` ignora o clique que
+    // desligaria o último ativo — ver `currentArrowValue()`/`setArrowUI()`.
+    let arrowState = { left: false, right: true }
+    let pastingImage = false // uma imagem colada por vez — ver handlePasteImage()
+    // true quando o `render()` mais recente aplicou posições SALVAS
+    // (`viz_layout`) em vez de `layoutDefault()` — o `ResizeObserver` de
+    // "hidden tab" abaixo só reflowa (`layoutDefault()` de novo) quando isto
+    // é false; um layout salvo não é dele pra reposicionar.
+    let usedCustomLayout = false
     // Preenchidos só quando o painel "Adicionar bloco" abre a partir de
     // soltar uma seta no CANVAS VAZIO (não no botão "+" da topbar) — ver
     // `openQuickAddEditor()`. `quickAddOrigin` é a porta de onde a seta
@@ -707,11 +758,35 @@ function mount(root) {
 
             el.addEventListener('mousedown', (e) => startNodePointer(e, i))
             world.appendChild(el)
-            nodes.push({ ...data, el, w: 0, h: 0, x: 0, y: 0, color: null, textColor: null, font: 'sans' })
+            nodes.push({ ...data, el, w: 0, h: 0, x: 0, y: 0, color: null, textColor: null, font: 'sans', imageBorderColor: null })
         })
         nodes.forEach((n) => {
             n.w = n.el.offsetWidth
             n.h = n.el.offsetHeight
+        })
+
+        // Same reasoning as `appendNode()`: an image node's <img> loads
+        // asynchronously, so it can still be 0×0 above — remeasure once it
+        // actually loads and redo the layout that was computed from the
+        // wrong size (only when no saved layout owns the positions —
+        // `usedCustomLayout`, set right below; read here lazily since this
+        // listener only fires later, well after that assignment runs).
+        nodes.forEach((n) => {
+            if (n.kind !== 'image') return
+            const img = n.el.querySelector('img')
+            if (!img || img.complete) return
+            img.addEventListener('load', () => {
+                n.w = n.el.offsetWidth
+                n.h = n.el.offsetHeight
+                if (!usedCustomLayout) {
+                    layoutDefault()
+                    nodes.forEach((m) => {
+                        m.el.style.left = m.x + 'px'
+                        m.el.style.top = m.y + 'px'
+                    })
+                }
+                draw()
+            }, { once: true })
         })
 
         layoutDefault()
@@ -720,7 +795,15 @@ function mount(root) {
         // do número de nós.
         edgeAnchors = Array.from({ length: (graph.edges || []).length }, () => ({ from: 'r', to: 'l', dashed: false }))
 
-        applyLayout(savedLayouts.get(slug) ?? graph.layout)
+        const layoutToApply = savedLayouts.get(slug) ?? graph.layout
+        // Mesma condição que `applyLayout()` usa por dentro pra saber se ela
+        // vai SOBRESCREVER `layoutDefault()` com posições salvas — o
+        // `ResizeObserver` de "hidden tab" mais abaixo usa esta MESMA
+        // variável pra saber se pode reflowar (`layoutDefault()` de novo,
+        // sem layout salvo em jogo) ou só remedir w/h (posições vieram do
+        // `viz_layout`, não são dele pra mexer).
+        usedCustomLayout = Array.isArray(layoutToApply?.nodes) && layoutToApply.nodes.length === nodes.length
+        applyLayout(layoutToApply)
         nodes.forEach((n) => {
             n.el.style.left = n.x + 'px'
             n.el.style.top = n.y + 'px'
@@ -743,6 +826,10 @@ function mount(root) {
         n.el.style.color = n.textColor || (n.color ? textColorFor(n.color) : '')
         n.el.style.fontFamily = FONTS[n.font] || FONTS.sans
         n.el.classList.toggle('is-dashed', !!n.dashed)
+        // Borda leve opcional — só imagem (`viz_layout.nodes[i].imageBorderColor`);
+        // guardado por `kind` pra nunca escrever um `border` inline nos
+        // outros tipos, cujo contorno é só CSS de classe (`.is-dashed` etc.).
+        if (n.kind === 'image') n.el.style.border = n.imageBorderColor ? `1.5px solid ${n.imageBorderColor}` : ''
     }
 
     // Layout padrão esquerda→direita, centros na linha y=0.
@@ -792,6 +879,7 @@ function mount(root) {
                 if (isHex(p?.textColor)) n.textColor = p.textColor
                 if (p && FONTS[p.font]) n.font = p.font
                 if (p && typeof p.dashed === 'boolean') n.dashed = p.dashed
+                if (isHex(p?.imageBorderColor)) n.imageBorderColor = p.imageBorderColor
             })
         }
         if (Array.isArray(layout.edges) && layout.edges.length === edgeAnchors.length) {
@@ -986,7 +1074,7 @@ function mount(root) {
     // separado) + remover, já que uma raia não tem título/comentário/link
     // pra editar. Mutuamente exclusivo com o toolbar do bloco: `selectNode()`
     // fecha este; este fecha aquele.
-    function selectLane(index) {
+    function selectLane(index, clientY = null) {
         if (!editable || !laneEls[index]) return
         selectNode(null)
         closeProtocolEditor()
@@ -997,6 +1085,15 @@ function mount(root) {
         selectedLane = index
         laneEls[index].wrap.classList.add('is-selected')
         if (laneToolbarLabel) laneToolbarLabel.value = lanes[index].label
+        // `clientY` vem do próprio clique que abriu o toolbar (ver o
+        // `mouseup` de `drag.type === 'lane-move'`) — guardado como fração da
+        // altura da ETIQUETA (não da raia inteira) pra `positionLaneToolbar()`
+        // conseguir ancorar perto de onde o usuário realmente clicou, e
+        // continuar válido enquanto a raia é arrastada/redimensionada depois.
+        const labelRect = laneEls[index].label.getBoundingClientRect()
+        selectedLaneClickFrac = (clientY !== null && labelRect.height)
+            ? Math.min(1, Math.max(0, (clientY - labelRect.top) / labelRect.height))
+            : 0.5
         buildLaneSwatches()
         laneToolbar?.classList.remove('hidden')
         laneToolbar?.classList.add('flex')
@@ -1011,28 +1108,30 @@ function mount(root) {
         laneToolbar.classList.remove('flex')
     }
 
-    // Ancorado à raia selecionada — mesma lógica de `positionToolbar()`
-    // (bloco), só que a base é `laneEls[selectedLane].wrap.getBoundingClientRect()`
-    // em vez do nó: como a raia é filha de `world`, seu retângulo em tela já
-    // reflete pan/zoom sozinho, então isso funciona sem nenhuma conversão
-    // adicional.
+    // Ancorado ao PONTO DE CLIQUE que abriu o toolbar (`selectedLaneClickFrac`,
+    // projetado na etiqueta atual), não ao retângulo inteiro da raia — uma
+    // raia pode ter até `LANE_MAX_SIZE` (6000px) de largura/altura, e centrar
+    // no meio dela (ou colar no seu topo/base) jogava o painel bem longe de
+    // onde o usuário realmente clicou. A etiqueta é sempre a faixa estreita
+    // na borda esquerda (é o único alvo clicável que abre isto), então seu
+    // retângulo em tela já reflete pan/zoom/arraste sozinho, sem conversão.
     function positionLaneToolbar() {
         if (!laneToolbar || selectedLane === null || !laneEls[selectedLane]) return
         if (laneToolbar.classList.contains('hidden')) return
 
         const stageRect = stage.getBoundingClientRect()
-        const laneRect = laneEls[selectedLane].wrap.getBoundingClientRect()
-        const laneLeft = laneRect.left - stageRect.left
-        const laneTop = laneRect.top - stageRect.top
+        const labelRect = laneEls[selectedLane].label.getBoundingClientRect()
+        const anchorLeft = labelRect.left - stageRect.left
+        const anchorTop = labelRect.top - stageRect.top + selectedLaneClickFrac * labelRect.height
 
         const tw = laneToolbar.offsetWidth
         const th = laneToolbar.offsetHeight
         const sidebarWidth = isSidebarOpen() ? sidebar.offsetWidth : 0
         const maxLeft = stageRect.width - sidebarWidth - tw - 8
 
-        let left = laneLeft + laneRect.width / 2 - tw / 2
-        let top = laneTop - th - PANEL_GAP
-        if (top < 8) top = laneTop + laneRect.height + PANEL_GAP
+        let left = anchorLeft + labelRect.width / 2 - tw / 2
+        let top = anchorTop - th - PANEL_GAP
+        if (top < 8) top = anchorTop + PANEL_GAP
         left = Math.max(8, Math.min(left, Math.max(8, maxLeft)))
 
         laneToolbar.style.left = left + 'px'
@@ -1231,11 +1330,16 @@ function mount(root) {
             toolbar?.classList.remove('hidden')
             toolbar?.classList.add('flex')
             if (toolbarOpen) toolbarOpen.disabled = !nodes[index].url
-            // Título só é editável fora do nó raiz (índice 0) — mesma
-            // invariante do form completo de cadeia. "Ligar a outro bloco"
-            // não tem essa restrição: qualquer bloco (inclusive o raiz) pode
-            // originar uma ligação nova.
-            toolbarTitleBtn?.classList.toggle('hidden', !editable || index === 0)
+            // Título só é editável fora do nó raiz (índice 0) e nunca num
+            // bloco de imagem — não tem tipo/Solução/texto pra editar, só a
+            // imagem colada (ver `ChainNodeKind::pickable()`). "Ligar a outro
+            // bloco" não tem nenhuma dessas restrições: qualquer bloco
+            // (inclusive o raiz ou uma imagem) pode originar uma ligação nova.
+            toolbarTitleBtn?.classList.toggle('hidden', !editable || index === 0 || nodes[index].kind === 'image')
+            // Borda leve com cor: só faz sentido numa imagem colada (as
+            // outras formas já têm seu próprio preenchimento/forma).
+            toolbarImageBorderWrap?.classList.toggle('hidden', !editable || nodes[index].kind !== 'image')
+            toolbarImageBorderWrap?.classList.toggle('flex', editable && nodes[index].kind === 'image')
             toolbarLinkBtn?.classList.toggle('!hidden', !editable)
             // A lixeira segue a mesma regra do lápis: o nó raiz não sai (o
             // servidor recusa índice 0 de qualquer forma).
@@ -1283,6 +1387,14 @@ function mount(root) {
             toolbarDashedBtn.classList.toggle('border-dashed', !!n.dashed)
             toolbarDashedBtn.classList.toggle('!bg-accent-soft', !!n.dashed)
         }
+        // A cor do input reflete a borda atual, ou branco (o padrão sugerido
+        // quando o usuário ainda não ligou a borda) — nunca o preto que um
+        // <input type="color"> assume sozinho sem um value explícito.
+        if (toolbarImageBorderColor) toolbarImageBorderColor.value = isHex(n.imageBorderColor) ? n.imageBorderColor : '#FFFFFF'
+        if (toolbarImageBorderToggle) {
+            toolbarImageBorderToggle.classList.toggle('!bg-accent-soft', !!n.imageBorderColor)
+            toolbarImageBorderToggle.setAttribute('aria-pressed', String(!!n.imageBorderColor))
+        }
     }
 
     // Borda tracejada do bloco selecionado — puramente visual
@@ -1290,6 +1402,28 @@ function mount(root) {
     toolbarDashedBtn?.addEventListener('click', () => {
         if (!editable || selectedIndex === null || !nodes[selectedIndex]) return
         nodes[selectedIndex].dashed = !nodes[selectedIndex].dashed
+        applyNodeStyle(nodes[selectedIndex])
+        refreshToolbarControls()
+        setDirty(true)
+    })
+
+    // Borda leve da imagem — liga/desliga (branco por padrão na primeira
+    // vez); só chega a fazer algo quando o bloco selecionado é uma imagem
+    // (o próprio wrap já fica escondido pros demais tipos, mas a guarda
+    // aqui evita qualquer clique perdido enquanto o painel troca de bloco).
+    toolbarImageBorderToggle?.addEventListener('click', () => {
+        if (!editable || selectedIndex === null || !nodes[selectedIndex] || nodes[selectedIndex].kind !== 'image') return
+        const n = nodes[selectedIndex]
+        n.imageBorderColor = n.imageBorderColor ? null : (toolbarImageBorderColor?.value || '#FFFFFF')
+        applyNodeStyle(n)
+        refreshToolbarControls()
+        setDirty(true)
+    })
+    // Trocar a cor sempre implica "ligada" — não existe um estado
+    // "desligada mas com uma cor guardada" pro usuário confundir.
+    toolbarImageBorderColor?.addEventListener('input', (e) => {
+        if (!editable || selectedIndex === null || !nodes[selectedIndex] || nodes[selectedIndex].kind !== 'image') return
+        nodes[selectedIndex].imageBorderColor = e.target.value
         applyNodeStyle(nodes[selectedIndex])
         refreshToolbarControls()
         setDirty(true)
@@ -1827,7 +1961,7 @@ function mount(root) {
         world.appendChild(el)
 
         const prev = nodes[index - 1]
-        const entry = { ...data, el, w: 0, h: 0, x: 0, y: 0, color: null, textColor: null, font: 'sans' }
+        const entry = { ...data, el, w: 0, h: 0, x: 0, y: 0, color: null, textColor: null, font: 'sans', imageBorderColor: null }
         nodes.push(entry)
         entry.w = el.offsetWidth
         entry.h = el.offsetHeight
@@ -1845,6 +1979,31 @@ function mount(root) {
         if (graphRef) {
             graphRef.nodes = graphRef.nodes || []
             graphRef.nodes.push(data)
+        }
+
+        // A pasted image's <img> loads asynchronously (a real request to
+        // /files/{id}) — `entry.w`/`h` above can still be 0×0 at this point,
+        // so `anchorPoint()` divides every side down to the same point and
+        // any arrow dragged to/from this node right after pasting resolves
+        // to the same degenerate anchor no matter which side was actually
+        // pulled from. Remeasure once it actually loads and redraw —
+        // recentering on `pos` too, since it was centered using the wrong
+        // (zero) size the first time.
+        const img = el.querySelector('img')
+        if (img && !img.complete) {
+            img.addEventListener('load', () => {
+                const newW = el.offsetWidth
+                const newH = el.offsetHeight
+                if (pos) {
+                    entry.x -= (newW - entry.w) / 2
+                    entry.y -= (newH - entry.h) / 2
+                    el.style.left = entry.x + 'px'
+                    el.style.top = entry.y + 'px'
+                }
+                entry.w = newW
+                entry.h = newH
+                draw()
+            }, { once: true })
         }
 
         draw()
@@ -2056,6 +2215,64 @@ function mount(root) {
     // protocolo (pill tracejada "+ protocolo", desenhada em `drawProtocolPill()`).
     let protocolAnchorNode = null // índice do nó de destino, só em modo 'create' (âncora do painel em vez da pill)
 
+    // ── sentido da ligação: dois botões-toggle independentes ───────────
+    // `left`/`right` espelham se cada cabeça de seta está ativa —
+    // `refreshArrowButtons()` só pinta o estado atual, `setArrowUI()` o
+    // recebe pronto (abrindo o editor), `toggleArrowSide()` responde ao
+    // clique. `currentArrowValue()` é a única leitura que `saveEdgeEdit()`/
+    // `createEdge()` fazem — nunca leem `arrowState` diretamente.
+    function refreshArrowButtons() {
+        ;[[protocolArrowLeft, arrowState.left], [protocolArrowRight, arrowState.right]].forEach(([btn, active]) => {
+            if (!btn) return
+            btn.classList.toggle('border-accent', active)
+            btn.classList.toggle('bg-accent-soft', active)
+            btn.classList.toggle('text-accent', active)
+            btn.classList.toggle('border-line', !active)
+            btn.classList.toggle('text-ink', !active)
+            btn.setAttribute('aria-pressed', String(active))
+        })
+    }
+
+    function setArrowUI(arrow) {
+        arrowState = { left: arrow === '<-' || arrow === '<->', right: arrow === '->' || arrow === '<->' }
+        refreshArrowButtons()
+    }
+
+    // Ignora o clique que desligaria a última cabeça ativa — '->'/'<-'/'<->'
+    // são os únicos sentidos válidos, não existe "sem cabeça nenhuma" pro
+    // servidor guardar.
+    function toggleArrowSide(side) {
+        const next = { ...arrowState, [side]: !arrowState[side] }
+        if (!next.left && !next.right) {
+            // Silently refusing this click would just look like a broken
+            // button — say why nothing moved, same spirit as the other
+            // blocked-action warnings in this file (e.g. `readNodeForm()`).
+            window.Toast?.show?.('Pelo menos um sentido precisa ficar ativo.', 'warning')
+            return
+        }
+        arrowState = next
+        refreshArrowButtons()
+    }
+
+    function currentArrowValue() {
+        if (arrowState.left && arrowState.right) return '<->'
+        return arrowState.left ? '<-' : '->'
+    }
+
+    protocolArrowLeft?.addEventListener('click', () => toggleArrowSide('left'))
+    protocolArrowRight?.addEventListener('click', () => toggleArrowSide('right'))
+
+    // Sugestões do input de protocolo (texto livre) — construídas uma vez só
+    // (a lista de `App\Enums\Protocol` é estática nesta sessão), ao contrário
+    // do antigo `<select>` que era remontado a cada abertura do editor.
+    if (protocolDatalist) {
+        getProtocolsList().forEach((p) => {
+            const opt = document.createElement('option')
+            opt.value = p.label
+            protocolDatalist.appendChild(opt)
+        })
+    }
+
     function selectEdge(index) {
         if (!editable) return
         selectNode(null) // exclusão mútua com seleção de nó/editor de título
@@ -2072,24 +2289,9 @@ function mount(root) {
         const edge = graphRef.edges?.[index]
         const current = edge?.protocol ?? null
 
-        if (protocolArrowSelect) protocolArrowSelect.value = edge?.arrow || '->'
+        setArrowUI(edge?.arrow || '->')
         if (protocolDashedCheckbox) protocolDashedCheckbox.checked = !!edgeAnchors[index]?.dashed
-        if (protocolSelect) {
-            protocolSelect.innerHTML = ''
-            const noneOpt = document.createElement('option')
-            noneOpt.value = ''
-            noneOpt.textContent = 'Sem protocolo'
-            if (!current) noneOpt.selected = true
-            protocolSelect.appendChild(noneOpt)
-
-            getProtocolsList().forEach((p) => {
-                const opt = document.createElement('option')
-                opt.value = p.value
-                opt.textContent = p.label
-                if (current?.value === p.value) opt.selected = true
-                protocolSelect.appendChild(opt)
-            })
-        }
+        if (protocolInput) protocolInput.value = current?.value ?? ''
         protocolDelete?.classList.remove('hidden')
         if (protocolSaveLabel) protocolSaveLabel.textContent = 'Salvar'
 
@@ -2109,23 +2311,9 @@ function mount(root) {
         selectedEdge = null
         protocolAnchorNode = toIndex
 
-        if (protocolArrowSelect) protocolArrowSelect.value = '->'
+        setArrowUI('->')
         if (protocolDashedCheckbox) protocolDashedCheckbox.checked = false
-        if (protocolSelect) {
-            protocolSelect.innerHTML = ''
-            const noneOpt = document.createElement('option')
-            noneOpt.value = ''
-            noneOpt.textContent = 'Sem protocolo'
-            noneOpt.selected = true
-            protocolSelect.appendChild(noneOpt)
-
-            getProtocolsList().forEach((p) => {
-                const opt = document.createElement('option')
-                opt.value = p.value
-                opt.textContent = p.label
-                protocolSelect.appendChild(opt)
-            })
-        }
+        if (protocolInput) protocolInput.value = ''
         protocolDelete?.classList.add('hidden')
         if (protocolSaveLabel) protocolSaveLabel.textContent = 'Ligar'
 
@@ -2186,8 +2374,8 @@ function mount(root) {
 
     async function saveEdgeEdit() {
         if (selectedEdge === null) return
-        const protocol = protocolSelect?.value ?? ''
-        const arrow = protocolArrowSelect?.value || '->'
+        const protocol = (protocolInput?.value ?? '').trim()
+        const arrow = currentArrowValue()
         // Tracejado é só `viz_layout` (nunca `chain`) — aplicado localmente,
         // sem PATCH próprio; entra no ar só quando "Salvar" (layout) rodar.
         const dashed = !!protocolDashedCheckbox?.checked
@@ -2258,8 +2446,8 @@ function mount(root) {
     async function createEdge() {
         if (!pendingConnect || !graphRef?.edgeAddUrl || creatingEdge) return
         const { from, to } = pendingConnect
-        const arrow = protocolArrowSelect?.value || '->'
-        const protocol = protocolSelect?.value ?? ''
+        const arrow = currentArrowValue()
+        const protocol = (protocolInput?.value ?? '').trim()
         const dashed = !!protocolDashedCheckbox?.checked
 
         creatingEdge = true
@@ -2730,6 +2918,7 @@ function mount(root) {
                 textColor: n.textColor || null,
                 font: n.font || 'sans',
                 dashed: !!n.dashed,
+                imageBorderColor: n.imageBorderColor || null,
             })),
             edges: edgeAnchors.map((a) => ({ from: a.from, to: a.to, dashed: !!a.dashed })),
             comments: nodes.map((n) => n.comment || null),
@@ -2785,9 +2974,7 @@ function mount(root) {
         lastPointerY = e.clientY
     })
 
-    viewport.addEventListener('mousedown', (e) => {
-        if (e.button !== 0 || drag) return
-        if (linking !== null) { cancelLinking(); return }
+    function startPanning(e) {
         selectNode(null)
         panning = true
         sx = e.clientX
@@ -2795,6 +2982,27 @@ function mount(root) {
         ox = view.x
         oy = view.y
         viewport.classList.add('is-panning')
+    }
+
+    // Ctrl+clique força o pan mesmo com o ponteiro em cima de um bloco/porta/
+    // raia/alça/pill de protocolo — todos vivem dentro de `viewport` (via
+    // `world`), então um listener de CAPTURA aqui roda antes do próprio
+    // `mousedown` desses elementos (que começaria um arraste/seleção em vez
+    // de mover o canvas), e `stopPropagation()` nesta fase impede esses
+    // listeners de sequer rodar. Sem isto, mover o canvas exige acertar um
+    // pedaço vazio do fundo — impossível quando a cadeia enche o viewport.
+    viewport.addEventListener('mousedown', (e) => {
+        if (e.button !== 0 || !e.ctrlKey || drag) return
+        e.stopPropagation()
+        e.preventDefault()
+        if (linking !== null) cancelLinking()
+        startPanning(e)
+    }, true)
+
+    viewport.addEventListener('mousedown', (e) => {
+        if (e.button !== 0 || drag) return
+        if (linking !== null) { cancelLinking(); return }
+        startPanning(e)
     })
     window.addEventListener('mousemove', (e) => {
         if (drag?.type === 'node') {
@@ -2919,7 +3127,7 @@ function mount(root) {
                 // Arraste de fato (de qualquer parte do corpo): só confirma a
                 // posição nova, mesma distinção de `drag.type === 'node'`
                 // acima.
-                if (!drag.moved) { if (drag.onLabel) selectLane(drag.index) }
+                if (!drag.moved) { if (drag.onLabel) selectLane(drag.index, e.clientY) }
                 else setDirty(true)
             }
             drag = null
@@ -3008,11 +3216,20 @@ function mount(root) {
     // every side (`node.w * fx`, `node.h * fy`) down to 0, so EVERY arrow
     // renders at each node's raw top-left corner instead of its real side,
     // and dragging an edge's handle can never detect hovering a block (its
-    // w×h hit-box is degenerate). A ResizeObserver on the viewport reliably
-    // fires the moment the tab panel is unhidden (content box goes from 0×0
-    // to its real size, unlike `window`'s 'resize', which never fires for a
-    // display:none→block toggle) — re-measure then and redraw/refit so a
-    // stale zero from a hidden first render is never load-bearing again.
+    // w×h hit-box is degenerate). Worse, when there's no saved `viz_layout`
+    // yet, `layoutDefault()` also ran on that same stale 0×0 — every block a
+    // flat `LEVEL_GAP` (90px) apart from its neighbor's LEFT edge, regardless
+    // of the real (nonzero) width it turns out to have — so once the tab
+    // becomes visible and blocks paint at their real size, adjacent ones
+    // visibly overlap (confirmed with a scripted 2-node chain: the second
+    // block rendered fully inside the first one's box). A ResizeObserver on
+    // the viewport reliably fires the moment the tab panel is unhidden
+    // (content box goes from 0×0 to its real size, unlike `window`'s
+    // 'resize', which never fires for a display:none→block toggle) —
+    // re-measure then, redo `layoutDefault()` too (only when no saved layout
+    // owns the positions — `usedCustomLayout`, set by the `render()` that
+    // just ran on the stale zero) so the overlap is fixed instead of just the
+    // anchor math, and redraw/refit so a stale zero is never load-bearing again.
     const viewportResizeObserver = new ResizeObserver((entries) => {
         const entry = entries[entries.length - 1]
         if (!entry || entry.contentRect.width === 0 || entry.contentRect.height === 0 || !nodes.length) return
@@ -3021,19 +3238,92 @@ function mount(root) {
             n.w = n.el.offsetWidth
             n.h = n.el.offsetHeight
         })
+        if (wasZeroSized) {
+            if (!usedCustomLayout) layoutDefault()
+            nodes.forEach((n) => {
+                n.el.style.left = n.x + 'px'
+                n.el.style.top = n.y + 'px'
+            })
+        }
         draw()
         if (wasZeroSized) fit()
     })
     viewportResizeObserver.observe(viewport)
 
     // Esc cancela o "modo ligar" (se ativo), fecha o toolbar de uma raia
-    // selecionada, ou fecha a sidebar de comentário.
+    // selecionada, fecha a sidebar de comentário, ou (fallback) fecha
+    // qualquer outro popover ainda aberto — `selectNode(null)` é a mesma
+    // chamada que o mousedown no canvas vazio já faz, e internamente fecha
+    // o editor de título, o editor de protocolo, o painel "Adicionar bloco"
+    // e a toolbar do bloco selecionado, então Esc passa a fechar tudo que
+    // clicar fora já fechava.
     window.addEventListener('keydown', (e) => {
         if (e.key !== 'Escape') return
         if (linking !== null) { cancelLinking(); return }
         if (selectedLane !== null) { closeLaneToolbar(); return }
-        if (isSidebarOpen()) closeComment()
+        if (isSidebarOpen()) { closeComment(); return }
+        selectNode(null)
     })
+
+    // Ctrl+V (ou Cmd+V) cola uma imagem direto no canvas — vira um bloco
+    // `image` como qualquer outro (porta, seta, comentário), a única forma de
+    // criar um (ver `ChainNodeKind::pickable()`). `paste` é um evento de
+    // documento (o canvas em si não é um campo de texto), então só reage
+    // quando nenhum campo de texto VISÍVEL está focado — `offsetParent` (não
+    // só a tag) descarta um input de um painel que acabou de fechar
+    // (`display:none`) mas continua sendo `document.activeElement`, o que do
+    // contrário engoliria o Ctrl+V como se ainda estivesse em edição.
+    document.addEventListener('paste', (e) => {
+        if (!editable || !graphRef?.imageAddUrl) return
+        const active = document.activeElement
+        const typing = active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT' || active.isContentEditable) && active.offsetParent !== null
+        if (typing) return
+
+        const items = e.clipboardData?.items
+        if (!items) return
+        const imageItem = Array.from(items).find((item) => item.kind === 'file' && item.type.startsWith('image/'))
+        if (!imageItem) return
+
+        e.preventDefault()
+        const file = imageItem.getAsFile()
+        if (file) handlePasteImage(file)
+    })
+
+    // Só uma de cada vez — colar de novo antes da primeira terminar de subir
+    // seria descartado silenciosamente (ver `pastingImage`) em vez de
+    // disparar dois POSTs concorrentes que voltariam em ordem imprevisível.
+    async function handlePasteImage(file) {
+        if (pastingImage) return
+        pastingImage = true
+        try {
+            const formData = new FormData()
+            formData.append('image', file)
+            const res = await fetch(graphRef.imageAddUrl, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': csrfToken(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: formData,
+            })
+            const data = await res.json().catch(() => null)
+            if (!res.ok) throw new Error(data?.message || 'Não foi possível colar a imagem.')
+
+            // Nasce perto de onde o usuário está olhando (último ponto do
+            // ponteiro sobre o canvas), como um bloco solto no vazio faria ao
+            // arrastar uma seta pra lá — sem isso, cai no padrão de
+            // `appendNode()` (à direita do último bloco).
+            const pos = (lastPointerX !== null && lastPointerY !== null) ? screenToWorld(lastPointerX, lastPointerY) : null
+            appendNode(data.node, pos)
+            patchRowGraphAppend(slug, data.node, data.summary)
+            window.Toast?.show?.(data.message || 'Imagem adicionada.')
+        } catch (err) {
+            window.Toast?.show?.(err.message || 'Não foi possível colar a imagem.', 'error')
+        } finally {
+            pastingImage = false
+        }
+    }
 
     root.__akVizRender = render
     setDirty(false)

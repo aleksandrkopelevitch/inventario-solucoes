@@ -101,6 +101,9 @@ Route::middleware('auth')->group(function () {
         // New block at the end of the chain (data-viz F3, "Adicionar bloco" panel).
         Route::post('solutions/{solution}/integrations/{integration}/chain/nodes', [SolutionIntegrationController::class, 'addNode'])
             ->name('solutions.integrations.chain.node.add');
+        // New IMAGE block — pasting a picture directly on the F3 canvas (Ctrl+V).
+        Route::post('solutions/{solution}/integrations/{integration}/chain/images', [SolutionIntegrationController::class, 'addImageNode'])
+            ->name('solutions.integrations.chain.image.add');
         // Retargets one end of an existing edge to a different block (dragging
         // the arrow handle in data-viz F3) — {edge} is the index in chain.edges.
         Route::patch('solutions/{solution}/integrations/{integration}/chain/edge/{edge}', [SolutionIntegrationController::class, 'retargetEdge'])

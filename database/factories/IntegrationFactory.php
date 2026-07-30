@@ -28,7 +28,7 @@ class IntegrationFactory extends Factory
             'source_solution_id' => Solution::factory(),
             'target_solution_id' => Solution::factory(),
             'direction'          => Direction::Unidirectional,
-            'protocol'           => Protocol::Rest,
+            'protocol'           => Protocol::Rest->value,
             'sync_mode'          => SyncMode::Synchronous,
             'status'             => IntegrationStatus::Planned,
             'criticality'        => 'medium',

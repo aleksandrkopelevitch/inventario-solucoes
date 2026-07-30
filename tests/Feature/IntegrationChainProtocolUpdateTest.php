@@ -37,7 +37,7 @@ it('sets the protocol of a chain edge, resyncing the scalar summary protocol', f
     $integration->refresh();
 
     expect($integration->chain['edges'][0]['protocol'])->toBe('rest')
-        ->and($integration->protocol->value)->toBe('rest');
+        ->and($integration->protocol)->toBe('rest');
 });
 
 it('clears the protocol of a chain edge back to null', function () {
@@ -181,7 +181,33 @@ it('404s for an edge index outside the chain', function () {
         ->assertNotFound();
 });
 
-it('rejects an invalid protocol value', function () {
+it('accepts a free-text protocol not in the Protocol enum', function () {
+    $svl = Solution::factory()->create(['name' => 'SVL']);
+    $sap = Solution::factory()->create(['name' => 'SAP']);
+
+    $integration = Integration::factory()->create([
+        'chain' => [
+            'nodes' => [['solution_id' => $svl->id, 'label' => null], ['solution_id' => $sap->id, 'label' => null]],
+            'edges' => [['from' => 0, 'to' => 1, 'arrow' => '->', 'protocol' => null]],
+        ],
+    ]);
+    attachParticipants($integration, [[$svl, 0], [$sap, 1]]);
+
+    $response = $this->actingAs(protocolUpdateAdmin())
+        ->patchJson(route('solutions.integrations.chain.protocol.update', [$svl, $integration, 0]), [
+            'protocol' => 'carrier-pigeon',
+        ])
+        ->assertOk();
+
+    expect($response->json('protocol'))->toBe(['value' => 'carrier-pigeon', 'label' => 'carrier-pigeon']);
+
+    $integration->refresh();
+
+    expect($integration->chain['edges'][0]['protocol'])->toBe('carrier-pigeon')
+        ->and($integration->protocol)->toBe('carrier-pigeon');
+});
+
+it('rejects a protocol value over the length limit', function () {
     $svl = Solution::factory()->create(['name' => 'SVL']);
     $sap = Solution::factory()->create(['name' => 'SAP']);
 
@@ -195,7 +221,7 @@ it('rejects an invalid protocol value', function () {
 
     $this->actingAs(protocolUpdateAdmin())
         ->patchJson(route('solutions.integrations.chain.protocol.update', [$svl, $integration, 0]), [
-            'protocol' => 'carrier-pigeon',
+            'protocol' => str_repeat('a', 61),
         ])
         ->assertStatus(422);
 });

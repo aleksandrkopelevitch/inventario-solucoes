@@ -2,12 +2,10 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\Protocol;
 use App\Models\Integration;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Enum;
 
 /**
  * Creates a new edge between two blocks already present in the chain — dragging
@@ -41,10 +39,12 @@ class AddIntegrationChainEdgeRequest extends FormRequest
         $max = max(0, count($integration?->chain['nodes'] ?? []) - 1);
 
         return [
-            'from'     => ['required', 'integer', 'min:0', 'max:' . $max],
-            'to'       => ['required', 'integer', 'min:0', 'max:' . $max, 'different:from'],
-            'arrow'    => ['required', Rule::in(['->', '<-', '<->'])],
-            'protocol' => ['nullable', new Enum(Protocol::class)],
+            'from'  => ['required', 'integer', 'min:0', 'max:' . $max],
+            'to'    => ['required', 'integer', 'min:0', 'max:' . $max, 'different:from'],
+            'arrow' => ['required', Rule::in(['->', '<-', '<->'])],
+            // Free text, not just `App\Enums\Protocol` values — see
+            // `UpdateIntegrationChainProtocolRequest` for the same rule.
+            'protocol' => ['nullable', 'string', 'max:60'],
         ];
     }
 
