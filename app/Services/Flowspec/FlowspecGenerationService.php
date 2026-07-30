@@ -191,6 +191,11 @@ class FlowspecGenerationService
                 'tokens'   => $tokens,
                 'provider' => config('services.flowspec.provider'),
                 'model'    => config('services.flowspec.model'),
+                // Snapshot of which guideline documents were active at
+                // generation time — always all of them (no per-request
+                // selection), but the content can change later, so this is
+                // the historical record of what guidance actually applied.
+                'guidelines' => $this->prompts->activeGuidelines()->pluck('title')->all(),
                 // Only on an actual CONVERSATIONAL response — not when the
                 // loop ran out of attempts with invalid JSON (there $document
                 // is also null, but inferring suggestions from broken JSON

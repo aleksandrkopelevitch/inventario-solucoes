@@ -9,6 +9,7 @@ use App\Http\Controllers\DocumentationGroupPageController;
 use App\Http\Controllers\DocumentationHubController;
 use App\Http\Controllers\FlowspecChatController;
 use App\Http\Controllers\FlowspecExampleController;
+use App\Http\Controllers\FlowspecGuidelineController;
 use App\Http\Controllers\FlowspecMessageController;
 use App\Http\Controllers\HeroiconController;
 use App\Http\Controllers\IntegrationDocumentationController;
@@ -214,6 +215,14 @@ Route::middleware('auth')->group(function () {
     Route::post('flowspec/examples', [FlowspecExampleController::class, 'store'])->name('flowspec.examples.store');
     Route::patch('flowspec/examples/{example}', [FlowspecExampleController::class, 'update'])->name('flowspec.examples.update');
     Route::delete('flowspec/examples/{example}', [FlowspecExampleController::class, 'destroy'])->name('flowspec.examples.destroy');
+
+    // Guideline documents (admin) — Markdown notes always folded into the
+    // generator's system prompt (FlowspecGuidelineController). Same
+    // static-path-before-catch-all constraint as the examples routes above.
+    Route::get('flowspec/guidelines', [FlowspecGuidelineController::class, 'index'])->name('flowspec.guidelines.index');
+    Route::post('flowspec/guidelines', [FlowspecGuidelineController::class, 'store'])->name('flowspec.guidelines.store');
+    Route::patch('flowspec/guidelines/{guideline}', [FlowspecGuidelineController::class, 'update'])->name('flowspec.guidelines.update');
+    Route::delete('flowspec/guidelines/{guideline}', [FlowspecGuidelineController::class, 'destroy'])->name('flowspec.guidelines.destroy');
 
     Route::get('flowspec/{chat}', [FlowspecChatController::class, 'show'])->name('flowspec.show');
     Route::get('flowspec/{chat}/status', [FlowspecChatController::class, 'status'])->name('flowspec.status');

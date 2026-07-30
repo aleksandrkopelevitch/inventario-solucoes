@@ -6,8 +6,14 @@
 <div id="{{ $domId }}" class="flex flex-col gap-4">
     @forelse ($messages as $message)
         @if ($message->role === 'user')
-            <div class="ml-auto max-w-[85%] whitespace-pre-line rounded-card rounded-br-sm bg-accent px-4 py-2.5 text-sm leading-relaxed text-white shadow-sm">
-                {{ $message->content }}
+            <div class="ml-auto max-w-[85%] rounded-card rounded-br-sm bg-accent px-4 py-3 text-sm leading-relaxed text-white shadow-sm">
+                <div class="mb-2 flex items-center justify-end gap-1.5 border-b border-white/15 pb-2">
+                    <span class="flex size-5 items-center justify-center rounded-full bg-white text-accent">
+                        <x-heroicon-o-user class="size-3" />
+                    </span>
+                    <span class="text-xs font-semibold uppercase tracking-wide text-white/85">Você</span>
+                </div>
+                <p class="whitespace-pre-line">{{ $message->content }}</p>
             </div>
         @else
             @php
@@ -25,7 +31,18 @@
                     </span>
                     <span class="text-xs font-semibold uppercase tracking-wide text-muted">Especialista em Integrações</span>
                 </div>
-                <p @class(['text-sm leading-relaxed whitespace-pre-line', 'text-crit' => $failed, 'text-ink' => ! $failed])>{{ $message->content }}</p>
+                @if ($rendered[$message->id]['type'] === 'raw')
+                    <div class="relative">
+                        <pre id="flowspec-raw-{{ $message->id }}"
+                             class="max-h-80 overflow-auto rounded-field border border-line bg-canvas p-3 font-mono text-[11.5px] leading-relaxed text-body">{{ $rendered[$message->id]['content'] }}</pre>
+                        <x-forms.button type="button" variant="glass" class="!absolute right-2 top-2 !px-2.5 !py-1 !text-xs"
+                            data-ak-flowspec-copy="flowspec-raw-{{ $message->id }}">
+                            <x-heroicon-o-clipboard-document class="size-3.5" /> Copiar
+                        </x-forms.button>
+                    </div>
+                @else
+                    <div @class(['ak-flowspec-md text-sm', 'text-crit' => $failed, 'text-ink' => ! $failed])>{!! $rendered[$message->id]['content'] !!}</div>
+                @endif
 
                 {{-- Botões de "adicionar documentação" — só numa resposta conversacional
                      (FlowspecGenerationService::suggestedDocuments()). Cada botão reusa a
@@ -93,6 +110,10 @@
                                 <div>
                                     <dt class="font-medium text-muted">Tags candidatas</dt>
                                     <dd>{{ ($meta['tags'] ?? []) !== [] ? implode(', ', $meta['tags']) : '—' }}</dd>
+                                </div>
+                                <div>
+                                    <dt class="font-medium text-muted">Diretrizes ativas</dt>
+                                    <dd>{{ ($meta['guidelines'] ?? []) !== [] ? implode(', ', $meta['guidelines']) : '—' }}</dd>
                                 </div>
                                 <div>
                                     <dt class="font-medium text-muted">Provider / modelo</dt>

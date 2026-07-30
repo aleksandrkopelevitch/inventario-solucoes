@@ -4,6 +4,7 @@ namespace App\Services\Flowspec;
 
 use App\Models\DocumentationPage;
 use App\Models\FlowspecExample;
+use App\Models\FlowspecGuideline;
 use App\Models\FlowspecMessage;
 use App\Models\Integration;
 use Illuminate\Support\Collection;
@@ -12,9 +13,11 @@ use Illuminate\Support\Collection;
  * Builds the flowSpec generator's prompts: the system prompt encodes the
  * Digibee platform rules that validation has already caught the model
  * getting wrong (the {meta, flowSpec} format, `{{ step.alias }}`, choice
- * branches, closed catalog, secrets only via account/global); the user
- * prompt joins the catalog, corpus examples, trimmed documentation, chat
- * history and the request.
+ * branches, closed catalog, secrets only via account/global), plus any
+ * admin-curated FlowspecGuideline documents (always included, in full —
+ * unlike the tag-selected FlowspecExample corpus); the user prompt joins the
+ * catalog, corpus examples, trimmed documentation, chat history and the
+ * request.
  */
 class FlowspecPromptBuilder
 {
@@ -43,10 +46,43 @@ class FlowspecPromptBuilder
         8. Upsert em Object Store: operação `UPDATE` com `upsert: true` exige `unique: true` e `objectId` preenchido.
         9. Use APENAS componentes do catálogo abaixo — não invente connector nem tipo de step.
         10. NUNCA escreva credencial literal (chave de API, senha, token): valores sensíveis entram só por `{{ account.* }}` (via `accountLabel`/`accountLabels` no step) ou `{{ global.* }}`.
-
+        {$this->guidelinesSection()}
         Catálogo de componentes permitidos:
         {$catalog}
         PROMPT;
+    }
+
+    /**
+     * Admin-curated notes (App\Models\FlowspecGuideline) — architectural/
+     * stylistic guidance with no structural check possible, unlike the 10
+     * numbered rules above (which the validator enforces mechanically). ALL
+     * active guidelines are always included, in full: this content is meant
+     * to be curated and short (see config('services.flowspec.max_guideline_chars')),
+     * not an open corpus needing tag-based selection or budget trimming like
+     * FlowspecContextResolver's documentation section. Queried fresh on every
+     * call (no cache) — same as the component catalog above, read via
+     * file_get_contents() on every attempt — so a guideline an admin just
+     * disabled mid-conversation is already gone from the very next
+     * correction attempt.
+     */
+    private function guidelinesSection(): string
+    {
+        $guidelines = $this->activeGuidelines();
+
+        if ($guidelines->isEmpty()) {
+            return '';
+        }
+
+        $blocks = $guidelines->map(fn (FlowspecGuideline $guideline) => "## {$guideline->title}\n\n{$guideline->content}");
+
+        return "\nDiretrizes adicionais definidas pela equipe da Leo Madeiras (curadoria manual — NÃO são checadas automaticamente pelo validador; siga-as como boas práticas, mas elas NUNCA sobrepõem as regras de plataforma acima nem o catálogo abaixo):\n\n"
+            . $blocks->implode("\n\n") . "\n";
+    }
+
+    /** @return Collection<int, FlowspecGuideline> */
+    public function activeGuidelines(): Collection
+    {
+        return FlowspecGuideline::query()->active()->orderBy('title')->get();
     }
 
     /** @param Collection<int, FlowspecMessage> $history */
@@ -158,7 +194,22 @@ class FlowspecPromptBuilder
         return $section;
     }
 
-    /** @param Collection<int, FlowspecMessage> $history */
+    /**
+     * @param  Collection<int, FlowspecMessage>  $history
+     *
+     * Only the most recent flowSpec is re-embedded in full — earlier ones
+     * collapse to a placeholder (`flow_spec` is what's checked; every
+     * message's own `content` there is already just a short canned string,
+     * see GenerateFlowspecReply). A FAILED attempt has no such short string:
+     * when the correction loop exhausts every try without ever producing a
+     * recognized flowSpec, `flow_spec` stays null and `content` is the raw
+     * model text verbatim — which can itself be a multi-KB JSON blob (see
+     * FlowspecMessage::hasRawJsonContent()). Unlike a validated flowSpec,
+     * there is no "current pipeline state" worth keeping from a failed
+     * attempt, so EVERY occurrence collapses, not just the older ones —
+     * otherwise a chat with a few failed-then-retried turns bakes tens of KB
+     * of dead JSON into every future prompt for the rest of its life.
+     */
     private function historySection(Collection $history): string
     {
         if ($history->isEmpty()) {
@@ -175,6 +226,8 @@ class FlowspecPromptBuilder
                 $body .= $message->is($latestWithSpec)
                     ? "\n\nflowSpec gerado:\n" . json_encode($message->flow_spec, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
                     : "\n\n[flowSpec gerado nesta mensagem omitido — superado pelas seguintes]";
+            } elseif ($message->role !== 'user' && $message->hasRawJsonContent()) {
+                $body = '[resposta anterior descartada por não ter gerado um flowSpec reconhecível — omitida do histórico]';
             }
 
             return "**{$role}:** {$body}";

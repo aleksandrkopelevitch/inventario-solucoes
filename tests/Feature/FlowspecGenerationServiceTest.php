@@ -3,10 +3,13 @@
 use App\Models\DocumentationPage;
 use App\Models\FlowspecChat;
 use App\Models\FlowspecExample;
+use App\Models\FlowspecGuideline;
+use App\Models\FlowspecMessage;
 use App\Models\Solution;
 use App\Services\Flowspec\CredentialScrubber;
 use App\Services\Flowspec\DigibeeFlowspecNormalizer;
 use App\Services\Flowspec\DigibeeFlowspecValidator;
+use App\Services\Flowspec\FlowspecContext;
 use App\Services\Flowspec\FlowspecContextResolver;
 use App\Services\Flowspec\FlowspecGenerationService;
 use App\Services\Flowspec\FlowspecPromptBuilder;
@@ -255,4 +258,70 @@ it('treats a conversational answer containing a non-flowSpec JSON snippet as con
         ->and($result->text)->toBe($answer)
         ->and($result->meta['attempts'])->toHaveCount(1)
         ->and($result->meta['attempts'][0]['errors'])->toBe([]);
+});
+
+it('always folds every active guideline into the system prompt and omits inactive ones', function () {
+    FlowspecGuideline::factory()->create(['title' => 'Boas práticas Digibee', 'content' => 'Prefira sempre reaproveitar conectores existentes.']);
+    FlowspecGuideline::factory()->inactive()->create(['title' => 'Rascunho antigo', 'content' => 'Texto de um rascunho desativado.']);
+
+    $prompt = app(FlowspecPromptBuilder::class)->systemPrompt();
+
+    expect($prompt)->toContain('Boas práticas Digibee')
+        ->toContain('Prefira sempre reaproveitar conectores existentes.')
+        ->not->toContain('Rascunho antigo')
+        ->not->toContain('Texto de um rascunho desativado.');
+});
+
+it('omits the guidelines section entirely when there are none active', function () {
+    $prompt = app(FlowspecPromptBuilder::class)->systemPrompt();
+
+    expect($prompt)->not->toContain('Diretrizes adicionais definidas pela equipe');
+});
+
+it('collapses every exhausted-attempt raw JSON dump in history, keeping only the latest real flowSpec in full', function () {
+    $chat = FlowspecChat::factory()->create();
+
+    $brokenAttempt = FlowspecMessage::factory()->assistant()->create([
+        'flowspec_chat_id' => $chat->id,
+        'content'          => '{"meta": {"broken": true}, "flowSpec": {"disconnected-root:x": [',
+        'flow_spec'        => null,
+    ]);
+    $olderValid = FlowspecMessage::factory()->assistant()->create([
+        'flowspec_chat_id' => $chat->id,
+        'content'          => 'flowSpec gerado e validado — pronto para colar no canvas da Digibee.',
+        'flow_spec'        => ['meta' => [], 'flowSpec' => ['disconnected-root:old' => []]],
+    ]);
+    $latestValid = FlowspecMessage::factory()->assistant()->create([
+        'flowspec_chat_id' => $chat->id,
+        'content'          => 'flowSpec gerado e validado — pronto para colar no canvas da Digibee.',
+        'flow_spec'        => ['meta' => [], 'flowSpec' => ['disconnected-root:new' => []]],
+    ]);
+
+    $history = collect([$brokenAttempt, $olderValid, $latestValid]);
+    $context = new FlowspecContext(collect(), collect(), collect(), [], collect(), []);
+
+    $prompt = app(FlowspecPromptBuilder::class)->userPrompt($context, 'próximo pedido', $history);
+
+    expect($prompt)->not->toContain('"broken": true')
+        ->toContain('omitida do histórico')
+        ->toContain('disconnected-root:new')
+        ->not->toContain('disconnected-root:old')
+        ->toContain('superado pelas seguintes');
+});
+
+it('does not collapse a normal conversational reply in history, even one starting with a brace-like character', function () {
+    $chat = FlowspecChat::factory()->create();
+
+    $conversational = FlowspecMessage::factory()->assistant()->create([
+        'flowspec_chat_id' => $chat->id,
+        'content'          => 'Prefiro confirmar antes de gerar: qual sistema deve receber a resposta?',
+        'flow_spec'        => null,
+    ]);
+
+    $history = collect([$conversational]);
+    $context = new FlowspecContext(collect(), collect(), collect(), [], collect(), []);
+
+    $prompt = app(FlowspecPromptBuilder::class)->userPrompt($context, 'próximo pedido', $history);
+
+    expect($prompt)->toContain('Prefiro confirmar antes de gerar');
 });
