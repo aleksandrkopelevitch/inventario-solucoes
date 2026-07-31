@@ -1,0 +1,73 @@
+{
+  "meta": {
+    "e2000000-0000-4000-9000-000000000001": {
+      "position": {
+        "x": 200,
+        "y": 0
+      }
+    },
+    "e2000000-0000-4000-9000-000000000004": {
+      "position": {
+        "x": 400,
+        "y": 0
+      }
+    },
+    "e2000000-0000-4000-9000-000000000005": {
+      "position": {
+        "x": 600,
+        "y": 0
+      }
+    }
+  },
+  "flowSpec": {
+    "disconnected-root:e2000000-1111-4111-9111-111111111111": [
+      {
+        "id": "e2000000-0000-4000-9000-000000000001",
+        "type": "connector",
+        "name": "do-while-connector",
+        "stepName": "Do While",
+        "doubleBracesAlias": "do-while-1",
+        "params": {
+          "iteration": "10",
+          "interruptLoopOnError": true,
+          "showLoopIndex": true,
+          "timeout": 300000,
+          "onProcess": "e2000000-0000-4000-9000-000000000001-onProcessTrack"
+        }
+      },
+      {
+        "id": "e2000000-0000-4000-9000-000000000004",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Loop concluído",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Loop do-while concluído - {{ message.$ }}"
+        }
+      },
+      {
+        "id": "e2000000-0000-4000-9000-000000000005",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "success",
+        "doubleBracesAlias": "json-generator-loop-ok",
+        "params": {
+          "json": "{\n  \"success\": true\n}",
+          "failOnError": false
+        }
+      }
+    ],
+    "e2000000-0000-4000-9000-000000000001-onProcessTrack": [
+      {
+        "id": "e2000000-0000-4000-9000-000000000002",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Processa item",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Processando item do loop - {{ message.$ }}"
+        }
+      }
+    ]
+  }
+}

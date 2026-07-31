@@ -1,0 +1,122 @@
+{
+  "meta": {
+    "e5000000-0000-4000-9000-000000000001": {
+      "position": {
+        "x": 200,
+        "y": 0
+      }
+    },
+    "e5000000-0000-4000-9000-000000000002": {
+      "position": {
+        "x": 400,
+        "y": 0
+      }
+    },
+    "e5000000-0000-4000-9000-000000000003": {
+      "position": {
+        "x": 650,
+        "y": 0
+      }
+    },
+    "e5000000-0000-4000-9000-000000000004": {
+      "position": {
+        "x": 850,
+        "y": 0
+      }
+    },
+    "e5000000-0000-4000-9000-000000000005": {
+      "position": {
+        "x": 650,
+        "y": 150
+      }
+    },
+    "e5000000-0000-4000-9000-000000000006": {
+      "position": {
+        "x": 850,
+        "y": 150
+      }
+    }
+  },
+  "flowSpec": {
+    "disconnected-root:e5000000-1111-4111-9111-111111111111": [
+      {
+        "id": "e5000000-0000-4000-9000-000000000001",
+        "type": "connector",
+        "name": "sftp-connector",
+        "stepName": "Download de arquivo remoto (SFTP)",
+        "doubleBracesAlias": "sftp-1",
+        "accountLabel": "sftp-auth",
+        "params": {
+          "ftpOperation": "RETR",
+          "host": "{{global.sftp-host}}",
+          "port": "{{global.sftp-port}}",
+          "remoteDirectory": "/entrada",
+          "remoteFileName": "{{ message.fileName }}",
+          "fileName": "{{ message.fileName }}",
+          "connectTimeout": 30000,
+          "isProxyEnabled": false,
+          "overwriteOnUpload": true,
+          "failOnError": false
+        }
+      },
+      {
+        "id": "e5000000-0000-4000-9000-000000000002",
+        "type": "choice",
+        "name": "",
+        "stepName": "Download OK?",
+        "when": [
+          {
+            "target": "erro-sftp",
+            "jsonPath": "$[?(@.success == false)]"
+          }
+        ],
+        "otherwise": "sucesso-sftp"
+      }
+    ],
+    "sucesso-sftp": [
+      {
+        "id": "e5000000-0000-4000-9000-000000000003",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Download concluído",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Arquivo baixado via SFTP - {{ step.sftp-1.$ }}"
+        }
+      },
+      {
+        "id": "e5000000-0000-4000-9000-000000000004",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "success",
+        "doubleBracesAlias": "json-generator-sftp-ok",
+        "params": {
+          "json": "{\n  \"success\": true\n}",
+          "failOnError": false
+        }
+      }
+    ],
+    "erro-sftp": [
+      {
+        "id": "e5000000-0000-4000-9000-000000000005",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Falha no download SFTP",
+        "params": {
+          "logLevel": "ERROR",
+          "message": "Falha ao baixar arquivo via SFTP - {{ message.$ }}"
+        }
+      },
+      {
+        "id": "e5000000-0000-4000-9000-000000000006",
+        "type": "connector",
+        "name": "throw-error-connector",
+        "stepName": "Throw Error",
+        "params": {
+          "customErrorEnabled": true,
+          "customError": "{{ message.$ }}"
+        }
+      }
+    ]
+  }
+}

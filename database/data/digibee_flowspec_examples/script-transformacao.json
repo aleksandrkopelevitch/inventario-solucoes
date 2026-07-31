@@ -1,0 +1,58 @@
+{
+  "meta": {
+    "e6000000-0000-4000-9000-000000000001": {
+      "position": {
+        "x": 200,
+        "y": 0
+      }
+    },
+    "e6000000-0000-4000-9000-000000000002": {
+      "position": {
+        "x": 400,
+        "y": 0
+      }
+    },
+    "e6000000-0000-4000-9000-000000000003": {
+      "position": {
+        "x": 600,
+        "y": 0
+      }
+    }
+  },
+  "flowSpec": {
+    "disconnected-root:e6000000-1111-4111-9111-111111111111": [
+      {
+        "id": "e6000000-0000-4000-9000-000000000001",
+        "type": "connector",
+        "name": "script-connector",
+        "stepName": "Normaliza payload via JavaScript",
+        "doubleBracesAlias": "js-script-1",
+        "params": {
+          "code": "var body = message.body || {};\noutput = {\n  nome: (body.nome || '').trim().toUpperCase(),\n  total: Number(body.total) || 0\n};",
+          "failOnError": false
+        }
+      },
+      {
+        "id": "e6000000-0000-4000-9000-000000000002",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Payload normalizado",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Payload normalizado via script - {{ step.js-script-1.$ }}"
+        }
+      },
+      {
+        "id": "e6000000-0000-4000-9000-000000000003",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "success",
+        "doubleBracesAlias": "json-generator-script-ok",
+        "params": {
+          "json": "{\n  \"success\": true\n}",
+          "failOnError": false
+        }
+      }
+    ]
+  }
+}

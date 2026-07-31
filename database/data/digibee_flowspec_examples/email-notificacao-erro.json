@@ -1,0 +1,129 @@
+{
+  "meta": {
+    "cc000000-0000-4000-9000-000000000001": {
+      "position": {
+        "x": 200,
+        "y": 0
+      }
+    },
+    "cc000000-0000-4000-9000-000000000002": {
+      "position": {
+        "x": 400,
+        "y": 0
+      }
+    },
+    "cc000000-0000-4000-9000-000000000003": {
+      "position": {
+        "x": 650,
+        "y": 0
+      }
+    },
+    "cc000000-0000-4000-9000-000000000004": {
+      "position": {
+        "x": 850,
+        "y": 0
+      }
+    },
+    "cc000000-0000-4000-9000-000000000005": {
+      "position": {
+        "x": 650,
+        "y": 150
+      }
+    },
+    "cc000000-0000-4000-9000-000000000006": {
+      "position": {
+        "x": 850,
+        "y": 150
+      }
+    }
+  },
+  "flowSpec": {
+    "disconnected-root:cc000000-1111-4111-9111-111111111111": [
+      {
+        "id": "cc000000-0000-4000-9000-000000000001",
+        "type": "connector",
+        "name": "email-connector-v2",
+        "stepName": "Notifica erro por e-mail",
+        "doubleBracesAlias": "email-v2-1",
+        "accountLabel": "smtp-auth",
+        "params": {
+          "accountType": "basic",
+          "useDynamicAccount": false,
+          "scoped": false,
+          "from": "{{account.username}}",
+          "to": "{{ message.notificar }}",
+          "cc": "",
+          "bcc": "",
+          "subject": "Falha na integração - {{ message.integracao }}",
+          "charset": "UTF-8",
+          "body": "<p>Um erro foi identificado durante a execução da integração.</p><p>{{ message.erro }}</p>",
+          "attachmentRawMode": false,
+          "attachments": "[]",
+          "authenticated": true,
+          "isOverTls": true,
+          "isOverSsl": false,
+          "forceTlsv12": false,
+          "failOnError": false
+        }
+      },
+      {
+        "id": "cc000000-0000-4000-9000-000000000002",
+        "type": "choice",
+        "name": "",
+        "stepName": "Enviou?",
+        "when": [
+          {
+            "target": "erro-email",
+            "jsonPath": "$[?(@.success == false)]"
+          }
+        ],
+        "otherwise": "sucesso-email"
+      }
+    ],
+    "sucesso-email": [
+      {
+        "id": "cc000000-0000-4000-9000-000000000003",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "E-mail de notificação enviado",
+        "params": {
+          "logLevel": "INFO",
+          "message": "E-mail de notificação enviado - {{ step.email-v2-1.$ }}"
+        }
+      },
+      {
+        "id": "cc000000-0000-4000-9000-000000000004",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "success",
+        "doubleBracesAlias": "json-generator-email-ok",
+        "params": {
+          "json": "{\n  \"success\": true\n}",
+          "failOnError": false
+        }
+      }
+    ],
+    "erro-email": [
+      {
+        "id": "cc000000-0000-4000-9000-000000000005",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Falha ao enviar e-mail",
+        "params": {
+          "logLevel": "ERROR",
+          "message": "Falha ao enviar e-mail de notificação - {{ message.$ }}"
+        }
+      },
+      {
+        "id": "cc000000-0000-4000-9000-000000000006",
+        "type": "connector",
+        "name": "throw-error-connector",
+        "stepName": "Throw Error",
+        "params": {
+          "customErrorEnabled": true,
+          "customError": "{{ message.$ }}"
+        }
+      }
+    ]
+  }
+}

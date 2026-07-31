@@ -1,0 +1,60 @@
+{
+  "meta": {
+    "e9000000-0000-4000-9000-000000000001": {
+      "position": {
+        "x": 200,
+        "y": 0
+      }
+    },
+    "e9000000-0000-4000-9000-000000000002": {
+      "position": {
+        "x": 400,
+        "y": 0
+      }
+    },
+    "e9000000-0000-4000-9000-000000000003": {
+      "position": {
+        "x": 600,
+        "y": 0
+      }
+    }
+  },
+  "flowSpec": {
+    "disconnected-root:e9000000-1111-4111-9111-111111111111": [
+      {
+        "id": "e9000000-0000-4000-9000-000000000001",
+        "type": "connector",
+        "name": "jwt-connector",
+        "stepName": "Gera token JWT para autenticar chamada",
+        "doubleBracesAlias": "digibee-jwt-1",
+        "params": {
+          "operation": "generate",
+          "scopes": "leitura,escrita",
+          "expiresIn": "43200000",
+          "failOnError": false
+        }
+      },
+      {
+        "id": "e9000000-0000-4000-9000-000000000002",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Token gerado",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Token JWT gerado - {{ step.digibee-jwt-1.$ }}"
+        }
+      },
+      {
+        "id": "e9000000-0000-4000-9000-000000000003",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "success",
+        "doubleBracesAlias": "json-generator-jwt-ok",
+        "params": {
+          "json": "{\n  \"success\": true\n}",
+          "failOnError": false
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,144 @@
+{
+  "meta": {
+    "bb000000-0000-4000-9000-000000000001": {
+      "position": {
+        "x": 200,
+        "y": 0
+      }
+    },
+    "bb000000-0000-4000-9000-000000000002": {
+      "position": {
+        "x": 400,
+        "y": 0
+      }
+    },
+    "bb000000-0000-4000-9000-000000000003": {
+      "position": {
+        "x": 650,
+        "y": 0
+      }
+    },
+    "bb000000-0000-4000-9000-000000000004": {
+      "position": {
+        "x": 850,
+        "y": 0
+      }
+    },
+    "bb000000-0000-4000-9000-000000000005": {
+      "position": {
+        "x": 650,
+        "y": 150
+      }
+    },
+    "bb000000-0000-4000-9000-000000000006": {
+      "position": {
+        "x": 850,
+        "y": 150
+      }
+    }
+  },
+  "flowSpec": {
+    "disconnected-root:bb000000-1111-4111-9111-111111111111": [
+      {
+        "id": "bb000000-0000-4000-9000-000000000001",
+        "type": "connector",
+        "name": "soap-connector-v3",
+        "stepName": "Consulta via SOAP V3",
+        "doubleBracesAlias": "soap-v3-1",
+        "accountLabel": "soap-auth",
+        "accountLabels": {
+          "custom-1": "",
+          "custom-2": ""
+        },
+        "params": {
+          "url": "{{global.soap-endpoint}}",
+          "useDynamicAccount": false,
+          "scoped": false,
+          "accountName": "",
+          "advanced": true,
+          "asString": true,
+          "requestBodyAsFile": false,
+          "fileName": "",
+          "body": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\">\n  <soap:Body>\n    <ConsultaPedido xmlns=\"http://exemplo.leomadeiras.com.br/\">\n      <pedido>{{ message.pedido }}</pedido>\n    </ConsultaPedido>\n  </soap:Body>\n</soap:Envelope>",
+          "headers": "{\"Content-Type\":\"text/xml;charset=UTF-8\",\"SOAPAction\":\"http://exemplo.leomadeiras.com.br/ConsultaPedido\"}",
+          "queryParams": "{}",
+          "attachments": "[]",
+          "wsSecurity": "[]",
+          "connectTimeout": "30000",
+          "readTimeout": "30000",
+          "stopOnClientError": false,
+          "stopOnServerError": false,
+          "retry": true,
+          "maxRetry": "3",
+          "waitNextRetry": "3000",
+          "isInsecure": false,
+          "rawMode": false,
+          "isMultipartResponse": false,
+          "withNamespace": false,
+          "overrideResponseCharset": true,
+          "responseCharset": "UTF-8",
+          "saveAsLocalFile": false,
+          "responseFileName": ""
+        }
+      },
+      {
+        "id": "bb000000-0000-4000-9000-000000000002",
+        "type": "choice",
+        "name": "",
+        "stepName": "Verifica Envio",
+        "when": [
+          {
+            "target": "sucesso-soap",
+            "jsonPath": "$.[?(@.status >= 200 && @.status <= 299)]"
+          }
+        ],
+        "otherwise": "erro-soap"
+      }
+    ],
+    "sucesso-soap": [
+      {
+        "id": "bb000000-0000-4000-9000-000000000003",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Sucesso na consulta SOAP",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Sucesso na consulta SOAP V3 - {{ step.soap-v3-1.$ }}"
+        }
+      },
+      {
+        "id": "bb000000-0000-4000-9000-000000000004",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "success",
+        "doubleBracesAlias": "json-generator-soap-ok",
+        "params": {
+          "json": "{\n  \"success\": true\n}",
+          "failOnError": false
+        }
+      }
+    ],
+    "erro-soap": [
+      {
+        "id": "bb000000-0000-4000-9000-000000000005",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Erro na consulta SOAP",
+        "params": {
+          "logLevel": "ERROR",
+          "message": "Erro na consulta SOAP V3 - {{ message.$ }}"
+        }
+      },
+      {
+        "id": "bb000000-0000-4000-9000-000000000006",
+        "type": "connector",
+        "name": "throw-error-connector",
+        "stepName": "Throw Error",
+        "params": {
+          "customErrorEnabled": true,
+          "customError": "{{ message.$ }}"
+        }
+      }
+    ]
+  }
+}

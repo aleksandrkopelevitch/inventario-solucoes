@@ -1,0 +1,58 @@
+{
+  "meta": {
+    "e7000000-0000-4000-9000-000000000001": {
+      "position": {
+        "x": 200,
+        "y": 0
+      }
+    },
+    "e7000000-0000-4000-9000-000000000002": {
+      "position": {
+        "x": 400,
+        "y": 0
+      }
+    },
+    "e7000000-0000-4000-9000-000000000003": {
+      "position": {
+        "x": 600,
+        "y": 0
+      }
+    }
+  },
+  "flowSpec": {
+    "disconnected-root:e7000000-1111-4111-9111-111111111111": [
+      {
+        "id": "e7000000-0000-4000-9000-000000000001",
+        "type": "connector",
+        "name": "json-transformer-connector",
+        "stepName": "Marca payload como processado",
+        "doubleBracesAlias": "json-transformer-1",
+        "params": {
+          "actions": "[{\"type\":\"edit\",\"desc\":\"Marca processado\",\"props\":[{\"root\":false,\"keyValueStringEdit\":\"{\\\"processado\\\":true}\",\"path\":\"_meta\"}]}]",
+          "failOnError": false
+        }
+      },
+      {
+        "id": "e7000000-0000-4000-9000-000000000002",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Campo editado",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Payload marcado como processado - {{ step.json-transformer-1.$ }}"
+        }
+      },
+      {
+        "id": "e7000000-0000-4000-9000-000000000003",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "success",
+        "doubleBracesAlias": "json-generator-jt-ok",
+        "params": {
+          "json": "{\n  \"success\": true\n}",
+          "failOnError": false
+        }
+      }
+    ]
+  }
+}

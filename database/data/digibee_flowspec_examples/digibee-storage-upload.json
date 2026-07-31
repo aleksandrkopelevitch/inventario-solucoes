@@ -1,0 +1,118 @@
+{
+  "meta": {
+    "e8000000-0000-4000-9000-000000000001": {
+      "position": {
+        "x": 200,
+        "y": 0
+      }
+    },
+    "e8000000-0000-4000-9000-000000000002": {
+      "position": {
+        "x": 400,
+        "y": 0
+      }
+    },
+    "e8000000-0000-4000-9000-000000000003": {
+      "position": {
+        "x": 650,
+        "y": 0
+      }
+    },
+    "e8000000-0000-4000-9000-000000000004": {
+      "position": {
+        "x": 850,
+        "y": 0
+      }
+    },
+    "e8000000-0000-4000-9000-000000000005": {
+      "position": {
+        "x": 650,
+        "y": 150
+      }
+    },
+    "e8000000-0000-4000-9000-000000000006": {
+      "position": {
+        "x": 850,
+        "y": 150
+      }
+    }
+  },
+  "flowSpec": {
+    "disconnected-root:e8000000-1111-4111-9111-111111111111": [
+      {
+        "id": "e8000000-0000-4000-9000-000000000001",
+        "type": "connector",
+        "name": "digibee-storage-connector",
+        "stepName": "Upload de arquivo (Digibee Storage)",
+        "doubleBracesAlias": "digibee-storage-1",
+        "params": {
+          "operation": "upload",
+          "fileName": "{{ message.fileName }}",
+          "remoteDirectory": "arquivos",
+          "remoteFileName": "{{ message.fileName }}",
+          "expirationMillis": "21600000",
+          "showFileLink": true,
+          "failOnError": false
+        }
+      },
+      {
+        "id": "e8000000-0000-4000-9000-000000000002",
+        "type": "choice",
+        "name": "",
+        "stepName": "Upload OK?",
+        "when": [
+          {
+            "target": "erro-storage",
+            "jsonPath": "$[?(@.success == false)]"
+          }
+        ],
+        "otherwise": "sucesso-storage"
+      }
+    ],
+    "sucesso-storage": [
+      {
+        "id": "e8000000-0000-4000-9000-000000000003",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Upload concluído",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Arquivo enviado ao Digibee Storage - {{ step.digibee-storage-1.$ }}"
+        }
+      },
+      {
+        "id": "e8000000-0000-4000-9000-000000000004",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "success",
+        "doubleBracesAlias": "json-generator-storage-ok",
+        "params": {
+          "json": "{\n  \"success\": true\n}",
+          "failOnError": false
+        }
+      }
+    ],
+    "erro-storage": [
+      {
+        "id": "e8000000-0000-4000-9000-000000000005",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Falha no upload",
+        "params": {
+          "logLevel": "ERROR",
+          "message": "Falha ao enviar arquivo ao Digibee Storage - {{ message.$ }}"
+        }
+      },
+      {
+        "id": "e8000000-0000-4000-9000-000000000006",
+        "type": "connector",
+        "name": "throw-error-connector",
+        "stepName": "Throw Error",
+        "params": {
+          "customErrorEnabled": true,
+          "customError": "{{ message.$ }}"
+        }
+      }
+    ]
+  }
+}

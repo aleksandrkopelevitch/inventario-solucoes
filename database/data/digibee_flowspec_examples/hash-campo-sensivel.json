@@ -1,0 +1,60 @@
+{
+  "meta": {
+    "dd000000-0000-4000-9000-000000000001": {
+      "position": {
+        "x": 200,
+        "y": 0
+      }
+    },
+    "dd000000-0000-4000-9000-000000000002": {
+      "position": {
+        "x": 400,
+        "y": 0
+      }
+    },
+    "dd000000-0000-4000-9000-000000000003": {
+      "position": {
+        "x": 600,
+        "y": 0
+      }
+    }
+  },
+  "flowSpec": {
+    "disconnected-root:dd000000-1111-4111-9111-111111111111": [
+      {
+        "id": "dd000000-0000-4000-9000-000000000001",
+        "type": "connector",
+        "name": "hash-connector",
+        "stepName": "Hash de CPF antes de persistir",
+        "doubleBracesAlias": "hash-1",
+        "params": {
+          "algorithm": "SHA-256",
+          "jsonFieldPath": "documento.cpf",
+          "preserveOriginal": false,
+          "failOnError": false
+        }
+      },
+      {
+        "id": "dd000000-0000-4000-9000-000000000002",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "CPF hasheado",
+        "params": {
+          "logLevel": "INFO",
+          "message": "CPF hasheado antes de persistir - {{ step.hash-1.$ }}"
+        }
+      },
+      {
+        "id": "dd000000-0000-4000-9000-000000000003",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "success",
+        "doubleBracesAlias": "json-generator-hash-ok",
+        "params": {
+          "json": "{\n  \"success\": true\n}",
+          "failOnError": false
+        }
+      }
+    ]
+  }
+}

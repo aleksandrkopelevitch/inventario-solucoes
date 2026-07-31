@@ -1,0 +1,125 @@
+{
+  "meta": {
+    "aa000000-0000-4000-9000-000000000001": {
+      "position": {
+        "x": 200,
+        "y": 0
+      }
+    },
+    "aa000000-0000-4000-9000-000000000002": {
+      "position": {
+        "x": 400,
+        "y": 0
+      }
+    },
+    "aa000000-0000-4000-9000-000000000003": {
+      "position": {
+        "x": 650,
+        "y": 0
+      }
+    },
+    "aa000000-0000-4000-9000-000000000004": {
+      "position": {
+        "x": 850,
+        "y": 0
+      }
+    },
+    "aa000000-0000-4000-9000-000000000005": {
+      "position": {
+        "x": 650,
+        "y": 150
+      }
+    },
+    "aa000000-0000-4000-9000-000000000006": {
+      "position": {
+        "x": 850,
+        "y": 150
+      }
+    }
+  },
+  "flowSpec": {
+    "disconnected-root:aa000000-1111-4111-9111-111111111111": [
+      {
+        "id": "aa000000-0000-4000-9000-000000000001",
+        "type": "connector",
+        "name": "sap-connector",
+        "stepName": "Consulta pedido via RFC (SAP)",
+        "doubleBracesAlias": "sap-1",
+        "accountLabel": "sap-auth",
+        "params": {
+          "useDynamicAccount": false,
+          "asHost": "{{global.sap-host}}",
+          "client": "400",
+          "sysnr": "01",
+          "lang": "en",
+          "operation": "RFC",
+          "RFC": "Z_CONSULTA_PEDIDO",
+          "sendAsFile": false,
+          "fileName": "",
+          "sapRequestTemplate": "<?xml version=\"1.0\" encoding=\"ASCII\"?><Z_CONSULTA_PEDIDO:Request xmlns:Z_CONSULTA_PEDIDO=\"http://sap.leomadeiras.com.br/rfc\" PEDIDO=\"{{ message.pedido }}\" />",
+          "rawMode": false,
+          "failOnError": false
+        }
+      },
+      {
+        "id": "aa000000-0000-4000-9000-000000000002",
+        "type": "choice",
+        "name": "",
+        "stepName": "Consulta OK?",
+        "when": [
+          {
+            "target": "erro-sap",
+            "jsonPath": "$[?(@.success == false)]",
+            "__documentation__": "SAP retorna success=false quando o RFC falha (Fail On Error desligado em vez de interromper o pipeline)."
+          }
+        ],
+        "otherwise": "sucesso-sap"
+      }
+    ],
+    "sucesso-sap": [
+      {
+        "id": "aa000000-0000-4000-9000-000000000003",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Consulta RFC concluída",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Consulta RFC no SAP concluída - {{ step.sap-1.$ }}"
+        }
+      },
+      {
+        "id": "aa000000-0000-4000-9000-000000000004",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "success",
+        "doubleBracesAlias": "json-generator-sap-ok",
+        "params": {
+          "json": "{\n  \"success\": true\n}",
+          "failOnError": false
+        }
+      }
+    ],
+    "erro-sap": [
+      {
+        "id": "aa000000-0000-4000-9000-000000000005",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Falha na consulta RFC",
+        "params": {
+          "logLevel": "ERROR",
+          "message": "Falha na consulta RFC ao SAP - {{ message.$ }}"
+        }
+      },
+      {
+        "id": "aa000000-0000-4000-9000-000000000006",
+        "type": "connector",
+        "name": "throw-error-connector",
+        "stepName": "Throw Error",
+        "params": {
+          "customErrorEnabled": true,
+          "customError": "{{ message.$ }}"
+        }
+      }
+    ]
+  }
+}

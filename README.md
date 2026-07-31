@@ -425,7 +425,11 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   "Gerenciar referências" (admin, `FlowspecExampleController`) — não a partir
   do resultado de uma conversa. Um `CredentialScrubber` barra segredo literal
   tanto no que é gerado (o documento é descartado se um literal sobreviver a
-  todas as tentativas do loop) quanto no que é cadastrado no corpus.
+  todas as tentativas do loop) quanto no que é cadastrado no corpus. O
+  catálogo de componentes permitidos (`database/data/digibee_component_catalog.json`,
+  validado por `DigibeeFlowspecValidator`) é curado à mão a partir do que é
+  usado de verdade nos pipelines Digibee da Leo Madeiras — ver "Notas
+  técnicas" para a ferramenta que audita esse catálogo contra produção.
 - **Hub de Documentação** (`/documentacao`): visão gerencial transversal do
   que está documentado e do que falta — soluções **e** integrações, cada uma
   com um selo por **conteúdo real** (não um flag manual), agrupadas por
@@ -465,6 +469,23 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   + Toast de desistência). O endpoint de status fica barato enquanto pende:
   só monta o slot/resultado quando a resposta chegou, não a cada tick. Ver
   `CLAUDE.md` § Queue & Jobs.
+- **O catálogo de componentes do flowSpec (Especialista em Integrações) pode
+  ficar desatualizado em silêncio.** `digibee_component_catalog.json` é um
+  arquivo estático e versionado — de propósito: é o que faz a geração ser
+  reprodutível e testável, então nunca deve ser buscado ao vivo durante uma
+  geração. `flowspec-catalog-audit.php` (raiz do repo, dev-only — **não** é
+  um comando artisan, não roda em CI/produção) audita esse arquivo contra o
+  uso real em pipelines de produção, via `digibeectl` (CLI oficial da
+  Digibee) — mas fica **fora** do servidor de produção de propósito: a
+  credencial interativa do `digibeectl` tem escopo de
+  criar/deletar deployment em produção, então essa auditoria roda só na
+  máquina do dev, nunca com uma credencial desse alcance dentro do app. O
+  script só imprime um relatório (nomes de connector/step type usados de
+  verdade vs. cadastrados) — nunca escreve no catálogo nem no corpus sozinho;
+  qualquer novo connector ainda precisa de um exemplo curado à mão em
+  `database/data/digibee_flowspec_examples/` antes de ser realmente
+  utilizável pelo gerador (nome no catálogo só desbloqueia o validador, não
+  ensina o formato dos parâmetros).
 
 ## Testando
 

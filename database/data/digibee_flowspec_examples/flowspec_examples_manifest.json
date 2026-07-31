@@ -77,5 +77,165 @@
       "choice"
     ],
     "source": "manual"
+  },
+  {
+    "file": "rabbitmq-publish-retry.json",
+    "slug": "rabbitmq-publish-retry",
+    "name": "RabbitMQ: publicacao com retry e republicacao de evento em falha definitiva",
+    "description": "Publica uma mensagem no RabbitMQ preservando o payload original (json-generator com alias, restaurado dentro do retry-connector), usa retry-connector com maxRetry para tentar de novo em erro transitorio (choice + throw-error sinaliza a proxima tentativa) e, ao esgotar as tentativas, republica o evento original com um marcador _retried para reprocessamento (event-publisher-connector) — com uma checagem de _retried logo na entrada para nao repetir a republicacao indefinidamente.",
+    "tags": [
+      "rabbitmq",
+      "retry",
+      "choice"
+    ],
+    "source": "manual"
+  },
+  {
+    "file": "sap-consulta-rfc.json",
+    "slug": "sap-consulta-rfc",
+    "name": "SAP: consulta via RFC (SAP Connector)",
+    "description": "Consulta um pedido via RFC no SAP (sap-connector, operation RFC, template XML com Double Braces), roteando por choice no campo success da resposta — sucesso loga e gera resposta amigavel; erro loga e lanca throw-error com o payload.",
+    "tags": [
+      "soap",
+      "choice"
+    ],
+    "source": "manual"
+  },
+  {
+    "file": "soap-v3-webservice.json",
+    "slug": "soap-v3-webservice",
+    "name": "SOAP V3: chamada a webservice com retry nativo",
+    "description": "Chama um webservice SOAP (soap-connector-v3, corpo XML com Double Braces, retry nativo do connector via maxRetry/waitNextRetry) e roteia por choice na faixa de status HTTP (200-299): sucesso loga e gera resposta amigavel; erro loga e lanca throw-error com o payload.",
+    "tags": [
+      "soap",
+      "choice"
+    ],
+    "source": "manual"
+  },
+  {
+    "file": "email-notificacao-erro.json",
+    "slug": "email-notificacao-erro",
+    "name": "Email V2: notificacao por e-mail em caso de erro",
+    "description": "Envia um e-mail de notificacao (email-connector-v2, autenticacao SMTP via account, corpo HTML) e roteia por choice no campo success da resposta — sucesso loga e gera resposta amigavel; erro loga e lanca throw-error com o payload.",
+    "tags": [
+      "email",
+      "choice"
+    ],
+    "source": "manual"
+  },
+  {
+    "file": "hash-campo-sensivel.json",
+    "slug": "hash-campo-sensivel",
+    "name": "Hash de campo sensivel antes de persistir (Hash Connector)",
+    "description": "Aplica hash SHA-256 num campo sensivel (CPF) antes de persistir/logar (hash-connector, jsonFieldPath, preserveOriginal) e loga referenciando o resultado hasheado pelo alias do step.",
+    "tags": [
+      "hash"
+    ],
+    "source": "manual"
+  },
+  {
+    "file": "pipeline-executor.json",
+    "slug": "pipeline-executor",
+    "name": "Pipeline Executor: executa outro pipeline (SYNC)",
+    "description": "Executa outro pipeline publicado (pipeline-executor-connector, operation SYNC, pipelineName/versionMajor, payload/timeout/expiration) e roteia por choice no campo success da resposta — sucesso loga e gera resposta amigavel; erro loga e lanca throw-error com o payload.",
+    "tags": [
+      "pipeline",
+      "choice"
+    ],
+    "source": "manual"
+  },
+  {
+    "file": "do-while-loop.json",
+    "slug": "do-while-loop",
+    "name": "Do-While: loop com iteracoes limitadas",
+    "description": "Repete um bloco de steps ate um numero maximo de iteracoes (do-while-connector, iteration/interruptLoopOnError/showLoopIndex, params.onProcess aponta para a track do loop). Diferente de for-each/retry/block-execution, o do-while-connector so tem track de processo — nao tem onException.",
+    "tags": [
+      "loop"
+    ],
+    "source": "manual"
+  },
+  {
+    "file": "assert-condicao-obrigatoria.json",
+    "slug": "assert-condicao-obrigatoria",
+    "name": "Assert V2: valida condicao obrigatoria",
+    "description": "Valida uma condicao obrigatoria no payload (assert-connector-v2, condition em Double Braces com NOT/ISNULL, errorCode/errorMessage/internalErrorMessage) com failOnError true — a propria plataforma interrompe o pipeline se a condicao falhar, sem precisar de choice/throw-error separado.",
+    "tags": [
+      "validacao"
+    ],
+    "source": "manual"
+  },
+  {
+    "file": "validator-json-schema.json",
+    "slug": "validator-json-schema",
+    "name": "Validator V2: valida payload contra JSON Schema",
+    "description": "Valida o payload contra um JSON Schema (validator-connector-v2, jsonPayload/jsonSchema/draftVersion) com failOnError false, roteando por choice no campo success da resposta — sucesso loga e gera resposta amigavel; erro loga e lanca throw-error com o detalhe da validacao.",
+    "tags": [
+      "validacao",
+      "choice"
+    ],
+    "source": "manual"
+  },
+  {
+    "file": "sftp-download.json",
+    "slug": "sftp-download",
+    "name": "SFTP: download de arquivo remoto",
+    "description": "Baixa um arquivo remoto via SFTP (sftp-connector, ftpOperation RETR, host/port/remoteDirectory/remoteFileName) e roteia por choice no campo success da resposta — sucesso loga e gera resposta amigavel; erro loga e lanca throw-error com o payload.",
+    "tags": [
+      "sftp",
+      "choice"
+    ],
+    "source": "manual"
+  },
+  {
+    "file": "script-transformacao.json",
+    "slug": "script-transformacao",
+    "name": "Script: transformacao customizada via JavaScript",
+    "description": "Normaliza o payload com codigo JavaScript customizado (script-connector, campo code lendo message.body e escrevendo output) e loga o resultado referenciando o step pelo alias.",
+    "tags": [
+      "script"
+    ],
+    "source": "manual"
+  },
+  {
+    "file": "json-transformer-edicao-campo.json",
+    "slug": "json-transformer-edicao-campo",
+    "name": "JSON Transformer: edita campo do payload",
+    "description": "Edita um campo do payload via uma lista de acoes (json-transformer-connector, params.actions com type edit/desc/props/keyValueStringEdit/path) e loga o resultado referenciando o step pelo alias.",
+    "tags": [
+      "de-para"
+    ],
+    "source": "manual"
+  },
+  {
+    "file": "digibee-storage-upload.json",
+    "slug": "digibee-storage-upload",
+    "name": "Digibee Storage: upload de arquivo",
+    "description": "Envia um arquivo para o Digibee Storage interno (digibee-storage-connector, operation upload, remoteDirectory/remoteFileName/expirationMillis) e roteia por choice no campo success da resposta — sucesso loga e gera resposta amigavel; erro loga e lanca throw-error com o payload.",
+    "tags": [
+      "file-storage",
+      "choice"
+    ],
+    "source": "manual"
+  },
+  {
+    "file": "jwt-geracao-token.json",
+    "slug": "jwt-geracao-token",
+    "name": "JWT: geracao de token para autenticar chamada",
+    "description": "Gera um token JWT interno da Digibee (jwt-connector, operation generate, scopes/expiresIn) para autenticar uma chamada subsequente entre pipelines configurados com REST/HTTP Trigger. Sem choice/erro — geracao e local/deterministica.",
+    "tags": [
+      "digibee-jwt"
+    ],
+    "source": "manual"
+  },
+  {
+    "file": "bigquery-consulta-sql.json",
+    "slug": "bigquery-consulta-sql",
+    "name": "BigQuery: consulta SQL nativa",
+    "description": "Executa uma consulta SQL nativa no Google BigQuery (google-bigquery-sql-connector, projectId/queryString, account Private Key) e roteia por choice no campo success da resposta — sucesso loga e gera resposta amigavel; erro loga e lanca throw-error com o payload.",
+    "tags": [
+      "bigquery",
+      "choice"
+    ],
+    "source": "manual"
   }
 ]

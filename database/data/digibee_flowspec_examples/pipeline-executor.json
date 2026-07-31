@@ -1,0 +1,118 @@
+{
+  "meta": {
+    "e1000000-0000-4000-9000-000000000001": {
+      "position": {
+        "x": 200,
+        "y": 0
+      }
+    },
+    "e1000000-0000-4000-9000-000000000002": {
+      "position": {
+        "x": 400,
+        "y": 0
+      }
+    },
+    "e1000000-0000-4000-9000-000000000003": {
+      "position": {
+        "x": 650,
+        "y": 0
+      }
+    },
+    "e1000000-0000-4000-9000-000000000004": {
+      "position": {
+        "x": 850,
+        "y": 0
+      }
+    },
+    "e1000000-0000-4000-9000-000000000005": {
+      "position": {
+        "x": 650,
+        "y": 150
+      }
+    },
+    "e1000000-0000-4000-9000-000000000006": {
+      "position": {
+        "x": 850,
+        "y": 150
+      }
+    }
+  },
+  "flowSpec": {
+    "disconnected-root:e1000000-1111-4111-9111-111111111111": [
+      {
+        "id": "e1000000-0000-4000-9000-000000000001",
+        "type": "connector",
+        "name": "pipeline-executor-connector",
+        "stepName": "Executa pipeline de consulta de cliente",
+        "doubleBracesAlias": "pipeline-executor-1",
+        "params": {
+          "pipelineName": "consulta-cliente",
+          "versionMajor": "1",
+          "operation": "SYNC",
+          "payload": "{{ message.$ }}",
+          "timeout": "60000",
+          "expiration": "300000",
+          "failOnError": false
+        }
+      },
+      {
+        "id": "e1000000-0000-4000-9000-000000000002",
+        "type": "choice",
+        "name": "",
+        "stepName": "Execução OK?",
+        "when": [
+          {
+            "target": "erro-pipeline",
+            "jsonPath": "$[?(@.success == false)]"
+          }
+        ],
+        "otherwise": "sucesso-pipeline"
+      }
+    ],
+    "sucesso-pipeline": [
+      {
+        "id": "e1000000-0000-4000-9000-000000000003",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Pipeline executado com sucesso",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Pipeline consulta-cliente executado - {{ step.pipeline-executor-1.$ }}"
+        }
+      },
+      {
+        "id": "e1000000-0000-4000-9000-000000000004",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "success",
+        "doubleBracesAlias": "json-generator-pipeline-ok",
+        "params": {
+          "json": "{\n  \"success\": true\n}",
+          "failOnError": false
+        }
+      }
+    ],
+    "erro-pipeline": [
+      {
+        "id": "e1000000-0000-4000-9000-000000000005",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Falha ao executar pipeline",
+        "params": {
+          "logLevel": "ERROR",
+          "message": "Falha ao executar pipeline consulta-cliente - {{ message.$ }}"
+        }
+      },
+      {
+        "id": "e1000000-0000-4000-9000-000000000006",
+        "type": "connector",
+        "name": "throw-error-connector",
+        "stepName": "Throw Error",
+        "params": {
+          "customErrorEnabled": true,
+          "customError": "{{ message.$ }}"
+        }
+      }
+    ]
+  }
+}
