@@ -25,6 +25,18 @@ enum FlowspecTag: string
     case ApiKey = 'api-key';
     case Search = 'search';
     case Modify = 'modify';
+    case Rabbitmq = 'rabbitmq';
+    case Retry = 'retry';
+    case Email = 'email';
+    case Hash = 'hash';
+    case Pipeline = 'pipeline';
+    case Loop = 'loop';
+    case Validation = 'validacao';
+    case Sftp = 'sftp';
+    case Script = 'script';
+    case FileStorage = 'file-storage';
+    case DigibeeJwt = 'digibee-jwt';
+    case Bigquery = 'bigquery';
 
     /**
      * Words/stems (lowercase, no accents) that, when present in the user's
@@ -50,6 +62,18 @@ enum FlowspecTag: string
             self::ApiKey            => ['api key', 'api-key', 'x-api-key', 'apikey'],
             self::Search            => ['busca', 'buscar', 'consulta', 'consultar', 'pesquisar', 'search'],
             self::Modify            => ['alterar', 'modificar', 'atualizar', 'desbloquear', 'modify'],
+            self::Rabbitmq          => ['rabbitmq', 'rabbit', 'amqp', 'fila', 'filas', 'exchange', 'mensageria', 'broker'],
+            self::Retry             => ['retry', 'retentativa', 'reenviar', 'reenvio', 'reprocessar', 'reprocessamento', 'tentativa', 'backoff'],
+            self::Email             => ['email', 'e-mail', 'notificar', 'notificacao', 'alerta', 'smtp'],
+            self::Hash              => ['hash', 'hashing', 'criptografar', 'criptografia', 'md5', 'sha', 'bcrypt', 'mascarar'],
+            self::Pipeline          => ['pipeline', 'sub-pipeline', 'subprocesso', 'chamar outro fluxo', 'orquestrar'],
+            self::Loop              => ['loop', 'laco', 'repetir', 'iteracao', 'while', 'do-while'],
+            self::Validation        => ['validar', 'validacao', 'json schema', 'schema', 'assert', 'obrigatorio'],
+            self::Sftp              => ['sftp', 'ftp', 'arquivo remoto', 'transferencia de arquivo'],
+            self::Script            => ['script', 'javascript', 'codigo customizado', 'js'],
+            self::FileStorage       => ['storage', 'armazenar arquivo', 'upload de arquivo', 'digibee storage'],
+            self::DigibeeJwt        => ['gerar jwt', 'assinar jwt', 'proteger rest trigger', 'autenticar pipeline'],
+            self::Bigquery          => ['bigquery', 'big query', 'google cloud', 'gcp'],
         };
     }
 

@@ -1,0 +1,60 @@
+{
+  "meta": {
+    "e3000000-0000-4000-9000-000000000001": {
+      "position": {
+        "x": 200,
+        "y": 0
+      }
+    },
+    "e3000000-0000-4000-9000-000000000002": {
+      "position": {
+        "x": 400,
+        "y": 0
+      }
+    },
+    "e3000000-0000-4000-9000-000000000003": {
+      "position": {
+        "x": 600,
+        "y": 0
+      }
+    }
+  },
+  "flowSpec": {
+    "disconnected-root:e3000000-1111-4111-9111-111111111111": [
+      {
+        "id": "e3000000-0000-4000-9000-000000000001",
+        "type": "connector",
+        "name": "assert-connector-v2",
+        "stepName": "Assert V2: pedido obrigatório",
+        "params": {
+          "condition": "{{ NOT(ISNULL(message.pedido)) }}",
+          "errorCode": "400",
+          "errorMessage": "Campo pedido é obrigatório",
+          "internalErrorMessage": "Campo obrigatório ausente: pedido",
+          "failOnError": true
+        }
+      },
+      {
+        "id": "e3000000-0000-4000-9000-000000000002",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Condição validada",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Condição obrigatória validada - {{ message.$ }}"
+        }
+      },
+      {
+        "id": "e3000000-0000-4000-9000-000000000003",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "success",
+        "doubleBracesAlias": "json-generator-assert-ok",
+        "params": {
+          "json": "{\n  \"success\": true\n}",
+          "failOnError": false
+        }
+      }
+    ]
+  }
+}

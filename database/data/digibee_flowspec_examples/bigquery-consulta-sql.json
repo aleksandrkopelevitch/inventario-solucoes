@@ -1,0 +1,117 @@
+{
+  "meta": {
+    "ea000000-0000-4000-9000-000000000001": {
+      "position": {
+        "x": 200,
+        "y": 0
+      }
+    },
+    "ea000000-0000-4000-9000-000000000002": {
+      "position": {
+        "x": 400,
+        "y": 0
+      }
+    },
+    "ea000000-0000-4000-9000-000000000003": {
+      "position": {
+        "x": 650,
+        "y": 0
+      }
+    },
+    "ea000000-0000-4000-9000-000000000004": {
+      "position": {
+        "x": 850,
+        "y": 0
+      }
+    },
+    "ea000000-0000-4000-9000-000000000005": {
+      "position": {
+        "x": 650,
+        "y": 150
+      }
+    },
+    "ea000000-0000-4000-9000-000000000006": {
+      "position": {
+        "x": 850,
+        "y": 150
+      }
+    }
+  },
+  "flowSpec": {
+    "disconnected-root:ea000000-1111-4111-9111-111111111111": [
+      {
+        "id": "ea000000-0000-4000-9000-000000000001",
+        "type": "connector",
+        "name": "google-bigquery-sql-connector",
+        "stepName": "Consulta SQL nativa no BigQuery",
+        "doubleBracesAlias": "gcp-big-query-sql-1",
+        "accountLabel": "bigquery-auth",
+        "params": {
+          "digibeeUseDynamicAccount": false,
+          "digibeeAccountName": "",
+          "projectId": "{{global.gcp-project-id}}",
+          "queryString": "SELECT * FROM `{{global.gcp-project-id}}.dataset.tabela` WHERE id = {{ message.id }}",
+          "failOnError": false
+        }
+      },
+      {
+        "id": "ea000000-0000-4000-9000-000000000002",
+        "type": "choice",
+        "name": "",
+        "stepName": "Consulta OK?",
+        "when": [
+          {
+            "target": "erro-bigquery",
+            "jsonPath": "$[?(@.success == false)]"
+          }
+        ],
+        "otherwise": "sucesso-bigquery"
+      }
+    ],
+    "sucesso-bigquery": [
+      {
+        "id": "ea000000-0000-4000-9000-000000000003",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Consulta concluída",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Consulta no BigQuery concluída - {{ step.gcp-big-query-sql-1.$ }}"
+        }
+      },
+      {
+        "id": "ea000000-0000-4000-9000-000000000004",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "success",
+        "doubleBracesAlias": "json-generator-bq-ok",
+        "params": {
+          "json": "{\n  \"success\": true\n}",
+          "failOnError": false
+        }
+      }
+    ],
+    "erro-bigquery": [
+      {
+        "id": "ea000000-0000-4000-9000-000000000005",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Falha na consulta",
+        "params": {
+          "logLevel": "ERROR",
+          "message": "Falha na consulta ao BigQuery - {{ message.$ }}"
+        }
+      },
+      {
+        "id": "ea000000-0000-4000-9000-000000000006",
+        "type": "connector",
+        "name": "throw-error-connector",
+        "stepName": "Throw Error",
+        "params": {
+          "customErrorEnabled": true,
+          "customError": "{{ message.$ }}"
+        }
+      }
+    ]
+  }
+}

@@ -79,6 +79,88 @@ it('accepts steps without meta position inside for-each tracks', function () {
     expect(flowspecValidator()->validate($document)->passes())->toBeTrue();
 });
 
+it('rejects a retry-connector pointing to a track branch that does not exist', function () {
+    $document = validFlowspecDocument();
+    $rootKey = array_key_first($document['flowSpec']);
+    $retryId = (string) Str::uuid();
+
+    $document['flowSpec'][$rootKey][] = [
+        'id'       => $retryId,
+        'type'     => 'connector',
+        'name'     => 'retry-connector',
+        'stepName' => 'Retry Publish',
+        'params'   => [
+            'maxRetry'    => 3,
+            'timeout'     => 5000,
+            'failOnError' => false,
+            'onProcess'   => "{$retryId}-onProcessTrack",
+            'onException' => 'branch-que-nao-existe',
+        ],
+    ];
+    $document['meta'][$retryId] = ['position' => ['x' => 400, 'y' => 0]];
+    $document['flowSpec']["{$retryId}-onProcessTrack"] = [[
+        'id'       => (string) Str::uuid(), 'type' => 'connector', 'name' => 'log-connector',
+        'stepName' => 'Log', 'params' => ['logLevel' => 'INFO', 'message' => 'ok'],
+    ]];
+
+    $errors = flowspecValidator()->validate($document)->errors;
+
+    expect($errors)->toHaveCount(1)
+        ->and($errors[0])->toContain('branch-que-nao-existe');
+});
+
+it('rejects a block-execution-connector pointing to a track branch that does not exist', function () {
+    $document = validFlowspecDocument();
+    $rootKey = array_key_first($document['flowSpec']);
+    $blockId = (string) Str::uuid();
+
+    $document['flowSpec'][$rootKey][] = [
+        'id'       => $blockId,
+        'type'     => 'connector',
+        'name'     => 'block-execution-connector',
+        'stepName' => 'Send rabbitMQ',
+        'params'   => [
+            'onProcess'   => 'branch-que-nao-existe',
+            'onException' => "{$blockId}-onExceptionTrack",
+        ],
+    ];
+    $document['meta'][$blockId] = ['position' => ['x' => 400, 'y' => 0]];
+    $document['flowSpec']["{$blockId}-onExceptionTrack"] = [[
+        'id'       => (string) Str::uuid(), 'type' => 'connector', 'name' => 'log-connector',
+        'stepName' => 'Erro', 'params' => ['logLevel' => 'ERROR', 'message' => '{{ message.$ }}'],
+    ]];
+
+    $errors = flowspecValidator()->validate($document)->errors;
+
+    expect($errors)->toHaveCount(1)
+        ->and($errors[0])->toContain('branch-que-nao-existe');
+});
+
+it('accepts a do-while-connector with only an onProcess track (no onException)', function () {
+    $document = validFlowspecDocument();
+    $rootKey = array_key_first($document['flowSpec']);
+    $doWhileId = (string) Str::uuid();
+
+    $document['flowSpec'][$rootKey][] = [
+        'id'       => $doWhileId,
+        'type'     => 'connector',
+        'name'     => 'do-while-connector',
+        'stepName' => 'Do While',
+        'params'   => [
+            'iteration'            => '500',
+            'interruptLoopOnError' => true,
+            'onProcess'            => "{$doWhileId}-onProcessTrack",
+        ],
+    ];
+    $document['meta'][$doWhileId] = ['position' => ['x' => 400, 'y' => 0]];
+    $document['flowSpec']["{$doWhileId}-onProcessTrack"] = [[
+        'id'       => (string) Str::uuid(), 'type' => 'connector', 'name' => 'log-connector',
+        'stepName' => 'Log', 'params' => ['logLevel' => 'INFO', 'message' => 'ok'],
+    ]];
+
+    expect(flowspecValidator()->validate($document)->passes())->toBeTrue();
+});
+
 it('rejects a choice pointing to a branch that does not exist', function () {
     $document = validFlowspecDocument();
     $rootKey = array_key_first($document['flowSpec']);

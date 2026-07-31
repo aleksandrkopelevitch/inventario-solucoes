@@ -6,14 +6,31 @@ use Illuminate\Support\Arr;
 
 /**
  * Ensures a generated `{meta, flowSpec}` pastes into the Digibee canvas
- * without error: structure, positions in `meta`, existing choice/for-each
- * branches, Double Braces references (the classic `{{ alias. }}` missing
- * `step.`), components within the catalog, no literal secrets, and complete
- * Object Store upserts. Errors come out concrete, ready for the re-prompt.
+ * without error: structure, positions in `meta`, existing choice/track
+ * branches (for-each, retry, block-execution — see TRACK_CONNECTORS), Double
+ * Braces references (the classic `{{ alias. }}` missing `step.`), components
+ * within the catalog, no literal secrets, and complete Object Store upserts.
+ * Errors come out concrete, ready for the re-prompt.
  */
 class DigibeeFlowspecValidator
 {
     private const VALID_SCOPES = ['message', 'global', 'account', 'step', 'metadata', 'trigger', 'session'];
+
+    /**
+     * Connectors whose track params must reference existing branches, mapped
+     * to which tracks they actually carry — NOT all of them carry both:
+     * `do-while-connector` only ever has `onProcess` (no exception track), so
+     * a flat "check both" would falsely flag every valid do-while step.
+     *
+     * @var array<string, list<string>>
+     */
+    private const TRACK_CONNECTORS = [
+        'for-each-connector'                => ['onProcess', 'onException'],
+        'retry-connector'                   => ['onProcess', 'onException'],
+        'block-execution-connector'         => ['onProcess', 'onException'],
+        'stream-json-file-reader-connector' => ['onProcess', 'onException'],
+        'do-while-connector'                => ['onProcess'],
+    ];
 
     /** @var array{step_types: list<string>, connector_names: list<string>} */
     private readonly array $catalog;
@@ -142,13 +159,11 @@ class DigibeeFlowspecValidator
                 }
             }
 
-            if (($step['name'] ?? null) === 'for-each-connector') {
-                foreach (['onProcess', 'onException'] as $track) {
-                    $reference = Arr::get($step, "params.{$track}");
+            foreach (self::TRACK_CONNECTORS[$step['name'] ?? ''] ?? [] as $track) {
+                $reference = Arr::get($step, "params.{$track}");
 
-                    if (! in_array($reference, $branches, true)) {
-                        $errors[] = "For-each \"{$label}\": `params.{$track}` \"{$reference}\" não existe como branch no `flowSpec`.";
-                    }
+                if (! in_array($reference, $branches, true)) {
+                    $errors[] = "Step \"{$label}\": `params.{$track}` \"{$reference}\" não existe como branch no `flowSpec`.";
                 }
             }
         }

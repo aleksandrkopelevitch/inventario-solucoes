@@ -1,0 +1,281 @@
+{
+  "meta": {
+    "b2b1a000-0000-4000-9000-000000000001": {
+      "position": {
+        "x": 200,
+        "y": 0
+      }
+    },
+    "b2b1a000-0000-4000-9000-000000000002": {
+      "position": {
+        "x": 400,
+        "y": 0
+      }
+    },
+    "b2b1a000-0000-4000-9000-000000000003": {
+      "position": {
+        "x": 600,
+        "y": 0
+      }
+    },
+    "b2b1a000-0000-4000-9000-000000000007": {
+      "position": {
+        "x": 850,
+        "y": 0
+      }
+    },
+    "b2b1a000-0000-4000-9000-000000000008": {
+      "position": {
+        "x": 1050,
+        "y": 0
+      }
+    },
+    "b2b1a000-0000-4000-9000-000000000009": {
+      "position": {
+        "x": 850,
+        "y": 150
+      }
+    },
+    "b2b1a000-0000-4000-9000-00000000000a": {
+      "position": {
+        "x": 1050,
+        "y": 150
+      }
+    },
+    "b2b1a000-0000-4000-9000-00000000000f": {
+      "position": {
+        "x": 400,
+        "y": 300
+      }
+    },
+    "b2b1a000-0000-4000-9000-000000000010": {
+      "position": {
+        "x": 600,
+        "y": 300
+      }
+    }
+  },
+  "flowSpec": {
+    "disconnected-root:c3c2b111-2222-4222-9222-333333333333": [
+      {
+        "id": "b2b1a000-0000-4000-9000-000000000001",
+        "type": "choice",
+        "name": "",
+        "stepName": "Ja foi republicado?",
+        "when": [
+          {
+            "target": "descarte-final",
+            "jsonPath": "$[?(@._retried == true)]",
+            "__documentation__": "Segunda passagem (mensagem ja republicada uma vez apos esgotar o retry): nao tenta de novo, evita loop infinito de republicacao."
+          }
+        ],
+        "otherwise": "fluxo-principal"
+      }
+    ],
+    "fluxo-principal": [
+      {
+        "id": "b2b1a000-0000-4000-9000-000000000002",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "Preserva payload",
+        "doubleBracesAlias": "payload-anchor",
+        "params": {
+          "json": "{{ message.$ }}",
+          "failOnError": false
+        }
+      },
+      {
+        "id": "b2b1a000-0000-4000-9000-000000000003",
+        "type": "connector",
+        "name": "retry-connector",
+        "stepName": "Publica no RabbitMQ com retry",
+        "params": {
+          "maxRetry": 3,
+          "timeout": 5000,
+          "failOnError": false,
+          "onProcess": "b2b1a000-0000-4000-9000-000000000003-onProcessTrack",
+          "onException": "b2b1a000-0000-4000-9000-000000000003-onExceptionTrack"
+        }
+      }
+    ],
+    "b2b1a000-0000-4000-9000-000000000003-onProcessTrack": [
+      {
+        "id": "b2b1a000-0000-4000-9000-000000000004",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "Restaura payload",
+        "doubleBracesAlias": "payload-restore",
+        "params": {
+          "json": "{{ step.payload-anchor.$ }}",
+          "failOnError": false
+        }
+      },
+      {
+        "id": "b2b1a000-0000-4000-9000-000000000005",
+        "type": "connector",
+        "name": "rabbitmq-connector",
+        "stepName": "Publica no RabbitMQ",
+        "doubleBracesAlias": "rabbitmq-publish",
+        "accountLabels": {
+          "rabbitmq-user-auth": "rabbitmq-auth"
+        },
+        "params": {
+          "ssl": false,
+          "hostname": "{{global.rabbitmq-host-name}}",
+          "port": "{{global.rabbitmq-port}}",
+          "connectionTimeout": "60000",
+          "vhost": "/",
+          "exchangeName": "{{ step.payload-restore.exchangeName }}",
+          "binaryMessage": false,
+          "body": "{{ step.payload-restore.body }}",
+          "routingKey": "{{ step.payload-restore.routingKey }}",
+          "headers": "{}",
+          "messageType": "",
+          "contentType": "",
+          "contentEncoding": "",
+          "messagePriority": "",
+          "correlationId": "",
+          "messageId": "",
+          "deliveryMode": "2",
+          "replyTo": "",
+          "expiration": "",
+          "timestamp": "",
+          "applicationName": "",
+          "failOnError": false,
+          "publisherAcknowledgements": true,
+          "publisherAcknowledgementsTimeout": "5000",
+          "mandatory": false
+        }
+      },
+      {
+        "id": "b2b1a000-0000-4000-9000-000000000006",
+        "type": "choice",
+        "name": "",
+        "stepName": "Publicou?",
+        "when": [
+          {
+            "target": "erro-transitorio",
+            "jsonPath": "$[?(@.success == false)]",
+            "__documentation__": "Erro transitorio no publish. O Throw Error da branch abaixo sinaliza falha para o retry-connector tentar novamente."
+          }
+        ],
+        "otherwise": "sucesso"
+      }
+    ],
+    "sucesso": [
+      {
+        "id": "b2b1a000-0000-4000-9000-000000000007",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Sucesso no envio ao RabbitMQ",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Sucesso no envio ao RabbitMQ - {{ message.$ }}"
+        }
+      },
+      {
+        "id": "b2b1a000-0000-4000-9000-000000000008",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "success",
+        "doubleBracesAlias": "json-generator-success",
+        "params": {
+          "json": "{\n  \"success\": true\n}",
+          "failOnError": false
+        }
+      }
+    ],
+    "erro-transitorio": [
+      {
+        "id": "b2b1a000-0000-4000-9000-000000000009",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Erro no envio ao RabbitMQ",
+        "params": {
+          "logLevel": "WARN",
+          "message": "Erro no envio ao RabbitMQ, acionando nova tentativa - {{ message.$ }}"
+        }
+      },
+      {
+        "id": "b2b1a000-0000-4000-9000-00000000000a",
+        "type": "connector",
+        "name": "throw-error-connector",
+        "stepName": "Throw Error",
+        "params": {
+          "customErrorEnabled": true,
+          "customError": "{{ message.$ }}"
+        }
+      }
+    ],
+    "b2b1a000-0000-4000-9000-000000000003-onExceptionTrack": [
+      {
+        "id": "b2b1a000-0000-4000-9000-00000000000b",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Retries esgotados",
+        "params": {
+          "logLevel": "ERROR",
+          "message": "Retries esgotados no publish ao RabbitMQ, republicando o evento - {{ step.payload-anchor.$ }}"
+        }
+      },
+      {
+        "id": "b2b1a000-0000-4000-9000-00000000000c",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "Payload para republicacao",
+        "doubleBracesAlias": "payload-republish",
+        "params": {
+          "json": "{\n  \"body\": {{ step.payload-anchor.body }},\n  \"exchangeName\": \"{{ step.payload-anchor.exchangeName }}\",\n  \"routingKey\": \"{{ step.payload-anchor.routingKey }}\",\n  \"_retried\": true\n}",
+          "failOnError": false
+        }
+      },
+      {
+        "id": "b2b1a000-0000-4000-9000-00000000000d",
+        "type": "connector",
+        "name": "event-publisher-connector",
+        "stepName": "Republica evento",
+        "doubleBracesAlias": "event-publisher-retry",
+        "params": {
+          "eventName": "evt-rabbitmq-publish-retry-exhausted",
+          "body": "{{ step.payload-republish.$ }}",
+          "showSendEventLog": false,
+          "stopOnError": false
+        }
+      },
+      {
+        "id": "b2b1a000-0000-4000-9000-00000000000e",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "republicado",
+        "doubleBracesAlias": "json-generator-republicado",
+        "params": {
+          "json": "{\n  \"success\": false,\n  \"republished\": true\n}",
+          "failOnError": false
+        }
+      }
+    ],
+    "descarte-final": [
+      {
+        "id": "b2b1a000-0000-4000-9000-00000000000f",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Mensagem descartada",
+        "params": {
+          "logLevel": "ERROR",
+          "message": "Mensagem descartada apos republicacao sem sucesso, requer reprocessamento manual - {{ message.$ }}"
+        }
+      },
+      {
+        "id": "b2b1a000-0000-4000-9000-000000000010",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "descartado",
+        "doubleBracesAlias": "json-generator-descartado",
+        "params": {
+          "json": "{\n  \"success\": false,\n  \"discarded\": true\n}",
+          "failOnError": false
+        }
+      }
+    ]
+  }
+}

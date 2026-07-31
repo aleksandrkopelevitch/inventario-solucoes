@@ -1,0 +1,117 @@
+{
+  "meta": {
+    "e4000000-0000-4000-9000-000000000001": {
+      "position": {
+        "x": 200,
+        "y": 0
+      }
+    },
+    "e4000000-0000-4000-9000-000000000002": {
+      "position": {
+        "x": 400,
+        "y": 0
+      }
+    },
+    "e4000000-0000-4000-9000-000000000003": {
+      "position": {
+        "x": 650,
+        "y": 0
+      }
+    },
+    "e4000000-0000-4000-9000-000000000004": {
+      "position": {
+        "x": 850,
+        "y": 0
+      }
+    },
+    "e4000000-0000-4000-9000-000000000005": {
+      "position": {
+        "x": 650,
+        "y": 150
+      }
+    },
+    "e4000000-0000-4000-9000-000000000006": {
+      "position": {
+        "x": 850,
+        "y": 150
+      }
+    }
+  },
+  "flowSpec": {
+    "disconnected-root:e4000000-1111-4111-9111-111111111111": [
+      {
+        "id": "e4000000-0000-4000-9000-000000000001",
+        "type": "connector",
+        "name": "validator-connector-v2",
+        "stepName": "Validator V2: valida payload do pedido",
+        "doubleBracesAlias": "json-validator-v2-1",
+        "params": {
+          "jsonPayload": "{{ message.body }}",
+          "jsonSchema": "{\n  \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n  \"type\": \"object\",\n  \"properties\": {\n    \"pedido\": {\"type\": \"string\"}\n  },\n  \"required\": [\"pedido\"]\n}",
+          "draftVersion": "v7",
+          "detectDraftVersion": false,
+          "simplifyResults": false,
+          "failOnError": false
+        }
+      },
+      {
+        "id": "e4000000-0000-4000-9000-000000000002",
+        "type": "choice",
+        "name": "",
+        "stepName": "Payload válido?",
+        "when": [
+          {
+            "target": "erro-validacao",
+            "jsonPath": "$[?(@.success == false)]"
+          }
+        ],
+        "otherwise": "sucesso-validacao"
+      }
+    ],
+    "sucesso-validacao": [
+      {
+        "id": "e4000000-0000-4000-9000-000000000003",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Payload válido",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Payload validado contra o JSON Schema - {{ message.$ }}"
+        }
+      },
+      {
+        "id": "e4000000-0000-4000-9000-000000000004",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "success",
+        "doubleBracesAlias": "json-generator-validator-ok",
+        "params": {
+          "json": "{\n  \"success\": true\n}",
+          "failOnError": false
+        }
+      }
+    ],
+    "erro-validacao": [
+      {
+        "id": "e4000000-0000-4000-9000-000000000005",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Payload inválido",
+        "params": {
+          "logLevel": "ERROR",
+          "message": "Payload não corresponde ao JSON Schema - {{ step.json-validator-v2-1.$ }}"
+        }
+      },
+      {
+        "id": "e4000000-0000-4000-9000-000000000006",
+        "type": "connector",
+        "name": "throw-error-connector",
+        "stepName": "Throw Error",
+        "params": {
+          "customErrorEnabled": true,
+          "customError": "{{ step.json-validator-v2-1.$ }}"
+        }
+      }
+    ]
+  }
+}
