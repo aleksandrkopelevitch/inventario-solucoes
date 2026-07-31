@@ -259,6 +259,23 @@
         transition-duration: 0.001ms !important;
         scroll-behavior: auto !important;
     }
+
+    /* Exception: busy/loading indicators (typing dots, spinners, the
+       "Gerando com o especialista…" pulse) signal ongoing async work, not
+       decorative motion. The blanket rule above collapses their `infinite`
+       loop to a single ~0ms frame, which freezes them on a random frame —
+       reading as a stuck/broken UI rather than "less motion", and robbing a
+       reduced-motion user of the only cue that a poll is still running.
+       Every `animate-bounce`/`animate-spin`/`animate-pulse` in this codebase
+       is one of these functional indicators (none are decorative), so it's
+       safe to restore Tailwind's default loop for the whole class rather
+       than marking each instance individually. Class selectors outweigh the
+       universal selector above regardless of source order, so this wins. */
+    .animate-bounce, .animate-spin, .animate-pulse {
+        animation-iteration-count: infinite !important;
+    }
+    .animate-bounce, .animate-spin { animation-duration: 1s !important; }
+    .animate-pulse { animation-duration: 2s !important; }
 }
 
 dialog::backdrop {
