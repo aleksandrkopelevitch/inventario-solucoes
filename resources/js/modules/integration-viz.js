@@ -1,3 +1,8 @@
+import { toCanvas, getFontEmbedCSS } from 'html-to-image'
+import GIF from 'gif.js'
+import gifWorkerUrl from 'gif.js/dist/gif.worker.js?url'
+import { setButtonLoading } from './button-loading'
+
 // Visualização gráfica da integração — aba "Diagrama" da página unificada da
 // integração (Solutions\IntegrationWorkspace; a página também tem a aba
 // "Documentação"). Desenha a cadeia (`chain`) da integração como um grafo —
@@ -180,6 +185,210 @@ const LANE_DEFAULT_HEIGHT = 240
 const LANE_MIN_SIZE = 100
 const LANE_MAX_SIZE = 6000
 
+// Estilo padrão de uma raia nova — cantos retos, borda sólida, preenchimento
+// liso, orientação horizontal (etiqueta vertical na borda esquerda, como
+// sempre foi) e etiqueta visível. Uma raia salva antes de qualquer um destes
+// campos existir não traz a chave (`applyLayout()` faz o backfill lendo este
+// mesmo objeto), então mudar um destes defaults muda também a leitura de
+// raias antigas — não faça isso sem pensar na retrocompatibilidade.
+const LANE_STYLE_DEFAULTS = {
+    rounded: false,
+    dashed: false,
+    pattern: 'solid',
+    opacity: 0.08,
+    orientation: 'horizontal',
+    showTitle: true,
+}
+// Padrões de preenchimento disponíveis (`buildLanePatternButtons()`) e faixa
+// do slider de opacidade — mesmo range validado em
+// `SaveIntegrationLayoutRequest::LANE_PATTERNS`/`opacity`. `sólido` ignora a
+// listra e pinta a raia toda na cor (com a opacidade escolhida); `diagonal`/
+// `trançado` desenham listras duras (sem gradiente suave) na mesma cor, com
+// os vãos transparentes deixando o fundo do canvas aparecer — é assim que o
+// padrão se lê como linhas de verdade, não como um degradê.
+const LANE_PATTERNS = ['solid', 'diagonal', 'cross']
+const LANE_OPACITY_MIN = 0.03
+const LANE_OPACITY_MAX = 0.5
+const LANE_OPACITY_STEP = 0.01
+const LANE_PATTERN_STRIPE = 6 // px de mundo da faixa cheia
+const LANE_PATTERN_PERIOD = 16 // px de mundo do ciclo inteiro (faixa + vão)
+// Opacidade só da PRÉVIA dos botões de padrão no toolbar (`buildLanePatternButtons()`)
+// — um swatch de ~26px na opacidade real escolhida pelo usuário (tipicamente
+// perto de `LANE_OPACITY_MIN`) ficaria quase em branco; a prévia usa uma
+// opacidade própria, fixa, só pra as listras ficarem legíveis no botão —
+// nunca é aplicada à raia de verdade.
+const LANE_PATTERN_PREVIEW_OPACITY = 0.45
+
+// ── modo apresentação — bolinhas viajando pelas setas ───────────────────
+// Até 5 bolinhas simultâneas, uma por "ramo" do fluxo — ver
+// `computePresentationPaths()`. Paleta vibrante e bem espalhada no círculo
+// cromático (roxo, o lima da própria marca, amarelo, laranja, ciano) pra
+// que as 5 bolinhas fiquem sempre fáceis de distinguir entre si — separada
+// de `LANE_COLORS` de propósito, já que ali a cor precisa combinar com o
+// fundo translúcido de uma raia inteira, enquanto aqui é só um pontinho
+// brilhante sobre a aresta. Teto de segurança contra ciclo patológico
+// (nunca deve ser atingido na prática — a proteção de ciclo de verdade é
+// por nó já visitado NO MESMO caminho, não por contagem).
+const PRESENT_MAX_PATHS = 5
+const PRESENT_HARD_CAP_EDGES = 200
+const PRESENT_DOT_COLORS = ['#A855F7', '#AADB1E', '#FACC15', '#FB923C', '#22D3EE']
+
+// ── Exportar diagrama (imagem/GIF) — ver `captureDiagramCanvas()` ──────────
+// Recorta exatamente ao redor do conteúdo (nós ∪ raias), nunca ao viewport
+// aberto no navegador — é isso que evita a "moldura" de espaço em branco que
+// `fit()` deixa de propósito (letterbox contain, pensado pra edição, onde o
+// viewport tem lá seu próprio formato). `EXPORT_LONG_SIDE` é o lado mais
+// comprido da imagem final; o outro lado é derivado da proporção real do
+// conteúdo, então a saída SEMPRE preenche o quadro por completo.
+const EXPORT_PAD = 48
+const EXPORT_LONG_SIDE = 1600
+// Frames capture back-to-back — no artificial delay between them (see
+// exportVideo()); real capture time already dwarfs any inter-frame wait
+// worth imposing (measured 2026-08-03: ~550-900ms per frame, mostly the DOM
+// clone + serialize step — NOT pixel count, confirmed by timing 1600px vs
+// 1100px captures directly: barely different). `EXPORT_GIF_LONG_SIDE`
+// (smaller than the still PNG's `EXPORT_LONG_SIDE`) buys a modest amount of
+// that back on the rasterize/decode step, but the real lever for "more
+// frames" is `EXPORT_GIF_SECONDS` — this is architecturally a slow,
+// per-frame-DOM-clone capture, not a real-time recorder, so there's a hard
+// floor on frame RATE; the only way to get more frames is more total time.
+const EXPORT_GIF_LONG_SIDE = 1100
+const EXPORT_GIF_SECONDS = 14
+// 1×1 transparent PNG — `html-to-image`'s own fallback for a broken `<img>`
+// (logo file missing/404) is `imagePlaceholder || ''`, and an EMPTY `src` is
+// a real browser trap: `<img src="">` resolves to the CURRENT page URL and
+// tries to load the HTML document itself as an image, which fails and takes
+// the whole capture down with it (confirmed via a broken Solution logo in
+// this exact diagram — `err.target.src` came back as this page's own URL).
+// Passing a real, valid placeholder avoids that trap entirely.
+const EXPORT_IMAGE_PLACEHOLDER = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+
+// Screenshot "look" presets — a deliberately narrow set of CSS-only overrides
+// (canvas background + edge/marker/pill color, nothing else) applied for the
+// duration of a single capture via a `data-viz-preset` attribute set on
+// `world`/the edges `<svg>` right before `toCanvas()` and removed right
+// after (see `captureDiagramCanvas()`) — the matching rules live in the
+// component's outer `<style>` (nodes, real HTML — computed style gets copied
+// per-element regardless of external stylesheet) and in the edges SVG's OWN
+// internal `<style>` (nested SVGs are raw-cloned wholesale — see that
+// block's comment). Deliberately does NOT touch font, font-size, padding, or
+// anything else that affects layout/wrapping: a prior attempt to get this
+// same variety by sending the exported PNG to Gemini for a visual "restyle"
+// reliably garbled small text ("SAP S/4HANA" → "SAM4AMA", "AllStrategy" →
+// "AllSnatag") since it's a generative model re-drawing pixels, not a
+// stylesheet — removed 2026-08-03. A CSS-only swap can never do that: the
+// same DOM, the same box model, just different colors.
+const EXPORT_PRESETS = {
+    original:    { bg: '#F7F9FC', line: '#94A3C4', pillFill: '#ffffff', pillText: '#4f5b7a', glow: false },
+    casual:      { bg: '#FFF7ED', line: '#F59E0B', pillFill: '#ffffff', pillText: '#7c4a03', glow: false },
+    corporativo: { bg: '#FFFFFF', line: '#1B4D2E', pillFill: '#ffffff', pillText: '#1B4D2E', glow: false },
+    tech:        { bg: '#0B1220', line: '#22D3EE', pillFill: '#0f1e33', pillText: '#a5e9f7', glow: true },
+}
+
+// Descobre até `PRESENT_MAX_PATHS` caminhos no grafo livre da chain, um por
+// ramificação — função pura, sem tocar em DOM/estado do módulo, só em
+// `graph.nodes`/`graph.edges` (mesmo formato de `graphRef`). Cada aresta
+// contribui uma única direção de "saída" (`outgoing[node]`): `'->'` sai de
+// `from`; `'<-'` sai de `to` (a caminhada amostra o `<path>` de trás pra
+// frente — ver `reversed` no consumidor); `'<->'` só sai de `from`, nunca
+// cria a entrada reversa — assim uma ligação bidirecional é percorrida numa
+// única direção, por no máximo uma bolinha, sem precisar de exclusão
+// nenhuma depois. Raiz = nó sem nenhuma entrada nesse mesmo sentido; uma
+// raiz sem NENHUMA saída (nó isolado) é ignorada — não haveria o que animar,
+// e não vale gastar uma das 5 vagas com ela.
+//
+// Fila FIFO de "sementes" (`{startNode, forcedEdge}`): as raízes entram
+// primeiro, em ordem de índice — cada caminhada segue sempre a saída de
+// MENOR índice do nó atual, e a primeira vez que QUALQUER caminhada passa
+// por um nó com 2+ saídas, as demais saem como sementes novas no fim da
+// fila (`branchSpawned`, global — um nó de merge não gera ramos duplicados
+// só porque um segundo caminho também passou por ele depois). Isso também
+// dá a ordem de descoberta "por ramificação, largura primeiro" pedida: os
+// ramos do primeiro caminho vêm antes dos ramos do segundo.
+//
+// Proteção de ciclo: cada caminhada tem seu próprio `visited` (nós); ao
+// tentar avançar para um nó já visitado NESSA caminhada, a aresta que fecha
+// o ciclo ainda entra na lista — é ela que faz a volta da bolinha ler como
+// um loop contínuo de verdade — e a caminhada para ali (não greda em loop
+// infinito reprocessando o mesmo trecho).
+function computePresentationPaths(graph) {
+    const nodeCount = graph?.nodes?.length || 0
+    const edgeList = graph?.edges || []
+    if (!nodeCount || !edgeList.length) return []
+
+    const outgoing = Array.from({ length: nodeCount }, () => [])
+    const hasIncoming = new Array(nodeCount).fill(false)
+    edgeList.forEach((edge, i) => {
+        const arrow = edge.arrow || '->'
+        if (arrow === '->' || arrow === '<->') {
+            outgoing[edge.from]?.push({ edgeIndex: i, to: edge.to, reversed: false })
+            hasIncoming[edge.to] = true
+        } else if (arrow === '<-') {
+            outgoing[edge.to]?.push({ edgeIndex: i, to: edge.from, reversed: true })
+            hasIncoming[edge.from] = true
+        }
+    })
+
+    const queue = []
+    for (let n = 0; n < nodeCount; n++) {
+        if (!hasIncoming[n] && outgoing[n].length > 0) queue.push({ startNode: n, forcedEdge: null })
+    }
+
+    const branchSpawned = new Set()
+    const paths = []
+    let qi = 0
+    while (qi < queue.length && paths.length < PRESENT_MAX_PATHS) {
+        const { startNode, forcedEdge } = queue[qi++]
+        const visited = new Set([startNode])
+        const pathEdges = []
+        let current = startNode
+        let firstStep = forcedEdge
+
+        while (pathEdges.length < PRESENT_HARD_CAP_EDGES) {
+            const opts = outgoing[current]
+            let step
+            if (firstStep) {
+                step = firstStep
+                firstStep = null
+            } else {
+                if (opts.length === 0) break // beco sem saída
+                step = opts[0]
+            }
+            if (opts.length > 1 && !branchSpawned.has(current)) {
+                branchSpawned.add(current)
+                opts.forEach((o) => { if (o !== step) queue.push({ startNode: current, forcedEdge: o }) })
+            }
+
+            const closesCycle = visited.has(step.to)
+            pathEdges.push({ edgeIndex: step.edgeIndex, reversed: step.reversed })
+            if (closesCycle) break
+            visited.add(step.to)
+            current = step.to
+        }
+
+        if (pathEdges.length > 0) paths.push({ startNode, edges: pathEdges })
+    }
+
+    return paths.map((p, k) => ({ ...p, color: PRESENT_DOT_COLORS[k % PRESENT_DOT_COLORS.length] }))
+}
+
+// Nós sem NENHUMA aresta tocando-os (nem `from` nem `to`, de qualquer
+// `arrow`) nunca entram em `computePresentationPaths()` — não há bolinha
+// que algum dia os alcance, então não faz sentido deixá-los esperando o
+// "sweep" de segurança de `onDotFirstLoopComplete()` (que só dispara depois
+// de TODA bolinha fechar sua 1ª volta, o que pode demorar). Função pura, à
+// parte de `computePresentationPaths()` porque a regra é outra: aqui é só
+// grau zero, sem nenhuma noção de caminho/direção.
+function computeIsolatedNodes(graphRef) {
+    const nodeCount = graphRef?.nodes?.length || 0
+    const connected = new Array(nodeCount).fill(false)
+    ;(graphRef?.edges || []).forEach((edge) => {
+        connected[edge.from] = true
+        connected[edge.to] = true
+    })
+    return connected.flatMap((isConnected, i) => (isConnected ? [] : [i]))
+}
+
 function luminance(hex) {
     const h = hex.replace('#', '')
     const r = parseInt(h.substr(0, 2), 16) / 255
@@ -207,6 +416,23 @@ function darkenHex(hex, amount) {
     const g = scale(parseInt(h.substr(2, 2), 16))
     const b = scale(parseInt(h.substr(4, 2), 16))
     return `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`
+}
+
+// `background` CSS de uma raia a partir de `pattern`/`opacity` — sólido é só
+// a cor com alpha (mesma conta de sempre, agora com opacidade escolhida em
+// vez do 0.08 fixo); diagonal/trançado usam `repeating-linear-gradient` com
+// paradas DURAS (sem suavização entre a faixa cheia e o vão transparente),
+// pra ler como linhas de verdade — trançado é literalmente duas listras
+// diagonais sobrepostas, uma em cada sentido. O vão fica transparente de
+// propósito, deixando o fundo do canvas (`bg-surface`) aparecer entre as
+// listras, em vez de tingir tudo por baixo.
+function laneBackgroundCss(lane) {
+    const opacity = Number.isFinite(lane.opacity) ? lane.opacity : LANE_STYLE_DEFAULTS.opacity
+    const fill = hexToRgba(lane.color, opacity)
+    const stripe = (angle) => `repeating-linear-gradient(${angle}deg, ${fill} 0, ${fill} ${LANE_PATTERN_STRIPE}px, transparent ${LANE_PATTERN_STRIPE}px, transparent ${LANE_PATTERN_PERIOD}px)`
+    if (lane.pattern === 'diagonal') return stripe(45)
+    if (lane.pattern === 'cross') return `${stripe(45)}, ${stripe(-45)}`
+    return fill
 }
 
 // Chip discreto de atributo (hospedagem/cloud) em cima do bloco: ícone (SVG já
@@ -543,10 +769,34 @@ function mount(root) {
     const organizeBtn = root.querySelector('[data-viz-organize]')
     const addNodeBtn = root.querySelector('[data-viz-add-node]')
     const lanesBtn = root.querySelector('[data-viz-lanes]')
+    const presentToggleBtn = root.querySelector('[data-viz-present-toggle]')
+    const presentIconStart = root.querySelector('[data-viz-present-icon-start]')
+    const presentIconStop = root.querySelector('[data-viz-present-icon-stop]')
+    const presentSpeedWrap = root.querySelector('[data-viz-present-speed-wrap]')
+    const presentSpeedSelect = root.querySelector('[data-viz-present-speed]')
+    const exportToggleBtn = root.querySelector('[data-viz-export-toggle]')
+    const exportPngBtn = root.querySelector('[data-viz-export-png]')
+    const exportGifBtn = root.querySelector('[data-viz-export-gif]')
+    const exportStatus = root.querySelector('[data-viz-export-status]')
+    const exportStyleSelect = root.querySelector('[data-viz-export-style]')
     const laneToolbar = root.querySelector('[data-viz-lane-toolbar]')
     const laneToolbarSwatches = root.querySelector('[data-viz-lane-toolbar-swatches]')
     const laneToolbarLabel = root.querySelector('[data-viz-lane-toolbar-label]')
     const laneToolbarRemove = root.querySelector('[data-viz-lane-toolbar-remove]')
+    const laneToolbarRoundedBtn = root.querySelector('[data-viz-lane-toolbar-rounded]')
+    const laneToolbarRoundedIcon = root.querySelector('[data-viz-lane-toolbar-rounded-icon]')
+    const laneToolbarDashedBtn = root.querySelector('[data-viz-lane-toolbar-dashed]')
+    const laneToolbarOrientationBtns = root.querySelectorAll('[data-viz-lane-toolbar-orientation]')
+    const laneToolbarPatterns = root.querySelector('[data-viz-lane-toolbar-patterns]')
+    const laneToolbarOpacity = root.querySelector('[data-viz-lane-toolbar-opacity]')
+    // O componente `<x-forms.toggle>` renderiza o `<input type=checkbox>` real
+    // DENTRO do `<label>` que recebe `data-viz-lane-toolbar-title` (o
+    // `$attributes` do componente só chega no elemento raiz) — por isso o
+    // hook aponta pro wrapper, e o checkbox de verdade se pega com
+    // `.querySelector('input')` nele, mesma ideia de `viz-text-color-input`
+    // ter um `id` próprio além do `data-viz-text-color` do componente.
+    const laneToolbarTitleWrap = root.querySelector('[data-viz-lane-toolbar-title]')
+    const laneToolbarTitleInput = laneToolbarTitleWrap?.querySelector('input') ?? null
     const addEditor = root.querySelector('[data-viz-add-editor]')
     const addKindSelect = root.querySelector('[data-viz-add-kind]')
     const addKindPicker = root.querySelector('[data-viz-add-kind-picker]')
@@ -613,15 +863,32 @@ function mount(root) {
     let lanes = []          // [{label, color, x, y, width, height}] — raias (viz_layout.lanes), puramente visual
     let laneEls = []        // [{wrap, label, handles:{e,s,se}}] — elementos DOM das raias, paralelos a `lanes`
     let selectedLane = null // índice da raia com o toolbar (cor/nome/remover) aberto, ou null
-    // Fração (0–1) de onde, ao longo da ALTURA da etiqueta, o clique que abriu
-    // o toolbar aconteceu — usada por `positionLaneToolbar()` pra ancorar o
-    // painel perto do clique de verdade em vez do topo/base do retângulo
-    // inteiro da raia, que pode ter centenas de px de altura/largura.
-    let selectedLaneClickFrac = 0.5
+    // Fração (0–1, nos dois eixos) de onde, dentro do elemento que recebeu o
+    // clique que abriu o toolbar — a etiqueta (com título) ou o corpo inteiro
+    // (sem título, `showTitle === false`) —, o clique aconteceu. Usada por
+    // `positionLaneToolbar()` pra ancorar o painel perto do clique de
+    // verdade em vez do topo/base do retângulo inteiro da raia, que pode ter
+    // centenas de px de altura/largura; funciona igual nas duas orientações
+    // porque a etiqueta muda de eixo dominante (altura cheia x largura
+    // cheia), mas a fração 2D cobre os dois sempre.
+    let selectedLaneAnchorFrac = { x: 0.5, y: 0.5 }
     let creatingEdge = false // POST de ligação nova em voo — ver `appendEdgeLocally()`
     let slug = ''
     let editable = false
     let saveUrl = null
+    // ── modo apresentação — ver `enterPresentation()`/`presentTick()` ──
+    let presenting = false
+    let savedEditableBeforePresenting = false // valor real de `editable` (vindo do servidor), restaurado ao sair
+    let presentPaths = []             // computePresentationPaths() do graphRef atual
+    let presentDots = []              // estado de execução de cada bolinha — ver startPresentAnimation()
+    let presentRafId = null
+    let presentLastTs = null          // timestamp do frame anterior — null força o 1º frame a ter dt=0
+    let presentSpeedMultiplier = 1    // 0.5–1.5, controlado pelo <select> de velocidade
+    const PRESENT_BASE_SPEED = 90      // px de mundo por segundo, em 1x
+    let presentRevealedNodes = []     // bool[] por índice de nó — fadeIn é idempotente (ver revealNode())
+    let presentRevealedEdges = []     // bool[] por índice de edge — mesma ideia, ver revealEdge()
+    let presentFirstLoopPending = 0   // quantas bolinhas ainda não fecharam a 1ª volta
+    let presentFallbackFired = false  // já revelou tudo que sobrou ao fim da 1ª volta de todas
     let drag = null         // {type:'handle'|'node', ...} — 'handle' carrega edge/end/origNode/otherNode/targetNode
     let dirty = false
     let selectedIndex = null
@@ -709,11 +976,9 @@ function mount(root) {
 
     function showEmpty(name) {
         empty.style.display = ''
-        saveBtn?.classList.add('!hidden')
-        saveSep?.classList.add('hidden')
-        addNodeBtn?.classList.add('!hidden')
-        metaEditBtn?.classList.add('!hidden')
-        lanesBtn?.classList.add('!hidden')
+        refreshEditableUI()
+        presentToggleBtn?.classList.add('!hidden') // sem chain carregada não há o que apresentar
+        exportToggleBtn?.classList.add('!hidden') // idem — nada pra exportar
         if (topbarTitle) topbarTitle.textContent = name || 'Selecione uma integração'
         if (emptyTitle) emptyTitle.textContent = name || 'Nenhuma integração selecionada'
         if (emptyHint) {
@@ -724,6 +989,11 @@ function mount(root) {
     }
 
     function render(graph, name, slugArg) {
+        // Trocar a integração selecionada re-renderiza esta MESMA instância
+        // montada (`clearWorld()` logo abaixo destrói todo nó/aresta) — sem
+        // sair da apresentação primeiro, o rAF de `presentTick()` continuaria
+        // rodando contra elementos desanexados.
+        if (presenting) exitPresentation()
         selectNode(null)
         cancelLinking()
         closeComment()
@@ -735,7 +1005,6 @@ function mount(root) {
         slug = slugArg || ''
         editable = !!graph?.editable
         saveUrl = graph?.saveUrl ?? null
-        root.toggleAttribute('data-editable', editable)
 
         if (!graph || !Array.isArray(graph.nodes) || graph.nodes.length === 0) {
             showEmpty(name)
@@ -743,13 +1012,9 @@ function mount(root) {
         }
         empty.style.display = 'none'
         if (topbarTitle) topbarTitle.textContent = name || ''
-
-        // botão salvar/adicionar bloco/renomear/raias visíveis só quando editável
-        saveBtn?.classList.toggle('!hidden', !editable)
-        saveSep?.classList.toggle('hidden', !editable)
-        addNodeBtn?.classList.toggle('!hidden', !editable)
-        metaEditBtn?.classList.toggle('!hidden', !editable)
-        lanesBtn?.classList.toggle('!hidden', !editable)
+        refreshEditableUI()
+        presentToggleBtn?.classList.remove('!hidden')
+        exportToggleBtn?.classList.remove('!hidden')
 
         graph.nodes.forEach((data, i) => {
             const el = document.createElement('div')
@@ -785,7 +1050,14 @@ function mount(root) {
                         m.el.style.top = m.y + 'px'
                     })
                 }
-                draw()
+                // Nunca redesenha em cima de uma apresentação em andamento —
+                // draw() reconstrói todo <path class="ak-viz-edge">, o que
+                // invalidaria os `pathEl`/`length` já cacheados pelas
+                // bolinhas em voo (`startPresentAnimation()`). A imagem só
+                // fica com a âncora levemente desatualizada nesse cenário
+                // raro (carregamento lento + entrar na apresentação antes
+                // dela terminar), o que é aceitável.
+                if (!presenting) draw()
             }, { once: true })
         })
 
@@ -897,15 +1169,28 @@ function mount(root) {
         }
         if (Array.isArray(layout.lanes)) {
             const clampSize = (v, fallback) => (Number.isFinite(v) ? Math.round(Math.max(LANE_MIN_SIZE, Math.min(LANE_MAX_SIZE, v))) : fallback)
+            const clampOpacity = (v) => (Number.isFinite(v) ? Math.max(LANE_OPACITY_MIN, Math.min(LANE_OPACITY_MAX, v)) : LANE_STYLE_DEFAULTS.opacity)
             lanes = layout.lanes
                 .filter((l) => l && typeof l.label === 'string')
                 .map((l) => ({
+                    // Backfill: uma raia salva antes de um destes campos
+                    // existir não traz a chave — `LANE_STYLE_DEFAULTS` cobre
+                    // o buraco, e as validações abaixo tratam qualquer valor
+                    // presente mas fora do esperado (enum errado, tipo
+                    // errado) do mesmo jeito, caindo no default.
+                    ...LANE_STYLE_DEFAULTS,
                     label: l.label,
                     color: isHex(l.color) ? l.color : LANE_COLORS[0],
                     x: Number.isFinite(l.x) ? l.x : 0,
                     y: Number.isFinite(l.y) ? l.y : 0,
                     width: clampSize(l.width, LANE_DEFAULT_WIDTH),
                     height: clampSize(l.height, LANE_DEFAULT_HEIGHT),
+                    rounded: typeof l.rounded === 'boolean' ? l.rounded : LANE_STYLE_DEFAULTS.rounded,
+                    dashed: typeof l.dashed === 'boolean' ? l.dashed : LANE_STYLE_DEFAULTS.dashed,
+                    pattern: LANE_PATTERNS.includes(l.pattern) ? l.pattern : LANE_STYLE_DEFAULTS.pattern,
+                    opacity: clampOpacity(l.opacity),
+                    orientation: l.orientation === 'vertical' ? 'vertical' : LANE_STYLE_DEFAULTS.orientation,
+                    showTitle: typeof l.showTitle === 'boolean' ? l.showTitle : LANE_STYLE_DEFAULTS.showTitle,
                 }))
         }
         rebuildLanes()
@@ -926,6 +1211,24 @@ function mount(root) {
             minY = Math.min(minY, n.y)
             maxX = Math.max(maxX, n.x + n.w)
             maxY = Math.max(maxY, n.y + n.h)
+        })
+        return { minX, minY, maxX, maxY }
+    }
+
+    // União de `nodesBBox()` com as raias — usada SÓ pela exportação
+    // (`captureDiagramCanvas()`), nunca por `fit()`: uma raia redimensionada
+    // maior que o cluster de blocos atual (comum — o usuário costuma deixar
+    // "espaço pra crescer") deve entrar no recorte exportado mesmo sem nó
+    // nenhum ali, senão a raia aparece cortada na imagem final.
+    function contentBBox() {
+        const nb = nodesBBox()
+        if (!nb && !lanes.length) return null
+        let { minX, minY, maxX, maxY } = nb || { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
+        lanes.forEach((l) => {
+            minX = Math.min(minX, l.x)
+            minY = Math.min(minY, l.y)
+            maxX = Math.max(maxX, l.x + l.width)
+            maxY = Math.max(maxY, l.y + l.height)
         })
         return { minX, minY, maxX, maxY }
     }
@@ -959,40 +1262,54 @@ function mount(root) {
         laneEls = lanes.map((lane, i) => {
             const wrap = document.createElement('div')
             wrap.className = 'ak-viz-lane'
+            wrap.classList.toggle('is-vertical', lane.orientation === 'vertical')
+            wrap.classList.toggle('is-rounded', !!lane.rounded)
             wrap.style.left = lane.x + 'px'
             wrap.style.top = lane.y + 'px'
             wrap.style.width = lane.width + 'px'
             wrap.style.height = lane.height + 'px'
-            // Preenchimento bem sutil de propósito, mas a BORDA sólida
-            // precisa se ler como o contorno real do retângulo — e o
-            // título, na cor cheia, é o que fica mais vívido de tudo.
-            wrap.style.background = hexToRgba(lane.color, 0.08)
+            // Preenchimento sutil de propósito (opacidade controlável,
+            // `laneBackgroundCss()`), mas a BORDA (sólida ou tracejada,
+            // `lane.dashed`) precisa se ler como o contorno real do
+            // retângulo — e o título, na cor cheia, é o que fica mais
+            // vívido de tudo.
+            wrap.style.background = laneBackgroundCss(lane)
             wrap.style.borderColor = hexToRgba(lane.color, 0.7)
+            wrap.style.borderStyle = lane.dashed ? 'dashed' : 'solid'
             // Arrastar o CORPO inteiro (fora da etiqueta/alças) move a raia
             // (`x`/`y`) — mas só a etiqueta abre o toolbar de cor/nome/remover
             // num clique sem arraste (`onLabel`, ver o `mouseup` global);
-            // clicar o resto do corpo sem arrastar não faz nada. Mesma
-            // distinção clique-vs-arraste de um bloco (`drag.moved`, ver
-            // `startNodePointer()`), só que o "vira seleção" de um clique
-            // puro fica condicionado a QUAL parte do retângulo começou o
-            // gesto.
+            // clicar o resto do corpo sem arrastar não faz nada. Exceção:
+            // sem título (`showTitle === false`) não existe faixa separada
+            // pra reservar como alvo de seleção — o corpo inteiro assume o
+            // papel da etiqueta, mesma distinção clique-vs-arraste de um
+            // bloco (`drag.moved`, ver `startNodePointer()`), só que aqui o
+            // "vira seleção" de um clique puro fica condicionado a QUAL
+            // parte do retângulo começou o gesto.
             wrap.addEventListener('mousedown', (e) => {
                 if (e.button !== 0 || !editable) return
                 e.stopPropagation()
                 e.preventDefault()
-                drag = { type: 'lane-move', index: i, startClientX: e.clientX, startClientY: e.clientY, startX: lane.x, startY: lane.y, moved: false, onLabel: false }
+                drag = { type: 'lane-move', index: i, startClientX: e.clientX, startClientY: e.clientY, startX: lane.x, startY: lane.y, moved: false, onLabel: lane.showTitle === false }
             })
 
-            // Etiqueta: faixa esquerda de altura cheia com o TÍTULO — cor
-            // sólida mais escura que o preenchimento do resto da raia
-            // (`darkenHex()`), pra se destacar como uma lombada/cabeçalho.
-            // Tem `pointer-events: auto` própria (editável) pra virar o único
+            // Etiqueta: faixa de altura/largura cheia com o TÍTULO — na
+            // borda esquerda com texto vertical (orientação horizontal, a
+            // faixa clássica) ou no topo com texto padrão esquerda→direita
+            // (orientação vertical, `.is-vertical` acima) — cor sólida mais
+            // escura que o preenchimento do resto da raia (`darkenHex()`),
+            // pra se destacar como uma lombada/cabeçalho. Tem
+            // `pointer-events: auto` própria (editável) pra virar o único
             // alvo que abre o toolbar num clique — precisa do seu próprio
             // `mousedown` (com `stopPropagation`) em vez de deixar borbulhar
-            // pro `wrap`, senão o `onLabel` acima sempre veria `false`.
+            // pro `wrap`, senão o `onLabel` acima sempre veria `false`. Sem
+            // título (`showTitle === false`) ela some da tela e o `wrap`
+            // acima assume a seleção — não removida do DOM pra `rebuildLanes()`
+            // continuar simples de reconstruir do zero.
             const label = document.createElement('span')
             label.className = 'ak-viz-lane-label'
             label.style.background = darkenHex(lane.color, 0.35)
+            label.style.display = lane.showTitle === false ? 'none' : ''
             label.textContent = lane.label
             label.addEventListener('mousedown', (e) => {
                 if (e.button !== 0 || !editable) return
@@ -1055,6 +1372,7 @@ function mount(root) {
         const vpRect = viewport.getBoundingClientRect()
         const center = screenToWorld(vpRect.left + vpRect.width / 2, vpRect.top + vpRect.height / 2)
         lanes.push({
+            ...LANE_STYLE_DEFAULTS,
             label: `Raia ${lanes.length + 1}`,
             color: LANE_COLORS[lanes.length % LANE_COLORS.length],
             x: Math.round(center.x - LANE_DEFAULT_WIDTH / 2),
@@ -1074,7 +1392,7 @@ function mount(root) {
     // separado) + remover, já que uma raia não tem título/comentário/link
     // pra editar. Mutuamente exclusivo com o toolbar do bloco: `selectNode()`
     // fecha este; este fecha aquele.
-    function selectLane(index, clientY = null) {
+    function selectLane(index, clientX = null, clientY = null) {
         if (!editable || !laneEls[index]) return
         selectNode(null)
         closeProtocolEditor()
@@ -1085,19 +1403,32 @@ function mount(root) {
         selectedLane = index
         laneEls[index].wrap.classList.add('is-selected')
         if (laneToolbarLabel) laneToolbarLabel.value = lanes[index].label
-        // `clientY` vem do próprio clique que abriu o toolbar (ver o
-        // `mouseup` de `drag.type === 'lane-move'`) — guardado como fração da
-        // altura da ETIQUETA (não da raia inteira) pra `positionLaneToolbar()`
-        // conseguir ancorar perto de onde o usuário realmente clicou, e
-        // continuar válido enquanto a raia é arrastada/redimensionada depois.
-        const labelRect = laneEls[index].label.getBoundingClientRect()
-        selectedLaneClickFrac = (clientY !== null && labelRect.height)
-            ? Math.min(1, Math.max(0, (clientY - labelRect.top) / labelRect.height))
-            : 0.5
+        // `clientX`/`clientY` vêm do próprio clique que abriu o toolbar (ver o
+        // `mouseup` de `drag.type === 'lane-move'`) — guardados como fração
+        // 2D dentro do elemento que realmente recebeu o clique (a etiqueta
+        // quando a raia tem título, o corpo inteiro quando não tem — ver
+        // `laneAnchorEl()`) pra `positionLaneToolbar()` conseguir ancorar
+        // perto de onde o usuário realmente clicou, e continuar válido
+        // enquanto a raia é arrastada/redimensionada depois.
+        const anchorRect = laneAnchorEl(index).getBoundingClientRect()
+        const frac = (client, start, size) => (client !== null && size ? Math.min(1, Math.max(0, (client - start) / size)) : 0.5)
+        selectedLaneAnchorFrac = {
+            x: frac(clientX, anchorRect.left, anchorRect.width),
+            y: frac(clientY, anchorRect.top, anchorRect.height),
+        }
         buildLaneSwatches()
+        refreshLaneToolbarControls()
         laneToolbar?.classList.remove('hidden')
         laneToolbar?.classList.add('flex')
         positionLaneToolbar()
+    }
+
+    // Elemento que serve de âncora pro toolbar/seleção da raia — a etiqueta
+    // quando ela existe (`showTitle` !== false), o corpo inteiro quando não
+    // (sem faixa dedicada pra ancorar, o próprio `wrap` assume o papel).
+    function laneAnchorEl(index) {
+        const entry = laneEls[index]
+        return lanes[index]?.showTitle === false ? entry.wrap : entry.label
     }
 
     function closeLaneToolbar() {
@@ -1108,28 +1439,31 @@ function mount(root) {
         laneToolbar.classList.remove('flex')
     }
 
-    // Ancorado ao PONTO DE CLIQUE que abriu o toolbar (`selectedLaneClickFrac`,
-    // projetado na etiqueta atual), não ao retângulo inteiro da raia — uma
-    // raia pode ter até `LANE_MAX_SIZE` (6000px) de largura/altura, e centrar
-    // no meio dela (ou colar no seu topo/base) jogava o painel bem longe de
-    // onde o usuário realmente clicou. A etiqueta é sempre a faixa estreita
-    // na borda esquerda (é o único alvo clicável que abre isto), então seu
-    // retângulo em tela já reflete pan/zoom/arraste sozinho, sem conversão.
+    // Ancorado ao PONTO DE CLIQUE que abriu o toolbar (`selectedLaneAnchorFrac`,
+    // projetado no elemento-âncora atual — `laneAnchorEl()`), não ao
+    // retângulo inteiro da raia — uma raia pode ter até `LANE_MAX_SIZE`
+    // (6000px) de largura/altura, e centrar no meio dela (ou colar no seu
+    // topo/base) jogava o painel bem longe de onde o usuário realmente
+    // clicou. Funciona igual nas duas orientações e com ou sem título porque
+    // o elemento-âncora muda (etiqueta estreita de altura/largura cheia, ou
+    // o corpo inteiro sem título), mas a fração 2D sempre se projeta sobre o
+    // retângulo em tela dele, que já reflete pan/zoom/arraste sozinho, sem
+    // conversão.
     function positionLaneToolbar() {
         if (!laneToolbar || selectedLane === null || !laneEls[selectedLane]) return
         if (laneToolbar.classList.contains('hidden')) return
 
         const stageRect = stage.getBoundingClientRect()
-        const labelRect = laneEls[selectedLane].label.getBoundingClientRect()
-        const anchorLeft = labelRect.left - stageRect.left
-        const anchorTop = labelRect.top - stageRect.top + selectedLaneClickFrac * labelRect.height
+        const anchorRect = laneAnchorEl(selectedLane).getBoundingClientRect()
+        const anchorLeft = anchorRect.left - stageRect.left + selectedLaneAnchorFrac.x * anchorRect.width
+        const anchorTop = anchorRect.top - stageRect.top + selectedLaneAnchorFrac.y * anchorRect.height
 
         const tw = laneToolbar.offsetWidth
         const th = laneToolbar.offsetHeight
         const sidebarWidth = isSidebarOpen() ? sidebar.offsetWidth : 0
         const maxLeft = stageRect.width - sidebarWidth - tw - 8
 
-        let left = anchorLeft + labelRect.width / 2 - tw / 2
+        let left = anchorLeft - tw / 2
         let top = anchorTop - th - PANEL_GAP
         if (top < 8) top = anchorTop + PANEL_GAP
         left = Math.max(8, Math.min(left, Math.max(8, maxLeft)))
@@ -1163,18 +1497,132 @@ function mount(root) {
         lanes[selectedLane].color = color
         const entry = laneEls[selectedLane]
         if (entry) {
-            entry.wrap.style.background = hexToRgba(color, 0.08)
+            entry.wrap.style.background = laneBackgroundCss(lanes[selectedLane])
             entry.wrap.style.borderColor = hexToRgba(color, 0.7)
             entry.label.style.background = darkenHex(color, 0.35)
         }
         buildLaneSwatches()
+        buildLanePatternButtons() // as prévias também são na cor da raia
         setDirty(true)
+    }
+
+    // Padrões de preenchimento (`LANE_PATTERNS`) — mesmo padrão de botão-prévia
+    // de `buildLaneSwatches()`, só que cada botão prevê um FILL STYLE (sempre
+    // na cor atual da raia, `LANE_PATTERN_PREVIEW_OPACITY` fixo pra ficar
+    // legível no tamanho do botão) em vez de uma cor.
+    const LANE_PATTERN_LABELS = { solid: 'Sólido', diagonal: 'Diagonal', cross: 'Trançado' }
+    function buildLanePatternButtons() {
+        if (!laneToolbarPatterns || selectedLane === null) return
+        const lane = lanes[selectedLane]
+        if (!lane) return
+        laneToolbarPatterns.innerHTML = ''
+        LANE_PATTERNS.forEach((pattern) => {
+            const btn = document.createElement('button')
+            btn.type = 'button'
+            btn.className = 'size-[26px] shrink-0 cursor-pointer rounded-md border border-line transition-transform hover:scale-105'
+            btn.style.background = laneBackgroundCss({ color: lane.color, pattern, opacity: LANE_PATTERN_PREVIEW_OPACITY })
+            btn.title = LANE_PATTERN_LABELS[pattern]
+            const active = (lane.pattern || LANE_STYLE_DEFAULTS.pattern) === pattern
+            btn.setAttribute('aria-pressed', String(active))
+            btn.style.boxShadow = active ? '0 0 0 2px var(--viz-bg), 0 0 0 3.5px var(--viz-select)' : ''
+            btn.addEventListener('click', () => setLanePattern(pattern))
+            laneToolbarPatterns.appendChild(btn)
+        })
+    }
+
+    function setLanePattern(pattern) {
+        if (selectedLane === null || !lanes[selectedLane]) return
+        lanes[selectedLane].pattern = pattern
+        const entry = laneEls[selectedLane]
+        if (entry) entry.wrap.style.background = laneBackgroundCss(lanes[selectedLane])
+        buildLanePatternButtons()
+        setDirty(true)
+    }
+
+    function setLaneOpacity(rawValue) {
+        if (selectedLane === null || !lanes[selectedLane]) return
+        const opacity = Math.max(LANE_OPACITY_MIN, Math.min(LANE_OPACITY_MAX, Number(rawValue) || LANE_STYLE_DEFAULTS.opacity))
+        lanes[selectedLane].opacity = opacity
+        const entry = laneEls[selectedLane]
+        if (entry) entry.wrap.style.background = laneBackgroundCss(lanes[selectedLane])
+        setDirty(true)
+    }
+
+    // Reflete o estado da raia selecionada nos controles do toolbar — chamado
+    // sempre que `selectLane()` abre (uma raia pode ter sido editada por
+    // outro caminho, ou o toolbar reabrir numa raia diferente) e depois de
+    // cada toggle local, mesmo espírito de `refreshToolbarControls()` (bloco).
+    function refreshLaneToolbarControls() {
+        const lane = lanes[selectedLane]
+        if (!lane) return
+        if (laneToolbarRoundedBtn) {
+            laneToolbarRoundedBtn.classList.toggle('!bg-accent-soft', !!lane.rounded)
+            laneToolbarRoundedBtn.setAttribute('aria-pressed', String(!!lane.rounded))
+        }
+        if (laneToolbarRoundedIcon) {
+            laneToolbarRoundedIcon.classList.toggle('rounded-md', !!lane.rounded)
+            laneToolbarRoundedIcon.classList.toggle('rounded-none', !lane.rounded)
+        }
+        if (laneToolbarDashedBtn) {
+            laneToolbarDashedBtn.classList.toggle('border-dashed', !!lane.dashed)
+            laneToolbarDashedBtn.classList.toggle('!bg-accent-soft', !!lane.dashed)
+        }
+        laneToolbarOrientationBtns.forEach((btn) => {
+            const active = btn.dataset.vizLaneToolbarOrientation === (lane.orientation || LANE_STYLE_DEFAULTS.orientation)
+            btn.classList.toggle('!bg-accent-soft', active)
+            btn.setAttribute('aria-pressed', String(active))
+        })
+        if (laneToolbarOpacity) laneToolbarOpacity.value = String(Number.isFinite(lane.opacity) ? lane.opacity : LANE_STYLE_DEFAULTS.opacity)
+        if (laneToolbarTitleInput) laneToolbarTitleInput.checked = lane.showTitle !== false
+        buildLanePatternButtons()
     }
 
     laneToolbarLabel?.addEventListener('input', () => {
         if (selectedLane === null || !lanes[selectedLane]) return
         lanes[selectedLane].label = laneToolbarLabel.value
         if (laneEls[selectedLane]) laneEls[selectedLane].label.textContent = laneToolbarLabel.value
+        setDirty(true)
+    })
+    // Cantos retos/arredondados — só a raia em si (a etiqueta acompanha via
+    // `.is-rounded` no CSS, ver `integration-viz.blade.php`).
+    laneToolbarRoundedBtn?.addEventListener('click', () => {
+        if (selectedLane === null || !lanes[selectedLane]) return
+        lanes[selectedLane].rounded = !lanes[selectedLane].rounded
+        laneEls[selectedLane]?.wrap.classList.toggle('is-rounded', lanes[selectedLane].rounded)
+        refreshLaneToolbarControls()
+        setDirty(true)
+    })
+    // Borda sólida/tracejada — mesmo botão-espelha-o-estado do toggle do
+    // bloco (`toolbarDashedBtn` acima).
+    laneToolbarDashedBtn?.addEventListener('click', () => {
+        if (selectedLane === null || !lanes[selectedLane]) return
+        lanes[selectedLane].dashed = !lanes[selectedLane].dashed
+        const entry = laneEls[selectedLane]
+        if (entry) entry.wrap.style.borderStyle = lanes[selectedLane].dashed ? 'dashed' : 'solid'
+        refreshLaneToolbarControls()
+        setDirty(true)
+    })
+    // Orientação horizontal/vertical — move a etiqueta da borda esquerda
+    // (texto vertical) pro topo (texto padrão), `.is-vertical` no CSS.
+    laneToolbarOrientationBtns.forEach((btn) => {
+        btn.addEventListener('click', () => {
+            if (selectedLane === null || !lanes[selectedLane]) return
+            const orientation = btn.dataset.vizLaneToolbarOrientation === 'vertical' ? 'vertical' : 'horizontal'
+            lanes[selectedLane].orientation = orientation
+            laneEls[selectedLane]?.wrap.classList.toggle('is-vertical', orientation === 'vertical')
+            refreshLaneToolbarControls()
+            positionLaneToolbar()
+            setDirty(true)
+        })
+    })
+    laneToolbarOpacity?.addEventListener('input', () => setLaneOpacity(laneToolbarOpacity.value))
+    // Título visível/oculto — sem título, o corpo inteiro assume o papel de
+    // alvo de seleção (`laneAnchorEl()`), por isso reancorar o toolbar aqui.
+    laneToolbarTitleInput?.addEventListener('change', () => {
+        if (selectedLane === null || !lanes[selectedLane]) return
+        lanes[selectedLane].showTitle = !!laneToolbarTitleInput.checked
+        if (laneEls[selectedLane]) laneEls[selectedLane].label.style.display = lanes[selectedLane].showTitle === false ? 'none' : ''
+        positionLaneToolbar()
         setDirty(true)
     })
     laneToolbarRemove?.addEventListener('click', () => {
@@ -1223,6 +1671,7 @@ function mount(root) {
             const arrow = edge.arrow || '->'
             if (arrow === '->' || arrow === '<->') path.setAttribute('marker-end', `url(#${markerEnd.id})`)
             if (arrow === '<-' || arrow === '<->') path.setAttribute('marker-start', `url(#${markerStart.id})`)
+            path.dataset.edgeIndex = i // permite re-localizar este <path> por índice — ver startPresentAnimation()
             edges.appendChild(path)
 
             // Pill de protocolo — sempre visível quando a ligação tem um
@@ -1250,6 +1699,427 @@ function mount(root) {
         if (drag?.type === 'connect' || quickAddOrigin) drawConnectPreview()
         positionToolbar()
         positionProtocolEditor()
+    }
+
+    // ── modo apresentação ────────────────────────────────────────────
+    // Ativado/desativado por `presentToggleBtn` (bottombar) ou Esc. Desliga
+    // toda edição reaproveitando o MESMO portão que já protege cada
+    // interação do arquivo (`editable`) — forçar `editable = false` some com
+    // drag de nó/raia, portas, alças e pill de protocolo de graça, sem
+    // tocar em cada um deles individualmente. `refreshEditableUI()`
+    // centraliza os toggles de visibilidade que hoje viviam espalhados em
+    // `render()`/`showEmpty()`.
+    function refreshEditableUI() {
+        root.toggleAttribute('data-editable', editable)
+        root.toggleAttribute('data-presenting', presenting)
+        saveBtn?.classList.toggle('!hidden', !editable)
+        saveSep?.classList.toggle('hidden', !editable)
+        addNodeBtn?.classList.toggle('!hidden', !editable)
+        metaEditBtn?.classList.toggle('!hidden', !editable)
+        lanesBtn?.classList.toggle('!hidden', !editable)
+        presentSpeedWrap?.classList.toggle('hidden', !presenting)
+        presentSpeedWrap?.classList.toggle('flex', presenting)
+        presentIconStart?.classList.toggle('hidden', presenting)
+        presentIconStop?.classList.toggle('hidden', !presenting)
+        presentToggleBtn?.setAttribute('title', presenting ? 'Sair da apresentação' : 'Modo apresentação')
+    }
+
+    // Uma bolinha por nó revelado — idempotente de propósito: o "sweep" de
+    // segurança em `onDotFirstLoopComplete()` chama isto pra TODO nó sem
+    // checar antes o que já foi revelado por outra bolinha.
+    function revealNode(index) {
+        if (index == null || presentRevealedNodes[index]) return
+        presentRevealedNodes[index] = true
+        if (nodes[index]) nodes[index].el.style.opacity = '1'
+    }
+
+    function revealAllNodes() {
+        nodes.forEach((n, i) => revealNode(i))
+    }
+
+    // Mesma ideia de `revealNode()`, pro `<path class="ak-viz-edge">` e sua
+    // pill de protocolo (se tiver uma — `edgeLabelEls[edgeIndex]` só existe
+    // quando a ligação tem `protocol` definido, já que durante a
+    // apresentação `editable=false` e `draw()` nunca desenha a pill
+    // tracejada "+ protocolo" de convite à edição). Uma seta só devia
+    // aparecer quando a bolinha COMEÇA a viajar por ela, não quando ela é
+    // desenhada pelo `draw()` de sempre — ver chamadas em
+    // `startPresentAnimation()`/`presentTick()`.
+    function revealEdge(edgeIndex) {
+        if (edgeIndex == null || presentRevealedEdges[edgeIndex]) return
+        presentRevealedEdges[edgeIndex] = true
+        const pathEl = edges.querySelector(`[data-edge-index="${edgeIndex}"]`)
+        if (pathEl) pathEl.style.opacity = '1'
+        if (edgeLabelEls[edgeIndex]) edgeLabelEls[edgeIndex].style.opacity = '1'
+    }
+
+    function revealAllEdges() {
+        (graphRef.edges || []).forEach((_, i) => revealEdge(i))
+    }
+
+    // Só conta pra fadeIn na PRIMEIRA volta de cada bolinha (`dot.lap === 0`)
+    // — voltas seguintes não escondem/revelam nada de novo.
+    function onDotArrivedAtSegmentEnd(dot) {
+        if (dot.lap > 0) return
+        const seg = dot.segments[dot.segIdx]
+        const edge = graphRef.edges[seg.edgeIndex]
+        revealNode(seg.reversed ? edge.from : edge.to)
+    }
+
+    // Nó/aresta fora de qualquer um dos ≤5 caminhos animados (nó isolado já
+    // é revelado antes disso, ver `enterPresentation()` — isso aqui é só
+    // pra além do teto de ramificações) nunca seria revelado sozinho — uma
+    // vez que TODA bolinha ativa já fechou sua própria 1ª volta, revela o
+    // que sobrou de uma vez, garantindo que nada fique invisível pra sempre.
+    function onDotFirstLoopComplete(dot) {
+        if (dot.firstLoopDone) return
+        dot.firstLoopDone = true
+        presentFirstLoopPending -= 1
+        if (presentFirstLoopPending === 0 && !presentFallbackFired) {
+            presentFallbackFired = true
+            revealAllNodes()
+            revealAllEdges()
+        }
+    }
+
+    // Posiciona o <circle> de uma bolinha no ponto atual do seu segmento —
+    // `getPointAtLength()` já devolve coordenadas no mesmo espaço de mundo
+    // que qualquer outro filho de `edges`/`world`, sem conversão. `reversed`
+    // amostra o <path> de trás pra frente (a ligação é `<-`, ver
+    // `computePresentationPaths()`).
+    function positionDot(dot) {
+        const seg = dot.segments[dot.segIdx]
+        const lenAlong = seg.reversed ? (seg.length - dot.segDist) : dot.segDist
+        const pt = seg.pathEl.getPointAtLength(Math.max(0, Math.min(seg.length, lenAlong)))
+        dot.el.setAttribute('cx', pt.x)
+        dot.el.setAttribute('cy', pt.y)
+    }
+
+    // Constrói o <circle> de cada bolinha e cacheia o comprimento de cada
+    // segmento do seu caminho (`getTotalLength()`, uma vez só) antes de
+    // iniciar o loop — reconstruir isso a cada frame seria desperdício, e o
+    // <path> de cada aresta não muda enquanto se apresenta (nada dispara
+    // `draw()` durante a apresentação, ver `enterPresentation()`/o guard no
+    // listener de imagem colada).
+    function startPresentAnimation() {
+        presentDots = presentPaths.map((path) => {
+            const el = document.createElementNS(SVG_NS, 'circle')
+            el.setAttribute('class', 'ak-viz-dot')
+            el.setAttribute('r', 4)
+            el.style.fill = path.color
+            el.style.fillOpacity = '0.7' // corpo translúcido — o glow (currentColor) é que fica em destaque
+            el.style.color = path.color // currentColor do drop-shadow em `.ak-viz-dot` lê daqui, não de `fill`
+            edges.appendChild(el) // irmão dos <path class="ak-viz-edge">, nunca removido por clearOverlays()
+            // A 1ª aresta de cada caminho já foi revelada (instantâneo, sem
+            // fade) em `enterPresentation()`, ANTES do reflow forçado do
+            // reset dos nós isolados — não repetir a chamada aqui, que já é
+            // tarde o suficiente (depois daquele reflow) para acabar
+            // animando por acidente em vez de aparecer na hora.
+            return {
+                el,
+                segments: path.edges.map(({ edgeIndex, reversed }) => {
+                    const pathEl = edges.querySelector(`[data-edge-index="${edgeIndex}"]`)
+                    return { edgeIndex, reversed, pathEl, length: pathEl.getTotalLength() }
+                }),
+                segIdx: 0,
+                segDist: 0,
+                lap: 0,
+                firstLoopDone: false,
+            }
+        })
+
+        presentFirstLoopPending = presentDots.length
+        presentFallbackFired = false
+        if (!presentDots.length) { revealAllNodes(); revealAllEdges(); return } // nada pra animar — não deixa o resto escondido pra sempre
+
+        presentDots.forEach((dot) => positionDot(dot))
+        presentLastTs = null
+        presentRafId = requestAnimationFrame(presentTick)
+    }
+
+    function presentTick(ts) {
+        if (!presenting) return
+        if (presentLastTs === null) presentLastTs = ts
+        // Clamp: uma aba em segundo plano pausa o rAF; ao voltar o foco, o
+        // primeiro `ts` pode vir com um salto enorme — sem isto a bolinha
+        // "teleportaria" por várias voltas de uma vez.
+        const dt = Math.min((ts - presentLastTs) / 1000, 0.1)
+        presentLastTs = ts
+        const step = PRESENT_BASE_SPEED * presentSpeedMultiplier * dt
+
+        presentDots.forEach((dot) => {
+            let remaining = step
+            while (remaining > 0) {
+                const seg = dot.segments[dot.segIdx]
+                const segRemaining = seg.length - dot.segDist
+                if (remaining < segRemaining) {
+                    dot.segDist += remaining
+                    remaining = 0
+                } else {
+                    remaining -= segRemaining
+                    dot.segDist = 0
+                    onDotArrivedAtSegmentEnd(dot)
+                    dot.segIdx += 1
+                    if (dot.segIdx >= dot.segments.length) {
+                        dot.segIdx = 0
+                        if (dot.lap === 0) onDotFirstLoopComplete(dot)
+                        dot.lap += 1
+                    }
+                    revealEdge(dot.segments[dot.segIdx].edgeIndex) // a bolinha está começando a viajar por essa aresta agora — idempotente, então voltas seguintes são no-op
+                }
+            }
+            positionDot(dot)
+        })
+
+        presentRafId = requestAnimationFrame(presentTick)
+    }
+
+    function stopPresentAnimation() {
+        if (presentRafId !== null) cancelAnimationFrame(presentRafId)
+        presentRafId = null
+        presentLastTs = null
+        presentDots.forEach((d) => d.el.remove())
+        presentDots = []
+    }
+
+    function enterPresentation() {
+        if (presenting || !graphRef || !nodes.length) return
+        selectNode(null)
+        cancelLinking()
+        closeComment()
+        closeAddEditor()
+        closeMetaEditor()
+        closeLaneToolbar()
+
+        presenting = true
+        savedEditableBeforePresenting = editable
+        editable = false
+        refreshEditableUI()
+        draw() // reconstrói arestas/pills/alças já sem editable — tira listener de pill obsoleto
+
+        presentSpeedMultiplier = 1
+        if (presentSpeedSelect) presentSpeedSelect.value = '1'
+
+        presentPaths = computePresentationPaths(graphRef)
+        presentRevealedNodes = nodes.map(() => false)
+        presentRevealedEdges = (graphRef.edges || []).map(() => false)
+        presentFallbackFired = false
+        nodes.forEach((n) => { n.el.style.opacity = '0' })
+        // Toda seta (e sua pill de protocolo, se tiver) começa invisível —
+        // só aparece quando uma bolinha começa a viajar por ela de verdade
+        // (`revealEdge()`, chamado de `startPresentAnimation()`/`presentTick()`),
+        // não simplesmente por já existir no grafo.
+        edges.querySelectorAll('.ak-viz-edge').forEach((el) => { el.style.opacity = '0' })
+        edgeLabelEls.forEach((el) => { if (el) el.style.opacity = '0' })
+        presentPaths.forEach((p) => revealNode(p.startNode)) // nó de partida aparece na hora, nunca é "alcançado"
+        presentPaths.forEach((p) => revealEdge(p.edges[0].edgeIndex)) // idem pra 1ª aresta de cada caminho — precisa estar ANTES do reflow forçado do isolado abaixo, senão esse reflow "comita" o opacity:0 acima como checkpoint de verdade e a revelação MAIS TARDE (em startPresentAnimation()) passa a animar por acidente
+
+        // Isolado (grau zero) não tem bolinha que um dia o alcance — não faz
+        // sentido ele esperar o sweep de fim-de-1ª-volta. MAS revelar rápido
+        // demais depois do opacity='0' acima INTERROMPE a mesma transição a
+        // meio caminho — e como a curva `ease` sai quase parada, interrompê-
+        // la a poucos ms do início (testado com 1 e com 2 `requestAnimationFrame`
+        // seguidos: nenhum dos dois deu tempo real suficiente) devolve o
+        // valor pra perto de onde já estava, sem fade visível nenhum. Em vez
+        // de brigar com uma transição em andamento, zera com `transition:
+        // none` + reflow forçado (sem NENHUMA transição rodando) e só then
+        // devolve o `transition` — a troca pra '1' que vem depois dispara
+        // uma transição limpa e completa de 0.5s a partir de um 0 de
+        // verdade, igual à de qualquer nó revelado por uma bolinha de fato.
+        const isolated = computeIsolatedNodes(graphRef)
+        if (isolated.length) {
+            const isolatedEls = isolated.map((i) => nodes[i]?.el).filter(Boolean)
+            isolatedEls.forEach((el) => { el.style.transition = 'none'; el.style.opacity = '0' })
+            void root.offsetHeight // commita o "0 sem transição" acima antes de reativar
+            isolatedEls.forEach((el) => { el.style.transition = '' })
+            isolated.forEach((i) => revealNode(i))
+        }
+
+        startPresentAnimation()
+    }
+
+    function exitPresentation() {
+        if (!presenting) return
+        stopPresentAnimation()
+        presenting = false
+        editable = savedEditableBeforePresenting
+        // Tira [data-presenting] ANTES do reset de opacidade — a transição
+        // de fadeIn só existe sob esse atributo (ver CSS), então o snap de
+        // volta pra 100% visível fica instantâneo, sem re-animar ao contrário.
+        refreshEditableUI()
+        nodes.forEach((n) => { n.el.style.opacity = '' })
+        draw() // reconstrói arestas/pills do zero, todas com opacity padrão (visível) — nada a resetar nelas aqui
+    }
+
+    // ── Exportar (PNG / GIF) ────────────────────────────────────────────
+    // Recorta `#world` ao redor de `contentBBox()`, nunca ao formato do
+    // viewport aberto no navegador — ver o parágrafo no topo do .blade para
+    // o raciocínio completo. `toCanvas()` clona `world` (nunca toca o DOM
+    // real), então NADA disto pisca na tela do usuário — a única exceção real
+    // é a troca de estado ao entrar/sair do Modo apresentação em si, que já
+    // muda a tela de propósito (mesmo comportamento de sempre).
+    // `fontEmbedCSS`, when given, skips `toCanvas()`'s own font detection
+    // (`getFontEmbedCSS()` already ran once — see `exportVideo()`). Node
+    // labels are set in 'Space Grotesk' (`.ak-viz-node`'s own rule) — a REAL
+    // loaded webfont, not a `system-ui` fallback — so skipping font embed
+    // entirely (this function used to pass `skipFonts: true`) silently
+    // substituted a wider fallback typeface in the exported PNG/GIF, enough
+    // to wrap "SAP S/4HANA" onto 2 lines where the live page shows 1 (real
+    // bug, reported 2026-08-03). Detecting fonts from scratch on every one of
+    // a GIF's ~40 frames is too slow to just always do it live, though —
+    // hence precomputing once and passing it back in for every frame after.
+    async function captureDiagramCanvas(longSide = EXPORT_LONG_SIDE, fontEmbedCSS = null, preset = 'original') {
+        const bbox = contentBBox()
+        if (!bbox) return null
+        const cw = bbox.maxX - bbox.minX + EXPORT_PAD * 2
+        const ch = bbox.maxY - bbox.minY + EXPORT_PAD * 2
+        const wide = cw >= ch
+        const targetW = Math.max(1, Math.round(wide ? longSide : (longSide * cw) / ch))
+        const targetH = Math.max(1, Math.round(wide ? (longSide * ch) / cw : longSide))
+        const scale = targetW / cw
+        const tx = Math.round((EXPORT_PAD - bbox.minX) * scale)
+        const ty = Math.round((EXPORT_PAD - bbox.minY) * scale)
+        const conf = EXPORT_PRESETS[preset] || EXPORT_PRESETS.original
+
+        // `world` (nodes, real HTML — per-element computed style survives the
+        // clone) and `edges` (the SVG — raw-cloned wholesale, needs its own
+        // matching rule inside its own internal `<style>`) both need the
+        // attribute; `world` isn't itself inside the SVG, so this can't be
+        // set once on a shared ancestor. Applied to the LIVE DOM (briefly —
+        // reverted in `finally`), same as the isolated-node/present-mode
+        // reveal tricks already do elsewhere in this file: `toCanvas()`
+        // clones whatever the live element's computed style resolves to AT
+        // THAT MOMENT, so the attribute has to really be there when it clones.
+        const usePreset = preset !== 'original'
+        if (usePreset) { world.dataset.vizPreset = preset; edges.dataset.vizPreset = preset }
+
+        try {
+            return await toCanvas(world, {
+                width: targetW,
+                height: targetH,
+                pixelRatio: 1,
+                backgroundColor: conf.bg,
+                imagePlaceholder: EXPORT_IMAGE_PLACEHOLDER,
+                ...(fontEmbedCSS ? { fontEmbedCSS } : {}),
+                style: { transform: `translate(${tx}px, ${ty}px) scale(${scale})`, transformOrigin: '0 0' },
+            })
+        } finally {
+            if (usePreset) { delete world.dataset.vizPreset; delete edges.dataset.vizPreset }
+        }
+    }
+
+    function exportFileBase() {
+        return (slug || 'diagrama').replace(/[^a-z0-9-]+/gi, '-')
+    }
+
+    function downloadBlob(blob, filename) {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = filename
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        setTimeout(() => URL.revokeObjectURL(url), 4000)
+    }
+
+    function currentExportPreset() {
+        return exportStyleSelect?.value || 'original'
+    }
+
+    async function exportImage() {
+        if (!graphRef || !nodes.length) { Toast.show('Nada para exportar ainda.', 'warning'); return }
+        setButtonLoading(exportPngBtn, true)
+        if (exportGifBtn) exportGifBtn.disabled = true
+        try {
+            const canvas = await captureDiagramCanvas(EXPORT_LONG_SIDE, null, currentExportPreset())
+            const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'))
+            if (!blob) throw new Error('toBlob returned null')
+            downloadBlob(blob, `diagrama-${exportFileBase()}.png`)
+            Toast.show('Imagem exportada.')
+        } catch (err) {
+            console.error('exportImage failed', err)
+            Toast.show('Não foi possível gerar a imagem.', 'error')
+        } finally {
+            setButtonLoading(exportPngBtn, false)
+            if (exportGifBtn) exportGifBtn.disabled = false
+        }
+    }
+
+    // Roda a própria animação do Modo apresentação (entra nela se ainda não
+    // estiver, e só sai de novo ao final se foi esta função que entrou —
+    // nunca interrompe uma apresentação que o usuário já tinha aberto por
+    // conta própria) e vai tirando fotos reais de `captureDiagramCanvas()`
+    // ao longo do caminho — o atraso de cada frame no GIF final é o tempo
+    // real decorrido entre uma foto e a próxima (`now - lastTs`), não um
+    // valor fixo: cada captura é um clone+serialize+rasterize completo do
+    // DOM, então o tempo por frame varia, mas a VELOCIDADE de reprodução do
+    // GIF continua fiel ao que realmente aconteceu.
+    async function exportVideo() {
+        if (!graphRef || !nodes.length) { Toast.show('Nada para exportar ainda.', 'warning'); return }
+        setButtonLoading(exportGifBtn, true)
+        if (exportPngBtn) exportPngBtn.disabled = true
+        if (exportStatus) { exportStatus.textContent = 'Gravando apresentação…'; exportStatus.classList.remove('hidden') }
+
+        const wasPresenting = presenting
+        if (!wasPresenting) enterPresentation()
+
+        try {
+            const preset = currentExportPreset()
+
+            // Detecting/embedding fonts from scratch (`toCanvas()`'s default
+            // behavior, needed so 'Space Grotesk' node labels don't silently
+            // fall back to a wider typeface — see captureDiagramCanvas()'s
+            // comment) is real work: scans every stylesheet on the page for
+            // @font-face rules, then fetches each font file. Fine once; far
+            // too slow repeated ~40 times over one GIF. `getFontEmbedCSS()`
+            // does that work exactly once, up front, and every frame below
+            // reuses the same already-embedded CSS string instead of redoing it.
+            const fontEmbedCSS = await getFontEmbedCSS(world)
+
+            const first = await captureDiagramCanvas(EXPORT_GIF_LONG_SIDE, fontEmbedCSS, preset)
+            if (!first) return
+            const gif = new GIF({
+                workers: 2,
+                quality: 15, // um pouco mais rápido pra codificar que o padrão (10) — mais frames pesa mais aqui embaixo
+                workerScript: gifWorkerUrl,
+                width: first.width,
+                height: first.height,
+                background: (EXPORT_PRESETS[preset] || EXPORT_PRESETS.original).bg,
+            })
+
+            // Sem espera artificial entre frames — encadeia uma captura direto
+            // atrás da outra; o próprio tempo real de captura (bem maior que
+            // qualquer espera que valeria a pena impor) já é o que vira o
+            // atraso de cada frame no GIF final.
+            let lastTs = performance.now()
+            gif.addFrame(first, { delay: 80, copy: true }) // só o 1º frame não tem um "tempo decorrido" real anterior pra usar
+
+            const start = lastTs
+            while (performance.now() - start < EXPORT_GIF_SECONDS * 1000) {
+                const canvas = await captureDiagramCanvas(EXPORT_GIF_LONG_SIDE, fontEmbedCSS, preset)
+                if (!canvas) break
+                const now = performance.now()
+                gif.addFrame(canvas, { delay: now - lastTs, copy: true })
+                lastTs = now
+            }
+
+            const blob = await new Promise((resolve, reject) => {
+                gif.once('finished', resolve)
+                gif.once('abort', () => reject(new Error('gif encoding aborted')))
+                gif.render()
+            })
+            downloadBlob(blob, `diagrama-${exportFileBase()}.gif`)
+            Toast.show('Vídeo (GIF) exportado.')
+        } catch (err) {
+            console.error('exportVideo failed', err)
+            Toast.show('Não foi possível gerar o vídeo.', 'error')
+        } finally {
+            if (!wasPresenting) exitPresentation()
+            setButtonLoading(exportGifBtn, false)
+            if (exportPngBtn) exportPngBtn.disabled = false
+            if (exportStatus) { exportStatus.textContent = ''; exportStatus.classList.add('hidden') }
+        }
     }
 
     // `proto` é `{value,label}` (passo com protocolo) ou `null` (sem
@@ -2002,7 +2872,7 @@ function mount(root) {
                 }
                 entry.w = newW
                 entry.h = newH
-                draw()
+                if (!presenting) draw() // ver o mesmo guard/motivo no listener de imagem em render()
             }, { once: true })
         }
 
@@ -3122,12 +3992,15 @@ function mount(root) {
                 setDirty(true)
             } else if (drag.type === 'lane-move') {
                 // Clique sem arraste NA ETIQUETA: seleciona a raia (abre o
-                // toolbar de cor/nome/remover). Clique sem arraste no resto
-                // do corpo: não faz nada — só a etiqueta é alvo de seleção.
-                // Arraste de fato (de qualquer parte do corpo): só confirma a
-                // posição nova, mesma distinção de `drag.type === 'node'`
-                // acima.
-                if (!drag.moved) { if (drag.onLabel) selectLane(drag.index, e.clientY) }
+                // toolbar de cor/nome/remover/estilo). Clique sem arraste no
+                // resto do corpo: não faz nada — só a etiqueta é alvo de
+                // seleção, EXCETO quando a raia não tem título
+                // (`showTitle === false`, `onLabel` já nasce `true` pro
+                // corpo inteiro em `rebuildLanes()`), já que aí não existe
+                // uma faixa separada pra reservar. Arraste de fato (de
+                // qualquer parte do corpo): só confirma a posição nova,
+                // mesma distinção de `drag.type === 'node'` acima.
+                if (!drag.moved) { if (drag.onLabel) selectLane(drag.index, e.clientX, e.clientY) }
                 else setDirty(true)
             }
             drag = null
@@ -3180,6 +4053,14 @@ function mount(root) {
     root.querySelector('[data-viz-fit]')?.addEventListener('click', fit)
     organizeBtn?.addEventListener('click', organize)
     saveBtn?.addEventListener('click', save)
+
+    presentToggleBtn?.addEventListener('click', () => { presenting ? exitPresentation() : enterPresentation() })
+    presentSpeedSelect?.addEventListener('change', () => {
+        const v = Number(presentSpeedSelect.value)
+        if (v > 0) presentSpeedMultiplier = v
+    })
+    exportPngBtn?.addEventListener('click', exportImage)
+    exportGifBtn?.addEventListener('click', exportVideo)
 
     // ── tela cheia do navegador (botão do rodapé) ──
     const fsOpen = root.querySelector('[data-viz-fs-open]')
@@ -3259,6 +4140,7 @@ function mount(root) {
     // clicar fora já fechava.
     window.addEventListener('keydown', (e) => {
         if (e.key !== 'Escape') return
+        if (presenting) { exitPresentation(); return }
         if (linking !== null) { cancelLinking(); return }
         if (selectedLane !== null) { closeLaneToolbar(); return }
         if (isSidebarOpen()) { closeComment(); return }
