@@ -51,9 +51,8 @@
     Two more adjustments are purely visual (`viz_layout`, never `chain`):
     a block's border and an arrow can each be toggled dashed independently
     (toolbar button / protocol editor checkbox), and lanes (`data-viz-lanes`)
-    — plain rectangles (solid border, no rounding) drawn behind the canvas,
-    with a vertical title running the full height of their left edge, filled
-    a shade darker than the rest of the rectangle to stand out — mark an area
+    — free rectangles drawn behind the canvas, with a title strip filled a
+    shade darker than the rest of the rectangle to stand out — mark an area
     of the flow as a background layout aid; a lane never references a node,
     the user just drags blocks into it like anywhere else on the canvas.
     Clicking the topbar's "Raias" button adds one straight away, centered on
@@ -61,12 +60,107 @@
     edited directly on the canvas: dragging a lane's body (including its
     title strip) moves it, dragging one of its 3 edge/corner handles resizes
     it — right edge width-only, bottom edge height-only, corner both at once.
-    A plain click (no drag) specifically on the darker title strip — not
-    anywhere else on the body — opens the lane's own small toolbar
-    (`data-viz-lane-toolbar`): preset color swatches (same palette-of-presets
-    pattern as a block's own toolbar), a name field (typing renames it live),
-    and a remove button; mutually exclusive with a block's toolbar, the same
-    way selecting a block closes this one and vice versa.
+    A plain click (no drag) specifically on the darker title strip — or
+    anywhere on the body when the lane has no title, see below — opens the
+    lane's own small toolbar (`data-viz-lane-toolbar`): preset color
+    swatches (same palette-of-presets pattern as a block's own toolbar), a
+    name field (typing renames it live), a remove button, and a style
+    cluster covering everything this feature adds: square/rounded corners,
+    solid/dashed border, background fill (solid, or a diagonal/crosshatch
+    stripe pattern, all in the lane's own color with an adjustable opacity),
+    horizontal orientation (the classic strip described above, title
+    running the full height of the left edge) vs. vertical (title strip
+    moves to the top edge instead, full width, plain left-to-right text —
+    for a flow that reads top-to-bottom rather than left-to-right), and a
+    title on/off switch — with no title, the lane keeps rendering as a
+    plain tinted/patterned rectangle but the toolbar-opening click target
+    moves from the (now absent) strip to the whole body, mutually exclusive
+    with a block's toolbar, the same way selecting a block closes this one
+    and vice versa.
+
+    Presentation mode (`data-viz-present-toggle`, bottom bar) is a separate,
+    purely visual viewing mode — never persisted, resets every time it's
+    (re-)entered — that animates up to 5 glowing dots traveling along the
+    chain's arrows, one per BRANCH of the flow: `integration-viz.js`'s
+    `computePresentationPaths()` walks the graph from every root (a node
+    with no incoming edge), always following the lowest-index outgoing edge
+    to continue the current dot's path, and spawning one new dot per
+    additional outgoing edge the first time a branching node is reached by
+    any path — capped at 5, with its own cycle guard so a graph that loops
+    back on itself (e.g. a retry) just reads as a continuous loop rather
+    than an infinite walk at path-build time. Every block AND every arrow
+    (plus its protocol pill, if it has one) starts invisible. A block fades
+    in the instant a dot's own first lap reaches it; an arrow fades in the
+    instant a dot BEGINS travelling it (`revealEdge()`) — the first edge of
+    each path is visible right away, same as that path's start block, since
+    a dot starts travelling it at t=0. Anything outside any of the ≤5
+    animated paths (block or arrow, beyond the branch cap) still fades in —
+    once every dot has completed its first lap, whatever's left is revealed
+    together, so nothing stays hidden forever. The one exception: a block
+    with NO edge at all (`computeIsolatedNodes()`, degree zero either
+    direction) has no dot that will ever reach it, so it doesn't wait for
+    that end-of-first-lap sweep either — it fades in right as presenting
+    starts (a `transition: none` + forced-reflow reset first, so the fade
+    isn't cut short mid-way by immediately reverting the same transition
+    it's riding — see the comment at that call site).
+    A `<select>` next to the toggle button
+    (visible only while presenting) sets a manual speed multiplier
+    (0.5x–1.5x) shared by every dot, live, without resetting anyone's
+    progress. Entering the mode disables every editing/selection
+    interaction (reusing the same `editable` gate every drag/click handler
+    already checks, forced to `false` for the duration) while leaving
+    pan/zoom free — it's available to a read-only viewer too, not just an
+    editor. Esc exits it, same as the rest of this canvas's Esc-closes-
+    everything convention.
+
+    Export (`data-viz-export-toggle`, same bottom bar) turns the diagram into
+    a PNG or an animated GIF for slides/video — entirely client-side, no new
+    route/job: `captureDiagramCanvas()` clones the live `#world` (never the
+    real DOM — `html-to-image`'s `toCanvas()` works on a detached clone, so
+    nothing here ever visibly flickers on the user's own screen) with an
+    overridden `transform` that maps `contentBBox()` (nodes ∪ lanes — the
+    union matters because a lane resized larger than its blocks is still
+    part of what a viewer expects to see exported) onto an output canvas
+    sized to THAT box's own aspect ratio. This is the deliberate difference
+    from `fit()`: `fit()` letterboxes content into whatever shape the open
+    browser window happens to be (correct for editing — the viewport's shape
+    isn't the diagram's business), which is exactly what left the blank
+    left/right margins in the first exported preview. An export has no
+    viewport to fit into — so its canvas dimensions are DERIVED from the
+    content instead, and the fit is always exact, never letterboxed.
+    `exportVideo()` reuses `enterPresentation()` verbatim (entering it first
+    if not already presenting, restoring the prior state after) and takes a
+    fresh `captureDiagramCanvas()` snapshot back-to-back, no artificial delay
+    between them — each capture (a full DOM clone + serialize + rasterize) is
+    already far slower than any inter-frame wait worth imposing, so the wait
+    was pure choppiness with no upside; smaller resolution
+    (`EXPORT_GIF_LONG_SIDE`, vs. `EXPORT_LONG_SIDE` for the still PNG) is the
+    lever that actually buys more frames per second of recording. Every frame
+    feeds into `gif.js` (a Web Worker encoder, `workerScript` resolved via
+    Vite's `?url` import of `gif.worker.js` — plain UMD module, not built for
+    bundling, so it can't take the usual ESM import path) with the REAL
+    elapsed time between captures as that frame's delay, so encoding jitter
+    changes how many frames make it in, never the GIF's actual playback
+    speed. The
+    nested `<svg data-viz-edges>` needs its OWN internal `<style>` (right
+    after the opening tag, below) duplicating the edge/marker/pill rules —
+    see the comment there for why the outer stylesheet doesn't reach it once
+    exported.
+
+    "Estilo do screenshot" (same menu, `<select data-viz-export-style>`) picks
+    which of `EXPORT_PRESETS` (`integration-viz.js`) `captureDiagramCanvas()`
+    applies for that one capture — canvas background (passed straight to
+    `toCanvas()`) plus edge/marker/pill color (`data-viz-preset` attribute
+    toggled on `world` and on the edges `<svg>` right before the capture,
+    removed right after — matching rules live in that SVG's own internal
+    `<style>`, below). A first attempt at this same "give it a different
+    look" idea sent the exported PNG to Gemini for a visual restyle
+    ("Estilizar com IA") — removed 2026-08-03 after it reliably garbled small
+    text ("SAP S/4HANA" → "SAM4AMA", "AllStrategy" → "AllSnatag"), since a
+    generative model redraws pixels instead of applying a stylesheet. Presets
+    deliberately touch ONLY color (never font, size, or padding) — the same
+    DOM, the same box model, so nothing can wrap differently than the live
+    canvas already does.
 
     Chrome (top bar, contextual selection toolbar, comment sidebar) in
     Tailwind utilities + `x-forms.button`, following the Leo brand. The
@@ -168,6 +262,77 @@
         <div data-viz-viewport class="ak-viz-viewport">
             <div data-viz-world class="ak-viz-world">
                 <svg data-viz-edges class="ak-viz-edges" xmlns="http://www.w3.org/2000/svg">
+                    {{-- Duplicates (deliberately) the edge/marker/pill rules from
+                         the component's OUTER <style> block below, scoped the
+                         same way (`.ak-viz-edges ...`) — needed ONLY for
+                         export (`integration-viz.js::captureDiagramCanvas()`).
+                         `html-to-image` raw-clones any nested <svg> wholesale
+                         (`isSVGElement()` in its clone-node.js short-circuits
+                         the per-element computed-style copying it does for
+                         everything else), so once this subtree is detached and
+                         reparented into an export-only foreignObject, the
+                         OUTER stylesheet is simply gone — every edge rendered
+                         as a solid black bar (UA default `fill:black` on an
+                         unstyled `<path>`) before this existed. An internal
+                         `<style>` travels with the raw clone since it's a real
+                         child node, not an external rule. Colors are hardcoded
+                         (not `var(--viz-line)`) on purpose: that custom
+                         property lives on `[data-integration-viz]`, an
+                         ancestor excluded from the captured subtree, and
+                         `element.style['--x'] = ...` (the only override
+                         `html-to-image`'s `style` option can apply) silently
+                         doesn't set custom properties in any browser — only
+                         `style.setProperty()` does, which the option doesn't
+                         use. `--viz-line` has exactly one static value in this
+                         component (`#94A3C4`, unthemed) so hardcoding it here
+                         is safe; if that ever stops being true, this needs a
+                         real fix, not another hardcode. Keep this in sync by
+                         hand if the outer rules change — there is no build
+                         step sharing the two. --}}
+                    <style>
+                        .ak-viz-edges path.ak-viz-edge { fill: none; stroke: #94A3C4; stroke-width: 2; }
+                        .ak-viz-edges path.ak-viz-edge.is-dashed { stroke-dasharray: 7 5; }
+                        .ak-viz-edges marker path { fill: #94A3C4; }
+                        .ak-viz-edges .ak-viz-plabel-box { fill: #fff; stroke: #94A3C4; stroke-width: 1; }
+                        .ak-viz-edges .ak-viz-plabel-text {
+                            fill: #4f5b7a;
+                            font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+                            font-size: 10px;
+                            text-anchor: middle;
+                            dominant-baseline: middle;
+                        }
+                        .ak-viz-edges .ak-viz-plabel.is-empty .ak-viz-plabel-box { fill: transparent; stroke-dasharray: 3 2; }
+                        .ak-viz-edges .ak-viz-plabel.is-empty .ak-viz-plabel-text { fill: #94A3C4; }
+                        .ak-viz-dot { filter: drop-shadow(0 0 4px currentColor) drop-shadow(0 0 8px currentColor); }
+
+                        {{-- Screenshot style presets ("Estilo do screenshot",
+                             bottom bar export menu) — the `data-viz-preset`
+                             attribute is set on THIS <svg> element itself right
+                             before a capture (`integration-viz.js`'s
+                             `EXPORT_PRESETS`/`captureDiagramCanvas()`) and
+                             removed right after, so these rules only ever
+                             apply during that one capture, never live. Colors
+                             here MUST stay in sync with `EXPORT_PRESETS` in
+                             the JS (canvas background lives there, passed
+                             straight to `toCanvas()` — nothing to duplicate
+                             here for that part). Deliberately colors only —
+                             see the export-menu comment for why. --}}
+                        svg[data-viz-preset="casual"] path.ak-viz-edge { stroke: #F59E0B; }
+                        svg[data-viz-preset="casual"] marker path { fill: #F59E0B; }
+                        svg[data-viz-preset="casual"] .ak-viz-plabel-box { stroke: #F59E0B; }
+                        svg[data-viz-preset="casual"] .ak-viz-plabel.is-empty .ak-viz-plabel-text { fill: #F59E0B; }
+
+                        svg[data-viz-preset="corporativo"] path.ak-viz-edge { stroke: #1B4D2E; }
+                        svg[data-viz-preset="corporativo"] marker path { fill: #1B4D2E; }
+                        svg[data-viz-preset="corporativo"] .ak-viz-plabel-box { stroke: #1B4D2E; }
+                        svg[data-viz-preset="corporativo"] .ak-viz-plabel.is-empty .ak-viz-plabel-text { fill: #1B4D2E; }
+
+                        svg[data-viz-preset="tech"] path.ak-viz-edge { stroke: #22D3EE; filter: drop-shadow(0 0 2px #22D3EE); }
+                        svg[data-viz-preset="tech"] marker path { fill: #22D3EE; }
+                        svg[data-viz-preset="tech"] .ak-viz-plabel-box { fill: #0f1e33; stroke: #22D3EE; }
+                        svg[data-viz-preset="tech"] .ak-viz-plabel-text { fill: #a5e9f7; }
+                        svg[data-viz-preset="tech"] .ak-viz-plabel.is-empty .ak-viz-plabel-text { fill: #22D3EE; }
+                    </style>
                     <defs>
                         <marker data-viz-marker-end viewBox="0 0 10 10" refX="9" refY="5"
                             markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
@@ -241,6 +406,98 @@
                 <x-heroicon-o-arrows-pointing-out data-viz-fs-open class="size-4" />
                 <x-heroicon-o-arrows-pointing-in data-viz-fs-close class="hidden size-4" />
             </x-forms.button>
+            <span class="mx-0.5 h-5 w-px bg-line"></span>
+            {{-- Modo apresentação: liga/desliga as bolinhas animadas
+                 (`integration-viz.js::enterPresentation()`/`exitPresentation()`).
+                 Sempre visível, inclusive pra quem não pode editar — é um
+                 recurso de visualização, não de autoria. O ícone alterna
+                 entre "apresentar"/"parar" no mesmo padrão de
+                 `data-viz-fs-open`/`data-viz-fs-close` logo acima. --}}
+            <x-forms.button type="button" variant="ghost" data-viz-present-toggle title="Modo apresentação"
+                class="!rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
+                <x-heroicon-o-presentation-chart-line data-viz-present-icon-start class="size-4" />
+                <x-heroicon-o-stop data-viz-present-icon-stop class="hidden size-4" />
+            </x-forms.button>
+            {{-- Velocidade da animação — só aparece enquanto se apresenta
+                 (`refreshEditableUI()` alterna `hidden`/`flex`). Muda
+                 `presentSpeedMultiplier` ao vivo, sem resetar o progresso das
+                 bolinhas; sempre volta a 1x da próxima vez que a apresentação
+                 é iniciada (estado só de sessão, nunca persiste). --}}
+            <span data-viz-present-speed-wrap class="hidden items-center gap-1">
+                <span class="mx-0.5 h-5 w-px bg-line"></span>
+                <div class="w-[62px] shrink-0">
+                    <x-forms.select data-viz-present-speed title="Velocidade da animação"
+                        class="!h-[26px] !w-full !rounded-md !border-line !bg-surface !py-0 !pl-1.5 !pr-5 !text-xs">
+                        <option value="0.5">0.5x</option>
+                        <option value="0.75">0.75x</option>
+                        <option value="1" selected>1x</option>
+                        <option value="1.25">1.25x</option>
+                        <option value="1.5">1.5x</option>
+                    </x-forms.select>
+                </div>
+            </span>
+            <span class="mx-0.5 h-5 w-px bg-line"></span>
+            {{-- Exportar: imagem (PNG) ou vídeo (GIF animado) do diagrama —
+                 100% client-side (`html-to-image` + `gif.js`, ver
+                 `integration-viz.js::captureDiagramCanvas()`/`exportImage()`/
+                 `exportVideo()`), sem endpoint novo nem job em fila: a
+                 exportação captura o DOM já renderizado no próprio navegador
+                 do usuário, recortado exatamente ao redor do conteúdo (nós ∪
+                 raias) — nunca ao formato do viewport aberto, que é o motivo
+                 de `fit()` (pensado pra edição) deixar sobra em branco dos
+                 lados quando a proporção do conteúdo não bate com a da janela.
+                 O vídeo entra em Modo apresentação sozinho (se ainda não
+                 estiver) e volta ao estado anterior ao terminar. Popover
+                 mesmo padrão do "?" de atalhos no topbar, só que abrindo pra
+                 CIMA (`bottom-full`) por estar perto do rodapé do canvas. --}}
+            <div class="relative shrink-0">
+                <x-forms.button type="button" variant="ghost" data-viz-export-toggle
+                    data-ak-toggle="viz-export-menu" data-ak-toggle-classes="hidden" data-ak-toggle-blur="true"
+                    title="Exportar diagrama" aria-label="Exportar diagrama"
+                    class="!rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
+                    <x-heroicon-o-arrow-down-tray class="size-4" />
+                </x-forms.button>
+                {{-- `hidden` (toggled) lives on THIS outer element; the flex
+                     layout lives on the INNER wrapper below, unconditionally
+                     — same split as `#viz-hint-popover`'s outer div vs. its
+                     inner `<ul class="flex flex-col ...">`. Toggling `hidden`
+                     directly on an element that also carries `flex` would
+                     race the two display utilities against each other. --}}
+                <div id="viz-export-menu"
+                    class="hidden absolute bottom-full right-0 z-30 mb-1.5 w-64 rounded-field border border-line bg-surface p-1 shadow-xl">
+                    <div class="flex flex-col gap-0.5">
+                        {{-- Estilo do screenshot — a pure CSS-only "skin" for the
+                             capture (background + edge/pill color, nothing that
+                             touches layout), applied for the instant of the
+                             capture via `captureDiagramCanvas()`'s `data-viz-preset`
+                             attribute toggle. Replaces an earlier "Estilizar com
+                             IA" (Gemini image-edit) attempt at the same idea —
+                             removed 2026-08-03 after it reliably garbled small
+                             text ("SAP S/4HANA" → "SAM4AMA"), since a generative
+                             model redraws pixels instead of applying a
+                             stylesheet. A CSS swap can't do that: same DOM, same
+                             box model, just different colors. --}}
+                        <div class="px-1 pb-1">
+                            <x-forms.select data-viz-export-style title="Estilo do screenshot"
+                                class="!h-7 !w-full !rounded-md !border-line !bg-surface !py-0 !pl-2 !pr-6 !text-xs">
+                                <option value="original" selected>Original</option>
+                                <option value="casual">Casual</option>
+                                <option value="corporativo">Corporativo</option>
+                                <option value="tech">Tech</option>
+                            </x-forms.select>
+                        </div>
+                        <x-forms.button type="button" variant="ghost" data-viz-export-png
+                            class="!w-full !justify-start !gap-2 !rounded-md !px-2.5 !py-1.5 !text-xs !font-medium">
+                            <x-heroicon-o-photo class="size-4 text-muted" /> Imagem (PNG)
+                        </x-forms.button>
+                        <x-forms.button type="button" variant="ghost" data-viz-export-gif
+                            class="!w-full !justify-start !gap-2 !rounded-md !px-2.5 !py-1.5 !text-xs !font-medium">
+                            <x-heroicon-o-film class="size-4 text-muted" /> Vídeo (GIF animado)
+                        </x-forms.button>
+                        <p data-viz-export-status class="hidden px-2.5 pb-1 pt-1.5 text-[11px] text-muted"></p>
+                    </div>
+                </div>
+            </div>
         </div>
 
         {{-- Contextual toolbar: appears anchored to the selected node (click
@@ -447,17 +704,72 @@
              block's own contextual toolbar (`data-viz-toolbar` above), just
              scoped to what a lane actually has: preset color (swatches built
              from `LANE_COLORS`, same pattern as a block's palette), name
-             (plain input, no separate pencil — a lane has no title/comment/
-             link to edit) and remove. Position/size aren't edited here —
-             dragging the lane's body (move) or its edge/corner handles
-             (resize), directly on the canvas, is the UI for that. Anchored
-             to the selected lane itself (`positionLaneToolbar()`), same base
-             `stage` as the block toolbar. --}}
+             (plain input, no separate pencil — a lane has no comment/link to
+             edit), a style cluster (corners, border, background pattern +
+             opacity, orientation, title on/off — all purely visual,
+             `viz_layout.lanes[i]`, applied live via
+             `integration-viz.js::refreshLaneToolbarControls()`/the
+             individual setters below it) and remove. Position/size aren't
+             edited here — dragging the lane's body (move) or its
+             edge/corner handles (resize), directly on the canvas, is the UI
+             for that. Anchored to the selected lane itself
+             (`positionLaneToolbar()`), same base `stage` as the block
+             toolbar. --}}
         <div data-viz-lane-toolbar
-            class="pointer-events-auto absolute z-20 hidden w-[min(220px,80vw)] flex-col gap-2 rounded-xl border border-line bg-surface p-2.5 shadow-[0_8px_28px_rgba(16,24,40,.16)]">
+            class="pointer-events-auto absolute z-20 hidden w-[min(272px,85vw)] flex-col gap-2.5 rounded-xl border border-line bg-surface p-2.5 shadow-[0_8px_28px_rgba(16,24,40,.16)]">
             <div data-viz-lane-toolbar-swatches class="flex flex-wrap items-center gap-1"></div>
             <x-forms.input type="text" data-viz-lane-toolbar-label placeholder="Nome da raia"
                 class="!h-8 !w-full !rounded-md !border-line !bg-surface !text-xs" />
+
+            {{-- Corners (square/rounded) + border (solid/dashed) — same
+                 "the button's own visual reflects the current state" pattern
+                 as the block's dashed-border toggle above; both flip a
+                 single boolean on click (`integration-viz.js`'s
+                 `laneToolbarRoundedBtn`/`laneToolbarDashedBtn` listeners),
+                 no separate dialog. --}}
+            <div class="flex items-center gap-1.5">
+                <x-forms.button type="button" variant="ghost" data-viz-lane-toolbar-rounded title="Cantos arredondados"
+                    class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
+                    <span data-viz-lane-toolbar-rounded-icon class="pointer-events-none block size-3.5 rounded-none border-2 border-current"></span>
+                </x-forms.button>
+                <x-forms.button type="button" variant="ghost" data-viz-lane-toolbar-dashed title="Borda tracejada"
+                    class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
+                    <span class="pointer-events-none block h-0 w-4 border-t-2 border-dashed border-current"></span>
+                </x-forms.button>
+                <span class="mx-0.5 h-6 w-px shrink-0 bg-line"></span>
+                {{-- Orientation: horizontal (as-is — title on the left edge,
+                     vertical text) or vertical (title on the top edge, plain
+                     left-to-right text — CSS variant `.ak-viz-lane.is-vertical`). --}}
+                <x-forms.button type="button" variant="ghost" data-viz-lane-toolbar-orientation="horizontal" title="Raia horizontal"
+                    class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
+                    <x-heroicon-o-arrows-right-left class="pointer-events-none size-3.5" />
+                </x-forms.button>
+                <x-forms.button type="button" variant="ghost" data-viz-lane-toolbar-orientation="vertical" title="Raia vertical"
+                    class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
+                    <x-heroicon-o-arrows-up-down class="pointer-events-none size-3.5" />
+                </x-forms.button>
+            </div>
+
+            {{-- Background pattern (solid / diagonal / crosshatch, always in
+                 the lane's own color, `laneBackgroundCss()`) + an opacity
+                 slider shared by whichever pattern is active — same
+                 swatch-button convention as the color presets above, just
+                 previewing a fill style instead of a color. --}}
+            <div data-viz-lane-toolbar-patterns class="flex items-center gap-1.5"></div>
+            <label class="flex items-center gap-2 text-xs text-muted">
+                <span class="shrink-0">Opacidade</span>
+                <x-forms.input type="range" data-viz-lane-toolbar-opacity title="Opacidade do preenchimento"
+                    min="0.03" max="0.5" step="0.01" class="!h-1.5 !w-full !cursor-pointer !border-0 !bg-transparent !p-0" />
+            </label>
+
+            {{-- Title on/off — with it off, the lane still renders as a
+                 tinted/patterned rectangle, but the click target that opens
+                 this very toolbar moves from the (now hidden) title strip to
+                 the whole body (`integration-viz.js`'s `laneAnchorEl()`). --}}
+            <x-forms.toggle name="viz-lane-toolbar-title" data-viz-lane-toolbar-title :checked="true">
+                Título
+            </x-forms.toggle>
+
             <div class="flex items-center justify-end">
                 <x-forms.button type="button" variant="ghost" data-viz-lane-toolbar-remove title="Remover raia"
                     class="!rounded-md !px-2.5 !py-1 !text-xs !text-crit hover:!bg-crit-soft">
@@ -655,6 +967,7 @@
             .ak-viz-lane {
                 position: absolute;
                 border: 1.5px solid rgba(148, 163, 196, .5);
+                border-radius: 0;
                 pointer-events: none;
             }
             /* Selected (`integration-viz.js::selectLane()`, a click with no
@@ -665,6 +978,15 @@
             .ak-viz-lane.is-selected {
                 border-width: 2px;
                 border-color: var(--viz-select);
+            }
+            /* Rounded corners toggle (`integration-viz.js`'s
+               `lane.rounded`) — `--ak-lane-radius` drives both the
+               rectangle itself and (below) the matching corners of its
+               label strip, so the label's own square corners never poke
+               out past the now-rounded body. */
+            .ak-viz-lane.is-rounded {
+                --ak-lane-radius: 14px;
+                border-radius: var(--ak-lane-radius);
             }
             /* Editable: the lane's own body becomes the "move" handle
                (`integration-viz.js`'s `drag.type === 'lane-move'`) — grabbing
@@ -717,6 +1039,37 @@
             [data-integration-viz][data-editable] .ak-viz-lane-label {
                 pointer-events: auto;
                 cursor: pointer;
+            }
+            /* Matches the label's outer corners to `--ak-lane-radius` (set
+               by `.is-rounded` above) so it visually merges into the
+               rounded body instead of poking a square corner past it — only
+               the two corners that actually sit on the lane's own boundary
+               (left edge for the horizontal strip, top edge for the
+               vertical one) need rounding; the other two are an internal
+               cut into the rectangle and stay square. */
+            .ak-viz-lane.is-rounded .ak-viz-lane-label {
+                border-radius: var(--ak-lane-radius) 0 0 var(--ak-lane-radius);
+            }
+            /* Vertical orientation (`lane.orientation === 'vertical'`) —
+               the title strip moves from the left edge (full height,
+               rotated text) to the top edge (full width, plain
+               left-to-right text), the classic top-header swimlane variant
+               for a flow that runs top-to-bottom instead of left-to-right. */
+            .ak-viz-lane.is-vertical .ak-viz-lane-label {
+                left: 0;
+                right: 0;
+                top: 0;
+                bottom: auto;
+                width: auto;
+                height: 26px;
+                writing-mode: horizontal-tb;
+                transform: none;
+                text-orientation: initial;
+                justify-content: flex-start;
+                padding: 0 10px;
+            }
+            .ak-viz-lane.is-rounded.is-vertical .ak-viz-lane-label {
+                border-radius: var(--ak-lane-radius) var(--ak-lane-radius) 0 0;
             }
             /* Resize handles — thin invisible strips (edges) or a small
                square (corner), all children of `.ak-viz-lane`: `-e` (right
@@ -778,6 +1131,19 @@
             .ak-viz-edges .ak-viz-plabel.is-empty .ak-viz-plabel-text { fill: var(--viz-line); }
             .ak-viz-edges .ak-viz-plabel.is-editable:hover .ak-viz-plabel-box { stroke: var(--viz-select); }
             .ak-viz-edges .ak-viz-plabel.is-editable:hover .ak-viz-plabel-text { fill: var(--viz-select); }
+            /* Presentation-mode dot (`integration-viz.js::startPresentAnimation()`)
+               — a plain <circle>, sibling of the .ak-viz-edge <path>s inside
+               this same <svg data-viz-edges>, positioned every frame via
+               `getPointAtLength()`. Never touched by `clearOverlays()` (only
+               removes `.ak-viz-edge`/`.ak-viz-plabel`). Color is per-dot, from
+               `PRESENT_DOT_COLORS` — set on BOTH `el.style.fill` (translucent
+               body, `fill-opacity: 0.7`) and `el.style.color` (the glow below
+               reads `currentColor`, which resolves from `color`, not `fill` —
+               setting only `fill` would leave every dot's glow the same
+               inherited neutral shade instead of matching its own color). */
+            .ak-viz-dot {
+                filter: drop-shadow(0 0 4px currentColor) drop-shadow(0 0 8px currentColor);
+            }
             /* Lavender/blue-ish nodes (mind-map palette), 10px radius (a bit
                tighter than the original 13px). Column layout: attribute line
                (optional) + body (avatar + name). The ring in the box-shadow
@@ -1058,6 +1424,32 @@
             /* Blocks are draggable when the integration is editable. */
             [data-integration-viz][data-editable] .ak-viz-node { cursor: grab; }
             [data-integration-viz][data-editable] .ak-viz-node.is-dragging { cursor: grabbing; }
+            /* Presentation mode: nothing is clickable/draggable — a block's
+               own `mousedown` (`startNodePointer()`) always calls
+               `stopPropagation()`/`preventDefault()` unconditionally (that's
+               how a non-editable VIEWER still gets the read-only toolbar), so
+               `editable=false` alone doesn't stop it; `pointer-events: none`
+               here does — the event never fires at all, and falls straight
+               through to the viewport's own pan handling underneath. The
+               opacity transition is scoped to this same attribute so
+               `exitPresentation()` can drop it first and reset every node
+               back to fully visible instantly, with no reverse-fade. */
+            [data-integration-viz][data-presenting] .ak-viz-node {
+                pointer-events: none;
+                cursor: grab;
+                transition: opacity .5s ease;
+            }
+            /* Same fadeIn as the block above, but for the arrow itself (and
+               its protocol pill, if it has one) — an edge starts invisible
+               and only fades in the instant a dot BEGINS travelling it
+               (`revealEdge()`), not just because `draw()` rendered it. No
+               `pointer-events: none` needed here: `editable=false` while
+               presenting already means `draw()` never wires up the pill's
+               click listener or the handles in the first place. */
+            [data-integration-viz][data-presenting] .ak-viz-edge,
+            [data-integration-viz][data-presenting] .ak-viz-plabel {
+                transition: opacity .5s ease;
+            }
             /* Connection ports — 4 per block (top/right/bottom/left), the
                "pull an arrow out of here" grip. Children of the block, so they
                follow it around with no coordinate math; only rendered when the
