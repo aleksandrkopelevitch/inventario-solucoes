@@ -11,28 +11,53 @@
     linked to something: blocks and links are created independently of each
     other. Editable/extensible things in
     place: a NEW block, via the "+" button in the topbar ("Adicionar bloco"
-    panel) — a PURE block, with no arrow and no protocol: its kind
-    (`App\Enums\ChainNodeKind`: sistema, decisão, ator, início, fim), chosen
-    from a vertical list of icon+label cards (`integration-viz.js::buildKindPicker()`)
-    rather than a plain dropdown, plus a registered Solution or free text
-    (início/fim default their own free text to "Início"/"Fim" when left
-    blank); a block's kind/title (except the root, index 0), via the pencil
-    in the block's contextual toolbar — same icon+label card picker; a NEW
+    panel) — a single horizontal row of kind icons
+    (`App\Enums\ChainNodeKind`: sistema, decisão, ator, início, fim,
+    `integration-viz.js::buildAddKindIcons()`), no label text, `title` as the
+    tooltip; clicking one creates a PURE block of that kind IMMEDIATELY
+    (`createNodeFromKind()`) — no arrow, no protocol, and no Solution/text
+    field in this panel at all — with a placeholder text (the kind's own
+    name) that the very next thing, `startInlineLabelEdit()`, opens straight
+    away so the real name (or, for `system`, a linked Solution) is typed
+    directly on the canvas in the same gesture, not in a form (início/fim
+    default their own free text to "Início"/"Fim" if left blank instead); a
+    block's kind (except the root, index 0, and never a pasted image), via a
+    horizontal row of icon-only buttons — same kinds, no label text, `title`
+    attribute as the tooltip — that's the SECOND row of the block's own
+    contextual toolbar (`data-viz-toolbar-kind`,
+    `integration-viz.js::refreshKindRow()`/`changeNodeKind()`), applying the
+    change immediately (PATCH), no separate "Salvar" step; and a block's
+    text, by double-clicking it right on the shape
+    (`startInlineLabelEdit()`) — on a `system` block this doubles as the
+    Solution picker: typing filters `getSolutionsList()` into an inline
+    autocomplete dropdown anchored to the block itself, picking a match (or
+    typing a name that matches one exactly) links that Solution, anything
+    else stays free text; decisão/ator/início/fim have no Solution to search,
+    so it's plain text there. A `system` block's displayed name is always
+    the linked Solution's, never a leftover free-text label
+    (`ChainLabeler::nodeLabel()`) — the autocomplete is what keeps the two
+    from ever colliding; a NEW
     link, by dragging an arrow out of any block's connection port (the 4
     small circles that show up on hover) and dropping it on any other block —
     created straight away as `->` with no protocol, refined afterwards on the
     pill — or dropping it on EMPTY canvas, which opens the same "Adicionar
-    bloco" panel anchored right there and, on save, creates the block at that
-    spot and links it to the port it was dragged from in one motion; the same
-    link via "modo ligar" (the link icon in the block's toolbar, for
-    click-click instead of drag) — click a block, it activates the mode,
-    click any other block opens the panel for direction + protocol; direction
-    + protocol of any
-    link, by clicking the pill above the arrow (including the dashed "+
-    protocolo" pill, when it doesn't have one yet) — the same editor has a
-    "Desligar" button that removes only the link, never the blocks; and
-    retargeting any link to a different block, by dragging the arrow's tip to
-    it. All of these actions touch `chain` (the topology's source of truth) and
+    bloco" icon row (fixed top-left, same as the topbar "+" version); clicking
+    a kind creates the block AT THE DROP SPOT and links it to the port it was
+    dragged from in one motion, immediately (no separate save step) — only the
+    new block's own position follows the drop point, never the panel's;
+    direction
+    of any link, by clicking the pill above the arrow (including the dashed "+
+    protocolo" pill, when it doesn't have one yet) and toggling either arrow
+    icon in the small panel that opens — applies immediately, no "Salvar"
+    button anywhere in this editor — which also has a "Desligar" button that
+    removes only the link, never the blocks; the link's protocol itself, by
+    DOUBLE-clicking that same pill, which turns its text directly into an
+    editable field right on the canvas (free text, with an autocomplete
+    dropdown of `App\Enums\Protocol` values as suggestions only) — same
+    pattern as a block's own inline label editing, and again applied the
+    instant it's confirmed; and retargeting any link to a different block, by
+    dragging the arrow's tip to it. All of these actions touch `chain` (the
+    topology's source of truth) and
     re-run SyncIntegrationFromChain on the server — they aren't "purely visual"
     tweaks like position/color/comment (those stay only in `viz_layout`).
     This is the app's only topology editor — there's no separate form/modal
@@ -50,7 +75,8 @@
 
     Two more adjustments are purely visual (`viz_layout`, never `chain`):
     a block's border and an arrow can each be toggled dashed independently
-    (toolbar button / protocol editor checkbox), and lanes (`data-viz-lanes`)
+    (an icon toggle button in each one's own contextual panel — never a
+    checkbox, see below), and lanes (`data-viz-lanes`)
     — free rectangles drawn behind the canvas, with a title strip filled a
     shade darker than the rest of the rectangle to stand out — mark an area
     of the flow as a background layout aid; a lane never references a node,
@@ -77,6 +103,20 @@
     moves from the (now absent) strip to the whole body, mutually exclusive
     with a block's toolbar, the same way selecting a block closes this one
     and vice versa.
+
+    A "post-it" annotation (`data-viz-add-note`) is the same idea as a lane,
+    stripped down further: free multiline text at a world-space `x`/`y`,
+    always the post-it yellow (no color/style choice — this one is
+    deliberately BASIC), no toolbar of its own — the note itself IS the
+    control: drag its top strip to move it, type directly in its body
+    (a `<textarea>` so multiline actually round-trips, growing in height on
+    its own as the text does — see `integration-viz.js::rebuildNotes()` for
+    why this can't be a `contenteditable`), click the × in that same strip to
+    remove it. Clicking the topbar's button adds one straight away, centered
+    on the current viewport and already focused, no panel/dialog in between —
+    same immediacy as adding a lane. Unlike a lane, a note renders ABOVE
+    everything else in `world` (nodes, edges, lanes) — a post-it is stuck
+    on top of the diagram, not behind it.
 
     Presentation mode (`data-viz-present-toggle`, bottom bar) is a separate,
     purely visual viewing mode — never persisted, resets every time it's
@@ -147,20 +187,32 @@
     see the comment there for why the outer stylesheet doesn't reach it once
     exported.
 
-    "Estilo do screenshot" (same menu, `<select data-viz-export-style>`) picks
-    which of `EXPORT_PRESETS` (`integration-viz.js`) `captureDiagramCanvas()`
-    applies for that one capture — canvas background (passed straight to
-    `toCanvas()`) plus edge/marker/pill color (`data-viz-preset` attribute
-    toggled on `world` and on the edges `<svg>` right before the capture,
-    removed right after — matching rules live in that SVG's own internal
-    `<style>`, below). A first attempt at this same "give it a different
-    look" idea sent the exported PNG to Gemini for a visual restyle
-    ("Estilizar com IA") — removed 2026-08-03 after it reliably garbled small
-    text ("SAP S/4HANA" → "SAM4AMA", "AllStrategy" → "AllSnatag"), since a
-    generative model redraws pixels instead of applying a stylesheet. Presets
+    "Tema" (bottom bar, `<select data-viz-theme>`) is a LIVE canvas state, not
+    an export-only setting — `integration-viz.js::applyTheme()` sets
+    `data-viz-preset` on `world` and on the edges `<svg>` and leaves it there
+    for as long as that theme is active, persisted in `viz_layout.theme`
+    (same "Salvar" gate as moving a block — picking a theme marks the diagram
+    dirty, it doesn't save itself). Each theme's colors live in THREE places,
+    on purpose, not one: `EXPORT_PRESETS` (`integration-viz.js`) holds only
+    the flat canvas `bg` — the one value a detached export clone genuinely
+    can't get from CSS (`captureDiagramCanvas()` passes it straight to
+    `toCanvas()`'s `backgroundColor`, and canvas fills can't do the gradient
+    "corporativo" actually uses live, hence that one being an approximation);
+    block border/shadow lives in this component's OUTER `<style>` (nodes are
+    plain HTML — computed style survives the export clone same as any other
+    property); edge/marker/pill color lives in the edges SVG's OWN internal
+    `<style>` (below — nested SVGs get raw-cloned wholesale on export, so
+    that stylesheet has to be self-contained). Because the theme is live now,
+    `captureDiagramCanvas()` doesn't toggle the attribute itself anymore —
+    whatever theme is showing IS what gets captured. A first attempt at this
+    "give it a different look" idea
+    sent the exported PNG to Gemini for a visual restyle ("Estilizar com
+    IA") — removed 2026-08-03 after it reliably garbled small text ("SAP
+    S/4HANA" → "SAM4AMA", "AllStrategy" → "AllSnatag"), since a generative
+    model redraws pixels instead of applying a stylesheet. Themes
     deliberately touch ONLY color (never font, size, or padding) — the same
-    DOM, the same box model, so nothing can wrap differently than the live
-    canvas already does.
+    DOM, the same box model, so nothing can wrap differently under any theme
+    than the canvas already does today.
 
     Chrome (top bar, contextual selection toolbar, comment sidebar) in
     Tailwind utilities + `x-forms.button`, following the Leo brand. The
@@ -217,9 +269,9 @@
                 <x-heroicon-o-pencil-square class="size-4" />
             </x-forms.button>
             {{-- Add block: always at the END of the chain (root → ... → new)
-                 — opens the `data-viz-add-editor` panel, anchored to this
-                 button. Only visible when the integration is editable (same
-                 gate as the Save button). --}}
+                 — opens the `data-viz-add-editor` panel (fixed top-left of
+                 the canvas). Only visible when the integration is editable
+                 (same gate as the Save button). --}}
             <x-forms.button type="button" variant="ghost" data-viz-add-node title="Adicionar bloco"
                 class="!hidden !rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
                 <x-heroicon-o-plus class="size-4" />
@@ -234,6 +286,17 @@
             <x-forms.button type="button" variant="ghost" data-viz-lanes title="Adicionar raia"
                 class="!hidden !rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
                 <x-heroicon-o-rectangle-group class="size-4" />
+            </x-forms.button>
+            {{-- Adds a new "post-it" annotation (free multiline text,
+                 `viz_layout.notes`) straight away — no panel/dialog, same
+                 spirit as the lane button just above
+                 (`integration-viz.js::addNote()`), centered on the current
+                 viewport and immediately focused for typing. Only visible
+                 when editable; notes themselves (once saved) still render
+                 for a viewer, same as any other viz_layout content. --}}
+            <x-forms.button type="button" variant="ghost" data-viz-add-note title="Adicionar anotação"
+                class="!hidden !rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
+                <x-heroicon-o-document-text class="size-4" />
             </x-forms.button>
             <x-forms.button type="button" variant="ghost" data-viz-organize title="Organizar layout padrão"
                 class="!rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
@@ -250,14 +313,14 @@
         </div>
     </div>
 
-    {{-- `data-viz-stage`: reference base for positioning the toolbar/protocol
-         editor in JS. These panels are `position:absolute` and resolve
-         against THIS element (the nearest positioned ancestor), not against
-         `[data-integration-viz]` — which is also `relative`, but includes the
-         topbar above. Using `root.getBoundingClientRect()` for these
-         calculations mistakenly adds the topbar's height, pushing the panel
-         down, on top of the block (reported bug: "covers half the block
-         vertically"). --}}
+    {{-- `data-viz-stage`: containing block for the block/lane/protocol/add/
+         meta panels below. They're `position:absolute` with a fixed
+         `left-3 top-3` (excalidraw.com-style left rail, never JS-computed
+         from a click point), and need to resolve against THIS element (the
+         nearest positioned ancestor), not against `[data-integration-viz]` —
+         which is also `relative`, but includes the topbar above, which would
+         push `top-3` down past the topbar's own height instead of pinning it
+         to the canvas's own top edge. --}}
     <div data-viz-stage class="relative min-h-0 flex-1">
         <div data-viz-viewport class="ak-viz-viewport">
             <div data-viz-world class="ak-viz-world">
@@ -322,16 +385,35 @@
                         svg[data-viz-preset="casual"] .ak-viz-plabel-box { stroke: #F59E0B; }
                         svg[data-viz-preset="casual"] .ak-viz-plabel.is-empty .ak-viz-plabel-text { fill: #F59E0B; }
 
-                        svg[data-viz-preset="corporativo"] path.ak-viz-edge { stroke: #1B4D2E; }
+                        {{-- "corporativo" ("mais polido", 2026-08-04): a small
+                             drop-shadow on the stroke itself — short blur,
+                             low opacity, dark-tinted — reads as a raised/
+                             lifted line rather than a glow (glow = big blur +
+                             saturated color; this is a tight contact shadow,
+                             the same visual language as the node shadow
+                             below). Kept subtle on purpose. --}}
+                        svg[data-viz-preset="corporativo"] path.ak-viz-edge {
+                            stroke: #1B4D2E;
+                            filter: drop-shadow(0 1px 1.5px rgba(27, 77, 46, .3));
+                        }
                         svg[data-viz-preset="corporativo"] marker path { fill: #1B4D2E; }
-                        svg[data-viz-preset="corporativo"] .ak-viz-plabel-box { stroke: #1B4D2E; }
+                        svg[data-viz-preset="corporativo"] .ak-viz-plabel-box {
+                            stroke: #1B4D2E;
+                            filter: drop-shadow(0 1px 2px rgba(27, 77, 46, .18));
+                        }
                         svg[data-viz-preset="corporativo"] .ak-viz-plabel.is-empty .ak-viz-plabel-text { fill: #1B4D2E; }
 
-                        svg[data-viz-preset="tech"] path.ak-viz-edge { stroke: #22D3EE; filter: drop-shadow(0 0 2px #22D3EE); }
-                        svg[data-viz-preset="tech"] marker path { fill: #22D3EE; }
-                        svg[data-viz-preset="tech"] .ak-viz-plabel-box { fill: #0f1e33; stroke: #22D3EE; }
-                        svg[data-viz-preset="tech"] .ak-viz-plabel-text { fill: #a5e9f7; }
-                        svg[data-viz-preset="tech"] .ak-viz-plabel.is-empty .ak-viz-plabel-text { fill: #22D3EE; }
+                        {{-- "tech" (2026-08-04, re-matched to a real dark-UI
+                             reference instead of a neon/cyberpunk look): flat
+                             and crisp — NO `filter: drop-shadow` glow on
+                             anything here. A moderate sky-blue instead of a
+                             saturated cyan keeps it reading as "dark UI tool",
+                             not "glowing sign". --}}
+                        svg[data-viz-preset="tech"] path.ak-viz-edge { stroke: #38BDF8; }
+                        svg[data-viz-preset="tech"] marker path { fill: #38BDF8; }
+                        svg[data-viz-preset="tech"] .ak-viz-plabel-box { fill: #101E2E; stroke: #38BDF8; }
+                        svg[data-viz-preset="tech"] .ak-viz-plabel-text { fill: #BFE3F5; }
+                        svg[data-viz-preset="tech"] .ak-viz-plabel.is-empty .ak-viz-plabel-text { fill: #38BDF8; }
                     </style>
                     <defs>
                         <marker data-viz-marker-end viewBox="0 0 10 10" refX="9" refY="5"
@@ -373,19 +455,6 @@
             </div>
             <p data-viz-empty-title class="mt-1 text-sm font-medium text-muted">Nenhuma integração selecionada</p>
             <p data-viz-empty-hint class="text-xs text-faint">Escolha uma na lista para ver o diagrama.</p>
-        </div>
-
-        {{-- "Link mode" (data-viz-toolbar-link): active after clicking the
-             link pencil, until clicking the destination block (or Esc/click
-             on the background, which cancels). Hint + explicit cancel button,
-             for anyone who doesn't know the keyboard shortcut. --}}
-        <div data-viz-link-hint
-            class="pointer-events-none absolute left-1/2 top-3 z-10 hidden -translate-x-1/2 items-center gap-2 rounded-lg border border-line bg-surface/95 px-3 py-1.5 text-xs text-ink shadow-[0_2px_8px_rgba(20,58,34,0.08)] backdrop-blur">
-            <span>Clique em outro bloco para ligar</span>
-            <x-forms.button type="button" variant="ghost" data-viz-link-cancel
-                class="pointer-events-auto !rounded-md !p-1 !text-muted hover:!bg-accent-soft hover:!text-ink">
-                <x-heroicon-o-x-mark class="size-3.5" />
-            </x-forms.button>
         </div>
 
         {{-- Controls: zoom / center / fullscreen --}}
@@ -437,6 +506,30 @@
                 </div>
             </span>
             <span class="mx-0.5 h-5 w-px bg-line"></span>
+            {{-- Tema do canvas (Original/Casual/Corporativo/Tech) — ao vivo,
+                 não só no export: `integration-viz.js::applyTheme()` liga o
+                 `data-viz-preset` no `world`/`edges` e as MESMAS regras CSS
+                 que o export usa (bloco/aresta/pill, no <style> deste
+                 componente) já pintam a edição normal. Persistido em
+                 `viz_layout.theme` — muda o estado do "Salvar" igual mover um
+                 bloco faria, não salva sozinho. Visível pra qualquer um (nem
+                 só quem edita) — é uma preferência de visualização, mesmo
+                 espírito do Modo apresentação. Sem classe `hidden` aqui —
+                 igual `data-viz-export-toggle`/`data-viz-present-toggle`,
+                 visível por padrão; `showEmpty()`/`render()` alternam
+                 `!hidden` (nunca `hidden` puro) quando não há chain. --}}
+            <span data-viz-theme-wrap class="flex items-center gap-1">
+                <div class="w-[104px] shrink-0">
+                    <x-forms.select data-viz-theme title="Tema do diagrama"
+                        class="!h-[26px] !w-full !rounded-md !border-line !bg-surface !py-0 !pl-1.5 !pr-5 !text-xs">
+                        <option value="original" selected>Original</option>
+                        <option value="casual">Casual</option>
+                        <option value="corporativo">Corporativo</option>
+                        <option value="tech">Tech</option>
+                    </x-forms.select>
+                </div>
+                <span class="mx-0.5 h-5 w-px bg-line"></span>
+            </span>
             {{-- Exportar: imagem (PNG) ou vídeo (GIF animado) do diagrama —
                  100% client-side (`html-to-image` + `gif.js`, ver
                  `integration-viz.js::captureDiagramCanvas()`/`exportImage()`/
@@ -466,26 +559,6 @@
                 <div id="viz-export-menu"
                     class="hidden absolute bottom-full right-0 z-30 mb-1.5 w-64 rounded-field border border-line bg-surface p-1 shadow-xl">
                     <div class="flex flex-col gap-0.5">
-                        {{-- Estilo do screenshot — a pure CSS-only "skin" for the
-                             capture (background + edge/pill color, nothing that
-                             touches layout), applied for the instant of the
-                             capture via `captureDiagramCanvas()`'s `data-viz-preset`
-                             attribute toggle. Replaces an earlier "Estilizar com
-                             IA" (Gemini image-edit) attempt at the same idea —
-                             removed 2026-08-03 after it reliably garbled small
-                             text ("SAP S/4HANA" → "SAM4AMA"), since a generative
-                             model redraws pixels instead of applying a
-                             stylesheet. A CSS swap can't do that: same DOM, same
-                             box model, just different colors. --}}
-                        <div class="px-1 pb-1">
-                            <x-forms.select data-viz-export-style title="Estilo do screenshot"
-                                class="!h-7 !w-full !rounded-md !border-line !bg-surface !py-0 !pl-2 !pr-6 !text-xs">
-                                <option value="original" selected>Original</option>
-                                <option value="casual">Casual</option>
-                                <option value="corporativo">Corporativo</option>
-                                <option value="tech">Tech</option>
-                            </x-forms.select>
-                        </div>
                         <x-forms.button type="button" variant="ghost" data-viz-export-png
                             class="!w-full !justify-start !gap-2 !rounded-md !px-2.5 !py-1.5 !text-xs !font-medium">
                             <x-heroicon-o-photo class="size-4 text-muted" /> Imagem (PNG)
@@ -500,272 +573,269 @@
             </div>
         </div>
 
-        {{-- Contextual toolbar: appears anchored to the selected node (click
-             without drag). Block style (color, text color, font) is only
+        {{-- Contextual toolbar: a FIXED panel in the canvas's top-left corner
+             (excalidraw.com-style left rail — vertical stack of labeled
+             sections, never anchored to the selected node's own screen
+             position, so pan/zoom/drag never move it), shown the instant a
+             node is selected and hidden the instant it's deselected
+             (`selectNode(null)` — canvas background click, Esc, or selecting
+             something else). Block style (color, text color, font) is only
              editable — it never touches the topology, only the visual
              `viz_layout`, same spirit as the position/anchors already
-             persisted there. --}}
+             persisted there. Fixed `w-56` + `max-h`/`overflow-y-auto` (rather
+             than the old shrink-to-fit `flex-wrap` box) so every section
+             always stacks the same way regardless of how many are visible at
+             once. --}}
         <div data-viz-toolbar
-            class="ak-viz-toolbar pointer-events-none absolute z-20 hidden flex-wrap items-center gap-1.5 rounded-xl border border-line bg-surface p-1.5 shadow-[0_8px_28px_rgba(16,24,40,.16)]">
-            <div data-viz-toolbar-style class="pointer-events-auto flex items-center gap-1.5">
-                {{-- Block color palette — presets generated in JS (integration-viz.js::buildSwatches) --}}
-                <div data-viz-swatches class="flex items-center gap-1"></div>
+            class="ak-viz-toolbar pointer-events-none absolute left-3 top-3 z-20 hidden max-h-[calc(100%-24px)] w-56 flex-col gap-3 overflow-y-auto rounded-xl border border-line bg-surface p-2.5 shadow-[0_8px_28px_rgba(16,24,40,.16)]">
+            <div data-viz-toolbar-style class="pointer-events-auto flex flex-col gap-3">
+                <div>
+                    <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-faint">Cor</p>
+                    <div class="flex flex-wrap items-center gap-1.5">
+                        {{-- Block color palette — presets generated in JS (integration-viz.js::buildSwatches) --}}
+                        <div data-viz-swatches class="flex flex-wrap items-center gap-1"></div>
 
-                {{-- Custom block color --}}
-                <x-forms.input type="color" data-viz-custom-color title="Cor personalizada do bloco"
-                    class="!size-[22px] !shrink-0 !cursor-pointer !rounded-md !border !border-line !bg-transparent !p-0 [&::-webkit-color-swatch]:!rounded-md [&::-webkit-color-swatch]:!border-none [&::-webkit-color-swatch-wrapper]:!p-0" />
-
-                <span class="mx-0.5 h-6 w-px shrink-0 bg-line"></span>
-
-                {{-- Text color — square with an underlined "A" in the current color, same as the reference mind-map --}}
-                <div class="relative flex size-[26px] shrink-0">
-                    <x-forms.label for="viz-text-color-input" data-viz-text-color-wrap title="Cor do texto"
-                        class="!m-0 !flex !size-full !font-extrabold !text-ink size-full cursor-pointer items-center justify-center rounded-md border border-line text-sm">
-                        <span class="pointer-events-none border-b-[3px] border-current pb-px">A</span>
-                    </x-forms.label>
-                    <x-forms.input type="color" id="viz-text-color-input" data-viz-text-color
-                        class="!absolute !inset-0 !size-full !cursor-pointer !border-0 !bg-transparent !p-0 !opacity-0" />
+                        {{-- Custom block color --}}
+                        <x-forms.input type="color" data-viz-custom-color title="Cor personalizada do bloco"
+                            class="!size-[22px] !shrink-0 !cursor-pointer !rounded-md !border !border-line !bg-transparent !p-0 [&::-webkit-color-swatch]:!rounded-md [&::-webkit-color-swatch]:!border-none [&::-webkit-color-swatch-wrapper]:!p-0" />
+                    </div>
                 </div>
 
-                {{-- Text font — mono / sans / serif. Wrapped in a fixed-width
-                     wrapper: the design system's <select> auto-wraps itself in
-                     `w-full`, which inside a flex toolbar would take up all the
-                     remaining space (same caveat documented in solutions/map.blade.php). --}}
-                <div class="w-[70px] shrink-0">
+                <div>
+                    <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-faint">Cor do texto</p>
+                    {{-- Text color — square with an underlined "A" in the current color, same as the reference mind-map --}}
+                    <div class="relative flex size-[26px] shrink-0">
+                        <x-forms.label for="viz-text-color-input" data-viz-text-color-wrap title="Cor do texto"
+                            class="!m-0 !flex !size-full !font-extrabold !text-ink size-full cursor-pointer items-center justify-center rounded-md border border-line text-sm">
+                            <span class="pointer-events-none border-b-[3px] border-current pb-px">A</span>
+                        </x-forms.label>
+                        <x-forms.input type="color" id="viz-text-color-input" data-viz-text-color
+                            class="!absolute !inset-0 !size-full !cursor-pointer !border-0 !bg-transparent !p-0 !opacity-0" />
+                    </div>
+                </div>
+
+                <div>
+                    <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-faint">Fonte</p>
+                    {{-- Text font — mono / sans / serif. Full-width now that it
+                         owns its own section (no longer squeezed next to the
+                         font-size select on the same row). --}}
                     <x-forms.select data-viz-font title="Fonte do texto"
-                        class="!h-[26px] !w-full !rounded-md !border-line !bg-surface !py-0 !pl-1.5 !pr-5 !text-xs">
+                        class="!h-8 !w-full !rounded-md !border-line !bg-surface !py-0 !text-xs">
                         <option value="sans">Sans</option>
                         <option value="serif">Serif</option>
                         <option value="mono">Mono</option>
                     </x-forms.select>
                 </div>
 
-                <span class="mx-0.5 h-6 w-px shrink-0 bg-line"></span>
-
-                {{-- Dashed border toggle — purely visual (`viz_layout.nodes[i].dashed`),
-                     independent of the block's color/shape. The button's OWN
-                     border switches solid/dashed to show the current state
-                     (`integration-viz.js::refreshToolbarControls()`), instead
-                     of a separate icon. --}}
-                <x-forms.button type="button" variant="ghost" data-viz-toolbar-dashed title="Borda tracejada do bloco"
-                    class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
-                    <span class="pointer-events-none block h-0 w-4 border-t-2 border-dashed border-current"></span>
-                </x-forms.button>
-
-                {{-- Light image border — image blocks only (hidden for every
-                     other kind, toggled in `integration-viz.js::selectNode()`).
-                     Toggle turns a solid border on/off (defaults to white the
-                     first time); the color input customizes it — changing it
-                     always implies "on" too. Purely visual
-                     (`viz_layout.nodes[i].imageBorderColor`), independent of
-                     the block's background color. --}}
-                <div data-viz-toolbar-image-border class="hidden items-center gap-1.5">
-                    <span class="mx-0.5 h-6 w-px shrink-0 bg-line"></span>
-                    <x-forms.button type="button" variant="ghost" data-viz-toolbar-image-border-toggle title="Borda leve da imagem"
-                        class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
-                        <span class="pointer-events-none block size-3.5 rounded-[3px] border-2 border-current"></span>
-                    </x-forms.button>
-                    <x-forms.input type="color" data-viz-image-border-color title="Cor da borda"
-                        class="!size-[22px] !shrink-0 !cursor-pointer !rounded-md !border !border-line !bg-transparent !p-0 [&::-webkit-color-swatch]:!rounded-md [&::-webkit-color-swatch]:!border-none [&::-webkit-color-swatch-wrapper]:!p-0" />
+                <div>
+                    <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-faint">Tamanho da fonte</p>
+                    {{-- Peq (13px, today's default) / Médio / Grande (`FONT_SIZES` in integration-viz.js). --}}
+                    <x-forms.select data-viz-font-size title="Tamanho da fonte"
+                        class="!h-8 !w-full !rounded-md !border-line !bg-surface !py-0 !text-xs">
+                        <option value="sm">Peq</option>
+                        <option value="md">Médio</option>
+                        <option value="lg">Grande</option>
+                    </x-forms.select>
                 </div>
-
-                <span class="mx-0.5 h-6 w-px shrink-0 bg-line"></span>
             </div>
 
-            <div data-viz-toolbar-actions class="pointer-events-auto flex items-center gap-1.5">
-                {{-- Node title: only shown when the integration is editable and on
-                     a node that isn't the root (index 0) — same invariant as the
-                     full chain form, where the root is fixed by the route's
-                     context (see `selectNode` in integration-viz.js). --}}
-                <x-forms.button type="button" variant="ghost" data-viz-toolbar-title title="Editar título do nó"
-                    class="!rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
-                    <x-heroicon-o-pencil class="size-4" />
-                </x-forms.button>
-                <x-forms.button type="button" variant="ghost" data-viz-toolbar-comment title="Comentário"
-                    class="!rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
-                    <x-heroicon-o-chat-bubble-left-ellipsis class="size-4" />
-                </x-forms.button>
-                {{-- Only visible when editable (same gate as the title) — activates
-                     "link mode": the next click on a different block opens the
-                     new-link editor (`data-viz-protocol-editor` in "create" mode),
-                     without going through `retargetEdge`. --}}
-                <x-forms.button type="button" variant="ghost" data-viz-toolbar-link title="Ligar a outro bloco"
-                    class="!hidden !rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
-                    <x-heroicon-o-link class="size-4" />
-                </x-forms.button>
-                <x-forms.button type="button" variant="ghost" data-viz-toolbar-open title="Abrir solução"
-                    class="!rounded-md !p-1.5 !text-ink hover:!bg-accent-soft disabled:!cursor-not-allowed disabled:!opacity-40">
-                    <x-heroicon-o-arrow-top-right-on-square class="size-4" />
-                </x-forms.button>
-                {{-- Delete the block. Same gate as the pencil (editable + not the
-                     root), since removing index 0 is rejected server-side too.
-                     Destructive, so it's set apart by a separator and tinted
-                     `crit` — and it takes every link touching the block with it,
-                     which is what the confirm spells out. --}}
-                <span class="mx-0.5 h-6 w-px shrink-0 bg-line" data-viz-toolbar-remove-sep></span>
-                <x-forms.button type="button" variant="ghost" data-viz-toolbar-remove title="Excluir bloco"
-                    class="!rounded-md !p-1.5 !text-crit hover:!bg-crit-soft">
-                    <x-heroicon-o-trash class="size-4" />
-                </x-forms.button>
-            </div>
+            <div data-viz-toolbar-row2 class="pointer-events-auto flex flex-col gap-3">
+                <div>
+                    <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-faint">Estilo</p>
+                    <div class="flex flex-wrap items-center gap-1.5">
+                        {{-- Dashed border toggle — purely visual (`viz_layout.nodes[i].dashed`),
+                             independent of the block's color/shape. The button's OWN
+                             border switches solid/dashed to show the current state
+                             (`integration-viz.js::refreshToolbarControls()`), instead
+                             of a separate icon. --}}
+                        <x-forms.button type="button" variant="ghost" data-viz-toolbar-dashed title="Borda tracejada do bloco"
+                            class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
+                            <span class="pointer-events-none block h-0 w-4 border-t-2 border-dashed border-current"></span>
+                        </x-forms.button>
 
-            {{-- Node editor — kind of block (sistema / decisão / ator) +
-                 select of registered Solutions + free text, editing an
-                 already-existing node directly on the selected block. On a
-                 system block, choosing a Solution pulls in
-                 name/logo/attributes as always and the "Outro" option accepts
-                 free text; decisão/ator are free text only, so the JS hides
-                 the Solution select for them. Kind options come from
-                 `[data-ak-node-kinds]` and Solution options from
-                 `[data-ak-solutions]` (both rendered once in
-                 integrations-map.blade.php), read and cached in JS. The kind
-                 `<select>` itself stays in the DOM but entirely hidden — it's
-                 still the value/`change`-event owner
-                 (`integration-viz.js::syncKindFields()`/`readNodeForm()`
-                 read/write it directly), but what the user actually sees and
-                 clicks is the icon+text card list built into the sibling
-                 `data-viz-title-kind-picker` (`buildKindPicker()`). Wrapped
-                 (rather than `class="hidden"` straight on `x-forms.select`)
-                 for the same reason as the Solution field below: the
-                 component always renders its chevron in a sibling of the
-                 `<select>`, so hiding only the select would leave the
-                 chevron floating alone. --}}
-            <div data-viz-title-editor class="pointer-events-auto hidden w-[min(280px,80vw)] flex-col gap-2">
-                <div class="hidden">
-                    <x-forms.select data-viz-title-kind aria-label="Tipo do bloco"></x-forms.select>
+                        {{-- Light image border — image blocks only (hidden for every
+                             other kind, toggled in `integration-viz.js::selectNode()`).
+                             Toggle turns a solid border on/off (defaults to white the
+                             first time); the color input customizes it — changing it
+                             always implies "on" too. Purely visual
+                             (`viz_layout.nodes[i].imageBorderColor`), independent of
+                             the block's background color. --}}
+                        <div data-viz-toolbar-image-border class="hidden items-center gap-1.5">
+                            <x-forms.button type="button" variant="ghost" data-viz-toolbar-image-border-toggle title="Borda leve da imagem"
+                                class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
+                                <span class="pointer-events-none block size-3.5 rounded-[3px] border-2 border-current"></span>
+                            </x-forms.button>
+                            <x-forms.input type="color" data-viz-image-border-color title="Cor da borda"
+                                class="!size-[22px] !shrink-0 !cursor-pointer !rounded-md !border !border-line !bg-transparent !p-0 [&::-webkit-color-swatch]:!rounded-md [&::-webkit-color-swatch]:!border-none [&::-webkit-color-swatch-wrapper]:!p-0" />
+                        </div>
+
+                        {{-- "Somente logo" — system blocks with a registered Solution
+                             (and a logo) only, hidden for every other kind/state
+                             (toggled in `integration-viz.js::selectNode()`). Swaps
+                             the whole card (avatar + name) for just the Solution's
+                             logo, no border/background (`viz_layout.nodes[i].logoOnly`). --}}
+                        <div data-viz-toolbar-logo-only class="hidden items-center gap-1.5">
+                            <x-forms.button type="button" variant="ghost" data-viz-toolbar-logo-only-toggle title="Somente logo"
+                                class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
+                                <x-heroicon-o-photo class="pointer-events-none size-3.5" />
+                            </x-forms.button>
+                        </div>
+                    </div>
                 </div>
-                <div data-viz-title-kind-picker class="flex flex-col gap-1"></div>
-                {{-- The Solution select is hidden whole on a decisão/ator block
-                     — hence this wrapper: `x-forms.select` renders the `<select>`
-                     inside a `relative` div that also holds the chevron, so
-                     hiding only the `<select>` would leave that chevron floating. --}}
-                <div data-viz-title-solution-field>
-                    <x-forms.select data-viz-title-select class="!h-8 !w-full !rounded-md !border-line !bg-surface !py-0 !text-xs"></x-forms.select>
+
+                {{-- Tipo do bloco (sistema / decisão / ator / início / fim) —
+                     ícones só, com `title` como tooltip
+                     (`integration-viz.js::refreshKindRow()`), aplicando a
+                     troca na hora (PATCH em `graphRef.nodeUpdateUrl`), sem um
+                     botão "Salvar" separado. Escondido fora do nó raiz/numa
+                     imagem colada (`ChainNodeKind::pickable()`), mesma regra
+                     de antes — o `hidden`/`flex` de `selectNode()` alterna a
+                     SEÇÃO INTEIRA (rótulo incluso) por isto não deixar
+                     título solto quando some. Sem campo de Solução/texto
+                     aqui — os dois são editados direto na forma (duplo
+                     clique no texto do bloco, `startInlineLabelEdit()`), com
+                     autocomplete de Solução num bloco `system`. --}}
+                <div data-viz-toolbar-kind class="hidden flex-col gap-1">
+                    <p class="text-[11px] font-semibold uppercase tracking-wide text-faint">Tipo</p>
+                    <div data-viz-toolbar-kind-icons class="flex flex-wrap items-center gap-1"></div>
                 </div>
-                <x-forms.input type="text" data-viz-title-label placeholder="Nome do sistema externo"
-                    class="hidden !h-8 !w-full !rounded-md !border-line !bg-surface !text-xs" />
-                <div class="flex items-center justify-end gap-1.5">
-                    <x-forms.button type="button" variant="ghost" data-viz-title-cancel
-                        class="!rounded-md !px-2.5 !py-1 !text-xs !text-muted hover:!bg-accent-soft">
-                        Cancelar
-                    </x-forms.button>
-                    <x-forms.button type="button" data-viz-title-save
-                        class="!rounded-md !px-2.5 !py-1 !text-xs">
-                        <span data-viz-title-save-label>Salvar</span>
-                    </x-forms.button>
+
+                <div>
+                    <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-faint">Ações</p>
+                    <div class="flex items-center gap-1.5">
+                        <x-forms.button type="button" variant="ghost" data-viz-toolbar-comment title="Comentário"
+                            class="!rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
+                            <x-heroicon-o-chat-bubble-left-ellipsis class="size-4" />
+                        </x-forms.button>
+                        {{-- Delete the block. Same gate as the block type (editable +
+                             not the root), since removing index 0 is rejected
+                             server-side too. Destructive, so it's set apart by a
+                             separator and tinted `crit` — and it takes every link
+                             touching the block with it, which is what the confirm
+                             spells out. --}}
+                        <span class="mx-0.5 h-6 w-px shrink-0 bg-line" data-viz-toolbar-remove-sep></span>
+                        <x-forms.button type="button" variant="ghost" data-viz-toolbar-remove title="Excluir bloco"
+                            class="!rounded-md !p-1.5 !text-crit hover:!bg-crit-soft">
+                            <x-heroicon-o-trash class="size-4" />
+                        </x-forms.button>
+                    </div>
                 </div>
             </div>
         </div>
 
-        {{-- "Adicionar bloco" panel: creates a PURE block — kind (sistema /
-             decisão / ator) + registered Solution or free text, and nothing
-             else. No arrow, no protocol: the block is born isolated, and the
-             wiring is a separate gesture afterwards (drag an arrow out of any
-             block's port, or "modo ligar"). Anchored to the topbar's "+"
-             button (not to a node), which is why it's its own panel, outside
-             the block's contextual toolbar. Kind options come from
-             `[data-ak-node-kinds]` and Solution options from
-             `[data-ak-solutions]` — same pair of controls as the block's own
-             editor above, since creating and editing a block validate the
-             same three fields on the server (`ValidatesChainNode`). --}}
+        {{-- "Adicionar bloco" panel: a SINGLE horizontal row of kind icons
+             (sistema / decisão / ator / início / fim, from `[data-ak-node-kinds]`)
+             — clicking one creates the block IMMEDIATELY
+             (`integration-viz.js::createNodeFromKind()`), no separate
+             Solution/text field or "Adicionar" step here anymore. The block
+             is born with a placeholder text (the kind's own name — "Sistema",
+             "Decisão", …), and the very next thing that happens is
+             `startInlineLabelEdit()` on it, same as double-clicking a block's
+             text — so the picker's job ends the instant a kind is picked, and
+             naming/linking a Solution (system's autocomplete) happens
+             directly on the canvas, not in this panel. No arrow, no protocol
+             either way: the block is born isolated, wiring is the separate
+             gesture of dragging an arrow out of any block's port. Same fixed
+             top-left panel as the block/lane/protocol toolbars (mutually
+             exclusive with all three) — opened by the topbar's "+" button, or
+             by dropping a dragged arrow on empty canvas
+             (`openQuickAddEditor()`), which only changes WHERE the new block
+             is born (the drop point in world space), never where this panel
+             itself appears. --}}
         <div data-viz-add-editor
-            class="pointer-events-auto absolute z-20 hidden w-[min(260px,80vw)] flex-col gap-2 rounded-xl border border-line bg-surface p-2.5 shadow-[0_8px_28px_rgba(16,24,40,.16)]">
-            {{-- Kind `<select>` hidden entirely (same reasoning as the block
-                 editor above) — the icon+text card list right below it
-                 (`data-viz-add-kind-picker`) is what the user actually sees/
-                 clicks. --}}
-            <div class="hidden">
-                <x-forms.select data-viz-add-kind aria-label="Tipo do bloco"></x-forms.select>
-            </div>
-            <div data-viz-add-kind-picker class="flex flex-col gap-1"></div>
-            {{-- Wrapper for the same reason as in the block editor above: the
-                 whole field (select + chevron) is hidden on a decisão/ator block. --}}
-            <div data-viz-add-solution-field>
-                <x-forms.select data-viz-add-select class="!h-8 !w-full !rounded-md !border-line !bg-surface !py-0 !text-xs"></x-forms.select>
-            </div>
-            <x-forms.input type="text" data-viz-add-label placeholder="Nome do sistema externo"
-                class="hidden !h-8 !w-full !rounded-md !border-line !bg-surface !text-xs" />
+            class="pointer-events-auto absolute left-3 top-3 z-20 hidden max-h-[calc(100%-24px)] w-56 flex-col gap-2 overflow-y-auto rounded-xl border border-line bg-surface p-2.5 shadow-[0_8px_28px_rgba(16,24,40,.16)]">
+            <div data-viz-add-kind-icons class="flex flex-wrap items-center gap-1.5"></div>
             <p class="text-[11px] leading-snug text-faint">O bloco nasce solto — depois arraste uma seta de qualquer bloco até ele.</p>
-            <div class="flex items-center justify-end gap-1.5">
-                <x-forms.button type="button" variant="ghost" data-viz-add-cancel
-                    class="!rounded-md !px-2.5 !py-1 !text-xs !text-muted hover:!bg-accent-soft">
-                    Cancelar
-                </x-forms.button>
-                <x-forms.button type="button" data-viz-add-save
-                    class="!rounded-md !px-2.5 !py-1 !text-xs">
-                    <span data-viz-add-save-label>Adicionar</span>
-                </x-forms.button>
-            </div>
         </div>
 
         {{-- Lane toolbar: opened by a click (no drag) on any lane
              (`integration-viz.js::selectLane()`) — same click-vs-drag
              distinction a block already makes, and the same spirit as the
              block's own contextual toolbar (`data-viz-toolbar` above), just
-             scoped to what a lane actually has: preset color (swatches built
-             from `LANE_COLORS`, same pattern as a block's palette), name
-             (plain input, no separate pencil — a lane has no comment/link to
-             edit), a style cluster (corners, border, background pattern +
-             opacity, orientation, title on/off — all purely visual,
-             `viz_layout.lanes[i]`, applied live via
+             scoped to what a lane actually has: two independent preset-color
+             pickers (body fill/border and header strip — swatches built from
+             `LANE_COLORS`, same pattern as a block's palette; `setLaneColor()`/
+             `setLaneHeaderColor()`), a style cluster (corners, border,
+             orientation, header text size, opacity, title on/off — all
+             purely visual, `viz_layout.lanes[i]`, applied live via
              `integration-viz.js::refreshLaneToolbarControls()`/the
-             individual setters below it) and remove. Position/size aren't
-             edited here — dragging the lane's body (move) or its
-             edge/corner handles (resize), directly on the canvas, is the UI
-             for that. Anchored to the selected lane itself
-             (`positionLaneToolbar()`), same base `stage` as the block
-             toolbar. --}}
-        <div data-viz-lane-toolbar
-            class="pointer-events-auto absolute z-20 hidden w-[min(272px,85vw)] flex-col gap-2.5 rounded-xl border border-line bg-surface p-2.5 shadow-[0_8px_28px_rgba(16,24,40,.16)]">
-            <div data-viz-lane-toolbar-swatches class="flex flex-wrap items-center gap-1"></div>
-            <x-forms.input type="text" data-viz-lane-toolbar-label placeholder="Nome da raia"
-                class="!h-8 !w-full !rounded-md !border-line !bg-surface !text-xs" />
-
-            {{-- Corners (square/rounded) + border (solid/dashed) — same
-                 "the button's own visual reflects the current state" pattern
-                 as the block's dashed-border toggle above; both flip a
-                 single boolean on click (`integration-viz.js`'s
-                 `laneToolbarRoundedBtn`/`laneToolbarDashedBtn` listeners),
-                 no separate dialog. --}}
-            <div class="flex items-center gap-1.5">
-                <x-forms.button type="button" variant="ghost" data-viz-lane-toolbar-rounded title="Cantos arredondados"
-                    class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
-                    <span data-viz-lane-toolbar-rounded-icon class="pointer-events-none block size-3.5 rounded-none border-2 border-current"></span>
-                </x-forms.button>
-                <x-forms.button type="button" variant="ghost" data-viz-lane-toolbar-dashed title="Borda tracejada"
-                    class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
-                    <span class="pointer-events-none block h-0 w-4 border-t-2 border-dashed border-current"></span>
-                </x-forms.button>
-                <span class="mx-0.5 h-6 w-px shrink-0 bg-line"></span>
-                {{-- Orientation: horizontal (as-is — title on the left edge,
-                     vertical text) or vertical (title on the top edge, plain
-                     left-to-right text — CSS variant `.ak-viz-lane.is-vertical`). --}}
-                <x-forms.button type="button" variant="ghost" data-viz-lane-toolbar-orientation="horizontal" title="Raia horizontal"
-                    class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
-                    <x-heroicon-o-arrows-right-left class="pointer-events-none size-3.5" />
-                </x-forms.button>
-                <x-forms.button type="button" variant="ghost" data-viz-lane-toolbar-orientation="vertical" title="Raia vertical"
-                    class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
-                    <x-heroicon-o-arrows-up-down class="pointer-events-none size-3.5" />
-                </x-forms.button>
+             individual setters below it) and remove. There's no name field
+             here anymore — double-click the header strip on the canvas
+             itself to rename (`integration-viz.js::startInlineLaneLabelEdit()`),
+             same spirit as a block's own inline label editing. Position/size
+             aren't edited here either — dragging the lane's body (move) or
+             its edge/corner handles (resize), directly on the canvas, is the
+             UI for that. Same fixed top-left panel as the block toolbar
+             (mutually exclusive with it) — never anchored to the lane itself,
+             so resizing/moving the selected lane never has to reposition it. --}}
+        <div data-viz-lane-toolbar title="Dê 2 cliques na aba do cabeçalho pra renomear."
+            class="pointer-events-auto absolute left-3 top-3 z-20 hidden max-h-[calc(100%-24px)] w-64 flex-col gap-3 overflow-y-auto rounded-xl border border-line bg-surface p-2.5 shadow-[0_8px_28px_rgba(16,24,40,.16)]">
+            <div>
+                <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-faint">Cor do corpo</p>
+                <div data-viz-lane-toolbar-swatches class="flex flex-wrap items-center gap-1"></div>
+            </div>
+            <div>
+                <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-faint">Cor do cabeçalho</p>
+                <div data-viz-lane-toolbar-header-swatches class="flex flex-wrap items-center gap-1"></div>
             </div>
 
-            {{-- Background pattern (solid / diagonal / crosshatch, always in
-                 the lane's own color, `laneBackgroundCss()`) + an opacity
-                 slider shared by whichever pattern is active — same
-                 swatch-button convention as the color presets above, just
-                 previewing a fill style instead of a color. --}}
-            <div data-viz-lane-toolbar-patterns class="flex items-center gap-1.5"></div>
-            <label class="flex items-center gap-2 text-xs text-muted">
-                <span class="shrink-0">Opacidade</span>
+            <div>
+                <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-faint">Estilo</p>
+                {{-- Corners (square/rounded) + border (solid/dashed) — same
+                     "the button's own visual reflects the current state" pattern
+                     as the block's dashed-border toggle above; both flip a
+                     single boolean on click (`integration-viz.js`'s
+                     `laneToolbarRoundedBtn`/`laneToolbarDashedBtn` listeners),
+                     no separate dialog. --}}
+                <div class="flex flex-wrap items-center gap-1.5">
+                    <x-forms.button type="button" variant="ghost" data-viz-lane-toolbar-rounded title="Cantos arredondados"
+                        class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
+                        <span data-viz-lane-toolbar-rounded-icon class="pointer-events-none block size-3.5 rounded-none border-2 border-current"></span>
+                    </x-forms.button>
+                    <x-forms.button type="button" variant="ghost" data-viz-lane-toolbar-dashed title="Borda tracejada"
+                        class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
+                        <span class="pointer-events-none block h-0 w-4 border-t-2 border-dashed border-current"></span>
+                    </x-forms.button>
+                    <span class="mx-0.5 h-6 w-px shrink-0 bg-line"></span>
+                    {{-- Orientation: horizontal (as-is — title on the left edge,
+                         vertical text) or vertical (title on the top edge, plain
+                         left-to-right text — CSS variant `.ak-viz-lane.is-vertical`). --}}
+                    <x-forms.button type="button" variant="ghost" data-viz-lane-toolbar-orientation="horizontal" title="Raia horizontal"
+                        class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
+                        <x-heroicon-o-arrows-right-left class="pointer-events-none size-3.5" />
+                    </x-forms.button>
+                    <x-forms.button type="button" variant="ghost" data-viz-lane-toolbar-orientation="vertical" title="Raia vertical"
+                        class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
+                        <x-heroicon-o-arrows-up-down class="pointer-events-none size-3.5" />
+                    </x-forms.button>
+                </div>
+            </div>
+
+            {{-- Header label text size — same small/medium/large scale
+                 convention as the block's own font-size select, just its own
+                 (smaller) scale since the header is a narrow strip
+                 (`LANE_FONT_SIZES` in integration-viz.js). --}}
+            <div>
+                <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-faint">Texto do cabeçalho</p>
+                <x-forms.select data-viz-lane-toolbar-font-size title="Tamanho do texto do cabeçalho"
+                    class="!h-8 !w-full !rounded-md !border-line !bg-surface !py-0 !text-xs">
+                    <option value="sm">Peq</option>
+                    <option value="md">Médio</option>
+                    <option value="lg">Grande</option>
+                </x-forms.select>
+            </div>
+
+            <div>
+                <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-faint">Opacidade</p>
                 <x-forms.input type="range" data-viz-lane-toolbar-opacity title="Opacidade do preenchimento"
                     min="0.03" max="0.5" step="0.01" class="!h-1.5 !w-full !cursor-pointer !border-0 !bg-transparent !p-0" />
-            </label>
+            </div>
 
             {{-- Title on/off — with it off, the lane still renders as a
-                 tinted/patterned rectangle, but the click target that opens
-                 this very toolbar moves from the (now hidden) title strip to
-                 the whole body (`integration-viz.js`'s `laneAnchorEl()`). --}}
+                 tinted rectangle, but the click target that opens this very
+                 toolbar (and the double-click that renames it) moves from the
+                 (now hidden) title strip to the whole body
+                 (`integration-viz.js`'s `laneAnchorEl()`). --}}
             <x-forms.toggle name="viz-lane-toolbar-title" data-viz-lane-toolbar-title :checked="true">
                 Título
             </x-forms.toggle>
@@ -778,14 +848,15 @@
             </div>
         </div>
 
-        {{-- Editor for the selected integration's name/status — anchored to
-             the topbar's pencil (not to a node/edge), same spirit as the
-             "Adicionar bloco" panel. Creating a new Integration is done via
-             the "Nova" form in the list on the left
-             (`integrations-map.blade.php`); this one only renames/changes
-             the status of the one already selected. --}}
+        {{-- Editor for the selected integration's name/status — same fixed
+             top-left panel as "Adicionar bloco" (mutually exclusive with it
+             and with the block/lane/protocol toolbars), opened by the
+             topbar's pencil. Creating a new Integration is done via the
+             "Nova" form in the list on the left (`integrations-map.blade.php`);
+             this one only renames/changes the status of the one already
+             selected. --}}
         <div data-viz-meta-editor
-            class="pointer-events-auto absolute z-20 hidden w-[min(260px,80vw)] flex-col gap-2 rounded-xl border border-line bg-surface p-2.5 shadow-[0_8px_28px_rgba(16,24,40,.16)]">
+            class="pointer-events-auto absolute left-3 top-3 z-20 hidden max-h-[calc(100%-24px)] w-56 flex-col gap-2 overflow-y-auto rounded-xl border border-line bg-surface p-2.5 shadow-[0_8px_28px_rgba(16,24,40,.16)]">
             <x-forms.input type="text" data-viz-meta-name placeholder="Nome da integração"
                 class="!h-8 !w-full !rounded-md !border-line !bg-surface !text-xs" />
             <x-forms.select data-viz-meta-status class="!h-8 !w-full !rounded-md !border-line !bg-surface !py-0 !text-xs"></x-forms.select>
@@ -801,66 +872,59 @@
             </div>
         </div>
 
-        {{-- Editor for a link — two modes, same panel (`edgeEditorMode`
-             in integration-viz.js):
-               "edit"   opened by clicking the protocol pill above an
-                        already existing arrow (or the dashed "+ protocolo"
-                        pill); anchored to the clicked pill. Edits the
-                        link's direction + protocol, with a "Desligar"
-                        button to remove it (the block keeps existing, it
-                        only loses that link).
-               "create" opened by completing "link mode" (clicking the
-                        destination block, after activating it via the
-                        toolbar's link pencil); anchored to the destination
-                        block. Chooses direction + protocol of the new
-                        link; no "Desligar" (there's nothing to disconnect
-                        yet).
-             Direction is two independent toggle buttons (not a 3-option
-             `<select>`) — clicking the left/right arrow flips it on/off; both
-             can be active at once (a double-headed arrow, `<->`), and turning
-             the last active one off is a no-op (`->`/`<-`/`<->` are the only
-             valid arrows — there's no "headless line" state to fall back to).
-             Protocol is free text (`data-viz-protocol-input`), with a
-             `<datalist>` of `[data-ak-protocols]` values (same source as the
-             `App\Enums\Protocol` enum) as suggestions only — anything typed
-             is accepted, not just those. --}}
-        <div data-viz-protocol-editor
-            class="pointer-events-auto absolute z-20 hidden w-[min(220px,80vw)] flex-col gap-2 rounded-xl border border-line bg-surface p-2.5 shadow-[0_8px_28px_rgba(16,24,40,.16)]">
+        {{-- Editor for a link — opened by clicking the protocol pill above
+             an existing arrow (or the dashed "+ protocolo" pill); also opened
+             AUTOMATICALLY right after a brand new link is created by dragging
+             an arrow out of a port (`integration-viz.js::createEdgeFrom()`),
+             so direction/dashed are one click away without a separate "select
+             the new arrow" step. A SINGLE ROW of icon buttons, nothing else —
+             direction (two independent toggles, not a 3-option `<select>`:
+             clicking either arrow flips it on/off, both can be active at once
+             for a double-headed arrow `<->`, and turning the last active one
+             off is a no-op since `->`/`<-`/`<->` are the only valid arrows),
+             dashed (icon toggle — the button's own border switches
+             solid/dashed to show state, same pattern as the block's
+             `data-viz-toolbar-dashed` — never a checkbox with a text label),
+             and "Desligar" (icon only, tinted `crit`). All three apply
+             IMMEDIATELY (no "Salvar"/"Cancelar" — same live-apply spirit as
+             the block's own toolbar and the lane toolbar): direction toggles
+             PATCH the edge as soon as they're clicked
+             (`integration-viz.js::toggleArrowSide()`), and dashed is purely
+             visual (`viz_layout`), applied and left for the next "Salvar
+             layout" the same way the block's dashed toggle already works.
+             Protocol text itself is edited DIRECTLY ON THE ARROW'S LABEL, not
+             in this panel — double-click the pill on the canvas
+             (`integration-viz.js::startInlineProtocolEdit()`), free text with
+             an autocomplete dropdown built from `[data-ak-protocols]` (same
+             source as the `App\Enums\Protocol` enum), mirroring the block's
+             own inline label editing (`startInlineLabelEdit()`) — that's what
+             the panel's own `title` tooltip points to, since there's no room
+             for a hint line in a one-row icon menu. Same fixed top-left panel
+             as the block/lane toolbars (mutually exclusive with them) — never
+             anchored to the edge's own pill, so the pill moving under
+             pan/zoom/drag never has to drag this panel along with it. --}}
+        <div data-viz-protocol-editor title="Dê 2 cliques no rótulo da seta pra editar o protocolo."
+            class="pointer-events-auto absolute left-3 top-3 z-20 hidden w-max flex-col gap-2 rounded-xl border border-line bg-surface p-1.5 shadow-[0_8px_28px_rgba(16,24,40,.16)]">
             <div class="flex items-center gap-1.5">
                 <x-forms.button type="button" variant="ghost" data-viz-protocol-arrow-left title="Seta para a origem (recebe)"
-                    class="!flex !flex-1 !items-center !justify-center !gap-1 !rounded-md !border !border-line !py-1.5 !text-ink hover:!bg-accent-soft">
+                    class="!flex !size-[30px] !shrink-0 !items-center !justify-center !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
                     <x-heroicon-o-arrow-left class="size-3.5" />
                 </x-forms.button>
                 <x-forms.button type="button" variant="ghost" data-viz-protocol-arrow-right title="Seta para o destino (envia)"
-                    class="!flex !flex-1 !items-center !justify-center !gap-1 !rounded-md !border !border-line !py-1.5 !text-ink hover:!bg-accent-soft">
+                    class="!flex !size-[30px] !shrink-0 !items-center !justify-center !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
                     <x-heroicon-o-arrow-right class="size-3.5" />
                 </x-forms.button>
-            </div>
-            <x-forms.input type="text" data-viz-protocol-input list="viz-protocol-options" autocomplete="off" placeholder="Protocolo (opcional, texto livre)"
-                class="!h-8 !w-full !rounded-md !border-line !bg-surface !text-xs" />
-            <datalist id="viz-protocol-options" data-viz-protocol-datalist></datalist>
-            {{-- Dashed arrow — purely visual (`viz_layout.edges[i].dashed`),
-                 independent of direction/protocol; available in both "edit"
-                 and "create" mode. --}}
-            <x-forms.label for="viz-protocol-dashed-input" class="!m-0 flex items-center gap-1.5 !text-xs !font-normal text-ink">
-                <x-forms.checkbox id="viz-protocol-dashed-input" data-viz-protocol-dashed />
-                Seta tracejada
-            </x-forms.label>
-            <div class="flex items-center justify-between gap-1.5">
-                <x-forms.button type="button" variant="ghost" data-viz-protocol-delete title="Desligar (remove só a ligação, não os blocos)"
-                    class="!rounded-md !p-1.5 !text-muted hover:!bg-accent-soft hover:!text-crit">
-                    <x-heroicon-o-trash class="size-4" />
+                {{-- Dashed arrow — purely visual (`viz_layout.edges[i].dashed`),
+                     independent of direction/protocol. --}}
+                <x-forms.button type="button" variant="ghost" data-viz-protocol-dashed title="Seta tracejada"
+                    class="!size-[30px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
+                    <span class="pointer-events-none block h-0 w-4 border-t-2 border-dashed border-current"></span>
                 </x-forms.button>
-                <div class="flex items-center gap-1.5">
-                    <x-forms.button type="button" variant="ghost" data-viz-protocol-cancel
-                        class="!rounded-md !px-2.5 !py-1 !text-xs !text-muted hover:!bg-accent-soft">
-                        Cancelar
-                    </x-forms.button>
-                    <x-forms.button type="button" data-viz-protocol-save
-                        class="!rounded-md !px-2.5 !py-1 !text-xs">
-                        <span data-viz-protocol-save-label>Salvar</span>
-                    </x-forms.button>
-                </div>
+                <span class="mx-0.5 h-6 w-px shrink-0 bg-line"></span>
+                <x-forms.button type="button" variant="ghost" data-viz-protocol-delete title="Desligar (remove só a ligação, não os blocos)"
+                    class="!flex !size-[30px] !shrink-0 !items-center !justify-center !rounded-md !p-0 !text-crit hover:!bg-crit-soft">
+                    <x-heroicon-o-trash class="size-3.5" />
+                </x-forms.button>
             </div>
         </div>
 
@@ -921,10 +985,30 @@
                     radial-gradient(circle at 1px 1px, var(--viz-grid) 1px, transparent 0) 0 0 / 26px 26px,
                     var(--viz-bg);
             }
+            /* Theme canvas background (`data-viz-theme` select, `applyTheme()`)
+               — colors MUST match `EXPORT_PRESETS[theme].bg` in the JS (that's
+               what the export actually uses; `viewport` itself is never part
+               of the captured subtree, so this rule only matters for what the
+               user sees while editing). "corporativo" drops the dot texture
+               entirely — a plain white canvas reads cleaner/more "serious"
+               than repeating the same dotted grid tinted a different color. */
+            .ak-viz-viewport[data-viz-preset="casual"] {
+                background:
+                    radial-gradient(circle at 1px 1px, rgba(245, 158, 11, .18) 1px, transparent 0) 0 0 / 26px 26px,
+                    #FFF7ED;
+            }
+            {{-- "mais polido" (2026-08-04): a barely-there green-tinted
+                 gradient instead of flat white — the same "considered, not
+                 default" neutral this app's own palette already argues for
+                 (see CLAUDE.md's color-system memory), just applied here. --}}
+            .ak-viz-viewport[data-viz-preset="corporativo"] {
+                background: linear-gradient(160deg, #FFFFFF 0%, #F3F7F4 60%, #EEF3EF 100%);
+            }
+            {{-- Flat solid navy, no dot texture — matched to a real dark-UI
+                 reference (swimlane flowchart template / ER diagram tool),
+                 not a neon/cyberpunk treatment. --}}
+            .ak-viz-viewport[data-viz-preset="tech"] { background: #132A45; }
             .ak-viz-viewport.is-panning { cursor: grabbing; }
-            /* "Link mode" active — next click on a block creates the link. */
-            .ak-viz-viewport.is-linking { cursor: crosshair; }
-            .ak-viz-viewport.is-linking .ak-viz-node { cursor: crosshair; }
             .ak-viz-world {
                 position: absolute;
                 top: 0;
@@ -1004,11 +1088,13 @@
             /* Lane label — a vertical title running the full height of the
                lane's LEFT edge (a child of `.ak-viz-lane`, positioned
                relative to it, not the viewport), the classic swimlane
-               convention. Solid fill in a DARKER shade of the lane's own
-               color (`integration-viz.js::darkenHex()`) so it stands out
-               against the rest of the rectangle's much lighter tint — white
-               text always reads fine on it, every preset darkens into a
-               background dark enough for that. It's the ONLY part of the
+               convention. Background, text color and font-size are all set
+               inline per-lane by `integration-viz.js` (`applyLaneHeaderStyle()`)
+               — not here — since the header now has its OWN color
+               (`lane.headerColor`, independent of the body's), and its text
+               color is picked for CONTRAST against whatever that resolves to
+               (`textColorFor()`) instead of a fixed white, now that a light
+               header (white/bege) is a real option. It's the ONLY part of the
                lane that opens the toolbar on a plain click (`selectLane()`)
                — clicking anywhere else on the body only moves the lane if
                actually dragged, same gesture but no selection — hence its
@@ -1028,10 +1114,8 @@
                 transform: rotate(180deg);
                 text-orientation: mixed;
                 font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
-                font-size: 11px;
                 font-weight: 700;
                 letter-spacing: .02em;
-                color: #fff;
                 white-space: nowrap;
                 overflow: hidden;
                 pointer-events: none;
@@ -1091,6 +1175,74 @@
             [data-integration-viz][data-editable] .ak-viz-lane-resize.is-resizing {
                 background: rgba(16, 24, 40, .18);
             }
+            /* Anotação "post-it" (`integration-viz.js::rebuildNotes()`) —
+               texto livre multilinha, sempre amarelo (sem paleta
+               configurável, ao contrário do bloco/raia — é uma anotação
+               BÁSICA de propósito). Filha de `world` como um bloco/raia
+               (pan/zoom de graça via a transform de `world`), mas entra
+               DEPOIS dos nós em ordem de documento — um post-it é colado
+               por CIMA do diagrama, não atrás dele. */
+            .ak-viz-note {
+                position: absolute;
+                width: 190px;
+                display: flex;
+                flex-direction: column;
+                background: #FEF3C7;
+                border-radius: 3px;
+                box-shadow: 0 6px 16px rgba(120, 90, 10, .18), 0 1px 2px rgba(120, 90, 10, .15);
+                font-family: 'Inter', system-ui, sans-serif;
+            }
+            /* Faixinha do topo — única parte que arrasta (mover) e carrega o
+               botão de remover; o corpo abaixo é todo texto editável (ver
+               `rebuildNotes()`), por isso precisa de uma área "neutra" pra
+               servir de alça, mesmo espírito da etiqueta da raia. */
+            .ak-viz-note-handle {
+                display: flex;
+                justify-content: flex-end;
+                height: 18px;
+                flex-shrink: 0;
+                background: #FDE68A;
+                border-radius: 3px 3px 0 0;
+            }
+            [data-integration-viz][data-editable] .ak-viz-note-handle { cursor: grab; }
+            [data-integration-viz][data-editable] .ak-viz-note-handle:active { cursor: grabbing; }
+            .ak-viz-note-remove {
+                display: none;
+                align-items: center;
+                justify-content: center;
+                width: 18px;
+                height: 18px;
+                border: none;
+                background: transparent;
+                color: #92650B;
+                font-size: 14px;
+                line-height: 1;
+                cursor: pointer;
+                opacity: .55;
+            }
+            .ak-viz-note-remove:hover { opacity: 1; }
+            /* Só quem edita vê o botão de remover — mesmo espírito de
+               `[data-integable]:not([data-editable]) .ak-viz-port` acima:
+               um viewer ainda vê a anotação (conteúdo de `viz_layout` como
+               qualquer outro), só não pode mexer nela. */
+            [data-integration-viz][data-editable] .ak-viz-note-remove { display: flex; }
+            .ak-viz-note-body {
+                resize: none;
+                overflow: hidden;
+                border: none;
+                outline: none;
+                background: transparent;
+                width: 100%;
+                box-sizing: border-box;
+                padding: 4px 10px 10px;
+                min-height: 54px;
+                font: inherit;
+                font-size: 12.5px;
+                line-height: 1.4;
+                color: #713F12;
+            }
+            .ak-viz-note-body::placeholder { color: rgba(113, 63, 18, .45); }
+            [data-integration-viz][data-editable] .ak-viz-note-body { cursor: text; }
             .ak-viz-edges path.ak-viz-edge {
                 fill: none;
                 stroke: var(--viz-line);
@@ -1172,37 +1324,37 @@
                 user-select: none;
                 box-shadow: 0 1px 2px rgba(16, 24, 40, .08), 0 0 0 1px rgba(16, 24, 40, .14);
             }
-            /* Discreet line above the block: solution's hosting/cloud
-               (icon + label), only when the solution has that attribute set. */
-            .ak-viz-node-attrs {
-                display: flex;
-                flex-wrap: wrap;
-                align-items: center;
-                gap: 6px;
-                color: #6b7590;
-                font-size: 9.5px;
-                font-weight: 600;
-                line-height: 1;
-                text-transform: uppercase;
-                letter-spacing: .02em;
+            /* Theme border/shadow (`data-viz-theme` bottom-bar select,
+               `applyTheme()`) — border/shadow color only, matching each
+               theme's edge color (`EXPORT_PRESETS` in the JS); kind colors
+               (system/decision/actor/…) are untouched on purpose, so a
+               theme changes the MOOD without erasing what each block IS.
+               `.ak-viz-node` is plain HTML (not inside the edges `<svg>`),
+               so a normal external rule like this is enough — no need for
+               the internal-`<style>`-duplication trick the SVG needs. */
+            .ak-viz-world[data-viz-preset="casual"] .ak-viz-node {
+                box-shadow: 0 2px 6px rgba(245, 158, 11, .15), 0 0 0 1px rgba(245, 158, 11, .35);
             }
-            .ak-viz-node-attr {
-                display: inline-flex;
-                align-items: center;
-                gap: 2px;
+            {{-- "mais polido" (2026-08-04): a proper layered card shadow —
+                 soft ambient lift (large blur, negative spread, low opacity)
+                 + a tight contact shadow + a crisp thin border — instead of
+                 the single flat ring every other theme uses. This is the
+                 actual visual difference between "flat" and "polished": more
+                 shadow LAYERS at different distances, not more blur on one. --}}
+            .ak-viz-world[data-viz-preset="corporativo"] .ak-viz-node {
+                box-shadow: 0 8px 20px -8px rgba(27, 77, 46, .18), 0 2px 4px rgba(27, 77, 46, .08), 0 0 0 1px rgba(27, 77, 46, .20);
             }
-            .ak-viz-node-attr-icon {
-                display: inline-flex;
-            }
-            .ak-viz-node-attr-icon svg {
-                width: 10px;
-                height: 10px;
+            {{-- Flat card resting on the dark canvas — a plain (uncolored)
+                 lift shadow grounds it, and the border is a barely-there
+                 neutral hairline, not a colored/glowing ring. Matches the
+                 reference: light pastel cards, no border glow at all. --}}
+            .ak-viz-world[data-viz-preset="tech"] .ak-viz-node {
+                box-shadow: 0 2px 8px rgba(0, 0, 0, .45), 0 0 0 1px rgba(148, 163, 184, .22);
             }
             /* Block body: avatar (logo or initial) + name. `position: relative`
-               on both content rows so they paint ABOVE the `::before` shape
-               layer of a decision block (an absolutely-positioned pseudo
-               element would otherwise cover static in-flow content). */
-            .ak-viz-node-attrs,
+               so it paints ABOVE the `::before` shape layer of a decision
+               block (an absolutely-positioned pseudo element would otherwise
+               cover static in-flow content). */
             .ak-viz-node-body {
                 position: relative;
             }
@@ -1316,6 +1468,154 @@
                 color: var(--viz-ink);
                 pointer-events: none;
             }
+            /* Edição inline do rótulo (duplo clique no texto do bloco —
+               `startInlineLabelEdit()`): o `<input>` que substitui o
+               `<span>` herda a classe original (`.ak-viz-node-text` ou
+               `.ak-viz-node-endcap-label`) + esta — reseta a aparência
+               padrão de input e troca o contorno pontilhado por uma pista
+               visual de edição. `pointer-events: auto` desfaz o `none` do
+               rótulo de início/fim (ver acima) — sem isso o clique do mouse
+               pra reposicionar o cursor não chegaria nele. */
+            .ak-viz-node-text-input {
+                border: none;
+                background: transparent;
+                padding: 0;
+                margin: 0;
+                font: inherit;
+                color: inherit;
+                outline: 1.5px dashed var(--viz-select);
+                outline-offset: 2px;
+                border-radius: 3px;
+                pointer-events: auto;
+            }
+            /* Autocomplete de Solução da edição inline, só em bloco `system`
+               — filho do próprio nó (`n.el`), então herda de graça o mesmo
+               `transform` de pan/zoom do `.ak-viz-world`, sem precisar de
+               nenhuma conta de posição própria (ao contrário da toolbar/
+               editor de protocolo, que são filhos de `stage` e por isso
+               calculam a posição a partir de `getBoundingClientRect()`). */
+            .ak-viz-inline-suggest {
+                position: absolute;
+                top: 100%;
+                left: 0;
+                margin-top: 4px;
+                z-index: 30;
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+                width: max-content;
+                min-width: 140px;
+                max-width: 240px;
+                max-height: 180px;
+                overflow-y: auto;
+                padding: 4px;
+                border-radius: 8px;
+                border: 1px solid var(--viz-line);
+                background: var(--viz-bg);
+                box-shadow: 0 8px 24px rgba(16, 24, 40, .18);
+            }
+            .ak-viz-inline-suggest.hidden { display: none; }
+            .ak-viz-inline-suggest-item {
+                display: block;
+                width: 100%;
+                text-align: left;
+                padding: 4px 8px;
+                border-radius: 6px;
+                border: none;
+                background: transparent;
+                color: var(--viz-ink);
+                font-size: 12px;
+                cursor: pointer;
+            }
+            .ak-viz-inline-suggest-item:hover,
+            .ak-viz-inline-suggest-item.is-active {
+                background: var(--viz-select);
+                color: #fff;
+            }
+            /* Protocol inline edit (`integration-viz.js::startInlineProtocolEdit()`)
+               — the pill itself lives inside `<svg data-viz-edges>`, and a
+               plain HTML child can't nest inside an SVG `<g>` without a
+               `<foreignObject>`, so the `<input>` and its suggestion dropdown
+               are both children of `stage` instead (screen-space), positioned
+               via `getBoundingClientRect()` — same convention as the toolbar/
+               protocol-editor panels, unlike the node's own inline Solution
+               autocomplete above (a real child of the node, positioning
+               itself for free off the node's `top:100%`). */
+            .ak-viz-plabel-input {
+                position: absolute;
+                z-index: 21;
+                border: none;
+                outline: 1.5px dashed var(--viz-select);
+                outline-offset: 1px;
+                border-radius: 5px;
+                background: #fff;
+                padding: 0 4px;
+                font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+                font-size: 10px;
+                color: #4f5b7a;
+                text-align: center;
+            }
+            .ak-viz-plabel-suggest {
+                position: absolute;
+                z-index: 30;
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+                width: max-content;
+                min-width: 120px;
+                max-width: 220px;
+                max-height: 160px;
+                overflow-y: auto;
+                padding: 4px;
+                border-radius: 8px;
+                border: 1px solid var(--viz-line);
+                background: var(--viz-bg);
+                box-shadow: 0 8px 24px rgba(16, 24, 40, .18);
+            }
+            .ak-viz-plabel-suggest.hidden { display: none; }
+            .ak-viz-plabel-suggest-item {
+                display: block;
+                width: 100%;
+                text-align: left;
+                padding: 4px 8px;
+                border-radius: 6px;
+                border: none;
+                background: transparent;
+                color: var(--viz-ink);
+                font-size: 12px;
+                cursor: pointer;
+            }
+            .ak-viz-plabel-suggest-item:hover,
+            .ak-viz-plabel-suggest-item.is-active {
+                background: var(--viz-select);
+                color: #fff;
+            }
+            /* Renomear raia inline (`integration-viz.js::startInlineLaneLabelEdit()`)
+               — filho de `stage` (espaço de TELA) centrado na etiqueta via
+               `transform`, não um filho da própria etiqueta: a faixa da raia
+               tem só 26px de largura/altura e (orientação horizontal) texto
+               em `writing-mode` vertical — nem o espaço nem a orientação
+               servem pra digitar direto ali, ao contrário do rótulo de um
+               bloco. Tamanho fixo e sempre horizontal, então digitar aqui é
+               igual não importa a orientação/tamanho da raia por baixo. */
+            .ak-viz-lane-label-input {
+                position: absolute;
+                z-index: 21;
+                transform: translate(-50%, -50%);
+                width: 160px;
+                max-width: 60vw;
+                border: none;
+                outline: 1.5px dashed var(--viz-select);
+                outline-offset: 2px;
+                border-radius: 5px;
+                background: #fff;
+                color: var(--viz-ink);
+                padding: 4px 8px;
+                font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+                font-size: 12px;
+                font-weight: 600;
+                text-align: center;
+            }
             /* Imagem colada (Ctrl+V, `ChainNodeKind::Image`): moldura mínima
                (a foto já é o conteúdo), sem o padding/largura mínima dos
                demais blocos — `max-width` casa com o `max-width` padrão do
@@ -1348,6 +1648,25 @@
                 border-radius: 6px;
                 object-fit: contain;
                 pointer-events: none; /* o drag do bloco já é tratado no `mousedown` do próprio nó */
+            }
+            /* "Somente logo" (`viz_layout.nodes[i].logoOnly`): troca o cartão
+               (avatar + nome) pela imagem da Solução em tamanho real, sem
+               moldura/fundo — mesmo raciocínio de `.is-image` acima (uma
+               imagem com transparência real deve deixar o canvas aparecer
+               por trás dela), só que aqui a imagem é o logo do catálogo, não
+               uma mídia própria do nó. */
+            .ak-viz-node.is-logo-only {
+                padding: 4px;
+                min-width: 0;
+                background: transparent;
+                box-shadow: none;
+            }
+            .ak-viz-node.is-logo-only img {
+                display: block;
+                width: 64px;
+                height: 64px;
+                object-fit: contain;
+                pointer-events: none;
             }
             /* Mídia removida por fora (ou um nó `image` mal formado sem
                `media_id`) — quadro vazio com o ícone de fallback em vez de
@@ -1493,10 +1812,8 @@
                 background: var(--viz-select);
                 transform: translate(-50%, -50%) scale(1.35);
             }
-            /* Ports would only get in the way while a block is being dragged
-               or while the whole canvas is in "modo ligar". */
-            .ak-viz-node.is-dragging .ak-viz-port,
-            .ak-viz-viewport.is-linking .ak-viz-port { display: none; }
+            /* Ports would only get in the way while a block is being dragged. */
+            .ak-viz-node.is-dragging .ak-viz-port { display: none; }
             /* Arrow-tip handles (draggable) — subtle. */
             .ak-viz-handle {
                 position: absolute;
