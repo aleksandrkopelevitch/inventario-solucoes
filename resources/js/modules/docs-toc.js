@@ -80,7 +80,12 @@ export function init() {
             toc.style.display = ''
 
             const label = document.createElement('p')
+            // System ui-monospace, not the app's Space Mono webfont — matches
+            // the "eyebrow"-style label in the approved documentation model
+            // (artifact 895f7854's `.docs-toc .lbl`), scoped to this one spot
+            // rather than the global --font-mono token used by F3/protocol tags.
             label.className = 'px-2 pb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-muted'
+            label.style.fontFamily = "ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace"
             label.textContent = 'Nesta página'
 
             const list = document.createElement('nav')

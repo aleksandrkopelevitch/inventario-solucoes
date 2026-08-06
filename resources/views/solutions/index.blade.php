@@ -7,27 +7,57 @@
     $categoryActive = filled($filters['category'] ?? null)
         ? '!font-semibold '.CategoryPalette::selectActiveClass($filters['category'])
         : '';
+    // Small semantic dot per status value for the hero stat-strip — not tied
+    // to CategoryPalette (that's for the `category` attribute, a different
+    // dimension) nor to `--color-accent` (kept for badges/links elsewhere).
+    $statusDot = [
+        'active'     => 'bg-lime',
+        'evaluating' => 'bg-hot',
+        'planned'    => 'bg-line-2',
+        'deprecated' => 'bg-crit',
+    ];
 @endphp
 
 <x-layouts.layout title="Soluções">
-    {{-- Subtle lime "morning light" wash behind the title (Leo identity, matches
-         the approved model): purely decorative, sits under the header row. --}}
-    <div class="relative mb-6">
-        <div aria-hidden="true" class="pointer-events-none absolute -inset-x-6 -top-12 h-44 bg-[radial-gradient(120%_130%_at_0%_0%,rgba(170,219,30,0.15),transparent_58%)]"></div>
-        <div class="relative flex flex-wrap items-end justify-between gap-3">
-        <div>
-            <h1 class="font-display text-[32px] font-semibold leading-tight text-ink">
-                Soluções
-                <x-solutions.results-count :filters="$filters" />
-            </h1>
-            <p class="mt-1 text-sm text-muted">Catálogo das soluções de software da Leo Madeiras.</p>
-        </div>
-        @can('create', \App\Models\Solution::class)
-            <x-forms.button href="#" data-ak-panel-open data-ak-panel-url="{{ route('solutions.create', ['filter' => $filters]) }}">
-                <x-heroicon-o-plus class="size-4" /> Nova solução
+    {{-- The redesign's one gradient "glow" signature (see [[radiant-protocol-redesign]])
+         replaces the old lime radial wash — same spot, same purpose (a
+         deliberate moment of color behind the page title), Radiant's actual
+         hero gradient instead of a green-tinted one. --}}
+    <x-ui.hero-panel class="mb-6">
+        <span class="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[color:var(--color-glow-ink)]/70">
+            <span class="size-2 rounded-full" style="background: linear-gradient(115deg, var(--color-glow-a), var(--color-lime))"></span>
+            Catálogo · {{ $catalogStats['total'] }} soluções
+        </span>
+        <h1 class="mt-3 font-display text-[44px] font-bold leading-[0.98] tracking-tight text-[color:var(--color-glow-ink)]">
+            Soluções
+            <x-solutions.results-count :filters="$filters" />
+        </h1>
+        <p class="mt-3 max-w-lg text-[15px] leading-relaxed text-[color:var(--color-glow-ink)]/70">
+            Do chão de fábrica ao e-commerce — todo o ecossistema de software da Leo Madeiras num só lugar.
+        </p>
+        <div class="mt-5 flex flex-wrap items-center gap-3">
+            @can('create', \App\Models\Solution::class)
+                <x-forms.button href="#" data-ak-panel-open data-ak-panel-url="{{ route('solutions.create', ['filter' => $filters]) }}"
+                    class="!rounded-full">
+                    <x-heroicon-o-plus class="size-4" /> Nova solução
+                </x-forms.button>
+            @endcan
+            <x-forms.button href="{{ route('solutions.map') }}" variant="glass" class="!rounded-full">
+                Ver mapa do ecossistema <x-heroicon-o-arrow-right class="size-4" />
             </x-forms.button>
-        @endcan
         </div>
+    </x-ui.hero-panel>
+
+    {{-- Whole-catalog summary — unfiltered on purpose, doesn't move with the
+         grid below (same "global counters" convention as the Documentação hub). --}}
+    <div class="mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-card border border-line bg-surface px-5 py-3.5 text-sm text-muted shadow-card">
+        @foreach ($catalogStats['byStatus'] as $row)
+            <span class="flex items-center gap-1.5">
+                <span class="size-1.5 rounded-full {{ $statusDot[$row['value']] ?? 'bg-line-2' }}"></span>
+                <span class="font-display font-semibold text-ink">{{ $row['count'] }}</span> {{ mb_strtolower($row['label']) }}
+            </span>
+        @endforeach
+        <span class="ml-auto">{{ $catalogStats['integrations'] }} integrações mapeadas</span>
     </div>
 
     {{-- Search + filters (same form: search is a filter[] field preserved when filtering) --}}
@@ -47,7 +77,14 @@
             <p data-ak-search-hint="solutions-search" class="mt-1.5 h-4 text-xs text-hot"></p>
         </div>
 
-        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        {{-- `filter[sort]` moved from this grid to a hidden field (below):
+             sorting is now driven by clicking the table's column headers
+             (`x-solutions.sortable-th`), which toggle this same field and
+             re-fire the AJAX filter pipeline (`sortable-table.js`) instead of
+             a standalone dropdown. --}}
+        <input type="hidden" name="filter[sort]" value="{{ $filters['sort'] ?? 'name' }}">
+
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
             <x-forms.select name="filter[category]" data-ak-filters="{{ json_encode($filterBind) }}"
                 class="{{ $categoryActive }}">
                 <option value="">Categoria</option>
@@ -88,13 +125,8 @@
                 @endforeach
             </x-forms.select>
 
-            <x-forms.select name="filter[sort]" data-ak-filters="{{ json_encode($filterBind) }}">
-                <option value="name" @selected(($filters['sort'] ?? 'name') === 'name')>Ordenar: Nome (A–Z)</option>
-                <option value="status" @selected(($filters['sort'] ?? 'name') === 'status')>Ordenar: Status</option>
-            </x-forms.select>
-
             <x-forms.label data-ak-filters="{{ json_encode($filterBind) }}"
-                class="col-span-2 !flex cursor-pointer items-center gap-2 rounded-field border border-line-2 bg-surface px-3 py-2 !text-[13.5px] !text-ink transition-colors has-checked:border-accent has-checked:bg-accent-soft has-checked:text-accent has-checked:font-semibold sm:col-span-3 lg:col-span-6">
+                class="col-span-2 !flex cursor-pointer items-center gap-2 rounded-field border border-line-2 bg-surface px-3 py-2 !text-[13.5px] !text-ink transition-colors has-checked:border-accent has-checked:bg-accent-soft has-checked:text-accent has-checked:font-semibold sm:col-span-3 lg:col-span-5">
                 <x-forms.checkbox name="filter[undocumented]" :checked="(bool) ($filters['undocumented'] ?? false)" />
                 Somente sem documentação
             </x-forms.label>

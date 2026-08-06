@@ -9,7 +9,12 @@
 
             {{-- Greeting (scrolls); composer stays pinned below --}}
             <div class="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-8 text-center">
-                <div class="mb-4 flex size-12 items-center justify-center rounded-2xl bg-sidebar text-white">
+                {{-- Gradient "glow" ring (see [[radiant-protocol-redesign]]) behind
+                     the icon badge — this page is a fluid chat UI, not a list page,
+                     so a full <x-ui.hero-panel> header doesn't fit; this is the
+                     scaled-down equivalent touch. --}}
+                <div class="relative mb-4 flex size-12 items-center justify-center rounded-2xl bg-sidebar text-white shadow-[0_0_0_3px_var(--color-glow-b,transparent)]">
+                    <div class="pointer-events-none absolute -inset-2 -z-10 rounded-full opacity-40 blur-lg" style="background: conic-gradient(from 140deg, var(--color-glow-a), var(--color-glow-b), var(--color-glow-c), var(--color-glow-a))"></div>
                     <x-heroicon-o-cpu-chip class="size-6" />
                 </div>
                 <h1 class="font-display text-[26px] font-semibold leading-tight text-ink">Gerar um flowSpec</h1>

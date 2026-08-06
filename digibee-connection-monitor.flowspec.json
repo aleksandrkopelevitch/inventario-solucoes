@@ -1,0 +1,707 @@
+{
+  "meta": {
+    "3545a625-0374-4857-829c-5fc9c12c102a": {
+      "position": { "x": 200, "y": 0 }
+    },
+    "db7a3da6-78d7-4295-836b-204db16643b1": {
+      "position": { "x": 480, "y": 0 }
+    },
+    "1c2331fb-0066-4c88-9e0a-3ba3869cf3fe": {
+      "position": { "x": 1600, "y": 0 }
+    },
+    "311544a2-fa9e-42a2-8aea-4d678e3ab564": {
+      "position": { "x": 1880, "y": 0 }
+    },
+    "d85c6677-78fa-44f1-b55a-d4ec249b1146": {
+      "position": { "x": 2160, "y": 0 }
+    },
+    "36fd27c2-e844-493d-9415-884357ab1260": {
+      "position": { "x": 2440, "y": -150 }
+    },
+    "7a8e5157-a0cc-4f8f-a87a-bf54932672eb": {
+      "position": { "x": 2440, "y": 150 }
+    },
+    "b3985866-072c-4d7d-b94d-d7b449aa45d0": {
+      "position": { "x": 2720, "y": 150 }
+    },
+    "760daf69-efa5-45f5-996e-19d49e2eba1a": {
+      "position": { "x": 200, "y": 400 }
+    },
+    "84736ed4-6c5b-44ce-ad7f-dd2c497030fe": {
+      "position": { "x": 200, "y": 600 }
+    },
+    "e24c8f5a-d9df-4bd5-8a5a-4ebd26c01aa1": {
+      "position": { "x": 480, "y": 600 }
+    },
+    "bdf7f648-6af1-4668-baf9-de02507ee9e3": {
+      "position": { "x": 200, "y": 800 }
+    },
+    "db9f8f68-6a2a-4c39-b98a-0a4ff8b2138d": {
+      "position": { "x": 480, "y": 800 }
+    },
+    "2f15de3f-e587-4ee0-a161-33bc71524c85": {
+      "position": { "x": 760, "y": 800 }
+    },
+    "8a288e39-751e-446d-b311-7116adaeb5d0": {
+      "position": { "x": 200, "y": 1000 }
+    },
+    "6a3e6d30-a62e-47b6-8f12-9428fa44bd92": {
+      "position": { "x": 480, "y": 1000 }
+    },
+    "9d001c7f-5d58-498b-82ac-5a66bcbe301c": {
+      "position": { "x": 760, "y": 1000 }
+    },
+    "5ea97a49-6e43-430e-8423-1057fab11254": {
+      "position": { "x": 200, "y": 1200 }
+    },
+    "aeccdfc7-9f85-4bc8-8240-fded6d8c2a4a": {
+      "position": { "x": 480, "y": 1200 }
+    },
+    "0b8da933-b062-4cbf-b5ee-3c514c189741": {
+      "position": { "x": 760, "y": 1200 }
+    },
+    "4353b50f-f17c-4f84-a55d-9356537f99f5": {
+      "position": { "x": 200, "y": 1400 }
+    },
+    "c9f36770-0d70-4cd0-a6e2-e8f5681f0455": {
+      "position": { "x": 480, "y": 1400 }
+    },
+    "4991947a-28f0-4fbb-89ed-4a6f2f058f00": {
+      "position": { "x": 760, "y": 1400 }
+    },
+    "352d012f-e254-441a-a0ac-6448ac957756": {
+      "position": { "x": 480, "y": 1550 }
+    },
+    "4061286b-e531-4da4-ba28-c97cb0a2e209": {
+      "position": { "x": 760, "y": 1550 }
+    },
+    "9fa21300-a5a6-4545-8cdb-ac950f2ad572": {
+      "position": { "x": 200, "y": 1700 }
+    },
+    "eb13ff65-57ac-421a-9d65-c792a609e712": {
+      "position": { "x": 480, "y": 1700 }
+    },
+    "7e84975c-1e6d-4e87-b2f2-5a5ede9d131a": {
+      "position": { "x": 760, "y": 1700 }
+    },
+    "ba054a18-bfe9-424b-8ea2-531b375a4005": {
+      "position": { "x": 480, "y": 1850 }
+    },
+    "51c72817-c484-4592-80fd-4801df80ed58": {
+      "position": { "x": 760, "y": 1850 }
+    }
+  },
+  "flowSpec": {
+    "disconnected-root:f582c3be-8ccb-4f03-959d-ee01782f5f83": [
+      {
+        "id": "3545a625-0374-4857-829c-5fc9c12c102a",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "Carrega lista de endpoints monitorados",
+        "doubleBracesAlias": "load-targets",
+        "params": {
+          "json": "{\n  \"targets\": {{ global.isol-monitor-targets }}\n}",
+          "failOnError": true
+        }
+      },
+      {
+        "id": "db7a3da6-78d7-4295-836b-204db16643b1",
+        "type": "connector",
+        "name": "for-each-connector",
+        "stepName": "Testa cada endpoint da lista",
+        "doubleBracesAlias": "for-each-monitor",
+        "params": {
+          "itemIdentifier": "",
+          "parallel": true,
+          "failOnError": false,
+          "onProcess": "db7a3da6-78d7-4295-836b-204db16643b1-onProcessTrack",
+          "onException": "db7a3da6-78d7-4295-836b-204db16643b1-onExceptionTrack",
+          "expression": "$.targets[*]"
+        }
+      },
+      {
+        "id": "bdf7f648-6af1-4668-baf9-de02507ee9e3",
+        "type": "connector",
+        "name": "rest-connector-v2",
+        "stepName": "SVL - testa login (client credentials)",
+        "doubleBracesAlias": "svl-token-check",
+        "accountLabel": "",
+        "accountLabels": { "custom-1": "svl-auth", "custom-2": "" },
+        "params": {
+          "url": "{{ global.url-token-svl }}",
+          "operation": "POST",
+          "headers": "{\"Content-Type\":\"application/json\"}",
+          "body": "{\n    \"client_id\": {{ account.custom-1.username }},\n    \"client_secret\": {{ account.custom-1.password }},\n    \"audience\": \"{{ global.param-audience-svl }}\",\n    \"grant_type\": \"client_credentials\"\n}",
+          "injectJWT": false,
+          "readJWT": false,
+          "injectConsumer": false,
+          "injectPipelineKey": false,
+          "injectTraceId": false,
+          "stopOnClientError": false,
+          "stopOnServerError": false,
+          "overrideResponseCharset": true,
+          "responseCharset": "UTF-8",
+          "queryParams": "{}",
+          "useDynamicAccount": false,
+          "connectTimeout": "10000",
+          "readTimeout": "10000",
+          "writeTimeout": "",
+          "callTimeout": "",
+          "advanced": false,
+          "sendBinaryFile": false
+        }
+      },
+      {
+        "id": "db9f8f68-6a2a-4c39-b98a-0a4ff8b2138d",
+        "type": "connector",
+        "name": "script-connector",
+        "stepName": "Avalia login SVL",
+        "doubleBracesAlias": "svl-eval",
+        "params": {
+          "code": "output = { ok: (message.status >= 200 && message.status <= 299), status: message.status };",
+          "failOnError": true
+        }
+      },
+      {
+        "id": "2f15de3f-e587-4ee0-a161-33bc71524c85",
+        "type": "connector",
+        "name": "object-store-connector",
+        "stepName": "Registra status SVL",
+        "accountLabel": "dgb-internal-object-store-account",
+        "doubleBracesAlias": "svl-upsert",
+        "params": {
+          "operation": "UPDATE",
+          "objectStore": "isol-monitor-results",
+          "unique": true,
+          "isolated": false,
+          "failOnError": false,
+          "upsert": true,
+          "objectId": "svl",
+          "document": "{\n  $set: {\n    \"name\": \"SVL (login OAuth2)\",\n    \"url\": {{ global.url-token-svl }},\n    \"status\": {{ step.svl-eval.status }},\n    \"ok\": {{ step.svl-eval.ok }},\n    \"checkedAt\": {{ NOW() }}\n  }\n}"
+        }
+      },
+      {
+        "id": "8a288e39-751e-446d-b311-7116adaeb5d0",
+        "type": "connector",
+        "name": "rest-connector-v2",
+        "stepName": "BigQuery - lista datasets (ping autenticado)",
+        "doubleBracesAlias": "bigquery-check",
+        "accountLabel": "bigquery-auth",
+        "params": {
+          "url": "{{ global.url-bigquery-projects }}/{{ global.bigquery-project-id }}/datasets",
+          "operation": "GET",
+          "headers": "{\"Accept\":\"application/json\"}",
+          "injectJWT": false,
+          "readJWT": false,
+          "injectConsumer": false,
+          "injectPipelineKey": false,
+          "injectTraceId": false,
+          "stopOnClientError": false,
+          "stopOnServerError": false,
+          "overrideResponseCharset": true,
+          "responseCharset": "UTF-8",
+          "queryParams": "{}",
+          "useDynamicAccount": false,
+          "connectTimeout": "10000",
+          "readTimeout": "10000",
+          "writeTimeout": "",
+          "callTimeout": "",
+          "advanced": false,
+          "sendBinaryFile": false,
+          "body": ""
+        }
+      },
+      {
+        "id": "6a3e6d30-a62e-47b6-8f12-9428fa44bd92",
+        "type": "connector",
+        "name": "script-connector",
+        "stepName": "Avalia BigQuery",
+        "doubleBracesAlias": "bigquery-eval",
+        "params": {
+          "code": "output = { ok: (message.status >= 200 && message.status <= 299), status: message.status };",
+          "failOnError": true
+        }
+      },
+      {
+        "id": "9d001c7f-5d58-498b-82ac-5a66bcbe301c",
+        "type": "connector",
+        "name": "object-store-connector",
+        "stepName": "Registra status BigQuery",
+        "accountLabel": "dgb-internal-object-store-account",
+        "doubleBracesAlias": "bigquery-upsert",
+        "params": {
+          "operation": "UPDATE",
+          "objectStore": "isol-monitor-results",
+          "unique": true,
+          "isolated": false,
+          "failOnError": false,
+          "upsert": true,
+          "objectId": "bigquery",
+          "document": "{\n  $set: {\n    \"name\": \"BigQuery (list datasets)\",\n    \"url\": {{ global.url-bigquery-projects }},\n    \"status\": {{ step.bigquery-eval.status }},\n    \"ok\": {{ step.bigquery-eval.ok }},\n    \"checkedAt\": {{ NOW() }}\n  }\n}"
+        }
+      },
+      {
+        "id": "5ea97a49-6e43-430e-8423-1057fab11254",
+        "type": "connector",
+        "name": "rest-connector-v2",
+        "stepName": "Viasoft (Construshow) - testa login",
+        "doubleBracesAlias": "viasoft-token-check",
+        "accountLabel": "",
+        "accountLabels": { "custom-1": "viasoft-auth", "custom-2": "" },
+        "params": {
+          "url": "{{ global.url-token-viasoft }}",
+          "operation": "POST",
+          "headers": "{\"Content-Type\":\"application/json\",\"database-name\":\"ConstruShowX\",\"id-aplicacao\":\"90-ITEM-90\"}",
+          "body": "{\n    \"AUser\": {{ account.custom-1.username }},\n    \"APassword\": {{ account.custom-1.password }}\n}",
+          "injectJWT": false,
+          "readJWT": false,
+          "injectConsumer": false,
+          "injectPipelineKey": false,
+          "injectTraceId": false,
+          "stopOnClientError": false,
+          "stopOnServerError": false,
+          "overrideResponseCharset": true,
+          "responseCharset": "UTF-8",
+          "queryParams": "{}",
+          "useDynamicAccount": false,
+          "connectTimeout": "10000",
+          "readTimeout": "10000",
+          "writeTimeout": "",
+          "callTimeout": "",
+          "advanced": false,
+          "sendBinaryFile": false
+        }
+      },
+      {
+        "id": "aeccdfc7-9f85-4bc8-8240-fded6d8c2a4a",
+        "type": "connector",
+        "name": "script-connector",
+        "stepName": "Avalia login Viasoft",
+        "doubleBracesAlias": "viasoft-eval",
+        "params": {
+          "code": "var body = message.body || {};\noutput = { ok: (message.status === 200 && body.StatusLogin === 0), status: message.status };",
+          "failOnError": true
+        }
+      },
+      {
+        "id": "0b8da933-b062-4cbf-b5ee-3c514c189741",
+        "type": "connector",
+        "name": "object-store-connector",
+        "stepName": "Registra status Viasoft",
+        "accountLabel": "dgb-internal-object-store-account",
+        "doubleBracesAlias": "viasoft-upsert",
+        "params": {
+          "operation": "UPDATE",
+          "objectStore": "isol-monitor-results",
+          "unique": true,
+          "isolated": false,
+          "failOnError": false,
+          "upsert": true,
+          "objectId": "viasoft",
+          "document": "{\n  $set: {\n    \"name\": \"Viasoft / Construshow (login)\",\n    \"url\": {{ global.url-token-viasoft }},\n    \"status\": {{ step.viasoft-eval.status }},\n    \"ok\": {{ step.viasoft-eval.ok }},\n    \"checkedAt\": {{ NOW() }}\n  }\n}"
+        }
+      },
+      {
+        "id": "4353b50f-f17c-4f84-a55d-9356537f99f5",
+        "type": "connector",
+        "name": "block-execution-connector",
+        "stepName": "SCL / SAP S4 - testa reachability do host",
+        "params": {
+          "onProcess": "4353b50f-f17c-4f84-a55d-9356537f99f5-onProcessTrack",
+          "onException": "4353b50f-f17c-4f84-a55d-9356537f99f5-onExceptionTrack"
+        }
+      },
+      {
+        "id": "9fa21300-a5a6-4545-8cdb-ac950f2ad572",
+        "type": "connector",
+        "name": "block-execution-connector",
+        "stepName": "SAP - testa RFC (leitura T000)",
+        "params": {
+          "onProcess": "9fa21300-a5a6-4545-8cdb-ac950f2ad572-onProcessTrack",
+          "onException": "9fa21300-a5a6-4545-8cdb-ac950f2ad572-onExceptionTrack"
+        }
+      },
+      {
+        "id": "1c2331fb-0066-4c88-9e0a-3ba3869cf3fe",
+        "type": "connector",
+        "name": "object-store-connector",
+        "stepName": "Busca status atual de todos os endpoints",
+        "accountLabel": "dgb-internal-object-store-account",
+        "doubleBracesAlias": "find-all-results",
+        "params": {
+          "operation": "FIND",
+          "objectStore": "isol-monitor-results",
+          "unique": false,
+          "isolated": false,
+          "failOnError": false,
+          "query": "{}"
+        }
+      },
+      {
+        "id": "311544a2-fa9e-42a2-8aea-4d678e3ab564",
+        "type": "connector",
+        "name": "script-connector",
+        "stepName": "Monta relatório consolidado",
+        "doubleBracesAlias": "report-builder",
+        "params": {
+          "code": "var rows = message.data || [];\nvar failures = rows.filter(function (r) { return r.ok === false; });\nvar oks = rows.filter(function (r) { return r.ok === true; });\nfunction esc(v) { return v == null ? '' : String(v); }\nvar htmlItems = failures.map(function (r) {\n  return '<li><strong>' + esc(r.name) + '</strong> (' + esc(r.url) + ') - status ' + esc(r.status) + '</li>';\n}).join('');\nvar htmlReport = '<p>' + failures.length + ' de ' + rows.length + ' endpoint(s) monitorados com falha:</p><ul>' + htmlItems + '</ul>';\nvar teamsLines = failures.map(function (r) {\n  return '- ' + esc(r.name) + ' (' + esc(r.url) + '): status ' + esc(r.status);\n}).join('\\n');\nvar teamsSummary = failures.length + ' de ' + rows.length + ' endpoint(s) com falha:\\n' + teamsLines;\noutput = {\n  total: rows.length,\n  failures: failures.length,\n  okCount: oks.length,\n  hasFailures: failures.length > 0,\n  htmlReport: htmlReport,\n  teamsBody: JSON.stringify({ title: 'Monitor Digibee - ' + failures.length + ' falha(s) detectada(s)', text: teamsSummary })\n};",
+          "failOnError": true
+        }
+      },
+      {
+        "id": "d85c6677-78fa-44f1-b55a-d4ec249b1146",
+        "type": "choice",
+        "name": "",
+        "stepName": "Existe alguma falha?",
+        "when": [
+          {
+            "target": "notifica-falhas",
+            "jsonPath": "$.[?(@.hasFailures == true)]"
+          }
+        ],
+        "otherwise": "tudo-ok"
+      }
+    ],
+    "db7a3da6-78d7-4295-836b-204db16643b1-onProcessTrack": [
+      {
+        "id": "2f5d66a8-924d-4a63-bdee-e20f2c4e0c8d",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "Identifica endpoint da rodada",
+        "doubleBracesAlias": "current-target",
+        "params": {
+          "json": "{\n  \"id\": {{ message.id }},\n  \"name\": {{ message.name }},\n  \"url\": {{ message.url }}\n}",
+          "failOnError": true
+        }
+      },
+      {
+        "id": "852ac25e-db9f-4949-b0a6-2347d5fe532b",
+        "type": "connector",
+        "name": "rest-connector-v2",
+        "stepName": "Chama o endpoint",
+        "doubleBracesAlias": "rest-v2-check",
+        "accountLabel": "http-isol-monitor-no-auth",
+        "accountLabels": { "custom-1": "", "custom-2": "" },
+        "params": {
+          "url": "{{ step.current-target.url }}",
+          "operation": "GET",
+          "headers": "{\"Accept\":\"application/json\"}",
+          "injectJWT": false,
+          "readJWT": false,
+          "injectConsumer": false,
+          "injectPipelineKey": false,
+          "injectTraceId": false,
+          "stopOnClientError": false,
+          "stopOnServerError": false,
+          "overrideResponseCharset": true,
+          "responseCharset": "UTF-8",
+          "queryParams": "{}",
+          "useDynamicAccount": false,
+          "connectTimeout": "10000",
+          "readTimeout": "10000",
+          "writeTimeout": "",
+          "callTimeout": "",
+          "advanced": false,
+          "sendBinaryFile": false,
+          "body": ""
+        }
+      },
+      {
+        "id": "ad93943f-9632-4976-a95b-75f603b6fa2f",
+        "type": "choice",
+        "name": "",
+        "stepName": "Status 2xx?",
+        "when": [
+          {
+            "target": "endpoint-ok",
+            "jsonPath": "$.[?(@.status >= 200 && @.status <= 299)]"
+          }
+        ],
+        "otherwise": "endpoint-falha"
+      }
+    ],
+    "db7a3da6-78d7-4295-836b-204db16643b1-onExceptionTrack": [
+      {
+        "id": "e4e29c2c-4eb4-4bd9-9c11-0a0ee3a3548b",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Exceção ao testar endpoint",
+        "params": {
+          "logLevel": "ERROR",
+          "message": "Exceção inesperada ao testar endpoint - {{ message.$ }}"
+        }
+      }
+    ],
+    "endpoint-ok": [
+      {
+        "id": "760daf69-efa5-45f5-996e-19d49e2eba1a",
+        "type": "connector",
+        "name": "object-store-connector",
+        "stepName": "Marca endpoint como OK",
+        "accountLabel": "dgb-internal-object-store-account",
+        "doubleBracesAlias": "object-store-mark-ok",
+        "params": {
+          "operation": "UPDATE",
+          "objectStore": "isol-monitor-results",
+          "unique": true,
+          "isolated": false,
+          "failOnError": false,
+          "upsert": true,
+          "objectId": "{{ step.current-target.id }}",
+          "document": "{\n  $set: {\n    \"name\": {{ step.current-target.name }},\n    \"url\": {{ step.current-target.url }},\n    \"status\": {{ step.rest-v2-check.status }},\n    \"ok\": true,\n    \"checkedAt\": {{ NOW() }}\n  }\n}"
+        }
+      }
+    ],
+    "endpoint-falha": [
+      {
+        "id": "84736ed4-6c5b-44ce-ad7f-dd2c497030fe",
+        "type": "connector",
+        "name": "object-store-connector",
+        "stepName": "Marca endpoint como falho",
+        "accountLabel": "dgb-internal-object-store-account",
+        "doubleBracesAlias": "object-store-mark-falha",
+        "params": {
+          "operation": "UPDATE",
+          "objectStore": "isol-monitor-results",
+          "unique": true,
+          "isolated": false,
+          "failOnError": false,
+          "upsert": true,
+          "objectId": "{{ step.current-target.id }}",
+          "document": "{\n  $set: {\n    \"name\": {{ step.current-target.name }},\n    \"url\": {{ step.current-target.url }},\n    \"status\": {{ step.rest-v2-check.status }},\n    \"ok\": false,\n    \"checkedAt\": {{ NOW() }}\n  }\n}"
+        }
+      },
+      {
+        "id": "e24c8f5a-d9df-4bd5-8a5a-4ebd26c01aa1",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Falha detectada",
+        "params": {
+          "logLevel": "ERROR",
+          "message": "Falha ao testar {{ step.current-target.name }} ({{ step.current-target.url }}) - status {{ step.rest-v2-check.status }}"
+        }
+      }
+    ],
+    "4353b50f-f17c-4f84-a55d-9356537f99f5-onProcessTrack": [
+      {
+        "id": "c9f36770-0d70-4cd0-a6e2-e8f5681f0455",
+        "type": "connector",
+        "name": "rest-connector-v2",
+        "stepName": "Chama a raiz do host SAP S4 (sem path de negócio)",
+        "doubleBracesAlias": "scl-rest-check",
+        "accountLabel": "sap-s4-scl",
+        "params": {
+          "url": "{{ global.url-base-sap-api }}",
+          "operation": "GET",
+          "headers": "{}",
+          "injectJWT": false,
+          "readJWT": false,
+          "injectConsumer": false,
+          "injectPipelineKey": false,
+          "injectTraceId": false,
+          "stopOnClientError": false,
+          "stopOnServerError": false,
+          "overrideResponseCharset": true,
+          "responseCharset": "UTF-8",
+          "queryParams": "{}",
+          "useDynamicAccount": false,
+          "connectTimeout": "10000",
+          "readTimeout": "10000",
+          "writeTimeout": "",
+          "callTimeout": "",
+          "advanced": false,
+          "sendBinaryFile": false,
+          "body": ""
+        }
+      },
+      {
+        "id": "4991947a-28f0-4fbb-89ed-4a6f2f058f00",
+        "type": "connector",
+        "name": "object-store-connector",
+        "stepName": "Registra host SCL/SAP S4 como alcançável",
+        "accountLabel": "dgb-internal-object-store-account",
+        "doubleBracesAlias": "scl-mark-ok",
+        "params": {
+          "operation": "UPDATE",
+          "objectStore": "isol-monitor-results",
+          "unique": true,
+          "isolated": false,
+          "failOnError": false,
+          "upsert": true,
+          "objectId": "scl",
+          "document": "{\n  $set: {\n    \"name\": \"SCL / SAP S4 (reachability do host, não valida o fluxo de pedido)\",\n    \"url\": {{ global.url-base-sap-api }},\n    \"status\": {{ step.scl-rest-check.status }},\n    \"ok\": true,\n    \"checkedAt\": {{ NOW() }}\n  }\n}"
+        }
+      }
+    ],
+    "4353b50f-f17c-4f84-a55d-9356537f99f5-onExceptionTrack": [
+      {
+        "id": "352d012f-e254-441a-a0ac-6448ac957756",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Host SCL/SAP S4 inalcançável",
+        "params": {
+          "logLevel": "ERROR",
+          "message": "Falha de conectividade ao testar host SCL/SAP S4 - {{ message.$ }}"
+        }
+      },
+      {
+        "id": "4061286b-e531-4da4-ba28-c97cb0a2e209",
+        "type": "connector",
+        "name": "object-store-connector",
+        "stepName": "Registra host SCL/SAP S4 como inalcançável",
+        "accountLabel": "dgb-internal-object-store-account",
+        "doubleBracesAlias": "scl-mark-falha",
+        "params": {
+          "operation": "UPDATE",
+          "objectStore": "isol-monitor-results",
+          "unique": true,
+          "isolated": false,
+          "failOnError": false,
+          "upsert": true,
+          "objectId": "scl",
+          "document": "{\n  $set: {\n    \"name\": \"SCL / SAP S4 (reachability do host, não valida o fluxo de pedido)\",\n    \"url\": {{ global.url-base-sap-api }},\n    \"status\": \"sem resposta (host inalcançável)\",\n    \"ok\": false,\n    \"checkedAt\": {{ NOW() }}\n  }\n}"
+        }
+      }
+    ],
+    "9fa21300-a5a6-4545-8cdb-ac950f2ad572-onProcessTrack": [
+      {
+        "id": "eb13ff65-57ac-421a-9d65-c792a609e712",
+        "type": "connector",
+        "name": "sap-connector",
+        "stepName": "Chama RFC_READ_TABLE (T000, só leitura)",
+        "doubleBracesAlias": "sap-rfc-check",
+        "accountLabel": "sap-user",
+        "params": {
+          "operation": "RFC",
+          "RFC": "RFC_READ_TABLE",
+          "asHost": "{{ global.sap-servidor }}",
+          "client": "{{ global.sap-client-id }}",
+          "sysnr": "{{ global.sap-instance-number }}",
+          "lang": "EN",
+          "sapRequestTemplate": "${body}",
+          "body": "{\n  \"QUERY_TABLE\": \"T000\",\n  \"ROWCOUNT\": \"1\"\n}",
+          "failOnError": true
+        }
+      },
+      {
+        "id": "7e84975c-1e6d-4e87-b2f2-5a5ede9d131a",
+        "type": "connector",
+        "name": "object-store-connector",
+        "stepName": "Registra SAP RFC como OK",
+        "accountLabel": "dgb-internal-object-store-account",
+        "doubleBracesAlias": "sap-mark-ok",
+        "params": {
+          "operation": "UPDATE",
+          "objectStore": "isol-monitor-results",
+          "unique": true,
+          "isolated": false,
+          "failOnError": false,
+          "upsert": true,
+          "objectId": "sap",
+          "document": "{\n  $set: {\n    \"name\": \"SAP (RFC_READ_TABLE, leitura T000)\",\n    \"url\": {{ global.sap-servidor }},\n    \"status\": \"RFC OK\",\n    \"ok\": true,\n    \"checkedAt\": {{ NOW() }}\n  }\n}"
+        }
+      }
+    ],
+    "9fa21300-a5a6-4545-8cdb-ac950f2ad572-onExceptionTrack": [
+      {
+        "id": "ba054a18-bfe9-424b-8ea2-531b375a4005",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Exceção na RFC SAP",
+        "params": {
+          "logLevel": "ERROR",
+          "message": "Exceção ao testar RFC SAP - {{ message.$ }}"
+        }
+      },
+      {
+        "id": "51c72817-c484-4592-80fd-4801df80ed58",
+        "type": "connector",
+        "name": "object-store-connector",
+        "stepName": "Registra SAP RFC como falho",
+        "accountLabel": "dgb-internal-object-store-account",
+        "doubleBracesAlias": "sap-mark-falha",
+        "params": {
+          "operation": "UPDATE",
+          "objectStore": "isol-monitor-results",
+          "unique": true,
+          "isolated": false,
+          "failOnError": false,
+          "upsert": true,
+          "objectId": "sap",
+          "document": "{\n  $set: {\n    \"name\": \"SAP (RFC_READ_TABLE, leitura T000)\",\n    \"url\": {{ global.sap-servidor }},\n    \"status\": \"RFC com exceção\",\n    \"ok\": false,\n    \"checkedAt\": {{ NOW() }}\n  }\n}"
+        }
+      }
+    ],
+    "tudo-ok": [
+      {
+        "id": "36fd27c2-e844-493d-9415-884357ab1260",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Nenhuma falha nesta rodada",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Nenhuma falha detectada - {{ message.okCount }} de {{ message.total }} endpoint(s) OK"
+        }
+      }
+    ],
+    "notifica-falhas": [
+      {
+        "id": "7a8e5157-a0cc-4f8f-a87a-bf54932672eb",
+        "type": "connector",
+        "name": "email-connector-v2",
+        "stepName": "Notifica falhas por e-mail",
+        "doubleBracesAlias": "email-v2-monitor",
+        "accountLabel": "smtp-isol-monitor",
+        "params": {
+          "accountType": "basic",
+          "useDynamicAccount": false,
+          "scoped": false,
+          "from": "{{ account.username }}",
+          "to": "{{ global.isol-monitor-notify-emails }}",
+          "cc": "",
+          "bcc": "",
+          "subject": "[Monitor Digibee] {{ message.failures }} falha(s) de {{ message.total }} endpoint(s)",
+          "charset": "UTF-8",
+          "body": "{{ message.htmlReport }}",
+          "attachmentRawMode": false,
+          "attachments": "[]",
+          "authenticated": true,
+          "isOverTls": true,
+          "isOverSsl": false,
+          "forceTlsv12": false,
+          "failOnError": false
+        }
+      },
+      {
+        "id": "b3985866-072c-4d7d-b94d-d7b449aa45d0",
+        "type": "connector",
+        "name": "rest-connector-v2",
+        "stepName": "Notifica falhas no Teams",
+        "doubleBracesAlias": "rest-v2-teams",
+        "params": {
+          "url": "{{ global.isol-monitor-teams-webhook-url }}",
+          "operation": "POST",
+          "headers": "{\"Content-Type\":\"application/json\"}",
+          "injectJWT": false,
+          "readJWT": false,
+          "injectConsumer": false,
+          "injectPipelineKey": false,
+          "injectTraceId": false,
+          "stopOnClientError": false,
+          "stopOnServerError": false,
+          "overrideResponseCharset": true,
+          "responseCharset": "UTF-8",
+          "queryParams": "{}",
+          "useDynamicAccount": false,
+          "connectTimeout": "10000",
+          "readTimeout": "10000",
+          "writeTimeout": "",
+          "callTimeout": "",
+          "advanced": false,
+          "sendBinaryFile": false,
+          "body": "{{ message.teamsBody }}"
+        }
+      }
+    ]
+  }
+}

@@ -105,7 +105,7 @@ class SolutionIntegrationController extends Controller
     public function saveLayout(SaveIntegrationLayoutRequest $request, Solution $solution, Integration $integration): JsonResponse
     {
         $integration->update([
-            'viz_layout' => $request->safe()->only(['nodes', 'edges', 'comments', 'lanes']),
+            'viz_layout' => $request->safe()->only(['nodes', 'edges', 'comments', 'lanes', 'notes', 'theme']),
         ]);
 
         return response()->json([

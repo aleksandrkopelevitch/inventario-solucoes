@@ -37,11 +37,15 @@
     letter-spacing: -0.01em;
     margin: 0;
 }
-/* H1 cinza quase preto (título de página) — H2/H3 em `accent-press` (verde
-   mais escuro que `ink`), espelhando .html-content em app.css (2026-07-28). */
-.ak-docs-editor h1.ce-header { font-size: 2.25rem; padding: 0.9em 0 3px; color: #111827; }
-.ak-docs-editor h2.ce-header { font-size: 1.75rem; padding: 0.9em 0 3px; color: var(--color-accent-press); }
-.ak-docs-editor h3.ce-header { font-size: 1.25rem; padding: 0.7em 0 3px; color: var(--color-accent-press); }
+/* Todos os níveis em `--color-ink` (2026-08-05, redesign Radiant/Protocol —
+   ver [[radiant-protocol-redesign]]): até então H2/H3 usavam `accent-press`
+   (verde) pra diferenciar de H1 — era a última superfície de texto ainda
+   verde por padrão em toda a documentação. Hierarquia agora vem só de
+   tamanho/peso, igual ao modelo aprovado, espelhando .html-content em
+   app.css. */
+.ak-docs-editor h1.ce-header { font-size: 2.25rem; padding: 0.9em 0 3px; color: var(--color-ink); }
+.ak-docs-editor h2.ce-header { font-size: 1.75rem; padding: 0.9em 0 3px; color: var(--color-ink); }
+.ak-docs-editor h3.ce-header { font-size: 1.25rem; padding: 0.7em 0 3px; color: var(--color-ink); }
 
 /* `.ce-toolbar` (core) tem `will-change: opacity, top` sem `z-index` próprio —
    isso cria um novo contexto de empilhamento, mas sem valor explícito ele cai
@@ -78,9 +82,13 @@
     text-decoration: underline;
 }
 
+/* Corrigido 2026-08-05: alinhado ao inline code de .html-content (app.css) —
+   fundo chapado claro (`--color-canvas`), sem anel, igual ao modelo
+   aprovado (artifact 895f7854's `.prose code`). Era vermelho solto antes
+   disso (nem batia com o resultado final). */
 .ak-docs-editor code.inline-code {
-    background: #f3f4f6;
-    color: #b91c1c;
+    background: var(--color-canvas);
+    color: var(--color-ink);
     padding: 0.1em 0.35em;
     border-radius: 4px;
 }
@@ -98,49 +106,55 @@
 }
 .ak-docs-editor .cdx-quote-icon { display: none; }
 
-/* ── Código (Editor.js Code tool) — mesmo tema escuro de .html-content pre. */
+/* ── Código (Editor.js Code tool) — mesmo tema escuro de .html-content pre
+   (redesign 2026-08-05: era um monokai `#272822` à parte, agora o mesmo
+   `--color-ink` quase-preto usado no resultado final e na sidebar). */
 .ak-docs-editor .ce-code__textarea {
-    background: #272822;
-    color: #f8f8f2;
+    background: var(--color-ink);
+    color: rgba(255, 255, 255, 0.92);
     border: none;
-    border-radius: 8px;
+    border-radius: var(--radius-card);
     padding: 1rem;
 }
 
-/* ── Tabela (Editor.js Table tool) — sem linhas verticais, cabeçalho cinza,
-   moldura arredondada, igual à tabela do resultado final (app.css). */
+/* ── Tabela (Editor.js Table tool) — sem linhas verticais, cabeçalho gerado
+   a partir dos tokens de marca, moldura arredondada, igual à tabela do
+   resultado final (app.css). */
 .ak-docs-editor .tc-table {
-    border: 1px solid #e5e7eb;
-    border-radius: 10px;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
     overflow: hidden;
     --color-border: transparent;
-    background: #ffffff;
+    background: var(--color-surface);
 }
 .ak-docs-editor .tc-row {
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--color-line);
 }
 .ak-docs-editor .tc-row:last-child { border-bottom: none; }
 .ak-docs-editor .tc-cell { border: none !important; padding: 0.6rem 0.9rem; }
-/* Cabeçalho: branco puxando levemente pro verde (espelha .html-content th em app.css). */
+/* Cabeçalho: lavagem suave da cor de marca (espelha .html-content th em app.css). */
 .ak-docs-editor .tc-table--heading .tc-row--selected .tc-cell,
 .ak-docs-editor .tc-table--heading .tc-row:first-child {
-    background: #eef6f0;
+    background: var(--color-accent-soft);
     font-weight: 600;
-    color: #111827;
+    color: var(--color-ink);
 }
 
-/* ── Hint / callout — estilo GitBook: caixa com fundo pastel cheio + badge
-   circular do ícone (sem rótulo em texto), igual a .html-content aside
-   (app.css). O badge (.ak-hint__icon) é um <button> que abre o picker de
-   heroicons; o SVG outline do ícone escolhido vai dentro dele. ── */
+/* ── Hint / callout — reconstruído 2026-08-05 pra bater com a área de
+   documentação do modelo aprovado (artifact 895f7854): ícone CHATO (sem
+   badge circular) + moldura/lavagem sutil, espelhando .html-content aside
+   (app.css). O ícone aqui é um <button> que abre o picker de heroicons —
+   diferente do SVG estático do resultado final — então mantém um hover
+   sutil (fundo neutro, não a cor do tipo) só como affordance de clique,
+   já que o modelo não previa um picker interativo. ── */
 .ak-hint {
     display: flex;
     align-items: flex-start;
-    gap: 0.65rem;
-    border: none;
-    background: #EFF6FF;
-    border-radius: 10px;
-    padding: 0.8rem 1rem;
+    gap: 0.75rem;
+    border: 1px solid color-mix(in srgb, #2563EB 22%, transparent);
+    background: color-mix(in srgb, #2563EB 6%, var(--color-surface));
+    border-radius: var(--radius-card);
+    padding: 0.875rem 1rem;
     margin: 0.25rem 0;
 }
 .ak-hint__icon {
@@ -148,35 +162,35 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 1.5rem;
-    height: 1.5rem;
-    padding: 0;
+    width: 1.375rem;
+    height: 1.375rem;
+    padding: 0.15rem;
     border: none;
-    border-radius: 50%;
-    background: #DBEAFE;
+    border-radius: 6px;
+    background: transparent;
     color: #2563EB;
     cursor: pointer;
     margin-top: 0.05rem;
-    transition: filter 0.12s ease;
+    transition: background-color 0.12s ease;
 }
-.ak-hint__icon:hover { filter: brightness(0.94); }
-.ak-hint__icon svg { width: 0.95rem; height: 0.95rem; }
-.ak-hint[data-hint-style='warning'] { background: #FFFBEB; }
-.ak-hint[data-hint-style='warning'] .ak-hint__icon { background: #FEF3C7; color: #D97706; }
-.ak-hint[data-hint-style='danger'] { background: #FEF2F2; }
-.ak-hint[data-hint-style='danger'] .ak-hint__icon { background: #FEE2E2; color: #DC2626; }
-.ak-hint[data-hint-style='success'] { background: #ECFDF5; }
-.ak-hint[data-hint-style='success'] .ak-hint__icon { background: #D1FAE5; color: #059669; }
+.ak-hint__icon:hover { background: rgba(11, 13, 16, 0.06); }
+.ak-hint__icon svg { width: 100%; height: 100%; }
+.ak-hint[data-hint-style='warning'] { border-color: color-mix(in srgb, #D97706 22%, transparent); background: color-mix(in srgb, #D97706 6%, var(--color-surface)); }
+.ak-hint[data-hint-style='warning'] .ak-hint__icon { color: #D97706; }
+.ak-hint[data-hint-style='danger'] { border-color: color-mix(in srgb, #DC2626 22%, transparent); background: color-mix(in srgb, #DC2626 6%, var(--color-surface)); }
+.ak-hint[data-hint-style='danger'] .ak-hint__icon { color: #DC2626; }
+.ak-hint[data-hint-style='success'] { border-color: color-mix(in srgb, #059669 22%, transparent); background: color-mix(in srgb, #059669 6%, var(--color-surface)); }
+.ak-hint[data-hint-style='success'] .ak-hint__icon { color: #059669; }
 .ak-hint__text {
     outline: none;
-    color: #374151;
+    color: var(--color-body);
     line-height: 1.65;
     flex: 1;
     min-width: 0;
 }
 .ak-hint__text:empty::before {
     content: attr(data-placeholder);
-    color: #9ca3af;
+    color: var(--color-faint);
 }
 
 /* ── Scroll das superfícies de documentação — scrollbar "overlay" ───
@@ -221,13 +235,13 @@
     border-top-right-radius: 6px;
     margin-bottom: -1px;
     cursor: pointer;
-    color: #6b7280;
+    color: var(--color-muted);
 }
 .ak-tabs__tab:hover {
-    color: #111827;
+    color: var(--color-ink);
 }
 .ak-tabs__tab.is-active {
-    color: #111827;
+    color: var(--color-ink);
     background: var(--color-surface);
     border-color: var(--color-line);
     border-bottom-color: var(--color-surface);
@@ -337,9 +351,9 @@
     margin-top: 0.5rem;
     text-align: center;
     font-size: 0.875rem;
-    color: #6b7280;
+    color: var(--color-muted);
 }
-.ak-docs-editor .image-tool__caption:empty::before { color: #9ca3af; }
+.ak-docs-editor .image-tool__caption:empty::before { color: var(--color-faint); }
 
 .ak-docs-editor .image-tool__image,
 .ak-docs-editor .image-tool__caption {

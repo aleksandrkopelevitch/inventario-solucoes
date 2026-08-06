@@ -243,8 +243,8 @@ class GitbookRenderer
             $config = json_encode([
                 'targetId'          => $targetId,
                 'targetContainerId' => $containerId,
-                'activeClasses'     => ['bg-surface', 'text-gray-900', 'border-gray-200', 'border-b-surface'],
-                'inactiveClasses'   => ['text-gray-500', 'border-transparent', 'hover:text-gray-900'],
+                'activeClasses'     => ['bg-surface', 'text-ink', 'border-line', 'border-b-surface'],
+                'inactiveClasses'   => ['text-muted', 'border-transparent', 'hover:text-ink'],
                 'selectedOnInit'    => $selected,
             ]);
 
@@ -252,19 +252,19 @@ class GitbookRenderer
                 . ' data-ak-tabs="' . htmlspecialchars($config, ENT_QUOTES) . '"'
                 . ' aria-selected="' . ($selected ? 'true' : 'false') . '"'
                 . ' tabindex="' . ($selected ? '0' : '-1') . '"'
-                . ' class="-mb-px shrink-0 rounded-t-md border border-b-0 px-3.5 py-1.5 text-sm font-medium transition-colors ' . ($selected ? 'bg-surface text-gray-900 border-gray-200 border-b-surface' : 'text-gray-500 border-transparent hover:text-gray-900') . '">'
+                . ' class="-mb-px shrink-0 rounded-t-md border border-b-0 px-3.5 py-1.5 text-sm font-medium transition-colors ' . ($selected ? 'bg-surface text-ink border-line border-b-surface' : 'text-muted border-transparent hover:text-ink') . '">'
                 . e($tab['title'])
                 . '</button>';
 
             $panels .= '<div id="' . $targetId . '"'
                 . ' role="tabpanel"'
-                . ' class="' . ($selected ? '' : 'hidden ') . 'rounded-b-md rounded-tr-md border border-gray-200 bg-surface px-4 py-3">'
+                . ' class="' . ($selected ? '' : 'hidden ') . 'rounded-b-md rounded-tr-md border border-line bg-surface px-4 py-3">'
                 . $this->renderLines($tab['lines'])
                 . '</div>';
         }
 
         return '<div class="ak-doc-tabs my-6">'
-            . '<div role="tablist" class="flex flex-wrap gap-1 border-b border-gray-200">' . $tablist . '</div>'
+            . '<div role="tablist" class="flex flex-wrap gap-1 border-b border-line">' . $tablist . '</div>'
             . '<div id="' . $containerId . '">' . $panels . '</div>'
             . '</div>';
     }
