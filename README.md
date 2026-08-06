@@ -486,6 +486,45 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   `database/data/digibee_flowspec_examples/` antes de ser realmente
   utilizável pelo gerador (nome no catálogo só desbloqueia o validador, não
   ensina o formato dos parâmetros).
+- **`digibee-connection-monitor.flowspec.json` (raiz do repo) é uma pipeline
+  Digibee standalone, gerada por IA — não faz parte do runtime do Laravel,**
+  no mesmo espírito do `flowspec-catalog-audit.php` acima (fica no working
+  tree, fora do app). Testa cada URL de `global.isol-monitor-targets` em
+  paralelo (`for-each-connector`), grava o resultado por endpoint via upsert
+  em Object Store (`isol-monitor-results`, chave estável por endpoint — evita
+  corrida entre iterações paralelas e nunca cresce sem limite, diferente de
+  um acumulador em sessão) e, ao final da rodada, monta um relatório único
+  (HTML + Teams) num `script-connector`, notificando e-mail e Teams só
+  quando há pelo menos um endpoint fora da faixa 200-299 — nunca um
+  disparo por endpoint. Segredo (URL do webhook Teams, destinatários,
+  conta SMTP) vive em global vars/Accounts do próprio Digibee, nunca no
+  JSON, mesma disciplina do `CredentialScrubber` do F8. O corpo enviado ao
+  Teams é o genérico `{title, text}`, consumido por um Workflow do Power
+  Automate (gatilho "Quando uma solicitação HTTP do Teams webhook é
+  recebida", schema gerado a partir desse payload de amostra, seguido de uma
+  ação "Postar em um chat ou canal") — a URL do webhook gerada por esse
+  Workflow é o valor de `global.isol-monitor-teams-webhook-url`. Todo recurso
+  específico deste monitor (global vars, accounts, object store) usa o
+  prefixo/infixo `isol`, para não colidir com nomes de outras pipelines do
+  mesmo tenant Digibee — exceção: `dgb-internal-object-store-account`, que é
+  compartilhado e reaproveitado de outras pipelines reais do tenant, não
+  renomeado. Além do loop genérico sem-auth, o flow tem 5 branches
+  dedicados e autenticados — SAP (`sap-connector` RFC, leitura `T000`),
+  SVL e Viasoft/Construshow (replicam o handshake de login real de
+  `get-token-svl`/`get-token-viasoft`), BigQuery (REST autenticado, não o
+  `google-bigquery-sql-connector` do catálogo — a única pipeline real com
+  esse connector é um rascunho vazio) e SCL/SAP S4 (reachability do host
+  apenas, via `block-execution-connector`, para não disparar o
+  `CriaPedido` real a cada rodada) — cada um reaproveita a conta de
+  produção real do sistema (`sap-user`, `svl-auth`, `bigquery-auth`,
+  `viasoft-auth`, `sap-s4-scl`), mesma exceção de não-renomeação do
+  `dgb-internal-object-store-account`. Passa limpo pelo
+  `DigibeeFlowspecValidator` do F8 (mesma validação do corpus), mas isso
+  não substitui testar de verdade dentro do Studio — o agendamento
+  (Schedule trigger) é configurado lá, fora deste arquivo. Checklist
+  completo de setup (o que criar na Studio, valores, Power Automate) em
+  `digibee-connection-monitor.md`; levantamento das conexões reais por
+  sistema em `digibee-real-connections-inventory.md`.
 
 ## Testando
 
