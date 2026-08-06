@@ -9,6 +9,7 @@ use App\Http\Requests\UpdateSolutionRequest;
 use App\Models\AttributeOption;
 use App\Models\Company;
 use App\Models\Solution;
+use App\Services\SolutionCatalogStatsService;
 use App\View\Components\Solutions\DetailHeader;
 use App\View\Components\Solutions\FilterChips;
 use App\View\Components\Solutions\Index as SolutionsIndex;
@@ -20,7 +21,7 @@ use Illuminate\Support\Str;
 class SolutionController extends Controller
 {
     /** Catalog (F1). Same HTML/JSON action: JSON returns the filtered slot. */
-    public function index(Request $request)
+    public function index(Request $request, SolutionCatalogStatsService $stats)
     {
         $this->authorize('viewAny', Solution::class);
 
@@ -41,6 +42,9 @@ class SolutionController extends Controller
             'contractStatuses' => AttributeOption::options('contract_status'),
             'statuses'         => AttributeOption::options('status'),
             'directorates'     => AttributeOption::options('directorate'),
+            // Unfiltered "whole catalog" summary for the hero stat-strip —
+            // never changes with the filters/grid below it.
+            'catalogStats' => $stats->summary(),
         ]);
     }
 

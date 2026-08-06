@@ -26,7 +26,7 @@
     @if ($groups->isNotEmpty())
         <div class="mt-4 divide-y divide-line rounded-field border border-line">
             @foreach ($groups as $group)
-                <a href="{{ $group['url'] }}" class="flex items-center justify-between gap-3 px-4 py-3 text-sm no-underline hover:bg-raised">
+                <a href="{{ $group['url'] }}" class="flex items-center justify-between gap-3 px-4 py-3 text-sm no-underline transition-colors hover:bg-raised">
                     <span class="font-medium text-ink">{{ $group['name'] }}</span>
                     <span class="shrink-0 text-xs text-muted">{{ $group['pageCount'] }} {{ $group['pageCount'] === 1 ? 'página' : 'páginas' }}</span>
                 </a>

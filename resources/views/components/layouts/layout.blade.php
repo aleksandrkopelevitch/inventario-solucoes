@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" class="overflow-x-clip">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -13,7 +13,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="min-h-screen bg-canvas text-body font-sans text-[14.5px] antialiased">
+<body class="min-h-screen overflow-x-clip bg-surface text-body font-sans text-[14.5px] antialiased">
 
 @php
     $sections = [
@@ -84,11 +84,28 @@
     {{-- `fluid` (opt-in per page, e.g. the flowSpec chat) pins the column to the
          viewport height so the page can build its own internal scroll + footer
          (composer) instead of the default document-scroll canvas. --}}
-    <div @class(['flex min-w-0 flex-col', 'h-screen overflow-hidden' => ($fluid ?? false)])>
+    <div @class(['relative flex min-w-0 flex-col', 'h-screen overflow-hidden' => ($fluid ?? false)])>
         {{-- `fluid` pages (the flowSpec chat) run edge-to-edge without the
              breadcrumb header — they own their whole viewport height. --}}
         @unless ($fluid ?? false)
-        <header class="sticky top-0 z-30 flex h-14 items-center justify-between gap-4 border-b border-line bg-canvas/[0.86] px-5 backdrop-blur-md md:px-8">
+            {{-- Ambient corner glow — the model's `.glow-corner`, anchored to
+                 this FULL-WIDTH column (not `<main>`, which is capped at
+                 max-w-[1080px] and centered) so it always bleeds from the
+                 page's actual top-right corner, even on wide viewports where
+                 `<main>` is narrower than the page (see
+                 [[radiant-protocol-redesign]]/[[documentation-model-artifact]]).
+                 `html`/`body{overflow-x-clip}` clip the negative `-right`
+                 offset instead of `overflow-hidden` here (would break the
+                 sticky header below, same ancestor) — `clip` unlike `hidden`
+                 doesn't turn the root into a scroll container, so
+                 `position: sticky` still resolves against the real viewport
+                 (verified: `overflow-x-hidden` on html/body silently breaks
+                 every sticky header in the app). `-z-10` on this
+                 non-stacking-context `relative` parent is the same idiom
+                 already used for the flowSpec badge glow. --}}
+            <div class="pointer-events-none absolute -top-[220px] -right-[160px] -z-10 h-[520px] w-[640px] rounded-full opacity-50 blur-[70px]"
+                 style="background: conic-gradient(from 140deg, var(--color-glow-a), var(--color-glow-b), var(--color-glow-c), var(--color-glow-a))"></div>
+        <header class="sticky top-0 z-30 flex h-14 items-center justify-between gap-4 border-b border-line/60 bg-surface/70 px-5 shadow-sm backdrop-blur-md md:px-8">
             <div class="flex min-w-0 items-center gap-2 text-[13.5px] text-faint">
                 <x-forms.button type="button" variant="ghost" data-ak-mobile-nav-open aria-label="Abrir menu"
                     class="md:hidden !size-9 !justify-center !rounded-field !p-0 !text-muted hover:!bg-raised hover:!text-ink">

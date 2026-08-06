@@ -19,7 +19,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="ak-docs-scroll min-h-screen bg-canvas text-body font-sans text-[14.5px] antialiased">
+<body class="ak-docs-scroll min-h-screen bg-white text-body font-sans text-[14.5px] antialiased">
 
     {{-- Top bar: Leo brand + solution name (stays white over the cream canvas) --}}
     <header class="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-white px-4 py-3 sm:px-6">

@@ -47,15 +47,26 @@
                              Salvar (chain layout) inside the canvas, so showing
                              both at once here would read as two different
                              "Salvar" buttons stacked on top of each other. --}}
-                        <div class="flex items-center gap-1 rounded-field bg-raised p-1" role="tablist" aria-label="Documentação ou diagrama">
+                        {{-- Segmented control shape — bumped from `rounded-field`
+                             to a pill (2026-08-05), then corrected back to a
+                             near-square radius (2026-08-05, model artifact
+                             895f7854): the approved documentation model's
+                             `.doc-tabs`/`.doc-tab` uses a 9px/6px radius, NOT
+                             rounded-full — that pill shape is reserved for
+                             standalone action buttons (Salvar, Abrir
+                             especialista), not this kind of tab switcher.
+                             tabs.js only toggles the active/inactive classes
+                             below — the base radius classes are untouched by
+                             the state swap. --}}
+                        <div class="flex items-center gap-1 rounded-[9px] bg-raised p-1" role="tablist" aria-label="Documentação ou diagrama">
                             <x-forms.button type="button" variant="ghost" role="tab" aria-selected="true" tabindex="0"
                                 data-ak-tabs="{{ json_encode(['targetId' => 'integration-tab-docs', 'targetContainerId' => 'integration-tab-panels', 'activeClasses' => ['!bg-surface', '!text-ink', '!shadow-sm'], 'inactiveClasses' => ['!bg-transparent', '!text-muted', '!shadow-none'], 'selectedOnInit' => true]) }}"
-                                class="!h-8 !gap-1.5 !rounded !bg-surface !px-3 !text-xs !font-semibold !text-ink !shadow-sm">
+                                class="!h-8 !gap-1.5 !rounded-md !bg-surface !px-3 !text-xs !font-semibold !text-ink !shadow-sm">
                                 <x-heroicon-o-document-text class="size-4" /> Documentação
                             </x-forms.button>
                             <x-forms.button type="button" variant="ghost" role="tab" aria-selected="false" tabindex="-1"
                                 data-ak-tabs="{{ json_encode(['targetId' => 'integration-tab-diagram', 'targetContainerId' => 'integration-tab-panels', 'activeClasses' => ['!bg-surface', '!text-ink', '!shadow-sm'], 'inactiveClasses' => ['!bg-transparent', '!text-muted', '!shadow-none']]) }}"
-                                class="!h-8 !gap-1.5 !rounded !bg-transparent !px-3 !text-xs !font-semibold !text-muted !shadow-none">
+                                class="!h-8 !gap-1.5 !rounded-md !bg-transparent !px-3 !text-xs !font-semibold !text-muted !shadow-none">
                                 <x-heroicon-o-share class="size-4" /> Diagrama
                             </x-forms.button>
                         </div>
@@ -70,7 +81,7 @@
                      which one is visible; both stay mounted (the canvas draws
                      once on load, it shouldn't remount on every tab switch). --}}
                 <div id="integration-tab-panels" class="flex min-h-0 flex-1 flex-col">
-                    <div id="integration-tab-docs" class="ak-docs-scroll flex min-h-0 flex-1 flex-col overflow-y-auto">
+                    <div id="integration-tab-docs" class="ak-docs-scroll flex min-h-0 flex-1 flex-col overflow-y-auto bg-white">
                         {{-- Sticky: reads like the page's own top bar even though
                              it now lives inside this scrollable tab panel — moved
                              here (from the persistent top bar above) so it's
@@ -102,7 +113,7 @@
                      reading column (GitBook/Medium/Substack) plus an "on this page"
                      headings navigator on the right (docs-toc.js), even though the
                      layout is fluid. --}}
-                <div class="ak-docs-scroll min-h-0 flex-1 overflow-y-auto">
+                <div class="ak-docs-scroll min-h-0 flex-1 overflow-y-auto bg-white">
                     <div class="mx-auto flex w-full max-w-[64rem] gap-8 px-6 py-8 md:px-10">
                         @include('documentation.partials._reader')
 

@@ -1,35 +1,41 @@
 @use('App\Support\CategoryPalette')
 <div id="{{ $domId }}">
-    <div class="overflow-hidden rounded-card border border-line bg-surface shadow-card">
-        {{-- Identity strip: logo, name, vendor, description and action --}}
-        <div class="relative flex flex-wrap items-start gap-4 p-6">
-            {{-- Subtle green tint at the top of the card (Leo identity) --}}
-            <div class="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-accent-soft/60 to-transparent"></div>
+    <div class="overflow-hidden rounded-bento border border-line bg-surface shadow-card">
+        {{-- Identity strip: logo, name, vendor, description and action.
+             Redesign 2026-08-04 (see [[radiant-protocol-redesign]]): the old
+             green tint became the full gradient "glow" signature — this div
+             is the FIRST child of the outer overflow-hidden/rounded-bento
+             container, so its background is already clipped to the rounded
+             top corners without needing its own radius. --}}
+        <div class="relative flex flex-wrap items-start gap-4 p-6"
+             style="background: linear-gradient(135deg, color-mix(in srgb, var(--color-glow-a) 32%, white) 0%, color-mix(in srgb, var(--color-lime-soft) 75%, white) 100%)">
+            <div class="pointer-events-none absolute inset-x-0 top-0 h-[3px]"
+                 style="background: linear-gradient(90deg, var(--color-glow-a), var(--color-accent), var(--color-ink))"></div>
 
             <x-ui.logo :name="$solution->name" :src="$solution->logo_path" size="lg" class="relative shadow-sm"
                 :tone="CategoryPalette::tileClass($solution->category)" />
 
             <div class="relative min-w-0 flex-1">
-                <h1 class="font-display text-[28px] font-semibold leading-tight text-ink">{{ $solution->name }}</h1>
+                <h1 class="font-display text-[32px] font-bold leading-tight tracking-tight text-[color:var(--color-glow-ink)]">{{ $solution->name }}</h1>
 
                 @if ($solution->vendor)
                     {{-- Vendor chip: a rounded-rect tag matching the squared logo
                          (company logos are rounded-rects app-wide; only people are
                          circles). Was `rounded-full`, which fought the square logo. --}}
                     <a href="{{ route('companies.show', $solution->vendor) }}"
-                       class="mt-2 inline-flex items-center gap-2 rounded-lg border border-line bg-surface/70 py-1 pl-1 pr-3 text-sm text-muted backdrop-blur transition hover:border-line-2 hover:text-accent">
+                       class="mt-2 inline-flex items-center gap-2 rounded-lg border border-white/40 bg-white/50 py-1 pl-1 pr-3 text-sm text-[color:var(--color-glow-ink)]/75 backdrop-blur transition hover:border-white/70 hover:text-[color:var(--color-glow-ink)]">
                         <x-ui.logo :name="$solution->vendor->name" :src="$solution->vendor->logo_path" size="sm" />
                         <span class="min-w-0 truncate">{{ $solution->vendor->name }}</span>
                     </a>
                 @endif
 
                 @if ($solution->description)
-                    <p class="mt-3 max-w-2xl text-sm leading-relaxed text-body">{{ $solution->description }}</p>
+                    <p class="mt-3 max-w-2xl text-sm leading-relaxed text-[color:var(--color-glow-ink)]/80">{{ $solution->description }}</p>
                 @endif
             </div>
 
             @can('update', $solution)
-                <x-forms.button href="#" variant="glass" class="shrink-0"
+                <x-forms.button href="#" variant="glass" class="relative shrink-0"
                     data-ak-panel-open data-ak-panel-url="{{ route('solutions.edit', $solution) }}">
                     <x-heroicon-o-pencil-square class="size-4" /> Editar
                 </x-forms.button>

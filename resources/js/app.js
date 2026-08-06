@@ -13,6 +13,7 @@ import * as personContacts from './modules/person-contacts.js'
 import * as customizePanel from './modules/customize-panel.js'
 import * as executeFilters from './modules/execute-filters.js'
 import * as executeSearch from './modules/execute-search.js'
+import * as sortableTable from './modules/sortable-table.js'
 import * as solutionAttributes from './modules/solution-attributes.js'
 import * as integrationSelect from './modules/integration-select.js'
 import * as integrationViz from './modules/integration-viz.js'
@@ -22,6 +23,7 @@ import * as docsAnchors from './modules/docs-anchors.js'
 import * as docsLightbox from './modules/docs-lightbox.js'
 import * as docsShare from './modules/docs-share.js'
 import * as docsCopy from './modules/docs-copy.js'
+import * as docsCode from './modules/docs-code.js'
 import * as docsToc from './modules/docs-toc.js'
 import * as docsChat from './modules/docs-chat.js'
 import * as flowspecChat from './modules/flowspec-chat.js'
@@ -44,6 +46,7 @@ window.globalModules = {
     "customizePanel": customizePanel,
     "executeFilters": executeFilters,
     "executeSearch" : executeSearch,
+    "sortableTable" : sortableTable,
     "solutionAttributes" : solutionAttributes,
     "integrationSelect" : integrationSelect,
     "integrationViz"    : integrationViz,
@@ -53,6 +56,7 @@ window.globalModules = {
     "docsLightbox"      : docsLightbox,
     "docsShare"         : docsShare,
     "docsCopy"          : docsCopy,
+    "docsCode"          : docsCode,
     "docsToc"           : docsToc,
     "docsChat"          : docsChat,
     "flowspecChat"      : flowspecChat,

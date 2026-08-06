@@ -10,14 +10,16 @@
 @endphp
 
 <x-layouts.layout title="Visão geral">
-    {{-- Hero — with the subtle lime "morning light" wash behind the greeting. --}}
-    <div class="relative mb-6 animate-ak-rise">
-        <div aria-hidden="true" class="pointer-events-none absolute -inset-x-6 -top-12 h-44 bg-[radial-gradient(120%_130%_at_0%_0%,rgba(170,219,30,0.15),transparent_58%)]"></div>
-        <div class="relative">
-            <h1 class="font-display text-[32px] font-semibold leading-tight text-ink">Olá, {{ $firstName }}</h1>
-            <p class="mt-1 text-sm text-muted">Portfólio de soluções da Leo Madeiras e estado da documentação.</p>
-        </div>
-    </div>
+    {{-- Hero — the redesign's gradient "glow" signature (see [[radiant-protocol-redesign]]),
+         replacing the old lime radial wash. --}}
+    <x-ui.hero-panel compact class="mb-6 animate-ak-rise">
+        <span class="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[color:var(--color-glow-ink)]/70">
+            <span class="size-2 rounded-full" style="background: linear-gradient(115deg, var(--color-glow-a), var(--color-lime))"></span>
+            Visão geral
+        </span>
+        <h1 class="mt-2 font-display text-[34px] font-bold leading-tight tracking-tight text-[color:var(--color-glow-ink)]">Olá, {{ $firstName }}</h1>
+        <p class="mt-1 text-sm text-[color:var(--color-glow-ink)]/70">Portfólio de soluções da Leo Madeiras e estado da documentação.</p>
+    </x-ui.hero-panel>
 
     {{-- Live inventory snapshot — each card is a doorway into its section --}}
     <div class="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">

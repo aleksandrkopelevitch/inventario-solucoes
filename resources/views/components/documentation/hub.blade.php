@@ -21,7 +21,7 @@
                     {{-- Group header: the solution --}}
                     <div class="flex items-center justify-between gap-3 px-4 py-3">
                         <div class="flex min-w-0 items-center gap-2.5">
-                            <a href="{{ $solution['showUrl'] }}" class="truncate font-display text-[15px] font-semibold text-ink no-underline hover:text-accent">
+                            <a href="{{ $solution['showUrl'] }}" class="truncate font-display text-[15px] font-semibold text-ink no-underline transition-colors hover:text-accent">
                                 {{ $solution['name'] }}
                             </a>
                             @if ($solution['showStatus'])
@@ -42,7 +42,7 @@
                         <ul class="divide-y divide-line border-t border-line">
                             @foreach ($group['integrations'] as $integration)
                                 <li>
-                                    <a href="{{ $integration['url'] }}" class="flex items-center justify-between gap-3 px-4 py-2.5 pl-6 text-sm no-underline hover:bg-raised">
+                                    <a href="{{ $integration['url'] }}" class="flex items-center justify-between gap-3 px-4 py-2.5 pl-6 text-sm no-underline transition-colors hover:bg-raised">
                                         <span class="flex min-w-0 items-center gap-2 text-ink">
                                             <x-heroicon-o-arrows-right-left class="size-3.5 shrink-0 text-faint" />
                                             <span class="truncate">{{ $integration['name'] }}</span>

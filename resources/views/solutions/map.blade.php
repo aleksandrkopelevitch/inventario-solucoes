@@ -1,8 +1,15 @@
 <x-layouts.layout title="Mapa de integrações">
-    <div class="mb-6 animate-ak-rise">
-        <h1 class="font-display text-[32px] font-semibold leading-tight text-ink">Mapa de integrações</h1>
-        <p class="mt-1 text-sm text-muted">Ecossistema completo: soluções como nós, integrações como arestas. O grafo é derivado da tabela de integrações.</p>
-    </div>
+    {{-- Same gradient "glow" hero as Soluções/Detalhe — see [[radiant-protocol-redesign]].
+         The interactive map canvas below (<x-ecosystem-map>, its --viz-*
+         tokens) is intentionally NOT touched by this redesign pass. --}}
+    <x-ui.hero-panel class="mb-6 animate-ak-rise">
+        <span class="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[color:var(--color-glow-ink)]/70">
+            <span class="size-2 rounded-full" style="background: linear-gradient(115deg, var(--color-glow-a), var(--color-lime))"></span>
+            Ecossistema completo
+        </span>
+        <h1 class="mt-3 font-display text-[40px] font-bold leading-[0.98] tracking-tight text-[color:var(--color-glow-ink)]">Mapa de integrações</h1>
+        <p class="mt-3 max-w-lg text-[15px] leading-relaxed text-[color:var(--color-glow-ink)]/70">Soluções como nós, integrações como arestas — o grafo é derivado diretamente da tabela de integrações.</p>
+    </x-ui.hero-panel>
 
     {{-- Grid (not flex): x-forms.select wraps itself in a w-full wrapper, which
          in a flex row would force each item to take 100% width and wrap. --}}

@@ -4,10 +4,14 @@
 @endphp
 
 <x-layouts.layout title="Documentação">
-    <div class="mb-6">
-        <h1 class="font-display text-[32px] font-semibold leading-tight text-ink">Documentação</h1>
-        <p class="mt-1 text-sm text-muted">O que está documentado e o que ainda precisa — soluções e integrações do inventário.</p>
-    </div>
+    <x-ui.hero-panel compact class="mb-6">
+        <span class="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[color:var(--color-glow-ink)]/70">
+            <span class="size-2 rounded-full" style="background: linear-gradient(115deg, var(--color-glow-a), var(--color-lime))"></span>
+            Governança
+        </span>
+        <h1 class="mt-2 font-display text-[34px] font-bold leading-tight tracking-tight text-[color:var(--color-glow-ink)]">Documentação</h1>
+        <p class="mt-1 text-sm text-[color:var(--color-glow-ink)]/70">O que está documentado e o que ainda precisa — soluções e integrações do inventário.</p>
+    </x-ui.hero-panel>
 
     {{-- Global coverage counters (whole inventory; don't change with the
          filter on the list below). --}}

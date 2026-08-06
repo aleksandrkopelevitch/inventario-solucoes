@@ -19,16 +19,20 @@
         Gerando com o especialista…
     </span>
 
+    {{-- Redesign 2026-08-05 (ver [[radiant-protocol-redesign]]): pílula
+         (rounded-full) em vez de `rounded-field`, e `glass` em vez de `ghost`
+         pra ter um contorno visível mesmo sobre a barra branca — igual ao
+         modelo aprovado. --}}
     @isset($chatPanelUrl)
-        <x-forms.button type="button" variant="ghost" data-ak-docs-chat-trigger data-ak-panel-open data-ak-panel-url="{{ $chatPanelUrl }}" data-ak-panel-size="large"
-            class="!h-9 !px-3 !text-sm">
+        <x-forms.button type="button" variant="glass" data-ak-docs-chat-trigger data-ak-panel-open data-ak-panel-url="{{ $chatPanelUrl }}" data-ak-panel-size="large"
+            class="!h-9 !rounded-full !px-3.5 !text-sm">
             <x-heroicon-o-sparkles class="size-4" />
             <span>Abrir especialista</span>
         </x-forms.button>
     @endisset
 
     <span data-ak-docs-status class="text-xs text-muted" aria-live="polite"></span>
-    <x-forms.button type="button" data-ak-docs-save data-action="{{ $saveUrl }}" class="!h-9 !px-4 !text-sm">
+    <x-forms.button type="button" data-ak-docs-save data-action="{{ $saveUrl }}" class="!h-9 !rounded-full !px-4 !text-sm">
         Salvar
     </x-forms.button>
 @endif

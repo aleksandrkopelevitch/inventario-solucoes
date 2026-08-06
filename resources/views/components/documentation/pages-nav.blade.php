@@ -25,12 +25,12 @@
                 @php ($i = $loop->index)
                 <li>
                     <div @class([
-                        'group flex items-center gap-1 rounded-field px-2 py-1.5',
+                        'group flex items-center gap-1 rounded-field px-2 py-1.5 transition-colors',
                         'bg-accent-soft' => $page['active'],
                         'hover:bg-raised' => ! $page['active'],
                     ])>
                         <a href="{{ $page['editUrl'] }}" @class([
-                            'min-w-0 flex-1 truncate text-sm',
+                            'min-w-0 flex-1 truncate text-sm transition-colors',
                             'font-semibold text-accent' => $page['active'],
                             'text-ink' => ! $page['active'],
                             'italic text-muted' => ! $page['hasContent'],
@@ -104,7 +104,7 @@
                     @foreach ($integrations as $integration)
                         <li>
                             <a href="{{ $integration['editUrl'] }}" @class([
-                                'block truncate rounded-field px-2 py-1.5 text-sm',
+                                'block truncate rounded-field px-2 py-1.5 text-sm transition-colors',
                                 'bg-accent-soft font-semibold text-accent' => $integration['active'],
                                 'text-ink hover:bg-raised' => ! $integration['active'],
                                 'italic text-muted' => ! $integration['hasContent'],
