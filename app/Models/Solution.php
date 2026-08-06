@@ -189,7 +189,10 @@ class Solution extends Model implements HasMedia
     {
         $query
             ->when($filters['search'] ?? null, fn (Builder $q, $search) => $q->where(fn (Builder $w) => $w
-                ->where('name', 'like', "%{$search}%")
+                // Qualified with the table name: `Solutions\Index` conditionally
+                // left-joins `companies as vendor` (sort by vendor column), and an
+                // unqualified `name` would become ambiguous between the two tables.
+                ->where('solutions.name', 'like', "%{$search}%")
                 ->orWhereHas('vendor', fn (Builder $v) => $v->where('name', 'like', "%{$search}%"))
                 ->orWhereHas('people', fn (Builder $p) => $p->where('name', 'like', "%{$search}%"))))
             ->when($filters['category'] ?? null, fn (Builder $q, $v) => $q->where('category', $v))
