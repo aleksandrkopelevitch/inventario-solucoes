@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\BackgroundTheme;
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Models\Company;
 use App\Models\FlowspecMessage;
@@ -10,10 +9,7 @@ use App\Models\Integration;
 use App\Models\Person;
 use App\Models\Solution;
 use App\Services\DocumentationCoverageService;
-use App\Support\BackgroundPhoto;
 use App\View\Components\Layouts\UserMenu;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 
 class ProfileController extends Controller
 {
@@ -68,25 +64,6 @@ class ProfileController extends Controller
         ]);
     }
 
-    public function customizePanel()
-    {
-        $user = auth()->user();
-
-        $currentBackground = $user->preference('background', [
-            'type'  => 'gradient',
-            'value' => BackgroundTheme::default()->value,
-        ]);
-
-        return response()->json([
-            'content' => view('profile.panels.customize', [
-                'themes'       => BackgroundTheme::cases(),
-                'photos'       => BackgroundPhoto::all(),
-                'currentType'  => $currentBackground['type'],
-                'currentValue' => $currentBackground['value'],
-            ])->render(),
-        ]);
-    }
-
     public function update(ProfileUpdateRequest $request)
     {
         $user = auth()->user();
@@ -104,31 +81,6 @@ class ProfileController extends Controller
             'type'           => 'success',
             'updatableSlots' => [UserMenu::slot()],
             'modalIdToClose' => 'main-modal',
-        ]);
-    }
-
-    public function updatePreferences(Request $request)
-    {
-        $request->validate([
-            'type'  => ['required', 'in:gradient,photo'],
-            'value' => ['required', 'string', 'max:100'],
-        ]);
-
-        $user = auth()->user();
-
-        $user->update([
-            'preferences' => array_merge($user->preferences ?? [], [
-                'background' => ['type' => $request->type, 'value' => $request->value],
-            ]),
-        ]);
-
-        Cache::forget("user.{$user->id}.background_css");
-
-        $css = BackgroundPhoto::cssFromPreference($request->type, $request->value);
-
-        return response()->json([
-            'type' => 'success',
-            'js'   => 'document.getElementById("dashboard-bg").style.background = ' . json_encode($css) . ';',
         ]);
     }
 }

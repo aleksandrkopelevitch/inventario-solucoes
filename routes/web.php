@@ -49,8 +49,6 @@ Route::middleware('auth')->group(function () {
     Route::get('profile', [ProfileController::class, 'show'])->name('profile.show');
     Route::get('profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::get('profile/customize', [ProfileController::class, 'customizePanel'])->name('profile.preferences.panel');
-    Route::patch('profile/preferences', [ProfileController::class, 'updatePreferences'])->name('profile.preferences.update');
 
     Route::delete('logout', [LoginController::class, 'destroy'])->name('login.destroy');
 
