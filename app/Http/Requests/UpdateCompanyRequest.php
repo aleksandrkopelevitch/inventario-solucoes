@@ -26,7 +26,7 @@ class UpdateCompanyRequest extends FormRequest
             'kind'    => ['required', Rule::enum(CompanyKind::class)],
             'website' => ['nullable', 'url', 'max:255'],
             'notes'   => ['nullable', 'string'],
-            'logo'    => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp,svg', 'max:2048'],
+            'logo'    => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ];
     }
 }

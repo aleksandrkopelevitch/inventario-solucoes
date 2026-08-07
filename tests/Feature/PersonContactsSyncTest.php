@@ -90,6 +90,26 @@ it('deletes every contact when the form submits an empty contacts array', functi
     expect($person->fresh()->contacts)->toBeEmpty();
 });
 
+it('deletes every contact when the form clears the last row, sending only the presence marker', function () {
+    // Regression test: the browser form's hidden inputs for each contact row
+    // live INSIDE that removable row (person-contacts.js), so clearing the
+    // last row submits no `contacts[...]` key at all — indistinguishable
+    // from "contacts omitted entirely" unless the form's separate
+    // `contacts_present` marker (rendered once, outside the repeater) is
+    // also checked.
+    $person = Person::factory()->create();
+    Contact::factory()->for($person)->create();
+
+    $this->actingAs(contactsAdmin())
+        ->patchJson(route('people.update', $person), [
+            'name'             => $person->name,
+            'contacts_present' => '1',
+        ])
+        ->assertOk();
+
+    expect($person->fresh()->contacts)->toBeEmpty();
+});
+
 it('leaves contacts untouched when the request omits the contacts key entirely', function () {
     $person = Person::factory()->create();
     Contact::factory()->for($person)->create();

@@ -126,10 +126,19 @@ class PersonController extends Controller
         return $data;
     }
 
-    /** Person <-> solution link (with role), coming from the form's chips. */
+    /**
+     * Person <-> solution link (with role), coming from the form's chips.
+     *
+     * Checks `solutions_present` (a marker rendered once outside the chips'
+     * removable rows, see `people/form.blade.php`) in addition to `solutions`
+     * itself: chips.js's hidden inputs live inside each chip, so clearing
+     * every chip submits no `solutions[...]` key at all — without the
+     * marker, that would be indistinguishable from a request that never
+     * mentioned solutions, and the removal would silently never persist.
+     */
     private function syncSolutions(StorePersonRequest|UpdatePersonRequest $request, Person $person): void
     {
-        if (! $request->has('solutions')) {
+        if (! $request->has('solutions') && ! $request->has('solutions_present')) {
             return;
         }
 
@@ -163,10 +172,18 @@ class PersonController extends Controller
      * form, so they're deleted here — same spirit as `solutions()->sync()`
      * above, just without a ready-made `sync()` method for this (the row
      * carries more than a pivot id: type/value).
+     *
+     * Checks `contacts_present` (a marker rendered once outside the
+     * repeater's rows, see `people/form.blade.php`) in addition to
+     * `contacts` itself: person-contacts.js's hidden inputs live inside each
+     * removable row, so deleting every row submits no `contacts[...]` key at
+     * all — without the marker, that would be indistinguishable from a
+     * request that never mentioned contacts, and the deletion would
+     * silently never persist.
      */
     private function syncContacts(StorePersonRequest|UpdatePersonRequest $request, Person $person): void
     {
-        if (! $request->has('contacts')) {
+        if (! $request->has('contacts') && ! $request->has('contacts_present')) {
             return;
         }
 

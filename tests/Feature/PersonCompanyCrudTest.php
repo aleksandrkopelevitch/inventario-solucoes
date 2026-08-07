@@ -6,6 +6,8 @@ use App\Models\Person;
 use App\Models\Solution;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 uses(LazilyRefreshDatabase::class);
 
@@ -32,6 +34,26 @@ it('lets an admin create a person linked to a solution with a role', function ()
         'solution_id' => $solution->id,
         'role'        => 'technical',
     ]);
+});
+
+it('removes every linked solution when the form clears the last chip, sending only the presence marker', function () {
+    // Regression test: chips.js's hidden inputs for each chip live INSIDE
+    // that removable chip, so clearing the last one submits no
+    // `solutions[...]` key at all — indistinguishable from "solutions
+    // omitted entirely" unless the form's separate `solutions_present`
+    // marker (rendered once, outside the chips) is also checked.
+    $solution = Solution::factory()->create();
+    $person = Person::factory()->create();
+    $person->solutions()->attach($solution->id, ['role' => 'technical']);
+
+    $this->actingAs(adminUser())
+        ->patchJson(route('people.update', $person), [
+            'name'              => $person->name,
+            'solutions_present' => '1',
+        ])
+        ->assertOk();
+
+    expect($person->fresh()->solutions)->toBeEmpty();
 });
 
 it('lets an admin update a person', function () {
@@ -141,4 +163,33 @@ it('preserves the active filter when updating a person refreshes the index slot'
     $indexSlot = collect($response->json('updatableSlots'))->firstWhere('id', 'people-index-slot');
     expect($indexSlot['content'])->toContain('Ana Renomeada')
         ->and($indexSlot['content'])->not->toContain('Bruno Sem Vínculo');
+});
+
+it('accepts a PNG logo and rejects an SVG one, matching the client-side gate', function () {
+    // `mimes:` used to advertise svg while the `image` rule silently refused it
+    // (Laravel 13 needs `image:allow_svg`), so an SVG upload always failed with
+    // a confusing error. Resolved by dropping svg from the rule — an SVG served
+    // from the public disk runs its own scripts when opened directly by URL.
+    // avatar-upload.js mirrors this exact list; the two must not drift.
+    Storage::fake('public');
+    $admin = adminUser();
+
+    $this->actingAs($admin)
+        ->postJson(route('companies.store'), [
+            'name' => 'Com Logo PNG',
+            'kind' => 'vendor',
+            'logo' => UploadedFile::fake()->image('logo.png'),
+        ])
+        ->assertOk();
+
+    $svg = $this->actingAs($admin)
+        ->postJson(route('companies.store'), [
+            'name' => 'Com Logo SVG',
+            'kind' => 'vendor',
+            'logo' => UploadedFile::fake()->create('logo.svg', 10, 'image/svg+xml'),
+        ])
+        ->assertStatus(422);
+
+    expect($svg->json('message'))->not->toBeEmpty();
+    $this->assertDatabaseMissing('companies', ['name' => 'Com Logo SVG']);
 });

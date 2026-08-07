@@ -12,6 +12,17 @@ const SEARCH_MIN_LENGTH = 2
 const searchTimers = new WeakMap()
 // container -> index of the highlighted result row
 const highlightedIndex = new WeakMap()
+// container -> id of the most recent search request. Cancelling the debounce
+// timer only stops requests not yet SENT; without this, a slow response to an
+// earlier keystroke could land after a fast response to a later one and
+// repaint the list with stale suggestions — which Enter would then turn into
+// a chip the user never saw themselves pick.
+const searchSeq = new WeakMap()
+
+/** Abandons whatever search is in flight, so its response is ignored on arrival. */
+function invalidateSearch(container) {
+    searchSeq.set(container, (searchSeq.get(container) ?? 0) + 1)
+}
 
 function escapeHtml(str) {
     return String(str)
@@ -167,11 +178,16 @@ function selectHighlighted(container, cfg) {
 }
 
 async function search(container, cfg, term) {
+    invalidateSearch(container)
+    const requestId = searchSeq.get(container)
+
     try {
         const response = await ajaxModule.init('GET', cfg.searchUrl + '?q=' + encodeURIComponent(term))
         const data = await response.json()
+        if (searchSeq.get(container) !== requestId) return // a later keystroke already superseded this
         renderResults(container, Array.isArray(data.results) ? data.results : [])
     } catch {
+        if (searchSeq.get(container) !== requestId) return
         hideResults(container)
     }
 }
@@ -191,6 +207,10 @@ document.addEventListener('input', (e) => {
 
     const term = input.value.trim()
     if (term.length < SEARCH_MIN_LENGTH) {
+        // Also drops an in-flight request: deleting a character back down to
+        // 1 hides the list, and without this the previous term's response
+        // would land a moment later and pop it open again.
+        invalidateSearch(container)
         hideResults(container)
         return
     }
@@ -217,11 +237,13 @@ document.addEventListener('keydown', (e) => {
             e.preventDefault()
             highlightAt(container, (highlightedIndex.get(container) ?? 0) - 1)
         } else if (e.key === 'Escape') {
+            invalidateSearch(container)
             if (cfg.centered) closeOverlay(container)
             else hideResults(container)
         } else if (e.key === 'Enter') {
             e.preventDefault()
             if (selectHighlighted(container, cfg)) {
+                invalidateSearch(container)
                 input.value = ''
                 hideResults(container)
             }

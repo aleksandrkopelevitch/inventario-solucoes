@@ -28,7 +28,7 @@ class StorePersonRequest extends FormRequest
             'email'             => ['nullable', 'email', 'max:255'],
             'phone'             => ['nullable', 'string', 'max:50'],
             'notes'             => ['nullable', 'string'],
-            'photo'             => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp,svg', 'max:2048'],
+            'photo'             => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'solutions'         => ['nullable', 'array'],
             'solutions.*.value' => ['required', 'string'],
             'solutions.*.label' => ['nullable', 'string'],
