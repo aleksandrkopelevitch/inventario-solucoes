@@ -593,6 +593,47 @@ Proposal::factory()->analyzed()->forUser($user)->create();
 
 - Use `Exceptions::fake()` to assert exceptions were thrown without crashing the test
 
+### Freeze time in any test whose subject is a time WINDOW or a cache TTL
+
+If what the test asserts is defined by a period — a rate-limit window, a
+`Cache::remember()` TTL, a "stale after N minutes" reaper, a job's `retry_after`
+— call `$this->freezeTime()` first. There's nothing to undo: a freeze in one
+test does not leak into the next (verified 2026-08-07 — `Carbon::hasTestNow()`
+is already false in the following test, so no `travelBack()` is needed). Never
+let such a test depend on where the wall clock happens to be while it runs.
+
+Real incident (2026-08-07): `it('throttles repeated login attempts')` failed
+**~35% of runs** (measured: 3 of 8 on a clean tree). It fires 6 bad logins
+against `throttle:6,1` and expects the 7th to be 429; it intermittently got 200,
+i.e. the login went through.
+
+Two things combined, and both are worth knowing:
+
+1. **`RateLimiter::tooManyAttempts()` silently RESETS the counter.** It only
+   reports "too many" while a companion `{key}:timer` cache entry still exists;
+   if the counter is at/over the limit but that timer is gone, it calls
+   `resetAttempts()` and returns **false**. Counter and timer share one TTL
+   (60s for `throttle:6,1`), so anything that drops them mid-test doesn't just
+   lose the count — it hands out a fresh allowance.
+2. **The host clock can step.** Logging `time()` and `Carbon::now()` after each
+   request caught one request reporting a timestamp **66 seconds ahead** of the
+   requests immediately before *and* after it, with `Carbon::hasTestNow()`
+   false — so nothing in the app or the suite was travelling in time; the OS
+   clock jumped forward and back (this dev box is WSL2, `timedatectl` reports
+   `System clock synchronized: no`). 66s > the 60s TTL, so both entries expired
+   and the counter restarted. An earlier symptom of the same thing was an array
+   cache entry whose `expiresAt` sat 127s in the future for a 60s TTL.
+
+Freezing fixes it for the right reason, not just because it hides a bad clock:
+on a slow CI box six bcrypt hashes could legitimately straddle a real minute
+boundary and reset the window, which would be an equally bogus failure.
+
+Debugging recipe when a time-ish test flakes: log `time()`,
+`Carbon::now()->getTimestamp()` and `Carbon::hasTestNow()` at each step. If the
+first two agree with each other but jump around, it's the machine, not the code
+— and a tight `microtime(true)` loop will NOT reproduce it, because the step
+happens between requests, not inside a burst.
+
 ## Media (Spatie MediaLibrary)
 
 Only 4 models use `HasMedia`/`InteractsWithMedia`, each with its own single collection and its own purpose — there is no generic shared collection/conversion pair to reuse:
