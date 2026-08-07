@@ -35,10 +35,27 @@ class DocumentationGroupController extends Controller
         ]);
     }
 
-    /** Index: resolves (or creates) the 1st page and opens the editor on it. */
+    /**
+     * Index: resolves (or creates) the 1st page and opens the editor on it.
+     *
+     * Same reasoning as `SolutionDocumentationController::index()`: creating
+     * that first page is a WRITE, gated on `DocumentationGroupPolicy::update`
+     * (admin-only). The hub links here for groups with zero pages too, so a
+     * viewer following that link used to silently create a page just by
+     * browsing — they go back to the hub instead, which lists this group with
+     * its (zero) page count.
+     */
     public function show(DocumentationGroup $group): RedirectResponse
     {
-        $page = $group->pages()->first() ?? $this->pages->create($group, 'Página inicial');
+        $page = $group->pages()->first();
+
+        if (! $page) {
+            if (auth()->user()->cannot('update', $group)) {
+                return redirect()->route('documentation.index');
+            }
+
+            $page = $this->pages->create($group, 'Página inicial');
+        }
 
         return redirect()->route('documentation.groups.pages.edit', [$group, $page]);
     }

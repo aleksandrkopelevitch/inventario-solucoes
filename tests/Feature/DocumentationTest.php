@@ -41,6 +41,19 @@ it('opens the first page automatically from the docs index, creating one if none
         ->and($response->headers->get('Location'))->toBe(route('solutions.docs.page.edit', [$solution, $page]));
 });
 
+it('never creates a page for a viewer browsing an undocumented solution, sending them to its empty state', function () {
+    // A GET must not write. The documentation hub links here for solutions
+    // with zero pages too, so a viewer following that link used to silently
+    // trigger the placeholder-page creation.
+    $solution = Solution::factory()->create();
+
+    $this->actingAs(User::factory()->create()) // viewer
+        ->get(route('solutions.docs.edit', $solution))
+        ->assertRedirect(route('solutions.show', $solution));
+
+    expect($solution->pages()->count())->toBe(0);
+});
+
 it('reuses the existing first page instead of creating another one', function () {
     $solution = Solution::factory()->create();
     $page = solutionPage($solution, '# Oi');
@@ -264,7 +277,36 @@ it('links a solution doc page back to the solution and lists it in the pages rai
         // Collapsible pages rail (mirrors flowSpec): the aside + its toggle.
         ->toContain('id="docs-sidebar"')
         ->toContain('data-ak-toggle="docs-sidebar"')
-        ->toContain('data-ak-toggle-classes="!w-0 !border-r-0"');
+        // md+ collapses the in-flow rail by width. Scoped to `md:` on
+        // purpose — unscoped, the same click also zeroed the width of the
+        // mobile off-canvas overlay asserted below.
+        ->toContain('data-ak-toggle-classes="md:!w-0 md:!border-r-0"');
+});
+
+it('gives the pages rail a working mobile affordance instead of hiding it outright', function () {
+    // Regression test: the rail used to be `max-md:hidden` (display:none),
+    // so on a phone the toggle button was visible and clickable but could
+    // never reveal anything — leaving no way to switch pages from inside
+    // the editor. It's now an off-canvas overlay, which needs BOTH a
+    // trigger and its own dismiss (the overlay covers the top bar).
+    $solution = Solution::factory()->create();
+    $page = solutionPage($solution, '# Doc');
+
+    $content = $this->actingAs(docsAdmin())
+        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->assertOk()
+        ->getContent();
+
+    // Scoped to the rail's own opening tag: `max-md:hidden` is legitimately
+    // used elsewhere on this page (e.g. the desktop-only toggle button).
+    preg_match('/<aside id="docs-sidebar"[^>]*>/', $content, $aside);
+
+    expect($aside[0] ?? '')
+        ->not->toContain('max-md:hidden') // the rail itself is no longer display:none'd
+        ->toContain('max-md:-translate-x-full')
+        // Exactly two controls drive the overlay: the top-bar trigger and
+        // the dismiss inside it.
+        ->and(substr_count($content, 'data-ak-toggle-classes="max-md:!translate-x-0"'))->toBe(2);
 });
 
 it('links an integration doc back to the solution and lists it under Integrações', function () {

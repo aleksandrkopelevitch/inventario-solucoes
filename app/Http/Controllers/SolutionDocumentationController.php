@@ -39,10 +39,29 @@ class SolutionDocumentationController extends Controller
 
     public function __construct(private readonly DocumentationPageService $pages) {}
 
-    /** Index: resolves (or creates) the 1st page and opens the editor on it. */
+    /**
+     * Index: resolves (or creates) the 1st page and opens the editor on it.
+     *
+     * Creating that first page is a WRITE, so it's gated on the same
+     * permission as any other documentation edit (`SolutionPolicy::update`,
+     * admin-only) — the documentation hub links here for solutions with zero
+     * pages too, so a viewer following that link used to silently create a
+     * page just by browsing. A viewer is sent to the solution instead, whose
+     * "Documentação" section already states "Nenhuma documentação cadastrada
+     * ainda." — that empty state is the explanation, which is why this
+     * doesn't flash a message (nothing in this app renders flash messages).
+     */
     public function index(Solution $solution): RedirectResponse
     {
-        $page = $solution->pages()->first() ?? $this->pages->create($solution, 'Visão geral');
+        $page = $solution->pages()->first();
+
+        if (! $page) {
+            if (auth()->user()->cannot('update', $solution)) {
+                return redirect()->route('solutions.show', $solution);
+            }
+
+            $page = $this->pages->create($solution, 'Visão geral');
+        }
 
         return redirect()->route('solutions.docs.page.edit', [$solution, $page]);
     }

@@ -378,3 +378,37 @@
 
 /* Modo escuro: Editor.js popovers herdam o tema do app via tokens acima;
    ajustes finos ficam para quando o dark for revisto de fato. */
+
+/* ── Notifier (balão de erro dos plugins Image/Attaches) ─────────────
+   Editor.js injeta `.cdx-notifies`/`.cdx-notify` no fim do <body>, FORA do
+   editor — daí não ter prefixo `.ak-docs-editor` aqui, e daí ser CSS solto em
+   vez de utilitários Tailwind num componente Blade: o elemento nasce em
+   runtime, dentro de um pacote de terceiros, sem markup nosso onde pendurar
+   classe (mesma exceção documentada de `.ak-viz-md`).
+
+   É o único aviso do app que não passa pelo `Toast`: os plugins fazem o upload
+   sozinhos e chamam o notifier próprio, que também esconde o preloader do
+   bloco — por isso a mensagem foi traduzida (i18n.js / `errorMessage`) em vez
+   de substituída. Aqui ela só ganha a aparência do Toast do app, para não
+   destoar como um balão cru de biblioteca. */
+.cdx-notify {
+    border-radius: var(--radius-card, 12px);
+    border: 1px solid var(--color-line);
+    background: var(--color-surface);
+    color: var(--color-ink);
+    box-shadow: 0 8px 28px rgba(16, 24, 40, .16);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    line-height: 1.35;
+    padding: 0.75rem 1rem;
+}
+/* O pacote pinta o fundo inteiro de vermelho/verde; aqui a cor fica só numa
+   faixa à esquerda, igual aos callouts de `.html-content`. */
+.cdx-notify--error {
+    background: var(--color-surface);
+    border-left: 3px solid var(--color-crit);
+}
+.cdx-notify--success {
+    background: var(--color-surface);
+    border-left: 3px solid var(--color-accent);
+}

@@ -31,6 +31,22 @@ it('rejects a login with the wrong password without revealing which field is wro
 });
 
 it('throttles repeated login attempts', function () {
+    // Time is frozen because this test asserts a behaviour defined by a WINDOW
+    // ("6 attempts per minute", `throttle:6,1` on the route), and it must not
+    // depend on where the wall clock happens to be while it runs.
+    //
+    // It used to fail ~35% of the time here. The rate limiter keeps two array
+    // cache entries with a 60s TTL (the counter and its `:timer`); when the
+    // clock jumps past that TTL both are dropped, the counter restarts, and the
+    // 7th request is no longer throttled — a 200 instead of a 429. Verified by
+    // logging `time()` per request: one request reported a timestamp 66 seconds
+    // ahead of the ones before AND after it, with `Carbon::hasTestNow()` false,
+    // i.e. the host clock stepping (this dev box is WSL2 with `System clock
+    // synchronized: no`), not anything in the app. Freezing also makes the test
+    // honest on a slow CI box, where six bcrypt hashes could legitimately
+    // straddle a real minute boundary.
+    $this->freezeTime();
+
     $user = User::factory()->create(['password' => Hash::make('correct-password')]);
 
     for ($i = 0; $i < 6; $i++) {

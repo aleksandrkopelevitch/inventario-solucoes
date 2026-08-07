@@ -7,9 +7,32 @@
                  The inner slot (pages-nav, fixed w-72) keeps content from
                  reflowing while it slides — and, being the updatable slot, it
                  can be swapped on a page move without losing the collapse state
-                 held on this outer aside. --}}
+                 held on this outer aside.
+
+                 Two different collapse mechanics, one shared toggle target:
+                 - md+ : in-flow rail, collapsed by animating width to 0
+                         (`md:!w-0`, so it can't also fire on mobile).
+                 - < md: off-canvas overlay slid out of view by default
+                         (`-translate-x-full`), since an in-flow 18rem rail
+                         would leave no room for the editor itself. This used
+                         to be a plain `max-md:hidden`, which `display:none`d
+                         the rail no matter what the width toggle did — so the
+                         button was visible and clickable on a phone but could
+                         never reveal anything, leaving no way at all to move
+                         between pages from within the editor. --}}
             <aside id="docs-sidebar"
-                   class="flex w-72 shrink-0 flex-col overflow-hidden border-r border-line bg-white transition-[width] duration-200 max-md:hidden">
+                   class="flex w-72 shrink-0 flex-col overflow-hidden border-r border-line bg-white transition-[width] duration-200
+                          max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:-translate-x-full max-md:shadow-xl max-md:transition-transform">
+                {{-- Mobile-only dismiss: the overlay covers the top bar's own
+                     toggle button, so without this there'd be nothing left to
+                     tap to close it. Same toggle target/classes as the button
+                     that opens it. --}}
+                <div class="flex justify-end border-b border-line p-2 md:hidden">
+                    <x-forms.button type="button" variant="ghost" class="!px-2 !py-1.5" title="Fechar páginas" aria-label="Fechar páginas"
+                        data-ak-toggle="docs-sidebar" data-ak-toggle-classes="max-md:!translate-x-0">
+                        <x-heroicon-o-x-mark class="size-4" />
+                    </x-forms.button>
+                </div>
                 <x-documentation.pages-nav :pages="$pagesNav" :integrations="$integrationsNav ?? []" :create-page-url="$createPageUrl" />
             </aside>
         @endisset
@@ -19,12 +42,28 @@
             <div class="flex items-center justify-between gap-3 border-b border-line bg-white px-3 py-2">
                 <div class="flex min-w-0 items-center gap-2">
                     @isset($pagesNav)
-                        <x-forms.button type="button" variant="ghost" class="!px-2 !py-1.5" title="Mostrar/ocultar páginas"
-                            data-ak-toggle="docs-sidebar" data-ak-toggle-classes="!w-0 !border-r-0">
+                        {{-- md+ : width collapse. Scoped to `md:` so the same
+                             click can't zero the off-canvas overlay's width on
+                             mobile. Hidden below md because its two-state
+                             label ("Mostrar páginas") describes the in-flow
+                             rail, not the overlay. --}}
+                        <x-forms.button type="button" variant="ghost" class="!px-2 !py-1.5 max-md:hidden" title="Mostrar/ocultar páginas"
+                            data-ak-toggle="docs-sidebar" data-ak-toggle-classes="md:!w-0 md:!border-r-0">
                             <span id="docs-sidebar-opened-state"><x-heroicon-o-chevron-double-left class="size-4" /></span>
                             <span id="docs-sidebar-closed-state" class="hidden whitespace-nowrap">
                                 <x-heroicon-o-chevron-double-right class="inline size-4 align-text-bottom" /> Mostrar páginas
                             </span>
+                        </x-forms.button>
+
+                        {{-- < md: opens the off-canvas overlay. A separate
+                             button rather than a responsive variant of the one
+                             above so each keeps a label that's honest for its
+                             own mechanic — toggle.js flips the `*-opened-state`
+                             /`*-closed-state` spans by target id, and those
+                             live in (and are scoped to) the desktop button. --}}
+                        <x-forms.button type="button" variant="ghost" class="!px-2 !py-1.5 md:hidden" title="Mostrar páginas" aria-label="Mostrar páginas"
+                            data-ak-toggle="docs-sidebar" data-ak-toggle-classes="max-md:!translate-x-0">
+                            <x-heroicon-o-bars-3 class="size-4" />
                         </x-forms.button>
                     @endisset
 

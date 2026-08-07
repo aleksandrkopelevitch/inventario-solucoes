@@ -629,4 +629,4 @@ dialog[open]::backdrop {
    na revisão de 2026-07-02 — zero usos neste app interno B2B. Se algum dia
    for necessário um tooltip/CTA animado, prefira compor com utilitários
    Tailwind dentro de um componente Blade em vez de reintroduzir CSS solto
-   aqui.
+   aqui. */

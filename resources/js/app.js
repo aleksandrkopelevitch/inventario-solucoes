@@ -10,7 +10,6 @@ import * as topNav from './modules/top-nav.js'
 import * as avatarUpload from './modules/avatar-upload.js'
 import * as chips from './modules/chips.js'
 import * as personContacts from './modules/person-contacts.js'
-import * as customizePanel from './modules/customize-panel.js'
 import * as executeFilters from './modules/execute-filters.js'
 import * as executeSearch from './modules/execute-search.js'
 import * as sortableTable from './modules/sortable-table.js'
@@ -43,7 +42,6 @@ window.globalModules = {
     "avatarUpload"  : avatarUpload,
     "chips"         : chips,
     "personContacts": personContacts,
-    "customizePanel": customizePanel,
     "executeFilters": executeFilters,
     "executeSearch" : executeSearch,
     "sortableTable" : sortableTable,

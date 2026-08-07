@@ -274,5 +274,31 @@
     </div>
 </aside>
 
+{{-- Flash messages, surfaced through the app's own Toast rather than a new
+     banner component — this app has exactly one convention for "tell the user
+     something happened" and it's `#toast-container` above.
+
+     There was no renderer for flash at all until now: `bootstrap/app.php`'s
+     throttle (429) and expired-session (419) HTML paths both `back()->with(
+     'error', …)`, and nothing anywhere read `session('error')`, so those
+     messages were written and silently dropped. Any redirect in the app can
+     use `->with('error'|'status', …)` from here on.
+
+     Wrapped in `DOMContentLoaded` because `@vite` loads app.js as a MODULE
+     (deferred): an inline classic script runs while the document is still
+     parsing, so `Toast` doesn't exist yet at this point in the body. --}}
+@if (session('error') || session('status'))
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            @if (session('error'))
+                Toast.show(@json(session('error')), 'warning')
+            @endif
+            @if (session('status'))
+                Toast.show(@json(session('status')))
+            @endif
+        })
+    </script>
+@endif
+
 </body>
 </html>

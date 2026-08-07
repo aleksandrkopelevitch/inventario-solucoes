@@ -207,8 +207,13 @@
                 box-shadow: 0 0 0 1.5px var(--viz-select), 0 4px 14px rgba(16, 24, 40, .16);
             }
             /* Hub is draggable (ecosystem-map.js::startHubDrag) — `grab`/
-               `grabbing` signals that, unlike the satellite (click-only). */
+               `grabbing` signals that, unlike the satellite (click-only).
+               `--readonly` (no `positionUrl` — a viewer, per
+               IntegrationGraphService::putNode()) drops back to a plain
+               click cursor: dragging never persists for that role, so the
+               grab affordance would be a lie. */
             .ak-viz-node.ak-eco-hub { cursor: grab; }
+            .ak-viz-node.ak-eco-hub.ak-eco-hub--readonly { cursor: pointer; }
             .ak-viz-node.ak-eco-hub.is-dragging {
                 cursor: grabbing;
                 z-index: 10;

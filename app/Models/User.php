@@ -35,11 +35,6 @@ class User extends Authenticatable implements HasMedia
         ];
     }
 
-    public function preference(string $key, mixed $default = null): mixed
-    {
-        return data_get($this->preferences, $key, $default);
-    }
-
     public function flowspecChats(): HasMany
     {
         return $this->hasMany(FlowspecChat::class);

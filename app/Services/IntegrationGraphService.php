@@ -264,10 +264,13 @@ class IntegrationGraphService
      * attributes shown in `Solutions\DetailHeader` — the map's attribute
      * popover (`ecosystem-map.js`) displays them without needing an AJAX
      * round-trip per click. `url` avoids rebuilding the route on the client,
-     * same as `positionUrl` (the hub drag-and-drop's auto-save endpoint).
-     * `mapPosition` is the last dragged-and-saved position (null until the
-     * first drag) — `ecosystem-map.js::layout()` uses it instead of the
-     * packed grid for this hub.
+     * same as `positionUrl` (the hub drag-and-drop's auto-save endpoint) —
+     * `null` for a viewer (mirrors `SolutionPolicy::update`, admin-only),
+     * so `ecosystem-map.js` never wires up drag-to-persist for a role the
+     * server would 403 anyway; the map itself stays read-only-but-pannable
+     * for everyone regardless. `mapPosition` is the last dragged-and-saved
+     * position (null until the first drag) — `ecosystem-map.js::layout()`
+     * uses it instead of the packed grid for this hub.
      *
      * @param  array<string, array<string, mixed>>  $nodes
      */
@@ -295,7 +298,9 @@ class IntegrationGraphService
             'supportLabel'     => $solution->support_type_label,
             'directorate'      => $solution->directorate,
             'mapPosition'      => $solution->map_position,
-            'positionUrl'      => route('solutions.map.position.update', $solution),
+            'positionUrl'      => auth()->user()?->can('update', $solution)
+                ? route('solutions.map.position.update', $solution)
+                : null,
         ];
     }
 

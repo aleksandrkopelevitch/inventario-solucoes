@@ -620,10 +620,13 @@ function mount(root) {
 
     // Silent auto-save — no confirmation button/toast, it's a layout
     // customization, not an action that needs feedback (same "auto-saves
-    // itself" pattern as `solution-attributes.js`). A network error only
-    // shows up in the status bar so it doesn't interrupt with a modal/toast
-    // mid-drag; the position is already correct on screen, it just wasn't
-    // persisted — the next drag tries again.
+    // itself" pattern as `solution-attributes.js`). A failure only shows up
+    // in the status bar so it doesn't interrupt with a modal/toast mid-drag;
+    // the position is already correct on screen, it just wasn't persisted —
+    // the next drag tries again. `fetch()` only *rejects* on a network-level
+    // failure — it resolves normally for a non-2xx status (403, 419, 500),
+    // so `!res.ok` must be checked explicitly or a real failure (expired
+    // session, revoked permission) is swallowed with no feedback at all.
     function saveHubPosition(hub) {
         if (!hub.positionUrl) return
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
@@ -636,6 +639,8 @@ function mount(root) {
                 'X-CSRF-TOKEN': csrfToken,
             },
             body: JSON.stringify({ x: hub.x, y: hub.y }),
+        }).then((res) => {
+            if (!res.ok) throw new Error(`Failed to save hub position (HTTP ${res.status})`)
         }).catch(() => {
             statusEl.textContent = 'Não foi possível salvar a posição do sistema.'
         })
@@ -825,7 +830,7 @@ function mount(root) {
 
         hubs = graph.nodes.map((data) => {
             const el = document.createElement('div')
-            el.className = 'ak-viz-node ak-eco-hub'
+            el.className = 'ak-viz-node ak-eco-hub' + (data.positionUrl ? '' : ' ak-eco-hub--readonly')
             paintCard(el, data)
             world.appendChild(el)
 
@@ -849,6 +854,11 @@ function mount(root) {
             el.addEventListener('mousedown', (e) => {
                 e.stopPropagation()
                 if (e.button !== 0) return
+                // No `positionUrl` (a viewer — server never grants one, see
+                // IntegrationGraphService::putNode()) — dragging can never
+                // persist, so skip it entirely rather than let the hub move
+                // for the length of the gesture and snap back on reload.
+                if (!hub.positionUrl) return
                 startHubDrag(hub, e)
             })
             el.addEventListener('click', (e) => {

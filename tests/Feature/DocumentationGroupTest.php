@@ -39,6 +39,18 @@ it('lets an admin create a group and opens its first page automatically', functi
     expect($page->title)->toBe('Página inicial');
 });
 
+it('never creates a page for a viewer browsing an empty group, sending them back to the hub', function () {
+    // Same as the Solution equivalent: the hub links here for groups with
+    // zero pages, and a GET must not write.
+    $group = DocumentationGroup::factory()->create();
+
+    $this->actingAs(User::factory()->create()) // viewer
+        ->get(route('documentation.groups.show', $group))
+        ->assertRedirect(route('documentation.index'));
+
+    expect($group->pages()->count())->toBe(0);
+});
+
 it('forbids a viewer from creating a group', function () {
     $this->actingAs(User::factory()->create())
         ->postJson(route('documentation.groups.store'), ['name' => 'X'])

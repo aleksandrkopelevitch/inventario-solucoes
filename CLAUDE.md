@@ -112,9 +112,12 @@ node — kind + Solution/free text, never an edge —, so a block is always born
 isolated; wiring is a separate gesture (dragging an arrow out of a block's
 port, "modo ligar", or retargeting an existing edge), which is why a node with
 zero edges is a normal state, not a leftover. `kind`
-(`App\Enums\ChainNodeKind`: `system` | `decision` | `actor`) is what each
-block *is*: only `system` may reference a Solution (`solution_id`) —
-decision/actor blocks are free text and therefore never participants. Nodes
+(`App\Enums\ChainNodeKind`: `system` | `decision` | `actor` | `start` | `end` |
+`image`) is what each block *is*: only `system` may reference a Solution
+(`solution_id`) — every other kind is free text (or, for `image`, a pasted
+image) and therefore never a participant. `start`/`end` carry a default label
+the server fills in when left blank; `image` has no label/kind picker at all
+(see `ChainNodeKind::pickable()`). Nodes
 written before kinds existed have no `kind` key at all and read as `system`
 (`ChainNodeKind::fromNode()`); the three consumers that care —
 `SyncIntegrationFromChain`, `ChainLabeler::nodeLabel()` and
@@ -413,6 +416,36 @@ Http::claude()->post('/messages', $payload);
 - **Never use try/catch in controllers** — exceptions bubble up and are handled centrally
 - Define `report()` and `render()` directly on custom Exception classes for domain-specific handling
 - Application exceptions should be self-contained
+- Custom error PAGES live in `resources/views/errors/{status}.blade.php` (403, 404). They are deliberately self-contained (own `<html>`, no `x-layouts.layout`): the app shell renders a sidebar with `auth()->user()`, and a 404 also serves the one unauthenticated surface in the app — an expired public-documentation magic link
+- Flash messages (`->with('error'|'status', …)` on a redirect) surface as a Toast, rendered once at the bottom of `layout.blade.php`. Nothing read them at all before that existed, so `back()->with('error', …)` used to be written and silently dropped
+
+### Render callbacks run AFTER `prepareException()` — some renderers can never fire
+
+Laravel 13's `Handler::render()` calls `prepareException()` **before**
+`renderViaCallbacks()`, and that converts several exception classes into plain
+`HttpException`s first:
+
+| thrown | what a render callback actually receives |
+|---|---|
+| `AuthorizationException` (no status) | `AccessDeniedHttpException` (403) |
+| `TokenMismatchException` | `HttpException` 419 |
+| `ModelNotFoundException` | `NotFoundHttpException` |
+
+So `$exceptions->render(function (AuthorizationException $e) { … })` is **dead
+code** — it compiles, reads as correct, and never runs. This file used to carry
+exactly that, which is why every `authorize()` failure answered with Laravel's
+raw English `This action is unauthorized.` (and, since `ajax-post.js` reads
+`errorBody.message ?? messages[status]`, that English string also beat the PT-BR
+403 fallback the module already had). Both 403 and 419 are now handled in the
+generic `HttpExceptionInterface` renderer, which is where they truly arrive.
+
+Second trap in the same place: **don't call `abort()` from inside a render
+callback.** `renderViaCallbacks()` does not catch what a callback throws, so
+`abort(404)` inside the 404 renderer threw a fresh exception straight out of the
+exception handler — with `app.debug` off (i.e. in production) every HTML 404
+escaped instead of rendering any page. Return a response
+(`response()->view('errors.404', status: 404)`) or return `null` to hand over to
+Laravel's default rendering.
 
 ### ValidationException JSON shape — not Laravel's default
 
@@ -570,6 +603,8 @@ Only 4 models use `HasMedia`/`InteractsWithMedia`, each with its own single coll
 
 No model has more than one conversion, and nothing uses a `->image()` accessor. **`Solution` and `Company` logos are NOT MediaLibrary** — `logo_path` is a plain string column, uploaded via `$request->file('logo')->store('{solution,company}-logos', 'public')` directly in `SolutionController`/`CompanyController`, a deliberately simpler mechanism since a logo needs no conversions/metadata.
 
+Avatar/logo uploads (the six Person/Solution/Company Store+Update requests) all share `['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048']`, and `avatar-upload.js` mirrors that list client-side so a doomed file never gets an encouraging preview — **keep the two in step**. `accept="image/*"` on the input is only a picker hint and enforces nothing. SVG is intentionally absent: Laravel 13's bare `image` rule rejects it unless written `image:allow_svg` (so it never actually worked, even while `mimes:` still listed it), and an SVG served from the public disk executes its own scripts when opened directly by URL. Documentation media is a different rule (`file`, not `image`) and **does** accept SVG.
+
 Never register a new collection/conversion without checking the 4 above first — and note `MediaController::show()`'s guard should compare against `Documentable::DOCS_COLLECTION`, not a hardcoded `'docs'` literal (the two happen to match; don't let them drift apart silently).
 
 ### SSRF surface — documentation editor's "paste image URL"
@@ -667,18 +702,18 @@ All JS hooks use the `data-ak-*` prefix. Internal slots (`data-spinner`, `data-l
 | `data-ak-flowspec-poll="status-url"` | `flowspec-chat.js` | Presence in the thread slot = a reply is still generating; module polls the URL every 2.5s (capped at `MAX_POLL_ATTEMPTS`) until the slot swap removes this marker |
 | `data-ak-flowspec-copy="pre-id"` | `flowspec-chat.js` | Copies the target element's `textContent` (not `innerHTML` — the flowSpec JSON's `jsonPath` has literal `&&`) to the clipboard |
 | `data-ak-fs-*` (`-input`/`-send`/`-pills`/`-menu`/`-open="name"`/`-toggle-reference`/`-reference-input`/`-reference-pill`/`-reference-clear`/`-scroll`) | `flowspec-chat.js` | Private hooks of the flowSpec composer (`resources/views/components/flowspec/composer.blade.php`) — message textarea, 📎 attach menu (`-open="name"` clicks the matching chips field's `-trigger`), reference-flowSpec panel toggle/clear. Not reused outside that component |
-| `data-ak-docs-ai-generate` (+ `data-action="url"`) | `docs-ai.js` | "Assiste IA": collects the prompt, checked context docs and the editor's current Markdown (`window.__akDocsGetMarkdown`), POSTs to start the generation job, closes the panel, LOCKS the editor and polls the returned `pollUrl` until the draft is ready for review |
-| `data-ak-docs-ai-prompt` | `docs-ai.js` | The prompt `<textarea>` read by the generate action |
-| `data-ak-docs-ai-status` | `docs-ai.js` | "Gerando com o especialista…" indicator, revealed (`hidden`→`inline-flex`) while a generation job runs |
-| `data-ak-docs-ai-trigger` | `docs-ai.js` | The button that opens the assistant panel — `disabled` while a generation runs, so a second one can't be started |
-| `data-ak-docs-ai-resume` (+ `data-poll-url`/`data-consume-url`/`data-pending`) | `docs-ai.js` | Server-rendered marker (`AssistsDocumentation::aiResumeFor()`): this user has an unresolved generation for this page/integration. On load the module re-locks + polls a pending one, or opens the review for a finished one — this is what survives navigating away mid-generation |
-| `data-ak-docs-ai-review-template` + `-review-body` / `-review-warning` / `-apply` / `-discard` | `docs-ai.js` | `<template>` cloned into `#main-modal` to review the draft as a diff (`docs-diff.js`) before it touches the editor. Apply and Discard are the intended exits and each resolves the generation server-side; `closeOnEsc = false` is NOT a guarantee against Esc — the close-watcher anti-trap rule means repeated Esc presses with no user activation in between eventually stop honouring `preventDefault()` (verified in headless Chrome 2026-07-25: it took a 3rd press there, and the exact count is browser-internal, so never rely on a specific number), so the actual guarantee is the `close`-event handler: any other way out leaves the generation unconsumed and the review comes back on the next load |
-| `data-ak-context-doc` (on a checkbox, `value`=media id) | `docs-ai.js` | A Solution context document the AI should consider; checked ids are sent as `media_ids[]` |
-| `data-ak-context-upload` (on a file input, + `data-action="url"`) | `docs-ai.js` | Uploads the chosen context document immediately on `change` — there's no separate "Anexar" button, which users kept skipping |
-| `data-ak-context-uploading` | `docs-ai.js` | "Enviando documento…" indicator for the upload above |
+| `data-ak-docs-chat-*` (`-input`/`-send`/`-scroll`/`-trigger`/`-status`) | `docs-chat.js` | "Assiste IA" as a CHAT (mirrors the flowSpec F8 composer): message textarea, send, scroll container, the button that opens the panel, and the "gerando…" indicator |
+| `data-ak-docs-chat-poll` | `docs-chat.js` | Presence in the thread slot = a reply is still generating; the module polls until a slot swap removes this marker, with a give-up ceiling + Toast (same contract as `data-ak-flowspec-poll`) |
+| `data-ak-docs-chat-lock` | `docs-chat.js` | Locks the editor while a generation runs, so the draft can't be applied onto content that shifted underneath it |
+| `data-ak-docs-chat-resume` | `docs-chat.js` | Server-rendered marker: this user has an unresolved generation for this page/integration. On load the module re-locks + polls a pending one, or reopens the review for a finished one — this is what survives navigating away mid-generation |
+| `data-ak-docs-chat-draft` / `-view-draft` | `docs-chat.js` | A reply's draft block (4-backtick fenced convention) and the button that opens it for review |
+| `data-ak-docs-chat-review-template` + `-review-body` / `-review-close` / `data-ak-docs-chat-apply` | `docs-chat.js` | `<template>` cloned into `#main-modal` to review the draft as a diff (`docs-diff.js`) before it touches the editor. Apply is the intended exit; see the `closeOnEsc = false` caveat under Modal — the `close`-event handler is the real guarantee, since a draft left unresolved comes back on the next load |
+| `data-ak-context-doc` (on a checkbox, `value`=media id) | `docs-chat.js` | A Solution context document the AI should consider; checked ids are sent as `media_ids[]` |
+| `data-ak-context-upload` (on a file input, + `data-action="url"`) | `docs-chat.js` | Uploads the chosen context document immediately on `change` — there's no separate "Anexar" button, which users kept skipping |
+| `data-ak-context-uploading` | `docs-chat.js` | "Enviando documento…" indicator for the upload above |
 | `data-ak-docs-editor` (`data-config='{"uploadUrl":"…"}'`) | `docs-editor.js` | Editor.js mount point for a documentation page/integration; the module also self-tags the same element `data-ak-docs-holder` once mounted, for its own click-outside scoping |
 | `data-ak-docs-source` | `docs-editor.js` | Hidden `<textarea>` with the raw Markdown the editor is built from on mount |
-| `data-ak-docs-save` | `docs-editor.js` | Save button — the one thing `Ctrl/Cmd+S`, autosave and `setEditorLocked()` (raised by `docs-ai.js` during a generation) all enable/disable together |
+| `data-ak-docs-save` | `docs-editor.js` | Save button — the one thing `Ctrl/Cmd+S`, autosave and `setEditorLocked()` (raised by `docs-chat.js` during a generation) all enable/disable together |
 | `data-ak-docs-status` | `docs-editor.js` | Autosave feedback text ("Salvando…"/"Salvo") |
 | `data-ak-docs-toc` (nav target) + `data-ak-docs-content` (scope, read-only view) | `docs-toc.js` | "Nesta página" headings navigator — reads live Editor.js headings while editing, or the `.html-content`/`data-ak-docs-content` permalinks read-only |
 | `data-ak-docs-copy` | `docs-copy.js` | "Copiar Markdown" button — reads `window.__akDocsGetMarkdown()` while editing, or the `data-ak-docs-markdown` textarea on the read-only view |
@@ -686,6 +721,42 @@ All JS hooks use the `data-ak-*` prefix. Internal slots (`data-spinner`, `data-l
 | `data-ak-node-kinds` (on the integrations-map root) | `integration-viz.js` | `App\Enums\ChainNodeKind` as JSON (`{value,label,system,placeholder}`), read once and cached: feeds the kind `<select>` of both block panels. `system` is the only kind that gets the Solution select |
 | `data-ak-solutions`/`data-ak-protocols`/`data-ak-statuses` (on the integrations-map root) | `integration-viz.js` | Same read-once-and-cache pattern as `data-ak-node-kinds` — the Solution/protocol/status option lists (JSON) feeding the block/edge editor panels |
 | `data-ak-integration-name`/`-summary`/`-status` (on an integration row, `integrations-map.blade.php`) | `integration-viz.js` | Patched via `replaceChildren(document.createTextNode(...))` (never `innerHTML`) after any chain mutation, so the left-pane integration list stays current without a page reload |
+| `data-viz-*` (F3 canvas internals, e.g. `-toolbar`/`-toolbar-rename`/`-zoom-in`/`-lane-toolbar`) | `integration-viz.js` | Private hooks of the F3 canvas component, NOT `data-ak-*` — they're internal slots of `integration-viz.blade.php`, same exemption as `data-spinner`/`data-label`. `-toolbar-rename` opens the same inline label editor as double-clicking a block, which is the only path a touch device has (see the touch note below) |
+
+### F3 canvas gestures run on POINTER events — never add a `mouse*` listener
+
+Every gesture in `integration-viz.js` (block drag, drag-an-arrow-out-of-a-port,
+retarget an arrow tip, move/resize a swimlane, move a post-it, pan the canvas)
+is registered as `pointerdown`/`pointermove`/`pointerup`, which fire for mouse,
+touch and pen with one code path. There is exactly ONE drag dispatcher — two
+`window` listeners switching on `drag.type` — plus per-element `pointerdown`
+initiators that only assign `drag = {...}`.
+
+**Don't reintroduce `mousedown` on anything inside the viewport.** Touch events
+are a separate stream from mouse events, so a `mousedown`-based
+`stopPropagation()` guard does nothing for a finger: the touch reaches the
+viewport anyway and pans the canvas instead of dragging the block. That exact
+bug is why the old dedicated `touchstart`/`touchmove`/`touchend` pan was
+REMOVED rather than kept alongside the pointer listeners (keeping both makes
+the pan run *simultaneously* with the drag). `.ak-viz-viewport` sets
+`touch-action: none`, which is what stops the browser from stealing the gesture
+to scroll. The two remaining `mousedown` listeners are the autocomplete
+suggestion rows, whose `preventDefault()` preserves input focus and whose
+parent editor already stops propagation.
+
+`pointercancel` must stay wired next to `pointerup`: a touch pointer can be
+cancelled by the browser (system gesture, second finger) without ever firing
+`pointerup`, and since a drag lives in `drag` until an end-event clears it,
+dropping that leaves the canvas stuck mid-drag until a reload. On cancel only
+the *actions* are abandoned (completing a link, retargeting a tip, click-to-
+select); anything already moved keeps its new position and is marked dirty.
+
+Two consequences worth remembering when adding UI here: hover-only affordances
+don't exist on touch (ports are revealed by `.is-selected` too, which is why
+tap-to-select-then-drag works), and `dblclick` has no touch equivalent — so
+anything reachable only by double-click needs a second path, which is what
+`data-viz-toolbar-rename` is for. Precision targets get a bigger hit area via
+`@media (pointer: coarse)` in `integration-viz.blade.php`.
 
 ## `ajax.js` — Promise contract, not XHR
 

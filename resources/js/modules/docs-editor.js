@@ -189,6 +189,14 @@ async function loadTools(uploadUrl) {
                 field: 'file',
                 endpoint: uploadUrl,
                 additionalRequestHeaders: uploadHeaders,
+                // Este plugin NÃO passa a falha de upload pelo i18n (só o
+                // "File title" dele vai) — a mensagem sai de
+                // `config.errorMessage`, então a tradução mora aqui e não no
+                // EDITOR_I18N, ao contrário da equivalente do Image. Mesma
+                // razão pra traduzir em vez de dar um `Toast` nosso:
+                // `uploadingFailed()` no plugin é quem remove o loader do
+                // bloco. Limites de `UploadDocumentationMediaRequest`.
+                errorMessage: 'Não foi possível enviar o arquivo. Use PDF, Office, CSV, TXT, ZIP, JSON, YAML ou MD de até 20 MB.',
             },
         },
         embed: {

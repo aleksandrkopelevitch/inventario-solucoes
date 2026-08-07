@@ -32,7 +32,7 @@ class StoreSolutionRequest extends FormRequest
             'support_operation_note' => ['nullable', 'string'],
             'criticality'            => ['nullable', Rule::exists('attribute_options', 'value')->where('group', 'criticality')],
             'status'                 => ['required', Rule::exists('attribute_options', 'value')->where('group', 'status')],
-            'logo'                   => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp,svg', 'max:2048'],
+            'logo'                   => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ];
     }
 }

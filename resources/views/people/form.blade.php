@@ -62,6 +62,16 @@
              `Person::contacts()` (`PersonController::syncContacts()`). --}}
         <x-forms.field label="Contatos adicionais" name="contacts"
             hint="Outros e-mails/telefones (ex.: mais de um contato do fornecedor).">
+            {{-- Permanent marker, outside `data-ak-contacts-list` so add/remove-row
+                 JS never touches it: guarantees the request always carries SOME
+                 `contacts`-related key even when the user deletes every row, so
+                 `PersonController::syncContacts()` can tell "the form's contacts
+                 section was submitted, empty" apart from "this request never
+                 mentioned contacts at all" (a real caller — see
+                 PersonContactsSyncTest's "omits the key entirely" case). Without
+                 this, removing every row submits no `contacts[...]` key at all
+                 and the deletion silently never persists. --}}
+            <input type="hidden" name="contacts_present" value="1">
             <div data-ak-contacts data-ak-contacts-next="{{ count($contactItems) }}" class="flex flex-col gap-2">
                 <div data-ak-contacts-list class="flex flex-col gap-2 empty:hidden">
                     @foreach ($contactItems as $i => $contact)
@@ -92,6 +102,18 @@
 
         <x-forms.field label="Sistemas (papel por vínculo)" name="solutions"
             hint="Digite o nome da solução e escolha na lista. Vínculos existentes vêm pré-carregados.">
+            {{-- Same "presence" marker as `contacts_present` above, for the same
+                 reason: chips.js's hidden inputs live inside each removable chip,
+                 so clearing every chip submits no `solutions[...]` key at all —
+                 without this, `PersonController::syncSolutions()` can't tell that
+                 apart from a request that never mentioned solutions, and the
+                 removal silently never persists. Not added to the shared
+                 `chips.blade.php` component itself: the flowSpec composer reuses
+                 that same component with `required` per-row validation on
+                 `solutions.*.value`/`documents.*.value`, which a blank sentinel
+                 row would fail — this marker is a separate top-level field, not
+                 part of the `solutions[]` array, so it can't collide with that. --}}
+            <input type="hidden" name="solutions_present" value="1">
             <x-forms.chips name="solutions" :items="$solutionItems" :roles="$roleOptions"
                 :search-url="route('solutions.search')" placeholder="Nome da solução…" />
         </x-forms.field>
