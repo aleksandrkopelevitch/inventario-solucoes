@@ -857,6 +857,7 @@ function mount(root) {
     const toolbarLogoOnlyWrap = root.querySelector('[data-viz-toolbar-logo-only]')
     const toolbarLogoOnlyToggle = root.querySelector('[data-viz-toolbar-logo-only-toggle]')
     const toolbarComment = root.querySelector('[data-viz-toolbar-comment]')
+    const toolbarRenameBtn = root.querySelector('[data-viz-toolbar-rename]')
     const toolbarRemoveBtn = root.querySelector('[data-viz-toolbar-remove]')
     const toolbarRemoveSep = root.querySelector('[data-viz-toolbar-remove-sep]')
     const toolbarKindRow = root.querySelector('[data-viz-toolbar-kind]')
@@ -1076,7 +1077,7 @@ function mount(root) {
             el.className = 'ak-viz-node'
             paintNode(el, data)
 
-            el.addEventListener('mousedown', (e) => startNodePointer(e, i))
+            el.addEventListener('pointerdown', (e) => startNodePointer(e, i))
             el.addEventListener('dblclick', () => startInlineLabelEdit(i))
             world.appendChild(el)
             nodes.push({ ...data, el, w: 0, h: 0, x: 0, y: 0, color: null, textColor: null, font: 'sans', fontSize: 'sm', imageBorderColor: null })
@@ -1381,7 +1382,7 @@ function mount(root) {
             // bloco (`drag.moved`, ver `startNodePointer()`), só que aqui o
             // "vira seleção" de um clique puro fica condicionado a QUAL
             // parte do retângulo começou o gesto.
-            wrap.addEventListener('mousedown', (e) => {
+            wrap.addEventListener('pointerdown', (e) => {
                 if (e.button !== 0 || !editable) return
                 e.stopPropagation()
                 e.preventDefault()
@@ -1418,7 +1419,7 @@ function mount(root) {
             label.style.fontSize = LANE_FONT_SIZES[lane.fontSize] || LANE_FONT_SIZES.sm
             label.style.display = lane.showTitle === false ? 'none' : ''
             label.textContent = lane.label
-            label.addEventListener('mousedown', (e) => {
+            label.addEventListener('pointerdown', (e) => {
                 if (e.button !== 0 || !editable) return
                 e.stopPropagation()
                 e.preventDefault()
@@ -1445,7 +1446,7 @@ function mount(root) {
             ;['e', 's', 'se'].forEach((dir) => {
                 const handle = document.createElement('div')
                 handle.className = `ak-viz-lane-resize ak-viz-lane-resize-${dir}`
-                handle.addEventListener('mousedown', (e) => {
+                handle.addEventListener('pointerdown', (e) => {
                     if (e.button !== 0 || !editable) return
                     e.stopPropagation()
                     e.preventDefault()
@@ -1533,7 +1534,7 @@ function mount(root) {
             // alça, mesmo espírito da etiqueta da raia (`rebuildLanes()`).
             const handle = document.createElement('div')
             handle.className = 'ak-viz-note-handle'
-            handle.addEventListener('mousedown', (e) => {
+            handle.addEventListener('pointerdown', (e) => {
                 if (e.button !== 0 || !editable) return
                 e.stopPropagation()
                 e.preventDefault()
@@ -1546,7 +1547,7 @@ function mount(root) {
             removeBtn.title = 'Remover anotação'
             removeBtn.setAttribute('aria-label', 'Remover anotação')
             removeBtn.innerHTML = '&times;'
-            removeBtn.addEventListener('mousedown', (e) => e.stopPropagation())
+            removeBtn.addEventListener('pointerdown', (e) => e.stopPropagation())
             removeBtn.addEventListener('click', (e) => {
                 e.stopPropagation()
                 removeNote(i)
@@ -1573,7 +1574,7 @@ function mount(root) {
             body.placeholder = 'Escreva aqui…'
             body.value = note.text || ''
             body.readOnly = !editable
-            body.addEventListener('mousedown', (e) => { if (editable) e.stopPropagation() })
+            body.addEventListener('pointerdown', (e) => { if (editable) e.stopPropagation() })
             body.addEventListener('input', () => {
                 notes[i].text = body.value
                 setDirty(true)
@@ -1896,7 +1897,7 @@ function mount(root) {
         removeLane(selectedLane)
     })
 
-    laneToolbar?.addEventListener('mousedown', (e) => e.stopPropagation())
+    laneToolbar?.addEventListener('pointerdown', (e) => e.stopPropagation())
     lanesBtn?.addEventListener('click', addLane)
     notesBtn?.addEventListener('click', addNote)
 
@@ -2408,7 +2409,7 @@ function mount(root) {
         g.appendChild(label)
 
         if (editable) {
-            g.addEventListener('mousedown', (e) => e.stopPropagation())
+            g.addEventListener('pointerdown', (e) => e.stopPropagation())
             g.addEventListener('click', (e) => {
                 e.stopPropagation()
                 selectEdge(edgeIndex)
@@ -2432,7 +2433,7 @@ function mount(root) {
         h.style.left = point.x + 'px'
         h.style.top = point.y + 'px'
         if (drag?.type === 'handle' && drag.edge === edgeIndex && drag.end === end) h.classList.add('is-dragging')
-        h.addEventListener('mousedown', (e) => startHandleDrag(e, edgeIndex, end))
+        h.addEventListener('pointerdown', (e) => startHandleDrag(e, edgeIndex, end))
         world.appendChild(h)
     }
 
@@ -2480,6 +2481,11 @@ function mount(root) {
                 toolbarKindRow?.classList.toggle('hidden', !kindEditable)
                 toolbarKindRow?.classList.toggle('flex', kindEditable)
                 if (kindEditable) refreshKindRow(index)
+                // "Renomear" abre exatamente o mesmo editor inline do duplo
+                // clique, cujo guard (`startInlineLabelEdit()`) é esta mesma
+                // condição — daí compartilharem o booleano em vez de repetir a
+                // regra e poderem divergir depois.
+                toolbarRenameBtn?.classList.toggle('!hidden', !kindEditable)
             }
             // A lixeira segue a mesma regra do tipo: o nó raiz não sai (o
             // servidor recusa índice 0 de qualquer forma).
@@ -3168,7 +3174,7 @@ function mount(root) {
         if (addEditor?.classList.contains('hidden')) openAddEditor()
         else closeAddEditor()
     })
-    addEditor?.addEventListener('mousedown', (e) => e.stopPropagation())
+    addEditor?.addEventListener('pointerdown', (e) => e.stopPropagation())
 
     // Desenha o bloco novo e o seleciona — sem redesenhar o grafo inteiro.
     // Nasce SEM LIGAÇÃO nenhuma: quem liga é o arraste da porta (ou o "modo
@@ -3184,7 +3190,7 @@ function mount(root) {
         const el = document.createElement('div')
         el.className = 'ak-viz-node'
         paintNode(el, data)
-        el.addEventListener('mousedown', (e) => startNodePointer(e, index))
+        el.addEventListener('pointerdown', (e) => startNodePointer(e, index))
         el.addEventListener('dblclick', () => startInlineLabelEdit(index))
         world.appendChild(el)
 
@@ -3303,7 +3309,7 @@ function mount(root) {
         if (metaEditor?.classList.contains('hidden')) openMetaEditor()
         else closeMetaEditor()
     })
-    metaEditor?.addEventListener('mousedown', (e) => e.stopPropagation())
+    metaEditor?.addEventListener('pointerdown', (e) => e.stopPropagation())
     metaCancel?.addEventListener('click', closeMetaEditor)
 
     // Mantém a linha (lista à esquerda) e a topbar consistentes sem precisar
@@ -3481,7 +3487,7 @@ function mount(root) {
         selectedEdge = null
     }
 
-    protocolEditor?.addEventListener('mousedown', (e) => e.stopPropagation())
+    protocolEditor?.addEventListener('pointerdown', (e) => e.stopPropagation())
 
     // Um único PATCH em `graphRef.edgeUpdateUrl` por vez — sentido (toggle)
     // e protocolo (edição inline no rótulo) passam os dois por aqui, cada um
@@ -3822,11 +3828,12 @@ function mount(root) {
             setDirty(true)
         }
     })
-    sidebar?.addEventListener('mousedown', (e) => e.stopPropagation())
+    sidebar?.addEventListener('pointerdown', (e) => e.stopPropagation())
     sidebarClose?.addEventListener('click', closeComment)
 
-    toolbar?.addEventListener('mousedown', (e) => e.stopPropagation())
+    toolbar?.addEventListener('pointerdown', (e) => e.stopPropagation())
     toolbarComment?.addEventListener('click', () => { if (selectedIndex !== null) openComment(selectedIndex) })
+    toolbarRenameBtn?.addEventListener('click', () => { if (selectedIndex !== null) startInlineLabelEdit(selectedIndex) })
 
     // ── puxar uma seta de uma porta do bloco (ligação nova) ────────
     // Disponível em TODOS os blocos, inclusive o raiz: a ligação não existe
@@ -4124,7 +4131,7 @@ function mount(root) {
     // usuário estava olhando, não pular pro centro só porque o mouse saiu.
     let lastPointerX = null
     let lastPointerY = null
-    viewport.addEventListener('mousemove', (e) => {
+    viewport.addEventListener('pointermove', (e) => {
         lastPointerX = e.clientX
         lastPointerY = e.clientY
     })
@@ -4146,18 +4153,18 @@ function mount(root) {
     // de mover o canvas), e `stopPropagation()` nesta fase impede esses
     // listeners de sequer rodar. Sem isto, mover o canvas exige acertar um
     // pedaço vazio do fundo — impossível quando a cadeia enche o viewport.
-    viewport.addEventListener('mousedown', (e) => {
+    viewport.addEventListener('pointerdown', (e) => {
         if (e.button !== 0 || !e.ctrlKey || drag) return
         e.stopPropagation()
         e.preventDefault()
         startPanning(e)
     }, true)
 
-    viewport.addEventListener('mousedown', (e) => {
+    viewport.addEventListener('pointerdown', (e) => {
         if (e.button !== 0 || drag) return
         startPanning(e)
     })
-    window.addEventListener('mousemove', (e) => {
+    window.addEventListener('pointermove', (e) => {
         if (drag?.type === 'node') {
             const w = screenToWorld(e.clientX, e.clientY)
             const dx = w.x - drag.startWX
@@ -4254,14 +4261,32 @@ function mount(root) {
         view.y = oy + (e.clientY - sy)
         applyView()
     })
-    window.addEventListener('mouseup', (e) => {
+    /**
+     * Fim de um gesto. `cancelled` distingue `pointercancel` de `pointerup`:
+     * um ponteiro de TOQUE pode ser cancelado pelo navegador (gesto do
+     * sistema, um segundo dedo, o elemento saindo do DOM) sem nunca disparar
+     * `pointerup` — e como todo arraste vive no objeto `drag` até um evento de
+     * término limpá-lo, ignorar isso deixaria o canvas travado no meio de um
+     * arraste, sem saída além de recarregar a página.
+     *
+     * Num cancelamento só as AÇÕES são abandonadas — completar uma ligação,
+     * religar a ponta de uma seta, selecionar por clique-sem-arraste. O que já
+     * mudou de posição na tela (bloco/raia/anotação) é mantido e marcado como
+     * sujo: o gesto foi interrompido, mas o usuário está vendo o resultado
+     * dele, então desfazer silenciosamente seria mais surpreendente do que
+     * preservar.
+     */
+    function endPointer(cancelled = false) {
         if (drag) {
             if (drag.type === 'node') {
                 nodes[drag.index]?.el.classList.remove('is-dragging')
-                if (!drag.moved) selectNode(drag.index)
+                if (!drag.moved) { if (! cancelled) selectNode(drag.index) }
                 else if (editable) setDirty(true)
             } else if (drag.type === 'handle') {
-                if (drag.targetNode !== drag.origNode) {
+                if (cancelled) {
+                    // `draw()` no fim redesenha a partir de `graphRef`, então a
+                    // ponta arrastada volta sozinha pro lugar de origem.
+                } else if (drag.targetNode !== drag.origNode) {
                     // Aplica otimista antes do PATCH — ver `retargetEdge()`.
                     graphRef.edges[drag.edge][drag.end] = drag.targetNode
                     retargetEdge(drag.edge, drag.end, drag.targetNode, drag.origNode)
@@ -4276,7 +4301,9 @@ function mount(root) {
                 // seta pro vazio e soltar é como se ganha um bloco novo já
                 // ligado, ao invés de simplesmente cancelar.
                 setLinkTarget(null)
-                if (drag.targetNode !== null) createEdgeFrom(drag.from, drag.targetNode, drag.side, drag.toSide)
+                if (cancelled) {
+                    // Abandona: nem cria a ligação, nem abre o "Adicionar bloco".
+                } else if (drag.targetNode !== null) createEdgeFrom(drag.from, drag.targetNode, drag.side, drag.toSide)
                 else openQuickAddEditor(drag.from, drag.side, drag.wx, drag.wy)
             } else if (drag.type === 'lane-resize') {
                 laneEls[drag.index]?.handles[drag.dir]?.classList.remove('is-resizing')
@@ -4291,7 +4318,7 @@ function mount(root) {
                 // uma faixa separada pra reservar. Arraste de fato (de
                 // qualquer parte do corpo): só confirma a posição nova,
                 // mesma distinção de `drag.type === 'node'` acima.
-                if (!drag.moved) { if (drag.onLabel) selectLane(drag.index) }
+                if (!drag.moved) { if (drag.onLabel && ! cancelled) selectLane(drag.index) }
                 else setDirty(true)
             } else if (drag.type === 'note-move') {
                 // Sem toolbar/seleção pra abrir — uma anotação não tem nada
@@ -4305,36 +4332,28 @@ function mount(root) {
         }
         panning = false
         viewport.classList.remove('is-panning')
-    })
+    }
+    window.addEventListener('pointerup', () => endPointer(false))
+    window.addEventListener('pointercancel', () => endPointer(true))
 
     viewport.addEventListener('wheel', (e) => {
         e.preventDefault()
         zoomAt(e.deltaY < 0 ? 1.08 : 1 / 1.08, e.clientX, e.clientY)
     }, { passive: false })
 
-    // touch: pan com um dedo
-    let tpan = false
-    let tsx = 0
-    let tsy = 0
-    let tox = 0
-    let toy = 0
-    viewport.addEventListener('touchstart', (e) => {
-        if (e.touches.length !== 1) return
-        tpan = true
-        tsx = e.touches[0].clientX
-        tsy = e.touches[0].clientY
-        tox = view.x
-        toy = view.y
-    }, { passive: true })
-    viewport.addEventListener('touchmove', (e) => {
-        if (!tpan || e.touches.length !== 1) return
-        view.x = tox + (e.touches[0].clientX - tsx)
-        view.y = toy + (e.touches[0].clientY - tsy)
-        applyView()
-    }, { passive: true })
-    viewport.addEventListener('touchend', () => {
-        tpan = false
-    })
+    // O pan por toque com um dedo já vem de graça dos listeners de PONTEIRO
+    // acima (`pointerdown`/`pointermove`/`pointerup` disparam para toque,
+    // caneta e mouse igualmente, e `.ak-viz-viewport` tem `touch-action: none`,
+    // então o navegador não rouba o gesto pra rolar a página).
+    //
+    // Existia aqui um trio `touchstart`/`touchmove`/`touchend` dedicado a esse
+    // pan. Ele foi REMOVIDO, não portado: eventos de toque são um fluxo
+    // separado dos de mouse, então um toque num bloco borbulhava pro viewport
+    // sem passar pelo `stopPropagation()` do bloco (que só existia no
+    // `mousedown`) — arrastar um bloco no touch movia o CANVAS em vez do
+    // bloco. Mantê-lo ao lado dos listeners de ponteiro só trocaria esse bug
+    // por outro: os dois fluxos disparariam no mesmo gesto e o pan andaria
+    // junto com o arraste do bloco.
 
     // ── controles ────────────────────────────────────────────────
     // Ancorado na última posição do cursor sobre o canvas (`lastPointerX/Y`),

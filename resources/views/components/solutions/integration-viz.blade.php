@@ -246,13 +246,28 @@
                 class="!rounded-md !p-1.5 !text-faint hover:!bg-accent-soft hover:!text-ink">
                 <x-heroicon-o-question-mark-circle class="size-4" />
             </x-forms.button>
+            {{-- Duas listas, uma por tipo de ponteiro: os gestos são os mesmos
+                 (tudo roda em eventos de PONTEIRO desde a passada de suporte a
+                 toque), mas o vocabulário e as ressalvas não. Num aparelho de
+                 toque não existe hover — a bolinha de ligar só aparece depois
+                 de tocar o bloco —, nem roda do mouse, nem Ctrl+V; dizer
+                 "roda do mouse dá zoom" pra quem está num tablet é pior que
+                 não dizer nada. `(pointer: coarse)` é a mesma consulta que
+                 aumenta os alvos de toque no CSS abaixo. --}}
             <div id="viz-hint-popover" class="hidden absolute right-0 top-full z-30 mt-1.5 w-64 rounded-field border border-line bg-surface p-3 text-xs text-ink shadow-xl">
-                <ul class="flex flex-col gap-1.5">
+                <ul class="flex flex-col gap-1.5 [@media(pointer:coarse)]:hidden">
                     <li><strong class="font-semibold">Clique</strong> seleciona um bloco ou uma seta</li>
                     <li><strong class="font-semibold">Arraste</strong> um bloco pra mover</li>
                     <li><strong class="font-semibold">Puxe</strong> a bolinha da borda até outro bloco pra ligar</li>
                     <li><strong class="font-semibold">Roda do mouse</strong> dá zoom</li>
                     <li><strong class="font-semibold">Ctrl+V</strong> cola uma imagem direto no canvas</li>
+                </ul>
+                <ul class="hidden flex-col gap-1.5 [@media(pointer:coarse)]:flex">
+                    <li><strong class="font-semibold">Toque</strong> seleciona um bloco ou uma seta</li>
+                    <li><strong class="font-semibold">Arraste</strong> um bloco pra mover</li>
+                    <li><strong class="font-semibold">Toque o bloco</strong> e puxe a bolinha da borda até outro bloco pra ligar</li>
+                    <li>Use os botões <strong class="font-semibold">+ / −</strong> pra dar zoom</li>
+                    <li>Arraste o fundo pra mover o canvas</li>
                 </ul>
             </div>
         </div>
@@ -703,6 +718,21 @@
                 <div>
                     <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-faint">Ações</p>
                     <div class="flex items-center gap-1.5">
+                        {{-- Editar o texto/Solução do bloco. Mesmo
+                             `startInlineLabelEdit()` do duplo clique na forma
+                             — que era o ÚNICO caminho e por isso inalcançável
+                             num aparelho de toque, onde não existe duplo
+                             clique: renomear um bloco (e, num bloco `system`,
+                             trocar a Solução ligada) era simplesmente
+                             impossível de um tablet. Raia e pill de protocolo
+                             já tinham caminho por painel; o bloco não tinha.
+                             Mesmo portão do "Tipo"/"Excluir" (`editable`, fora
+                             do nó raiz, nunca numa imagem colada), alternado
+                             junto com eles por `selectNode()`. --}}
+                        <x-forms.button type="button" variant="ghost" data-viz-toolbar-rename title="Renomear bloco"
+                            class="!rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
+                            <x-heroicon-o-pencil-square class="size-4" />
+                        </x-forms.button>
                         <x-forms.button type="button" variant="ghost" data-viz-toolbar-comment title="Comentário"
                             class="!rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
                             <x-heroicon-o-chat-bubble-left-ellipsis class="size-4" />
@@ -1837,6 +1867,25 @@
                 background: var(--viz-highlight);
                 cursor: grabbing;
                 transform: translate(-50%, -50%) scale(1.3);
+            }
+            /* Alvos de precisão num aparelho de toque. A porta (11px) e a alça
+               da ponta da seta (9px) são confortáveis com um mouse e
+               praticamente inacertáveis com o dedo, que cobre ~40px. Só
+               cresce a área — `translate(-50%, -50%)` continua centralizando
+               nas mesmas coordenadas, então nada na matemática de ancoragem
+               (`screenToWorld()`, anchors) muda. A porta segue com
+               `pointer-events: none` enquanto invisível, então a área maior
+               não volta a roubar cliques (ver o comentário em `.ak-viz-port`).
+
+               Num aparelho de toque a porta só aparece pelo caminho
+               `.is-selected`: não existe hover, então é preciso TOCAR o bloco
+               antes de puxar a ligação — está dito no popover de ajuda. */
+            @media (pointer: coarse) {
+                .ak-viz-port { width: 22px; height: 22px; }
+                .ak-viz-handle { width: 20px; height: 20px; }
+                .ak-viz-lane-resize-e { right: -11px; width: 22px; }
+                .ak-viz-lane-resize-s { bottom: -11px; height: 22px; }
+                .ak-viz-lane-resize-se { right: -12px; bottom: -12px; width: 26px; height: 26px; }
             }
             .ak-viz-anchor {
                 position: absolute;

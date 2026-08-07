@@ -1,8 +1,10 @@
 <?php
 
 use App\Enums\Direction;
+use App\Enums\UserRole;
 use App\Models\Integration;
 use App\Models\Solution;
+use App\Models\User;
 use App\Services\IntegrationGraphService;
 use Database\Seeders\AttributeOptionSeeder;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -69,7 +71,8 @@ it('includes the solution attribute labels and show url on each node, for the ma
         ->and($rootNode)->toHaveKeys(['criticalityLabel', 'environmentLabel', 'cloudLabel', 'contractLabel', 'supportLabel']);
 });
 
-it('exposes the saved hub map position and its auto-save url, null until the first drag', function () {
+it('exposes the saved hub map position and its auto-save url to an admin, null until the first drag', function () {
+    $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]));
     $service = new IntegrationGraphService;
 
     $root = Solution::factory()->create();
@@ -85,6 +88,22 @@ it('exposes the saved hub map position and its auto-save url, null until the fir
     expect($rootNode['mapPosition'])->toBeNull()
         ->and($rootNode['positionUrl'])->toBe(route('solutions.map.position.update', $root))
         ->and($targetNode['mapPosition'])->toBe(['x' => 123.4, 'y' => 56.7]);
+});
+
+it('withholds the auto-save url from a viewer, who can look but never persist a drag', function () {
+    $this->actingAs(User::factory()->create(['role' => UserRole::Viewer->value]));
+    $service = new IntegrationGraphService;
+
+    $root = Solution::factory()->create();
+    $target = Solution::factory()->create();
+
+    $integration = Integration::factory()->active()->create(['source_solution_id' => $root->id, 'target_solution_id' => $target->id]);
+    attachParticipants($integration, [[$root, 0], [$target, 1]]);
+
+    $graph = $service->globalMap();
+    $rootNode = collect($graph['nodes'])->firstWhere('id', "sol-{$root->id}");
+
+    expect($rootNode['positionUrl'])->toBeNull();
 });
 
 it('draws a multi-hop chain in position order, not a single A<>B edge', function () {

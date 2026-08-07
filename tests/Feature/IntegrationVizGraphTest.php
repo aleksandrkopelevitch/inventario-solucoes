@@ -123,3 +123,31 @@ it('resolves decision and actor blocks with their kind icon and no solution data
     // The kinds list feeding both block panels ships with the workspace.
     expect($html)->toContain('data-ak-node-kinds=');
 });
+
+it('gives the F3 canvas touch-reachable affordances for gestures that were mouse-only', function () {
+    // Regression test for the touch-support pass. Three things a tablet user
+    // had no path to before:
+    //  1. renaming a block (only `dblclick` on the shape, which touch lacks);
+    //  2. hitting a 11px port / 9px arrow-tip handle with a finger;
+    //  3. help text that only described mouse gestures ("Roda do mouse").
+    $solution = Solution::factory()->create();
+    $integration = Integration::factory()->create([
+        'chain' => ['nodes' => [['solution_id' => $solution->id, 'label' => null]], 'edges' => []],
+    ]);
+    $integration->participants()->attach($solution->id, ['position' => 0]);
+
+    $html = Blade::render(
+        '<x-solutions.integration-workspace :solution="$s" :integration="$i" />',
+        ['s' => $solution, 'i' => $integration],
+    );
+
+    expect($html)
+        // Panel path to the inline label editor, alongside the dblclick one.
+        ->toContain('data-viz-toolbar-rename')
+        // Coarse-pointer hit targets and a coarse-pointer help list.
+        ->toContain('@media (pointer: coarse)')
+        ->toContain('[@media(pointer:coarse)]:flex')
+        ->toContain('Toque o bloco')
+        // The fine-pointer list keeps the mouse wording, hidden on coarse.
+        ->toContain('Roda do mouse');
+});
