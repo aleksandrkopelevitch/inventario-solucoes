@@ -87,7 +87,10 @@ cmd_deploy() {
     php artisan migrate --force
 
     step "Linking public storage"
-    php artisan storage:link
+    # --force recreates the symlink instead of printing a misleading "ERROR ...
+    # already exists" on every deploy. It only removes the path when it is
+    # already a symlink, so a real public/storage directory is never touched.
+    php artisan storage:link --force
 
     rebuild_caches
     restart_queue
