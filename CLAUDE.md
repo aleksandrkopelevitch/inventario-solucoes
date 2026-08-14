@@ -480,6 +480,34 @@ expect($response->json('message'))->toContain('campo esperado');
 - Prefer `@pushOnce` over `@push` for scripts/styles that should only appear once
 - Always prefer Blade components (`<x-...>`) over `@include` for reusable partials
 
+### Never write a component TAG inside a Blade file's comment
+
+The component-tag compiler runs over the raw file text before anything else,
+and it does **not** know what a comment is. So naming a component the way you
+would in prose — with the angle brackets — inside a `@php`/`@props` block's
+`//` comment (or a `{{-- --}}` one) compiles into a real component
+invocation, dumped in the middle of the PHP it was sitting in:
+
+```blade
+{{-- ❌ Compiles `<x-ui.inline-edit-field>` into an actual @component(...) call
+     spliced into the @props array — "Undefined variable $component" +
+     "Call to a member function withAttributes() on null", pointing at a
+     compiled view, with nothing wrong at the line the error names. --}}
+@props([
+    // see the notes on <x-ui.inline-edit-field>
+    'name' => null,
+])
+
+{{-- ✅ Same sentence, no brackets --}}
+@props([
+    // see the notes on x-ui.inline-edit-field
+    'name' => null,
+])
+```
+
+Hit on 2026-08-14 while building `x-ui.inline-edit`. Refer to components in
+comments as `x-ui.thing` (or by view path), never `<x-ui.thing>`.
+
 ### Never use `@json()` for a `data-ak-*` (or any) HTML attribute value
 
 `@json($value)` written as a quoted attribute — `data-ak-filters='@json($value)'`
@@ -530,6 +558,44 @@ Blade/JS rendering layer entirely. Fixed by converting every occurrence
 (including the ones on plain tags, which weren't broken, for a single
 consistent convention) to `attr="{{ json_encode(...) }}"`.
 
+### Never echo a `ComponentAttributeBag` inside an x-component tag's attributes
+
+Same compiler, third variant. Forwarding a bag of attributes by echoing it —
+`{{ new \Illuminate\View\ComponentAttributeBag($extra) }}` — is the normal way
+to splat attributes onto a **plain** tag (`x-forms.image-upload` does exactly
+that on its `<input>`s). Put the same echo in the attribute area of an
+`<x-...>` tag and `ComponentTagCompiler` fails to parse that tag: it emits the
+whole `<x-ui.external-link …>` **verbatim into the HTML** — no exception, no
+log line, just a component that silently never renders (and, if the bag were
+the only thing making it work, a feature that quietly does nothing).
+
+**Pass the array as a prop and echo the bag inside the child, on its own plain
+tag:**
+
+```blade
+{{-- ✅ parent: a plain dynamic prop --}}
+<x-ui.external-link :href="$link" :extra-attributes="$linkAttributes" />
+
+{{-- ✅ child (external-link.blade.php): the echo lives on a plain <a> --}}
+<a href="{{ $href }}" {{ new \Illuminate\View\ComponentAttributeBag($extraAttributes) }} …>
+
+{{-- ❌ parent: breaks the tag's compilation, invisibly --}}
+<x-ui.external-link :href="$link" {{ new \Illuminate\View\ComponentAttributeBag($linkAttributes) }} />
+```
+
+Hit on 2026-08-14 wiring `target="_blank"`/`rel="noopener"` onto the company
+website's ↗. A Pest render test caught it (`assertSee('data-ak-inline-edit-link')`
+against the real page) — worth writing one whenever a component is expected to
+render an attribute, since nothing else in the stack complains. Static
+attributes on a component tag (`<x-ui.external-link target="_blank">`) are fine
+as always; it's only the echoed bag that breaks.
+
+And the sibling trap two sections up — never write a component TAG inside a
+Blade comment — bit again on the same day, inside a comment explaining *this
+very rule*: `<x-...>` in a `//` comment compiles into a real component
+invocation and 500s with `Unable to locate a class or view for component [...]`.
+Name components in comments as `x-ui.thing`, brackets omitted.
+
 ## CSS — Tailwind utilities over custom classes
 
 Default to composing Tailwind utility classes directly on elements, encapsulated
@@ -551,13 +617,17 @@ Use design tokens from `@theme` in `resources/css/app.css` (`bg-surface`,
 hardcode a hex color or a one-off `border-radius` that already has a token.
 
 **Legitimate exceptions** (custom CSS is the right tool):
-- `.ak-viz-md` (inline `<style>` in `integration-viz.blade.php`) — styles a
-  node's markdown comment preview in the F3 integration canvas: arbitrary
-  rendered-markdown content with no fixed element to attach a utility class
-  to before it exists. Same reasoning as `.html-content` in `app.css` (a
-  leftover exception from the now-removed F4 documentation-blocks feature —
-  its class is no longer rendered anywhere, but the CSS wasn't worth deleting
-  as part of an unrelated change; don't add new content to it).
+- **Rendered Markdown**, in all three of its flavours — the HTML comes out of a
+  renderer, so there is no element to hang a utility class on before it exists:
+  `.ak-viz-md` (inline `<style>` in `integration-viz.blade.php`, a node's
+  comment preview in the F3 canvas), `.html-content` (`app.css`, a whole
+  GitBook documentation PAGE — `documentation/partials/_reader.blade.php`
+  renders it and `docs-toc.js` reads it; an older note here claimed it was
+  dead, it isn't), and `.ak-rich-text`
+  (`resources/css/components/rich-text.css`, the short free-text fields — see
+  "Two Markdown renderers" below). Keep them separate: `.html-content` types a
+  document, `.ak-rich-text` deliberately sets no size and no color so the text
+  keeps reading as part of the card it sits in.
 - Global browser-chrome overrides that have no per-element target, e.g. the
   scrollbar styling in `resources/css/components/scrollbar.css`.
 - `resources/views/components/ecosystem-map.blade.php` (the DOM+SVG ecosystem
@@ -574,6 +644,23 @@ or an inline `style="height: {{ $dynamic }}"` for genuinely runtime-computed val
 If a past reviewer left dead custom CSS behind (unused decorative classes,
 leftover from a copied reference bundle), delete it rather than leaving it —
 `grep` the class name across `resources/views` first to confirm it's unused.
+
+### Two Markdown renderers, on purpose
+
+| | `App\Support\GitbookRenderer` | `App\Support\MarkdownText` |
+|---|---|---|
+| for | documentation pages/integrations, authored in the Editor.js block editor | the short free-text fields: a person's/company's `notes`, a solution's `description` and `support_operation_note` |
+| speaks | Markdown **+ GitBook notation** (`{% hint %}`, `{% tabs %}`, `{% file %}`) | plain Markdown (GFM), nothing else |
+| raw HTML in the source | `html_input=allow` — it's how images arrive as `<figure><img src="/files/{id}">` | `html_input=strip`, plus `allow_unsafe_links=false`: a `<script>` in someone's notes must never run for the next reader |
+| single newline | a normal Markdown soft break | rendered as `<br>` (`renderer.soft_break`), because these fields were plain textareas read back with `whitespace-pre-line` and every note already in the database relies on it |
+| read side | `.html-content` + `GitbookRenderer` | `x-ui.markdown` + `.ak-rich-text` |
+| write side | Editor.js (`docs-editor.js`) | still a plain `<textarea>` — `x-ui.inline-edit type="textarea"`, which prints its own "Aceita Markdown" hint; the panel forms say the same via `x-forms.field`'s `hint` |
+
+Don't merge the two without deciding which of those `html_input` contracts
+wins — and don't reach for the Editor.js editor for a small field: it's a
+page-level singleton (one `[data-ak-docs-save]`, module-level `dirty`/`locked`
+state) with its own save endpoint and a media collection behind
+`App\Contracts\Documentable`.
 
 ## Testing
 
@@ -735,6 +822,8 @@ All JS hooks use the `data-ak-*` prefix. Internal slots (`data-spinner`, `data-l
 | `data-ak-avatar-upload='{"inputId":"…"}'` | `avatar-upload.js` | Avatar upload trigger |
 | `data-ak-top-nav` | `top-nav.js` | Element that receives scroll shadow |
 | `data-ak-solution-attribute` (on a `<select>`) + `data-solution-attributes`/`data-action="url"` (on the wrapping `<dl>`) | `solution-attributes.js` | Auto-persists one Solution attribute on `change`, no save button |
+| `data-ak-inline-edit="{action,method}"` (root) + `-read`/`-open`/`-form`/`-confirm`/`-cancel`, and `data-ak-inline-edit-field="<field name>"` on each input | `inline-edit.js` | Edit-in-place on an otherwise read-only page — read mode is whatever `<x-ui.inline-edit>`'s caller rendered, and it opens on a **double click** or on a single click of the pencil button (`-open`) beside it; a single click over the value is left to reading/selecting/the ↗. A creator ("+ Adicionar …", `method: POST`) is the exception — its read mode is a chip, so one click opens it. The editor is one field (or a few, for the creators) plus a discreet confirm/cancel icon pair. Enter confirms, Esc cancels, Ctrl/Cmd+Enter in a textarea; clicking away closes it if nothing was typed. `method: POST` makes the same component a creator. The payload is built from the field hooks' own names, so there's no second list to keep in step. Reference implementation: the whole person detail page (`People\DetailHeader`, `People\Notes`, `People\Systems`) — text/select/textarea/photo, plus add/remove of contacts and system links |
+| `data-ak-inline-edit-link` (on the ↗ anchor `x-ui.external-link` renders) | `inline-edit.js` | Escape hatch for the one place where navigation and editing compete — see "A datum that links somewhere" below |
 | `data-ak-contacts` (root, + `data-ak-contacts-next` counter) + `data-ak-contacts-list`/`data-ak-contact-row`/`data-ak-contact-add`/`data-ak-contact-remove` | `person-contacts.js` | Additional-contacts repeater on the Person form — add/remove rows client-side; synced server-side by `PersonController::syncContacts()` |
 | `data-ak-chips` (root) + `data-ak-chips-input`/`data-ak-chips-list`/`data-ak-chips-results`/`data-ak-chips-result`/`data-ak-chip`/`data-ak-chip-remove` | `chips.js` | Multi-select-with-autocomplete chips input (e.g. Person↔Solution role linking) |
 | `data-ak-chips-add='{"name":"…","value":"…","label":"…"}'` | `chips.js` | Adds a chip straight to the named field from a JSON config, skipping the picker overlay entirely (e.g. flowSpec's "adicionar ao contexto" suggestion buttons, `thread.blade.php`) |
@@ -763,6 +852,187 @@ All JS hooks use the `data-ak-*` prefix. Internal slots (`data-spinner`, `data-l
 | `data-ak-solutions`/`data-ak-protocols`/`data-ak-statuses` (on the integrations-map root) | `integration-viz.js` | Same read-once-and-cache pattern as `data-ak-node-kinds` — the Solution/protocol/status option lists (JSON) feeding the block/edge editor panels |
 | `data-ak-integration-name`/`-summary`/`-status` (on an integration row, `integrations-map.blade.php`) | `integration-viz.js` | Patched via `replaceChildren(document.createTextNode(...))` (never `innerHTML`) after any chain mutation, so the left-pane integration list stays current without a page reload |
 | `data-viz-*` (F3 canvas internals, e.g. `-toolbar`/`-toolbar-rename`/`-zoom-in`/`-lane-toolbar`) | `integration-viz.js` | Private hooks of the F3 canvas component, NOT `data-ak-*` — they're internal slots of `integration-viz.blade.php`, same exemption as `data-spinner`/`data-label`. `-toolbar-rename` opens the same inline label editor as double-clicking a block, which is the only path a touch device has (see the touch note below) |
+
+### Inline edit — a datum that links somewhere: the ↗ navigates, the text edits
+
+On a page where every datum is editable, a datum that also points at another
+record (a person's company, the system a "Sistemas" row links to) has two
+competing gestures over the same words. The rule, app-wide:
+
+- **The text always belongs to the editor** — same gesture as every other
+  datum on the page, so nothing is an exception the user has to learn. Since
+  2026-08-14 that gesture is a **double click** (or the pencil button beside
+  the value), which is also what keeps the single click free for reading.
+- **Navigation moves to an ↗ icon** (`x-ui.external-link`,
+  `heroicon-o-arrow-top-right-on-square`) next to the value, always visible
+  (unlike the pencil, which appears on hover — and is permanently visible only
+  where there is no hover, `pointer-coarse`).
+
+So pass `<x-ui.inline-edit :link="route(...)" link-label="empresa">` and render
+the value as **plain text inside the slot — never as its own `<a>`**. Two click
+targets over the same words is precisely the ambiguity the split removes. The
+earlier `trigger="icon"` prop did the opposite (link stayed, only a pencil
+edited) and is gone — the pencil is back, but as one of two ways in, not as the
+only one.
+
+Two things this leans on, easy to break by accident:
+
+- `data-ak-inline-edit-link` on the anchor is load-bearing. The ↗ sits *inside*
+  the read block, which double-clicks into the editor, so `inline-edit.js`'s
+  `dblclick` listener bails out early on it — an impatient double click on the
+  icon would otherwise open the editor on top of the navigation the user asked
+  for. The `click` listener checks it too, for a creator's read block (the one
+  read mode that IS a single-click trigger).
+- `x-ui.external-link` carries **no color utility on purpose** (it inherits the
+  surrounding text color), and `x-ui.inline-edit` renders it in *both* branches
+  — the read-only one included, since a viewer has no editor and the ↗ is then
+  the only way to reach the linked page.
+
+Reference implementations: `People\DetailHeader` (company), `People\Systems`
+(one row's system, whose editor re-points the link — that's why
+`people.solutions.update` is the one route in that trio with
+`scopeBindings()`), `Companies\DetailHeader` (the website, the only outbound
+link in the app — hence the `link-attributes` prop carrying
+`target`/`rel`), and `Solutions\DetailHeader` (the vendor chip).
+
+### Inline edit — the editor has to look like the value it replaces
+
+The whole promise of an edit-in-place page is that nothing moves and nothing
+changes register: you double-click words and keep looking at the same words.
+Four things carry that, and each is easy to undo by accident:
+
+- **Typography.** `x-ui.inline-edit`'s `input-class` prop (per-field:
+  an `inputClass` key inside `fields`) makes the editor wear the read value's
+  type — the three headers pass their h1's own
+  `!font-display !text-[28px]/[32px] !font-bold …`. Skip it and a 32px heading
+  is retyped in 14px body text, which is the single most jarring thing this
+  page can do. Everything read at the app's default `text-sm` needs nothing.
+- **Chrome.** `x-ui.inline-edit-field` puts one `$chrome` string on every
+  input/select/textarea (hairline border, tight padding, accent ring on focus).
+  Every utility in it is `!`-marked — it has to beat the same utility inside
+  `x-forms.input`/`select`/`textarea`, and both strings land in one class
+  attribute where CSS order, not authoring order, decides. That includes the
+  focus pair: an unmarked `focus:border-accent` loses to an important
+  `!border-line`.
+- **Geometry.** Confirm/cancel (`x-ui.inline-edit-actions`) sit *beside* a
+  one-line field so the block keeps its height and the page below it doesn't
+  jump; they only move under the field when it's a textarea, an image, or a
+  multi-field creator, which are already changing the height. The editor row's
+  `-ml-2` cancels the input's own padding so the text doesn't slide sideways
+  as it opens. The `file` editor's tile takes the size AND shape (`image-shape`)
+  of the avatar/logo it replaces.
+- **The wash.** The hover/focus tint is `--ie-wash` (app.css), overridden to a
+  translucent white by the three detail headers' gradient strips — an ink tint
+  reads as a grey smudge over a pastel.
+
+Two traps, both hit on 2026-08-14 and both invisible in review:
+
+- **Read mode must not carry a `display` utility.** `inline-edit.js` hides it
+  by toggling Tailwind's `hidden`; a sibling `display` utility on the same
+  element (`inline-block`, added so the wash would hug the text) turns that
+  into a coin toss decided by stylesheet order — it lost, and every creator
+  opened its editor UNDER a chip that was still on screen. Width and shape
+  belong on the `<span>` inside the read block, which is where the wash lives
+  for exactly this reason. Guarded by a test in `PersonInlineFieldUpdateTest`.
+- **No percentage `max-width` on that span.** An inline-flex box already
+  shrink-to-fits; `max-w-full` inside a shrink-to-fit parent (a cell of the
+  contacts strip, a row of the systems list) resolves against a width that
+  isn't known yet and collapses to min-content — "Não informado" breaks across
+  two lines.
+
+Behaviour that goes with it, in `inline-edit.js`: clicking away closes an
+editor **only when nothing was typed** (a half-written value is what the user
+can't get back), and opening a `select` calls `showPicker()` so choosing is one
+gesture, like the photo tile that opens the file picker straight away.
+
+The gesture that opens it is deliberately two-part, and the parts are not
+interchangeable — don't collapse them back into a single click on the value:
+
+- **Double click on the value**, so a single click keeps meaning what it means
+  everywhere else (select a phone number to copy it, hit the ↗). `dblclick`
+  clears the word the browser just selected before opening, or that highlight
+  and the editor's own pre-selected value overlap and read as a glitch.
+- **Single click on the pencil**, which is a real `<x-forms.button>` and
+  therefore the path a keyboard (Tab, then Enter/Space — nothing in the module
+  handles that) and a finger both take. That's why it's `focus-visible:opacity-100`
+  and `pointer-coarse:opacity-100`/`!size-8`: a hover-only affordance doesn't
+  exist on touch, and double-tap is not a gesture to rely on there.
+
+The read block itself is no longer `role="button"`/`tabindex="0"` — only a
+creator's chip is, since one click is genuinely its whole interaction.
+
+### The three detail pages: one field endpoint each
+
+`people.field.update`, `companies.field.update` and `solutions.field.update`
+(+ `Update{Person,Company,Solution}FieldRequest`) are the same endpoint three
+times: every rule is `sometimes` because the header sends only the field just
+confirmed, `slug` is deliberately absent (renaming must not move the URL the
+request is rendering), `prepareForValidation()` normalises `''` → `null` for
+every nullable field (a multipart request can't carry a JSON null), and the
+response returns that page's `DetailHeader::slot()` — never the catalog's index
+slot, which doesn't exist on a detail page.
+
+Two things to keep in step when touching them:
+
+- Text-column rules must not be **stricter** than the panel's
+  (`Update{Person,Company,Solution}Request`) for the same column, or a value
+  the panel accepted can no longer be re-saved inline.
+- `logo`/`photo` uploads ride along with a `{name}_action` hidden input
+  (`x-forms.image-upload`'s "Remover"). It must be validated *and* excluded
+  from the mass-assign array — leaving it in throws under
+  `Model::shouldBeStrict()`'s `preventSilentlyDiscardingAttributes` (a 500 in
+  dev/test). The panel `payload()` of all three does the same, which is what
+  finally made that "Remover" button do something.
+
+### Relations edited in place: one card = one slot = one pair of endpoints
+
+Every detail page also attaches/detaches its relations without the panel. The
+shape is always the same — a `+ Adicionar …` creator (`x-ui.inline-edit` with
+`method="POST"`), a hover-revealed ✕ per row (a hidden `<form>` with
+`@csrf`/`@method('DELETE')` + a ghost `data-ak-ajax` button), and a View
+Component whose `slot()` the mutation answers with:
+
+| card | relation | endpoints | slot |
+|---|---|---|---|
+| `People\Systems` | `person_solution` pivot (+ role badge) | `people.solutions.{store,update,destroy}` | `person-systems-slot` |
+| `People\DetailHeader` (contacts strip) | `Person::contacts()` | `people.contacts.{store,update,destroy}` | `person-detail-header-slot` |
+| `Companies\People` | `Person.company_id` | `companies.people.{store,destroy}` | `company-people-slot` |
+| `Companies\ProvidedSolutions` | `Solution.vendor_company_id` | `companies.solutions.{store,destroy}` | `company-solutions-slot` |
+| `Solutions\DetailHeader` (owners grid) | `person_solution` pivot | `solutions.people.{store,destroy}` | `solution-detail-header-slot` |
+
+Things that are easy to get wrong here:
+
+- **The pivot's unique index is `(person_id, solution_id, role)`**, so the
+  DATABASE happily accepts the same person twice under two roles — while the
+  rest of the app assumes one link per (person, solution)
+  (`Person::solutions()` would list the solution twice, and
+  `updateExistingPivot` would hit both rows). Both store requests
+  (`StorePersonSolutionRequest`, `StoreSolutionPersonRequest`) carry a
+  `Rule::unique` that is deliberately NOT scoped to the role. Don't "fix" it by
+  adding the role.
+- **A HasMany detach nulls a foreign key on the CHILD record**, so those routes
+  are `scopeBindings()`: without it, `DELETE companies/{a}/people/{person}`
+  would unlink someone who belongs to company `{b}`. The pivot detaches don't
+  need it (`detach` no-ops on a row that isn't there). `{providedSolution}` is
+  named for the relation the scoped binding resolves through — Company has no
+  `solutions()`.
+- **The card components use `loadMissing()`**, so the controller must `load()`
+  the mutated relation *before* rendering the slot, or the card answers with the
+  pre-mutation copy. That's why those helpers take a closure and reload first
+  (`PersonController::fieldSaved`, `CompanyController::relationSaved`,
+  `SolutionController::ownersSaved`).
+- A picker that has **nothing left to offer** hides itself
+  (`$canEdit && filled($options)`) instead of rendering a select whose only
+  option is what's already there. A picker that can move a record away from
+  another owner puts that owner in the option label (`Ana Silva — Outra
+  Empresa`), so the move is never made blind.
+
+The solution header carries **two** inline mechanisms side by side, on purpose:
+its own columns go through `x-ui.inline-edit` (confirm/cancel), while the 8
+attribute badges keep the older `solution-attributes.js` (a `<select>` that
+auto-saves on `change`, no confirm) and `solutions.attributes.update`. Don't
+merge them without a reason — the attribute badges also feed the
+"gerenciar atributos" option lists.
 
 ### F3 canvas gestures run on POINTER events — never add a `mouse*` listener
 

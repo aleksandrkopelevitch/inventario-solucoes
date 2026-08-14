@@ -118,7 +118,11 @@
                 :search-url="route('solutions.search')" placeholder="Nome da solução…" />
         </x-forms.field>
 
-        <x-forms.field label="Notas" for="p-notes" name="notes">
+        {{-- The same field is read back as formatted text (x-ui.markdown), so
+             the panel says so too — the inline editor on the detail page
+             carries the same line. --}}
+        <x-forms.field label="Notas" for="p-notes" name="notes"
+            hint="Aceita Markdown: **negrito**, - lista, [link](url).">
             <x-forms.textarea id="p-notes" name="notes" rows="2">{{ old('notes', $person->notes) }}</x-forms.textarea>
         </x-forms.field>
 

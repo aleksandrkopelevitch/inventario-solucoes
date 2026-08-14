@@ -122,6 +122,19 @@ Route::middleware('auth')->group(function () {
     Route::patch('solutions/{solution}', [SolutionController::class, 'update'])->name('solutions.update');
     // Inline editing of a single attribute from the detail header itself.
     Route::patch('solutions/{solution}/attributes', [SolutionController::class, 'updateAttributes'])->name('solutions.attributes.update');
+    // One-field edits straight from the detail header (<x-ui.inline-edit>) for
+    // the solution's OWN columns — name, description, vendor, logo, support
+    // note; the 8 attribute badges use the route above instead. The browser
+    // sends the logo as POST + `_method=PATCH` (PHP only fills $_FILES on
+    // POST); the router resolves that to this PATCH route.
+    Route::patch('solutions/{solution}/field', [SolutionController::class, 'updateField'])->name('solutions.field.update');
+    // The solution's owners (the `person_solution` pivot), linked/unlinked from
+    // the header's owners grid. NOT scoped, same reasoning as
+    // `people.solutions.destroy`: the person is a first-class record here, not a
+    // child of the solution, and `detach` no-ops harmlessly on someone who isn't
+    // linked — there's no mutation for a 404 to protect.
+    Route::post('solutions/{solution}/people', [SolutionController::class, 'attachPerson'])->name('solutions.people.store');
+    Route::delete('solutions/{solution}/people/{person}', [SolutionController::class, 'detachPerson'])->name('solutions.people.destroy');
 
     // Rich solution documentation — a tree of 1..N pages (Editor.js block
     // editor per page). `solutions.docs.edit` is the "index": it resolves (or
@@ -173,6 +186,34 @@ Route::middleware('auth')->group(function () {
     Route::get('people/{person}/edit', [PersonController::class, 'edit'])->name('people.edit');
     Route::get('people/{person}', [PersonController::class, 'show'])->name('people.show');
     Route::patch('people/{person}', [PersonController::class, 'update'])->name('people.update');
+    // One-field edits straight from the detail header (<x-ui.inline-edit>),
+    // instead of opening the whole panel — same idea as
+    // `solutions.attributes.update`. The browser sends the photo as POST +
+    // `_method=PATCH` (PHP only fills $_FILES on POST); the router resolves
+    // that to this PATCH route.
+    Route::patch('people/{person}/field', [PersonController::class, 'updateField'])->name('people.field.update');
+    Route::post('people/{person}/contacts', [PersonController::class, 'storeContact'])->name('people.contacts.store');
+    // Scoped: a contact id belonging to someone else 404s instead of being
+    // retargeted onto (or deleted from) this person.
+    Route::scopeBindings()->group(function (): void {
+        Route::patch('people/{person}/contacts/{contact}', [PersonController::class, 'updateContact'])->name('people.contacts.update');
+        Route::delete('people/{person}/contacts/{contact}', [PersonController::class, 'destroyContact'])->name('people.contacts.destroy');
+    });
+    // Person↔solution links, edited from the "Sistemas" card.
+    Route::post('people/{person}/solutions', [PersonController::class, 'storeSolution'])->name('people.solutions.store');
+    // Scoped, unlike its siblings: this one can also RE-POINT the link at
+    // another system, and that's a detach + attach — on a solution this person
+    // isn't linked to it would quietly CREATE a link instead of editing one.
+    // The scoped binding 404s that, and resolves `{solution}` through
+    // `Person::solutions()`, which is why the controller can read the role it
+    // carries off `$solution->pivot` without a second query.
+    Route::patch('people/{person}/solutions/{solution}', [PersonController::class, 'updateSolution'])
+        ->scopeBindings()
+        ->name('people.solutions.update');
+    // NOT scoped: the solution is a first-class record here, not a child of the
+    // person, and `detach` no-ops harmlessly on one that isn't linked — there's
+    // no mutation for a 404 to protect.
+    Route::delete('people/{person}/solutions/{solution}', [PersonController::class, 'destroySolution'])->name('people.solutions.destroy');
 
     Route::get('companies', [CompanyController::class, 'index'])->name('companies.index');
     Route::get('companies/new', [CompanyController::class, 'create'])->name('companies.create');
@@ -180,6 +221,23 @@ Route::middleware('auth')->group(function () {
     Route::get('companies/{company}/edit', [CompanyController::class, 'edit'])->name('companies.edit');
     Route::get('companies/{company}', [CompanyController::class, 'show'])->name('companies.show');
     Route::patch('companies/{company}', [CompanyController::class, 'update'])->name('companies.update');
+    // One-field edits straight from the detail header (<x-ui.inline-edit>),
+    // instead of opening the whole panel — same idea as `people.field.update`.
+    // The browser sends the logo as POST + `_method=PATCH` (PHP only fills
+    // $_FILES on POST); the router resolves that to this PATCH route.
+    Route::patch('companies/{company}/field', [CompanyController::class, 'updateField'])->name('companies.field.update');
+    // The company's two relations, attached/detached from their cards on the
+    // detail page. Both detaches are scoped: they null out a foreign key on the
+    // CHILD record, so a person (or system) belonging to another company must
+    // 404 instead of being quietly unlinked from it. `{providedSolution}` is
+    // named for the relation the scoped binding resolves through
+    // (`providedSolutions()`) — Company has no `solutions()`.
+    Route::post('companies/{company}/people', [CompanyController::class, 'attachPerson'])->name('companies.people.store');
+    Route::post('companies/{company}/solutions', [CompanyController::class, 'attachSolution'])->name('companies.solutions.store');
+    Route::scopeBindings()->group(function (): void {
+        Route::delete('companies/{company}/people/{person}', [CompanyController::class, 'detachPerson'])->name('companies.people.destroy');
+        Route::delete('companies/{company}/solutions/{providedSolution}', [CompanyController::class, 'detachSolution'])->name('companies.solutions.destroy');
+    });
 
     // "Manage attributes" area — only exists inside #main-modal (see solutions/form.blade.php).
     Route::get('attributes', [AttributeOptionController::class, 'index'])->name('attribute-options.index');

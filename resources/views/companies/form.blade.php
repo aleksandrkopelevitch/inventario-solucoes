@@ -32,7 +32,8 @@
             <x-forms.input id="c-website" name="website" type="url" :value="old('website', $company->website)" placeholder="https://" />
         </x-forms.field>
 
-        <x-forms.field label="Notas" for="c-notes" name="notes">
+        <x-forms.field label="Notas" for="c-notes" name="notes"
+            hint="Aceita Markdown: **negrito**, - lista, [link](url).">
             <x-forms.textarea id="c-notes" name="notes" rows="3">{{ old('notes', $company->notes) }}</x-forms.textarea>
         </x-forms.field>
 

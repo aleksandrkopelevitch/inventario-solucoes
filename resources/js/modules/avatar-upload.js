@@ -77,8 +77,12 @@ export function fireFileInput(inputId, e) {
 const ACCEPTED_IMAGE_MIMES = ['image/jpeg', 'image/png', 'image/webp']
 const MAX_IMAGE_BYTES = 2048 * 1024 // `max:2048` is in kilobytes
 
-/** Why the server would refuse this file, or null when it should go through. */
-function imageRejectionReason(file) {
+/**
+ * Why the server would refuse this file, or null when it should go through.
+ * Exported for `inline-edit.js` (the person header's click-the-photo editor),
+ * so the two upload surfaces can't drift apart on what they pre-reject.
+ */
+export function imageRejectionReason(file) {
     if (!ACCEPTED_IMAGE_MIMES.includes(file.type)) {
         return 'Formato de imagem não suportado. Use JPG, PNG ou WEBP.'
     }

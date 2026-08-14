@@ -34,6 +34,10 @@ class UpdateSolutionRequest extends FormRequest
             'criticality'            => ['nullable', Rule::exists('attribute_options', 'value')->where('group', 'criticality')],
             'status'                 => ['required', Rule::exists('attribute_options', 'value')->where('group', 'status')],
             'logo'                   => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            // `<x-forms.image-upload>`'s "Remover" button writes this hidden
+            // field; it was never validated (so never read), which is why the
+            // button silently did nothing. See `SolutionController::payload()`.
+            'logo_action' => ['nullable', 'string', 'in:remove'],
         ];
     }
 }

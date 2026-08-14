@@ -1,0 +1,98 @@
+/* ── Markdown of the app's SHORT free-text fields ──────────────────────
+   A person's/company's notes, a solution's description and its support ×
+   operation note (see App\Support\MarkdownText and x-ui.markdown).
+
+   Custom CSS here is a legitimate exception, the same one `.ak-viz-md` gets
+   (see CLAUDE.md): the HTML is produced by the renderer, so there is no
+   element to hang a utility class on before it exists.
+
+   Distinct from `.html-content`, which types a whole GitBook documentation
+   PAGE. This text sits inside a card, beside other data, and must not shout:
+   it sets NO font-size and NO text color of its own beyond emphasis, so the
+   wrapper's own utilities (`text-sm leading-relaxed text-body` on a white
+   card, the header's `text-[color:var(--color-glow-ink)]/80` on the gradient)
+   keep deciding how it reads. Everything here is spacing, weight and the few
+   marks Markdown adds. */
+
+.ak-rich-text > * + * { margin-top: .6em; }
+.ak-rich-text li > * + * { margin-top: .3em; }
+
+.ak-rich-text strong { font-weight: 600; }
+.ak-rich-text em { font-style: italic; }
+
+.ak-rich-text a {
+    color: var(--color-accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.ak-rich-text a:hover { text-decoration-thickness: 2px; }
+
+/* Headings stay close to the body size — a note is not a document, and an
+   `# Título` inside a card shouldn't outweigh the card's own <h2>. */
+.ak-rich-text h1,
+.ak-rich-text h2,
+.ak-rich-text h3,
+.ak-rich-text h4 {
+    font-weight: 600;
+    line-height: 1.3;
+}
+.ak-rich-text h1 { font-size: 1.2em; }
+.ak-rich-text h2 { font-size: 1.1em; }
+
+.ak-rich-text ul { list-style: disc; padding-left: 1.25em; }
+.ak-rich-text ol { list-style: decimal; padding-left: 1.25em; }
+.ak-rich-text li + li { margin-top: .2em; }
+.ak-rich-text li > ul,
+.ak-rich-text li > ol { margin-top: .2em; }
+
+/* GFM task list: the checkbox replaces the bullet instead of joining it. */
+.ak-rich-text li:has(> input[type="checkbox"]) { list-style: none; }
+.ak-rich-text input[type="checkbox"] { margin-right: .4em; vertical-align: baseline; }
+
+.ak-rich-text code {
+    font-family: var(--font-mono);
+    font-size: .85em;
+    padding: .1em .35em;
+    border-radius: var(--radius-field);
+    background: color-mix(in srgb, var(--color-ink) 7%, transparent);
+}
+.ak-rich-text pre {
+    overflow-x: auto;
+    padding: .7em .8em;
+    border-radius: var(--radius-field);
+    background: color-mix(in srgb, var(--color-ink) 6%, transparent);
+}
+.ak-rich-text pre code { padding: 0; background: none; }
+
+.ak-rich-text blockquote {
+    border-left: 2px solid var(--color-line-2);
+    padding-left: .75em;
+    font-style: italic;
+    opacity: .85;
+}
+
+.ak-rich-text hr {
+    border: 0;
+    border-top: 1px solid var(--color-line);
+}
+
+/* `display: block` is what lets a wide table scroll inside the card instead
+   of stretching it. */
+.ak-rich-text table {
+    display: block;
+    overflow-x: auto;
+    border-collapse: collapse;
+}
+.ak-rich-text th,
+.ak-rich-text td {
+    border: 1px solid var(--color-line);
+    padding: .3em .5em;
+    text-align: left;
+}
+.ak-rich-text th { font-weight: 600; }
+
+.ak-rich-text img {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--radius-field);
+}

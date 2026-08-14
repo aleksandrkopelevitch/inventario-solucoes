@@ -14,6 +14,7 @@ import * as executeFilters from './modules/execute-filters.js'
 import * as executeSearch from './modules/execute-search.js'
 import * as sortableTable from './modules/sortable-table.js'
 import * as solutionAttributes from './modules/solution-attributes.js'
+import * as inlineEdit from './modules/inline-edit.js'
 import * as integrationSelect from './modules/integration-select.js'
 import * as integrationViz from './modules/integration-viz.js'
 import * as ecosystemMap from './modules/ecosystem-map.js'
@@ -46,6 +47,7 @@ window.globalModules = {
     "executeSearch" : executeSearch,
     "sortableTable" : sortableTable,
     "solutionAttributes" : solutionAttributes,
+    "inlineEdit"         : inlineEdit,
     "integrationSelect" : integrationSelect,
     "integrationViz"    : integrationViz,
     "ecosystemMap"      : ecosystemMap,
