@@ -27,6 +27,10 @@ class UpdateCompanyRequest extends FormRequest
             'website' => ['nullable', 'url', 'max:255'],
             'notes'   => ['nullable', 'string'],
             'logo'    => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            // `<x-forms.image-upload>`'s "Remover" button writes this hidden
+            // field; it was never validated (so never read), which is why the
+            // button silently did nothing. See `CompanyController::payload()`.
+            'logo_action' => ['nullable', 'string', 'in:remove'],
         ];
     }
 }

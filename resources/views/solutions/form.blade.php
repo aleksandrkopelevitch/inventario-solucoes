@@ -20,7 +20,8 @@
             <x-forms.input id="sol-name" name="name" :value="old('name', $solution->name)" required />
         </x-forms.field>
 
-        <x-forms.field label="Descrição" for="sol-desc" name="description">
+        <x-forms.field label="Descrição" for="sol-desc" name="description"
+            hint="Aceita Markdown: **negrito**, - lista, [link](url).">
             <x-forms.textarea id="sol-desc" name="description" rows="2">{{ old('description', $solution->description) }}</x-forms.textarea>
         </x-forms.field>
 
@@ -123,7 +124,7 @@
         </a>
 
         <x-forms.field label="Nota de suporte x operação" for="sol-opnote" name="support_operation_note"
-            hint="Sinaliza gap entre suporte contratado e operação real.">
+            hint="Sinaliza gap entre suporte contratado e operação real. Aceita Markdown.">
             <x-forms.textarea id="sol-opnote" name="support_operation_note" rows="2">{{ old('support_operation_note', $solution->support_operation_note) }}</x-forms.textarea>
         </x-forms.field>
 

@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import './components/scrollbar.css';
+@import './components/rich-text.css';
 @import './components/docs-editor.css';
 @import './components/flowspec-chat.css';
 
@@ -251,7 +252,35 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-    --backdrop-blur: 0.15rem
+    --backdrop-blur: 0.15rem;
+
+    /* 3px top seam of the "hero" panels (<x-ui.hero-panel> plus the
+       Solution/Person/Company detail-headers). It used to be
+       `glow-a → accent → ink`; since accent and ink are both dark, the bar
+       read as essentially BLACK across its whole width, with only a thread of
+       cream at the left end. Pulled toward the lime family on user request
+       (2026-08-14) — it still darkens left to right, but the dark end is now
+       dark lime / brand green instead of near-black. Defined here, in one
+       place, because all four consumers carried the same copied inline
+       gradient — one of them was bound to drift from the others. */
+    --gradient-hero-seam: linear-gradient(
+        90deg,
+        var(--color-lime) 0%,
+        var(--color-lime-ink) 70%,
+        var(--color-accent) 100%
+    );
+
+    /* Hover/focus wash of a click-to-edit datum (`x-ui.inline-edit`'s read
+       block). It has to read as "this text is a target" on whatever it sits
+       on, and the app has two very different grounds for it: white cards, and
+       the pastel gradient of the detail-header strips. A single ink tint can't
+       do both — over the gradient it reads as a grey smudge — so the value is
+       a variable the ground can override. The three detail headers set
+       `--ie-wash: rgba(255,255,255,.5)` on their gradient strip (a translucent
+       WHITE lifts a pastel instead of dirtying it); everything else inherits
+       the ink tint below. Deliberately faint: the datum is the content, and
+       the wash is only meant to be noticed under the cursor. */
+    --ie-wash: color-mix(in srgb, var(--color-ink) 5%, transparent);
 }
 
 /* ── Accessibility: honour prefers-reduced-motion ──────────────────────

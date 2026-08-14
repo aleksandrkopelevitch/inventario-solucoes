@@ -2,6 +2,7 @@
 
 namespace App\View\Components\People;
 
+use App\Models\Company;
 use App\Models\Person;
 use App\View\Components\Concerns\Renderable;
 use Illuminate\Contracts\View\View;
@@ -31,6 +32,16 @@ class DetailHeader extends Component
     {
         $this->person->loadMissing(['company:id,name,slug', 'contacts']);
 
-        return view('components.people.detail-header', ['domId' => self::DOM_ID]);
+        $canEdit = auth()->user()?->can('update', $this->person) ?? false;
+
+        return view('components.people.detail-header', [
+            'domId'   => self::DOM_ID,
+            'canEdit' => $canEdit,
+            // Options for the header's inline company editor — a viewer never
+            // renders that select, so don't pay for the query.
+            'companies' => $canEdit
+                ? Company::orderBy('name')->get(['id', 'name'])
+                : collect(),
+        ]);
     }
 }

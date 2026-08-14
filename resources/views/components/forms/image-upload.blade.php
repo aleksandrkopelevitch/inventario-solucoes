@@ -4,6 +4,18 @@
     'placeholder' => 'https://placehold.co/240x240/eef2f7/94a3b8?text=Imagem',
     'id' => null,
     'size' => 'h-32 w-32',
+    // Radius of the tile. Defaults to the card radius every form in the app
+    // uses; `x-ui.inline-edit` passes `rounded-full` when the image it's
+    // editing in place is a round avatar, so clicking it doesn't turn a circle
+    // into a square mid-edit.
+    'shape' => 'rounded-card',
+    // Extra attributes for the two inputs this component owns. `$attributes`
+    // lands on the wrapper, so a caller that needs to hook the actual `<input
+    // type="file">` (or the `{name}_action` one that "Remover" writes to) has
+    // no way in otherwise — which is what `x-ui.inline-edit` needs to submit
+    // this tile outside a `<form>`.
+    'inputAttributes' => [],
+    'actionAttributes' => [],
 ])
 
 @php
@@ -35,12 +47,14 @@
      Click preview -> open file picker -> live preview. "Remover" flags the
      hidden *_action input so the controller can delete the stored media. --}}
 <div {{ $attributes->class(['inline-flex flex-col items-start gap-2']) }}>
-    <input type="file" id="{{ $inputId }}" name="{{ $name }}" accept="image/*" class="hidden" />
-    <input type="hidden" id="{{ $removeInputId }}" name="{{ $name }}_action" value="" />
+    <input type="file" id="{{ $inputId }}" name="{{ $name }}" accept="image/*" class="hidden"
+           {{ new \Illuminate\View\ComponentAttributeBag($inputAttributes) }} />
+    <input type="hidden" id="{{ $removeInputId }}" name="{{ $name }}_action" value=""
+           {{ new \Illuminate\View\ComponentAttributeBag($actionAttributes) }} />
 
     <div
         data-ak-avatar-upload="{{ json_encode($addConfig) }}"
-        class="group relative cursor-pointer overflow-hidden rounded-card ring-1 ring-line-2 {{ $size }}"
+        class="group relative cursor-pointer overflow-hidden ring-1 ring-line-2 {{ $shape }} {{ $size }}"
     >
         <div id="{{ $bgId }}" class="h-full w-full bg-cover bg-center"
              style="background-image:url('{{ $current }}')"></div>

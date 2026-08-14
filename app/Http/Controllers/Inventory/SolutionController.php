@@ -3,11 +3,14 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreSolutionPersonRequest;
 use App\Http\Requests\StoreSolutionRequest;
 use App\Http\Requests\UpdateSolutionAttributesRequest;
+use App\Http\Requests\UpdateSolutionFieldRequest;
 use App\Http\Requests\UpdateSolutionRequest;
 use App\Models\AttributeOption;
 use App\Models\Company;
+use App\Models\Person;
 use App\Models\Solution;
 use App\Services\SolutionCatalogStatsService;
 use App\View\Components\Solutions\DetailHeader;
@@ -119,6 +122,80 @@ class SolutionController extends Controller
     }
 
     /**
+     * One of the solution's OWN fields (name, description, vendor, logo,
+     * support note), edited in place on the detail header
+     * (`<x-ui.inline-edit>`) instead of through the whole panel. The 8
+     * attribute badges on the same header have their own endpoint below.
+     */
+    public function updateField(UpdateSolutionFieldRequest $request, Solution $solution): JsonResponse
+    {
+        $data = $request->safe()->except(['logo', 'logo_action']);
+
+        if ($request->hasFile('logo')) {
+            $data['logo_path'] = $request->file('logo')->store('solution-logos', 'public');
+        } elseif ($request->input('logo_action') === 'remove') {
+            // "Remover" on the `<x-forms.image-upload>` tile. The stored file
+            // itself is left on disk on purpose: `logo_path` is a plain column
+            // (not MediaLibrary), and nothing else in this app deletes an
+            // orphaned upload either — doing it here alone would be the odd one
+            // out, and a wrong click would be unrecoverable.
+            $data['logo_path'] = null;
+        }
+
+        $solution->update($data);
+
+        return response()->json([
+            'type'    => 'success',
+            'message' => 'Alteração salva.',
+            // Only the detail header reflects this — there's no
+            // solutions-index-slot on this (detail) page for the catalog list
+            // and its widgets to land in.
+            'updatableSlots' => [DetailHeader::slot($solution)],
+        ]);
+    }
+
+    /**
+     * The solution's owners (the `person_solution` pivot), linked / unlinked in
+     * place on the header's owners grid. Mirror of
+     * `PersonController::storeSolution/destroySolution` on the other side of the
+     * same pivot — the role decides which of the three columns the person lands
+     * in, and re-roling stays on the person's page, where the role is a badge
+     * of its own.
+     */
+    public function attachPerson(StoreSolutionPersonRequest $request, Solution $solution): JsonResponse
+    {
+        $solution->people()->attach($request->validated('person_id'), ['role' => $request->validated('role')]);
+
+        return $this->ownersSaved($solution, 'Pessoa vinculada.');
+    }
+
+    public function detachPerson(Request $request, Solution $solution, Person $person): JsonResponse
+    {
+        $this->authorize('update', $solution);
+
+        $solution->people()->detach($person->getKey());
+
+        return $this->ownersSaved($solution, 'Pessoa desvinculada.');
+    }
+
+    /**
+     * The owners grid lives inside `Solutions\DetailHeader`, so that whole slot
+     * is the answer. The explicit `load()` matters: the component renders the
+     * grid off `people`, and its `loadMissing()` would keep the copy loaded
+     * before the mutation.
+     */
+    private function ownersSaved(Solution $solution, string $message): JsonResponse
+    {
+        $solution->load(['people' => fn ($q) => $q->with('company:id,name,slug')]);
+
+        return response()->json([
+            'type'           => 'success',
+            'message'        => $message,
+            'updatableSlots' => [DetailHeader::slot($solution)],
+        ]);
+    }
+
+    /**
      * Inline editing of a single attribute (Category, Status, Criticality, …)
      * directly in the detail header card (`Solutions\DetailHeader`) — each
      * select in the card auto-persists on `change`, without opening the full
@@ -166,7 +243,10 @@ class SolutionController extends Controller
     /** @return array<string, mixed> */
     private function payload(StoreSolutionRequest|UpdateSolutionRequest $request, ?Solution $solution = null): array
     {
-        $data = $request->safe()->except(['logo']);
+        // `logo_action` is a UI instruction, not a column — leaving it in the
+        // array throws under `Model::shouldBeStrict()`
+        // (`preventSilentlyDiscardingAttributes`), which is a 500 in dev/test.
+        $data = $request->safe()->except(['logo', 'logo_action']);
 
         $data['slug'] = filled($data['slug'] ?? null)
             ? $data['slug']
@@ -179,6 +259,11 @@ class SolutionController extends Controller
 
         if ($request->hasFile('logo')) {
             $data['logo_path'] = $request->file('logo')->store('solution-logos', 'public');
+        } elseif ($request->input('logo_action') === 'remove') {
+            // The form's `<x-forms.image-upload>` has always rendered a
+            // "Remover" button writing this hidden field; nothing read it, so
+            // it silently did nothing. Same handling as `updateField()`.
+            $data['logo_path'] = null;
         }
 
         return $data;

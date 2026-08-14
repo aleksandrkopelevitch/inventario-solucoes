@@ -14,7 +14,9 @@
     `--color-glow-b/c` (pink/violet) — the ambient corner glow behind the
     page (see `layouts/layout.blade.php`) already carries that exact
     pink→violet, so repeating it here on every card read as doubled-up; the
-    seam now resolves into our own brand green and near-black instead.
+    seam now resolves into our own lime/brand green instead
+    (`--gradient-hero-seam`, defined once in `app.css` and shared with the
+    three detail-headers — see the comment there).
     Content still uses `--color-glow-ink`-based text colors — still a dark
     near-black, reads fine on the lighter wash too.
 --}}
@@ -25,7 +27,7 @@
     ]) }}
     style="background: linear-gradient(135deg, color-mix(in srgb, var(--color-glow-a) 32%, white) 0%, color-mix(in srgb, var(--color-lime-soft) 75%, white) 100%)">
     <div class="pointer-events-none absolute inset-x-0 top-0 h-[3px]"
-         style="background: linear-gradient(90deg, var(--color-glow-a), var(--color-accent), var(--color-ink))"></div>
+         style="background: var(--gradient-hero-seam)"></div>
     <div class="relative">
         {{ $slot }}
     </div>

@@ -2,7 +2,10 @@
 
 namespace App\View\Components\Solutions;
 
+use App\Enums\PersonSolutionRole;
 use App\Models\AttributeOption;
+use App\Models\Company;
+use App\Models\Person;
 use App\Models\Solution;
 use App\View\Components\Concerns\Renderable;
 use Illuminate\Contracts\View\View;
@@ -37,9 +40,25 @@ class DetailHeader extends Component
         ]);
 
         $s = $this->solution;
+        $canEdit = auth()->user()?->can('update', $s) ?? false;
 
         return view('components.solutions.detail-header', [
-            'domId'          => self::DOM_ID,
+            'domId'   => self::DOM_ID,
+            'canEdit' => $canEdit,
+            // Options for the header's inline vendor editor — a viewer never
+            // renders that select, so don't pay for the query.
+            'companies' => $canEdit ? Company::orderBy('name')->get(['id', 'name']) : collect(),
+            // Owners picker: only people not linked yet, in any role. The app
+            // treats a (person, solution) link as unique even though the pivot's
+            // index allows one row per role — see `StoreSolutionPersonRequest`.
+            'availableOwners' => $canEdit
+                ? Person::query()
+                    ->whereKeyNot($s->people->modelKeys())
+                    ->with('company:id,name')
+                    ->orderBy('name')
+                    ->get(['id', 'name', 'company_id'])
+                : collect(),
+            'roles'          => PersonSolutionRole::cases(),
             'techOwners'     => $s->people->where('pivot.role', 'technical'),
             'businessOwners' => $s->people->where('pivot.role', 'business'),
             'vendorContacts' => $s->people->where('pivot.role', 'vendor_contact'),

@@ -21,14 +21,18 @@ class StorePersonRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name'              => ['required', 'string', 'max:255'],
-            'slug'              => ['nullable', 'string', 'max:255', Rule::unique('people', 'slug')],
-            'company_id'        => ['nullable', 'integer', 'exists:companies,id'],
-            'job_title'         => ['nullable', 'string', 'max:255'],
-            'email'             => ['nullable', 'email', 'max:255'],
-            'phone'             => ['nullable', 'string', 'max:50'],
-            'notes'             => ['nullable', 'string'],
-            'photo'             => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'name'       => ['required', 'string', 'max:255'],
+            'slug'       => ['nullable', 'string', 'max:255', Rule::unique('people', 'slug')],
+            'company_id' => ['nullable', 'integer', 'exists:companies,id'],
+            'job_title'  => ['nullable', 'string', 'max:255'],
+            'email'      => ['nullable', 'email', 'max:255'],
+            'phone'      => ['nullable', 'string', 'max:50'],
+            'notes'      => ['nullable', 'string'],
+            'photo'      => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            // `<x-forms.image-upload>`'s "Remover" button writes this hidden
+            // field; it was never validated (so never read), which is why the
+            // button silently did nothing. See `PersonController::payload()`.
+            'photo_action'      => ['nullable', 'string', 'in:remove'],
             'solutions'         => ['nullable', 'array'],
             'solutions.*.value' => ['required', 'string'],
             'solutions.*.label' => ['nullable', 'string'],
