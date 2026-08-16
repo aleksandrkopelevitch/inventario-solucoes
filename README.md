@@ -82,6 +82,57 @@ Ação do usuário
 A mesma action serve HTML (GET normal) e JSON (AJAX) decidindo por
 `$request->wantsJson()` — nunca há uma action separada só para o AJAX.
 
+**Edição in place, o mesmo ciclo aplicado a um dado só.** As três páginas de
+detalhe são de leitura até você pedir para editar; o que muda em relação ao
+ciclo acima é só *o que* dispara e *quanto* volta:
+
+```
+[ valor lido ]  duplo clique (ou o lápis / Enter no chip de criar)
+      │
+      ▼
+[ editor ]  um campo com a MESMA tipografia e posição do valor
+      │     (sem caixa: o realce de hover fica, mais uma régua de 1,5px)
+      │     Enter confirma · Esc cancela · Ctrl+Enter num textarea
+      │     clicar fora fecha só se nada foi digitado
+      ▼
+PATCH/POST  ← payload montado a partir do nome de cada campo, só os do editor
+      │
+      ▼
+{ message, updatableSlots: [DetailHeader::slot($registro)] }
+      │
+      ▼
+ajax-slot.js troca o card inteiro → o editor some junto com o HTML antigo
+```
+
+O ↗ ao lado de um valor que aponta para outro registro é o único alvo de
+navegação: as palavras pertencem ao editor. Ver `CLAUDE.md` § "Inline edit".
+
+**Assíncrono: job + polling, nunca broadcasting.** As duas features de IA
+seguem o mesmo desenho, e ele existe por uma razão específica — uma geração
+leva minutos, então a resposta HTTP não pode esperá-la, e um WebSocket seria
+infraestrutura nova para um evento por usuário a cada vários minutos:
+
+```
+POST  → cria o registro em `pending`, despacha o job
+      → responde já com o slot, contendo um MARCADOR de polling
+
+  ┌── worker ─────────────────┐   ┌── browser ────────────────────────┐
+  │ gera, valida, grava       │   │ enquanto o marcador estiver no DOM│
+  │ o registro sai de pending │   │ GET .../status a cada ~2,5s       │
+  └───────────────────────────┘   └───────────────────────────────────┘
+
+GET .../status
+  ainda pending → resposta barata (NÃO monta o slot: seria uma query +
+                  render inteiros, a cada tique, jogados fora)
+  pronto        → devolve o slot novo, agora SEM o marcador
+                  → ajax-slot troca → o marcador some → o polling para
+
+teto de tentativas estourado → Toast de desistência (nunca silêncio infinito)
+```
+
+Um job por thread/alvo de cada vez (`WithoutOverlapping`), porque a UI assume
+"um turno pendente por vez". Ver `CLAUDE.md` § Queue & Jobs.
+
 **Pilares que se repetem no código** (regras completas em `CLAUDE.md`):
 
 - **Updatable slots** — primitivo de "reatividade": um Componente de View
@@ -93,7 +144,7 @@ A mesma action serve HTML (GET normal) e JSON (AJAX) decidindo por
   `chain`; colunas derivadas são reconstruídas por uma Action, nunca escritas à
   mão (ver "Notas técnicas").
 - **Assíncrono por job + polling** — features de IA disparam um job e o front
-  faz polling do status até sair de `pending`; sem broadcasting.
+  faz polling do status até sair de `pending`; sem broadcasting (diagrama acima).
 - **Strict mode do Eloquent** fora de produção — relação não carregada lança
   exceção em vez de lazy-load silencioso (ver "Notas técnicas").
 
@@ -221,7 +272,8 @@ dois lugares, por *forma* e não por tamanho:
 - **Action** = uma operação única, com um verbo, invocada de vários gatilhos.
   Classe com um `handle()` e DI no construtor. `App\Actions\
   SyncIntegrationFromChain` (rederiva as colunas da topologia a cada mutação
-  da `chain`) e `PromoteFlowspecExample` (promove uma resposta ao corpus) são
+  da `chain` — são oito endpoints chamando a mesma coisa) e
+  `App\Actions\Flowspec\SaveFlowspecExample`/`NormalizeReferenceFlowspec` são
   os exemplos: cada uma faz *uma* coisa, chamada de vários controllers/pontos,
   e por isso merece um objeto testável e injetável em vez de um método privado
   repetido.
@@ -251,25 +303,50 @@ Regra de bolso: **se você diria o nome com um verbo no imperativo
 | `x-forms.chips` | seleção múltipla com papel (`chips.js`) |
 
 Todos são exercitados em `tests/Feature/FormComponentsTest.php`. Há uma página
-de demonstração em `/componentes` (autenticada).
+de demonstração em `/components` (autenticada).
+
+Ao lado deles há a família `x-ui.*` (`resources/views/components/ui/`), que não
+são controles de formulário e sim as peças da leitura/edição in place:
+
+| Componente | Observação |
+|---|---|
+| `x-ui.inline-edit` | o dado que vira editor sob duplo clique; `method="POST"` faz do mesmo componente um "+ Adicionar …" |
+| `x-ui.inline-edit-field`, `x-ui.inline-edit-actions` | internos do anterior — um campo (texto/select/textarea/imagem) e o par confirmar/cancelar |
+| `x-ui.external-link` | o ↗ de um dado que também aponta para outro registro |
+| `x-ui.row-remove` | o ✕ que desvincula uma linha; some enquanto aquela linha está sendo editada |
+| `x-ui.add-chip` | o chip tracejado que abre um criador |
+| `x-ui.markdown` | Markdown curto renderizado (`MarkdownText`, HTML removido) |
+| `x-ui.logo`, `x-ui.avatar` | tile de solução/empresa (cor por categoria) e foto de pessoa |
 
 ## Layout
 
-Páginas autenticadas usam `<x-layouts.layout>` (sidebar verde + canvas claro,
-identidade Leo), que provê os shells permanentes: `#alert-modal`,
-`#main-modal`, `#toast-container`, `#side-panel`.
+Páginas autenticadas usam `<x-layouts.layout>` (rail de navegação escuro +
+canvas claro, identidade Leo), que provê os shells permanentes:
+`#alert-modal`, `#main-modal`, `#toast-container`, `#side-panel`.
 
 ## Sistema de cor "Blocos Leo"
 
-Convenção de cor por **significado**, não decoração: tiles de logo sem
-imagem e selos de seção (o bloco mono uppercase tipo "F3") são blocos verdes
-sólidos (`bg-accent text-white`); badges de metadados seguem um tom
-semântico por dimensão (categoria → verde sólido, ambiente/status → verde
-suave, cloud → lima, contrato/criticidade média → âmbar, criticidade
-alta/crítica → vermelho). Botões têm 3 variantes por peso (`primary`/
-`glass`/`ghost`, ver tabela acima). Cinza fica reservado a papel estrutural
-(hovers, trilhas, placeholders, texto terciário). Referência:
-`Solutions\DetailHeader`, `resources/views/components/solutions/detail-header.blade.php`.
+Convenção de cor por **significado**, não decoração. Badges de metadados
+seguem um tom semântico por dimensão (ambiente/status → verde suave, cloud →
+lima, contrato/criticidade média → âmbar, criticidade alta/crítica →
+vermelho, anotações → bege post-it); selos de seção (o bloco mono uppercase
+tipo "F3") são blocos verdes sólidos (`bg-accent text-white`). Botões têm 3
+variantes por peso (`primary`/`glass`/`ghost`, ver tabela acima). Cinza fica
+reservado a papel estrutural (hovers, trilhas, placeholders, texto
+terciário). Referência: `Solutions\DetailHeader`,
+`resources/views/components/solutions/detail-header.blade.php`.
+
+Duas exceções deliberadas a "verde é a âncora":
+
+- **Categoria tem cor própria.** O chip de categoria e o tile de logo sem
+  imagem são coloridos pela família daquela categoria (`App\Support\CategoryPalette`,
+  8 paletas `@theme`), não verde — é o único eixo em que distinguir *qual*
+  valor à distância vale mais do que reforçar a marca. Verde segue sendo a
+  âncora da paleta, uma das 8.
+- **O rail de navegação é quase-preto** (`--color-sidebar*`, gradiente
+  `#15181d → #05060a`) desde o redesign de 2026-08-04, com o lima só no
+  indicador do item ativo. O verde de marca foi rebaixado a acento — não
+  removido: continua nos selos, estados e no anel de foco.
 
 ## Frontend — módulos JS, delegação e reatividade
 
@@ -340,44 +417,86 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
 
 ## Funcionalidades
 
-- **Catálogo de soluções** (`/solucoes`): listagem com busca/filtros, CRUD via
-  side panel. O detalhe de cada solução (`/solucoes/{slug}`) tem um cabeçalho
-  (`Solutions\DetailHeader`) com nome/descrição e uma ficha de 8 atributos
+- **Catálogo de soluções** (`/solutions`): listagem com busca/filtros, CRUD via
+  side panel. O detalhe de cada solução (`/solutions/{slug}`) tem um cabeçalho
+  (`Solutions\DetailHeader`) com nome/descrição, uma ficha de 8 atributos
   (Categoria, Status, Criticidade, Ambiente, Hospedagem, Contrato, Suporte,
-  Diretoria) — cada um **editável inline** por um `<select>` que salva sozinho
-  ao trocar de valor (sem botão de salvar), visível só para quem pode editar a
-  solução; atributos em branco mostram "Não informado" em vez de sumir da
-  ficha.
+  Diretoria), a grade de owners por papel e um bloco de anotações livres.
+  Atributos em branco mostram "Não informado" em vez de sumir da ficha, e
+  tudo ali é editável na própria página (ver abaixo).
+- **Edição in place nas três páginas de detalhe** (solução, pessoa, empresa):
+  a página é de leitura, e cada dado vira editor sob **duplo clique** — ou um
+  clique no lápis ao lado, que é o caminho do teclado e do toque. O side panel
+  continua existindo para o que um gesto só não expressa (criar do zero,
+  editar várias coisas de uma vez). Três regras que valem em todas elas:
+    - **Um dado que também é link**: o texto pertence ao editor, a navegação
+      vai para um ↗ ao lado. Dois alvos de clique sobre as mesmas palavras é
+      justamente a ambiguidade que essa divisão remove.
+    - **O editor se parece com o valor que substitui** — mesma tipografia,
+      mesma posição, sem caixa: o realce de hover simplesmente fica, com uma
+      régua de 1,5px sob o texto. Nada pula quando o editor abre.
+    - **As relações também**: owners da solução, sistemas da pessoa, contatos,
+      pessoas e sistemas da empresa são criados, trocados e removidos ali
+      mesmo, cada card devolvendo seu próprio slot.
 - **Atributos gerenciáveis em runtime**: os valores de cada um dos 8 grupos
   (`App\Enums\AttributeGroup`) são registros `AttributeOption` editáveis por
-  admin em "Gerenciar atributos" (`/atributos`, sempre dentro da `#main-modal`,
+  admin em "Gerenciar atributos" (`/attributes`, sempre dentro da `#main-modal`,
   acionado a partir do form de Solução) — criar/renomear/remover um valor sem
   precisar de migration. Os grupos em si (quais 8 existem) são fixos em código.
-- **Pessoas e empresas** (`/pessoas`, `/empresas`): listagem, CRUD via side
+- **Pessoas e empresas** (`/people`, `/companies`): listagem, CRUD via side
   panel, vínculo pessoa↔solução por papel via `x-forms.chips`. Pessoa tem um
   par `email`/`phone` simples (colunas em `people`) **e** uma lista separada
   de contatos adicionais (`Person::contacts()`, tipo email/telefone/whatsapp/
-  outro) editável na mesma tela via seção repetível "Contatos adicionais".
+  outro), editáveis no form pela seção repetível "Contatos adicionais" e, um a
+  um, na própria página de detalhe.
 - **Integrações — sempre a partir de uma solução**: não existe catálogo
-  `/integracoes` avulso. No detalhe de cada solução, a seção "Integrações"
+  `/integrations` avulso. No detalhe de cada solução, a seção "Integrações"
   é um bloco de duas colunas — à esquerda, a lista das integrações da
   solução (criar só com um nome, selecionar, excluir); à direita, um canvas
   gráfico (`resources/js/modules/integration-viz.js`) que desenha e edita a
-  integração selecionada. A topologia (`Integration.chain =
-  {nodes: [{solution_id, label}], edges: [{from, to, arrow, protocol}]}`) é
-  a **fonte de verdade única**: `App\Actions\SyncIntegrationFromChain` deriva
-  dela os participantes (pivot `integration_solution`, com `position`),
-  origem/destino, direção e o protocolo escalar de resumo sempre que a chain
-  muda. É um **grafo livre de verdade**, não uma cadeia linear: um bloco pode
-  ficar sem nenhuma ligação, `from`/`to` são índices de nó (não posições
-  consecutivas), e cada ligação carrega seu próprio sentido (`->`/`<-`/`<->`)
-  e protocolo. Editável direto no canvas: título de um nó (exceto o raiz),
-  sentido/protocolo de uma ligação, adicionar um bloco novo ao final (ligado
-  ou isolado), religar a ponta de uma ligação existente pra outro bloco
-  arrastando, criar uma ligação nova entre dois blocos já existentes ("modo
-  ligar"), e desligar uma ligação. Posição/cor/comentário de cada bloco no
-  canvas são só visuais, persistidos em `Integration.viz_layout` — nunca
-  tocam a chain nem os campos derivados.
+  integração selecionada.
+
+  A topologia vive só na `chain`, e tudo o mais é derivado dela:
+
+  ```
+  Integration.chain (json)  ←  ÚNICA fonte de verdade da topologia
+    nodes: [{ kind, solution_id?, label }]
+            kind = system | decision | actor | start | end | image
+    edges: [{ from, to, arrow, protocol }]
+            from/to = índices em nodes (não posições consecutivas)
+            arrow   = ->  |  <-  |  <->
+       │
+       │  toda mutação da chain (store · add/update/removeNode ·
+       │  add/retarget/removeEdge · updateProtocol) chama, em seguida:
+       ▼
+  App\Actions\SyncIntegrationFromChain  ← o único que escreve as colunas abaixo
+       ├─ integration_solution (pivot, com position)   ← só nós kind=system
+       ├─ source_solution_id / target_solution_id
+       ├─ direction
+       └─ protocol   (o 1º protocolo não-nulo, como resumo escalar)
+
+  Integration.viz_layout (json)  ←  paralelo, e PURAMENTE VISUAL
+    x/y, cor, fonte, tracejado, post-it por bloco, raias
+    saveLayout() nunca toca a chain, e nada daqui entra no cálculo acima
+  ```
+
+  **Só `kind: system` referencia uma Solution** — decision/actor/start/end/
+  image são texto livre (ou imagem) e por isso nunca viram participantes,
+  mesmo que um `solution_id` antigo tenha sobrado no nó. É um **grafo livre
+  de verdade**, não uma cadeia linear: um bloco pode ficar sem nenhuma
+  ligação (nasce isolado — ligar é um gesto à parte), e cada ligação carrega
+  seu próprio sentido (`->`/`<-`/`<->`) e protocolo.
+
+  Editável direto no canvas: título e tipo de um nó (exceto o raiz),
+  sentido/protocolo de uma ligação, adicionar um bloco novo (ligado ou
+  isolado), colar uma **imagem** como bloco, religar a ponta de uma ligação
+  arrastando, criar uma ligação nova entre dois blocos ("modo ligar"), e
+  desligar uma ligação. Em volta disso, três recursos que existem só no plano
+  visual e vivem no `viz_layout`: **raias** (swimlanes de fundo, que agrupam
+  sem nunca definir topologia), **post-its** por bloco (comentário em
+  Markdown) e a paleta de cor/fonte de cada bloco. Todos os gestos rodam em
+  **eventos de ponteiro**, então mouse, toque e caneta seguem um caminho de
+  código só.
 - **Mapa do ecossistema** (`/map`): derivado (somente leitura), layout radial
   hub-and-spoke — cada solução é um hub com seus vizinhos diretos num círculo
   ao redor (`<x-ecosystem-map>`, DOM+SVG, mesmo visual do canvas de integração
@@ -392,25 +511,46 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   preset de largura) numa coluna `documentation` só de texto — sem tabela de
   blocos separada. Suporta upload/colar/arrastar imagem e arquivo, âncoras de
   heading e atalhos de Markdown (`## `, `- `, `> `, ` ``` `). Três contêineres:
-    - **Solução** (`/solucoes/{slug}/documentacao`): árvore **plana** de 1..N
+    - **Solução** (`/solutions/{slug}/documentation`): árvore **plana** de 1..N
       páginas (`DocumentationPage`) — criar/renomear/mover/excluir; a rota-índice
       resolve (ou cria) a primeira página e redireciona pra ela.
-    - **Integração** (`/solucoes/{slug}/integracoes/{slug}/documentacao`): uma
+    - **Integração** (`/solutions/{slug}/integrations/{slug}/documentation`): uma
       página única.
-    - **Grupos "Aninhamentos"** (`/documentacao/grupos/{group}`): árvores de
-      páginas *standalone*, fora de qualquer solução.
+    - **Grupos** (`/documentation/groups/{group}`): árvores de páginas
+      *standalone*, fora de qualquer solução.
+
+  A tela é a mesma para os três, e a navegação é um **rail colapsável à
+  esquerda** que consolida, numa árvore só, as páginas da solução **e** a doc
+  de cada integração de que ela participa — a promessa de "uma tela por
+  solução" (`Concerns\NavigatesSolutionDocs` monta as duas seções; os dois
+  controllers renderizam idêntico). O rail é titulado com o nome da solução
+  (ou do grupo), com um ↗ para o registro; colapsado, a barra de cima passa a
+  mostrar `Solução ↗ › Página`, que é o que impede de perder o contexto.
   Um **link público** ("magic link", só para Solução) expõe a doc dela — e a de
   cada integração dela — sem exigir login. Renderização read-only via
   `App\Support\GitbookRenderer`.
-- **Assiste IA (rascunho por LLM)**: em qualquer página de doc de Solução ou na
-  doc de uma Integração, um painel lateral coleta um prompt + **documentos de
-  contexto** (coleção `context_documents` por Solução — PDF/imagem/texto,
-  compartilhados entre as páginas dela e as docs das suas integrações) + o
-  Markdown atual do editor, e gera um rascunho via job assíncrono
-  (`GenerateDocumentationDraft`) com polling — carregado no editor para revisão,
-  nada é salvo automaticamente. Textos entram embutidos no prompt (com orçamento
+- **Assiste IA (rascunho por LLM, em formato de chat)**: em qualquer página de
+  doc de Solução ou na doc de uma Integração, um painel lateral é uma
+  **conversa** — espelhando o composer do Especialista em Integrações — e não
+  um formulário de um tiro só. Cada turno recebe o histórico, o Markdown atual
+  do editor e os **documentos de contexto** marcados (coleção
+  `context_documents` por Solução — PDF/imagem/texto, compartilhados entre as
+  páginas dela e as docs das suas integrações; o upload persiste no `change`,
+  sem botão "anexar" à parte). Textos entram embutidos no prompt (com orçamento
   de caracteres); PDFs/imagens vão como anexos nativos ao modelo (`laravel/ai`).
-  Uma geração por alvo de cada vez (`WithoutOverlapping`).
+  A resposta vem de um job assíncrono (`GenerateDocumentationChatReply`, uma
+  geração por alvo de cada vez via `WithoutOverlapping`) com polling.
+
+  Três coisas que fazem o rascunho ser sempre uma proposta, nunca um fato
+  consumado: um rascunho vem numa **cerca de 4 crases** dentro da resposta (o
+  que deixa a conversa ser conversa e o rascunho ser rascunho no mesmo texto);
+  ele só chega ao editor depois de uma **revisão em diff** num modal; e
+  enquanto a geração corre o **editor fica travado**, para o rascunho não ser
+  aplicado sobre um texto que mudou por baixo. Uma geração em aberto é
+  retomada ao recarregar a página — sair do meio dela não perde o resultado.
+  Ao lado, um **checklist de requisitos** separa o que falta como *atributo*
+  (campo em branco na ficha) do que falta como *conteúdo* (seção que a doc não
+  cobre).
 - **Especialista em Integrações** (`/flowspec`): chat que gera o JSON de
   flowSpec Digibee a partir de um pedido em linguagem natural. Contexto **sem
   RAG** — Solutions citadas (explícitas via chips, ou inferidas casando o nome
@@ -430,7 +570,7 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   validado por `DigibeeFlowspecValidator`) é curado à mão a partir do que é
   usado de verdade nos pipelines Digibee da Leo Madeiras — ver "Notas
   técnicas" para a ferramenta que audita esse catálogo contra produção.
-- **Hub de Documentação** (`/documentacao`): visão gerencial transversal do
+- **Hub de Documentação** (`/documentation`): visão gerencial transversal do
   que está documentado e do que falta — soluções **e** integrações, cada uma
   com um selo por **conteúdo real** (não um flag manual), agrupadas por
   solução, com busca e filtro por tipo/status. Contadores agregados calculados
@@ -454,7 +594,7 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   rederivar. `Integration.viz_layout` é posição/estilo do canvas, sem nenhum
   efeito colateral em topologia. Ver `CLAUDE.md` § Integration topology
   invariant.
-- **Integrações vivem só a partir da solução.** Não há módulo `/integracoes`
+- **Integrações vivem só a partir da solução.** Não há módulo `/integrations`
   avulso (catálogo/detalhe) nem editor de diagrama em página própria — criar,
   editar topologia, renomear e mudar status acontecem todos no bloco
   "Integrações" do detalhe da solução. As rotas `solutions.integrations.*`
@@ -533,14 +673,20 @@ composer test
 ```
 
 Cobertura relevante: `IntegrationChain*Test` (edição de nó/ligação/protocolo/
-adicionar/remover na chain), `IntegrationLayoutSaveTest` (persistência de
+adicionar/remover/colar imagem na chain), `SyncIntegrationFromChainTest`
+(rederivação das colunas), `IntegrationLayoutSaveTest` (persistência de
 `viz_layout` sem tocar topologia), `SolutionAttributeInlineUpdateTest` (edição
-inline dos 8 atributos), `PersonContactsSyncTest` (sincronização de contatos
-adicionais), `DocumentationTest` (editor de blocos de Solução/Integração),
-`PublicDocumentationTest` (magic link), `DocumentationCoverageTest` (hub de
-documentação, content-based), `DocumentationAiAssistTest`/
-`DocumentationDraftServiceTest` (Assiste IA — job, polling e montagem do
-prompt), `FlowspecChatTest`/`FlowspecContextResolverTest`/
+inline dos 8 atributos), `{Solution,Person,Company}InlineFieldUpdateTest` e
+`{Solution,Person,Company}InlineRelationsTest` (edição in place das páginas de
+detalhe — campos, upload, e criar/trocar/remover relação), `DetailHeaderSlotTest`
+(a mutação devolve o slot da página de detalhe, não só o do índice),
+`PersonContactsSyncTest` (sincronização de contatos adicionais),
+`DocumentationTest` (editor de blocos de Solução/Integração),
+`DocumentationGroupTest` (grupos standalone), `PublicDocumentationTest` (magic
+link), `DocumentationCoverageTest` (hub de documentação, content-based),
+`DocumentationChatTest`/`DocumentationChatServiceTest` (Assiste IA — chat, job,
+polling e montagem do prompt), `DocumentationRequirementsTest` (checklist de
+requisitos), `FlowspecChatTest`/`FlowspecContextResolverTest`/
 `FlowspecGenerationServiceTest` (Especialista em Integrações — chat, resolução de
 contexto e loop de normalização/validação), `ColorRefactorTest`,
 `PageCrawlSmokeTest` (crawl de todas as páginas seedadas),
