@@ -76,6 +76,17 @@ function handleToggleEvent(e) {
 // Kept so initAllModules() can call it safely after slot updates.
 export function init() {}
 
+// A class can be deferred by suffixing it with `:<milliseconds>` — and that
+// syntax has to coexist with Tailwind's own colons, which are variants, not
+// delays. Only a suffix that is ENTIRELY digits counts: `hidden:300` waits
+// 300ms, while `md:!w-0` / `max-md:!translate-x-0` are ordinary class names.
+//
+// Splitting on the first `:` instead (as this did until 2026-08-15) turned
+// `md:!w-0` into `classList.toggle('md')` after `setTimeout(…, '!w-0')` — the
+// responsive class was never touched, so the documentation editor's pages rail
+// simply never collapsed, with nothing failing anywhere to say why.
+const DELAYED = /^(.+):(\d+)$/
+
 export function toggleElement(elementId, toggleClasses, event) {
     const element            = document.getElementById(elementId)
     const triggerClosedState = document.getElementById(`${elementId}-closed-state`)
@@ -83,19 +94,24 @@ export function toggleElement(elementId, toggleClasses, event) {
 
     if (element) {
         toggleClasses.forEach((toggleClass) => {
-            if (toggleClass.includes(':')) {
-                const [actualClass, timeToWait] = toggleClass.split(':')
-                setTimeout(() => { element.classList.toggle(actualClass) }, timeToWait)
-            } else {
+            const delayed = toggleClass.match(DELAYED)
+
+            if (delayed) {
+                const [, actualClass, timeToWait] = delayed
+                setTimeout(() => { element.classList.toggle(actualClass) }, Number(timeToWait))
+            } else if (toggleClass) {
                 element.classList.toggle(toggleClass)
             }
         })
     }
 
-    if (triggerClosedState && triggerOpenedState) {
-        triggerClosedState.classList.toggle('hidden')
-        triggerOpenedState.classList.toggle('hidden')
-    }
+    // Optional companion elements that flip with the target: `<id>-opened-state`
+    // shows while it's open, `<id>-closed-state` while it's closed. Each is
+    // toggled on its own — a target may legitimately have only one of them
+    // (the docs rail has no "opened" counterpart: its collapse only ADDS a
+    // crumb to the top bar, it doesn't swap one label for another).
+    triggerClosedState?.classList.toggle('hidden')
+    triggerOpenedState?.classList.toggle('hidden')
 
     event.stopPropagation()
 }

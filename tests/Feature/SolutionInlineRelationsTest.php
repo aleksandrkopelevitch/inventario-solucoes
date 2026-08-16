@@ -133,10 +133,68 @@ it('offers only unlinked people in the owners picker, with their company in the 
         ->get(route('solutions.show', $solution))
         ->assertOk();
 
-    $response->assertDontSee('>Já vinculada</option>', false);
     $response->assertSee('>Ainda livre — Leo Madeiras</option>', false);
+    // Someone already linked appears exactly once as an option: in their OWN
+    // row's swap picker, which opens on them. The "Vincular pessoa" creator
+    // never offers them (linking the same person twice is refused server-side).
+    expect(substr_count($response->getContent(), '>Já vinculada</option>'))->toBe(1);
     $response->assertSeeText('Vincular pessoa');
     $response->assertSee(route('solutions.people.destroy', [$solution, $linked]), false);
+});
+
+it('swaps who holds a role from the owners grid, carrying the link over', function () {
+    $solution = Solution::factory()->create();
+    $before = Person::factory()->create(['name' => 'Quem saiu']);
+    $after = Person::factory()->create(['name' => 'Quem entrou']);
+    $solution->people()->attach($before, ['role' => PersonSolutionRole::Business->value]);
+
+    $response = $this->actingAs(solutionRelationsAdmin())
+        ->patchJson(route('solutions.people.update', [$solution, $before]), ['person_id' => $after->id])
+        ->assertOk()
+        ->assertJson(['type' => 'success']);
+
+    expect(collect($response->json('updatableSlots'))->pluck('id')->all())
+        ->toEqual(['solution-detail-header-slot']);
+
+    // The pivot's identity is the (person, solution) pair, so the swap is a
+    // detach + attach — the ROLE has to survive it, or the person silently
+    // lands in another column.
+    expect($solution->people()->pluck('people.id')->all())->toEqual([$after->id]);
+    expect($solution->people()->first()->pivot->role)->toBe(PersonSolutionRole::Business->value);
+});
+
+it('refuses to swap an owner for someone already linked, and 404s a person who is not', function () {
+    $solution = Solution::factory()->create();
+    $technical = Person::factory()->create();
+    $business = Person::factory()->create();
+    $stranger = Person::factory()->create();
+    $solution->people()->attach($technical, ['role' => PersonSolutionRole::Technical->value]);
+    $solution->people()->attach($business, ['role' => PersonSolutionRole::Business->value]);
+
+    $this->actingAs(solutionRelationsAdmin())
+        ->patchJson(route('solutions.people.update', [$solution, $technical]), ['person_id' => $business->id])
+        ->assertStatus(422);
+
+    // Scoped binding: the route only resolves a person this solution is
+    // actually linked to, so there's no pivot for the swap to invent.
+    $this->actingAs(solutionRelationsAdmin())
+        ->patchJson(route('solutions.people.update', [$solution, $stranger]), ['person_id' => $technical->id])
+        ->assertNotFound();
+
+    expect($solution->people()->count())->toBe(2);
+});
+
+it('forbids a viewer from swapping an owner', function () {
+    $solution = Solution::factory()->create();
+    $person = Person::factory()->create();
+    $other = Person::factory()->create();
+    $solution->people()->attach($person, ['role' => PersonSolutionRole::Technical->value]);
+
+    $this->actingAs(User::factory()->create())
+        ->patchJson(route('solutions.people.update', [$solution, $person]), ['person_id' => $other->id])
+        ->assertForbidden();
+
+    expect($solution->people()->pluck('people.id')->all())->toEqual([$person->id]);
 });
 
 it('leaves the owners grid read-only for a viewer', function () {
@@ -153,4 +211,23 @@ it('leaves the owners grid read-only for a viewer', function () {
     $response->assertDontSeeText('Vincular pessoa');
     $response->assertDontSee('data-ak-inline-edit-field="person_id"', false);
     $response->assertDontSee('solutions/' . $solution->slug . '/people', false);
+});
+
+it('takes an owner row\'s unlink ✕ out of the way while that row is being edited', function () {
+    // See the twin test in PersonInlineRelationsTest — same component
+    // (`x-ui.row-remove`), same reason: the editor's cancel and the row's
+    // unlink are the same glyph, and only one of them is recoverable.
+    $solution = Solution::factory()->create();
+    $person = Person::factory()->create();
+    Person::factory()->create(); // someone left to swap to, so the row IS editable
+    $solution->people()->attach($person, ['role' => PersonSolutionRole::Technical->value]);
+
+    $content = $this->actingAs(solutionRelationsAdmin())
+        ->get(route('solutions.show', $solution))
+        ->assertOk()
+        ->getContent();
+
+    expect($content)
+        ->toContain('group-has-[[data-ak-inline-edit-form]:not(.hidden)]/row:invisible')
+        ->toContain('group/row');
 });

@@ -8,9 +8,10 @@ use Illuminate\View\Component;
 
 /**
  * Vertical tree (flat list, GitBook-style) for a Solution: its own pages
- * ("Páginas", manageable — create/rename/move/delete) and, right below, the
- * doc for each Integration it participates in ("Integrações", link-only —
- * consolidating both into a single screen, see NavigatesSolutionDocs). A
+ * (titled with the SOLUTION's name, manageable — create/rename/move/delete)
+ * and, right below, the doc for each Integration it participates in
+ * ("Integrações", link-only — consolidating both into a single screen, see
+ * NavigatesSolutionDocs). A
  * standalone DocumentationGroup has no integrations, so `$integrations`
  * arrives empty in that case and the section disappears. Purely
  * presentational — the URLs already come ready-made from the controller
@@ -33,15 +34,24 @@ class PagesNav extends Component
         public array $pages,
         public array $integrations,
         public string $createPageUrl,
+        /** What these pages document — the Solution's (or group's) name. */
+        public string $title = 'Páginas',
+        /** That record's own page, opened by the ↗ beside the title. */
+        public ?string $titleUrl = null,
     ) {}
 
     /**
      * @param  array<int, array<string, mixed>>  $pages
      * @param  array<int, array<string, mixed>>  $integrations
      */
-    public static function slot(array $pages, array $integrations, string $createPageUrl): array
-    {
-        return (new static($pages, $integrations, $createPageUrl))->toSlot(self::DOM_ID);
+    public static function slot(
+        array $pages,
+        array $integrations,
+        string $createPageUrl,
+        string $title = 'Páginas',
+        ?string $titleUrl = null,
+    ): array {
+        return (new static($pages, $integrations, $createPageUrl, $title, $titleUrl))->toSlot(self::DOM_ID);
     }
 
     public function render(): View
@@ -51,6 +61,8 @@ class PagesNav extends Component
             'pages'         => $this->pages,
             'integrations'  => $this->integrations,
             'createPageUrl' => $this->createPageUrl,
+            'title'         => $this->title,
+            'titleUrl'      => $this->titleUrl,
         ]);
     }
 }

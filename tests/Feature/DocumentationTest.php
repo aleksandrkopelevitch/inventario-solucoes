@@ -270,17 +270,39 @@ it('links a solution doc page back to the solution and lists it in the pages rai
         ->assertOk();
 
     expect($response->getContent())
-        // Top-bar back link points at the Solution.
+        // The ↗ beside the solution's name (rail title + collapsed crumb) is
+        // what replaced the old back arrow.
         ->toContain('href="' . route('solutions.show', $solution) . '"')
         // The current page is listed (and linked) in the collapsible pages rail.
         ->toMatch('/>\s*Visão geral\s*<\/a>/')
         // Collapsible pages rail (mirrors flowSpec): the aside + its toggle.
         ->toContain('id="docs-sidebar"')
         ->toContain('data-ak-toggle="docs-sidebar"')
-        // md+ collapses the in-flow rail by width. Scoped to `md:` on
-        // purpose — unscoped, the same click also zeroed the width of the
-        // mobile off-canvas overlay asserted below.
-        ->toContain('data-ak-toggle-classes="md:!w-0 md:!border-r-0"');
+        // One button, both mechanics: `md:` collapses the in-flow rail by
+        // width, `max-md:` slides the off-canvas overlay in. Each set is inert
+        // on the other's side of the breakpoint, so toggling them together can
+        // never leave the two states disagreeing.
+        ->toContain('data-ak-toggle-classes="md:!w-0 md:!border-r-0 max-md:!translate-x-0"');
+});
+
+it('titles the pages rail with the solution, not the generic word "Páginas"', function () {
+    $solution = Solution::factory()->create(['name' => 'Active Directory / Entra ID']);
+    $page = solutionPage($solution, '# Doc');
+    $page->update(['title' => 'Visão geral']);
+
+    $content = $this->actingAs(docsAdmin())
+        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->assertOk()
+        ->getContent();
+
+    expect($content)
+        ->toContain('Active Directory / Entra ID')
+        ->not->toContain('>Páginas<')
+        // Collapsed-rail crumb: same name again in the top bar, hidden until
+        // toggle.js flips it in (`docs-sidebar-closed-state`).
+        ->toContain('id="docs-sidebar-closed-state"')
+        // …and the back arrow it replaced is gone.
+        ->not->toContain('aria-label="Voltar"');
 });
 
 it('gives the pages rail a working mobile affordance instead of hiding it outright', function () {
@@ -298,15 +320,16 @@ it('gives the pages rail a working mobile affordance instead of hiding it outrig
         ->getContent();
 
     // Scoped to the rail's own opening tag: `max-md:hidden` is legitimately
-    // used elsewhere on this page (e.g. the desktop-only toggle button).
+    // used elsewhere on this page (e.g. the desktop-only crumb).
     preg_match('/<aside id="docs-sidebar"[^>]*>/', $content, $aside);
 
     expect($aside[0] ?? '')
         ->not->toContain('max-md:hidden') // the rail itself is no longer display:none'd
         ->toContain('max-md:-translate-x-full')
         // Exactly two controls drive the overlay: the top-bar trigger and
-        // the dismiss inside it.
-        ->and(substr_count($content, 'data-ak-toggle-classes="max-md:!translate-x-0"'))->toBe(2);
+        // the dismiss inside it. Both carry the SAME full class list, so the
+        // desktop and mobile collapse states can't drift apart.
+        ->and(substr_count($content, 'data-ak-toggle-classes="md:!w-0 md:!border-r-0 max-md:!translate-x-0"'))->toBe(2);
 });
 
 it('links an integration doc back to the solution and lists it under Integrações', function () {

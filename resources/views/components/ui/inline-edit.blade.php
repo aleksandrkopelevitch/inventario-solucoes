@@ -239,11 +239,15 @@
                      'items-center' => ! $stacked,
                      'items-start' => $stacked,
                      // Pulls the input's own left padding back out, so the value
-                     // stays roughly where it was being read instead of sliding
-                     // sideways as the editor opens. An image tile has no such
-                     // padding to compensate, and shifting it would do the very
-                     // thing this prevents.
-                     '-ml-2' => ! $hasFile,
+                     // stays where it was being read instead of sliding sideways
+                     // as the editor opens. It has to MATCH the editor's `px`
+                     // (`!px-1.5` in x-ui.inline-edit-field's `$chrome`), which
+                     // in turn matches read mode's own `-mx-1.5 px-1.5` — the
+                     // three are one measurement, and the alignment is only
+                     // exact while they agree. An image tile has no such padding
+                     // to compensate, and shifting it would do the very thing
+                     // this prevents.
+                     '-ml-1.5' => ! $hasFile,
                  ])>
                 @foreach ($editFields as $field)
                     <div class="{{ $field['class'] ?? 'min-w-0 flex-1' }}">

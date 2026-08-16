@@ -279,8 +279,25 @@
        `--ie-wash: rgba(255,255,255,.5)` on their gradient strip (a translucent
        WHITE lifts a pastel instead of dirtying it); everything else inherits
        the ink tint below. Deliberately faint: the datum is the content, and
-       the wash is only meant to be noticed under the cursor. */
+       the wash is only meant to be noticed under the cursor.
+
+       Since 2026-08-14 this wash is ALSO the ground of the open editor — it
+       doesn't leave when the editor arrives, which is what removes the jump of
+       state between hovering a value and typing over it (see the `$chrome` of
+       x-ui.inline-edit-field). Note that the editor reads `var(--ie-wash)`
+       directly, on the input: aliasing it here (`--ie-edit-bg: var(--ie-wash)`)
+       would resolve the reference on THIS element and hand every ground the ink
+       tint, losing the translucent white the detail headers set. */
     --ie-wash: color-mix(in srgb, var(--color-ink) 5%, transparent);
+
+    /* The 1.5px rule under an open editor's text, and the only thing that
+       replaced the border the editor used to draw: it says where the field
+       begins and ends without boxing the value in. Mixed down from the brand
+       green on purpose — at full strength a line under every field being edited
+       competes with the value itself, which is the content. A ground can
+       override it exactly like `--ie-wash` above if the green ever fails on it;
+       so far one value works on both the white cards and the pastel strips. */
+    --ie-rule: color-mix(in srgb, var(--color-accent) 55%, transparent);
 }
 
 /* ── Accessibility: honour prefers-reduced-motion ──────────────────────

@@ -44,22 +44,10 @@
                         </x-ui.inline-edit>
 
                         @if ($canEdit)
-                            {{-- Row-level delete: hidden form carries the CSRF
-                                 token + method, the ghost button posts it
-                                 (`ajax-post.js`), same pattern as the context
-                                 documents chips. --}}
-                            <form id="person-system-remove-{{ $solution->id }}" class="hidden">
-                                @csrf
-                                @method('DELETE')
-                            </form>
-                            <x-forms.button type="button" variant="ghost"
-                                            class="!size-6 !rounded-full !p-0 text-faint opacity-0 transition-opacity group-hover/row:opacity-100 hover:!bg-crit-soft hover:!text-crit focus-visible:opacity-100"
-                                            data-ak-ajax="person-system-remove-{{ $solution->id }}"
-                                            data-ak-action="{{ route('people.solutions.destroy', [$person, $solution]) }}"
-                                            data-ak-confirm="Desvincular &quot;{{ $solution->name }}&quot; desta pessoa?"
-                                            aria-label="Desvincular {{ $solution->name }}" title="Desvincular">
-                                <x-heroicon-o-x-mark class="size-3.5" />
-                            </x-forms.button>
+                            <x-ui.row-remove id="person-system-remove-{{ $solution->id }}"
+                                             :action="route('people.solutions.destroy', [$person, $solution])"
+                                             confirm='Desvincular "{{ $solution->name }}" desta pessoa?'
+                                             label="Desvincular {{ $solution->name }}" />
                         @endif
                     </div>
                 </li>

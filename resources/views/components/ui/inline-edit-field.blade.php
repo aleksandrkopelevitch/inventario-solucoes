@@ -33,28 +33,58 @@
 
 @php
     // Chrome shared by every editor field, and the whole point of it is
-    // continuity with what it replaced: a hairline instead of the panel forms'
-    // heavier border, padding tight enough that the text keeps roughly the
-    // position it had while read-only, and the app's usual accent ring once
-    // focused (which is the state the user actually sees — the editor opens
-    // focused).
+    // continuity with what it replaced. Since 2026-08-14 the editor draws NO
+    // BOX AT ALL: no border, no white fill, no shadow, no focus ring. What was
+    // a hairline-framed field is now the read value's own hover wash, which
+    // simply stays, plus a 1.5px rule under the text. The reasoning, which is
+    // the whole reason this component exists, is that hover already promised
+    // one thing (the wash) and clicking used to deliver another (a white box
+    // with a shadow) — a jump of state in the middle of a page you're reading.
+    // Keeping the wash removes the jump; the rule does the one useful thing the
+    // border did, which is say where the field begins and ends.
+    //
+    // Three things here are load-bearing, and each is easy to undo:
+    //
+    // - `var(--ie-wash)` is read HERE, on the control, never aliased into a
+    //   `:root` variable of its own. A custom property's `var()` is substituted
+    //   on the element that DECLARES it, so `--ie-edit-bg: var(--ie-wash)` in
+    //   `:root` would resolve to the ink tint for the whole app and lose the
+    //   translucent white the three detail headers set on their pastel strip.
+    //
+    // - The rule is an INSET box-shadow, not a `border-bottom`: a border adds
+    //   1.5px of height and shoves the text up as the editor opens, which is
+    //   exactly what this component exists to avoid. It's repeated in the
+    //   `focus:` variant only to beat x-forms.input's own focus ring — the
+    //   editor opens focused, so that ring is the state the user actually sees.
+    //
+    // - Padding mirrors read mode's wash (`-mx-1.5 px-1.5 -my-0.5 py-0.5`), so
+    //   the value keeps the position it was read in. The bottom corners stay
+    //   square: rounding them under a straight rule draws a box again.
+    //
+    // `placeholder:!italic` is not decoration either. Without a border, a blank
+    // field's editor would be a caret alone on the page — the italic faint
+    // placeholder (the field's own label) is what's left to anchor the eye, and
+    // it's the same italic faint treatment read mode gives "Não informado".
     //
     // Every utility is `!`-marked because it has to beat the SAME utility
     // inside x-forms.input/select/textarea: both strings land in one class
     // attribute, and which one wins there is decided by CSS order, not by who
     // wrote it last. That includes the focus pair — an unmarked
-    // `focus:border-accent` would lose to an important `!border-line`.
+    // `focus:shadow-…` would lose to the important base shadow.
     $chrome = implode(' ', [
-        '!rounded-field !border-line !bg-surface !py-1 !shadow-sm',
-        'focus:!border-accent focus:!shadow-[0_0_0_3px_var(--color-accent-soft)]',
+        '!rounded-t-field !rounded-b-none !border-0 !bg-[var(--ie-wash)] !py-0.5',
+        '!shadow-[inset_0_-1.5px_0_0_var(--ie-rule)] focus:!shadow-[inset_0_-1.5px_0_0_var(--ie-rule)]',
+        'placeholder:!italic',
     ]);
 @endphp
 
 @if ($type === 'select')
-    {{-- `!pr-7` rather than a symmetric `!px-2`: the component's own chevron
-         lives in that right-hand gutter. --}}
+    {{-- `!pr-7` rather than a symmetric `!px-1.5`: the component's own chevron
+         lives in that right-hand gutter — and with no border left to announce
+         it, that chevron is now the ONLY thing saying this value opens a list,
+         so the gutter it needs is not negotiable. --}}
     <x-forms.select data-ak-inline-edit-field="{{ $name }}" aria-label="{{ $label ?? $name }}"
-                    class="{{ $chrome }} !pl-2 !pr-7 {{ $inputClass }}">
+                    class="{{ $chrome }} !pl-1.5 !pr-7 {{ $inputClass }}">
         @if ($nullable)
             <option value="">{{ $empty }}</option>
         @endif
@@ -67,7 +97,7 @@
          Ctrl/Cmd+Enter instead. --}}
     <x-forms.textarea data-ak-inline-edit-field="{{ $name }}" :rows="$rows"
                       placeholder="{{ $placeholder ?? $label }}" aria-label="{{ $label ?? $name }}"
-                      class="{{ $chrome }} !px-2 !leading-relaxed {{ $inputClass }}">{{ $value }}</x-forms.textarea>
+                      class="{{ $chrome }} !px-1.5 !leading-relaxed {{ $inputClass }}">{{ $value }}</x-forms.textarea>
 
     {{-- Every textarea in this component is a free-text field read back through
          x-ui.markdown, and nothing else on screen says so — the editor is a
@@ -97,5 +127,5 @@
 @else
     <x-forms.input :type="$type" :value="$value" data-ak-inline-edit-field="{{ $name }}"
                    placeholder="{{ $placeholder ?? $label }}" aria-label="{{ $label ?? $name }}"
-                   class="{{ $chrome }} !px-2 {{ $inputClass }}" />
+                   class="{{ $chrome }} !px-1.5 {{ $inputClass }}" />
 @endif

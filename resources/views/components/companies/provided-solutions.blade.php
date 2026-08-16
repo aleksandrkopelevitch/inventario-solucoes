@@ -37,18 +37,10 @@
                         <span class="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent ring-1 ring-accent-line">{{ $solution->category_label }}</span>
 
                         @if ($canEdit)
-                            <form id="company-solution-remove-{{ $solution->id }}" class="hidden">
-                                @csrf
-                                @method('DELETE')
-                            </form>
-                            <x-forms.button type="button" variant="ghost"
-                                            class="!size-6 !rounded-full !p-0 text-faint opacity-0 transition-opacity group-hover/row:opacity-100 hover:!bg-crit-soft hover:!text-crit focus-visible:opacity-100"
-                                            data-ak-ajax="company-solution-remove-{{ $solution->id }}"
-                                            data-ak-action="{{ route('companies.solutions.destroy', [$company, $solution]) }}"
-                                            data-ak-confirm="Desvincular &quot;{{ $solution->name }}&quot; desta empresa? O sistema continua cadastrado, apenas sem fornecedor."
-                                            aria-label="Desvincular {{ $solution->name }}" title="Desvincular">
-                                <x-heroicon-o-x-mark class="size-3.5" />
-                            </x-forms.button>
+                            <x-ui.row-remove id="company-solution-remove-{{ $solution->id }}"
+                                             :action="route('companies.solutions.destroy', [$company, $solution])"
+                                             confirm='Desvincular "{{ $solution->name }}" desta empresa? O sistema continua cadastrado, apenas sem fornecedor.'
+                                             label="Desvincular {{ $solution->name }}" />
                         @endif
                     </div>
                 </li>

@@ -465,8 +465,7 @@ expect($response->json('message'))->toContain('campo esperado');
 ```
 
 - Client-side error handling should read `data.message` directly, not
-  `data.errors` (see `resources/js/modules/solution-attributes.js` for the
-  pattern).
+  `data.errors` (see `resources/js/modules/inline-edit.js` for the pattern).
 
 ## Collections
 
@@ -749,7 +748,7 @@ Never register a new collection/conversion without checking the 4 above first �
 
 ## JavaScript — use modules before creating new ones
 
-Before writing any new JS behavior, check if an existing module in `resources/js/modules/` already handles it. The project has modules for: toggle, tabs, side panel, AJAX form submission, filters, search, chips (multi-select with autocomplete), and more. (Modules inherited from akop-pro with zero consumers — mask, standalone autocomplete, copy-content, url-location, event-helpers, string-helpers, search-in-container, switch-button, radio-group — were removed on 2026-07-16; they weren't even part of `app.js`'s bundle. `file-upload.js` was removed on 2026-07-27 for the same reason, just discovered later — it WAS registered in `app.js`'s `globalModules`, but no Blade view ever rendered its `data-ak-file-upload` hook; actual image/logo upload UI goes through `avatar-upload.js`/`<x-forms.image-upload>` instead.)
+Before writing any new JS behavior, check if an existing module in `resources/js/modules/` already handles it. The project has modules for: toggle, tabs, side panel, AJAX form submission, filters, search, chips (multi-select with autocomplete), and more. (Modules inherited from akop-pro with zero consumers — mask, standalone autocomplete, copy-content, url-location, event-helpers, string-helpers, search-in-container, switch-button, radio-group — were removed on 2026-07-16; they weren't even part of `app.js`'s bundle. `file-upload.js` was removed on 2026-07-27 for the same reason, just discovered later — it WAS registered in `app.js`'s `globalModules`, but no Blade view ever rendered its `data-ak-file-upload` hook; actual image/logo upload UI goes through `avatar-upload.js`/`<x-forms.image-upload>` instead. `solution-attributes.js` went on 2026-08-15, for a different reason: its one consumer — the Solution header's 8 attribute badges — moved to `inline-edit.js`, which left it with no `data-ak-solution-attribute` hook anywhere in the app.)
 
 Only create a new module when the behavior is genuinely not covered. When creating one, follow the delegation pattern:
 
@@ -800,8 +799,8 @@ All JS hooks use the `data-ak-*` prefix. Internal slots (`data-spinner`, `data-l
 | `data-ak-ajax="form-id"` | `ajax-post.js` | Triggers AJAX form submission on click |
 | `data-ak-action="url"` | `ajax-post.js` | POST destination URL |
 | `data-ak-confirm="msg"` | `ajax-post.js` | `window.confirm` gate before the AJAX fires |
-| `data-ak-toggle="element-id"` | `toggle.js` | ID of element to toggle |
-| `data-ak-toggle-classes="cls"` | `toggle.js` | Classes to toggle on target |
+| `data-ak-toggle="element-id"` | `toggle.js` | ID of element to toggle. Anything with id `<element-id>-opened-state` / `-closed-state` has its `hidden` flipped along with it — each independently, so a target may have only one of the two (the docs rail has no "opened" counterpart: collapsing it only ADDS the solution crumb to the top bar) |
+| `data-ak-toggle-classes="cls"` | `toggle.js` | Space-separated classes to toggle on the target. A class may be deferred with `class:<ms>` (`hidden:300`) — only an **all-digits** suffix counts, so Tailwind variants (`md:!w-0`, `max-md:!translate-x-0`) pass through untouched. Splitting on the first `:` instead is what silently broke the documentation editor's pages rail until 2026-08-15: it toggled a class literally named `md` |
 | `data-ak-toggle-event="click"` | `toggle.js` | Trigger event (default: `click`) |
 | `data-ak-toggle-once` | `toggle.js` | Fire only once |
 | `data-ak-toggle-blur="true"` | `toggle.js` | Close on outside click |
@@ -821,7 +820,6 @@ All JS hooks use the `data-ak-*` prefix. Internal slots (`data-spinner`, `data-l
 | `data-ak-search-hint="input-id"` | `execute-search.js` | Element whose text is set to the "digite N+ letras" hint while 1–2 chars are typed, cleared otherwise |
 | `data-ak-avatar-upload='{"inputId":"…"}'` | `avatar-upload.js` | Avatar upload trigger |
 | `data-ak-top-nav` | `top-nav.js` | Element that receives scroll shadow |
-| `data-ak-solution-attribute` (on a `<select>`) + `data-solution-attributes`/`data-action="url"` (on the wrapping `<dl>`) | `solution-attributes.js` | Auto-persists one Solution attribute on `change`, no save button |
 | `data-ak-inline-edit="{action,method}"` (root) + `-read`/`-open`/`-form`/`-confirm`/`-cancel`, and `data-ak-inline-edit-field="<field name>"` on each input | `inline-edit.js` | Edit-in-place on an otherwise read-only page — read mode is whatever `<x-ui.inline-edit>`'s caller rendered, and it opens on a **double click** or on a single click of the pencil button (`-open`) beside it; a single click over the value is left to reading/selecting/the ↗. A creator ("+ Adicionar …", `method: POST`) is the exception — its read mode is a chip, so one click opens it. The editor is one field (or a few, for the creators) plus a discreet confirm/cancel icon pair. Enter confirms, Esc cancels, Ctrl/Cmd+Enter in a textarea; clicking away closes it if nothing was typed. `method: POST` makes the same component a creator. The payload is built from the field hooks' own names, so there's no second list to keep in step. Reference implementation: the whole person detail page (`People\DetailHeader`, `People\Notes`, `People\Systems`) — text/select/textarea/photo, plus add/remove of contacts and system links |
 | `data-ak-inline-edit-link` (on the ↗ anchor `x-ui.external-link` renders) | `inline-edit.js` | Escape hatch for the one place where navigation and editing compete — see "A datum that links somewhere" below |
 | `data-ak-contacts` (root, + `data-ak-contacts-next` counter) + `data-ak-contacts-list`/`data-ak-contact-row`/`data-ak-contact-add`/`data-ak-contact-remove` | `person-contacts.js` | Additional-contacts repeater on the Person form — add/remove rows client-side; synced server-side by `PersonController::syncContacts()` |
@@ -907,23 +905,61 @@ Four things carry that, and each is easy to undo by accident:
   `!font-display !text-[28px]/[32px] !font-bold …`. Skip it and a 32px heading
   is retyped in 14px body text, which is the single most jarring thing this
   page can do. Everything read at the app's default `text-sm` needs nothing.
-- **Chrome.** `x-ui.inline-edit-field` puts one `$chrome` string on every
-  input/select/textarea (hairline border, tight padding, accent ring on focus).
-  Every utility in it is `!`-marked — it has to beat the same utility inside
-  `x-forms.input`/`select`/`textarea`, and both strings land in one class
-  attribute where CSS order, not authoring order, decides. That includes the
-  focus pair: an unmarked `focus:border-accent` loses to an important
-  `!border-line`.
+- **Chrome — the editor draws no box.** Since 2026-08-14 `x-ui.inline-edit-field`'s
+  one `$chrome` string has **no border, no white fill, no shadow and no focus
+  ring**: the open editor's ground IS read mode's own hover wash (`--ie-wash`,
+  which simply doesn't leave), plus a 1.5px rule underneath (`--ie-rule`). The
+  reason is that hover promised one thing and clicking used to deliver another
+  (a white bordered box with a shadow) — a jump of register in the middle of a
+  page you're reading. Three details are load-bearing:
+  - `var(--ie-wash)` is read **on the control**, never aliased into a `:root`
+    variable of its own. A custom property's `var()` is substituted on the
+    element that DECLARES it, so `--ie-edit-bg: var(--ie-wash)` in `:root`
+    would hand the whole app the ink tint and lose the translucent white the
+    three detail headers set on their pastel strip. (Verified: the editor on a
+    header strip computes `rgba(255,255,255,.5)`, on a white card ink-5%.)
+  - the rule is an **inset box-shadow, not a `border-bottom`** — a border adds
+    1.5px of height and shoves the text up as the editor opens. It's repeated
+    in the `focus:` variant only to beat `x-forms.input`'s own accent ring,
+    which would otherwise be the state the user actually sees (the editor opens
+    focused).
+  - `placeholder:!italic` is not decoration: with no border, a blank field's
+    editor would be a caret alone on the page, so the italic faint placeholder
+    (the field's label) is what anchors the eye — the same treatment read mode
+    gives "Não informado". A `select` leans on `x-forms.select`'s chevron for
+    the same reason, which is why `!pr-7` keeps its gutter.
+
+  Every utility in `$chrome` is `!`-marked — it has to beat the same utility
+  inside `x-forms.input`/`select`/`textarea`, and both strings land in one class
+  attribute where CSS order, not authoring order, decides. (Leading-`!` still
+  compiles in Tailwind 4.3, including inside a variant — `focus:!shadow-[…]`
+  emits correctly; confirmed against the built stylesheet.)
 - **Geometry.** Confirm/cancel (`x-ui.inline-edit-actions`) sit *beside* a
   one-line field so the block keeps its height and the page below it doesn't
   jump; they only move under the field when it's a textarea, an image, or a
   multi-field creator, which are already changing the height. The editor row's
-  `-ml-2` cancels the input's own padding so the text doesn't slide sideways
-  as it opens. The `file` editor's tile takes the size AND shape (`image-shape`)
-  of the avatar/logo it replaces.
+  `-ml-1.5` cancels the input's own padding so the text doesn't slide sideways
+  as it opens — that number, the editor's `!px-1.5` and read mode's
+  `-mx-1.5 px-1.5` are **one measurement in three places**, and the alignment
+  is only exact while they agree (measured: 0.0px of horizontal travel from
+  read to edit on every field of the person header). The `file` editor's tile
+  takes the size AND shape (`image-shape`) of the avatar/logo it replaces.
 - **The wash.** The hover/focus tint is `--ie-wash` (app.css), overridden to a
-  translucent white by the three detail headers' gradient strips — an ink tint
-  reads as a grey smudge over a pastel.
+  translucent white by the three detail headers' gradient strips and by the
+  Solution's notes post-it — an ink tint reads as a grey smudge over a pastel
+  or a warm ground. It is now the edit ground too, so a ground that overrides
+  it moves both states at once, on purpose.
+
+**Nothing on these pages looks like a form until you ask to edit it.** That
+includes the Solution header's 8 attribute badges, which until 2026-08-15 were
+the exception: bare `<select>`s that auto-saved on `change` (`solution-attributes.js`,
+now deleted along with its `data-ak-solution-attribute` hook). They're
+`x-ui.inline-edit type="select"` like everything else now — the read mode is the
+same tone-coloured chip a viewer sees, the editor keeps the chip's typography
+via `input-class`, and the endpoint stays `solutions.attributes.update` (they're
+`attribute_options` values validated per group, not solution columns). If you
+add another auto-saving control here, you're re-opening a question this page has
+already answered.
 
 Two traps, both hit on 2026-08-14 and both invisible in review:
 
@@ -988,9 +1024,10 @@ Two things to keep in step when touching them:
 
 Every detail page also attaches/detaches its relations without the panel. The
 shape is always the same — a `+ Adicionar …` creator (`x-ui.inline-edit` with
-`method="POST"`), a hover-revealed ✕ per row (a hidden `<form>` with
-`@csrf`/`@method('DELETE')` + a ghost `data-ak-ajax` button), and a View
-Component whose `slot()` the mutation answers with:
+`method="POST"`), a hover-revealed ✕ per row (**`x-ui.row-remove`**: the hidden
+`<form>` with `@csrf`/`@method('DELETE')` plus the ghost `data-ak-ajax` button,
+in one component), and a View Component whose `slot()` the mutation answers
+with:
 
 | card | relation | endpoints | slot |
 |---|---|---|---|
@@ -998,7 +1035,7 @@ Component whose `slot()` the mutation answers with:
 | `People\DetailHeader` (contacts strip) | `Person::contacts()` | `people.contacts.{store,update,destroy}` | `person-detail-header-slot` |
 | `Companies\People` | `Person.company_id` | `companies.people.{store,destroy}` | `company-people-slot` |
 | `Companies\ProvidedSolutions` | `Solution.vendor_company_id` | `companies.solutions.{store,destroy}` | `company-solutions-slot` |
-| `Solutions\DetailHeader` (owners grid) | `person_solution` pivot | `solutions.people.{store,destroy}` | `solution-detail-header-slot` |
+| `Solutions\DetailHeader` (owners grid) | `person_solution` pivot | `solutions.people.{store,update,destroy}` | `solution-detail-header-slot` |
 
 Things that are easy to get wrong here:
 
@@ -1016,6 +1053,12 @@ Things that are easy to get wrong here:
   need it (`detach` no-ops on a row that isn't there). `{providedSolution}` is
   named for the relation the scoped binding resolves through — Company has no
   `solutions()`.
+- **A pivot UPDATE does need scoping**, unlike its detach: `people.solutions.update`
+  and `solutions.people.update` both READ the link they're replacing (the pivot's
+  identity is the pair, so re-pointing one is detach + attach, carrying `role`
+  and `is_primary` over). Without `scopeBindings()` the route would resolve a
+  person/solution with no pivot at all and the "carry over" would read from thin
+  air.
 - **The card components use `loadMissing()`**, so the controller must `load()`
   the mutated relation *before* rendering the slot, or the card answers with the
   pre-mutation copy. That's why those helpers take a closure and reload first
@@ -1026,13 +1069,31 @@ Things that are easy to get wrong here:
   option is what's already there. A picker that can move a record away from
   another owner puts that owner in the option label (`Ana Silva — Outra
   Empresa`), so the move is never made blind.
+- **A row that can be edited must never show two ✕ at once.** The moment an
+  `x-ui.inline-edit` inside a row opens, its cancel lands next to the row's
+  unlink — the same glyph, one recoverable and one not. `x-ui.row-remove`
+  handles it for every card at once with
+  `group-has-[[data-ak-inline-edit-form]:not(.hidden)]/row:invisible`, which
+  reads the state `inline-edit.js` already publishes instead of inventing a
+  second one. Two things it depends on: the enclosing row must be named
+  **`group/row`** (the contacts strip said `group/contact` and the rule would
+  have silently idled), and the utility is `invisible`, not `hidden` —
+  `visibility` keeps the row's height (no reflow as the editor opens), never
+  fights `x-forms.button`'s own `inline-flex`, beats the hover `opacity-100`
+  without an `!` (different property), and drops the button from the tab order
+  so Tab from the open field can't reach the destructive one.
 
-The solution header carries **two** inline mechanisms side by side, on purpose:
-its own columns go through `x-ui.inline-edit` (confirm/cancel), while the 8
-attribute badges keep the older `solution-attributes.js` (a `<select>` that
-auto-saves on `change`, no confirm) and `solutions.attributes.update`. Don't
-merge them without a reason — the attribute badges also feed the
-"gerenciar atributos" option lists.
+The solution header speaks to **three** endpoints through the one
+`x-ui.inline-edit` gesture — its own columns (`solutions.field.update`), the 8
+attribute badges (`solutions.attributes.update`), and the owners grid
+(`solutions.people.*`). Three requests, not three interactions: the header is
+read-only text until something is double-clicked, everywhere.
+
+The owners grid's row editor changes WHO holds a role, not which role — the role
+is the column the row sits in, and a role picker inside a column already titled
+with one has nowhere honest to live. Re-roling stays on the person's page (where
+the role is a badge of its own), even though `UpdateSolutionPersonRequest`
+validates `role` too, to stay symmetric with its mirror.
 
 ### F3 canvas gestures run on POINTER events — never add a `mouse*` listener
 

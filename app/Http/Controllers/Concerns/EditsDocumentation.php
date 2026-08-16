@@ -23,21 +23,34 @@ trait EditsDocumentation
      * Editor.js; other users see the read-only render (GitbookRenderer),
      * decided client-side via `canEdit`.
      *
-     * @param  array{save: string, upload: string, back: string}  $urls
+     * `$containerLabel`/`$containerUrl` are what the page BELONGS to — the
+     * Solution, or the standalone group. They title the pages rail and, once
+     * that rail is collapsed, become the "Solução › Página" crumb in the top
+     * bar; the ↗ beside them is the only way back to that record (there is no
+     * back arrow — it pointed at the same place without ever naming it).
+     *
+     * @param  array{save: string, upload: string}  $urls
      */
-    protected function documentationView(Documentable $model, array $urls, string $eyebrow, string $backLabel): View
-    {
+    protected function documentationView(
+        Documentable $model,
+        array $urls,
+        string $eyebrow,
+        string $pageLabel,
+        string $containerLabel,
+        string $containerUrl,
+    ): View {
         $canEdit = request()->user()->can('update', $model);
 
         return view('documentation.edit', [
-            'title'         => $model->documentationTitle(),
-            'eyebrow'       => $eyebrow,
-            'backUrl'       => $urls['back'],
-            'backLabel'     => $backLabel,
-            'saveUrl'       => $urls['save'],
-            'uploadUrl'     => $urls['upload'],
-            'documentation' => $model->documentation,
-            'canEdit'       => $canEdit,
+            'title'          => $model->documentationTitle(),
+            'eyebrow'        => $eyebrow,
+            'pageLabel'      => $pageLabel,
+            'containerLabel' => $containerLabel,
+            'containerUrl'   => $containerUrl,
+            'saveUrl'        => $urls['save'],
+            'uploadUrl'      => $urls['upload'],
+            'documentation'  => $model->documentation,
+            'canEdit'        => $canEdit,
             // Only users who can't edit receive the already-rendered HTML
             // (the editor builds its own from the raw Markdown client-side).
             'renderedHtml' => $canEdit ? '' : app(GitbookRenderer::class)->render($model->documentation),

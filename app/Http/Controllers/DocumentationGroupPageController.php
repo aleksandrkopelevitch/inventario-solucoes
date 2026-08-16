@@ -46,8 +46,12 @@ class DocumentationGroupPageController extends Controller
         return $this->documentationView($page, [
             'save'   => route('documentation.groups.pages.update', [$group, $page]),
             'upload' => route('documentation.groups.pages.media', [$group, $page]),
-            'back'   => route('documentation.index'),
-        ], eyebrow: 'Grupo · ' . $group->name, backLabel: $page->title)->with([
+        ],
+            eyebrow: 'Grupo · ' . $group->name,
+            pageLabel: $page->title,
+            containerLabel: $group->name,
+            containerUrl: route('documentation.groups.show', $group),
+        )->with([
             'pagesNav'      => $this->navPages($group, $page),
             'createPageUrl' => route('documentation.groups.pages.store', $group),
             'breadcrumbs'   => [
@@ -99,6 +103,8 @@ class DocumentationGroupPageController extends Controller
                 $this->navPages($group, $page->fresh()),
                 [],
                 route('documentation.groups.pages.store', $group),
+                $group->name,
+                route('documentation.groups.show', $group),
             )],
         ]);
     }

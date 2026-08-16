@@ -86,8 +86,12 @@ class SolutionDocumentationController extends Controller
         return $this->documentationView($page, [
             'save'   => route('solutions.docs.update', [$solution, $page]),
             'upload' => route('solutions.docs.media', [$solution, $page]),
-            'back'   => route('solutions.show', $solution),
-        ], eyebrow: 'Solução · ' . $solution->name, backLabel: $page->title)->with([
+        ],
+            eyebrow: 'Solução · ' . $solution->name,
+            pageLabel: $page->title,
+            containerLabel: $solution->name,
+            containerUrl: route('solutions.show', $solution),
+        )->with([
             'pagesNav'        => $this->solutionPagesNav($solution, $page),
             'integrationsNav' => $this->solutionIntegrationsNav($solution, null),
             'createPageUrl'   => route('solutions.docs.pages.store', $solution),
@@ -98,8 +102,9 @@ class SolutionDocumentationController extends Controller
             // treats it as optional via @isset.
             'coverageSolution' => $solution,
             // The Solution's name already becomes a breadcrumb — the top of
-            // the screen shows the current page's title (see $backLabel
-            // above), it doesn't repeat the name.
+            // the screen shows the current page's title (see $pageLabel
+            // above), and repeats the name only once the pages rail that
+            // carries it is collapsed.
             'breadcrumbs' => [
                 ['label' => $solution->name, 'url' => route('solutions.show', $solution)],
                 ['label' => 'Documentação', 'url' => route('solutions.docs.edit', $solution)],
@@ -156,6 +161,8 @@ class SolutionDocumentationController extends Controller
                 $this->solutionPagesNav($solution, $page->fresh()),
                 $this->solutionIntegrationsNav($solution, null),
                 route('solutions.docs.pages.store', $solution),
+                $solution->name,
+                route('solutions.show', $solution),
             )],
         ]);
     }
