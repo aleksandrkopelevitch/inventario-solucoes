@@ -188,28 +188,39 @@ it('makes every own field click-to-edit for an admin, with placeholders for the 
     // A blank field still has to be clickable — the placeholder IS the handle.
     $response->assertSeeText('Adicionar descrição');
     $response->assertSeeText('Definir fornecedor');
-    $response->assertSeeText('Adicionar nota');
+    $response->assertSeeText('Adicionar anotação');
     $response->assertSee('id="solution-logo-inline-file"', false);
 
-    // The 8 attribute badges keep their own, older mechanism on the same header.
-    $response->assertSee('data-ak-solution-attribute', false);
+    // The 8 attribute badges answer to the same gesture (they used to be
+    // permanently-open selects with an auto-save of their own).
+    foreach (['category', 'status', 'criticality', 'directorate'] as $group) {
+        $response->assertSee('data-ak-inline-edit-field="' . $group . '"', false);
+    }
+    $response->assertDontSee('data-ak-solution-attribute', false);
 });
 
-it('does not dress an empty support note as the red warning box', function () {
+it('renders the notes block as a post-it, in the same tone whether or not it is written', function () {
     $solution = Solution::factory()->create(['support_operation_note' => null]);
 
+    // No state swap: an empty note is the same warm block with an invitation
+    // to write on it — it was a red alert box, which overstated what people
+    // actually write here.
     $this->actingAs(solutionFieldAdmin())
         ->get(route('solutions.show', $solution))
         ->assertOk()
-        ->assertSeeText('Suporte × operação')
-        ->assertDontSee('border-crit-line', false);
+        ->assertSeeText('Anotações')
+        ->assertSee('bg-hot-soft', false)
+        ->assertDontSee('border-crit-line', false)
+        ->assertDontSeeText('Suporte × operação');
 
     $solution->update(['support_operation_note' => 'Suporte 8x5, operação 24x7.']);
 
     $this->actingAs(solutionFieldAdmin())
         ->get(route('solutions.show', $solution))
         ->assertOk()
-        ->assertSee('border-crit-line', false);
+        ->assertSee('bg-hot-soft', false)
+        ->assertDontSee('border-crit-line', false)
+        ->assertSeeText('Suporte 8x5, operação 24x7.');
 });
 
 it('reaches the vendor company through the ↗, leaving the chip to the editor', function () {

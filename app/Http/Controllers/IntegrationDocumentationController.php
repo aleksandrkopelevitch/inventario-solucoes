@@ -33,8 +33,12 @@ class IntegrationDocumentationController extends Controller
         return $this->documentationView($integration, [
             'save'   => route('solutions.integrations.docs.update', [$solution, $integration]),
             'upload' => route('solutions.integrations.docs.media', [$solution, $integration]),
-            'back'   => route('solutions.show', $solution),
-        ], eyebrow: 'Integração · ' . $solution->name, backLabel: $integration->name)->with([
+        ],
+            eyebrow: 'Integração · ' . $solution->name,
+            pageLabel: $integration->name,
+            containerLabel: $solution->name,
+            containerUrl: route('solutions.show', $solution),
+        )->with([
             // Only set here (never by SolutionDocumentationController /
             // DocumentationGroupPageController) — documentation/edit.blade.php
             // uses `isset($integration)` as the single signal to render the

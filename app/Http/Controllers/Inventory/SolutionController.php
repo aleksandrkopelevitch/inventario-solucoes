@@ -7,6 +7,7 @@ use App\Http\Requests\StoreSolutionPersonRequest;
 use App\Http\Requests\StoreSolutionRequest;
 use App\Http\Requests\UpdateSolutionAttributesRequest;
 use App\Http\Requests\UpdateSolutionFieldRequest;
+use App\Http\Requests\UpdateSolutionPersonRequest;
 use App\Http\Requests\UpdateSolutionRequest;
 use App\Models\AttributeOption;
 use App\Models\Company;
@@ -169,6 +170,37 @@ class SolutionController extends Controller
         return $this->ownersSaved($solution, 'Pessoa vinculada.');
     }
 
+    /**
+     * Swaps WHO holds one of the three roles, without unlinking and relinking.
+     * Mirror of `PersonController::updateSolution`: the pivot's identity IS the
+     * (person, solution) pair, so there's no row to update in place — detach +
+     * attach, carrying over what the link already held (its role, unless this
+     * same request changes it, and `is_primary`; dropping either would be a
+     * silent second edit nobody asked for). `$person` comes from a scoped
+     * binding, so its pivot is already hydrated.
+     */
+    public function updatePerson(UpdateSolutionPersonRequest $request, Solution $solution, Person $person): JsonResponse
+    {
+        $role = $request->validated('role');
+        $targetId = (int) $request->validated('person_id', $person->getKey());
+
+        if ($targetId !== $person->getKey()) {
+            $solution->people()->detach($person->getKey());
+            $solution->people()->attach($targetId, [
+                'role'       => $role ?? $person->pivot->role,
+                'is_primary' => $person->pivot->is_primary,
+            ]);
+
+            return $this->ownersSaved($solution, 'Pessoa alterada.');
+        }
+
+        if ($role) {
+            $solution->people()->updateExistingPivot($person->getKey(), ['role' => $role]);
+        }
+
+        return $this->ownersSaved($solution, 'Alteração salva.');
+    }
+
     public function detachPerson(Request $request, Solution $solution, Person $person): JsonResponse
     {
         $this->authorize('update', $solution);
@@ -197,9 +229,11 @@ class SolutionController extends Controller
 
     /**
      * Inline editing of a single attribute (Category, Status, Criticality, …)
-     * directly in the detail header card (`Solutions\DetailHeader`) — each
-     * select in the card auto-persists on `change`, without opening the full
-     * edit panel.
+     * directly in the detail header card (`Solutions\DetailHeader`) — the badge
+     * is read-only text until it's double-clicked, then a `<x-ui.inline-edit>`
+     * select, confirmed one attribute at a time. Same gesture as the header's
+     * own columns (`updateField` above); a separate endpoint because these are
+     * `attribute_options` values validated per group.
      */
     public function updateAttributes(UpdateSolutionAttributesRequest $request, Solution $solution): JsonResponse
     {

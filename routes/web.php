@@ -134,6 +134,14 @@ Route::middleware('auth')->group(function () {
     // child of the solution, and `detach` no-ops harmlessly on someone who isn't
     // linked — there's no mutation for a 404 to protect.
     Route::post('solutions/{solution}/people', [SolutionController::class, 'attachPerson'])->name('solutions.people.store');
+    // Re-points one row of the owners grid at another person. Scoped, unlike
+    // its two neighbours: this one READS the link it's replacing (it carries
+    // the role and `is_primary` over), so the pivot row has to exist —
+    // `scopeBindings` resolves {person} through `Solution::people()` and 404s
+    // when it doesn't, instead of silently attaching a second link.
+    Route::patch('solutions/{solution}/people/{person}', [SolutionController::class, 'updatePerson'])
+        ->scopeBindings()
+        ->name('solutions.people.update');
     Route::delete('solutions/{solution}/people/{person}', [SolutionController::class, 'detachPerson'])->name('solutions.people.destroy');
 
     // Rich solution documentation — a tree of 1..N pages (Editor.js block

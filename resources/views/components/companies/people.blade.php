@@ -40,22 +40,10 @@
                     </div>
 
                     @if ($canEdit)
-                        {{-- Row-level detach: hidden form carries the CSRF token
-                             + method, the ghost button posts it
-                             (`ajax-post.js`), same pattern as the person's
-                             "Sistemas" card. --}}
-                        <form id="company-person-remove-{{ $person->id }}" class="hidden">
-                            @csrf
-                            @method('DELETE')
-                        </form>
-                        <x-forms.button type="button" variant="ghost"
-                                        class="!size-6 !rounded-full !p-0 shrink-0 text-faint opacity-0 transition-opacity group-hover/row:opacity-100 hover:!bg-crit-soft hover:!text-crit focus-visible:opacity-100"
-                                        data-ak-ajax="company-person-remove-{{ $person->id }}"
-                                        data-ak-action="{{ route('companies.people.destroy', [$company, $person]) }}"
-                                        data-ak-confirm="Desvincular &quot;{{ $person->name }}&quot; desta empresa? A pessoa continua cadastrada, apenas sem empresa."
-                                        aria-label="Desvincular {{ $person->name }}" title="Desvincular">
-                            <x-heroicon-o-x-mark class="size-3.5" />
-                        </x-forms.button>
+                        <x-ui.row-remove id="company-person-remove-{{ $person->id }}"
+                                         :action="route('companies.people.destroy', [$company, $person])"
+                                         confirm='Desvincular "{{ $person->name }}" desta empresa? A pessoa continua cadastrada, apenas sem empresa.'
+                                         label="Desvincular {{ $person->name }}" />
                     @endif
                 </li>
             @endforeach

@@ -123,8 +123,11 @@
             <x-heroicon-o-adjustments-horizontal class="size-3.5" /> Gerenciar valores de atributos
         </a>
 
-        <x-forms.field label="Nota de suporte x operação" for="sol-opnote" name="support_operation_note"
-            hint="Sinaliza gap entre suporte contratado e operação real. Aceita Markdown.">
+        {{-- The column is still `support_operation_note` (renaming it would be a
+             migration for a label change); on screen it's the free notes block
+             on the detail page, which is what people actually write in it. --}}
+        <x-forms.field label="Anotações" for="sol-opnote" name="support_operation_note"
+            hint="Observações livres sobre o sistema — inclusive gaps entre suporte contratado e operação real. Aceita Markdown.">
             <x-forms.textarea id="sol-opnote" name="support_operation_note" rows="2">{{ old('support_operation_note', $solution->support_operation_note) }}</x-forms.textarea>
         </x-forms.field>
 

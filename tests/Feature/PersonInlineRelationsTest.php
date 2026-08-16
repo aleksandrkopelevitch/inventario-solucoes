@@ -445,3 +445,26 @@ it('uploads a photo from the header and keeps the tile mechanism working', funct
 
     Storage::disk('public')->assertExists($person->fresh()->photo_path);
 });
+
+it('takes a row\'s unlink ✕ out of the way while that row is being edited', function () {
+    // Two identical ✕ side by side — the editor's cancel and the row's
+    // unlink — is one misclick away from severing a link instead of
+    // abandoning an edit. `x-ui.row-remove` reads the state the editor
+    // already publishes (`[data-ak-inline-edit-form]` loses `hidden` when it
+    // opens) and goes `invisible`, keeping its slot so the row doesn't reflow.
+    $person = Person::factory()->create();
+    $solution = Solution::factory()->create();
+    $person->solutions()->attach($solution, ['role' => PersonSolutionRole::Technical->value]);
+    Contact::factory()->create(['person_id' => $person->id, 'type' => ContactType::Email->value, 'value' => 'extra@x.com']);
+
+    $content = $this->actingAs(inlineRelationsAdmin())
+        ->get(route('people.show', $person))
+        ->assertOk()
+        ->getContent();
+
+    // Both cards on this page hang the rule off `group/row`, so both need the
+    // group name the component listens on (the contacts strip used to say
+    // `group/contact` and would silently never fire).
+    expect(substr_count($content, 'group-has-[[data-ak-inline-edit-form]:not(.hidden)]/row:invisible'))->toBe(2)
+        ->and(substr_count($content, 'group/row'))->toBeGreaterThanOrEqual(2);
+});

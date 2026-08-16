@@ -107,7 +107,10 @@
     @if ($contactFields->isNotEmpty() || $canEdit)
         <div class="flex flex-wrap items-start gap-x-8 gap-y-3 border-t border-line p-6 text-sm">
             @foreach ($contactFields as $contact)
-                <div class="group/contact">
+                {{-- `group/row` is the name x-ui.row-remove listens on (hover to
+                     reveal, and step aside while this contact's editor is
+                     open) — it's a row of the strip, whatever the tag says. --}}
+                <div class="group/row">
                     <div class="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted">
                         {{ $contact['label'] }}
 
@@ -115,18 +118,9 @@
                             {{-- Only extra contacts can be deleted; the label
                                  row is where the ✕ can sit without competing
                                  with the value's own click-to-edit target. --}}
-                            <form id="{{ $contact['removeId'] }}" class="hidden">
-                                @csrf
-                                @method('DELETE')
-                            </form>
-                            <x-forms.button type="button" variant="ghost"
-                                            class="!size-5 !rounded-full !p-0 text-faint opacity-0 transition-opacity group-hover/contact:opacity-100 hover:!bg-crit-soft hover:!text-crit focus-visible:opacity-100"
-                                            data-ak-ajax="{{ $contact['removeId'] }}"
-                                            data-ak-action="{{ $contact['removeUrl'] }}"
-                                            data-ak-confirm="Remover este contato?"
-                                            aria-label="Remover contato" title="Remover contato">
-                                <x-heroicon-o-x-mark class="size-3" />
-                            </x-forms.button>
+                            <x-ui.row-remove :id="$contact['removeId']" :action="$contact['removeUrl']"
+                                             confirm="Remover este contato?" label="Remover contato"
+                                             size="small" />
                         @endif
                     </div>
 

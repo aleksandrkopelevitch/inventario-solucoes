@@ -3,8 +3,18 @@
      updatable slot — so the collapsed state survives a page-move slot swap
      (ajax-slot.js replaces the element carrying this $domId wholesale). --}}
 <div id="{{ $domId }}" class="flex w-72 flex-1 flex-col overflow-hidden">
+    {{-- The rail is titled with what it documents — the solution (or group) —
+         not with the generic word "Páginas": inside a solution's docs, every
+         page in the list is already a page, and the one thing the screen never
+         said was WHOSE they are. The ↗ opens that record's own page, the same
+         split as everywhere else in the app (words read, icon travels). --}}
     <div class="flex items-center justify-between gap-2 border-b border-line px-3 py-2.5">
-        <span class="text-[11px] font-bold uppercase tracking-[0.12em] text-faint">Páginas</span>
+        <span class="flex min-w-0 items-center gap-1.5">
+            <span class="truncate text-[11px] font-bold uppercase tracking-[0.12em] text-faint">{{ $title }}</span>
+            @if ($titleUrl)
+                <x-ui.external-link :href="$titleUrl" :label="$title" class="text-faint" />
+            @endif
+        </span>
         <x-forms.button type="button" variant="ghost" data-ak-toggle="doc-new-page-form" data-ak-toggle-classes="hidden"
             class="!h-7 !w-7 !p-0" aria-label="Nova página" title="Nova página">
             <x-heroicon-o-plus class="size-4" />
