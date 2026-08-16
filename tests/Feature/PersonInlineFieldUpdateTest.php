@@ -212,6 +212,58 @@ it('shows blank editable fields as a placeholder, so there is something to click
         ->assertSeeText('Não informado');
 });
 
+it('opens an editor that draws no box: the read wash stays as its ground, with a rule instead of a border', function () {
+    $person = Person::factory()->for(Company::factory())->create(['job_title' => 'Analista', 'notes' => 'nota']);
+
+    $html = $this->actingAs(personFieldAdmin())
+        ->get(route('people.show', $person))
+        ->assertOk()
+        ->getContent();
+
+    // One control per type, since `$chrome` reaches all three through different
+    // x-forms components. Named by field, not just by tag: the first `<input>`
+    // on the page is the photo's hidden file input, which deliberately carries
+    // no `$chrome` at all (its editor is the upload tile, not a text field).
+    $tags = collect(['input' => 'job_title', 'select' => 'company_id', 'textarea' => 'notes'])
+        ->map(function (string $field, string $tag) use ($html) {
+            preg_match('/<' . $tag . '[^>]*data-ak-inline-edit-field="' . $field . '"[^>]*>/', $html, $found);
+
+            return $found[0] ?? '';
+        });
+
+    foreach ($tags as $tag => $markup) {
+        expect($markup)->not->toBe('', "no editable {$tag} rendered on the person page");
+
+        // No box: the wash of read mode is the ground, and the only line is the
+        // 1.5px rule under the text (an inset shadow — a border would add
+        // height and shove the text up as the editor opens).
+        expect($markup)
+            ->toContain('!border-0')
+            ->toContain('!bg-[var(--ie-wash)]')
+            ->toContain('!shadow-[inset_0_-1.5px_0_0_var(--ie-rule)]')
+            ->toContain('focus:!shadow-[inset_0_-1.5px_0_0_var(--ie-rule)]');
+
+        // The old framed chrome, which this replaced: a white fill or a border
+        // colour here means someone reinstated the box.
+        expect($markup)
+            ->not->toContain('!bg-surface')
+            ->not->toContain('!border-line')
+            ->not->toContain('!shadow-sm');
+    }
+
+    // The editor's own horizontal padding, the offset that cancels it, and read
+    // mode's wash padding are ONE measurement in three places — the value only
+    // lands where it was read while all three agree.
+    expect($tags['input'])->toContain('!px-1.5');   // the editor's padding
+    expect($html)
+        ->toContain('-ml-1.5')                      // the row offset that cancels it
+        ->toContain('-mx-1.5');                     // read mode's own wash padding
+
+    // With no border, a blank field would open as a caret alone on the page:
+    // the italic placeholder is what's left to anchor the eye.
+    expect($tags['input'])->toContain('placeholder:!italic');
+});
+
 it('retypes a value in the typography it was read in, and never lets read mode own its display', function () {
     $person = Person::factory()->create(['name' => 'Ana Silva']);
 
