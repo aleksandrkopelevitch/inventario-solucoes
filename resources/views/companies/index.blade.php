@@ -26,36 +26,27 @@
         </div>
     </x-ui.hero-panel>
 
-    <form id="companies-filter-form" class="mb-3 flex flex-col gap-3">
-        <div class="max-w-md">
-            <x-forms.field name="search">
-                <div class="relative">
-                    <x-forms.input type="search" id="companies-search" name="filter[search]" placeholder="Buscar por nome"
-                        class="pr-9"
-                        :value="$filters['search'] ?? null"
-                        data-ak-search-param="filter[search]"
-                        data-ak-search="{{ json_encode(['inputId' => 'companies-search', 'url' => route('companies.index')]) }}" />
-                    <x-heroicon-o-arrow-path data-ak-filters-loading
-                        class="pointer-events-none absolute right-3 top-1/2 hidden size-4 -translate-y-1/2 animate-spin text-accent" />
-                </div>
-            </x-forms.field>
-            <p data-ak-search-hint="companies-search" class="mt-1.5 h-4 text-xs text-hot"></p>
-        </div>
+    {{-- One filter, so the bar is a single line — the old `sm:grid-cols-4`
+         reserved a whole band and left 3/4 of it empty. See x-ui.filter-bar. --}}
+    <x-ui.filter-bar form-id="companies-filter-form">
+        <x-slot:search>
+            <x-ui.filter-search id="companies-search" :url="route('companies.index')"
+                placeholder="Buscar por nome"
+                :value="$filters['search'] ?? null" />
+        </x-slot:search>
 
-        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <x-forms.select name="filter[kind]" data-ak-filters="{{ json_encode($filterBind) }}"
-                class="{{ filled($filters['kind'] ?? null) ? $activeClass : '' }}">
-                <option value="">Tipo</option>
-                @foreach ($kinds as $case)
-                    <option value="{{ $case->value }}" @selected(($filters['kind'] ?? '') === $case->value)>{{ $case->label() }}</option>
-                @endforeach
-            </x-forms.select>
-        </div>
-    </form>
+        <x-forms.select auto name="filter[kind]" data-ak-filters="{{ json_encode($filterBind) }}"
+            class="{{ filled($filters['kind'] ?? null) ? $activeClass : '' }}">
+            <option value="">Tipo</option>
+            @foreach ($kinds as $case)
+                <option value="{{ $case->value }}" @selected(($filters['kind'] ?? '') === $case->value)>{{ $case->label() }}</option>
+            @endforeach
+        </x-forms.select>
 
-    <div class="mb-5">
-        <x-companies.filter-chips :filters="$filters" />
-    </div>
+        <x-slot:footer>
+            <x-companies.filter-chips :filters="$filters" />
+        </x-slot:footer>
+    </x-ui.filter-bar>
 
     <div data-ak-filters-dim class="transition-opacity">
         <x-companies.index :filters="$filters" />
