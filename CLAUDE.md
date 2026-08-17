@@ -847,8 +847,8 @@ All JS hooks use the `data-ak-*` prefix. Internal slots (`data-spinner`, `data-l
 | `data-ak-docs-copy` | `docs-copy.js` | "Copiar Markdown" button — reads `window.__akDocsGetMarkdown()` while editing, or the `data-ak-docs-markdown` textarea on the read-only view |
 | `data-ak-docs-markdown` | `docs-copy.js` | Hidden `<textarea>` with the raw Markdown, rendered only on the read-only view (no live editor there to query) |
 | `data-ak-node-kinds` (on the integrations-map root) | `integration-viz.js` | `App\Enums\ChainNodeKind` as JSON (`{value,label,system,placeholder}`), read once and cached: feeds the kind `<select>` of both block panels. `system` is the only kind that gets the Solution select |
-| `data-ak-solutions`/`data-ak-protocols`/`data-ak-statuses` (on the integrations-map root) | `integration-viz.js` | Same read-once-and-cache pattern as `data-ak-node-kinds` — the Solution/protocol/status option lists (JSON) feeding the block/edge editor panels |
-| `data-ak-integration-name`/`-summary`/`-status` (on an integration row, `integrations-map.blade.php`) | `integration-viz.js` | Patched via `replaceChildren(document.createTextNode(...))` (never `innerHTML`) after any chain mutation, so the left-pane integration list stays current without a page reload |
+| `data-ak-solutions`/`data-ak-protocols` (on the integrations-map root) | `integration-viz.js` | Same read-once-and-cache pattern as `data-ak-node-kinds` — the Solution/protocol option lists (JSON) feeding the block/edge editor panels. There is no `data-ak-statuses` any more: the integration's own status left the canvas for the page's top bar (see below) |
+| `data-ak-integration-summary` (on an integration row) | `integration-viz.js` | Patched via `replaceChildren(document.createTextNode(...))` (never `innerHTML`) after a chain mutation, so the row's chain summary stays current without a page reload |
 | `data-viz-*` (F3 canvas internals, e.g. `-toolbar`/`-toolbar-rename`/`-zoom-in`/`-lane-toolbar`) | `integration-viz.js` | Private hooks of the F3 canvas component, NOT `data-ak-*` — they're internal slots of `integration-viz.blade.php`, same exemption as `data-spinner`/`data-label`. `-toolbar-rename` opens the same inline label editor as double-clicking a block, which is the only path a touch device has (see the touch note below) |
 
 ### Inline edit — a datum that links somewhere: the ↗ navigates, the text edits
@@ -1094,6 +1094,41 @@ is the column the row sits in, and a role picker inside a column already titled
 with one has nowhere honest to live. Re-roling stays on the person's page (where
 the role is a badge of its own), even though `UpdateSolutionPersonRequest`
 validates `role` too, to stay symmetric with its mirror.
+
+### An integration's name and status live in the editor's top bar — nowhere else
+
+`Solutions\IntegrationMeta` (slot `integration-meta-slot`) renders both in the
+top bar of the integration's unified documentation+diagram page, as two
+`x-ui.inline-edit`s pointing at the same endpoint
+(`solutions.integrations.update` / `UpdateIntegrationMetaRequest`, whose rules
+are `sometimes` + `required` so one field can be confirmed without blanking the
+other — same shape as the three detail pages' field requests). The response
+returns that slot **and** `PagesNav::slot(...)`, since the rail beside it lists
+the integration by name.
+
+The canvas had a second editor for exactly these two fields (a pencil in its
+own top bar opening a panel over the diagram) until 2026-08-17. It's gone, and
+so is its `data-ak-statuses` payload and the canvas's own `data-viz-title` —
+two editors of one field desync on the first edit, and the canvas title became
+the stale copy the moment the name above it became editable. If you find
+yourself adding a status control to the canvas again, this is the question
+being reopened.
+
+Everything else about the integration is still authored on the canvas: the
+topology is the chain, and only `SyncIntegrationFromChain` derives from it.
+
+### Empty states: `x-ui.empty-state` + inlined unDraw illustrations
+
+A list with nothing in it gets `x-ui.empty-state` (illustration + what's
+missing + what to do), not a line of grey text — see both columns of the
+solution detail card. `illustration="foo"` resolves to
+`x-illustrations.empty-foo` under `resources/views/components/illustrations/`:
+an unDraw SVG (free license, no attribution required) inlined into a Blade
+component, with its `width`/`height` stripped, its primary color rewritten to
+`currentColor` and its greys/darks to `--color-line` / `--color-ink` /
+`--color-surface`. Keep new ones on that recipe — a linked or unrecolored SVG
+costs a request and reads as someone else's artwork. Illustrations don't share
+an aspect ratio, so the caller caps the one it uses (`illustration-class`).
 
 ### F3 canvas gestures run on POINTER events — never add a `mouse*` listener
 

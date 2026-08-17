@@ -87,7 +87,18 @@
                                                id="docs-sidebar-closed-state" class="hidden max-md:hidden" />
                     @endisset
 
-                    <span class="truncate text-sm font-bold text-ink">{{ $pageLabel }}</span>
+                    @isset($integration)
+                        {{-- An integration's "page label" IS its name, and it
+                             carries a status besides — both editable right
+                             here (`Solutions\IntegrationMeta`), so writing the
+                             documentation and saying whether the integration
+                             is live are the same visit. Every other container
+                             (a solution's page, a group's page) renames from
+                             the pages rail instead. --}}
+                        <x-solutions.integration-meta :solution="$solution" :integration="$integration" />
+                    @else
+                        <span class="truncate text-sm font-bold text-ink">{{ $pageLabel }}</span>
+                    @endisset
                 </div>
 
                 <div class="flex shrink-0 items-center gap-3">
