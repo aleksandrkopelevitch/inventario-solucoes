@@ -1,6 +1,18 @@
-<div class="relative w-full">
+@props([
+    // Filter-bar mode: size the control to its own content instead of to the
+    // column it sits in (x-ui.filter-bar has no columns — it's one wrapping
+    // flex row). A `<select>` sizes itself to its LONGEST option, not to the
+    // selected one, so a list of 54 company names would otherwise stretch the
+    // control across the bar; `max-w-52` caps it and `truncate` ellipsizes the
+    // closed display. Default `false`, so panel/form callers are untouched.
+    'auto' => false,
+])
+
+<div class="relative {{ $auto ? 'w-auto shrink-0' : 'w-full' }}">
     <select {{ $attributes->class([
-        'w-full appearance-none rounded-field border border-line-2 bg-surface px-3 py-2 pr-8 text-sm text-ink',
+        'appearance-none rounded-field border border-line-2 bg-surface px-3 py-2 pr-8 text-sm text-ink',
+        'w-full' => ! $auto,
+        'w-auto max-w-52 truncate' => $auto,
         'transition duration-150 focus:outline-none focus:border-accent focus:shadow-[0_0_0_3px_var(--color-accent-soft)]',
         'disabled:bg-raised disabled:text-faint disabled:cursor-not-allowed',
     ]) }}>

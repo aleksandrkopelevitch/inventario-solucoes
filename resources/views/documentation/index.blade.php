@@ -36,39 +36,30 @@
         @endforeach
     </div>
 
-    {{-- Search + filters (same form: search is a filter[] field preserved when filtering) --}}
-    <form id="documentation-filter-form" class="mb-3 mt-6 flex flex-col gap-3">
-        <div class="max-w-md">
-            <x-forms.field name="search">
-                <div class="relative">
-                    <x-forms.input type="search" id="documentation-search" name="filter[search]" placeholder="Buscar por solução ou integração"
-                        class="pr-9"
-                        :value="$filters['search'] ?? null"
-                        data-ak-search-param="filter[search]"
-                        data-ak-search="{{ json_encode(['inputId' => 'documentation-search', 'url' => route('documentation.index')]) }}" />
-                    <x-heroicon-o-arrow-path data-ak-filters-loading
-                        class="pointer-events-none absolute right-3 top-1/2 hidden size-4 -translate-y-1/2 animate-spin text-accent" />
-                </div>
-            </x-forms.field>
-            <p data-ak-search-hint="documentation-search" class="mt-1.5 h-4 text-xs text-hot"></p>
-        </div>
+    {{-- Same bar as /solutions, /companies and /people (x-ui.filter-bar).
+         This page has no active-filter chips component of its own, so the bar
+         has no footer — the controls row is the whole bar. --}}
+    <x-ui.filter-bar form-id="documentation-filter-form" class="mt-6">
+        <x-slot:search>
+            <x-ui.filter-search id="documentation-search" :url="route('documentation.index')"
+                placeholder="Buscar por solução ou integração"
+                :value="$filters['search'] ?? null" />
+        </x-slot:search>
 
-        <div class="grid grid-cols-2 gap-2 sm:max-w-md">
-            <x-forms.select name="filter[type]" data-ak-filters="{{ json_encode($filterBind) }}"
-                class="{{ filled($filters['type'] ?? null) ? $activeClass : '' }}">
-                <option value="">Tudo</option>
-                <option value="solutions" @selected(($filters['type'] ?? '') === 'solutions')>Só soluções</option>
-                <option value="integrations" @selected(($filters['type'] ?? '') === 'integrations')>Só integrações</option>
-            </x-forms.select>
+        <x-forms.select auto name="filter[type]" data-ak-filters="{{ json_encode($filterBind) }}"
+            class="{{ filled($filters['type'] ?? null) ? $activeClass : '' }}">
+            <option value="">Tudo</option>
+            <option value="solutions" @selected(($filters['type'] ?? '') === 'solutions')>Só soluções</option>
+            <option value="integrations" @selected(($filters['type'] ?? '') === 'integrations')>Só integrações</option>
+        </x-forms.select>
 
-            <x-forms.select name="filter[status]" data-ak-filters="{{ json_encode($filterBind) }}"
-                class="{{ filled($filters['status'] ?? null) ? $activeClass : '' }}">
-                <option value="">Qualquer status</option>
-                <option value="documented" @selected(($filters['status'] ?? '') === 'documented')>Documentado</option>
-                <option value="pending" @selected(($filters['status'] ?? '') === 'pending')>Pendente</option>
-            </x-forms.select>
-        </div>
-    </form>
+        <x-forms.select auto name="filter[status]" data-ak-filters="{{ json_encode($filterBind) }}"
+            class="{{ filled($filters['status'] ?? null) ? $activeClass : '' }}">
+            <option value="">Qualquer status</option>
+            <option value="documented" @selected(($filters['status'] ?? '') === 'documented')>Documentado</option>
+            <option value="pending" @selected(($filters['status'] ?? '') === 'pending')>Pendente</option>
+        </x-forms.select>
+    </x-ui.filter-bar>
 
     <div data-ak-filters-dim class="transition-opacity">
         <x-documentation.hub :filters="$filters" />

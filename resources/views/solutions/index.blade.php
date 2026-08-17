@@ -60,82 +60,84 @@
         <span class="ml-auto">{{ $catalogStats['integrations'] }} integrações mapeadas</span>
     </div>
 
-    {{-- Search + filters (same form: search is a filter[] field preserved when filtering) --}}
-    <form id="solutions-filter-form" class="mb-3 flex flex-col gap-3">
-        <div class="max-w-md">
-            <x-forms.field name="search">
-                <div class="relative">
-                    <x-forms.input type="search" id="solutions-search" name="filter[search]" placeholder="Buscar por nome, fornecedor ou responsável"
-                        class="pr-9"
-                        :value="$filters['search'] ?? null"
-                        data-ak-search-param="filter[search]"
-                        data-ak-search="{{ json_encode(['inputId' => 'solutions-search', 'url' => route('solutions.index')]) }}" />
-                    <x-heroicon-o-arrow-path data-ak-filters-loading
-                        class="pointer-events-none absolute right-3 top-1/2 hidden size-4 -translate-y-1/2 animate-spin text-accent" />
-                </div>
-            </x-forms.field>
-            <p data-ak-search-hint="solutions-search" class="mt-1.5 h-4 text-xs text-hot"></p>
-        </div>
+    {{-- Search + filters, one bar (same form: search is a filter[] field, so it
+         survives every filter change). Seven controls, so this is the page
+         where the bar wraps onto a second line — see x-ui.filter-bar. --}}
+    <x-ui.filter-bar form-id="solutions-filter-form">
+        <x-slot:search>
+            <x-ui.filter-search id="solutions-search" :url="route('solutions.index')"
+                placeholder="Buscar por nome, fornecedor ou responsável"
+                :value="$filters['search'] ?? null" />
+        </x-slot:search>
 
-        {{-- `filter[sort]` moved from this grid to a hidden field (below):
-             sorting is now driven by clicking the table's column headers
-             (`x-solutions.sortable-th`), which toggle this same field and
-             re-fire the AJAX filter pipeline (`sortable-table.js`) instead of
-             a standalone dropdown. --}}
+        {{-- `filter[sort]` has no control of its own: sorting is driven by
+             clicking the table's column headers (`x-solutions.sortable-th`),
+             which toggle this same field and re-fire the AJAX filter pipeline
+             (`sortable-table.js`). It only needs to sit inside this form for
+             `executeFilters()` to serialize it. `type="hidden"` inputs aren't
+             rendered at all, so it costs the flex row nothing. --}}
         <input type="hidden" name="filter[sort]" value="{{ $filters['sort'] ?? 'name' }}">
 
-        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-            <x-forms.select name="filter[category]" data-ak-filters="{{ json_encode($filterBind) }}"
-                class="{{ $categoryActive }}">
-                <option value="">Categoria</option>
-                @foreach ($categories as $option)
-                    <option value="{{ $option->value }}" @selected(($filters['category'] ?? '') === $option->value)>{{ $option->label }}</option>
-                @endforeach
-            </x-forms.select>
+        <x-forms.select auto name="filter[category]" data-ak-filters="{{ json_encode($filterBind) }}"
+            class="{{ $categoryActive }}">
+            <option value="">Categoria</option>
+            @foreach ($categories as $option)
+                <option value="{{ $option->value }}" @selected(($filters['category'] ?? '') === $option->value)>{{ $option->label }}</option>
+            @endforeach
+        </x-forms.select>
 
-            <x-forms.select name="filter[directorate]" data-ak-filters="{{ json_encode($filterBind) }}"
-                class="{{ filled($filters['directorate'] ?? null) ? $activeClass : '' }}">
-                <option value="">Diretoria</option>
-                @foreach ($directorates as $option)
-                    <option value="{{ $option->value }}" @selected(($filters['directorate'] ?? '') === $option->value)>{{ $option->label }}</option>
-                @endforeach
-            </x-forms.select>
+        <x-forms.select auto name="filter[directorate]" data-ak-filters="{{ json_encode($filterBind) }}"
+            class="{{ filled($filters['directorate'] ?? null) ? $activeClass : '' }}">
+            <option value="">Diretoria</option>
+            @foreach ($directorates as $option)
+                <option value="{{ $option->value }}" @selected(($filters['directorate'] ?? '') === $option->value)>{{ $option->label }}</option>
+            @endforeach
+        </x-forms.select>
 
-            <x-forms.select name="filter[environment]" data-ak-filters="{{ json_encode($filterBind) }}"
-                class="{{ filled($filters['environment'] ?? null) ? $activeClass : '' }}">
-                <option value="">Hospedagem</option>
-                @foreach ($environments as $option)
-                    <option value="{{ $option->value }}" @selected(($filters['environment'] ?? '') === $option->value)>{{ $option->label }}</option>
-                @endforeach
-            </x-forms.select>
+        <x-forms.select auto name="filter[environment]" data-ak-filters="{{ json_encode($filterBind) }}"
+            class="{{ filled($filters['environment'] ?? null) ? $activeClass : '' }}">
+            <option value="">Hospedagem</option>
+            @foreach ($environments as $option)
+                <option value="{{ $option->value }}" @selected(($filters['environment'] ?? '') === $option->value)>{{ $option->label }}</option>
+            @endforeach
+        </x-forms.select>
 
-            <x-forms.select name="filter[contract]" data-ak-filters="{{ json_encode($filterBind) }}"
-                class="{{ filled($filters['contract'] ?? null) ? $activeClass : '' }}">
-                <option value="">Contrato</option>
-                @foreach ($contractStatuses as $option)
-                    <option value="{{ $option->value }}" @selected(($filters['contract'] ?? '') === $option->value)>{{ $option->label }}</option>
-                @endforeach
-            </x-forms.select>
+        <x-forms.select auto name="filter[contract]" data-ak-filters="{{ json_encode($filterBind) }}"
+            class="{{ filled($filters['contract'] ?? null) ? $activeClass : '' }}">
+            <option value="">Contrato</option>
+            @foreach ($contractStatuses as $option)
+                <option value="{{ $option->value }}" @selected(($filters['contract'] ?? '') === $option->value)>{{ $option->label }}</option>
+            @endforeach
+        </x-forms.select>
 
-            <x-forms.select name="filter[status]" data-ak-filters="{{ json_encode($filterBind) }}"
-                class="{{ filled($filters['status'] ?? null) ? $activeClass : '' }}">
-                <option value="">Status</option>
-                @foreach ($statuses as $option)
-                    <option value="{{ $option->value }}" @selected(($filters['status'] ?? '') === $option->value)>{{ $option->label }}</option>
-                @endforeach
-            </x-forms.select>
+        <x-forms.select auto name="filter[status]" data-ak-filters="{{ json_encode($filterBind) }}"
+            class="{{ filled($filters['status'] ?? null) ? $activeClass : '' }}">
+            <option value="">Status</option>
+            @foreach ($statuses as $option)
+                <option value="{{ $option->value }}" @selected(($filters['status'] ?? '') === $option->value)>{{ $option->label }}</option>
+            @endforeach
+        </x-forms.select>
 
-            <x-forms.label data-ak-filters="{{ json_encode($filterBind) }}"
-                class="col-span-2 !flex cursor-pointer items-center gap-2 rounded-field border border-line-2 bg-surface px-3 py-2 !text-[13.5px] !text-ink transition-colors has-checked:border-accent has-checked:bg-accent-soft has-checked:text-accent has-checked:font-semibold sm:col-span-3 lg:col-span-5">
-                <x-forms.checkbox name="filter[undocumented]" :checked="(bool) ($filters['undocumented'] ?? false)" />
-                Somente sem documentação
-            </x-forms.label>
-        </div>
-    </form>
+        {{-- A boolean is a PILL, not a field: it hugs its label instead of
+             stretching a 990px border around 234px of content (76% air), and
+             the round shape says what the control does — rectangle = pick a
+             value, pill = on/off. Same radius as the active-filter chips in
+             the footer below, so switching it on and seeing its chip appear
+             reads as one gesture.
+             `!leading-5` matches the 38px height of the selects beside it
+             (x-forms.label's own `leading-6` would make it 42px), and
+             `has-checked:!text-accent` needs the `!` to beat `!text-ink` —
+             without it the checked state never actually recoloured the text. --}}
+        <x-forms.label data-ak-filters="{{ json_encode($filterBind) }}"
+            class="!inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-full border border-line-2 bg-surface px-3.5 py-2 !text-[13.5px] !leading-5 !text-ink transition-colors has-checked:border-accent has-checked:bg-accent-soft has-checked:font-semibold has-checked:!text-accent">
+            <x-forms.checkbox name="filter[undocumented]" :checked="(bool) ($filters['undocumented'] ?? false)" />
+            Sem documentação
+        </x-forms.label>
 
-    <div class="mb-5">
-        <x-solutions.filter-chips :filters="$filters" />
-    </div>
+        <x-slot:footer>
+            <x-solutions.filter-chips :filters="$filters" />
+        </x-slot:footer>
+    </x-ui.filter-bar>
 
     <div data-ak-filters-dim class="transition-opacity">
         <x-solutions.index :filters="$filters" />

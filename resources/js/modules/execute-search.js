@@ -42,7 +42,12 @@ function handleSearchInput(inputId, url) {
     const term = input.value.trim()
 
     if (term.length > 0 && term.length < MIN_LENGTH) {
-        if (hint) hint.textContent = `Digite ao menos ${MIN_LENGTH} letras para buscar.`
+        // Terse on purpose: the hint used to sit on its own reserved line under
+        // the field and can now afford a sentence no longer. It renders INSIDE
+        // the field, at its right edge (see x-ui.filter-search), which is only
+        // free of typed text because this branch is exactly the 1..2-character
+        // case. A full sentence here would run under the caret.
+        if (hint) hint.textContent = `mín. ${MIN_LENGTH} letras`
         return
     }
 
