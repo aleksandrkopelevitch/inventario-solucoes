@@ -6,6 +6,7 @@ use App\Actions\SyncIntegrationFromChain;
 use App\Contracts\Documentable;
 use App\Enums\ChainNodeKind;
 use App\Enums\Direction;
+use App\Http\Controllers\Concerns\NavigatesSolutionDocs;
 use App\Http\Requests\AddIntegrationChainEdgeRequest;
 use App\Http\Requests\AddIntegrationChainImageRequest;
 use App\Http\Requests\AddIntegrationChainNodeRequest;
@@ -20,6 +21,8 @@ use App\Http\Requests\UpdateIntegrationMetaRequest;
 use App\Models\Integration;
 use App\Models\Solution;
 use App\Support\ChainLabeler;
+use App\View\Components\Documentation\PagesNav;
+use App\View\Components\Solutions\IntegrationMeta;
 use App\View\Components\Solutions\IntegrationsMap;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Str;
@@ -31,14 +34,21 @@ use Illuminate\Support\Str;
  * (`integration-viz.js`) is what authors the topology (chain: nodes/edges,
  * via `updateNode()`/`updateProtocol()`/`addNode()`/`retargetEdge()` below)
  * and the visual layout (`saveLayout()`) — this controller only covers what
- * the data-viz doesn't yet do on its own: creating a brand-new Integration
- * (`store()`) and renaming/changing the status of an existing one
- * (`update()`), neither of which touches the chain. `SyncIntegrationFromChain`
+ * the data-viz doesn't do: creating a brand-new Integration (`store()`, which
+ * then redirects into that page) and renaming/changing the status of an
+ * existing one (`update()`, driven by the page's top bar —
+ * `Solutions\IntegrationMeta` —, one field at a time), neither of which
+ * touches the chain. `SyncIntegrationFromChain`
  * remains the only place that derives participants/source/target/direction
  * from the chain.
  */
 class SolutionIntegrationController extends Controller
 {
+    // Only for `update()`'s response: renaming an integration also renames it
+    // in the pages rail rendered beside the editor's top bar, and that rail is
+    // built from the same two helpers the documentation controllers use.
+    use NavigatesSolutionDocs;
+
     public function __construct(
         private readonly SyncIntegrationFromChain $sync,
         private readonly ChainLabeler $labeler,
@@ -73,16 +83,25 @@ class SolutionIntegrationController extends Controller
         $this->sync->handle($integration);
 
         return response()->json([
-            'type'           => 'success',
-            'message'        => 'Integração criada.',
-            'updatableSlots' => [IntegrationsMap::slot($solution)],
-            // Selects the newly created integration in the list, opening the
-            // data-viz already ready to receive the first block.
-            'js' => 'document.querySelector(\'[data-ak-integration-select="' . $integration->slug . '"]\')?.click()',
+            'type'    => 'success',
+            'message' => 'Integração criada.',
+            // Straight into the new integration's own page — an integration
+            // created from the solution's list is empty by definition (one
+            // root node, no documentation), so the list it was created from
+            // has nothing left to show about it. Refreshing that list instead
+            // would leave the user one extra click from the only screen where
+            // the next step happens.
+            'redirect' => route('solutions.integrations.docs.edit', [$solution, $integration]),
         ]);
     }
 
-    /** Renames / changes the status of an existing integration — doesn't touch the chain. */
+    /**
+     * Renames / changes the status of an existing integration — doesn't touch
+     * the chain. Called one field at a time by the editor's top bar
+     * (`Solutions\IntegrationMeta`), so the response refreshes both places
+     * that name the integration on that screen: the top bar itself and the
+     * pages rail beside it.
+     */
     public function update(UpdateIntegrationMetaRequest $request, Solution $solution, Integration $integration): JsonResponse
     {
         $integration->update($request->validated());
@@ -90,7 +109,16 @@ class SolutionIntegrationController extends Controller
         return response()->json([
             'type'           => 'success',
             'message'        => 'Integração atualizada.',
-            'updatableSlots' => [IntegrationsMap::slot($solution)],
+            'updatableSlots' => [
+                IntegrationMeta::slot($solution, $integration),
+                PagesNav::slot(
+                    $this->solutionPagesNav($solution, null),
+                    $this->solutionIntegrationsNav($solution, $integration),
+                    route('solutions.docs.pages.store', $solution),
+                    $solution->name,
+                    route('solutions.show', $solution),
+                ),
+            ],
         ]);
     }
 

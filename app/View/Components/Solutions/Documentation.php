@@ -9,11 +9,14 @@ use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 /**
- * Documentation summary section for the solution, shown in the detail
- * page (F1) right below the integrations — the Solution now has a tree
- * of 1..N pages (no longer a single blob), so here we only list the
- * titles linking to each page; the full content lives in the editor's
- * own screen (`solutions.docs.edit`, which resolves/opens the first page).
+ * Documentation column of the solution detail page's "integrações +
+ * documentação" card (the integrations are the other half — see
+ * `Solutions\IntegrationsMap`). The Solution has a tree of 1..N pages (no
+ * longer a single blob), so this lists the titles linking to each page; the
+ * full content lives in the editor's own screen (`solutions.docs.edit`, which
+ * resolves/opens the first page). A page can also be CREATED from here, and
+ * the endpoint answers with a redirect straight into the new page's editor —
+ * the same one gesture the pages rail inside the editor gives.
  *
  * Updatable slot: `Documentation::slot($solution)` — the editor's save
  * returns it to keep this section fresh if the user goes back to the detail page.
@@ -40,7 +43,8 @@ class Documentation extends Component
                 'url'        => route('solutions.docs.page.edit', [$this->solution, $page]),
                 'hasContent' => trim((string) $page->documentation) !== '',
             ]),
-            'editUrl' => route('solutions.docs.edit', $this->solution),
+            'editUrl'       => route('solutions.docs.edit', $this->solution),
+            'createPageUrl' => route('solutions.docs.pages.store', $this->solution),
         ]);
     }
 }

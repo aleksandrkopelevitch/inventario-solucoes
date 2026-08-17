@@ -3,7 +3,6 @@
 namespace App\View\Components\Solutions;
 
 use App\Enums\ChainNodeKind;
-use App\Enums\IntegrationStatus;
 use App\Enums\Protocol;
 use App\Models\Integration;
 use App\Models\Solution;
@@ -36,13 +35,14 @@ class IntegrationWorkspace extends Component
             'solution'    => $this->solution,
             'integration' => $this->integration,
             'graph'       => (new IntegrationsMap($this->solution))->graph($this->integration, $labeler, $solutions),
-            // The following four JSON payloads feed the canvas's editors
-            // (kind picker, solution select, protocol select, status select)
-            // — see `integration-viz.blade.php`'s own docblock. Same shape as
-            // the old rail used to provide.
+            // The following three JSON payloads feed the canvas's editors
+            // (kind picker, solution select, protocol select) — see
+            // `integration-viz.blade.php`'s own docblock. Same shape as the
+            // old rail used to provide. The integration's own status isn't
+            // among them: it's edited in the page's top bar
+            // (`Solutions\IntegrationMeta`), not on the canvas.
             'solutionsList' => Solution::orderBy('name')->get(['id', 'name']),
             'protocolsList' => collect(Protocol::cases())->map(fn (Protocol $p) => ['value' => $p->value, 'label' => $p->label()])->values(),
-            'statusesList'  => collect(IntegrationStatus::cases())->map(fn (IntegrationStatus $s) => ['value' => $s->value, 'label' => $s->label()])->values(),
             // Only the PICKABLE kinds — `Image` is excluded, since the kind
             // picker cards are never how an image block gets created (pasting
             // a picture on the canvas is, see `ChainNodeKind::pickable()`).

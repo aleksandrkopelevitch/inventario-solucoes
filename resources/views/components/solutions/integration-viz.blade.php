@@ -224,16 +224,20 @@
 <div data-integration-viz
     class="ak-viz relative flex min-h-[360px] flex-1 flex-col overflow-hidden bg-surface">
 
-    {{-- Top bar: logo + selected integration + view actions (organize
-         default layout / center / fullscreen / save). No topology-authoring
-         action lives here — only the topology, always the chain, decides
-         nodes and edges. --}}
-    <div data-viz-topbar class="ak-viz-topbar flex shrink-0 items-center gap-3 border-b border-line bg-surface px-3 py-2">
-    
-        <p data-viz-title class="min-w-0 flex-1 truncate text-sm font-medium text-ink">Selecione uma integração</p>
+    {{-- Top bar: view actions (organize default layout / center / fullscreen /
+         save). No topology-authoring action lives here — only the topology,
+         always the chain, decides nodes and edges.
 
-        {{-- Interaction hint, condensed into a discreet "?" so the (often
-             long) integration title keeps its room in this narrow bar. A
+         It doesn't name the integration either: the canvas is always mounted
+         inside that integration's own page, whose top bar sits ~40px above
+         this one and already carries the name AND the status
+         (`Solutions\IntegrationMeta`). This bar used to repeat the name, from
+         back when the canvas lived beside a rail of several integrations —
+         and after the name became editable up there, the copy down here was
+         simply the stale one. --}}
+    <div data-viz-topbar class="ak-viz-topbar flex shrink-0 items-center gap-3 border-b border-line bg-surface px-3 py-2">
+        {{-- Interaction hint, condensed into a discreet "?" so the authoring
+             actions keep their room in this narrow bar. A
              click-triggered popover (`data-ak-toggle`, same pattern as the
              user menu/share dropdowns), not just a hover `title` — a hover
              tooltip never reaches touch users, and Ctrl+V-to-paste-an-image
@@ -272,17 +276,19 @@
             </div>
         </div>
 
-        {{-- Authoring cluster: rename/status, add block, organize layout,
-             save. Viewport controls (zoom / center / fullscreen) live ONLY in
-             the floating bottom bar now — they used to be duplicated here. --}}
-        <div class="flex shrink-0 items-center gap-1">
-            {{-- Rename / change status of the selected integration — the only
-                 metadata that data-viz doesn't edit on the block/edge itself.
-                 Only visible when editable and an integration is selected. --}}
-            <x-forms.button type="button" variant="ghost" data-viz-meta-edit title="Renomear / mudar status"
-                class="!hidden !rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
-                <x-heroicon-o-pencil-square class="size-4" />
-            </x-forms.button>
+        {{-- Authoring cluster: add block, organize layout, save. Viewport
+             controls (zoom / center / fullscreen) live ONLY in the floating
+             bottom bar now — they used to be duplicated here.
+
+             The integration's own name/status used to be edited here too,
+             behind a pencil opening a panel over the canvas. They moved to the
+             page's top bar (`Solutions\IntegrationMeta`, click-to-edit), where
+             they're visible from the Documentação tab as well — a status
+             nobody can see while writing the doc is a status nobody
+             maintains. --}}
+        {{-- `ml-auto` is what keeps the authoring actions at the right edge now
+             that the (flex-1) title is gone from this bar. --}}
+        <div class="ml-auto flex shrink-0 items-center gap-1">
             {{-- Add block: always at the END of the chain (root → ... → new)
                  — opens the `data-viz-add-editor` panel (fixed top-left of
                  the canvas). Only visible when the integration is editable
@@ -874,30 +880,6 @@
                 <x-forms.button type="button" variant="ghost" data-viz-lane-toolbar-remove title="Remover raia"
                     class="!rounded-md !px-2.5 !py-1 !text-xs !text-crit hover:!bg-crit-soft">
                     <x-heroicon-o-trash class="size-3.5" /> Remover
-                </x-forms.button>
-            </div>
-        </div>
-
-        {{-- Editor for the selected integration's name/status — same fixed
-             top-left panel as "Adicionar bloco" (mutually exclusive with it
-             and with the block/lane/protocol toolbars), opened by the
-             topbar's pencil. Creating a new Integration is done via the
-             "Nova" form in the list on the left (`integrations-map.blade.php`);
-             this one only renames/changes the status of the one already
-             selected. --}}
-        <div data-viz-meta-editor
-            class="pointer-events-auto absolute left-3 top-3 z-20 hidden max-h-[calc(100%-24px)] w-56 flex-col gap-2 overflow-y-auto rounded-xl border border-line bg-surface p-2.5 shadow-[0_8px_28px_rgba(16,24,40,.16)]">
-            <x-forms.input type="text" data-viz-meta-name placeholder="Nome da integração"
-                class="!h-8 !w-full !rounded-md !border-line !bg-surface !text-xs" />
-            <x-forms.select data-viz-meta-status class="!h-8 !w-full !rounded-md !border-line !bg-surface !py-0 !text-xs"></x-forms.select>
-            <div class="flex items-center justify-end gap-1.5">
-                <x-forms.button type="button" variant="ghost" data-viz-meta-cancel
-                    class="!rounded-md !px-2.5 !py-1 !text-xs !text-muted hover:!bg-accent-soft">
-                    Cancelar
-                </x-forms.button>
-                <x-forms.button type="button" data-viz-meta-save
-                    class="!rounded-md !px-2.5 !py-1 !text-xs">
-                    <span data-viz-meta-save-label>Salvar</span>
                 </x-forms.button>
             </div>
         </div>

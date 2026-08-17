@@ -17,13 +17,20 @@ use Illuminate\View\Component;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 /**
- * Plain nav list of the integrations the solution participates in (solution
- * detail): name, chain summary and status, with a creation form (optional
- * name) and a delete action. Each row links straight to the integration's
- * own unified page (`Solutions\IntegrationWorkspace`, the Documentação/
- * Diagrama tabs) — the graphical chain editor no longer lives inline here,
- * it's authored on that page instead. It's an updatable slot to instantly
- * reflect integrations created/deleted.
+ * Plain nav list of the integrations the solution participates in: name,
+ * chain summary and status, with a creation form (optional name) and a delete
+ * action. It's the left column of the solution detail page's "integrações +
+ * documentação" card — `Solutions\Documentation` is the right one, and the
+ * card's frame lives in `solutions/show.blade.php` since each column is its
+ * own updatable slot (creating on one side must not re-render the other).
+ *
+ * Each row links straight to the integration's own unified page
+ * (`Solutions\IntegrationWorkspace`, the Documentação/Diagrama tabs) — the
+ * graphical chain editor no longer lives inline here, it's authored on that
+ * page instead, and so is the integration's name/status
+ * (`Solutions\IntegrationMeta`). Creating one goes straight there too, which
+ * is why `SolutionIntegrationController::store()` answers with a redirect and
+ * not with this slot.
  */
 class IntegrationsMap extends Component
 {
@@ -132,11 +139,10 @@ class IntegrationsMap extends Component
             'layout'   => $integration->viz_layout,
             'editable' => Gate::allows('update', $integration),
             'saveUrl'  => route('solutions.integrations.layout.save', [$this->solution, $integration]),
-            // Raw status (not the label) — pre-selects the select in the
-            // name/status editor (topbar pencil); PATCH goes to the same
-            // `SolutionIntegrationController::update()` as the creation form.
-            'status'        => $integration->status->value,
-            'metaUpdateUrl' => route('solutions.integrations.update', [$this->solution, $integration]),
+            // The integration's own name/status are NOT here: they're edited
+            // in the page's top bar (`Solutions\IntegrationMeta`), which talks
+            // to `solutions.integrations.update` directly. The canvas used to
+            // carry a second editor for them until 2026-08-17.
             // Index placeholders ("NODE_INDEX"/"EDGE_INDEX") substituted
             // in the JS (integration-viz.js) before the specific PATCH/POST — the
             // root node (index 0) is locked in the controller, never on the client;

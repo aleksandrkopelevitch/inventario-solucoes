@@ -153,12 +153,13 @@ async function resolveGifWorkerUrl() {
 // nós e ligações são criados independentemente, sem forçar todo bloco a estar
 // conectado.
 //
-// O lápis da TOPBAR (`data-viz-meta-edit`, distinto do lápis de título do
-// bloco) edita nome/status da integração selecionada — o único metadado que
-// não mora num nó/aresta da chain, então não mexe nela (PATCH em
-// `graph.metaUpdateUrl`, sem SyncIntegrationFromChain). Criar uma Integration
-// nova é o form "Nova" da lista à esquerda (`integrations-map.blade.php`),
-// que já entrega a chain com só o nó raiz.
+// Nome e status da integração — o único metadado que não mora num nó/aresta
+// da chain — NÃO são editados aqui: vivem na barra superior da página
+// (`Solutions\IntegrationMeta`, edição in-line), visível também na aba
+// Documentação. Este módulo tinha um painel próprio pra isso até 2026-08-17;
+// dois editores do mesmo campo dessincronizam na primeira edição. Criar uma
+// Integration nova é o form "Nova" da lista da solução
+// (`integrations-map.blade.php`), que já entrega a chain com só o nó raiz.
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
 const MIN_SCALE = 0.3
@@ -634,7 +635,6 @@ const savedLayouts = new Map() // slug -> último layout salvo na sessão (mant�
 let uidCounter = 0
 let solutionsListCache = null // [{id,name}] — lido uma vez de [data-ak-solutions] (integration-workspace.blade.php)
 let protocolsListCache = null // [{value,label}] — lido uma vez de [data-ak-protocols] (integration-workspace.blade.php)
-let statusesListCache = null // [{value,label}] — lido uma vez de [data-ak-statuses] (integration-workspace.blade.php)
 let kindsListCache = null // [{value,label,system,placeholder}] — lido uma vez de [data-ak-node-kinds] (integration-workspace.blade.php)
 
 function getSolutionsList() {
@@ -657,17 +657,6 @@ function getProtocolsList() {
         protocolsListCache = []
     }
     return protocolsListCache
-}
-
-function getStatusesList() {
-    if (statusesListCache) return statusesListCache
-    const raw = document.querySelector('[data-ak-statuses]')?.getAttribute('data-ak-statuses')
-    try {
-        statusesListCache = raw ? JSON.parse(raw) : []
-    } catch {
-        statusesListCache = []
-    }
-    return statusesListCache
 }
 
 // Tipos de bloco (`App\Enums\ChainNodeKind`) — resolvidos no servidor, nunca
@@ -795,14 +784,11 @@ function mount(root) {
     const saveBtn = root.querySelector('[data-viz-save]')
     const saveSep = root.querySelector('[data-viz-save-sep]')
     const saveLabel = root.querySelector('[data-viz-save-label]')
-    const topbarTitle = root.querySelector('[data-viz-title]')
-    const metaEditBtn = root.querySelector('[data-viz-meta-edit]')
-    const metaEditor = root.querySelector('[data-viz-meta-editor]')
-    const metaNameInput = root.querySelector('[data-viz-meta-name]')
-    const metaStatusSelect = root.querySelector('[data-viz-meta-status]')
-    const metaSave = root.querySelector('[data-viz-meta-save]')
-    const metaSaveLabel = root.querySelector('[data-viz-meta-save-label]')
-    const metaCancel = root.querySelector('[data-viz-meta-cancel]')
+    // Nome da integração desenhada agora — o canvas não o EXIBE mais (a barra
+    // superior da página faz isso, com o status junto), mas o rótulo do estado
+    // vazio ainda o usa, e o re-render de `removeNode()` precisa dele sem
+    // depender de lê-lo de volta do DOM.
+    let currentName = ''
     const organizeBtn = root.querySelector('[data-viz-organize]')
     const addNodeBtn = root.querySelector('[data-viz-add-node]')
     const lanesBtn = root.querySelector('[data-viz-lanes]')
@@ -1035,7 +1021,7 @@ function mount(root) {
         presentToggleBtn?.classList.add('!hidden') // sem chain carregada não há o que apresentar
         exportToggleBtn?.classList.add('!hidden') // idem — nada pra exportar
         themeSelect?.closest('[data-viz-theme-wrap]')?.classList.add('!hidden')
-        if (topbarTitle) topbarTitle.textContent = name || 'Selecione uma integração'
+        currentName = name || ''
         if (emptyTitle) emptyTitle.textContent = name || 'Nenhuma integração selecionada'
         if (emptyHint) {
             emptyHint.textContent = name
@@ -1053,7 +1039,6 @@ function mount(root) {
         selectNode(null)
         closeComment()
         closeAddEditor()
-        closeMetaEditor()
         closeLaneToolbar()
         clearWorld()
         graphRef = graph
@@ -1066,7 +1051,7 @@ function mount(root) {
             return
         }
         empty.style.display = 'none'
-        if (topbarTitle) topbarTitle.textContent = name || ''
+        currentName = name || ''
         refreshEditableUI()
         presentToggleBtn?.classList.remove('!hidden')
         exportToggleBtn?.classList.remove('!hidden')
@@ -1625,7 +1610,6 @@ function mount(root) {
         selectNode(null)
         closeProtocolEditor()
         closeAddEditor()
-        closeMetaEditor()
         closeLaneToolbar()
         selectedLane = index
         laneEls[index].wrap.classList.add('is-selected')
@@ -1982,7 +1966,6 @@ function mount(root) {
         saveBtn?.classList.toggle('!hidden', !editable)
         saveSep?.classList.toggle('hidden', !editable)
         addNodeBtn?.classList.toggle('!hidden', !editable)
-        metaEditBtn?.classList.toggle('!hidden', !editable)
         lanesBtn?.classList.toggle('!hidden', !editable)
         notesBtn?.classList.toggle('!hidden', !editable)
         presentSpeedWrap?.classList.toggle('hidden', !presenting)
@@ -2155,7 +2138,6 @@ function mount(root) {
         selectNode(null)
         closeComment()
         closeAddEditor()
-        closeMetaEditor()
         closeLaneToolbar()
 
         presenting = true
@@ -3272,105 +3254,6 @@ function mount(root) {
         }
     }
 
-    // ── nome/status da integração selecionada ──────────────────────
-    // Único metadado que não mora num nó/aresta da chain — mesmo painel fixo
-    // no canto do canvas que os outros usam (mutuamente exclusivo com eles).
-    // Não mexe na chain, só em `name`/`status` (PATCH em
-    // `graphRef.metaUpdateUrl`, o mesmo endpoint do form "Nova" da lista).
-    function openMetaEditor() {
-        if (!editable || !graphRef) return
-        selectNode(null)
-        closeProtocolEditor()
-        closeAddEditor()
-
-        metaEditor?.classList.remove('hidden')
-        metaEditor?.classList.add('flex')
-
-        if (metaNameInput) metaNameInput.value = topbarTitle?.textContent ?? ''
-        if (metaStatusSelect) {
-            metaStatusSelect.innerHTML = ''
-            getStatusesList().forEach((s) => {
-                const opt = document.createElement('option')
-                opt.value = s.value
-                opt.textContent = s.label
-                if (s.value === graphRef.status) opt.selected = true
-                metaStatusSelect.appendChild(opt)
-            })
-        }
-    }
-
-    function closeMetaEditor() {
-        if (!metaEditor || metaEditor.classList.contains('hidden')) return
-        metaEditor.classList.add('hidden')
-        metaEditor.classList.remove('flex')
-    }
-
-    metaEditBtn?.addEventListener('click', () => {
-        if (metaEditor?.classList.contains('hidden')) openMetaEditor()
-        else closeMetaEditor()
-    })
-    metaEditor?.addEventListener('pointerdown', (e) => e.stopPropagation())
-    metaCancel?.addEventListener('click', closeMetaEditor)
-
-    // Mantém a linha (lista à esquerda) e a topbar consistentes sem precisar
-    // reselecionar a integração — mesma ideia de `patchRowGraph()`.
-    function patchRowMeta(slugArg, name, statusLabel, statusValue) {
-        if (topbarTitle) topbarTitle.textContent = name
-        if (!slugArg) return
-        const row = document.querySelector(`[data-ak-integration-select="${CSS.escape(slugArg)}"]`)
-        if (!row) return
-
-        row.setAttribute('data-integration-name', name)
-        row.querySelector('[data-ak-integration-name]')?.replaceChildren(document.createTextNode(name))
-        // The row's status dot/pill are tinted purely off `data-status` (via
-        // `group-data-[status=…]:` utilities), so swapping this one attribute
-        // recolors them — no class juggling, no tone map duplicated here.
-        // Hyphenated to match the blade token (`in_development` → `in-development`):
-        // Tailwind reads an underscore in an arbitrary variant value as a space.
-        if (statusValue) row.setAttribute('data-status', statusValue.replace(/_/g, '-'))
-        if (statusLabel) row.querySelector('[data-ak-integration-status]')?.replaceChildren(document.createTextNode(statusLabel))
-    }
-
-    metaSave?.addEventListener('click', async () => {
-        const name = (metaNameInput?.value ?? '').trim()
-        if (!name) {
-            window.Toast?.show?.('Informe o nome da integração.', 'warning')
-            return
-        }
-        const status = metaStatusSelect?.value ?? ''
-
-        const url = graphRef?.metaUpdateUrl
-        if (!url) return
-
-        metaSave.disabled = true
-        if (metaSaveLabel) metaSaveLabel.textContent = 'Salvando…'
-        try {
-            const res = await fetch(url, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                    'X-CSRF-TOKEN': csrfToken(),
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: JSON.stringify({ name, status }),
-            })
-            const data = await res.json().catch(() => null)
-            if (!res.ok) throw new Error(data?.message || 'Não foi possível atualizar a integração.')
-
-            graphRef.status = status
-            const statusLabel = getStatusesList().find((s) => s.value === status)?.label ?? null
-            patchRowMeta(slug, name, statusLabel, status)
-            window.Toast?.show?.(data.message || 'Integração atualizada.')
-            closeMetaEditor()
-        } catch (err) {
-            window.Toast?.show?.(err.message || 'Não foi possível atualizar a integração.', 'error')
-        } finally {
-            metaSave.disabled = false
-            if (metaSaveLabel) metaSaveLabel.textContent = 'Salvar'
-        }
-    })
-
     // ── ligação: sentido + protocolo do enum Protocol ───────────────────
     // Painel fixo no canto do canvas (`selectEdge()`/`openProtocolEditor()`),
     // mesmo estilo do toolbar do bloco/raia — nunca ancorado à pill do
@@ -3772,7 +3655,7 @@ function mount(root) {
             // layout já reindexado que veio do servidor.
             savedLayouts.delete(slug)
             patchRowGraphReplace(slug, data.graph, data.summary)
-            render(data.graph, topbarTitle?.textContent || '', slug)
+            render(data.graph, currentName, slug)
             window.Toast?.show?.(data.message || 'Bloco excluído.')
         } catch (err) {
             window.Toast?.show?.(err.message || 'Não foi possível excluir o bloco.', 'error')

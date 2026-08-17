@@ -1,11 +1,13 @@
 {{-- Diagrama tab of the integration's unified page. `data-ak-solutions` /
-     `-protocols` / `-statuses` / `-node-kinds` are the same read-once-and-
-     cache JSON payloads `integration-viz.js` used to read off the old rail
+     `-protocols` / `-node-kinds` are the same read-once-and-cache JSON
+     payloads `integration-viz.js` used to read off the old rail
      (`integrations-map.blade.php`) — kept here since this is now where the
-     canvas actually lives. --}}
+     canvas actually lives. The status list left with the canvas's own
+     name/status panel (2026-08-17): the status is edited in the page's top
+     bar now (`Solutions\IntegrationMeta`), which builds its own option list
+     server-side. --}}
 <div data-ak-solutions="{{ json_encode($solutionsList) }}"
     data-ak-protocols="{{ json_encode($protocolsList) }}"
-    data-ak-statuses="{{ json_encode($statusesList) }}"
     data-ak-node-kinds="{{ json_encode($kindsList) }}"
     class="flex min-h-0 flex-1 flex-col">
 

@@ -10,19 +10,23 @@
         <x-solutions.detail-header :solution="$solution" />
     </div>
 
-    {{-- 3. Integrations — a plain nav list (name, chain summary, status).
-         Each row links straight to that integration's own unified page
-         (Documentação/Diagrama tabs, `Solutions\IntegrationWorkspace`) —
-         the graphical chain canvas no longer lives inline here, it's
-         authored on that page instead. --}}
-    <div class="animate-ak-rise" style="animation-delay: 90ms">
-        <x-solutions.integrations-map :solution="$solution" />
-    </div>
+    {{-- 3. What this solution HAS been documented with, in one card: the
+         integrations it takes part in on the left, its documentation pages on
+         the right. They were two stacked cards until 2026-08-17 — the same
+         kind of thing (a list of pages you open to read/edit, both living
+         under the same consolidated docs screen), read one under the other as
+         if they were unrelated sections.
 
-    {{-- 4. Solution's rich documentation (block editor, read-only here).
-         Documentation coverage (former F7 block) became the "..." menu in the
-         header of the /documentacao sub-page — it no longer lives here. --}}
-    <div class="animate-ak-rise" style="animation-delay: 160ms">
+         Each column stays its OWN updatable slot (`IntegrationsMap` /
+         `Documentation`): creating or deleting on one side must not re-render
+         the other. That's also why the card's chrome (border/shadow/radius)
+         lives here and not in either component — a slot swap replaces the
+         component's root node wholesale, so the frame has to be outside it.
+         The divider between the columns is the one exception, carried by the
+         right column itself (it re-renders identically on every swap). --}}
+    <div class="animate-ak-rise mt-5 grid overflow-hidden rounded-card border border-line bg-surface shadow-card lg:grid-cols-2"
+         style="animation-delay: 90ms">
+        <x-solutions.integrations-map :solution="$solution" />
         <x-solutions.documentation :solution="$solution" />
     </div>
 </x-layouts.layout>
