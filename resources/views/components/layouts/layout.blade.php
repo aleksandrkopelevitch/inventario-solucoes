@@ -27,6 +27,7 @@
             ['route' => 'documentation.index', 'label' => 'Documentação', 'icon' => 'book-open', 'active' => 'documentation.*'],
             ['route' => 'solutions.map', 'label' => 'Mapa do ecossistema', 'icon' => 'share', 'active' => 'solutions.map'],
             ['route' => 'flowspec.index', 'label' => 'Especialista em Integrações', 'icon' => 'cpu-chip', 'active' => 'flowspec.*'],
+            ['route' => 'submissions.index', 'label' => 'Comitê de Arquitetura', 'icon' => 'clipboard-document-check', 'active' => 'submissions.*'],
         ],
     ];
 @endphp

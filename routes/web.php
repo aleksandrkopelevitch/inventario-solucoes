@@ -23,6 +23,11 @@ use App\Http\Controllers\SolutionContextDocumentController;
 use App\Http\Controllers\SolutionDocumentationController;
 use App\Http\Controllers\SolutionIntegrationController;
 use App\Http\Controllers\SolutionMapController;
+use App\Http\Controllers\SubmissionChatController;
+use App\Http\Controllers\SubmissionController;
+use App\Http\Controllers\SubmissionExportController;
+use App\Http\Controllers\SubmissionSectionController;
+use App\Http\Controllers\SubmissionSourceController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -289,6 +294,52 @@ Route::middleware('auth')->group(function () {
     Route::delete('flowspec/guidelines/{guideline}', [FlowspecGuidelineController::class, 'destroy'])->name('flowspec.guidelines.destroy');
 
     Route::get('flowspec/{chat}', [FlowspecChatController::class, 'show'])->name('flowspec.show');
+
+    /*
+    |--------------------------------------------------------------------------
+    | CATI — submissions to the IT Architecture Committee
+    |--------------------------------------------------------------------------
+    |
+    | `submissions/create` MUST stay above `submissions/{submission}`, or the
+    | binding tries to resolve a submission whose slug is "create" — the same
+    | trap already noted for `flowspec/{chat}` above.
+    |
+    */
+    Route::get('submissions', [SubmissionController::class, 'index'])->name('submissions.index');
+    Route::get('submissions/create', [SubmissionController::class, 'create'])->name('submissions.create');
+    Route::post('submissions', [SubmissionController::class, 'store'])->name('submissions.store');
+
+    Route::get('submissions/{submission}', [SubmissionController::class, 'show'])->name('submissions.show');
+    Route::get('submissions/{submission}/edit', [SubmissionController::class, 'edit'])->name('submissions.edit');
+    Route::patch('submissions/{submission}', [SubmissionController::class, 'update'])->name('submissions.update');
+    Route::patch('submissions/{submission}/field', [SubmissionController::class, 'updateField'])->name('submissions.field.update');
+    Route::delete('submissions/{submission}', [SubmissionController::class, 'destroy'])->name('submissions.destroy');
+
+    Route::get('submissions/{submission}/export/markdown', [SubmissionExportController::class, 'markdown'])->name('submissions.export.markdown');
+    Route::get('submissions/{submission}/export/ticket', [SubmissionExportController::class, 'ticket'])->name('submissions.export.ticket');
+
+    Route::post('submissions/{submission}/sources', [SubmissionSourceController::class, 'store'])->name('submissions.sources.store');
+    Route::post('submissions/{submission}/chat/messages', [SubmissionChatController::class, 'store'])->name('submissions.chat.messages.store');
+
+    // Scoped: without it, DELETE submissions/{a}/sources/{source} would delete
+    // material belonging to submission {b}, and the chat endpoints would answer
+    // for a chat that isn't this submission's.
+    Route::scopeBindings()->group(function () {
+        Route::patch('submissions/{submission}/sections/{section}', [SubmissionSectionController::class, 'update'])->name('submissions.sections.update');
+        Route::post('submissions/{submission}/sections/{section}/confirm', [SubmissionSectionController::class, 'confirm'])->name('submissions.sections.confirm');
+
+        Route::get('submissions/{submission}/sources/{source}', [SubmissionSourceController::class, 'show'])->name('submissions.sources.show');
+        Route::delete('submissions/{submission}/sources/{source}', [SubmissionSourceController::class, 'destroy'])->name('submissions.sources.destroy');
+
+        Route::get('submissions/{submission}/chat/{chat}/status', [SubmissionChatController::class, 'status'])->name('submissions.chat.status');
+    });
+
+    // NOT scoped: a message is two hops from a submission (submission → chat →
+    // message), and scopeBindings() would resolve `{message}` through a
+    // `Submission::messages()` relation that doesn't and shouldn't exist.
+    // SubmissionChatController::apply() checks the ownership explicitly instead.
+    Route::post('submissions/{submission}/chat/messages/{message}/apply', [SubmissionChatController::class, 'apply'])->name('submissions.chat.messages.apply');
+
     Route::get('flowspec/{chat}/status', [FlowspecChatController::class, 'status'])->name('flowspec.status');
     Route::post('flowspec/{chat}/messages', [FlowspecMessageController::class, 'store'])->name('flowspec.messages.store');
 
