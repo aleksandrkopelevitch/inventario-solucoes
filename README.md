@@ -317,6 +317,14 @@ são controles de formulário e sim as peças da leitura/edição in place:
 | `x-ui.add-chip` | o chip tracejado que abre um criador |
 | `x-ui.markdown` | Markdown curto renderizado (`MarkdownText`, HTML removido) |
 | `x-ui.logo`, `x-ui.avatar` | tile de solução/empresa (cor por categoria) e foto de pessoa |
+| `x-ui.empty-state` | lista vazia: ilustração + o que falta + o que fazer; `illustration="x"` resolve `x-illustrations.empty-x` |
+
+As ilustrações de estado vazio (`resources/views/components/illustrations/`)
+são SVGs do [unDraw](https://undraw.co) (licença livre, sem atribuição)
+**embutidos** como componentes Blade e repintados nos tokens do app — a cor
+primária vira `currentColor`, cinzas/escuros viram `--color-line`/`--color-ink`/
+`--color-surface`. Assim não custam requisição, acompanham o tema e não leem
+como arte de terceiro colada na tela.
 
 ## Layout
 
@@ -423,7 +431,9 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   (Categoria, Status, Criticidade, Ambiente, Hospedagem, Contrato, Suporte,
   Diretoria), a grade de owners por papel e um bloco de anotações livres.
   Atributos em branco mostram "Não informado" em vez de sumir da ficha, e
-  tudo ali é editável na própria página (ver abaixo).
+  tudo ali é editável na própria página (ver abaixo). Abaixo do cabeçalho,
+  um card único reúne as integrações da solução e as páginas de documentação
+  dela, lado a lado (ver "Integrações").
 - **Edição in place nas três páginas de detalhe** (solução, pessoa, empresa):
   a página é de leitura, e cada dado vira editor sob **duplo clique** — ou um
   clique no lápis ao lado, que é o caminho do teclado e do toque. O side panel
@@ -438,6 +448,10 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
     - **As relações também**: owners da solução, sistemas da pessoa, contatos,
       pessoas e sistemas da empresa são criados, trocados e removidos ali
       mesmo, cada card devolvendo seu próprio slot.
+
+  O mesmo gesto vale fora dessas três páginas onde um dado precisa ser lido e
+  ajustado no mesmo lugar: o nome e o status de uma integração, na barra de
+  cima da página de doc dela.
 - **Atributos gerenciáveis em runtime**: os valores de cada um dos 8 grupos
   (`App\Enums\AttributeGroup`) são registros `AttributeOption` editáveis por
   admin em "Gerenciar atributos" (`/attributes`, sempre dentro da `#main-modal`,
@@ -450,11 +464,20 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   outro), editáveis no form pela seção repetível "Contatos adicionais" e, um a
   um, na própria página de detalhe.
 - **Integrações — sempre a partir de uma solução**: não existe catálogo
-  `/integrations` avulso. No detalhe de cada solução, a seção "Integrações"
-  é um bloco de duas colunas — à esquerda, a lista das integrações da
-  solução (criar só com um nome, selecionar, excluir); à direita, um canvas
-  gráfico (`resources/js/modules/integration-viz.js`) que desenha e edita a
-  integração selecionada.
+  `/integrations` avulso. No detalhe da solução, um card único reúne as
+  **integrações** dela (à esquerda) e as **páginas de documentação** (à
+  direita) — o mesmo tipo de coisa, uma lista que se abre para ler/editar,
+  então uma moldura só. Cada lado cria o seu (o nome da integração é
+  opcional) e leva **direto** ao registro criado; um lado vazio mostra uma
+  ilustração dizendo o que falta, não uma linha de texto cinza.
+
+  Cada integração tem uma página própria, aninhada na solução
+  (`/solutions/{slug}/integrations/{slug}/documentation`), com as abas
+  **Documentação** e **Diagrama**: o canvas gráfico
+  (`resources/js/modules/integration-viz.js`) que desenha e edita a chain é
+  essa segunda aba. Nome e **status** da integração são editados in place na
+  barra de cima dessa página (`Solutions\IntegrationMeta`), visíveis das duas
+  abas — o status é o que um leitor da doc quer saber sem abrir nada.
 
   A topologia vive só na `chain`, e tudo o mais é derivado dela:
 
@@ -513,9 +536,12 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   heading e atalhos de Markdown (`## `, `- `, `> `, ` ``` `). Três contêineres:
     - **Solução** (`/solutions/{slug}/documentation`): árvore **plana** de 1..N
       páginas (`DocumentationPage`) — criar/renomear/mover/excluir; a rota-índice
-      resolve (ou cria) a primeira página e redireciona pra ela.
+      resolve (ou cria) a primeira página e redireciona pra ela. Criar uma
+      página também é possível do detalhe da solução, e leva direto ao editor
+      dela.
     - **Integração** (`/solutions/{slug}/integrations/{slug}/documentation`): uma
-      página única.
+      página única, com as abas **Documentação** e **Diagrama** (o canvas da
+      chain) e, na barra de cima, o nome e o status editáveis in place.
     - **Grupos** (`/documentation/groups/{group}`): árvores de páginas
       *standalone*, fora de qualquer solução.
 
@@ -595,11 +621,20 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   efeito colateral em topologia. Ver `CLAUDE.md` § Integration topology
   invariant.
 - **Integrações vivem só a partir da solução.** Não há módulo `/integrations`
-  avulso (catálogo/detalhe) nem editor de diagrama em página própria — criar,
-  editar topologia, renomear e mudar status acontecem todos no bloco
-  "Integrações" do detalhe da solução. As rotas `solutions.integrations.*`
-  usam `scopeBindings`, então `{integration}` precisa pertencer à `{solution}`
-  da URL.
+  avulso (catálogo/detalhe): criar acontece no card do detalhe da solução, e
+  tudo o mais na página da própria integração, sempre aninhada nessa solução
+  (doc + diagrama nas duas abas; nome/status na barra de cima). Também não há
+  uma página separada de "editor de diagrama" — o mesmo canvas que **mostra**
+  a chain é o que a **edita**. As rotas `solutions.integrations.*` usam
+  `scopeBindings`, então `{integration}` precisa pertencer à `{solution}` da
+  URL.
+- **Nome e status de uma integração têm um editor só.** Ficam na barra de cima
+  da página dela (`Solutions\IntegrationMeta`, dois `x-ui.inline-edit` no
+  mesmo endpoint `solutions.integrations.update`, cujas regras são
+  `sometimes`+`required` para confirmar um campo sem apagar o outro). O canvas
+  teve um segundo editor desses dois campos até 2026-08-17; dois editores do
+  mesmo campo dessincronizam na primeira edição, então ele foi removido — e
+  não deve voltar.
 - **Busca e filtros de Soluções/Pessoas/Empresas** rodam via
   `execute-filters.js`/`execute-search.js` sobre `ajax.js` (contrato Promise
   baseado em `fetch`, não `XMLHttpRequest`) — ver `CLAUDE.md` § `ajax.js`.
@@ -680,6 +715,10 @@ inline dos 8 atributos), `{Solution,Person,Company}InlineFieldUpdateTest` e
 `{Solution,Person,Company}InlineRelationsTest` (edição in place das páginas de
 detalhe — campos, upload, e criar/trocar/remover relação), `DetailHeaderSlotTest`
 (a mutação devolve o slot da página de detalhe, não só o do índice),
+`SolutionWorkspaceCardTest` (o card de integrações + documentação: dois slots,
+os dois formulários de criação, estados vazios ilustrados e o status editável
+na barra da página da integração), `SolutionIntegrationTest` (criar redireciona
+para a integração; edição parcial de nome/status),
 `PersonContactsSyncTest` (sincronização de contatos adicionais),
 `DocumentationTest` (editor de blocos de Solução/Integração),
 `DocumentationGroupTest` (grupos standalone), `PublicDocumentationTest` (magic

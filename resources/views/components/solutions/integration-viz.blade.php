@@ -285,9 +285,8 @@
              page's top bar (`Solutions\IntegrationMeta`, click-to-edit), where
              they're visible from the Documentação tab as well — a status
              nobody can see while writing the doc is a status nobody
-             maintains. --}}
-        {{-- `ml-auto` is what keeps the authoring actions at the right edge now
-             that the (flex-1) title is gone from this bar. --}}
+             maintains. `ml-auto` is what holds these actions at the right
+             edge now that the (flex-1) title is gone from this bar. --}}
         <div class="ml-auto flex shrink-0 items-center gap-1">
             {{-- Add block: always at the END of the chain (root → ... → new)
                  — opens the `data-viz-add-editor` panel (fixed top-left of
