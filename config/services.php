@@ -78,6 +78,35 @@ return [
     | Same env-driven pattern as flowspec; the API key is read by config/ai.php
     | from the laravel/ai package (provider gemini => GEMINI_API_KEY).
     */
+    /*
+    |--------------------------------------------------------------------------
+    | CATI submissions — the adaptive interview
+    |--------------------------------------------------------------------------
+    |
+    | Same env-driven pattern as `flowspec` and `documentation_ai`; the API key
+    | is read by config/ai.php from the laravel/ai package (provider gemini =>
+    | GEMINI_API_KEY).
+    |
+    */
+    'cati' => [
+        'provider' => env('CATI_AI_PROVIDER', 'gemini'),
+        'model'    => env('CATI_AI_MODEL', 'gemini-3.6-flash'),
+        'timeout'  => env('CATI_AI_TIMEOUT', 180),
+
+        // 2-3 past submissions: more dilutes the signal instead of adding to
+        // it — the same conclusion the flowSpec corpus reached.
+        'max_examples' => env('CATI_MAX_EXAMPLES', 3),
+
+        // Ceiling on the gathered material folded into one turn. A single old
+        // deck is ~10k chars, so this holds several without crowding out the
+        // checklist and the conversation history.
+        'doc_budget_chars' => env('CATI_DOC_BUDGET_CHARS', 60000),
+
+        // Aggregate byte ceiling for native attachments (PDF/image) in one
+        // request, mirroring documentation_ai.
+        'max_attachment_bytes' => env('CATI_MAX_ATTACHMENT_BYTES', 20971520),
+    ],
+
     'documentation_ai' => [
         'provider' => env('DOCS_AI_PROVIDER', 'gemini'),
         'model'    => env('DOCS_AI_MODEL', 'gemini-3.6-flash'),

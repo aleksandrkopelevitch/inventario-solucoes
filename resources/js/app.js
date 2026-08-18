@@ -26,6 +26,7 @@ import * as docsCode from './modules/docs-code.js'
 import * as docsToc from './modules/docs-toc.js'
 import * as docsChat from './modules/docs-chat.js'
 import * as flowspecChat from './modules/flowspec-chat.js'
+import * as catiChat from './modules/cati-chat.js'
 import * as mobileNav from './modules/mobile-nav.js'
 
 import.meta.glob([
@@ -58,6 +59,7 @@ window.globalModules = {
     "docsToc"           : docsToc,
     "docsChat"          : docsChat,
     "flowspecChat"      : flowspecChat,
+    "catiChat"          : catiChat,
     "mobileNav"         : mobileNav,
 }
 

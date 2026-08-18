@@ -18,6 +18,14 @@
    inside the enum so the two places that draw a status can't drift apart. */
 @source "../../app/Enums/IntegrationStatus.php";
 
+/* Same again for the CATI submission tones: SubmissionStatus (7 lifecycle
+   badges), SubmissionSectionState (empty / IA draft / confirmed) and
+   SubmissionSourceExtraction all name their classes as literals inside the
+   enum, so the badge can't drift between the list and the detail page. */
+@source "../../app/Enums/SubmissionStatus.php";
+@source "../../app/Enums/SubmissionSectionState.php";
+@source "../../app/Enums/SubmissionSourceExtraction.php";
+
 /* Carrega Inter (Variable) — reativada 2026-08-04 para o redesign Radiant/
    Protocol (ver [[radiant-protocol-redesign]]): o arquivo já existia em
    resources/fonts/ sem nenhum @font-face apontando pra ele desde a troca
