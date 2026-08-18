@@ -876,6 +876,9 @@ function mount(root) {
     let slug = ''
     let editable = false
     let saveUrl = null
+    // Onde o canvas publica a própria imagem depois de salvar (ver
+    // `publishDiagram()` no fim de `save()`).
+    let diagramUrl = null
     let currentTheme = 'original' // ver applyTheme() — persistido em viz_layout.theme, ao vivo no canvas E no export
     // ── modo apresentação — ver `enterPresentation()`/`presentTick()` ──
     let presenting = false
@@ -1045,6 +1048,7 @@ function mount(root) {
         slug = slugArg || ''
         editable = !!graph?.editable
         saveUrl = graph?.saveUrl ?? null
+        diagramUrl = graph?.diagramUrl ?? null
 
         if (!graph || !Array.isArray(graph.nodes) || graph.nodes.length === 0) {
             showEmpty(name)
@@ -3987,12 +3991,57 @@ function mount(root) {
             if (saveLabel) saveLabel.textContent = 'Salvo'
             setDirty(false)
             window.Toast?.show?.('Layout salvo.')
+            publishDiagram()
             setTimeout(() => { if (saveLabel && !dirty) saveLabel.textContent = 'Salvar' }, 1500)
         } catch {
             if (saveLabel) saveLabel.textContent = 'Salvar'
             saveBtn.disabled = false
             window.Toast?.show?.('Não foi possível salvar o layout.', 'error')
         }
+    }
+
+    /**
+     * Publica a imagem do canvas depois de um "Salvar" bem-sucedido.
+     *
+     * É uma cópia DERIVADA — a topologia continua sendo o `chain` e as
+     * posições continuam em `viz_layout`. Ela existe para que um deck do CATI
+     * mostre a arquitetura sem precisar de um navegador no meio do caminho: o
+     * deck embute esta imagem e aponta de volta para o canvas, o que mantém o
+     * canvas como o único lugar onde um diagrama se edita.
+     *
+     * Deliberadamente sem `await` e sem tratamento de erro visível: capturar
+     * uma imagem é caro e pode falhar (fonte, imagem colada que não carregou),
+     * e nada disso pode transformar um salvamento que DEU CERTO em erro na
+     * cara do usuário. Falhou? O deck usa a imagem anterior, e o próximo
+     * "Salvar" tenta de novo.
+     */
+    function publishDiagram() {
+        if (!diagramUrl || !editable) return
+
+        ;(async () => {
+            try {
+                const canvas = await captureDiagramCanvas()
+                if (!canvas) return
+
+                const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'))
+                if (!blob) return
+
+                const body = new FormData()
+                body.append('image', blob, `${exportFileBase()}.png`)
+
+                await fetch(diagramUrl, {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': csrfToken(),
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body,
+                })
+            } catch {
+                // silencioso, de propósito — ver o docblock acima
+            }
+        })()
     }
 
     // ── pan (canvas) + zoom (roda) ────────────────────────────────

@@ -105,6 +105,15 @@ return [
         // Aggregate byte ceiling for native attachments (PDF/image) in one
         // request, mirroring documentation_ai.
         'max_attachment_bytes' => env('CATI_MAX_ATTACHMENT_BYTES', 20971520),
+
+        // Deck rendering (Fase 2). The renderer is a Python script driven over
+        // Symfony Process — python-pptx opens the real corporate template and
+        // uses its layouts, which is what keeps a generated deck from looking
+        // "almost" corporate. See docs/cati-fase-2.md for the venv setup.
+        'python'        => env('CATI_PYTHON', base_path('.venv-cati/bin/python')),
+        'deck_script'   => env('CATI_DECK_SCRIPT', base_path('scripts/render_deck.py')),
+        'deck_template' => env('CATI_DECK_TEMPLATE', resource_path('cati/cati-template.pptx')),
+        'deck_timeout'  => env('CATI_DECK_TIMEOUT', 120),
     ],
 
     'documentation_ai' => [

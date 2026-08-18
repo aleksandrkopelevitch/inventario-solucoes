@@ -23,3 +23,6 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 /.claude/settings.local.json
+
+# CATI deck renderer — project-local Python venv (see docs/cati-fase-2.md)
+/.venv-cati

@@ -12,6 +12,7 @@ use App\Http\Controllers\FlowspecExampleController;
 use App\Http\Controllers\FlowspecGuidelineController;
 use App\Http\Controllers\FlowspecMessageController;
 use App\Http\Controllers\HeroiconController;
+use App\Http\Controllers\IntegrationDiagramController;
 use App\Http\Controllers\IntegrationDocumentationController;
 use App\Http\Controllers\Inventory\CompanyController;
 use App\Http\Controllers\Inventory\PersonController;
@@ -81,6 +82,11 @@ Route::middleware('auth')->group(function () {
         Route::post('solutions/{solution}/integrations', [SolutionIntegrationController::class, 'store'])->name('solutions.integrations.store');
         Route::patch('solutions/{solution}/integrations/{integration}', [SolutionIntegrationController::class, 'update'])->name('solutions.integrations.update');
         Route::patch('solutions/{solution}/integrations/{integration}/layout', [SolutionIntegrationController::class, 'saveLayout'])->name('solutions.integrations.layout.save');
+
+        // The canvas's own rendered PNG, posted right after a layout save and
+        // read by the CATI deck. Media only — never topology.
+        Route::post('solutions/{solution}/integrations/{integration}/diagram', [IntegrationDiagramController::class, 'store'])->name('solutions.integrations.diagram.store');
+        Route::get('solutions/{solution}/integrations/{integration}/diagram', [IntegrationDiagramController::class, 'show'])->name('solutions.integrations.diagram.show');
         // Rich integration documentation (Editor.js block editor).
         Route::get('solutions/{solution}/integrations/{integration}/documentation', [IntegrationDocumentationController::class, 'edit'])->name('solutions.integrations.docs.edit');
         Route::patch('solutions/{solution}/integrations/{integration}/documentation', [IntegrationDocumentationController::class, 'update'])->name('solutions.integrations.docs.update');
@@ -317,6 +323,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('submissions/{submission}/export/markdown', [SubmissionExportController::class, 'markdown'])->name('submissions.export.markdown');
     Route::get('submissions/{submission}/export/ticket', [SubmissionExportController::class, 'ticket'])->name('submissions.export.ticket');
+    Route::get('submissions/{submission}/export/deck', [SubmissionExportController::class, 'deck'])->name('submissions.export.deck');
 
     Route::post('submissions/{submission}/sources', [SubmissionSourceController::class, 'store'])->name('submissions.sources.store');
     Route::post('submissions/{submission}/chat/messages', [SubmissionChatController::class, 'store'])->name('submissions.chat.messages.store');

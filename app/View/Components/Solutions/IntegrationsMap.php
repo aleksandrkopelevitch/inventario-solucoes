@@ -139,6 +139,11 @@ class IntegrationsMap extends Component
             'layout'   => $integration->viz_layout,
             'editable' => Gate::allows('update', $integration),
             'saveUrl'  => route('solutions.integrations.layout.save', [$this->solution, $integration]),
+            // Where the client posts the rendered PNG right after a successful
+            // layout save — a derived picture of the canvas, used by the CATI
+            // deck. Fire-and-forget on the client: a failed capture must never
+            // fail the save.
+            'diagramUrl' => route('solutions.integrations.diagram.store', [$this->solution, $integration]),
             // The integration's own name/status are NOT here: they're edited
             // in the page's top bar (`Solutions\IntegrationMeta`), which talks
             // to `solutions.integrations.update` directly. The canvas used to

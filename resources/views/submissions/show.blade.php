@@ -16,6 +16,9 @@
         <x-forms.button type="button" variant="glass" onclick="window.location='{{ route('submissions.export.markdown', $submission) }}'">
             <x-heroicon-o-document-arrow-down class="size-4" /> Documento (Markdown)
         </x-forms.button>
+        <x-forms.button type="button" onclick="window.location='{{ route('submissions.export.deck', $submission) }}'">
+            <x-heroicon-o-presentation-chart-bar class="size-4" /> Baixar deck
+        </x-forms.button>
     </div>
 
     <div class="animate-ak-rise mt-5 grid gap-5 lg:grid-cols-[1fr_360px]" style="animation-delay: 90ms">

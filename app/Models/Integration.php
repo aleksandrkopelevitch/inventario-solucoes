@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Spatie\MediaLibrary\InteractsWithMedia;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class Integration extends Model implements Documentable
 {
@@ -64,11 +65,31 @@ class Integration extends Model implements Documentable
         return 'slug';
     }
 
+    /**
+     * The F3 canvas rendered to a PNG, refreshed by the client every time the
+     * layout is saved (`integration-viz.js`'s `save()` → `captureDiagramCanvas()`).
+     *
+     * A DERIVED artifact, never an input: the topology stays the `chain` and
+     * the positions stay `viz_layout`. It exists so a CATI deck can show the
+     * architecture without a browser in the loop — the deck embeds this image
+     * and links back to the canvas, which keeps the canvas the one place a
+     * diagram is edited. `singleFile()` because only the current picture is
+     * ever wanted; each save replaces the last.
+     */
+    public const DIAGRAM_COLLECTION = 'diagram';
+
     public function registerMediaCollections(): void
     {
         // See Solution::registerMediaCollections() — documentation media,
         // served by `files.show`, referenced as /files/{id} in the Markdown.
         $this->addMediaCollection(self::DOCS_COLLECTION);
+        $this->addMediaCollection(self::DIAGRAM_COLLECTION)->singleFile();
+    }
+
+    /** The current rendered diagram, if the canvas has ever been saved with one. */
+    public function diagram(): ?Media
+    {
+        return $this->getFirstMedia(self::DIAGRAM_COLLECTION);
     }
 
     public function documentationTitle(): string
