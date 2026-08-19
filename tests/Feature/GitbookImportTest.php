@@ -46,6 +46,11 @@ function fakeGitbook(array $tree, array|Closure $markdown, string $title = 'Manu
 
             return Http::response(['markdown' => $resolve()[$id] ?? '']);
         },
+        // Must precede the bare `spaces/space-1*` below: stubs are matched in
+        // insertion order, and that one would swallow this URL too.
+        'api.gitbook.com/v1/spaces/space-1/content/files*' => Http::response(['items' => [
+            ['id' => 'gbFileAbc', 'name' => 'diagrama.png', 'downloadURL' => 'https://files.gitbook.com/diagrama.png'],
+        ]]),
         'api.gitbook.com/v1/spaces/space-1*'    => Http::response(['id' => 'space-1', 'title' => $title]),
         'api.gitbook.com/v1/orgs/org-1/spaces*' => Http::response([
             'items' => [['id' => 'space-1', 'title' => $title, 'visibility' => 'private']],
@@ -669,4 +674,60 @@ it('lifts a blockquoted hint out too, so it renders as a callout', function () {
 
     expect($html)->toContain('data-callout="warning"');
     expect($html)->not->toContain('{%');
+});
+
+/*
+|--------------------------------------------------------------------------
+| GitBook's own /files/{id} references — the same path shape we serve on
+|--------------------------------------------------------------------------
+*/
+
+it('resolves a GitBook /files/{id} reference into our own media', function () {
+    // The bug the first real import exposed: every one of the 20 references in
+    // that space was this shape, none were absolute URLs, and the import
+    // reported "0 assets re-hosted" while leaving markup that 404s against our
+    // own files.show with an id belonging to GitBook.
+    fakeGitbook(
+        [['id' => 'p1', 'type' => 'document', 'title' => 'Com anexo']],
+        ['p1' => "<figure><img src=\"/files/gbFileAbc\" alt=\"\"><figcaption></figcaption></figure>\n\n{% file src=\"/files/gbFileAbc\" %}"],
+    );
+    Http::fake(['files.gitbook.com/*' => Http::response('png', 200, ['Content-Type' => 'image/png'])]);
+
+    $report = app(ImportGitbookSpace::class)->handle('space-1');
+    $page = DocumentationGroup::sole()->pages()->sole();
+    $media = $page->getMedia(Documentable::DOCS_COLLECTION)->sole();
+
+    expect($report->assets)->toBe(1);
+    expect($media->file_name)->toBe('diagrama.png');   // the name comes from the API, not the URL
+    expect($page->documentation)
+        ->toContain('<img src="/files/' . $media->id . '"')
+        ->toContain('{% file src="/files/' . $media->id . '" %}')
+        ->not->toContain('gbFileAbc');
+});
+
+it('names a GitBook reference the space file list does not contain', function () {
+    fakeGitbook(
+        [['id' => 'p1', 'type' => 'document', 'title' => 'Órfão']],
+        ['p1' => '<figure><img src="/files/gbMissingXyz" alt=""><figcaption></figcaption></figure>'],
+    );
+
+    $report = app(ImportGitbookSpace::class)->handle('space-1');
+
+    expect($report->assets)->toBe(0);
+    expect($report->failures)->toHaveCount(1);
+    expect($report->failures[0])->toContain('gbMissingXyz')
+        ->toContain('lista de arquivos');
+});
+
+it('leaves a numeric /files/{id} alone — that one is already ours', function () {
+    fakeGitbook(
+        [['id' => 'p1', 'type' => 'document', 'title' => 'Já nosso']],
+        ['p1' => '<figure><img src="/files/4242" alt=""><figcaption></figcaption></figure>'],
+    );
+
+    $report = app(ImportGitbookSpace::class)->handle('space-1');
+
+    expect($report->assets)->toBe(0);
+    expect($report->failures)->toBe([]);
+    expect(DocumentationGroup::sole()->pages()->sole()->documentation)->toContain('/files/4242');
 });

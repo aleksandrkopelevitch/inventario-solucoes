@@ -63,6 +63,11 @@ class ImportGitbookSpace
 
         $group = $this->group($groupName ?: $title);
 
+        // Fetched once for the whole space: it is the only place an embedded
+        // asset's real download URL exists (its Markdown reference is a GitBook
+        // file id, not a URL — see GitbookAssetImporter).
+        $spaceFiles = $this->client->files($spaceId);
+
         $created = 0;
         $updated = 0;
         $assets = 0;
@@ -96,7 +101,7 @@ class ImportGitbookSpace
                 $page->clearMediaCollection(Documentable::DOCS_COLLECTION);
             }
 
-            $rehosted = $this->assets->rehost($page, $markdown);
+            $rehosted = $this->assets->rehost($page, $markdown, $spaceFiles);
             $assets += $rehosted->imported;
             $failures = [...$failures, ...array_map(
                 fn (string $failure) => $source->title . ': ' . $failure,

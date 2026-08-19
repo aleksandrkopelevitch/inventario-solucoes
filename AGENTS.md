@@ -475,6 +475,18 @@ up as literal `{% … %}` text on screen, or quietly disappears from the editor.
   content is made of hotlinks that break when the source goes away.
   `MediaController::show()` authorizes on the media's COLLECTION only, so media
   keeps working when its page moves container.
+- **`/files/{id}` is also GitBook's own path shape, and that collision is the
+  nastiest thing in this whole import.** GitBook writes an embedded asset as
+  `/files/{gitbookFileId}` (`/files/A4QijPsDvYEfSb14PQso`), which is byte-for-byte
+  the shape this app serves its own media on. Passed through, it produces a page
+  whose markup is flawless and whose every image 404s against our own
+  `files.show` with an id belonging to another system — and an import that
+  cheerfully reports "0 assets re-hosted". The first real import was exactly
+  this: 20 references, none of them absolute URLs, nothing downloaded. The ids
+  are resolvable only through `GET /spaces/{id}/content/files`
+  (`GitbookClient::files()`), which is where the real `downloadURL` lives; a
+  `/files/{digits}` reference is left alone, since a numeric id is one of ours
+  from a previous import of the same page.
 
 Two more shapes, both found by auditing the real corpus (613 pages across 38
 spaces) rather than by reading GitBook's docs — which describe neither:

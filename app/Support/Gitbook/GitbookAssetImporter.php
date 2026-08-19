@@ -22,9 +22,24 @@ use Throwable;
  * and MediaController/files.show already serves, so a re-hosted image is
  * indistinguishable from one uploaded through the editor.
  *
- * Two shapes carry a URL, and both are the normalised ones
+ * Two shapes carry a reference, and both are the normalised ones
  * GitbookMarkdownNormalizer guarantees: `<img src="…">` inside a single-line
  * `<figure>`, and `{% file src="…" %}`.
+ *
+ * Each of those carries one of two things, and the second one is a trap:
+ *
+ * - an absolute CDN URL, or
+ * - **`/files/{gitbookFileId}`** — GitBook's own internal reference, which is
+ *   the SAME path shape this app serves its own media on. Passing it through
+ *   silently produces a page whose markup is flawless and whose every image is
+ *   a 404 against our `files.show`, resolved with an id from another system.
+ *   All 20 references in the first space imported for real were this shape, and
+ *   the import cheerfully reported "0 assets re-hosted". They are resolved
+ *   through the space's file list (`GitbookClient::files()`), which is the only
+ *   place the real download URL exists.
+ *
+ * A `/files/{digits}` reference is left alone: that is one of ours, from a
+ * previous import of the same page.
  *
  * The download is deliberately ours rather than Spatie's `addMediaFromUrl()`:
  * that helper has no size ceiling, and a documentation space can hold a 300MB
@@ -32,10 +47,13 @@ use Throwable;
  */
 class GitbookAssetImporter
 {
-    /** @var array<string, int> URL => media id, so one asset used twice is fetched once. */
+    /** @var array<string, int> Source ref => media id, so one asset used twice is fetched once. */
     private array $seen = [];
 
-    public function rehost(DocumentationPage $page, string $markdown): GitbookAssetImport
+    /**
+     * @param  array<string, array{url: string, name: string}>  $spaceFiles  From GitbookClient::files()
+     */
+    public function rehost(DocumentationPage $page, string $markdown, array $spaceFiles = []): GitbookAssetImport
     {
         $this->seen = [];
         $failed = [];
@@ -43,33 +61,40 @@ class GitbookAssetImporter
 
         $rewritten = preg_replace_callback(
             '/(<img[^>]*\ssrc=")([^"]+)(")|(\{%\s*file\s+src=")([^"]+)("\s*%\})/i',
-            function (array $m) use ($page, &$failed, &$imported): string {
+            function (array $m) use ($page, $spaceFiles, &$failed, &$imported): string {
                 $isImg = ($m[2] ?? '') !== '';
-                [$prefix, $url, $suffix] = $isImg
+                [$prefix, $ref, $suffix] = $isImg
                     ? [$m[1], $m[2], $m[3]]
                     : [$m[4], $m[5], $m[6]];
 
-                $url = html_entity_decode($url, ENT_QUOTES);
+                $ref = html_entity_decode($ref, ENT_QUOTES);
+                $source = $this->source($ref, $spaceFiles);
 
-                // Anything not an absolute http(s) URL is already local (a
-                // previous import's /files/{id}) or unfetchable (a repo-relative
-                // .gitbook/assets path); either way, leave it exactly as it is.
-                if (! Str::startsWith($url, ['http://', 'https://'])) {
-                    return $prefix . $url . $suffix;
+                if ($source === null) {
+                    // Already ours, or something we have no way to fetch.
+                    return $prefix . $ref . $suffix;
                 }
 
-                $mediaId = $this->seen[$url] ?? null;
+                if ($source['url'] === '') {
+                    // A GitBook reference the space's file list doesn't contain.
+                    // Named rather than left silently broken.
+                    $failed[] = $ref . ' — não está na lista de arquivos do espaço.';
+
+                    return $prefix . $ref . $suffix;
+                }
+
+                $mediaId = $this->seen[$ref] ?? null;
 
                 if ($mediaId === null) {
                     try {
-                        $mediaId = $this->fetch($page, $url);
+                        $mediaId = $this->fetch($page, $source['url'], $source['name']);
                         $imported++;
                     } catch (Throwable $e) {
-                        $failed[] = $url . ' — ' . $e->getMessage();
+                        $failed[] = $ref . ' — ' . $e->getMessage();
 
-                        return $prefix . $url . $suffix;
+                        return $prefix . $ref . $suffix;
                     }
-                    $this->seen[$url] = $mediaId;
+                    $this->seen[$ref] = $mediaId;
                 }
 
                 return $prefix . '/files/' . $mediaId . $suffix;
@@ -80,8 +105,39 @@ class GitbookAssetImporter
         return new GitbookAssetImport($rewritten, $imported, $failed);
     }
 
-    /** @return int The new media's id. */
-    private function fetch(DocumentationPage $page, string $url): int
+    /**
+     * What to download for one reference, or null when there is nothing to do.
+     * `['url' => '']` means "this IS a GitBook asset, but the space's file list
+     * has no download URL for it" — a reportable miss, not a no-op.
+     *
+     * @param  array<string, array{url: string, name: string}>  $spaceFiles
+     * @return array{url: string, name: string}|null
+     */
+    private function source(string $ref, array $spaceFiles): ?array
+    {
+        if (Str::startsWith($ref, ['http://', 'https://'])) {
+            return ['url' => $ref, 'name' => ''];
+        }
+
+        if (preg_match('#^/files/([A-Za-z0-9_-]+)$#', $ref, $m)) {
+            // Numeric: one of ours already (a previous import of this page).
+            if (ctype_digit($m[1])) {
+                return null;
+            }
+
+            return $spaceFiles[$m[1]] ?? ['url' => '', 'name' => ''];
+        }
+
+        // A repo-relative `.gitbook/assets/…` path or anything else we can't fetch.
+        return null;
+    }
+
+    /**
+     * @param  string  $name  The asset's name as GitBook knows it; a CDN URL's
+     *                        own basename is often signed or opaque.
+     * @return int The new media's id.
+     */
+    private function fetch(DocumentationPage $page, string $url, string $name = ''): int
     {
         // The URLs come from an authenticated GitBook response, not from user
         // input, but this is still the app asking its own network for whatever
@@ -112,7 +168,7 @@ class GitbookAssetImporter
         try {
             return $page
                 ->addMedia($path)
-                ->usingFileName($this->fileName($url, $response->header('Content-Type')))
+                ->usingFileName($this->fileName($name ?: $url, $response->header('Content-Type')))
                 ->toMediaCollection(Documentable::DOCS_COLLECTION)
                 ->id;
         } finally {
