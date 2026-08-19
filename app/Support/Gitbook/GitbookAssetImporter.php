@@ -22,9 +22,19 @@ use Throwable;
  * and MediaController/files.show already serves, so a re-hosted image is
  * indistinguishable from one uploaded through the editor.
  *
- * Two shapes carry a reference, and both are the normalised ones
+ * Three shapes carry a reference. Two are the normalised ones
  * GitbookMarkdownNormalizer guarantees: `<img src="…">` inside a single-line
- * `<figure>`, and `{% file src="…" %}`.
+ * `<figure>`, and `{% file src="…" %}`. The third is a plain
+ * `<a href="/files/{id}">` — GitBook renders a document LINKED from running
+ * text or a table cell (not embedded as an image or a `{% file %}` block) this
+ * way, and it is completely untouched by the normalizer, which only rewrites
+ * image syntax. It is scoped to an `/files/` href specifically, never to
+ * `<a href="https://…">` in general — an ordinary outbound link (a Jira
+ * ticket, a Drive folder someone pasted) is not an embedded asset, and trying
+ * to "re-host" every hyperlink in the corpus would be wrong, not thorough.
+ * Found for real: a "Sprints" table in one imported space linked ~75 documents
+ * this way, none logged as a failure, because nothing had even tried them —
+ * `rehost()`'s regex simply had no case for an anchor at all.
  *
  * Each of those carries one of two things, and the second one is a trap:
  *
@@ -60,12 +70,15 @@ class GitbookAssetImporter
         $imported = 0;
 
         $rewritten = preg_replace_callback(
-            '/(<img[^>]*\ssrc=")([^"]+)(")|(\{%\s*file\s+src=")([^"]+)("\s*%\})/i',
+            '/(<img[^>]*\ssrc=")([^"]+)(")'
+            . '|(\{%\s*file\s+src=")([^"]+)("\s*%\})'
+            . '|(<a[^>]*\shref=")(\/files\/[^"]+)(")/i',
             function (array $m) use ($page, $spaceFiles, &$failed, &$imported): string {
-                $isImg = ($m[2] ?? '') !== '';
-                [$prefix, $ref, $suffix] = $isImg
-                    ? [$m[1], $m[2], $m[3]]
-                    : [$m[4], $m[5], $m[6]];
+                [$prefix, $ref, $suffix] = match (true) {
+                    ($m[2] ?? '') !== '' => [$m[1], $m[2], $m[3]],
+                    ($m[5] ?? '') !== '' => [$m[4], $m[5], $m[6]],
+                    default              => [$m[7], $m[8], $m[9]],
+                };
 
                 $ref = html_entity_decode($ref, ENT_QUOTES);
                 $source = $this->source($ref, $spaceFiles);
@@ -146,7 +159,21 @@ class GitbookAssetImporter
             throw new \RuntimeException('URL aponta para um endereço interno ou não resolvível.');
         }
 
-        $max = (int) config('services.gitbook.max_asset_bytes');
+        $max = $this->ceiling();
+
+        // A HEAD first, so a file already known to be too big is never fully
+        // downloaded just to be rejected — the real cost this avoids: an
+        // 11.53MB asset in the live corpus was downloaded in full and only
+        // THEN turned away by Spatie's own (smaller) ceiling. Not every host
+        // answers HEAD with a Content-Length (some CDNs 405/501 it, and
+        // `throw: false` on the macro means a failed HEAD just returns a
+        // failed response rather than throwing) — that case falls through to
+        // the GET below, which still enforces the ceiling on the real size.
+        $declared = (int) Http::gitbookAsset()->head($url)->header('Content-Length');
+
+        if ($declared > $max) {
+            throw new \RuntimeException('arquivo maior que o limite de ' . $max . ' bytes (anunciado: ' . $declared . ').');
+        }
 
         // `gitbookAsset()`, not `gitbook()`: same timeouts and retry, but no
         // bearer token — the asset host is not GitBook's API host.
@@ -177,6 +204,21 @@ class GitbookAssetImporter
                 unlink($path);
             }
         }
+    }
+
+    /**
+     * The real byte ceiling: the smaller of our own config and Spatie's own
+     * `media-library.max_file_size` (10MB, its package default — this app has
+     * never published/overridden that config file). Without taking the
+     * minimum, a `GITBOOK_MAX_ASSET_BYTES` above Spatie's ceiling promises a
+     * limit `addMedia()` will simply refuse to honour.
+     */
+    private function ceiling(): int
+    {
+        $configured = (int) config('services.gitbook.max_asset_bytes');
+        $spatie = (int) config('media-library.max_file_size');
+
+        return $spatie > 0 ? min($configured, $spatie) : $configured;
     }
 
     /**

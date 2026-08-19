@@ -586,7 +586,13 @@ it('retries a failed asset download before giving up on the image', function () 
         [['id' => 'p1', 'type' => 'document', 'title' => 'Com imagem']],
         ['p1' => '![x](https://files.gitbook.com/x.png)'],
     );
-    Http::fake(['files.gitbook.com/*' => function () use (&$attempts) {
+    Http::fake(['files.gitbook.com/*' => function (Request $request) use (&$attempts) {
+        // The importer HEADs before it GETs (see the size-ceiling tests below);
+        // only the GET attempts are the ones under test here.
+        if ($request->method() === 'HEAD') {
+            return Http::response('', 200);
+        }
+
         $attempts++;
 
         if ($attempts === 1) {
@@ -730,4 +736,98 @@ it('leaves a numeric /files/{id} alone — that one is already ours', function (
     expect($report->assets)->toBe(0);
     expect($report->failures)->toBe([]);
     expect(DocumentationGroup::sole()->pages()->sole()->documentation)->toContain('/files/4242');
+});
+
+/*
+|--------------------------------------------------------------------------
+| A third asset shape: a plain link to a file, not an image or {% file %}
+|--------------------------------------------------------------------------
+*/
+
+it('resolves a document linked with a plain <a href="/files/{id}">, not just images and {% file %}', function () {
+    // Found for real: a "Sprints" table linked ~75 documents this way. Nothing
+    // in rehost()'s regex had a case for an anchor at all, so none of them were
+    // even attempted — no warning, no failure, just a link that 404s forever.
+    fakeGitbook(
+        [['id' => 'p1', 'type' => 'document', 'title' => 'Com link']],
+        // The visible link TEXT is left exactly as GitBook wrote it — only the
+        // href is a reference this importer resolves. Asserted separately below,
+        // since a plain "not->toContain('gbFileAbc')" over the whole document
+        // would also trip on that untouched label.
+        ['p1' => '<table><tr><td>Doc</td><td><a href="/files/gbFileAbc">Checklist.pdf</a></td></tr></table>'],
+    );
+    Http::fake(['files.gitbook.com/*' => Http::response('png', 200, ['Content-Type' => 'image/png'])]);
+
+    $report = app(ImportGitbookSpace::class)->handle('space-1');
+    $page = DocumentationGroup::sole()->pages()->sole();
+    $mediaId = $page->getMedia(Documentable::DOCS_COLLECTION)->sole()->id;
+
+    expect($report->assets)->toBe(1);
+    expect($page->documentation)
+        ->toContain('href="/files/' . $mediaId . '"')
+        ->toContain('>Checklist.pdf</a>')
+        ->not->toContain('gbFileAbc');
+});
+
+it('leaves an ordinary outbound <a href="https://…"> link untouched', function () {
+    // The scope guard: an anchor is only treated as an asset reference when its
+    // href is /files/… — an arbitrary external link (a Jira ticket, a Drive
+    // folder) is not an embedded asset, and "re-hosting" it would be wrong.
+    fakeGitbook(
+        [['id' => 'p1', 'type' => 'document', 'title' => 'Com link externo']],
+        ['p1' => '<a href="https://drive.google.com/folder/xyz">pasta</a>'],
+    );
+
+    $report = app(ImportGitbookSpace::class)->handle('space-1');
+
+    expect($report->assets)->toBe(0);
+    expect(DocumentationGroup::sole()->pages()->sole()->documentation)->toContain('drive.google.com');
+});
+
+/*
+|--------------------------------------------------------------------------
+| The size ceiling must match what Spatie will actually accept
+|--------------------------------------------------------------------------
+*/
+
+it('takes the smaller of its own ceiling and media-library.max_file_size', function () {
+    // Real config drift found live: GITBOOK_MAX_ASSET_BYTES defaults to 20MB,
+    // but this app has never published media-library.php, so Spatie's own
+    // 10MB package default silently wins — an asset between the two used to
+    // download in full and only THEN get rejected by addMedia().
+    config()->set('services.gitbook.max_asset_bytes', 20 * 1024 * 1024);
+    config()->set('media-library.max_file_size', 5 * 1024 * 1024);
+
+    fakeGitbook(
+        [['id' => 'p1', 'type' => 'document', 'title' => 'Grande']],
+        ['p1' => '![x](https://files.gitbook.com/huge.png)'],
+    );
+    Http::fake(['files.gitbook.com/*' => Http::response(
+        str_repeat('a', 6 * 1024 * 1024), 200,
+        ['Content-Type' => 'image/png', 'Content-Length' => (string) (6 * 1024 * 1024)],
+    )]);
+
+    $report = app(ImportGitbookSpace::class)->handle('space-1');
+
+    expect($report->assets)->toBe(0);
+    expect($report->failures[0])->toContain('limite');
+});
+
+it('rejects an oversized asset from its HEAD alone, without downloading the body', function () {
+    fakeGitbook(
+        [['id' => 'p1', 'type' => 'document', 'title' => 'Grande']],
+        ['p1' => '![x](https://files.gitbook.com/huge.png)'],
+    );
+    Http::fake(['files.gitbook.com/*' => Http::response('', 200, [
+        'Content-Type' => 'image/png', 'Content-Length' => (string) (30 * 1024 * 1024),
+    ])]);
+
+    $report = app(ImportGitbookSpace::class)->handle('space-1');
+
+    expect($report->assets)->toBe(0);
+    expect($report->failures[0])->toContain('anunciado');
+    // The GET body was empty in the fake — had the code gotten that far and
+    // relied only on the downloaded size, this would report 0 bytes, not the
+    // Content-Length. Confirms the HEAD check fired first.
+    Http::assertSent(fn (Request $r) => $r->method() === 'HEAD');
 });
