@@ -409,6 +409,22 @@ Http::gitbook()->get('/spaces/' . $id . '/content/pages');
   documentation and CATI chats) goes through the `laravel/ai` package and
   `config/ai.php`, never through `Http::`.
 
+Two traps live in that macro, both found the hard way on the first real import:
+
+- **`retry(..., throw: false)` is load-bearing, not a preference.** `retry()`
+  otherwise throws a raw `RequestException` the instant a response fails, which
+  jumps straight over the client's own `$response->failed()` check — and with it
+  every operator-facing message the domain exception authors. Adding a retry to
+  an existing client silently changes its error contract; a test asserting the
+  authored message is what catches it.
+- **A `Http::macro()` closure is REBOUND to the PendingRequest.**
+  `Macroable::__call` does `$macro->bindTo($this, static::class)`, so `self::` /
+  `static::` inside the closure resolve to `Illuminate\Http\Client\PendingRequest`
+  — `self::isTransient($e)` dies with `Method PendingRequest::isTransient does
+  not exist`, pointing at a line that looks perfectly correct. Put shared logic
+  in its own class and call it by an imported name (`TransientHttpFailure::
+  matches()`); `use` statements are resolved at compile time and are immune.
+
 ## GitBook import — and the three "firsts" it introduced
 
 `php artisan gitbook:import` pulls existing GitBook content into the
@@ -459,6 +475,44 @@ up as literal `{% … %}` text on screen, or quietly disappears from the editor.
   content is made of hotlinks that break when the source goes away.
   `MediaController::show()` authorizes on the media's COLLECTION only, so media
   keeps working when its page moves container.
+- **`/files/{id}` is also GitBook's own path shape, and that collision is the
+  nastiest thing in this whole import.** GitBook writes an embedded asset as
+  `/files/{gitbookFileId}` (`/files/A4QijPsDvYEfSb14PQso`), which is byte-for-byte
+  the shape this app serves its own media on. Passed through, it produces a page
+  whose markup is flawless and whose every image 404s against our own
+  `files.show` with an id belonging to another system — and an import that
+  cheerfully reports "0 assets re-hosted". The first real import was exactly
+  this: 20 references, none of them absolute URLs, nothing downloaded. The ids
+  are resolvable only through `GET /spaces/{id}/content/files`
+  (`GitbookClient::files()`), which is where the real `downloadURL` lives; a
+  `/files/{digits}` reference is left alone, since a numeric id is one of ours
+  from a previous import of the same page.
+- **The same reference shows up a THIRD way: a plain `<a href="/files/{id}">`**
+  — a document LINKED from running text or a table cell, never wrapped in an
+  `<img>` or a `{% file %}` block. Found for real in a "Sprints" table that
+  linked ~75 documents this way, none of them even attempted (no warning, no
+  failure — the regex simply had no case for an anchor). And when GitBook has
+  no display name for a link, it falls back to showing the raw path AS the
+  visible text too (`<a href="/files/{id}">/files/{id}</a>`), so the href alone
+  resolving correctly still leaves a foreign id sitting in the reader's face —
+  fixed by re-checking, after the main pass, for any anchor text that exactly
+  mirrors its own original reference. A REAL display name
+  (`>Checklist.pdf</a>`) is never touched — the check is exact-match against
+  the untouched original value, not "any anchor near a rewritten href".
+
+Two more shapes, both found by auditing the real corpus (613 pages across 38
+spaces) rather than by reading GitBook's docs — which describe neither:
+
+- **`file` and `embed` are self-closing here, but GitBook also has a PAIRED
+  form** whose body is a caption (`{% file src="…" %}Legenda{% endfile %}`) —
+  11 of 408 files and 7 of 23 embeds in that corpus. Re-emitting the closer
+  prints a literal `{% endfile %}` on the page. `hint` and `tabs`/`tab` really
+  are paired; those keep their closers.
+- **Notation cannot live inside a blockquote.** Both parsers are line-anchored
+  (`^\{%`), so `> {% code … %}` is unreachable in this dialect at any nesting.
+  The normalizer strips the quote marker and does not re-apply it, so the
+  construct works at top level instead of being printed as text inside a quote
+  that kept its styling.
 
 `App\Support\Gitbook\GitbookMarkdownNormalizer` is where all of the above is
 encoded, with a down-converter for the GitBook constructs this app never learned
@@ -466,11 +520,25 @@ encoded, with a down-converter for the GitBook constructs this app never learned
 what can't be converted honestly (`include`, `openapi`). Reuse it rather than
 re-deriving the rules.
 
+Worth knowing before planning an import: that corpus is ~613 pages with 459
+`<figure>`s and ~402 remote asset references, so a full run is roughly 613
+markdown requests plus 400 downloads. `--dry-run` does NOT exercise any of the
+above — it returns after walking the page tree, before fetching a single page's
+markdown.
+
 Two more things about the import itself: it is **re-runnable** (pages matched by
 title within the group, media cleared before re-adding so re-imports don't
 accumulate orphans) and deliberately has **no wrapping transaction** — it is
 hundreds of HTTP requests, and a half-finished import that can be re-run beats
 one that rolls back an hour of downloads because page 180 failed.
+
+A related but genuinely OUT-of-scope shape, found in the same corpus: a prose
+line an author wrote themselves, `Link Gitbook: [texto](https://app.gitbook.com/o/…/s/…)`
+— a citation to the page's own GitBook web UI, not an embedded asset. There is
+nothing to re-host (it's a link to a page, not a file) and no reliable way to
+remap it to an equivalent page in this app, so it is left as-is and will go
+stale once the space is retired from GitBook — an accepted limitation of the
+migration, not a defect to chase.
 
 When you need a GitBook API fact, read `https://api.gitbook.com/openapi.json`
 (fetches fine, ~1.6MB). Their documentation site 404s or returns "query us with

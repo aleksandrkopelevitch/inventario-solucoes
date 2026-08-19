@@ -81,6 +81,34 @@ class GitbookClient
     }
 
     /**
+     * Every asset uploaded to the space, keyed by the id its Markdown refers to.
+     *
+     * This is what makes an import's images work at all. GitBook writes an
+     * embedded asset as **`/files/{gitbookFileId}`** — the same path shape this
+     * app serves its OWN media on — so those references need translating, not
+     * passing through: left alone they hit `files.show` with an id that belongs
+     * to another system entirely, and the page renders broken images from
+     * markup that looks perfectly correct.
+     *
+     * @return array<string, array{url: string, name: string}>
+     */
+    public function files(string $spaceId): array
+    {
+        $files = [];
+
+        foreach ($this->paginate('/spaces/' . urlencode($spaceId) . '/content/files') as $file) {
+            if (filled($file['id'] ?? null) && filled($file['downloadURL'] ?? null)) {
+                $files[(string) $file['id']] = [
+                    'url'  => (string) $file['downloadURL'],
+                    'name' => (string) ($file['name'] ?? ''),
+                ];
+            }
+        }
+
+        return $files;
+    }
+
+    /**
      * Walks a list endpoint's cursor to the end.
      *
      * @return array<int, array<string, mixed>>

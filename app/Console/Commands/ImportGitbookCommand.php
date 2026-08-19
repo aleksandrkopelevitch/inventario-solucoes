@@ -7,6 +7,7 @@ use App\Exceptions\GitbookApiException;
 use App\Support\Gitbook\GitbookClient;
 use App\Support\Gitbook\GitbookImportReport;
 use Illuminate\Console\Command;
+use Illuminate\Http\Client\ConnectionException;
 
 /**
  * Pulls GitBook content into the documentation hub.
@@ -71,6 +72,16 @@ class ImportGitbookCommand extends Command
             // Caught here, not left to bubble: this is the one consumer, and a
             // stack trace tells the operator nothing the message doesn't.
             $this->components->error($e->getMessage());
+
+            return self::FAILURE;
+        } catch (ConnectionException $e) {
+            // The network gave up even after the macro's retries. Worth saying
+            // out loud that nothing is lost: the import is re-runnable, and
+            // pages already brought over will be updated rather than doubled.
+            $this->components->error(
+                'Could not reach GitBook: ' . $e->getMessage()
+                . ' Already-imported pages were kept — re-run the same command to continue.'
+            );
 
             return self::FAILURE;
         }

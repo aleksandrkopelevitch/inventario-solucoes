@@ -46,6 +46,15 @@ class GitbookMarkdownNormalizer
     /** Supported by GitbookRenderer + docs-markdown.js — kept, attributes trimmed to the one each parser accepts. */
     private const KEPT = ['hint', 'tabs', 'tab', 'file', 'embed'];
 
+    /**
+     * Of those four, the two this app writes as a SINGLE tag. GitBook also has
+     * a paired form for both — `{% file src="…" %}Legenda{% endfile %}` — and
+     * 11 of 408 files and 7 of 23 embeds in the corpus this was verified
+     * against use it. Re-emitting their closer leaves a `{% endfile %}` that
+     * neither parser reads, printed on the page as text.
+     */
+    private const SELF_CLOSING = ['file', 'embed'];
+
     /** Pure structure in GitBook, nothing to represent here: drop the tag, keep what's inside. */
     private const UNWRAPPED = ['stepper', 'step', 'columns', 'column', 'cards', 'card'];
 
@@ -115,7 +124,15 @@ class GitbookMarkdownNormalizer
                 continue;
             }
 
-            if ($trimmed !== '' && preg_match('/^\{%\s*([\w-]+)\s*(.*?)\s*%\}$/', $trimmed, $m)) {
+            // Notation nested in a blockquote — `> {% code … %}`, which GitBook
+            // allows. Both parsers here are line-anchored (`^\{%`), so a
+            // construct cannot live inside a quote in this app's dialect at
+            // all: the marker is stripped and NOT re-applied, letting the
+            // construct work at top level rather than printing as text inside a
+            // quote that kept its styling. Rare (1 page in 613) but visible.
+            $tagLine = preg_replace('/^(?:>\s*)+/', '', $trimmed) ?? $trimmed;
+
+            if ($tagLine !== '' && preg_match('/^\{%\s*([\w-]+)\s*(.*?)\s*%\}$/', $tagLine, $m)) {
                 [$tag, $attrs] = [strtolower($m[1]), $m[2]];
                 [$emitted, $i] = $this->tag($tag, $attrs, $lines, $i);
                 $out = [...$out, ...$emitted];
@@ -143,7 +160,14 @@ class GitbookMarkdownNormalizer
         $bare = $closing ? substr($tag, 3) : $tag;
 
         if (in_array($bare, self::KEPT, true)) {
-            return [[$closing ? '{% end' . $bare . ' %}' : $this->keptTag($bare, $attrs)], $i + 1];
+            if (! $closing) {
+                return [[$this->keptTag($bare, $attrs)], $i + 1];
+            }
+
+            // A paired file/embed's body is a caption: dropping only the closer
+            // leaves that text as a plain paragraph under the block, which is
+            // what it was already reading as.
+            return [[in_array($bare, self::SELF_CLOSING, true) ? '' : '{% end' . $bare . ' %}'], $i + 1];
         }
 
         // Structure only: the tag goes, the content stays. Emitting a blank
@@ -243,7 +267,8 @@ class GitbookMarkdownNormalizer
      */
     private function consume(array $lines, int $i, string $tag): array
     {
-        $close = '/^\{%\s*end' . preg_quote($tag, '/') . '\s*%\}$/';
+        // Tolerates a blockquoted closer, for the same reason walk() does.
+        $close = '/^(?:>\s*)*\{%\s*end' . preg_quote($tag, '/') . '\s*%\}$/';
         $inner = [];
         $n = count($lines);
         $j = $i;
@@ -287,7 +312,16 @@ class GitbookMarkdownNormalizer
     {
         $trimmed = trim($line);
 
-        if (! preg_match('/^!\[([^\]]*)\]\(\s*<?([^)>]*)>?\s*(?:"[^"]*")?\s*\)$/', $trimmed, $m)) {
+        // A trailing `&#x20;`/`&nbsp;` after the closing `)` is tolerated —
+        // found for real in the corpus: GitBook's own export left one there
+        // (a stray space entity after an inline image, from however its
+        // WYSIWYG editor serialized it). Without this the line fails the
+        // anchored match entirely and passes through untouched by BOTH this
+        // normalizer and the asset importer (which never sees Markdown image
+        // syntax, only `<figure>`) — a silently broken image, not a caught
+        // failure. Still anchored at the end past that trailer, so a genuine
+        // inline image followed by real sentence text is correctly left alone.
+        if (! preg_match('/^!\[([^\]]*)\]\(\s*<?([^)>]*)>?\s*(?:"[^"]*")?\s*\)(?:&#x20;|&nbsp;|\s)*$/', $trimmed, $m)) {
             return $line;
         }
 
