@@ -25,6 +25,7 @@
 @source "../../app/Enums/SubmissionStatus.php";
 @source "../../app/Enums/SubmissionSectionState.php";
 @source "../../app/Enums/SubmissionSourceExtraction.php";
+@source "../../app/Enums/ConformanceVerdict.php";
 
 /* Carrega Inter (Variable) — reativada 2026-08-04 para o redesign Radiant/
    Protocol (ver [[radiant-protocol-redesign]]): o arquivo já existia em

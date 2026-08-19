@@ -223,6 +223,27 @@ it('renders a real .pptx through the python renderer', function () {
             ->and(collect($slides)->pluck('text')->implode(' '))
             ->toContain('Ponto único de conexão.')
             ->toContain('Provisionamento');
+
+        // Real list formatting, not a bullet typed into the text. Element order
+        // inside <a:pPr> is fixed by the schema, and a bullet in the wrong place
+        // is what makes PowerPoint offer to repair a file — so this asserts
+        // against the XML the renderer actually emitted.
+        $zip = new ZipArchive;
+        $zip->open($path);
+        $xml = '';
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $name = (string) $zip->getNameIndex($i);
+            if (str_starts_with($name, 'ppt/slides/slide')) {
+                $xml .= $zip->getFromName($name);
+            }
+        }
+        $zip->close();
+
+        expect($xml)->toContain('<a:buChar char="•"/>')
+            ->toContain('marL="285750"')
+            // A paragraph that is NOT a bullet has to say so, or it inherits a
+            // glyph from the master's list style.
+            ->toContain('<a:buNone/>');
     } finally {
         @unlink($path);
     }
@@ -282,4 +303,53 @@ it('rejects an image the renderer would die on', function () {
     ]]];
 
     expect((new DeckSpecValidator)->validate($spec)[0])->toContain('imagem não encontrada');
+});
+
+it('gives a section with two tables two slides instead of losing one', function () {
+    // The renderer places one figure per slide; before pagination the second
+    // table was dropped without a word.
+    $spec = deckFor(['operating_model' => <<<'MD'
+    | Camada | Responsável |
+    | --- | --- |
+    | SKBridge | SkyMob |
+
+    | Porta | Destino |
+    | --- | --- |
+    | 9180 | Rede administrativa |
+    MD]);
+
+    $titles = array_column($spec['slides'], 'title');
+
+    expect($titles)->toContain('Modelo de operação')
+        ->toContain('Modelo de operação (cont.)');
+
+    $tables = collect($spec['slides'])
+        ->flatMap(fn (array $slide) => $slide['blocks'] ?? [])
+        ->where('type', 'table');
+
+    expect($tables)->toHaveCount(2)
+        // Never two figures on one slide — the renderer refuses that outright.
+        ->and(collect($spec['slides'])->every(
+            fn (array $slide) => collect($slide['blocks'] ?? [])->whereIn('type', ['table', 'image'])->count() <= 1
+        ))->toBeTrue();
+});
+
+it('continues a long section onto another slide rather than off the bottom', function () {
+    $long = collect(range(1, 14))
+        ->map(fn (int $i) => "- Ponto número {$i} sobre a arquitetura proposta, com detalhe suficiente para ocupar uma linha inteira do slide")
+        ->implode("\n");
+
+    $spec = deckFor(['objectives' => $long]);
+    $objectives = collect($spec['slides'])->filter(fn ($s) => str_starts_with($s['title'], 'Objetivos'));
+
+    expect($objectives->count())->toBeGreaterThan(1)
+        ->and($objectives->last()['title'])->toBe('Objetivos (cont.)')
+        // Nothing lost in the split.
+        ->and($objectives->flatMap(fn ($s) => $s['blocks'])->count())->toBe(14);
+});
+
+it('keeps a short section on a single slide', function () {
+    $spec = deckFor(['summary' => "Ponto único de conexão.\n\n- Sem exposição das redes internas"]);
+
+    expect(collect($spec['slides'])->filter(fn ($s) => str_starts_with($s['title'], 'Resumo'))->count())->toBe(1);
 });

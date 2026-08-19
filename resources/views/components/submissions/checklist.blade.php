@@ -53,6 +53,28 @@
         </ul>
     </div>
 
+    <div class="border-t border-line pt-4">
+        <h2 class="font-display text-sm font-bold text-ink">Padrões corporativos</h2>
+        <p class="mt-0.5 text-xs text-muted">O comitê só precisa discutir o que não estiver verde.</p>
+
+        <ul class="mt-3 flex flex-col gap-2 pl-0">
+            @foreach ($conformance as $check)
+                <li class="flex items-start gap-2.5">
+                    <span class="mt-1.5 size-1.5 shrink-0 rounded-full {{ $check['verdict']->dotClass() }}"></span>
+                    <span class="min-w-0 flex-1">
+                        <span class="flex flex-wrap items-center gap-2">
+                            <span class="text-sm text-ink">{{ $check['label'] }}</span>
+                            <span class="rounded-full px-2 py-0.5 text-[10px] font-medium {{ $check['verdict']->badgeClass() }}">
+                                {{ $check['verdict']->label() }}
+                            </span>
+                        </span>
+                        <span class="block text-xs text-faint">{{ $check['detail'] }}</span>
+                    </span>
+                </li>
+            @endforeach
+        </ul>
+    </div>
+
     @if ($deviations->isNotEmpty())
         <div class="border-t border-line pt-4">
             <h2 class="font-display text-sm font-bold text-ink">O comitê vai perguntar</h2>

@@ -2,49 +2,58 @@
 
 namespace App\Support\Cati;
 
+use App\Enums\ConformanceVerdict;
 use App\Enums\SubmissionSectionKey;
 use App\Models\Submission;
-use Illuminate\Support\Str;
 
 /**
  * The questions the committee actually asks, written as rules over data the
  * app already holds.
  *
- * Almost every CATI question is about a DEVIATION — from the target cloud,
- * from the integration standard, from what a system of this criticality is
- * expected to carry. Those are checkable, so the model never has to discover
- * them: it only has to phrase them in the context of this case, which is a
- * job it does well and cheaply. Adding a rule here is adding committee
- * knowledge without adding a token.
+ * Two kinds, and they come from different places on purpose:
  *
- * **A rule fires only when it is specifically interesting.** A keyword rule
- * requires the section to have content already: on a brand-new submission
- * every section is blank, and firing all of them would bury the two that
- * matter under seven that just repeat "nothing is filled in" — which the
- * section checklist (SubmissionRequirements) already says. The rules that DO
- * fire on a blank section are the ones where the blank is surprising given
- * something the catalog knows.
+ * - **Standards questions are derived from `ConformanceChecks`** — one question
+ *   per check that isn't `Ok`. They used to be duplicated here, with this class
+ *   carrying its own copy of the keyword sets; the two drifting apart would
+ *   have meant the checklist asking about something the conformance table had
+ *   already marked green. Now a question exists exactly when a check needs an
+ *   argument.
+ * - **Completeness questions live here**, because they are not about a standard
+ *   at all: a blank that is surprising given what the catalog knows, or a
+ *   section the form leaves optional and the committee asks about every time.
+ *
+ * **A rule fires only when it is specifically interesting.** On a brand-new
+ * submission everything is blank, and firing every rule would bury the two that
+ * matter under seven that only repeat "nothing is filled in" — which the
+ * section checklist already says.
  *
  * `severity` is `high` | `medium` | `low` — plain strings, like
- * DocumentationRequirements' `source`, since nothing outside this file
- * branches on them.
+ * DocumentationRequirements' `source`, since nothing outside this file branches
+ * on them.
  */
 class DeviationRules
 {
-    /** The corporate target cloud (programa M2C). Anything else needs an argument. */
-    private const TARGET_CLOUD = 'gcp';
+    /** How much of the committee's time a failing check is worth. */
+    private const SEVERITY = [
+        'cloud_target'         => 'high',
+        'sensitive_data'       => 'high',
+        'contingency'          => 'high',
+        'integration_platform' => 'medium',
+        'observability'        => 'medium',
+        'security'             => 'medium',
+        'sdlc'                 => 'low',
+    ];
 
-    private const SENSITIVE_DATA_TERMS = ['dado sensível', 'dados sensíveis', 'dado pessoal', 'dados pessoais', 'lgpd', 'pii', 'anonimiz'];
-
-    private const OBSERVABILITY_TERMS = ['observabilidade', 'logs', 'logging', 'métrica', 'metrica', 'tracing', 'monitora', 'alerta'];
-
-    private const SECURITY_TERMS = ['mtls', 'iam', 'rbac', 'lgpd', 'criptograf', 'autenticação', 'autenticacao', 'certificado', 'firewall'];
-
-    private const CONTINGENCY_TERMS = ['rollback', 'contingência', 'contingencia', 'reversão', 'reversao', 'retry', 'recuperação', 'recuperacao', 'backup'];
-
-    private const PLATFORM_TERMS = ['digibee', 'barramento', 'ipaas', 'api gateway', 'mensageria', 'kafka'];
-
-    private const HIGH_CRITICALITY = ['critical', 'high'];
+    /** Which section each standards question belongs in. */
+    private const SECTION = [
+        'cloud_target'         => SubmissionSectionKey::Standards,
+        'sdlc'                 => SubmissionSectionKey::Standards,
+        'observability'        => SubmissionSectionKey::Standards,
+        'security'             => SubmissionSectionKey::Standards,
+        'integration_platform' => SubmissionSectionKey::Architecture,
+        'sensitive_data'       => SubmissionSectionKey::DomainsData,
+        'contingency'          => SubmissionSectionKey::PlanCosts,
+    ];
 
     /**
      * @return list<array{key: string, section: string, question: string, why: string, severity: string}>
@@ -53,25 +62,77 @@ class DeviationRules
     {
         $submission->loadMissing(['sections', 'solution.vendor', 'solution.integrations']);
 
+        return [
+            ...self::fromConformance($submission),
+            ...self::completeness($submission),
+        ];
+    }
+
+    /**
+     * One question per standard that still needs an argument.
+     *
+     * `Unknown` is skipped: it means the CATALOG is missing a field, which is a
+     * gap in the record rather than something to interrogate the architect
+     * about in an interview — except for the cloud, where the answer genuinely
+     * is the architect's to give.
+     *
+     * @return list<array{key: string, section: string, question: string, why: string, severity: string}>
+     */
+    private static function fromConformance(Submission $submission): array
+    {
+        $content = $submission->sections->mapWithKeys(
+            fn ($section) => [$section->key->value => (string) $section->content],
+        );
+
+        $rules = [];
+
+        foreach (ConformanceChecks::for($submission) as $check) {
+            if (! $check['verdict']->needsArgument()) {
+                continue;
+            }
+
+            if ($check['verdict'] === ConformanceVerdict::Unknown && $check['key'] !== 'cloud_target') {
+                continue;
+            }
+
+            $section = self::SECTION[$check['key']] ?? SubmissionSectionKey::Standards;
+
+            // A VIOLATION always fires: departing from the target cloud is a
+            // deviation whatever the sections happen to say. "Not stated"
+            // (`Attention`) waits until that section HAS content — on a new
+            // submission every section is blank, and asking about all of them
+            // buries the useful questions under a restatement of what the
+            // section checklist already says.
+            if ($check['verdict'] === ConformanceVerdict::Attention && blank($content->get($section->value))) {
+                continue;
+            }
+
+            $rules[] = [
+                'key'      => $check['key'],
+                'section'  => $section->value,
+                'question' => $check['question'],
+                'why'      => $check['detail'],
+                'severity' => self::SEVERITY[$check['key']] ?? 'medium',
+            ];
+        }
+
+        return $rules;
+    }
+
+    /**
+     * Blanks that are surprising given what the catalog knows, plus the one
+     * question the form doesn't require and the committee always asks.
+     *
+     * @return list<array{key: string, section: string, question: string, why: string, severity: string}>
+     */
+    private static function completeness(Submission $submission): array
+    {
         $solution = $submission->solution;
         $content = $submission->sections->mapWithKeys(
             fn ($section) => [$section->key->value => (string) $section->content],
         );
 
-        $text = fn (SubmissionSectionKey $key): string => $content->get($key->value, '');
-
         $rules = [];
-
-        // ── Deviations from a corporate standard ────────────────────────────
-        if ($solution?->cloud !== null && $solution->cloud !== self::TARGET_CLOUD) {
-            $rules[] = [
-                'key'      => 'cloud_off_target',
-                'section'  => SubmissionSectionKey::Standards->value,
-                'question' => 'A solução está em ' . mb_strtoupper($solution->cloud) . ', e não na nuvem alvo do programa M2C. Qual a justificativa e por quanto tempo?',
-                'why'      => 'Nuvem registrada no catálogo: ' . $solution->cloud,
-                'severity' => 'high',
-            ];
-        }
 
         if ($solution?->contract_status === 'contracted' && $solution->vendor === null) {
             $rules[] = [
@@ -83,20 +144,20 @@ class DeviationRules
             ];
         }
 
-        // ── Blanks that are surprising given what the catalog knows ─────────
         $integrations = $solution?->integrations ?? collect();
 
-        if ($integrations->isNotEmpty() && blank($text(SubmissionSectionKey::LegacyImpact))) {
+        if ($integrations->isNotEmpty() && blank($content->get(SubmissionSectionKey::LegacyImpact->value))) {
             $rules[] = [
                 'key'      => 'legacy_impact_blank',
                 'section'  => SubmissionSectionKey::LegacyImpact->value,
-                'question' => 'A solução já tem ' . $integrations->count() . ' integração(ões) catalogada(s) (' . $integrations->pluck('name')->implode(', ') . '). Quais delas mudam, e há algo a descomissionar?',
+                'question' => 'A solução já tem ' . $integrations->count() . ' integração(ões) catalogada(s) ('
+                    . $integrations->pluck('name')->implode(', ') . '). Quais delas mudam, e há algo a descomissionar?',
                 'why'      => 'Integrações existentes no inventário, sem impacto descrito',
                 'severity' => 'high',
             ];
         }
 
-        if (blank($text(SubmissionSectionKey::Alternatives))) {
+        if (blank($content->get(SubmissionSectionKey::Alternatives->value))) {
             $rules[] = [
                 'key'      => 'alternatives_blank',
                 'section'  => SubmissionSectionKey::Alternatives->value,
@@ -105,71 +166,6 @@ class DeviationRules
                 // quiet about it — but the committee asks every single time.
                 'why'      => 'Seção opcional no formulário, perguntada em toda deliberação',
                 'severity' => 'low',
-            ];
-        }
-
-        // ── Content that is there but doesn't cover what the form asks ──────
-        if (filled($text(SubmissionSectionKey::Standards))) {
-            $standards = $text(SubmissionSectionKey::Standards);
-
-            if (! Str::contains($standards, self::OBSERVABILITY_TERMS, ignoreCase: true)) {
-                $rules[] = [
-                    'key'      => 'observability_absent',
-                    'section'  => SubmissionSectionKey::Standards->value,
-                    'question' => 'Como a solução será observada em produção — logs, métricas e tracing?',
-                    'why'      => 'O formulário pede observabilidade em "Padrões Adotados"',
-                    'severity' => 'medium',
-                ];
-            }
-
-            if (! Str::contains($standards, self::SECURITY_TERMS, ignoreCase: true)) {
-                $rules[] = [
-                    'key'      => 'security_absent',
-                    'section'  => SubmissionSectionKey::Standards->value,
-                    'question' => 'Quais controles de segurança se aplicam — autenticação, autorização, criptografia em trânsito?',
-                    'why'      => 'O formulário pede segurança (mTLS, IAM, RBAC, LGPD) em "Padrões Adotados"',
-                    'severity' => 'medium',
-                ];
-            }
-        }
-
-        if ($solution?->environment === 'saas'
-            && filled($text(SubmissionSectionKey::DomainsData))
-            && ! Str::contains($text(SubmissionSectionKey::DomainsData) . ' ' . $text(SubmissionSectionKey::Standards), self::SENSITIVE_DATA_TERMS, ignoreCase: true)) {
-            $rules[] = [
-                'key'      => 'sensitive_data_unstated',
-                'section'  => SubmissionSectionKey::DomainsData->value,
-                'question' => 'Sendo SaaS, que dados saem do ambiente da Leo? Há dado pessoal ou sensível envolvido?',
-                'why'      => 'Hospedagem SaaS sem menção a dado sensível/LGPD',
-                'severity' => 'high',
-            ];
-        }
-
-        if (in_array($solution?->criticality, self::HIGH_CRITICALITY, true)
-            && filled($text(SubmissionSectionKey::PlanCosts))
-            && ! Str::contains($text(SubmissionSectionKey::PlanCosts) . ' ' . $text(SubmissionSectionKey::BenefitsRisks), self::CONTINGENCY_TERMS, ignoreCase: true)) {
-            $rules[] = [
-                'key'      => 'contingency_absent',
-                'section'  => SubmissionSectionKey::PlanCosts->value,
-                'question' => 'Numa solução de criticidade ' . $solution->criticality . ', como se volta atrás se a implantação der errado?',
-                'why'      => 'Criticidade alta sem plano de contingência/rollback descrito',
-                'severity' => 'high',
-            ];
-        }
-
-        if ($integrations->isNotEmpty()
-            && filled($text(SubmissionSectionKey::Architecture))
-            && ! Str::contains($text(SubmissionSectionKey::Architecture) . ' ' . $text(SubmissionSectionKey::Standards), self::PLATFORM_TERMS, ignoreCase: true)) {
-            $rules[] = [
-                'key'      => 'integration_platform_unstated',
-                'section'  => SubmissionSectionKey::Architecture->value,
-                'question' => 'Por onde passam as integrações — plataforma de integração corporativa, ou ponto a ponto? Se for exceção ao padrão, qual a justificativa?',
-                // Deliberately a content check, not a structural one: nothing
-                // in the schema records which platform mediates an integration
-                // (`Integration.protocol` describes the transport — rest, sftp
-                // — not the platform), so there is no field to read.
-                'why'      => 'Integrações existentes, sem plataforma de integração citada',
-                'severity' => 'medium',
             ];
         }
 

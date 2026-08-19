@@ -21,6 +21,7 @@ import sys
 
 from pptx import Presentation
 from pptx.dml.color import RGBColor
+from pptx.oxml.ns import qn
 from pptx.util import Inches, Pt
 
 # Layouts are resolved BY NAME, not by index: an index silently renders the
@@ -48,6 +49,16 @@ LIGHT_TEXT = RGBColor(0xFF, 0xFF, 0xFF)
 
 BULLET = '•'
 
+# Measured off the approved deck: a bulleted line indents 285750 EMU (0.3125in)
+# with a matching negative first-line indent, so the text hangs level under
+# itself. A line WITHOUT a bullet says so explicitly (`a:buNone`) — inheriting
+# the master's list style would otherwise put a glyph in front of a paragraph.
+BULLET_INDENT = 285750
+
+# The real decks set 10pt in table cells, header bold.
+TABLE_HEADER_SIZE = Pt(10)
+TABLE_BODY_SIZE = Pt(10)
+
 
 def layout_by_name(prs, name):
     for layout in prs.slide_layouts:
@@ -74,6 +85,32 @@ def add_text_box(slide, left, top, width, height):
     return frame
 
 
+def set_bullet(paragraph, level, bulleted):
+    """
+    Real list formatting rather than a `•` typed into the text.
+
+    Element order inside <a:pPr> is fixed by the schema — a bullet appended
+    after <a:defRPr> is invalid and PowerPoint offers to repair the file —
+    so this inserts before whatever may follow it rather than appending.
+    """
+    pPr = paragraph._p.get_or_add_pPr()
+
+    for tag in ('a:buNone', 'a:buChar', 'a:buAutoNum'):
+        for existing in pPr.findall(qn(tag)):
+            pPr.remove(existing)
+
+    if bulleted:
+        pPr.set('marL', str(BULLET_INDENT * (level + 1)))
+        pPr.set('indent', str(-BULLET_INDENT))
+        element = pPr.makeelement(qn('a:buChar'), {'char': BULLET})
+    else:
+        pPr.set('marL', str(BULLET_INDENT * level))
+        pPr.set('indent', '0')
+        element = pPr.makeelement(qn('a:buNone'), {})
+
+    pPr.insert_element_before(element, 'a:tabLst', 'a:defRPr', 'a:extLst')
+
+
 def write_blocks(frame, blocks, dark=False):
     """Bullets and paragraphs into one text frame; tables are handled by the caller."""
     first = True
@@ -88,20 +125,14 @@ def write_blocks(frame, blocks, dark=False):
         level = int(block.get('level', 0) or 0)
         para.level = min(level, 4)
 
-        text = block.get('text', '')
-        is_bullet = block.get('type') == 'bullet'
-
-        # python-pptx writes no bullet glyph on a plain text box, and adding
-        # <a:buChar> means hand-editing the XML for every paragraph. A literal
-        # marker with a hanging indent reads identically on the slide and keeps
-        # this script free of lxml surgery.
         run = para.add_run()
-        run.text = f'{BULLET} {text}' if is_bullet else text
+        run.text = block.get('text', '')
         run.font.size = SIZES.get(level, SIZES[3])
         if dark:
             run.font.color.rgb = LIGHT_TEXT
 
         para.space_after = Pt(6)
+        set_bullet(para, level, block.get('type') == 'bullet')
 
 
 def add_table(slide, block, left, top, width, height):
@@ -115,7 +146,7 @@ def add_table(slide, block, left, top, width, height):
         cell.text = str(label)
         for para in cell.text_frame.paragraphs:
             for run in para.runs:
-                run.font.size = Pt(12)
+                run.font.size = TABLE_HEADER_SIZE
                 run.font.bold = True
 
     for r, row in enumerate(rows, start=1):
@@ -124,7 +155,7 @@ def add_table(slide, block, left, top, width, height):
             cell.text = str(value)
             for para in cell.text_frame.paragraphs:
                 for run in para.runs:
-                    run.font.size = Pt(11)
+                    run.font.size = TABLE_BODY_SIZE
 
     return shape
 
@@ -208,7 +239,17 @@ def render_content(slide, spec_slide):
         top = top + text_height + Inches(0.14)
         height = height - text_height - Inches(0.14)
 
-    for figure in figures[:1]:  # one figure per slide; the spec builder splits the rest
+    # One figure per slide, guaranteed upstream by BuildDeckSpec::paginate().
+    # Anything beyond the first would have to overlap it, so this refuses
+    # rather than silently dropping it — a spec that gets here with two
+    # figures on one slide is a builder bug, not a rendering choice.
+    if len(figures) > 1:
+        raise SystemExit(
+            f"slide {spec_slide['title']!r} traz {len(figures)} figuras; "
+            'só cabe uma por slide (ver BuildDeckSpec::paginate).'
+        )
+
+    for figure in figures:
         if figure['type'] == 'table':
             add_table(slide, figure, BODY['left'], top, BODY['width'], height)
         else:

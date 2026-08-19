@@ -24,6 +24,8 @@ class SubmissionSection extends Model
         'submission_id',
         'key',
         'content',
+        'slide_content',
+        'slide_source_hash',
         'state',
         'provenance',
         'updated_by_id',
@@ -46,6 +48,33 @@ class SubmissionSection extends Model
     public function updatedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by_id');
+    }
+
+    /**
+     * The text the DECK should use.
+     *
+     * Falls back to the full section whenever the condensed version is missing
+     * or was made from different content: printing a summary of a paragraph
+     * that has since been rewritten is worse than printing the paragraph.
+     */
+    public function slideText(): ?string
+    {
+        if (blank($this->slide_content) || ! $this->slideContentIsFresh()) {
+            return $this->content;
+        }
+
+        return $this->slide_content;
+    }
+
+    public function slideContentIsFresh(): bool
+    {
+        return filled($this->slide_source_hash)
+            && $this->slide_source_hash === self::hashFor($this->content);
+    }
+
+    public static function hashFor(?string $content): string
+    {
+        return md5(trim((string) $content));
     }
 
     /** Blank content is the only thing the checklist counts as a gap — state alone can lie after an edit. */
