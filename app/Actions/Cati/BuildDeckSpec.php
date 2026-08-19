@@ -22,6 +22,16 @@ use App\Support\Cati\MarkdownToBlocks;
  */
 class BuildDeckSpec
 {
+    /**
+     * Roughly what the body box holds: 5.91in of height at 16pt with normal
+     * leading is about 22 lines, and 12.33in of width is about 110 characters
+     * per line. Deliberately conservative — a slide that ends early reads fine,
+     * a slide that overflows does not.
+     */
+    private const CHARS_PER_SLIDE = 1400;
+
+    private const BLOCKS_PER_SLIDE = 12;
+
     public function __construct(private readonly MarkdownToBlocks $markdown) {}
 
     /** @return array<string, mixed> */
@@ -44,13 +54,11 @@ class BuildDeckSpec
                 continue;
             }
 
-            $slides[] = [
-                'layout' => 'content',
-                'title'  => $key->label(),
-                'blocks' => $content === ''
-                    ? [['type' => 'paragraph', 'text' => '[não preenchido]', 'level' => 0]]
-                    : $this->markdown->convert($content),
-            ];
+            $blocks = $content === ''
+                ? [['type' => 'paragraph', 'text' => '[não preenchido]', 'level' => 0]]
+                : $this->markdown->convert($content);
+
+            $slides = [...$slides, ...$this->paginate($key->label(), $blocks)];
 
             // The diagrams follow the architecture section, which is where the
             // committee expects them and where the hand-made decks put them.
@@ -65,6 +73,71 @@ class BuildDeckSpec
             'title'  => $submission->name,
             'slides' => array_values($slides),
         ];
+    }
+
+    /**
+     * Splits one section's blocks across as many slides as they need.
+     *
+     * Two things force this, and both are silent failures otherwise:
+     *
+     * - **A slide holds ONE figure.** A section with two tables would lose the
+     *   second — the renderer places one and drops the rest without a word.
+     * - **A slide holds a finite amount of text.** The body box is 12.33 x 5.91
+     *   inches at 16pt, which is roughly 22 lines; past that the text runs off
+     *   the bottom and nobody notices until it is on a projector.
+     *
+     * Continuation slides carry the section's name with "(cont.)" so the
+     * committee can see it is the same subject rather than a new one.
+     *
+     * @param  list<array<string, mixed>>  $blocks
+     * @return list<array<string, mixed>>
+     */
+    private function paginate(string $title, array $blocks): array
+    {
+        $slides = [];
+        $current = [];
+        $characters = 0;
+
+        $flush = function () use (&$slides, &$current, &$characters, $title) {
+            if ($current === []) {
+                return;
+            }
+
+            $slides[] = [
+                'layout' => 'content',
+                'title'  => $slides === [] ? $title : "{$title} (cont.)",
+                'blocks' => $current,
+            ];
+
+            $current = [];
+            $characters = 0;
+        };
+
+        foreach ($blocks as $block) {
+            $isFigure = in_array($block['type'] ?? null, ['table', 'image'], true);
+
+            if ($isFigure) {
+                // A figure closes whatever text preceded it and takes the rest
+                // of the slide to itself.
+                $current[] = $block;
+                $flush();
+
+                continue;
+            }
+
+            $length = mb_strlen((string) ($block['text'] ?? ''));
+
+            if ($current !== [] && ($characters + $length > self::CHARS_PER_SLIDE || count($current) >= self::BLOCKS_PER_SLIDE)) {
+                $flush();
+            }
+
+            $current[] = $block;
+            $characters += $length;
+        }
+
+        $flush();
+
+        return $slides;
     }
 
     /**
