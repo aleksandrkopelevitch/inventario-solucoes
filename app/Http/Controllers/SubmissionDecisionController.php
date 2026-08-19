@@ -5,10 +5,13 @@ namespace App\Http\Controllers;
 use App\Actions\Cati\PromoteApprovedSubmission;
 use App\Enums\SubmissionStatus;
 use App\Http\Requests\RecordSubmissionDecisionRequest;
+use App\Jobs\PreReviewSubmission;
 use App\Models\Submission;
 use App\View\Components\Submissions\Checklist;
 use App\View\Components\Submissions\DetailHeader;
+use App\View\Components\Submissions\PreReview;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 /**
  * The committee's deliberation, recorded on the submission.
@@ -21,6 +24,45 @@ use Illuminate\Http\JsonResponse;
  */
 class SubmissionDecisionController extends Controller
 {
+    /** Queues the adversarial read of the submission. */
+    public function preReview(Request $request, Submission $submission): JsonResponse
+    {
+        $this->authorize('update', $submission);
+
+        if ($submission->isPreReviewRunning()) {
+            return response()->json([
+                'type'    => 'warning',
+                'message' => 'A revisão anterior ainda está rodando.',
+            ], 422);
+        }
+
+        $submission->update(['pre_review_requested_at' => now()]);
+
+        PreReviewSubmission::dispatch($submission);
+
+        return response()->json([
+            'type'           => 'success',
+            'message'        => 'Lendo a submissão como o comitê leria…',
+            'updatableSlots' => [PreReview::slot($submission->fresh())],
+        ]);
+    }
+
+    /**
+     * Polled while the pre-review runs. Cheap while pending on purpose — the
+     * slot is only rendered once there is something to show.
+     */
+    public function preReviewStatus(Submission $submission): JsonResponse
+    {
+        $this->authorize('view', $submission);
+
+        $pending = $submission->isPreReviewRunning();
+
+        return response()->json([
+            'pending'        => $pending,
+            'updatableSlots' => $pending ? [] : [PreReview::slot($submission)],
+        ]);
+    }
+
     public function store(RecordSubmissionDecisionRequest $request, Submission $submission, PromoteApprovedSubmission $promote): JsonResponse
     {
         $status = SubmissionStatus::from($request->validated('status'));

@@ -54,16 +54,22 @@ class Submission extends Model implements HasMedia
         'decided_at',
         'decided_by_id',
         'promoted_at',
+        'pre_review',
+        'pre_review_requested_at',
+        'pre_reviewed_at',
     ];
 
     protected function casts(): array
     {
         return [
-            'status'         => SubmissionStatus::class,
-            'committee_date' => 'date',
-            'conditions'     => 'array',
-            'decided_at'     => 'datetime',
-            'promoted_at'    => 'datetime',
+            'status'                  => SubmissionStatus::class,
+            'committee_date'          => 'date',
+            'conditions'              => 'array',
+            'decided_at'              => 'datetime',
+            'promoted_at'             => 'datetime',
+            'pre_review'              => 'array',
+            'pre_review_requested_at' => 'datetime',
+            'pre_reviewed_at'         => 'datetime',
         ];
     }
 
@@ -113,6 +119,27 @@ class Submission extends Model implements HasMedia
             $this->conditions ?? [],
             fn (array $condition) => ! ($condition['done'] ?? false),
         ));
+    }
+
+    /**
+     * How long a pre-review may legitimately be "running" before it counts as
+     * dead — same reasoning as SubmissionChat::REPLY_STALL_SECONDS: sized past
+     * the job timeout so a worker killed mid-run doesn't leave the button
+     * disabled forever.
+     */
+    public const PRE_REVIEW_STALL_SECONDS = 660;
+
+    public function isPreReviewRunning(): bool
+    {
+        return $this->pre_review_requested_at !== null
+            && ($this->pre_reviewed_at === null || $this->pre_reviewed_at->lessThan($this->pre_review_requested_at))
+            && $this->pre_review_requested_at->greaterThan(now()->subSeconds(self::PRE_REVIEW_STALL_SECONDS));
+    }
+
+    /** @return list<array{severity: string, section: string, text: string}> */
+    public function preReviewFindings(): array
+    {
+        return $this->pre_review['findings'] ?? [];
     }
 
     public function sections(): HasMany

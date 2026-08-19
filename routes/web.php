@@ -328,6 +328,8 @@ Route::middleware('auth')->group(function () {
 
     Route::post('submissions/{submission}/sources', [SubmissionSourceController::class, 'store'])->name('submissions.sources.store');
     Route::post('submissions/{submission}/decision', [SubmissionDecisionController::class, 'store'])->name('submissions.decision.store');
+    Route::post('submissions/{submission}/pre-review', [SubmissionDecisionController::class, 'preReview'])->name('submissions.pre-review.store');
+    Route::get('submissions/{submission}/pre-review/status', [SubmissionDecisionController::class, 'preReviewStatus'])->name('submissions.pre-review.status');
     Route::post('submissions/{submission}/slides/condense', [SubmissionSectionController::class, 'condense'])->name('submissions.slides.condense');
     Route::post('submissions/{submission}/chat/messages', [SubmissionChatController::class, 'store'])->name('submissions.chat.messages.store');
 

@@ -102,6 +102,8 @@
                     </form>
                 @endcan
             </div>
+            <x-submissions.pre-review :submission="$submission" />
+
             @can('update', $submission)
                 <div class="flex flex-col gap-3 rounded-card border border-line bg-surface p-5 shadow-card">
                     <div>
