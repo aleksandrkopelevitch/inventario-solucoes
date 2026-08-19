@@ -22,7 +22,8 @@ use Throwable;
  * and MediaController/files.show already serves, so a re-hosted image is
  * indistinguishable from one uploaded through the editor.
  *
- * Three shapes carry a reference. Two are the normalised ones
+ * Four shapes carry a reference (a fourth, cross-space one, is described
+ * further down). Two are the normalised ones
  * GitbookMarkdownNormalizer guarantees: `<img src="…">` inside a single-line
  * `<figure>`, and `{% file src="…" %}`. The third is a plain
  * `<a href="/files/{id}">` — GitBook renders a document LINKED from running
@@ -51,6 +52,18 @@ use Throwable;
  * A `/files/{digits}` reference is left alone: that is one of ours, from a
  * previous import of the same page.
  *
+ * A FOURTH shape: `/spaces/{otherSpaceId}/files/{id}` — a CROSS-SPACE
+ * reference. GitBook uses the short `/files/{id}` form only within the space
+ * that owns the file; a page that references an asset living in a DIFFERENT
+ * space (copied/duplicated content, or a genuine cross-reference) spells out
+ * the owning space's id. Resolving it needs THAT space's own file list, not
+ * this one's — `foreignFile()` fetches and caches it lazily, per owning space
+ * id, the first time one of its assets is actually referenced. Found for real:
+ * two references in one page, both pointing at a different, already-imported
+ * space. If the foreign space itself is inaccessible (wrong id, no access),
+ * that is reported the same way as any other unfetchable asset — one page's
+ * bad reference must never abort the whole import.
+ *
  * The download is deliberately ours rather than Spatie's `addMediaFromUrl()`:
  * that helper has no size ceiling, and a documentation space can hold a 300MB
  * video someone dropped in once.
@@ -59,6 +72,16 @@ class GitbookAssetImporter
 {
     /** @var array<string, int> Source ref => media id, so one asset used twice is fetched once. */
     private array $seen = [];
+
+    /**
+     * @var array<string, array<string, array{url: string, name: string}>>
+     *                                                                     Foreign space id => its file list, fetched once and reused across
+     *                                                                     every page of the CURRENT import run (this importer is one
+     *                                                                     instance per `ImportGitbookSpace::handle()` call).
+     */
+    private array $foreignSpaceFiles = [];
+
+    public function __construct(private readonly GitbookClient $client) {}
 
     /**
      * @param  array<string, array{url: string, name: string}>  $spaceFiles  From GitbookClient::files()
@@ -72,7 +95,7 @@ class GitbookAssetImporter
         $rewritten = preg_replace_callback(
             '/(<img[^>]*\ssrc=")([^"]+)(")'
             . '|(\{%\s*file\s+src=")([^"]+)("\s*%\})'
-            . '|(<a[^>]*\shref=")(\/files\/[^"]+)(")/i',
+            . '|(<a[^>]*\shref=")((?:\/files\/|\/spaces\/[A-Za-z0-9]+\/files\/)[^"]+)(")/i',
             function (array $m) use ($page, $spaceFiles, &$failed, &$imported): string {
                 [$prefix, $ref, $suffix] = match (true) {
                     ($m[2] ?? '') !== '' => [$m[1], $m[2], $m[3]],
@@ -125,7 +148,7 @@ class GitbookAssetImporter
         // display name (`>Checklist.pdf</a>`) is never touched — only text that
         // was already mirroring the path gets updated to mirror the new one.
         foreach ($this->seen as $oldRef => $mediaId) {
-            if (Str::startsWith($oldRef, '/files/')) {
+            if (Str::startsWith($oldRef, ['/files/', '/spaces/'])) {
                 $rewritten = str_replace('>' . $oldRef . '</a>', '>/files/' . $mediaId . '</a>', $rewritten);
             }
         }
@@ -156,8 +179,35 @@ class GitbookAssetImporter
             return $spaceFiles[$m[1]] ?? ['url' => '', 'name' => ''];
         }
 
+        if (preg_match('#^/spaces/([A-Za-z0-9]+)/files/([A-Za-z0-9_-]+)$#', $ref, $m)) {
+            return $this->foreignFile($m[1], $m[2]);
+        }
+
         // A repo-relative `.gitbook/assets/…` path or anything else we can't fetch.
         return null;
+    }
+
+    /**
+     * Resolves one asset that lives in ANOTHER space's file list, fetching
+     * that space's list once and caching it for the rest of this import run —
+     * the same list is fetched once even if several pages/references point at
+     * that same foreign space.
+     *
+     * @return array{url: string, name: string}
+     */
+    private function foreignFile(string $foreignSpaceId, string $fileId): array
+    {
+        if (! isset($this->foreignSpaceFiles[$foreignSpaceId])) {
+            try {
+                $this->foreignSpaceFiles[$foreignSpaceId] = $this->client->files($foreignSpaceId);
+            } catch (Throwable) {
+                // Wrong id, no access, or the space is gone — the reference is
+                // simply unresolvable, not a reason to abort this page's import.
+                $this->foreignSpaceFiles[$foreignSpaceId] = [];
+            }
+        }
+
+        return $this->foreignSpaceFiles[$foreignSpaceId][$fileId] ?? ['url' => '', 'name' => ''];
     }
 
     /**

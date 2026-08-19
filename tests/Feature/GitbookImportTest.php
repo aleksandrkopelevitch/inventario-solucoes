@@ -907,3 +907,89 @@ it('surfaces GitBook own rejection reason instead of a bare status code', functi
     expect($report->failures[0])->toContain('HTTP 403')
         ->toContain('File type not supported');
 });
+
+/*
+|--------------------------------------------------------------------------
+| A fourth reference shape: /spaces/{otherSpaceId}/files/{id} — cross-space
+|--------------------------------------------------------------------------
+*/
+
+it('resolves an asset that lives in a DIFFERENT space, by fetching that space own file list', function () {
+    // Found for real: a page in one imported space referenced an asset owned
+    // by a different, already-imported space via the fully-qualified
+    // /spaces/{id}/files/{id} form (GitBook's short /files/{id} only works
+    // within the space that owns the file).
+    fakeGitbook(
+        [['id' => 'p1', 'type' => 'document', 'title' => 'Referencia cruzada']],
+        ['p1' => '{% file src="/spaces/foreignSpace1/files/gbForeignFile" %}'],
+    );
+    Http::fake([
+        'api.gitbook.com/v1/spaces/foreignSpace1/content/files*' => Http::response(['items' => [
+            ['id' => 'gbForeignFile', 'name' => 'planilha.xlsx', 'downloadURL' => 'https://files.gitbook.com/planilha.xlsx'],
+        ]]),
+        'files.gitbook.com/*' => Http::response('xlsx-bytes', 200, ['Content-Type' => 'application/octet-stream']),
+    ]);
+
+    $report = app(ImportGitbookSpace::class)->handle('space-1');
+    $page = DocumentationGroup::sole()->pages()->sole();
+    $media = $page->getMedia(Documentable::DOCS_COLLECTION)->sole();
+
+    expect($report->assets)->toBe(1);
+    expect($media->file_name)->toBe('planilha.xlsx');
+    expect($page->documentation)->toBe('{% file src="/files/' . $media->id . '" %}');
+});
+
+it('fetches a foreign space file list only once even when referenced from two pages', function () {
+    $requests = 0;
+    fakeGitbook(
+        [
+            ['id' => 'p1', 'type' => 'document', 'title' => 'Página A'],
+            ['id' => 'p2', 'type' => 'document', 'title' => 'Página B'],
+        ],
+        [
+            'p1' => '{% file src="/spaces/foreignSpace1/files/gbForeignFile" %}',
+            'p2' => '{% file src="/spaces/foreignSpace1/files/gbForeignFile" %}',
+        ],
+    );
+    Http::fake([
+        'api.gitbook.com/v1/spaces/foreignSpace1/content/files*' => function () use (&$requests) {
+            $requests++;
+
+            return Http::response(['items' => [
+                ['id' => 'gbForeignFile', 'name' => 'x.png', 'downloadURL' => 'https://files.gitbook.com/x.png'],
+            ]]);
+        },
+        'files.gitbook.com/*' => Http::response('png', 200, ['Content-Type' => 'image/png']),
+    ]);
+
+    app(ImportGitbookSpace::class)->handle('space-1');
+
+    expect($requests)->toBe(1);
+});
+
+it('reports a cross-space reference the foreign space does not have, without aborting the import', function () {
+    fakeGitbook(
+        [['id' => 'p1', 'type' => 'document', 'title' => 'Referencia quebrada']],
+        ['p1' => '{% file src="/spaces/foreignSpace1/files/gbMissing" %}'],
+    );
+    Http::fake(['api.gitbook.com/v1/spaces/foreignSpace1/content/files*' => Http::response(['items' => []])]);
+
+    $report = app(ImportGitbookSpace::class)->handle('space-1');
+
+    expect($report->assets)->toBe(0);
+    expect($report->failures[0])->toContain('gbMissing')->toContain('não está na lista');
+});
+
+it('does not abort the whole import when the foreign space itself is inaccessible', function () {
+    fakeGitbook(
+        [['id' => 'p1', 'type' => 'document', 'title' => 'Espaço inacessível']],
+        ['p1' => '{% file src="/spaces/foreignSpace1/files/gbX" %}'],
+    );
+    Http::fake(['api.gitbook.com/v1/spaces/foreignSpace1/content/files*' => Http::response(['error' => ['message' => 'forbidden']], 403)]);
+
+    $report = app(ImportGitbookSpace::class)->handle('space-1');
+
+    expect($report->created)->toBe(1);
+    expect($report->assets)->toBe(0);
+    expect($report->failures)->toHaveCount(1);
+});
