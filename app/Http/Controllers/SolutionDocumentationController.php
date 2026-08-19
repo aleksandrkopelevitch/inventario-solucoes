@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\AssistsDocumentation;
 use App\Http\Controllers\Concerns\EditsDocumentation;
 use App\Http\Controllers\Concerns\NavigatesSolutionDocs;
 use App\Http\Requests\MoveDocumentationPageRequest;
+use App\Http\Requests\MoveDocumentationPageToContainerRequest;
 use App\Http\Requests\SaveDocumentationPageTitleRequest;
 use App\Http\Requests\SaveDocumentationRequest;
 use App\Http\Requests\StoreDocumentationChatMessageRequest;
@@ -164,6 +165,25 @@ class SolutionDocumentationController extends Controller
                 $solution->name,
                 route('solutions.show', $solution),
             )],
+        ]);
+    }
+
+    /**
+     * Re-files the page under another container. Mirror of
+     * DocumentationGroupPageController::moveToContainer() — see it for why this
+     * answers with a `redirect` instead of the rail's slot.
+     */
+    public function moveToContainer(MoveDocumentationPageToContainerRequest $request, Solution $solution, DocumentationPage $page): JsonResponse
+    {
+        $destination = $request->destination();
+        $this->authorize('update', $destination);
+
+        $this->pages->moveToContainer($page, $destination);
+
+        return response()->json([
+            'type'     => 'success',
+            'message'  => 'Página movida.',
+            'redirect' => $this->pages->editUrl($page->fresh()),
         ]);
     }
 

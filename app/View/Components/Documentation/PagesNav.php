@@ -19,8 +19,9 @@ use Illuminate\View\Component;
  * `DocumentationGroupPageController`), which are the ones that know the
  * route names for each context.
  *
- * Updatable slot: used after moving a page (the only action that doesn't
- * navigate to another screen).
+ * Updatable slot: used after REORDERING a page (the only action that doesn't
+ * navigate to another screen — moving a page to another container changes its
+ * url, so that one answers with a redirect instead).
  */
 class PagesNav extends Component
 {
@@ -28,7 +29,7 @@ class PagesNav extends Component
 
     public const DOM_ID = 'documentation-pages-nav-slot';
 
-    /** @param  array<int, array{title: string, editUrl: string, renameUrl: string, destroyUrl: string, moveUrl: string, active: bool, hasContent: bool}>  $pages
+    /** @param  array<int, array{title: string, editUrl: string, renameUrl: string, destroyUrl: string, moveUrl: string, containerUrl: string, destinations: array<string, array<int, array{value: string, label: string}>>, active: bool, hasContent: bool}>  $pages
      *  @param  array<int, array{title: string, editUrl: string, active: bool, hasContent: bool}>  $integrations */
     public function __construct(
         public array $pages,

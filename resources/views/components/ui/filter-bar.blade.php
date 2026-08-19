@@ -1,7 +1,7 @@
 @props([
     // The AJAX-only form the controls belong to. It deliberately has no
     // method/action — execute-filters.js serializes every `filter[...]` field
-    // and preventDefault()s any native submit (see CLAUDE.md).
+    // and preventDefault()s any native submit (see AGENTS.md).
     'formId',
 ])
 

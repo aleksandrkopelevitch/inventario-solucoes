@@ -40,7 +40,7 @@ return [
             'connection' => env('DB_QUEUE_CONNECTION'),
             'table'      => env('DB_QUEUE_TABLE', 'jobs'),
             'queue'      => env('DB_QUEUE', 'default'),
-            // > que o maior $timeout de job (GenerateFlowspecReply: 600s) — ver CLAUDE.md.
+            // > que o maior $timeout de job (GenerateFlowspecReply: 600s) — ver AGENTS.md.
             'retry_after'  => (int) env('DB_QUEUE_RETRY_AFTER', 900),
             'after_commit' => false,
         ],

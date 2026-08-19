@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\EditsDocumentation;
 use App\Http\Requests\MoveDocumentationPageRequest;
+use App\Http\Requests\MoveDocumentationPageToContainerRequest;
 use App\Http\Requests\SaveDocumentationPageTitleRequest;
 use App\Http\Requests\SaveDocumentationRequest;
 use App\Http\Requests\UploadDocumentationMediaRequest;
@@ -109,6 +110,28 @@ class DocumentationGroupPageController extends Controller
         ]);
     }
 
+    /**
+     * Moves the page out of this group and into another container — the reason
+     * the GitBook import can land a whole space here and still end up tidy.
+     * Answers with the page's NEW url: the page no longer exists at this one,
+     * so a slot swap would leave the browser on a 404.
+     */
+    public function moveToContainer(MoveDocumentationPageToContainerRequest $request, DocumentationGroup $group, DocumentationPage $page): JsonResponse
+    {
+        $destination = $request->destination();
+        // The destination is a different record with its own policy — a 403,
+        // not a validation error (see the request's docblock).
+        $this->authorize('update', $destination);
+
+        $this->pages->moveToContainer($page, $destination);
+
+        return response()->json([
+            'type'     => 'success',
+            'message'  => 'Página movida.',
+            'redirect' => $this->pages->editUrl($page->fresh()),
+        ]);
+    }
+
     public function media(UploadDocumentationMediaRequest $request, DocumentationGroup $group, DocumentationPage $page): JsonResponse
     {
         return $this->storeDocumentationMedia($request, $page);
@@ -117,14 +140,18 @@ class DocumentationGroupPageController extends Controller
     /** @return array<int, array<string, mixed>> */
     private function navPages(DocumentationGroup $group, DocumentationPage $active): array
     {
+        $destinations = $this->pages->destinationsFor($group);
+
         return $group->pages()->get()->map(fn (DocumentationPage $page) => [
-            'title'      => $page->title,
-            'editUrl'    => route('documentation.groups.pages.edit', [$group, $page]),
-            'renameUrl'  => route('documentation.groups.pages.rename', [$group, $page]),
-            'destroyUrl' => route('documentation.groups.pages.destroy', [$group, $page]),
-            'moveUrl'    => route('documentation.groups.pages.move', [$group, $page]),
-            'active'     => $active->is($page),
-            'hasContent' => trim((string) $page->documentation) !== '',
+            'title'        => $page->title,
+            'editUrl'      => route('documentation.groups.pages.edit', [$group, $page]),
+            'renameUrl'    => route('documentation.groups.pages.rename', [$group, $page]),
+            'destroyUrl'   => route('documentation.groups.pages.destroy', [$group, $page]),
+            'moveUrl'      => route('documentation.groups.pages.move', [$group, $page]),
+            'containerUrl' => route('documentation.groups.pages.container', [$group, $page]),
+            'destinations' => $destinations,
+            'active'       => $active->is($page),
+            'hasContent'   => trim((string) $page->documentation) !== '',
         ])->all();
     }
 }

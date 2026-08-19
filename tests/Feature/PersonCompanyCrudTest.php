@@ -132,7 +132,7 @@ it('returns the companies index slot as JSON filtered by kind', function () {
 
 it('preserves the active filter when updating a company refreshes the index slot', function () {
     // Regression coverage for the "preserving filters when a mutation
-    // refreshes a filtered index slot" chain (CLAUDE.md), same as Solutions.
+    // refreshes a filtered index slot" chain (AGENTS.md), same as Solutions.
     $matching = Company::factory()->create(['name' => 'Interna SA', 'kind' => 'internal']);
     Company::factory()->create(['name' => 'Fornecedora SA', 'kind' => 'vendor']);
 

@@ -80,6 +80,12 @@
                             class="!justify-start !px-2 !py-1 !text-xs">
                             <x-heroicon-o-pencil class="size-3.5" /> Renomear
                         </x-forms.button>
+                        @if (! empty($page['destinations'] ?? []))
+                            <x-forms.button type="button" variant="ghost" data-ak-toggle="doc-page-container-{{ $i }}" data-ak-toggle-classes="hidden"
+                                class="!justify-start !px-2 !py-1 !text-xs">
+                                <x-heroicon-o-arrow-right-circle class="size-3.5" /> Mover para…
+                            </x-forms.button>
+                        @endif
                         <x-forms.button type="button" variant="ghost" data-ak-ajax="doc-page-destroy-{{ $i }}" data-ak-action="{{ $page['destroyUrl'] }}"
                             data-ak-confirm="Excluir a página &quot;{{ $page['title'] }}&quot;? Esta ação não pode ser desfeita."
                             class="!justify-start !px-2 !py-1 !text-xs !text-crit">
@@ -99,6 +105,29 @@
                             OK
                         </x-forms.button>
                     </form>
+
+                    {{-- Re-file the page under another solution or group. The
+                         current container is already absent from the options
+                         (destinationsFor()), so every choice here is a real
+                         move; confirming navigates to the page's new url. --}}
+                    @if (! empty($page['destinations'] ?? []))
+                        <form id="doc-page-container-{{ $i }}" class="hidden ml-2 mt-1 flex gap-1.5">
+                            @csrf
+                            @method('PATCH')
+                            <x-forms.select name="container" class="!text-xs" aria-label="Mover a página para">
+                                @foreach ($page['destinations'] as $optgroup => $options)
+                                    <optgroup label="{{ $optgroup }}">
+                                        @foreach ($options as $option)
+                                            <option value="{{ $option['value'] }}">{{ $option['label'] }}</option>
+                                        @endforeach
+                                    </optgroup>
+                                @endforeach
+                            </x-forms.select>
+                            <x-forms.button data-ak-ajax="doc-page-container-{{ $i }}" data-ak-action="{{ $page['containerUrl'] }}" class="!h-8 !shrink-0 !px-2.5 !text-xs">
+                                Mover
+                            </x-forms.button>
+                        </form>
+                    @endif
                 </li>
             @endforeach
         </ul>

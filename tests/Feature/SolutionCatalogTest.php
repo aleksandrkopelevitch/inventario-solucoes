@@ -83,7 +83,7 @@ it('lets an admin update a solution', function () {
 
 it('preserves the active filter when updating a solution refreshes the index slot', function () {
     // Regression coverage for the "preserving filters when a mutation
-    // refreshes a filtered index slot" chain (CLAUDE.md) — editing a
+    // refreshes a filtered index slot" chain (AGENTS.md) — editing a
     // Solution while filtered must not silently reset the visible list to
     // everything, even though the store()/update() wiring already does this
     // correctly (this just proves it end-to-end).
