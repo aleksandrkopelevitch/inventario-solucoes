@@ -409,6 +409,22 @@ Http::gitbook()->get('/spaces/' . $id . '/content/pages');
   documentation and CATI chats) goes through the `laravel/ai` package and
   `config/ai.php`, never through `Http::`.
 
+Two traps live in that macro, both found the hard way on the first real import:
+
+- **`retry(..., throw: false)` is load-bearing, not a preference.** `retry()`
+  otherwise throws a raw `RequestException` the instant a response fails, which
+  jumps straight over the client's own `$response->failed()` check — and with it
+  every operator-facing message the domain exception authors. Adding a retry to
+  an existing client silently changes its error contract; a test asserting the
+  authored message is what catches it.
+- **A `Http::macro()` closure is REBOUND to the PendingRequest.**
+  `Macroable::__call` does `$macro->bindTo($this, static::class)`, so `self::` /
+  `static::` inside the closure resolve to `Illuminate\Http\Client\PendingRequest`
+  — `self::isTransient($e)` dies with `Method PendingRequest::isTransient does
+  not exist`, pointing at a line that looks perfectly correct. Put shared logic
+  in its own class and call it by an imported name (`TransientHttpFailure::
+  matches()`); `use` statements are resolved at compile time and are immune.
+
 ## GitBook import — and the three "firsts" it introduced
 
 `php artisan gitbook:import` pulls existing GitBook content into the
@@ -460,11 +476,31 @@ up as literal `{% … %}` text on screen, or quietly disappears from the editor.
   `MediaController::show()` authorizes on the media's COLLECTION only, so media
   keeps working when its page moves container.
 
+Two more shapes, both found by auditing the real corpus (613 pages across 38
+spaces) rather than by reading GitBook's docs — which describe neither:
+
+- **`file` and `embed` are self-closing here, but GitBook also has a PAIRED
+  form** whose body is a caption (`{% file src="…" %}Legenda{% endfile %}`) —
+  11 of 408 files and 7 of 23 embeds in that corpus. Re-emitting the closer
+  prints a literal `{% endfile %}` on the page. `hint` and `tabs`/`tab` really
+  are paired; those keep their closers.
+- **Notation cannot live inside a blockquote.** Both parsers are line-anchored
+  (`^\{%`), so `> {% code … %}` is unreachable in this dialect at any nesting.
+  The normalizer strips the quote marker and does not re-apply it, so the
+  construct works at top level instead of being printed as text inside a quote
+  that kept its styling.
+
 `App\Support\Gitbook\GitbookMarkdownNormalizer` is where all of the above is
 encoded, with a down-converter for the GitBook constructs this app never learned
 (`content-ref`, `stepper`, `columns`, `code`) and a visible PT-BR callout for
 what can't be converted honestly (`include`, `openapi`). Reuse it rather than
 re-deriving the rules.
+
+Worth knowing before planning an import: that corpus is ~613 pages with 459
+`<figure>`s and ~402 remote asset references, so a full run is roughly 613
+markdown requests plus 400 downloads. `--dry-run` does NOT exercise any of the
+above — it returns after walking the page tree, before fetching a single page's
+markdown.
 
 Two more things about the import itself: it is **re-runnable** (pages matched by
 title within the group, media cleared before re-adding so re-imports don't

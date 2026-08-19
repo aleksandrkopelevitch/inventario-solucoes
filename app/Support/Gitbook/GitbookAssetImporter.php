@@ -92,9 +92,9 @@ class GitbookAssetImporter
 
         $max = (int) config('services.gitbook.max_asset_bytes');
 
-        $response = Http::timeout((int) config('services.gitbook.timeout'))
-            ->connectTimeout(5)
-            ->get($url);
+        // `gitbookAsset()`, not `gitbook()`: same timeouts and retry, but no
+        // bearer token — the asset host is not GitBook's API host.
+        $response = Http::gitbookAsset()->get($url);
 
         if ($response->failed()) {
             throw new \RuntimeException('download falhou (HTTP ' . $response->status() . ').');

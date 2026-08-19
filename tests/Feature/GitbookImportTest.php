@@ -8,6 +8,7 @@ use App\Support\Gitbook\GitbookMarkdownNormalizer;
 use App\Support\Gitbook\GitbookPageTree;
 use App\Support\GitbookRenderer;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -19,6 +20,9 @@ beforeEach(function () {
     config()->set('services.gitbook.url', 'https://api.gitbook.com/v1');
     config()->set('services.gitbook.timeout', 30);
     config()->set('services.gitbook.max_asset_bytes', 1048576);
+    config()->set('services.gitbook.retries', 3);
+    // No real sleeping between retries in tests.
+    config()->set('services.gitbook.retry_sleep', 0);
     Storage::fake('public');
 });
 
@@ -503,4 +507,166 @@ it('produces markdown the read-only renderer turns into real blocks, with no not
         ->toContain('<img src="/files/');                  // image re-hosted locally
     expect($html)->not->toContain('{%');
     expect($page->documentation)->not->toContain('gitbook.com');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Transient network failures — an import is a long chain of requests
+|--------------------------------------------------------------------------
+*/
+
+it('retries a request that never landed and carries on', function () {
+    $attempts = 0;
+    Http::fake([
+        'api.gitbook.com/v1/spaces/space-1/content/pages*' => function () use (&$attempts) {
+            $attempts++;
+
+            // The real failure this covers: WSL2's DNS resolution timing out
+            // mid-import ("cURL error 28: Resolving timed out"), observed on the
+            // first live run against a real space.
+            if ($attempts === 1) {
+                throw new ConnectionException('cURL error 28: Resolving timed out after 5000 milliseconds');
+            }
+
+            return Http::response(['pages' => [['id' => 'p1', 'type' => 'document', 'title' => 'Sobreviveu']]]);
+        },
+        'api.gitbook.com/v1/spaces/space-1/content/page/*' => Http::response(['markdown' => 'conteúdo']),
+        'api.gitbook.com/v1/spaces/space-1*'               => Http::response(['id' => 'space-1', 'title' => 'Espaço']),
+    ]);
+
+    $report = app(ImportGitbookSpace::class)->handle('space-1');
+
+    expect($attempts)->toBe(2);
+    expect($report->created)->toBe(1);
+    expect(DocumentationGroup::sole()->pages()->sole()->documentation)->toBe('conteúdo');
+});
+
+it('retries a 429 but never a 404', function () {
+    $pages = 0;
+    $page = 0;
+    Http::fake([
+        'api.gitbook.com/v1/spaces/space-1/content/pages*' => function () use (&$pages) {
+            $pages++;
+
+            return $pages === 1
+                ? Http::response(['error' => ['message' => 'slow down']], 429)
+                : Http::response(['pages' => [['id' => 'p1', 'type' => 'document', 'title' => 'X']]]);
+        },
+        'api.gitbook.com/v1/spaces/space-1/content/page/*' => function () use (&$page) {
+            $page++;
+
+            return Http::response(['error' => ['message' => 'gone']], 404);
+        },
+        'api.gitbook.com/v1/spaces/space-1*' => Http::response(['id' => 'space-1', 'title' => 'Espaço']),
+    ]);
+
+    expect(fn () => app(ImportGitbookSpace::class)->handle('space-1'))
+        ->toThrow(GitbookApiException::class);
+
+    expect($pages)->toBe(2);  // 429 → retried
+    expect($page)->toBe(1);   // 404 is an answer, not a blip
+});
+
+it('reports a network failure that outlives the retries as a readable line', function () {
+    Http::fake(['api.gitbook.com/*' => fn () => throw new ConnectionException('Resolving timed out')]);
+
+    $this->artisan('gitbook:import --space=space-1')
+        ->expectsOutputToContain('Could not reach GitBook')
+        ->assertFailed();
+});
+
+it('retries a failed asset download before giving up on the image', function () {
+    $attempts = 0;
+    fakeGitbook(
+        [['id' => 'p1', 'type' => 'document', 'title' => 'Com imagem']],
+        ['p1' => '![x](https://files.gitbook.com/x.png)'],
+    );
+    Http::fake(['files.gitbook.com/*' => function () use (&$attempts) {
+        $attempts++;
+
+        if ($attempts === 1) {
+            throw new ConnectionException('Resolving timed out');
+        }
+
+        return Http::response('png', 200, ['Content-Type' => 'image/png']);
+    }]);
+
+    $report = app(ImportGitbookSpace::class)->handle('space-1');
+
+    expect($attempts)->toBe(2);
+    expect($report->imported ?? $report->assets)->toBe(1);
+    expect($report->failures)->toBe([]);
+});
+
+it('never sends the API token to the asset host', function () {
+    fakeGitbook(
+        [['id' => 'p1', 'type' => 'document', 'title' => 'Com imagem']],
+        ['p1' => '![x](https://files.gitbook.com/x.png)'],
+    );
+    Http::fake(['files.gitbook.com/*' => Http::response('png', 200, ['Content-Type' => 'image/png'])]);
+
+    app(ImportGitbookSpace::class)->handle('space-1');
+
+    // An asset URL is a different host; the bearer belongs only to the API.
+    Http::assertSent(fn (Request $request) => ! str_contains($request->url(), 'files.gitbook.com')
+        || ! $request->hasHeader('Authorization'));
+});
+
+/*
+|--------------------------------------------------------------------------
+| Shapes found by auditing the real corpus (613 pages, 38 spaces)
+|--------------------------------------------------------------------------
+*/
+
+it('drops the closer of a PAIRED file or embed, keeping its caption', function () {
+    // 11 of 408 files and 7 of 23 embeds in the real corpus use GitBook's
+    // paired form. This app writes both as a single tag, so re-emitting the
+    // closer printed a literal `{% endfile %}` on the page.
+    $normalized = app(GitbookMarkdownNormalizer::class)->normalize(<<<'MD'
+    {% file src="/files/JtfK3TAl5HdGMFBnAKwq" %}
+    História (temp)
+    {% endfile %}
+
+    {% embed url="https://youtu.be/abc" %}
+    Legenda do vídeo
+    {% endembed %}
+    MD);
+
+    expect($normalized)->toContain('{% file src="/files/JtfK3TAl5HdGMFBnAKwq" %}')
+        ->toContain('História (temp)')
+        ->toContain('{% embed url="https://youtu.be/abc" %}')
+        ->toContain('Legenda do vídeo');
+    expect($normalized)->not->toContain('endfile')
+        ->not->toContain('endembed');
+});
+
+it('still keeps the closers of hint and tabs, which really are paired here', function () {
+    $markdown = "{% hint style=\"info\" %}\nOi\n{% endhint %}\n\n{% tabs %}\n{% tab title=\"A\" %}\nx\n{% endtab %}\n{% endtabs %}";
+
+    expect(app(GitbookMarkdownNormalizer::class)->normalize($markdown))->toBe($markdown);
+});
+
+it('lifts notation out of a blockquote instead of printing it as text', function () {
+    // Real page: `> {% code lineNumbers="true" expandable="true" %}`. Both
+    // parsers are line-anchored, so a construct inside a quote is unreachable —
+    // the marker is dropped so the construct works at top level.
+    $normalized = app(GitbookMarkdownNormalizer::class)->normalize(<<<'MD'
+    > {% code lineNumbers="true" expandable="true" %}
+    > ```sql
+    > select 1
+    > ```
+    > {% endcode %}
+    MD);
+
+    expect($normalized)->not->toContain('{%');
+    expect($normalized)->toContain('select 1');
+});
+
+it('lifts a blockquoted hint out too, so it renders as a callout', function () {
+    $html = app(GitbookRenderer::class)->render(
+        app(GitbookMarkdownNormalizer::class)->normalize("> {% hint style=\"warning\" %}\n> Cuidado\n> {% endhint %}")
+    );
+
+    expect($html)->toContain('data-callout="warning"');
+    expect($html)->not->toContain('{%');
 });

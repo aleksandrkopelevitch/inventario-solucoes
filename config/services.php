@@ -170,6 +170,16 @@ return [
         // collection so the imported Markdown never points back at GitBook's
         // CDN (a link that dies the day the space does). Ceiling per asset.
         'max_asset_bytes' => (int) env('GITBOOK_MAX_ASSET_BYTES', 20971520),
+
+        // An import is one request per page, so a space is a long chain of
+        // them and a single transient blip would otherwise end the whole run.
+        // Observed for real on the first live import: WSL2 here reports
+        // `System clock synchronized: no` and its DNS resolution intermittently
+        // times out, so `cURL error 28: Resolving timed out` landed mid-scan.
+        // Retries cover connection errors and 429/5xx only — a 404 is an
+        // answer, not a blip. `retry_sleep` is milliseconds; tests set it to 0.
+        'retries'     => (int) env('GITBOOK_API_RETRIES', 3),
+        'retry_sleep' => (int) env('GITBOOK_API_RETRY_SLEEP', 500),
     ],
 
 ];

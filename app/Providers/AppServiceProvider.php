@@ -2,10 +2,12 @@
 
 namespace App\Providers;
 
+use App\Support\Gitbook\TransientHttpFailure;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\ServiceProvider;
+use Throwable;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -33,6 +35,36 @@ class AppServiceProvider extends ServiceProvider
             ->withToken((string) config('services.gitbook.token'))
             ->timeout((int) config('services.gitbook.timeout'))
             ->connectTimeout(5)
-            ->acceptJson());
+            ->acceptJson()
+            ->retry(
+                (int) config('services.gitbook.retries'),
+                (int) config('services.gitbook.retry_sleep'),
+                fn (Throwable $e) => TransientHttpFailure::matches($e),
+                // `throw: false` is load-bearing, not a preference: `retry()`
+                // otherwise throws a raw RequestException the moment a response
+                // fails, which jumps straight over GitbookClient's own
+                // `$response->failed()` check — and with it every operator-facing
+                // message GitbookApiException authors ("the token has no access
+                // to this space", "check the id against --list"). Returning the
+                // failed response keeps that mapping the single way an API error
+                // reaches the user. A ConnectionException still propagates:
+                // there is no response to return, and the command catches it.
+                throw: false,
+            ));
+
+        // The same transport for a GitBook CDN asset — deliberately WITHOUT the
+        // token: an asset lives on a different host, and sending the bearer
+        // there would hand our credential to a third party.
+        Http::macro('gitbookAsset', fn () => Http::timeout((int) config('services.gitbook.timeout'))
+            ->connectTimeout(5)
+            ->retry(
+                (int) config('services.gitbook.retries'),
+                (int) config('services.gitbook.retry_sleep'),
+                fn (Throwable $e) => TransientHttpFailure::matches($e),
+                // Same reason as above: GitbookAssetImporter reads
+                // `$response->failed()` to record WHICH asset stayed behind and
+                // why, instead of one exception ending the page's import.
+                throw: false,
+            ));
     }
 }
