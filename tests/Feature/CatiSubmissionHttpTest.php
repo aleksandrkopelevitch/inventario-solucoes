@@ -97,9 +97,12 @@ it('edits one header field in place and refreshes the checklist with it', functi
 
     expect($submission->fresh()->solution_id)->toBe($solution->id)
         // Linking a solution changes which facts are known, so the checklist
-        // has to come back with the header.
-        ->and($ids)->toBe(['submission-detail-header-slot', 'submission-checklist-slot'])
-        ->and(collect($response->json('updatableSlots'))->last()['content'])->toContain('SkyMob');
+        // has to come back with the header — and the pre-review card too, since
+        // setting the status to "submetida" from here starts one.
+        ->and($ids)->toBe(['submission-detail-header-slot', 'submission-checklist-slot', 'submission-pre-review-slot'])
+        // The checklist is the one that now knows about the solution.
+        ->and(collect($response->json('updatableSlots'))->firstWhere('id', 'submission-checklist-slot')['content'])
+        ->toContain('SkyMob');
 });
 
 it('refuses an unknown status without Laravel\'s default errors shape', function () {

@@ -54,8 +54,22 @@ nomeia, contradição entre seções, escopo que cresce em silêncio.
 Ela **nunca reescreve nada** — devolve achados anexados à submissão, ordenados
 do pior para o menor, e quem decide o que fazer é uma pessoa.
 
+### Ressalva se fecha na própria página
+
+`Submissions\Deliberation` virou slot próprio para que marcar uma ressalva como
+cumprida (e reabri-la) não recarregue a página. Indexada por posição: uma
+ressalva não tem identidade própria — é uma linha que o comitê ditou, e a lista
+só é reescrita inteira por uma nova deliberação. O card mostra quantas seguem
+em aberto, que é a única coisa que alguém quer saber três semanas depois.
+
+### A prévia roda ao submeter, não só no botão
+
+Os achados valem mais no intervalo entre submeter e a reunião — exatamente
+quando ninguém lembra de apertar um botão. Dispara na **transição** para
+`submetida`, e só nela: salvar de novo um registro já submetido não pode custar
+outra chamada de modelo. O botão continua ali para uma re-rodada deliberada.
+
 ## O que sobrou
 
-- Ressalvas são registradas e listadas, mas ainda não dá para marcar uma como
-  cumprida pela interface (o modelo já guarda `done`).
-- A prévia não roda sozinha ao submeter; é um botão.
+- Nada bloqueante. Os dois buracos anotados na primeira versão deste documento
+  foram fechados.

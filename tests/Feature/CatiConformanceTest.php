@@ -215,3 +215,59 @@ it('shows the conformance table and the deliberation on the page', function () {
         ->toContain('Deliberação')
         ->toContain('Homologar o dimensionamento');
 });
+
+it('ticks a condition off and reopens it', function () {
+    $user = User::factory()->create(['role' => UserRole::Admin]);
+    $this->actingAs($user);
+
+    $submission = submissionFor([], [], $user);
+    $submission->update([
+        'decided_at' => now(),
+        'decision'   => 'Aprovada com ressalvas.',
+        'conditions' => [
+            ['text' => 'Homologar o dimensionamento', 'done' => false],
+            ['text' => 'Restringir a porta 9180', 'done' => false],
+        ],
+    ]);
+
+    $response = $this->postJson(route('submissions.conditions.toggle', [$submission, 0]))->assertOk();
+
+    expect($submission->fresh()->conditions[0]['done'])->toBeTrue()
+        ->and($submission->fresh()->conditions[1]['done'])->toBeFalse()
+        ->and($submission->fresh()->openConditions())->toHaveCount(1)
+        ->and(collect($response->json('updatableSlots'))->pluck('id')->all())->toBe(['submission-deliberation-slot']);
+
+    $this->postJson(route('submissions.conditions.toggle', [$submission, 0]))->assertOk();
+
+    expect($submission->fresh()->conditions[0]['done'])->toBeFalse();
+});
+
+it('404s on a condition that is not there', function () {
+    $user = User::factory()->create(['role' => UserRole::Admin]);
+    $this->actingAs($user);
+
+    $submission = submissionFor([], [], $user);
+    $submission->update(['conditions' => [['text' => 'Uma só', 'done' => false]]]);
+
+    $this->postJson(route('submissions.conditions.toggle', [$submission, 7]))->assertNotFound();
+});
+
+it('shows how many conditions are still open', function () {
+    $user = User::factory()->create(['role' => UserRole::Admin]);
+    $this->actingAs($user);
+
+    $submission = submissionFor([], [], $user);
+    $submission->update([
+        'decided_at' => now(),
+        'decision'   => 'Aprovada com ressalvas.',
+        'conditions' => [
+            ['text' => 'Homologar o dimensionamento', 'done' => true],
+            ['text' => 'Restringir a porta 9180', 'done' => false],
+        ],
+    ]);
+
+    $html = $this->get(route('submissions.show', $submission))->assertOk()->getContent();
+
+    expect($html)->toContain('1 em aberto')
+        ->toContain('Homologar o dimensionamento');
+});

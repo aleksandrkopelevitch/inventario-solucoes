@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\SubmissionStatus;
 use App\Http\Requests\StoreSubmissionRequest;
 use App\Http\Requests\UpdateSubmissionFieldRequest;
 use App\Http\Requests\UpdateSubmissionRequest;
+use App\Jobs\PreReviewSubmission;
 use App\Models\Person;
 use App\Models\Solution;
 use App\Models\Submission;
@@ -12,6 +14,7 @@ use App\Models\SubmissionChat;
 use App\View\Components\Submissions\Checklist;
 use App\View\Components\Submissions\DetailHeader;
 use App\View\Components\Submissions\Index as SubmissionsIndex;
+use App\View\Components\Submissions\PreReview;
 use App\View\Components\Submissions\ResultsCount;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -94,7 +97,11 @@ class SubmissionController extends Controller
 
     public function update(UpdateSubmissionRequest $request, Submission $submission): JsonResponse
     {
+        $wasSubmitted = $submission->status === SubmissionStatus::Submitted;
+
         $submission->update($request->validated());
+
+        $this->preReviewOnSubmit($submission, $wasSubmitted);
 
         return $this->saved('Alterações salvas.', $submission, (array) $request->query('filter', []));
     }
@@ -102,7 +109,11 @@ class SubmissionController extends Controller
     /** One field, edited in place on the detail header. */
     public function updateField(UpdateSubmissionFieldRequest $request, Submission $submission): JsonResponse
     {
+        $wasSubmitted = $submission->status === SubmissionStatus::Submitted;
+
         $submission->update($request->validated());
+
+        $this->preReviewOnSubmit($submission, $wasSubmitted);
 
         return response()->json([
             'type'    => 'success',
@@ -112,6 +123,9 @@ class SubmissionController extends Controller
             'updatableSlots' => [
                 DetailHeader::slot($submission->fresh(['solution', 'requester'])),
                 Checklist::slot($submission->fresh(['sections', 'sources', 'solution'])),
+                // Submitting from the header starts a pre-review; without this
+                // the card would keep showing the old state until a reload.
+                PreReview::slot($submission->fresh()),
             ],
         ]);
     }
@@ -127,6 +141,30 @@ class SubmissionController extends Controller
             'message'  => 'Submissão removida.',
             'redirect' => route('submissions.index', ['filter' => (array) $request->query('filter', [])]),
         ]);
+    }
+
+    /**
+     * Reads the submission as the committee would, the moment it is submitted.
+     *
+     * The findings are worth most in the gap between submitting and the
+     * meeting, which is exactly when nobody thinks to press a button. Fired on
+     * the TRANSITION into `submitted` only — re-saving an already-submitted
+     * record must not queue another model call, and the button is still there
+     * for a deliberate re-run.
+     */
+    private function preReviewOnSubmit(Submission $submission, bool $wasSubmitted): void
+    {
+        if ($wasSubmitted || $submission->status !== SubmissionStatus::Submitted) {
+            return;
+        }
+
+        if ($submission->isPreReviewRunning()) {
+            return;
+        }
+
+        $submission->update(['pre_review_requested_at' => now()]);
+
+        PreReviewSubmission::dispatch($submission);
     }
 
     /** @param  array<string, mixed>  $filters */
