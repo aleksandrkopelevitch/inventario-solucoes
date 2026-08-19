@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\SubmissionSectionKey;
+use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Jobs\PreReviewSubmission;
 use App\Models\CatiGuideline;
@@ -191,4 +192,47 @@ it('shows the findings on the page', function () {
     expect($html)->toContain('Prévia do comitê')
         ->toContain('O prazo não considera a homologação de rede.')
         ->toContain('Plano de implementação e custos');
+});
+
+it('reads the submission the moment it is submitted', function () {
+    Queue::fake();
+
+    $user = User::factory()->create(['role' => UserRole::Admin]);
+    $this->actingAs($user);
+
+    $submission = preReviewSubject(user: $user);
+
+    // The findings are worth most between submitting and the meeting, which is
+    // exactly when nobody thinks to press a button.
+    $this->patchJson(route('submissions.field.update', $submission), ['status' => 'submitted'])->assertOk();
+
+    Queue::assertPushed(PreReviewSubmission::class, 1);
+    expect($submission->fresh()->isPreReviewRunning())->toBeTrue();
+});
+
+it('does not queue another read when an already-submitted record is saved again', function () {
+    Queue::fake();
+
+    $user = User::factory()->create(['role' => UserRole::Admin]);
+    $this->actingAs($user);
+
+    $submission = preReviewSubject(user: $user);
+    $submission->update(['status' => SubmissionStatus::Submitted]);
+
+    // Fires on the TRANSITION only — editing the ticket number on a submitted
+    // record must not cost another model call.
+    $this->patchJson(route('submissions.field.update', $submission), ['ticket_reference' => 'INC-123'])->assertOk();
+
+    Queue::assertNothingPushed();
+});
+
+it('does not fire on a status that is not submission', function () {
+    Queue::fake();
+
+    $user = User::factory()->create(['role' => UserRole::Admin]);
+    $this->actingAs($user);
+
+    $this->patchJson(route('submissions.field.update', preReviewSubject(user: $user)), ['status' => 'in_review'])->assertOk();
+
+    Queue::assertNothingPushed();
 });

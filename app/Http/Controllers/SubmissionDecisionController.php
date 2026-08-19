@@ -8,6 +8,7 @@ use App\Http\Requests\RecordSubmissionDecisionRequest;
 use App\Jobs\PreReviewSubmission;
 use App\Models\Submission;
 use App\View\Components\Submissions\Checklist;
+use App\View\Components\Submissions\Deliberation;
 use App\View\Components\Submissions\DetailHeader;
 use App\View\Components\Submissions\PreReview;
 use Illuminate\Http\JsonResponse;
@@ -24,6 +25,32 @@ use Illuminate\Http\Request;
  */
 class SubmissionDecisionController extends Controller
 {
+    /**
+     * Ticks a condition off, or reopens it.
+     *
+     * Indexed by position because a condition has no identity of its own — it
+     * is a line the committee dictated, and the list is only ever rewritten
+     * wholesale by a new deliberation.
+     */
+    public function toggleCondition(Request $request, Submission $submission, int $index): JsonResponse
+    {
+        $this->authorize('update', $submission);
+
+        $conditions = $submission->conditions ?? [];
+
+        abort_unless(array_key_exists($index, $conditions), 404);
+
+        $conditions[$index]['done'] = ! ($conditions[$index]['done'] ?? false);
+
+        $submission->update(['conditions' => array_values($conditions)]);
+
+        return response()->json([
+            'type'           => 'success',
+            'message'        => $conditions[$index]['done'] ? 'Ressalva cumprida.' : 'Ressalva reaberta.',
+            'updatableSlots' => [Deliberation::slot($submission->fresh())],
+        ]);
+    }
+
     /** Queues the adversarial read of the submission. */
     public function preReview(Request $request, Submission $submission): JsonResponse
     {
@@ -92,6 +119,7 @@ class SubmissionDecisionController extends Controller
             'updatableSlots' => [
                 DetailHeader::slot($submission->fresh(['solution', 'requester'])),
                 Checklist::slot($submission->fresh(['sections', 'sources', 'solution'])),
+                Deliberation::slot($submission->fresh()),
             ],
         ]);
     }

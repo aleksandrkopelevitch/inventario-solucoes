@@ -31,40 +31,9 @@
         @endcan
     </div>
 
-    @if ($submission->decided_at)
-        {{-- What the committee decided, at the top: from here on it is the
-             record of a decision, not a proposal being prepared. --}}
-        <div class="animate-ak-rise mt-5 rounded-card border border-line bg-surface p-5 shadow-card" style="animation-delay: 70ms">
-            <div class="flex flex-wrap items-center gap-2">
-                <h2 class="font-display text-sm font-bold text-ink">Deliberação</h2>
-                <span class="rounded-full px-2.5 py-1 text-xs font-medium {{ $submission->status->badgeClass() }}">
-                    {{ $submission->status->label() }}
-                </span>
-                <span class="text-xs text-muted">
-                    {{ $submission->decided_at->format('d/m/Y') }}
-                    @if ($submission->decidedBy) · {{ $submission->decidedBy->name }} @endif
-                </span>
-                @if ($submission->promoted_at)
-                    <span class="ml-auto inline-flex items-center gap-1.5 text-xs text-accent">
-                        <x-heroicon-o-check-circle class="size-4" /> Publicada na documentação da solução
-                    </span>
-                @endif
-            </div>
-
-            <div class="mt-2"><x-ui.markdown :text="$submission->decision" /></div>
-
-            @if ($submission->conditions)
-                <ul class="mt-3 flex flex-col gap-1 border-t border-line pt-3 pl-0">
-                    @foreach ($submission->conditions as $condition)
-                        <li class="flex items-start gap-2 text-sm text-ink">
-                            <x-heroicon-o-flag class="mt-0.5 size-4 shrink-0 text-cat-amber" />
-                            {{ $condition['text'] }}
-                        </li>
-                    @endforeach
-                </ul>
-            @endif
-        </div>
-    @endif
+    <div class="animate-ak-rise mt-5" style="animation-delay: 70ms">
+        <x-submissions.deliberation :submission="$submission" />
+    </div>
 
     <div class="animate-ak-rise mt-5 grid gap-5 lg:grid-cols-[1fr_360px]" style="animation-delay: 90ms">
         {{-- Left: the submission itself. --}}
