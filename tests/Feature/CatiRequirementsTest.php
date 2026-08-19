@@ -113,9 +113,9 @@ it('asks about the target cloud only when the solution is off it', function () {
     $off = DeviationRules::for(catiSubmission(['cloud' => 'aws']));
     $on = DeviationRules::for(catiSubmission(['cloud' => 'gcp']));
 
-    expect(deviation($off, 'cloud_off_target')['question'])->toContain('AWS')
-        ->and(deviation($off, 'cloud_off_target')['severity'])->toBe('high')
-        ->and(deviation($on, 'cloud_off_target'))->toBeNull();
+    expect(deviation($off, 'cloud_target')['question'])->toContain('AWS')
+        ->and(deviation($off, 'cloud_target')['severity'])->toBe('high')
+        ->and(deviation($on, 'cloud_target'))->toBeNull();
 });
 
 it('spots a contracted solution with no vendor on record', function () {
@@ -140,12 +140,19 @@ it('names the integrations at stake when the legacy impact is blank', function (
 });
 
 it('stays quiet about a blank section when nothing known makes the blank surprising', function () {
-    // A brand-new submission with no Solution: firing every keyword rule here
-    // would bury the useful questions under seven that only repeat "nothing is
-    // filled in" — which the section checklist already says.
+    // A brand-new submission with no Solution. The keyword-driven rules
+    // (observability, security, SDLC, contingency…) must NOT fire: they would
+    // bury the useful questions under a restatement of "nothing is filled in",
+    // which the section checklist already says.
+    //
+    // The two that do fire are the two that are genuinely worth asking with an
+    // empty record — where it runs (nothing else surfaces an unknown cloud;
+    // the facts list only shows columns that ARE set), and what else was
+    // considered.
     $rules = DeviationRules::for(catiSubmission());
 
-    expect(collect($rules)->pluck('key')->all())->toBe(['alternatives_blank']);
+    expect(collect($rules)->pluck('key')->all())->toBe(['cloud_target', 'alternatives_blank'])
+        ->and(collect($rules)->firstWhere('key', 'cloud_target')['question'])->toContain('Em qual nuvem');
 });
 
 it('asks about observability and security once the standards section has content', function () {
@@ -154,10 +161,10 @@ it('asks about observability and security once the standards section has content
         'standards' => 'Segue o SDLC. Logs no Cloud Logging, métricas e tracing. Autenticação via IAM e mTLS.',
     ]));
 
-    expect(deviation($bare, 'observability_absent'))->not->toBeNull()
-        ->and(deviation($bare, 'security_absent'))->not->toBeNull()
-        ->and(deviation($covered, 'observability_absent'))->toBeNull()
-        ->and(deviation($covered, 'security_absent'))->toBeNull();
+    expect(deviation($bare, 'observability'))->not->toBeNull()
+        ->and(deviation($bare, 'security'))->not->toBeNull()
+        ->and(deviation($covered, 'observability'))->toBeNull()
+        ->and(deviation($covered, 'security'))->toBeNull();
 });
 
 it('asks where the data goes for a saas solution that never mentions it', function () {
@@ -165,9 +172,9 @@ it('asks where the data goes for a saas solution that never mentions it', functi
     $covered = DeviationRules::for(catiSubmission(['environment' => 'saas'], ['domains_data' => 'Lê pedidos. Não trafega dado pessoal, sem implicação de LGPD.']));
     $onPremise = DeviationRules::for(catiSubmission(['environment' => 'on_premise'], ['domains_data' => 'Lê pedidos e grava planos de corte.']));
 
-    expect(deviation($silent, 'sensitive_data_unstated'))->not->toBeNull()
-        ->and(deviation($covered, 'sensitive_data_unstated'))->toBeNull()
-        ->and(deviation($onPremise, 'sensitive_data_unstated'))->toBeNull();
+    expect(deviation($silent, 'sensitive_data'))->not->toBeNull()
+        ->and(deviation($covered, 'sensitive_data'))->toBeNull()
+        ->and(deviation($onPremise, 'sensitive_data'))->toBeNull();
 });
 
 it('asks how to roll back a critical solution', function () {
@@ -175,9 +182,9 @@ it('asks how to roll back a critical solution', function () {
     $covered = DeviationRules::for(catiSubmission(['criticality' => 'critical'], ['plan_costs' => 'Fase 1: provisionamento, com rollback por snapshot.']));
     $low = DeviationRules::for(catiSubmission(['criticality' => 'low'], ['plan_costs' => 'Fase 1: provisionamento. Fase 2: piloto.']));
 
-    expect(deviation($silent, 'contingency_absent'))->not->toBeNull()
-        ->and(deviation($covered, 'contingency_absent'))->toBeNull()
-        ->and(deviation($low, 'contingency_absent'))->toBeNull();
+    expect(deviation($silent, 'contingency'))->not->toBeNull()
+        ->and(deviation($covered, 'contingency'))->toBeNull()
+        ->and(deviation($low, 'contingency'))->toBeNull();
 });
 
 it('asks which platform mediates the integrations, since no column records it', function () {
@@ -188,11 +195,11 @@ it('asks which platform mediates the integrations, since no column records it', 
     $submission = Submission::factory()->withSections()->create(['solution_id' => $solution->id]);
     $submission->section(SubmissionSectionKey::Architecture)->update(['content' => 'Uma VM na nuvem conversa com a central.']);
 
-    expect(deviation(DeviationRules::for($submission->fresh()), 'integration_platform_unstated'))->not->toBeNull();
+    expect(deviation(DeviationRules::for($submission->fresh()), 'integration_platform'))->not->toBeNull();
 
     $submission->section(SubmissionSectionKey::Architecture)->update(['content' => 'As integrações transacionais passam pela Digibee.']);
 
-    expect(deviation(DeviationRules::for($submission->fresh()), 'integration_platform_unstated'))->toBeNull();
+    expect(deviation(DeviationRules::for($submission->fresh()), 'integration_platform'))->toBeNull();
 });
 
 it('always asks what else was considered', function () {

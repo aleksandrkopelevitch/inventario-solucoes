@@ -49,6 +49,11 @@ class Submission extends Model implements HasMedia
         'status',
         'ticket_reference',
         'committee_date',
+        'decision',
+        'conditions',
+        'decided_at',
+        'decided_by_id',
+        'promoted_at',
     ];
 
     protected function casts(): array
@@ -56,6 +61,9 @@ class Submission extends Model implements HasMedia
         return [
             'status'         => SubmissionStatus::class,
             'committee_date' => 'date',
+            'conditions'     => 'array',
+            'decided_at'     => 'datetime',
+            'promoted_at'    => 'datetime',
         ];
     }
 
@@ -83,6 +91,28 @@ class Submission extends Model implements HasMedia
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by_id');
+    }
+
+    public function decidedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'decided_by_id');
+    }
+
+    /**
+     * Conditions the committee attached to an approval, still open.
+     *
+     * "Aprovada com ressalvas" is only worth anything if the ressalvas are
+     * trackable afterwards — one buried in a paragraph is one nobody follows
+     * up on.
+     *
+     * @return list<array{text: string, done: bool}>
+     */
+    public function openConditions(): array
+    {
+        return array_values(array_filter(
+            $this->conditions ?? [],
+            fn (array $condition) => ! ($condition['done'] ?? false),
+        ));
     }
 
     public function sections(): HasMany

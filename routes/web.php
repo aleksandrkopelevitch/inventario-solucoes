@@ -26,6 +26,7 @@ use App\Http\Controllers\SolutionIntegrationController;
 use App\Http\Controllers\SolutionMapController;
 use App\Http\Controllers\SubmissionChatController;
 use App\Http\Controllers\SubmissionController;
+use App\Http\Controllers\SubmissionDecisionController;
 use App\Http\Controllers\SubmissionExportController;
 use App\Http\Controllers\SubmissionSectionController;
 use App\Http\Controllers\SubmissionSourceController;
@@ -326,6 +327,7 @@ Route::middleware('auth')->group(function () {
     Route::get('submissions/{submission}/export/deck', [SubmissionExportController::class, 'deck'])->name('submissions.export.deck');
 
     Route::post('submissions/{submission}/sources', [SubmissionSourceController::class, 'store'])->name('submissions.sources.store');
+    Route::post('submissions/{submission}/decision', [SubmissionDecisionController::class, 'store'])->name('submissions.decision.store');
     Route::post('submissions/{submission}/slides/condense', [SubmissionSectionController::class, 'condense'])->name('submissions.slides.condense');
     Route::post('submissions/{submission}/chat/messages', [SubmissionChatController::class, 'store'])->name('submissions.chat.messages.store');
 
