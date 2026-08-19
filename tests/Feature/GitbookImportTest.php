@@ -831,3 +831,33 @@ it('rejects an oversized asset from its HEAD alone, without downloading the body
     // Content-Length. Confirms the HEAD check fired first.
     Http::assertSent(fn (Request $r) => $r->method() === 'HEAD');
 });
+
+it('also updates a link text that mirrors the raw GitBook path, not just its href', function () {
+    // GitBook falls back to showing the raw path as the link's own visible
+    // text when no display name is set — found for real in a "Sprints" table
+    // where every row read `<a href="/files/{id}">/files/{id}</a>`. The href
+    // alone already worked; this is about not showing the reader a foreign id.
+    fakeGitbook(
+        [['id' => 'p1', 'type' => 'document', 'title' => 'Com link']],
+        ['p1' => '<a href="/files/gbFileAbc">/files/gbFileAbc</a>'],
+    );
+    Http::fake(['files.gitbook.com/*' => Http::response('png', 200, ['Content-Type' => 'image/png'])]);
+
+    $report = app(ImportGitbookSpace::class)->handle('space-1');
+    $mediaId = DocumentationGroup::sole()->pages()->sole()->getMedia(Documentable::DOCS_COLLECTION)->sole()->id;
+
+    expect(DocumentationGroup::sole()->pages()->sole()->documentation)
+        ->toBe('<a href="/files/' . $mediaId . '">/files/' . $mediaId . '</a>');
+});
+
+it('leaves a real display name alone even though the href next to it changes', function () {
+    fakeGitbook(
+        [['id' => 'p1', 'type' => 'document', 'title' => 'Com link']],
+        ['p1' => '<a href="/files/gbFileAbc">Checklist Leo Tech.pdf</a>'],
+    );
+    Http::fake(['files.gitbook.com/*' => Http::response('png', 200, ['Content-Type' => 'image/png'])]);
+
+    app(ImportGitbookSpace::class)->handle('space-1');
+
+    expect(DocumentationGroup::sole()->pages()->sole()->documentation)->toContain('>Checklist Leo Tech.pdf</a>');
+});

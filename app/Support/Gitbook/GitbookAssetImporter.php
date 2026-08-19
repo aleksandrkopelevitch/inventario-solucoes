@@ -115,6 +115,21 @@ class GitbookAssetImporter
             $markdown,
         ) ?? $markdown;
 
+        // GitBook falls back to showing the raw `/files/{id}` path AS the link's
+        // visible text whenever no display name was set for it — found for real
+        // in a "Sprints" table where every row read literally
+        // `<a href="/files/{id}">/files/{id}</a>`. The href above already
+        // resolves correctly (the link works), but leaving the label alone
+        // would show the reader a foreign GitBook id as clickable text. Scoped
+        // to an EXACT match against the href's own original value, so a real
+        // display name (`>Checklist.pdf</a>`) is never touched — only text that
+        // was already mirroring the path gets updated to mirror the new one.
+        foreach ($this->seen as $oldRef => $mediaId) {
+            if (Str::startsWith($oldRef, '/files/')) {
+                $rewritten = str_replace('>' . $oldRef . '</a>', '>/files/' . $mediaId . '</a>', $rewritten);
+            }
+        }
+
         return new GitbookAssetImport($rewritten, $imported, $failed);
     }
 

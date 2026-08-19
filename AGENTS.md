@@ -487,6 +487,18 @@ up as literal `{% … %}` text on screen, or quietly disappears from the editor.
   (`GitbookClient::files()`), which is where the real `downloadURL` lives; a
   `/files/{digits}` reference is left alone, since a numeric id is one of ours
   from a previous import of the same page.
+- **The same reference shows up a THIRD way: a plain `<a href="/files/{id}">`**
+  — a document LINKED from running text or a table cell, never wrapped in an
+  `<img>` or a `{% file %}` block. Found for real in a "Sprints" table that
+  linked ~75 documents this way, none of them even attempted (no warning, no
+  failure — the regex simply had no case for an anchor). And when GitBook has
+  no display name for a link, it falls back to showing the raw path AS the
+  visible text too (`<a href="/files/{id}">/files/{id}</a>`), so the href alone
+  resolving correctly still leaves a foreign id sitting in the reader's face —
+  fixed by re-checking, after the main pass, for any anchor text that exactly
+  mirrors its own original reference. A REAL display name
+  (`>Checklist.pdf</a>`) is never touched — the check is exact-match against
+  the untouched original value, not "any anchor near a rewritten href".
 
 Two more shapes, both found by auditing the real corpus (613 pages across 38
 spaces) rather than by reading GitBook's docs — which describe neither:
@@ -519,6 +531,14 @@ title within the group, media cleared before re-adding so re-imports don't
 accumulate orphans) and deliberately has **no wrapping transaction** — it is
 hundreds of HTTP requests, and a half-finished import that can be re-run beats
 one that rolls back an hour of downloads because page 180 failed.
+
+A related but genuinely OUT-of-scope shape, found in the same corpus: a prose
+line an author wrote themselves, `Link Gitbook: [texto](https://app.gitbook.com/o/…/s/…)`
+— a citation to the page's own GitBook web UI, not an embedded asset. There is
+nothing to re-host (it's a link to a page, not a file) and no reliable way to
+remap it to an equivalent page in this app, so it is left as-is and will go
+stale once the space is retired from GitBook — an accepted limitation of the
+migration, not a defect to chase.
 
 When you need a GitBook API fact, read `https://api.gitbook.com/openapi.json`
 (fetches fine, ~1.6MB). Their documentation site 404s or returns "query us with
