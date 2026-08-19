@@ -193,6 +193,9 @@ Route::middleware('auth')->group(function () {
         Route::patch('solutions/{solution}/documentation/{page}/title', [SolutionDocumentationController::class, 'rename'])->name('solutions.docs.pages.rename');
         Route::delete('solutions/{solution}/documentation/{page}', [SolutionDocumentationController::class, 'destroy'])->name('solutions.docs.pages.destroy');
         Route::patch('solutions/{solution}/documentation/{page}/move', [SolutionDocumentationController::class, 'move'])->name('solutions.docs.pages.move');
+        // Re-files the page under ANOTHER container (a different solution, or a
+        // standalone group) — `/move` above only reorders it within this one.
+        Route::patch('solutions/{solution}/documentation/{page}/container', [SolutionDocumentationController::class, 'moveToContainer'])->name('solutions.docs.pages.container');
         Route::post('solutions/{solution}/documentation/{page}/media', [SolutionDocumentationController::class, 'media'])->name('solutions.docs.media');
         // Documentation Assistant — a chat that helps write the page (job + polling per turn).
         Route::get('solutions/{solution}/documentation/{page}/chat', [SolutionDocumentationController::class, 'chatPanel'])->name('solutions.docs.chat.panel');
@@ -378,6 +381,9 @@ Route::middleware('auth')->group(function () {
         Route::patch('documentation/groups/{group}/{page}/title', [DocumentationGroupPageController::class, 'rename'])->name('documentation.groups.pages.rename');
         Route::delete('documentation/groups/{group}/{page}', [DocumentationGroupPageController::class, 'destroy'])->name('documentation.groups.pages.destroy');
         Route::patch('documentation/groups/{group}/{page}/move', [DocumentationGroupPageController::class, 'move'])->name('documentation.groups.pages.move');
+        // Mirror of solutions.docs.pages.container — moving a page OUT of a
+        // group is the whole point of the GitBook import's landing zone.
+        Route::patch('documentation/groups/{group}/{page}/container', [DocumentationGroupPageController::class, 'moveToContainer'])->name('documentation.groups.pages.container');
         Route::post('documentation/groups/{group}/{page}/media', [DocumentationGroupPageController::class, 'media'])->name('documentation.groups.pages.media');
     });
 
