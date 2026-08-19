@@ -99,7 +99,7 @@ it('renders the documentation hub for any authenticated user', function () {
         ->assertSee('Minha Solução')
         ->assertSee('Sem documentação')
         // The filter/search hooks need to compile (the @json-in-component-attribute
-        // bug fails silently — see CLAUDE.md); confirms the encoded JSON is
+        // bug fails silently — see AGENTS.md); confirms the encoded JSON is
         // present and no leftover uncompiled directive.
         ->assertSee('data-ak-filters', false)
         ->assertSee('data-ak-search', false);

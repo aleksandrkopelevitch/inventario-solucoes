@@ -15,7 +15,7 @@
     // link that leaves the app). A prop rather than the caller's own
     // `$attributes`, because the caller here is x-ui.inline-edit — echoing a
     // ComponentAttributeBag inside the attribute area of an x-component tag
-    // silently breaks that tag's compilation (see the note in CLAUDE.md);
+    // silently breaks that tag's compilation (see the note in AGENTS.md);
     // static attributes on a normal call site are unaffected and still land
     // via `$attributes` below.
     'extraAttributes' => [],

@@ -1,7 +1,7 @@
 @php
     // Universal form: a plain Blade echo inside a double-quoted attribute.
     // `@json()` never compiles inside an x-component tag's attribute, and the
-    // `:attr=` form never compiles on a plain tag — see CLAUDE.md.
+    // `:attr=` form never compiles on a plain tag — see AGENTS.md.
     $filterBind = ['formId' => 'submissions-filter-form', 'url' => route('submissions.index')];
     $activeClass = 'border-accent text-accent';
 @endphp

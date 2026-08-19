@@ -105,7 +105,7 @@ ajax-slot.js troca o card inteiro → o editor some junto com o HTML antigo
 ```
 
 O ↗ ao lado de um valor que aponta para outro registro é o único alvo de
-navegação: as palavras pertencem ao editor. Ver `CLAUDE.md` § "Inline edit".
+navegação: as palavras pertencem ao editor. Ver `AGENTS.md` § "Inline edit".
 
 **Assíncrono: job + polling, nunca broadcasting.** As duas features de IA
 seguem o mesmo desenho, e ele existe por uma razão específica — uma geração
@@ -131,9 +131,9 @@ teto de tentativas estourado → Toast de desistência (nunca silêncio infinito
 ```
 
 Um job por thread/alvo de cada vez (`WithoutOverlapping`), porque a UI assume
-"um turno pendente por vez". Ver `CLAUDE.md` § Queue & Jobs.
+"um turno pendente por vez". Ver `AGENTS.md` § Queue & Jobs.
 
-**Pilares que se repetem no código** (regras completas em `CLAUDE.md`):
+**Pilares que se repetem no código** (regras completas em `AGENTS.md`):
 
 - **Updatable slots** — primitivo de "reatividade": um Componente de View
   renderiza um trecho, o controller o devolve após a mutação, o cliente
@@ -229,7 +229,7 @@ referência e `tests/Feature/RenderableTest.php`. IDs podem ser
 pipe-separados para substituir vários nós com o **mesmo** HTML
 (`toSlot('header-widget-slot|sidebar-widget-slot')`); para devolver slots
 *diferentes* de uma mesma mutação (grade + contador + chips, ou índice +
-cabeçalho de detalhe), retorne vários itens no array — ver `CLAUDE.md`
+cabeçalho de detalhe), retorne vários itens no array — ver `AGENTS.md`
 § "Multiple *different* slots from one mutation".
 
 ## Concerns (traits) — composição horizontal de comportamento
@@ -421,7 +421,7 @@ uma lista fixa — qualquer hook fora dela quebraria em silêncio.
 **Contrato do `ajax.js`.** `ajaxModule.init(method, url, formData?)` é
 `fetch`-based e retorna uma **`Promise<Response>`** (rejeita em `!ok`); não tem
 API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
-(`.then/.catch` ou `await`). Detalhes e armadilhas em `CLAUDE.md`.
+(`.then/.catch` ou `await`). Detalhes e armadilhas em `AGENTS.md`.
 
 ## Funcionalidades
 
@@ -609,16 +609,16 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   reformata `ValidationException` para `{message, title, type}` (sem `errors`),
   para casar com o padrão de Toast/Modal do frontend. `assertJsonValidationErrors()`
   não funciona nos testes deste projeto — use `assertStatus(422)` + confira `message`.
-  Ver `CLAUDE.md` § Error Handling.
+  Ver `AGENTS.md` § Error Handling.
 - **Strict mode ligado fora de produção** (`Model::shouldBeStrict()`). Acessar uma
   relação não carregada lança exceção em vez de silenciosamente disparar uma
-  query. Ver `CLAUDE.md` § Eloquent para o padrão de `setRelation()` quando um
+  query. Ver `AGENTS.md` § Eloquent para o padrão de `setRelation()` quando um
   componente filho precisa de uma relação que o pai já tem em mãos.
 - **A cadeia (`chain`) é a única fonte de verdade da topologia de integração**
   — nunca escrever `participants`/`source_solution_id`/`target_solution_id`/
   `direction` diretamente; editar `chain` e deixar `SyncIntegrationFromChain`
   rederivar. `Integration.viz_layout` é posição/estilo do canvas, sem nenhum
-  efeito colateral em topologia. Ver `CLAUDE.md` § Integration topology
+  efeito colateral em topologia. Ver `AGENTS.md` § Integration topology
   invariant.
 - **Integrações vivem só a partir da solução.** Não há módulo `/integrations`
   avulso (catálogo/detalhe): criar acontece no card do detalhe da solução, e
@@ -637,13 +637,13 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   não deve voltar.
 - **Busca e filtros de Soluções/Pessoas/Empresas** rodam via
   `execute-filters.js`/`execute-search.js` sobre `ajax.js` (contrato Promise
-  baseado em `fetch`, não `XMLHttpRequest`) — ver `CLAUDE.md` § `ajax.js`.
+  baseado em `fetch`, não `XMLHttpRequest`) — ver `AGENTS.md` § `ajax.js`.
 - **As duas features de IA (Assiste IA e Especialista em Integrações) refletem o job por
   polling, nunca broadcasting.** O front dispara a geração, recebe uma URL de
   status e faz polling até o registro sair de `pending` (com teto de tentativas
   + Toast de desistência). O endpoint de status fica barato enquanto pende:
   só monta o slot/resultado quando a resposta chegou, não a cada tick. Ver
-  `CLAUDE.md` § Queue & Jobs.
+  `AGENTS.md` § Queue & Jobs.
 - **O catálogo de componentes do flowSpec (Especialista em Integrações) pode
   ficar desatualizado em silêncio.** `digibee_component_catalog.json` é um
   arquivo estático e versionado — de propósito: é o que faz a geração ser

@@ -30,7 +30,7 @@ class ChatThread extends Component
     {
         // Explicit eager load: this component is often built from a freshly
         // fetched/deserialized chat with no relations loaded (strict mode only
-        // arms on multi-row hydration — see CLAUDE.md).
+        // arms on multi-row hydration — see AGENTS.md).
         $this->chat->loadMissing('solution');
         $messages = $this->chat->messages()->get();
 

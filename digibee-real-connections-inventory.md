@@ -28,7 +28,7 @@ bem antes desta conversa:
 `health-check-viasoft` já roda de verdade, agendada, e tem seu **próprio**
 mecanismo de notificação (`event-publisher-connector` — publica um evento
 interno "notification", não e-mail/Teams diretamente). Isso é exatamente o
-`F9`/health-check que o `CLAUDE.md` do Inventário registra como
+`F9`/health-check que o `AGENTS.md` do Inventário registra como
 "descontinuado" — mas isso só descreve o que foi removido **do lado do
 Inventário** (a tabela `health_check_pipelines` + coluna
 `integrations.health_check_url`); a pipeline Digibee em si aparentemente

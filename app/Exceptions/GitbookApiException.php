@@ -8,7 +8,7 @@ use RuntimeException;
 /**
  * A GitBook API call that didn't answer with content we can use.
  *
- * Self-contained (see CLAUDE.md § Error Handling): it authors its own
+ * Self-contained (see AGENTS.md § Error Handling): it authors its own
  * message, because the only consumer is an artisan command whose whole job is
  * to print a line a human can act on — "the token has no access to this
  * space" is worth saying, `ClientException: 403` is not.

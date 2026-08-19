@@ -11,7 +11,7 @@
     NO display utility on the outer <span> on purpose: one instance of this
     component is shown/hidden by `toggle.js` flipping Tailwind's `hidden`, and
     a second `display` utility on the same element turns that into a coin toss
-    decided by stylesheet order (see the note in CLAUDE.md). The layout lives on
+    decided by stylesheet order (see the note in AGENTS.md). The layout lives on
     the inner span instead, which nothing toggles.
 --}}
 @props([

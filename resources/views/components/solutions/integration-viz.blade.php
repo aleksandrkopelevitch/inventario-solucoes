@@ -455,7 +455,7 @@
              links in the canvas palette) so the empty canvas reads as
              intentional, not unfinished. Static Blade markup (unlike the real
              `.ak-viz-node` canvas nodes, which are JS-built and exempt from
-             the Tailwind-utilities rule per CLAUDE.md) — so it's plain
+             the Tailwind-utilities rule per AGENTS.md) — so it's plain
              utility classes, reusing the same `--viz-*` scoped tokens rather
              than new hardcoded colors. The title/hint text below are set by
              integration-viz.js (`showEmpty`) — keep these hooks. --}}
@@ -1011,7 +1011,7 @@
             {{-- "mais polido" (2026-08-04): a barely-there green-tinted
                  gradient instead of flat white — the same "considered, not
                  default" neutral this app's own palette already argues for
-                 (see CLAUDE.md's color-system memory), just applied here. --}}
+                 (see AGENTS.md's color-system memory), just applied here. --}}
             .ak-viz-viewport[data-viz-preset="corporativo"] {
                 background: linear-gradient(160deg, #FFFFFF 0%, #F3F7F4 60%, #EEF3EF 100%);
             }
@@ -1890,7 +1890,7 @@
 
             /* Markdown comment preview — arbitrary content with no fixed
                element to attach a class to (same exception as .html-content
-               documented in CLAUDE.md), hence CSS here instead of utilities,
+               documented in AGENTS.md), hence CSS here instead of utilities,
                but using the app's color tokens (chrome). */
             .ak-viz-md { line-height: 1.6; }
             .ak-viz-md .md-empty { color: var(--color-faint); font-style: italic; }

@@ -44,7 +44,7 @@
 
     // Built here, as a plain string, rather than echoed as a
     // ComponentAttributeBag in the attribute area of the <x-forms.button> tag
-    // below — that silently breaks the tag's compilation (see CLAUDE.md).
+    // below — that silently breaks the tag's compilation (see AGENTS.md).
     $classes = implode(' ', [
         $small ? '!size-5' : '!size-6',
         '!rounded-full !p-0 shrink-0 text-faint transition-opacity',

@@ -27,7 +27,7 @@ class ChatThread extends Component
     public function render(): View
     {
         // Often built from a freshly fetched chat with no relations loaded —
-        // strict mode only arms on multi-row hydration (see CLAUDE.md).
+        // strict mode only arms on multi-row hydration (see AGENTS.md).
         $this->chat->loadMissing('submission');
         $messages = $this->chat->messages()->get();
 

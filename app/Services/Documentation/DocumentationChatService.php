@@ -31,7 +31,7 @@ class DocumentationChatService
     {
         // The job dispatches a freshly deserialized model (SerializesModels)
         // with no relations loaded — strict mode doesn't arm the guard on a
-        // single fetch, so the eager load is explicit (see CLAUDE.md).
+        // single fetch, so the eager load is explicit (see AGENTS.md).
         $userMessage->loadMissing(['chat.target', 'chat.solution']);
 
         $chat = $userMessage->chat;

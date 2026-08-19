@@ -36,7 +36,7 @@ class SubmissionChatService
     {
         // The job dispatches a freshly deserialized model (SerializesModels)
         // with no relations loaded, and strict mode does NOT arm the guard on
-        // a single fetch — so the eager load is explicit (see CLAUDE.md).
+        // a single fetch — so the eager load is explicit (see AGENTS.md).
         $userMessage->loadMissing('chat.submission');
 
         $chat = $userMessage->chat;
