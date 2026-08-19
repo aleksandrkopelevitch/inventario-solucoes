@@ -320,8 +320,9 @@ Route::middleware('auth')->group(function () {
     Route::post('submissions', [SubmissionController::class, 'store'])->name('submissions.store');
 
     Route::get('submissions/{submission}', [SubmissionController::class, 'show'])->name('submissions.show');
-    Route::get('submissions/{submission}/edit', [SubmissionController::class, 'edit'])->name('submissions.edit');
-    Route::patch('submissions/{submission}', [SubmissionController::class, 'update'])->name('submissions.update');
+    // No standalone edit page/panel: every field is edited in place on the
+    // detail header (submissions.field.update) — creation only ever asks for
+    // name + solution (see StoreSubmissionRequest).
     Route::patch('submissions/{submission}/field', [SubmissionController::class, 'updateField'])->name('submissions.field.update');
     Route::delete('submissions/{submission}', [SubmissionController::class, 'destroy'])->name('submissions.destroy');
 

@@ -35,6 +35,31 @@
         <x-submissions.deliberation :submission="$submission" />
     </div>
 
+    @if ($submission->sources->isEmpty()
+            && $submission->sections->every(fn ($section) => blank($section->content))
+            && $chat->messages()->where('role', 'user')->doesntExist())
+        {{-- Only while genuinely nothing has happened yet — it stops rendering
+             the moment a source is attached, a section gets content, or the
+             person actually replies in the chat (the seeded opening message
+             from SeedSubmissionChatOpening doesn't count — that's the
+             assistant talking, not the user). That's a better "dismiss" than
+             a button: it disappears because the thing it was pointing at got
+             done, not because someone clicked something and then forgot to
+             do it. The × is there anyway for someone who wants it gone
+             without acting on it yet. --}}
+        <div id="submission-onboarding-hint" class="animate-ak-rise mt-5 flex items-start gap-3 rounded-card border border-accent-line bg-accent-soft px-4 py-3" style="animation-delay: 80ms">
+            <x-heroicon-o-sparkles class="mt-0.5 size-4 shrink-0 text-accent" />
+            <p class="min-w-0 flex-1 text-sm text-ink">
+                Tem um deck ou documento antigo dessa proposta? Anexe em <strong>Material</strong>.
+                Ou já responda o assistente — ele preenche as seções a partir do que você contar.
+            </p>
+            <x-forms.button type="button" variant="ghost" class="!size-6 !min-h-0 !shrink-0 !p-0" aria-label="Fechar"
+                data-ak-toggle="submission-onboarding-hint" data-ak-toggle-classes="hidden">
+                <x-heroicon-o-x-mark class="size-4" />
+            </x-forms.button>
+        </div>
+    @endif
+
     <div class="animate-ak-rise mt-5 grid gap-5 lg:grid-cols-[1fr_360px]" style="animation-delay: 90ms">
         {{-- Left: the submission itself. --}}
         <div class="flex min-w-0 flex-col gap-5">

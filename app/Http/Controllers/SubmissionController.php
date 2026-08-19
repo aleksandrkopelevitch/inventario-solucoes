@@ -2,12 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Cati\SeedSubmissionChatOpening;
 use App\Enums\SubmissionStatus;
 use App\Http\Requests\StoreSubmissionRequest;
 use App\Http\Requests\UpdateSubmissionFieldRequest;
-use App\Http\Requests\UpdateSubmissionRequest;
 use App\Jobs\PreReviewSubmission;
-use App\Models\Person;
 use App\Models\Solution;
 use App\Models\Submission;
 use App\Models\SubmissionChat;
@@ -63,18 +62,22 @@ class SubmissionController extends Controller
         ]);
     }
 
+    /**
+     * Just a name and, optionally, the catalog Solution being proposed for.
+     * Everything else (requester, committee date, ticket) is filled in on the
+     * detail header once the record exists — asking for it here would be
+     * filling it in twice, once blind.
+     */
     public function create(Request $request): JsonResponse
     {
         $this->authorize('create', Submission::class);
 
-        return $this->panel(new Submission, (array) $request->query('filter', []));
-    }
-
-    public function edit(Request $request, Submission $submission): JsonResponse
-    {
-        $this->authorize('update', $submission);
-
-        return $this->panel($submission, (array) $request->query('filter', []));
+        return response()->json([
+            'content' => view('submissions.panels.form', [
+                'filters'   => (array) $request->query('filter', []),
+                'solutions' => Solution::query()->orderBy('name')->get(['id', 'name']),
+            ])->render(),
+        ]);
     }
 
     public function store(StoreSubmissionRequest $request): JsonResponse
@@ -93,17 +96,6 @@ class SubmissionController extends Controller
             // Straight to the record — there is nothing to do on the list.
             'redirect' => route('submissions.show', $submission),
         ]);
-    }
-
-    public function update(UpdateSubmissionRequest $request, Submission $submission): JsonResponse
-    {
-        $wasSubmitted = $submission->status === SubmissionStatus::Submitted;
-
-        $submission->update($request->validated());
-
-        $this->preReviewOnSubmit($submission, $wasSubmitted);
-
-        return $this->saved('Alterações salvas.', $submission, (array) $request->query('filter', []));
     }
 
     /** One field, edited in place on the detail header. */
@@ -167,37 +159,6 @@ class SubmissionController extends Controller
         PreReviewSubmission::dispatch($submission);
     }
 
-    /** @param  array<string, mixed>  $filters */
-    private function panel(Submission $submission, array $filters): JsonResponse
-    {
-        return response()->json([
-            'content' => view('submissions.panels.form', [
-                'submission' => $submission,
-                'filters'    => $filters,
-                'solutions'  => Solution::query()->orderBy('name')->get(['id', 'name']),
-                'people'     => Person::query()->orderBy('name')->get(['id', 'name']),
-            ])->render(),
-        ]);
-    }
-
-    /** @param  array<string, mixed>  $filters */
-    private function saved(string $message, Submission $submission, array $filters): JsonResponse
-    {
-        return response()->json([
-            'type'    => 'success',
-            'message' => $message,
-            // Both are sent unconditionally: ajax-slot.js no-ops on an id that
-            // isn't on the current page, so the same response serves an edit
-            // made from the list and one made from the detail page.
-            'updatableSlots' => [
-                SubmissionsIndex::slot($filters),
-                ResultsCount::slot($filters),
-                DetailHeader::slot($submission->fresh(['solution', 'requester'])),
-            ],
-            'js' => "document.querySelector('[data-ak-panel-close]')?.click()",
-        ]);
-    }
-
     private function uniqueSlug(string $name, ?Submission $submission): string
     {
         $base = Str::slug($name) ?: 'submissao';
@@ -215,6 +176,10 @@ class SubmissionController extends Controller
 
     private function chatFor(Submission $submission): SubmissionChat
     {
-        return $submission->chats()->firstOrCreate(['user_id' => request()->user()->id]);
+        $chat = $submission->chats()->firstOrCreate(['user_id' => request()->user()->id]);
+
+        app(SeedSubmissionChatOpening::class)->handle($chat);
+
+        return $chat;
     }
 }
