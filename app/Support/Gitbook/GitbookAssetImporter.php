@@ -195,7 +195,16 @@ class GitbookAssetImporter
         $response = Http::gitbookAsset()->get($url);
 
         if ($response->failed()) {
-            throw new \RuntimeException('download falhou (HTTP ' . $response->status() . ').');
+            // GitBook's CDN answers a rejection (e.g. `.html` attachments —
+            // "doesn't allow you to attach certain types of files", a
+            // permanent policy, not a blip) with a short, readable body. Worth
+            // surfacing over a bare status code: it's the difference between
+            // "someone has to go curl this by hand to find out why" and
+            // knowing immediately that this one will never succeed.
+            $reason = str($response->body())->limit(200)->trim()->value();
+
+            throw new \RuntimeException('download falhou (HTTP ' . $response->status() . ')'
+                . ($reason !== '' ? ': ' . $reason : '.'));
         }
 
         $body = $response->body();

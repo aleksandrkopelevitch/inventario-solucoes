@@ -312,7 +312,16 @@ class GitbookMarkdownNormalizer
     {
         $trimmed = trim($line);
 
-        if (! preg_match('/^!\[([^\]]*)\]\(\s*<?([^)>]*)>?\s*(?:"[^"]*")?\s*\)$/', $trimmed, $m)) {
+        // A trailing `&#x20;`/`&nbsp;` after the closing `)` is tolerated —
+        // found for real in the corpus: GitBook's own export left one there
+        // (a stray space entity after an inline image, from however its
+        // WYSIWYG editor serialized it). Without this the line fails the
+        // anchored match entirely and passes through untouched by BOTH this
+        // normalizer and the asset importer (which never sees Markdown image
+        // syntax, only `<figure>`) — a silently broken image, not a caught
+        // failure. Still anchored at the end past that trailer, so a genuine
+        // inline image followed by real sentence text is correctly left alone.
+        if (! preg_match('/^!\[([^\]]*)\]\(\s*<?([^)>]*)>?\s*(?:"[^"]*")?\s*\)(?:&#x20;|&nbsp;|\s)*$/', $trimmed, $m)) {
             return $line;
         }
 

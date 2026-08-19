@@ -861,3 +861,49 @@ it('leaves a real display name alone even though the href next to it changes', f
 
     expect(DocumentationGroup::sole()->pages()->sole()->documentation)->toContain('>Checklist Leo Tech.pdf</a>');
 });
+
+/*
+|--------------------------------------------------------------------------
+| Shapes found by auditing the FULL 613-page corpus (34 more spaces)
+|--------------------------------------------------------------------------
+*/
+
+it('normalizes a Markdown image even with a trailing HTML space entity after it', function () {
+    // Found for real, once in 613 pages: GitBook's own export left a stray
+    // `&#x20;` right after an otherwise-standalone inline image. The anchored
+    // `^...$` match in image() rejected the whole line over that one trailing
+    // entity, so it passed through untouched by BOTH the normalizer and the
+    // asset importer (which only ever sees <figure>, never Markdown image
+    // syntax) — a silently broken image, never even attempted.
+    $normalized = app(GitbookMarkdownNormalizer::class)->normalize('![](/files/hL4VXO4JeXot2YpfF5Im)&#x20;');
+
+    expect($normalized)->toBe(
+        '<figure><img src="/files/hL4VXO4JeXot2YpfF5Im" alt=""><figcaption></figcaption></figure>'
+    );
+});
+
+it('still leaves a real inline image mid-sentence alone despite the entity tolerance', function () {
+    $line = 'Veja o diagrama ![x](https://e.com/a.png) para mais detalhes.';
+
+    expect(app(GitbookMarkdownNormalizer::class)->normalize($line))->toBe($line);
+});
+
+it('surfaces GitBook own rejection reason instead of a bare status code', function () {
+    // GitBook refuses some attachment types outright (.html, for security) and
+    // says so in a short response body — worth showing instead of making an
+    // operator go curl the URL by hand to find out why a download will never
+    // succeed.
+    fakeGitbook(
+        [['id' => 'p1', 'type' => 'document', 'title' => 'Com anexo html']],
+        ['p1' => '{% file src="/files/gbFileAbc" %}'],
+    );
+    Http::fake(['files.gitbook.com/*' => Http::response(
+        "File type not supported. To protect you against potential viruses and harmful software, GitBook doesn't allow you to attach certain types of files.",
+        403,
+    )]);
+
+    $report = app(ImportGitbookSpace::class)->handle('space-1');
+
+    expect($report->failures[0])->toContain('HTTP 403')
+        ->toContain('File type not supported');
+});
