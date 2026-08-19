@@ -19,6 +19,16 @@
         <x-forms.button type="button" onclick="window.location='{{ route('submissions.export.deck', $submission) }}'">
             <x-heroicon-o-presentation-chart-bar class="size-4" /> Baixar deck
         </x-forms.button>
+        @can('update', $submission)
+            {{-- The deck reads `slide_content` when it is fresh, so this is
+                 optional: skip it and the deck prints the full sections. --}}
+            <form id="condense-form">@csrf</form>
+            <x-forms.button form="condense-form" variant="glass"
+                data-ak-ajax="condense-form"
+                data-ak-action="{{ route('submissions.slides.condense', $submission) }}">
+                <x-heroicon-o-sparkles class="size-4" /> Resumir para slides
+            </x-forms.button>
+        @endcan
     </div>
 
     <div class="animate-ak-rise mt-5 grid gap-5 lg:grid-cols-[1fr_360px]" style="animation-delay: 90ms">

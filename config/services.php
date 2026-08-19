@@ -97,6 +97,11 @@ return [
         // it — the same conclusion the flowSpec corpus reached.
         'max_examples' => env('CATI_MAX_EXAMPLES', 3),
 
+        // Correction loop for the slide-condensation pass: a section that comes
+        // back too long is asked again, naming what was wrong. Only that pass
+        // uses it — the interview has nothing to validate against.
+        'max_attempts' => env('CATI_MAX_ATTEMPTS', 3),
+
         // Ceiling on the gathered material folded into one turn. A single old
         // deck is ~10k chars, so this holds several without crowding out the
         // checklist and the conversation history.

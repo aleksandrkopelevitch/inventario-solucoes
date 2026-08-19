@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\SubmissionSectionState;
 use App\Http\Requests\UpdateSubmissionSectionRequest;
+use App\Jobs\CondenseSubmissionForSlides;
 use App\Models\Submission;
 use App\Models\SubmissionSection;
 use App\View\Components\Submissions\Checklist;
@@ -55,6 +56,31 @@ class SubmissionSectionController extends Controller
         ]);
 
         return $this->saved($submission, 'Seção confirmada.');
+    }
+
+    /**
+     * Queues the rewrite of every written section into slide text.
+     *
+     * Editing a section afterwards invalidates its condensed version by hash,
+     * so this is safe to run at any point — the deck falls back to the full
+     * text for anything that has moved on.
+     */
+    public function condense(Request $request, Submission $submission): JsonResponse
+    {
+        $this->authorize('update', $submission);
+
+        $submission->loadMissing('sections');
+
+        if ($submission->sections->filter(fn ($section) => filled($section->content))->isEmpty()) {
+            return response()->json([
+                'type'    => 'warning',
+                'message' => 'Não há seção escrita para resumir ainda.',
+            ], 422);
+        }
+
+        CondenseSubmissionForSlides::dispatch($submission);
+
+        return $this->saved($submission, 'Resumindo para slides — isso leva alguns instantes.');
     }
 
     private function saved(Submission $submission, string $message): JsonResponse

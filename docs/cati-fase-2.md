@@ -15,7 +15,7 @@ texto, tudo pronto). Aqui o registro vira `.pptx`.
 | Renderizador Python (python-pptx) | **feito** — `scripts/render_deck.py` + `RenderSubmissionDeck` |
 | Rota + botão "Baixar deck" | **feito** — `submissions.export.deck` |
 | Slides de diagrama (imagem do canvas + link) | **feito** |
-| Passe de condensação por LLM | a fazer (fatia 2) |
+| Passe de condensação por LLM | **feito** — `SlideCondenser` + `CondenseSubmissionForSlides` |
 
 ## Decisões
 
@@ -89,6 +89,34 @@ Dois corolários que já morderam:
 - **A identidade da capa estava desenhada no slide 1, não no layout.** A
   primeira versão do template produzia um retângulo verde pelado. Ver
   `resources/cati/README.md`.
+
+### O texto do slide é OUTRO texto, guardado ao lado do original
+
+Uma seção é escrita para ser LIDA — tem o argumento inteiro, em prosa. Um slide
+tem meia dúzia de linhas curtas, lidas a seis metros enquanto alguém fala por
+cima. São dois textos, e o deck usava o primeiro literalmente.
+
+`submission_sections.slide_content` guarda o segundo, em Markdown (o mesmo
+`MarkdownToBlocks` converte os dois, e uma pessoa consegue ler e corrigir).
+`slide_source_hash` prende essa versão ao `content` de onde ela saiu: quando os
+dois divergem, a seção foi editada depois e **o deck volta a usar o texto
+completo** — resumo de um parágrafo que não existe mais é pior que o parágrafo.
+
+Duas decisões que valem mais que o código:
+
+- **É o único lugar do módulo com laço de correção, e ele se justifica.** Na
+  entrevista, a resposta é prosa que um humano lê antes de aceitar. Aqui a
+  saída vai direto para um slide que ninguém relê antes da reunião — então o
+  que volta é MEDIDO (`SlideTextValidator`: 6 linhas, 120 caracteres por linha,
+  um nível de aninhamento) e a seção que não coube é pedida de novo, dizendo o
+  que estava errado.
+- **Seção que não cabe depois da última tentativa fica sem resumo**, e o deck
+  imprime o texto completo. Verboso, porém verdadeiro; publicar um resumo
+  truncado seria pior.
+
+Roda em job (`CondenseSubmissionForSlides`), não no download: o deck sai em
+menos de um segundo e uma chamada de modelo ali colocaria um spinner de 30
+segundos na frente de um arquivo que já estava pronto.
 
 ## Antes de construir em cima
 

@@ -44,7 +44,11 @@ class BuildDeckSpec
         $slides = [$this->cover($submission)];
 
         foreach (SubmissionSectionKey::cases() as $key) {
-            $content = trim((string) $rows->get($key->value)?->content);
+            // slideText() falls back to the full section whenever there is no
+            // condensed version or it was made from text that has since been
+            // edited — a summary of something that no longer exists is worse
+            // than a verbose slide.
+            $content = trim((string) $rows->get($key->value)?->slideText());
 
             // An empty optional section becomes no slide at all — an empty
             // slide in front of the committee is worse than a shorter deck.

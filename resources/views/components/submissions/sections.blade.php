@@ -46,6 +46,26 @@
             @if (blank($section->content))
                 <p class="mt-1 text-xs text-faint">{{ $key->question() }}</p>
             @endif
+
+            @if (filled($section->slide_content))
+                {{-- The slide-sized version of the same section. Shown, not
+                     hidden, because it is what the committee will actually
+                     read on the projector — and a bad summary has to be
+                     visible to be fixed. --}}
+                <details class="mt-3 border-t border-line pt-3">
+                    <summary class="cursor-pointer text-xs font-semibold uppercase tracking-wider text-muted">
+                        Versão para slide
+                        @unless ($section->slideContentIsFresh())
+                            <span class="ml-1 rounded-full bg-cat-amber-soft px-2 py-0.5 text-[10px] font-medium normal-case tracking-normal text-cat-amber-ink">
+                                desatualizada — o deck usa o texto completo
+                            </span>
+                        @endunless
+                    </summary>
+                    <div class="mt-2">
+                        <x-ui.markdown :text="$section->slide_content" />
+                    </div>
+                </details>
+            @endif
         </article>
     @endforeach
 </div>

@@ -326,6 +326,7 @@ Route::middleware('auth')->group(function () {
     Route::get('submissions/{submission}/export/deck', [SubmissionExportController::class, 'deck'])->name('submissions.export.deck');
 
     Route::post('submissions/{submission}/sources', [SubmissionSourceController::class, 'store'])->name('submissions.sources.store');
+    Route::post('submissions/{submission}/slides/condense', [SubmissionSectionController::class, 'condense'])->name('submissions.slides.condense');
     Route::post('submissions/{submission}/chat/messages', [SubmissionChatController::class, 'store'])->name('submissions.chat.messages.store');
 
     // Scoped: without it, DELETE submissions/{a}/sources/{source} would delete
