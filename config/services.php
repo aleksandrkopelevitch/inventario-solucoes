@@ -144,4 +144,32 @@ return [
         'stale_after' => (int) env('DOCS_AI_STALE_AFTER', 900),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | GitBook import — pulling existing spaces into the documentation hub
+    |--------------------------------------------------------------------------
+    |
+    | One-way pull (`php artisan gitbook:import`): a GitBook space becomes a
+    | standalone DocumentationGroup and each of its pages a DocumentationPage.
+    | Strictly read-only against GitBook — nothing here ever writes back.
+    |
+    | `token` is a personal API token (GitBook › Developer settings), which
+    | only needs the `space:read` scope. It is a credential: in production it
+    | belongs in Laravel's encrypted environment file, not in a plain .env.
+    |
+    */
+    'gitbook' => [
+        'token' => env('GITBOOK_API_TOKEN'),
+        'url'   => env('GITBOOK_API_URL', 'https://api.gitbook.com/v1'),
+
+        // The markdown endpoint is one request PER PAGE, so a 200-page space
+        // is 200 round trips — worth a generous timeout, but a real one.
+        'timeout' => (int) env('GITBOOK_API_TIMEOUT', 30),
+
+        // Embedded images/files are re-hosted into the page's own `docs`
+        // collection so the imported Markdown never points back at GitBook's
+        // CDN (a link that dies the day the space does). Ceiling per asset.
+        'max_asset_bytes' => (int) env('GITBOOK_MAX_ASSET_BYTES', 20971520),
+    ],
+
 ];
