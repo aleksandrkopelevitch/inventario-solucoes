@@ -53,13 +53,29 @@ return [
 
         /*
         |----------------------------------------------------------------------
-        | Attached context (FlowspecAttachment)
+        | Context window (FlowspecContextBudget)
         |----------------------------------------------------------------------
         |
-        | A conversation's attached context is re-sent on EVERY turn, so these
-        | bound what one chat can accumulate.
+        | The conversation's attached context is chat-scoped, so it is re-sent
+        | on EVERY turn — which is exactly how a long thread with a few big
+        | documents turns into runaway spend. These three numbers are the guard,
+        | and they are the only thing standing between a full inventory dump and
+        | the provider's bill. See App\Support\Context\TokenEstimator for how
+        | a token count is estimated from characters and bytes.
         |
         */
+
+        // Total estimated tokens one request may carry: fixed prompt + corpus
+        // examples + attached context + conversation history.
+        'context_limit_tokens' => env('DIGIBEE_FLOWSPEC_CONTEXT_LIMIT_TOKENS', 500000),
+
+        // Slice of that limit attachments may NEVER take, so the conversation
+        // itself always has room. Attaching is blocked at
+        // `context_limit_tokens - history_reserve_tokens`; the history then uses
+        // whatever is actually left and trims its oldest turns to fit (see
+        // FlowspecPromptBuilder::historySection). Without this reserve, filling
+        // the window with documents would lock someone out of their own chat.
+        'history_reserve_tokens' => env('DIGIBEE_FLOWSPEC_HISTORY_RESERVE_TOKENS', 40000),
 
         // Count ceiling on one chat's attachments, independent of their size:
         // bounds the per-turn query/render work even when every attachment is

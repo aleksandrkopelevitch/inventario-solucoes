@@ -2,20 +2,27 @@
 
 namespace App\Http\Requests\Concerns;
 
+use App\Models\DocumentationPage;
 use App\Models\FlowspecChat;
+use App\Models\Integration;
 use App\Rules\FlowspecDocumentReference;
+use App\Services\Flowspec\FlowspecContextBudget;
+use App\Support\Context\TokenEstimator;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Http\UploadedFile;
 
 /**
- * Rules and limits shared by the two endpoints that can add context to a
- * conversation: creating a chat (which carries whatever was staged in the
- * new-chat composer) and attaching to an existing one.
+ * Rules and the context ceiling shared by the two endpoints that can add
+ * context to a conversation: creating a chat (which carries whatever was staged
+ * in the new-chat composer) and attaching to an existing one.
  *
- * Limits are enforced HERE, before anything is ingested. Ingesting first and
- * checking later would mean rolling back both DB rows and files already written
- * to disk by MediaLibrary, and a partial rollback of media is exactly the kind
- * of failure that leaves orphans.
+ * The ceiling is enforced HERE, before anything is ingested, on the raw inputs
+ * — not after the fact. Ingesting first and checking later would mean rolling
+ * back both DB rows and files already written to disk by MediaLibrary, and a
+ * partial rollback of media is exactly the kind of failure that leaves orphans.
+ * The estimate is deliberately an over-count (see TokenEstimator), so the guard
+ * refuses slightly too eagerly rather than letting a request through that the
+ * meter promised would fit.
  */
 trait GuardsFlowspecContext
 {
@@ -63,9 +70,34 @@ trait GuardsFlowspecContext
     }
 
     /**
-     * Bounds how many items one conversation's context may hold. A hundred
-     * one-line pastes is cheap to store but makes every following turn's context
-     * list and prompt assembly needlessly heavy.
+     * Refuses context that wouldn't fit, naming what to do about it. Called
+     * from the request's `withValidator`, so the failure arrives as a normal
+     * 422 the composer already knows how to surface.
+     */
+    protected function guardContextBudget(Validator $validator, ?FlowspecChat $chat): void
+    {
+        $validator->after(function (Validator $validator) use ($chat) {
+            $incoming = $this->incomingContextTokens();
+
+            if ($incoming === 0) {
+                return;
+            }
+
+            $usage = app(FlowspecContextBudget::class)->for($chat);
+            $room = $usage->attachableTokens();
+
+            if ($incoming <= $room) {
+                return;
+            }
+
+            $validator->errors()->add('documents', $this->budgetMessage($room));
+        });
+    }
+
+    /**
+     * Also bounds the COUNT, independent of size: a hundred one-line pastes
+     * costs little in tokens but makes every following turn's context list and
+     * prompt assembly needlessly heavy.
      */
     protected function guardContextCount(Validator $validator, ?FlowspecChat $chat): void
     {
@@ -85,6 +117,38 @@ trait GuardsFlowspecContext
                 );
             }
         });
+    }
+
+    /** Estimated tokens this request wants to ADD to the conversation's context. */
+    private function incomingContextTokens(): int
+    {
+        $tokens = 0;
+
+        foreach ($this->documentRefs() as $ref) {
+            $tokens += TokenEstimator::forChars($this->referencedChars($ref));
+        }
+
+        foreach ($this->pastedTexts() as $text) {
+            $tokens += TokenEstimator::forText($text['content']);
+        }
+
+        foreach ($this->uploadedFiles() as $file) {
+            $tokens += TokenEstimator::forUploadedBytes(
+                $file->getMimeType(),
+                $file->getClientOriginalExtension(),
+                (int) $file->getSize(),
+            );
+        }
+
+        return $tokens;
+    }
+
+    /** @param array{type: string, id: int} $ref */
+    private function referencedChars(array $ref): int
+    {
+        $model = $ref['type'] === 'page' ? DocumentationPage::class : Integration::class;
+
+        return mb_strlen((string) $model::query()->whereKey($ref['id'])->value('documentation'));
     }
 
     /**
@@ -145,5 +209,13 @@ trait GuardsFlowspecContext
         }
 
         return $files->values()->all();
+    }
+
+    private function budgetMessage(int $room): string
+    {
+        return $room <= 0
+            ? 'O contexto desta conversa já está no limite. Remova algum documento ou arquivo antes de anexar outro.'
+            : 'Isso não cabe no limite de contexto desta conversa (resta espaço para cerca de '
+                . number_format($room / 1000, 0, ',', '.') . 'k tokens). Remova algo ou anexe menos de uma vez.';
     }
 }

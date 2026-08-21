@@ -65,6 +65,21 @@
                     </div>
                 @endif
 
+                {{-- Histórico aparado — o contexto anexado nunca é cortado em silêncio
+                     (o servidor recusa anexo que não cabe), mas a conversa cresce sozinha
+                     e o mais antigo sai. Dizer isso é obrigatório: um chat que esqueceu o
+                     próprio começo sem avisar parece o modelo se perdendo. --}}
+                @if (($meta['history_trimmed'] ?? 0) > 0)
+                    <p class="mt-3 flex items-start gap-1.5 rounded-field border border-line bg-canvas px-3 py-2 text-xs text-muted">
+                        <x-heroicon-o-scissors class="mt-0.5 size-3.5 shrink-0" />
+                        <span>
+                            As {{ $meta['history_trimmed'] }} mensagens mais antigas desta conversa ficaram de fora deste pedido
+                            para caber no limite de contexto. Se o começo dela ainda importa, anexe a documentação
+                            correspondente ou abra uma conversa nova.
+                        </span>
+                    </p>
+                @endif
+
                 @if ($message->flow_spec !== null)
                     {{-- Badges: validation, attempts, examples used --}}
                     <div class="mt-3 flex flex-wrap items-center gap-1.5 text-[11px] font-medium">
@@ -130,6 +145,10 @@
                                 <div>
                                     <dt class="font-medium text-muted">Tokens</dt>
                                     <dd>{{ $meta['tokens']['prompt'] ?? 0 }} prompt / {{ $meta['tokens']['completion'] ?? 0 }} completion</dd>
+                                </div>
+                                <div>
+                                    <dt class="font-medium text-muted">Contexto estimado no envio</dt>
+                                    <dd>{{ number_format($meta['context_tokens'] ?? 0, 0, ',', '.') }} tokens{{ ($meta['history_trimmed'] ?? 0) > 0 ? ' · ' . $meta['history_trimmed'] . ' mensagens aparadas' : '' }}</dd>
                                 </div>
                             </dl>
                         </details>

@@ -9,6 +9,7 @@ use App\Models\Solution;
 use App\Services\Flowspec\CredentialScrubber;
 use App\Services\Flowspec\DigibeeFlowspecNormalizer;
 use App\Services\Flowspec\DigibeeFlowspecValidator;
+use App\Services\Flowspec\FlowspecContextBudget;
 use App\Services\Flowspec\FlowspecContextResolver;
 use App\Services\Flowspec\FlowspecGenerationService;
 use App\Services\Flowspec\FlowspecPromptBuilder;
@@ -33,6 +34,7 @@ function fakeGenerationService(array $scriptedTexts): FlowspecGenerationService
                 app(DigibeeFlowspecNormalizer::class),
                 app(DigibeeFlowspecValidator::class),
                 app(CredentialScrubber::class),
+                app(FlowspecContextBudget::class),
             );
         }
 

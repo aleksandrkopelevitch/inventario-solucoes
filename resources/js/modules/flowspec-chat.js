@@ -101,6 +101,27 @@ function escapeHtml(str) {
         .replace(/'/g, '&#39;')
 }
 
+/** Room left in the context window, as the server last reported it. */
+function attachableTokens(form) {
+    try {
+        return JSON.parse(form?.querySelector('[data-ak-fs-context]')?.dataset.akFsContext || '{}').attachable ?? 0
+    } catch {
+        return 0
+    }
+}
+
+/**
+ * Refuses locally what the server would refuse anyway, so a 20MB upload isn't
+ * sent just to be told there's no room. The server check is still the real one
+ * — this only saves the round trip.
+ */
+function contextIsFull(form) {
+    if (attachableTokens(form) > 0) return false
+
+    Toast.show('O contexto desta conversa está no limite. Remova algum documento ou arquivo antes de anexar outro.', 'warning')
+    return true
+}
+
 /* ----------------------------------- staging ------------------------------ */
 
 /**
@@ -212,7 +233,7 @@ async function addContext(form, { payload, stage }) {
 }
 
 function attachFiles(form, files) {
-    if (!files.length) return
+    if (!files.length || contextIsFull(form)) return
 
     Array.from(files).forEach((file) => {
         addContext(form, { payload: { file }, stage: { kind: 'file', file } })
@@ -220,6 +241,8 @@ function attachFiles(form, files) {
 }
 
 function attachText(form, content, label) {
+    if (contextIsFull(form)) return
+
     addContext(form, {
         payload: { text: content, label },
         stage: { kind: 'text', content, label },
@@ -227,7 +250,7 @@ function attachText(form, content, label) {
 }
 
 function attachDocuments(form, documents) {
-    if (!documents.length) return
+    if (!documents.length || contextIsFull(form)) return
 
     addContext(form, {
         payload: { documents: documents.map((doc) => doc.ref) },
@@ -251,7 +274,7 @@ document.addEventListener('click', (e) => {
     if (fileBtn) {
         const form = fileBtn.closest('form')
         closeAttachMenu(form)
-        form?.querySelector('[data-ak-fs-file-input]')?.click()
+        if (!contextIsFull(form)) form?.querySelector('[data-ak-fs-file-input]')?.click()
         return
     }
 

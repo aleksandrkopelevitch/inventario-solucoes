@@ -52,6 +52,7 @@ class StoreFlowspecAttachmentRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $this->guardContextCount($validator, $this->chat());
+        $this->guardContextBudget($validator, $this->chat());
     }
 
     public function chat(): FlowspecChat

@@ -32,6 +32,7 @@ class FlowspecGenerationService
         private readonly DigibeeFlowspecNormalizer $normalizer,
         private readonly DigibeeFlowspecValidator $validator,
         private readonly CredentialScrubber $scrubber,
+        private readonly FlowspecContextBudget $budget,
     ) {}
 
     /**
@@ -56,13 +57,26 @@ class FlowspecGenerationService
 
         $context = $this->resolver->resolve($chat, $userMessage->content);
 
+        // What the history may spend on this turn: the limit minus the fixed
+        // prompt and the attached context. Measured against the chat as it
+        // stands, so a conversation that has since grown past the ceiling trims
+        // itself instead of silently producing a request nobody budgeted for.
+        $usage = $this->budget->for($chat);
+
         Log::debug('flowSpec: contexto resolvido', [
-            'chat_id'    => $userMessage->flowspec_chat_id,
-            'message_id' => $userMessage->id,
+            'chat_id'          => $userMessage->flowspec_chat_id,
+            'message_id'       => $userMessage->id,
+            'context_tokens'   => $usage->total(),
+            'context_limit'    => $usage->limit,
             ...$context->toMeta(),
         ]);
 
-        $built = $this->prompts->userPrompt($context, $userMessage->content, $history);
+        $built = $this->prompts->userPrompt(
+            $context,
+            $userMessage->content,
+            $history,
+            $usage->historyAllowance(),
+        );
 
         $basePrompt = $built->text;
 
@@ -193,7 +207,11 @@ class FlowspecGenerationService
                 // selection), but the content can change later, so this is
                 // the historical record of what guidance actually applied.
                 'guidelines' => $this->prompts->activeGuidelines()->pluck('title')->all(),
+                // Oldest turns dropped to fit the context limit. Surfaced in
+                // the thread — a conversation that quietly forgot its own
+                // beginning reads as the model losing track.
                 'history_trimmed' => $built->trimmedHistoryTurns,
+                'context_tokens'  => $usage->total(),
                 // Only on an actual CONVERSATIONAL response — not when the
                 // loop ran out of attempts with invalid JSON (there $document
                 // is also null, but inferring suggestions from broken JSON

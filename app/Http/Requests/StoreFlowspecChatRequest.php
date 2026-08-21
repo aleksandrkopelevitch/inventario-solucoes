@@ -42,7 +42,9 @@ class StoreFlowspecChatRequest extends FormRequest
 
     public function withValidator(Validator $validator): void
     {
-        // No chat yet, so nothing is already attached to count against.
+        // No chat yet: the budget is measured against an empty conversation, so
+        // only the staged context and the fixed prompt count.
         $this->guardContextCount($validator, null);
+        $this->guardContextBudget($validator, null);
     }
 }
