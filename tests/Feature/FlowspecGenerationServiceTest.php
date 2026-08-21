@@ -9,7 +9,7 @@ use App\Models\Solution;
 use App\Services\Flowspec\CredentialScrubber;
 use App\Services\Flowspec\DigibeeFlowspecNormalizer;
 use App\Services\Flowspec\DigibeeFlowspecValidator;
-use App\Services\Flowspec\FlowspecContext;
+use App\Services\Flowspec\FlowspecContextBudget;
 use App\Services\Flowspec\FlowspecContextResolver;
 use App\Services\Flowspec\FlowspecGenerationService;
 use App\Services\Flowspec\FlowspecPromptBuilder;
@@ -34,11 +34,17 @@ function fakeGenerationService(array $scriptedTexts): FlowspecGenerationService
                 app(DigibeeFlowspecNormalizer::class),
                 app(DigibeeFlowspecValidator::class),
                 app(CredentialScrubber::class),
+                app(FlowspecContextBudget::class),
             );
         }
 
-        protected function prompt(string $prompt): AgentResponse
+        /** @var list<object> the attachments the last call was made with */
+        public array $lastAttachments = [];
+
+        protected function prompt(string $prompt, array $attachments = []): AgentResponse
         {
+            $this->lastAttachments = $attachments;
+
             return new AgentResponse('fake', array_shift($this->scripted), new Usage(100, 200), new Meta('anthropic', 'claude-sonnet-5'));
         }
     };
@@ -47,7 +53,7 @@ function fakeGenerationService(array $scriptedTexts): FlowspecGenerationService
 function chatWithUserMessage(string $content): FlowspecChat
 {
     $chat = FlowspecChat::factory()->create();
-    $chat->messages()->create(['role' => 'user', 'content' => $content, 'meta' => ['solution_ids' => []]]);
+    $chat->messages()->create(['role' => 'user', 'content' => $content]);
 
     return $chat;
 }
@@ -159,7 +165,7 @@ it('treats an answer without JSON as conversational, without re-prompting', func
         ->and($result->meta['attempts'])->toHaveCount(1);
 });
 
-it('suggests documentation for a solution the conversational answer names but was not yet considered', function () {
+it('suggests documentation for a solution the conversational answer names', function () {
     $this->seed(FlowspecExampleSeeder::class);
 
     $iam = Solution::factory()->create(['name' => 'IAM']);
@@ -298,9 +304,9 @@ it('collapses every exhausted-attempt raw JSON dump in history, keeping only the
     ]);
 
     $history = collect([$brokenAttempt, $olderValid, $latestValid]);
-    $context = new FlowspecContext(collect(), collect(), collect(), [], collect(), []);
+    $context = emptyFlowspecContext();
 
-    $prompt = app(FlowspecPromptBuilder::class)->userPrompt($context, 'próximo pedido', $history);
+    $prompt = app(FlowspecPromptBuilder::class)->userPrompt($context, 'próximo pedido', $history)->text;
 
     expect($prompt)->not->toContain('"broken": true')
         ->toContain('omitida do histórico')
@@ -319,9 +325,9 @@ it('does not collapse a normal conversational reply in history, even one startin
     ]);
 
     $history = collect([$conversational]);
-    $context = new FlowspecContext(collect(), collect(), collect(), [], collect(), []);
+    $context = emptyFlowspecContext();
 
-    $prompt = app(FlowspecPromptBuilder::class)->userPrompt($context, 'próximo pedido', $history);
+    $prompt = app(FlowspecPromptBuilder::class)->userPrompt($context, 'próximo pedido', $history)->text;
 
     expect($prompt)->toContain('Prefiro confirmar antes de gerar');
 });

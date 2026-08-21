@@ -2,122 +2,213 @@
 
 namespace App\Services\Flowspec;
 
+use App\Enums\FlowspecAttachmentKind;
 use App\Enums\FlowspecTag;
 use App\Models\DocumentationPage;
+use App\Models\FlowspecAttachment;
+use App\Models\FlowspecChat;
 use App\Models\FlowspecExample;
 use App\Models\Integration;
 use App\Models\Solution;
+use App\Support\Context\NativeAttachmentType;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use Laravel\Ai\Files\LocalDocument;
+use Laravel\Ai\Files\LocalImage;
 
 /**
- * Resolves the context for a flowSpec generation without RAG: Solutions
- * cited (explicit ones take priority; otherwise, inferred by matching the
- * name in the request), documentation trimmed to a character budget —
- * Solution pages AND documentation of the integrations they participate
- * in —, and 2-3 corpus examples chosen via FlowspecTag's word->tag map.
+ * Turns a conversation's ATTACHED context into what a prompt needs, and
+ * suggests what looks missing.
  *
- * When the chat carries explicit `document_refs` (the "Specific documents"
- * chips picker), that automatic scoring/budget is skipped entirely: exactly
- * the chosen pages/integrations are used — the idea is to give someone who
- * already knows exactly which documentation is relevant a way to avoid
- * automatic inference, which can pull in unnecessary context.
+ * The one rule that shapes this whole class: **nothing enters a prompt that
+ * nobody attached.** An earlier version inferred Solutions by matching their
+ * names in the request text and silently folded up to 60k characters of their
+ * documentation into the request. That was invisible spend — the composer's
+ * context meter could not show it before sending, so the number a user read and
+ * the request they paid for were different numbers. The name matching survives,
+ * but now it only produces SUGGESTIONS (`suggestFor()`), one click away from
+ * becoming a real attachment the meter can see.
  *
- * `suggestDocumentsFor()` (called by FlowspecGenerationService only when the
- * model's response was conversational — a question, not a flowSpec) is the
- * inverse side: it finds REAL documentation for systems the model cited by
- * name while asking for more context, but that weren't already in the
- * considered context — becomes an "add" button in the chat instead of the
- * user having to type into the chips picker. Never invents a name: matches
- * against the existing Solution catalog, same as inferSolutions().
+ * No AI is involved in that matching and none is needed: it is a word-boundary
+ * scan over the Solution catalog. It runs in PHP rather than SQL because
+ * `Str::ascii()` folds "ó"->"o" portably between SQLite (dev) and PostgreSQL
+ * (prod) without depending on an extension (`unaccent`) or a driver-specific
+ * collation — at the catalog's scale (dozens of Solutions, one query) that
+ * trade costs nothing.
  */
 class FlowspecContextResolver
 {
-    /**
-     * @param  list<int>  $solutionIds  ids explicitly marked in the chat
-     * @param  list<array{type: string, id: int}>  $documentRefs  pages/integrations chosen by hand
-     */
-    public function resolve(string $request, array $solutionIds = [], array $documentRefs = []): FlowspecContext
+    public function resolve(FlowspecChat $chat, string $request): FlowspecContext
     {
-        $normalizedRequest = $this->normalize($request);
+        $attachments = $chat->attachments()->with('media')->get();
 
-        $solutions = $solutionIds !== []
-            ? Solution::query()->whereIn('id', $solutionIds)->get()
-            : $this->inferSolutions($normalizedRequest);
+        [$pages, $integrationDocs] = $this->referencedDocumentation($attachments);
+        [$textDocs, $nativeAttachments, $attachedMeta, $omittedAttachments] = $this->partitionMaterial($attachments);
 
-        [$pages, $integrationDocs, $omitted] = $documentRefs !== []
-            ? $this->selectExplicitDocuments($documentRefs)
-            : $this->selectDocuments($solutions, $normalizedRequest);
-
-        $tags = $this->candidateTags($normalizedRequest);
+        $tags = $this->candidateTags($this->normalize($request));
 
         return new FlowspecContext(
-            solutions: $solutions,
             pages: $pages,
             integrationDocs: $integrationDocs,
-            omittedDocuments: $omitted,
+            textDocs: $textDocs,
+            referenceFlowspecs: $this->referenceFlowspecs($attachments),
+            attachments: $nativeAttachments,
+            attachedMeta: $attachedMeta,
+            omittedAttachments: $omittedAttachments,
             examples: $this->selectExamples($tags),
             tags: $tags,
         );
     }
 
     /**
-     * Without an explicit selection, suggests Solutions whose name appears in
-     * the request ("based on SVL's and IAM's documentation...").
+     * The documentation behind `document` attachments, read live from its
+     * reference — never a copy, so an edited page is current in every
+     * conversation pointing at it on the very next turn.
      *
-     * The matching (accent-insensitive, by word-boundary) runs in PHP, not
-     * SQL: `Str::ascii()` folds "ó"->"o" in a way that's portable between
-     * SQLite (dev) and PostgreSQL (prod) without depending on an extension
-     * (`unaccent`) or a driver-specific collation — porting this to SQL would
-     * trade portability/correctness for speed, with no real need at the
-     * catalog's current scale (dozens of Solutions, a single query).
-     *
-     * @return Collection<int, Solution>
+     * @param  Collection<int, FlowspecAttachment>  $attachments
+     * @return array{Collection<int, DocumentationPage>, Collection<int, Integration>}
      */
-    private function inferSolutions(string $normalizedRequest): Collection
+    private function referencedDocumentation(Collection $attachments): array
     {
-        return Solution::query()
-            ->get(['id', 'name'])
-            ->filter(function (Solution $solution) use ($normalizedRequest) {
-                $name = $this->normalize($solution->name);
+        $documents = $attachments->where('kind', FlowspecAttachmentKind::Document);
 
-                return $name !== ''
-                    && preg_match('/(?<![a-z0-9])' . preg_quote($name, '/') . '(?![a-z0-9])/', $normalizedRequest) === 1;
-            })
+        $pageIds = $documents->where('reference_type', DocumentationPage::class)->pluck('reference_id')->all();
+        $integrationIds = $documents->where('reference_type', Integration::class)->pluck('reference_id')->all();
+
+        $pages = $pageIds === [] ? collect() : DocumentationPage::query()
+            ->whereKey($pageIds)
+            ->whereNotNull('documentation')
+            ->where('documentation', '<>', '')
+            ->with('container')
+            ->get()
+            ->sortBy(fn (DocumentationPage $page) => [$page->container_id, $page->position])
+            ->values();
+
+        $integrations = $integrationIds === [] ? collect() : Integration::query()
+            ->whereKey($integrationIds)
+            ->whereNotNull('documentation')
+            ->where('documentation', '<>', '')
+            ->get()
+            ->sortBy('name')
+            ->values();
+
+        return [$pages, $integrations];
+    }
+
+    /**
+     * Splits the material the user brought into text that gets inlined and
+     * files the model reads natively (PDF/image) — the same partitioning
+     * App\Services\Documentation\ContextDocumentResolver does for a Solution's
+     * context documents.
+     *
+     * There is no character budget here, deliberately: the attach endpoints
+     * already refused anything that wouldn't fit
+     * (FlowspecContextBudget::attachableTokens), so whatever is stored is known
+     * to fit and silently trimming it again would contradict the meter the user
+     * read. Only the AGGREGATE byte ceiling on native attachments still applies
+     * — that one is the provider's request limit, not our budget.
+     *
+     * @param  Collection<int, FlowspecAttachment>  $attachments
+     * @return array{Collection<int, array{label: string, content: string}>, list<object>, list<array{id: int, name: string, kind: string}>, list<string>}
+     */
+    private function partitionMaterial(Collection $attachments): array
+    {
+        $maxBytes = (int) config('services.flowspec.max_attachment_bytes');
+
+        $textDocs = collect();
+        $native = [];
+        $attachedMeta = [];
+        $omitted = [];
+        $bytes = 0;
+
+        foreach ($attachments as $attachment) {
+            if ($attachment->kind === FlowspecAttachmentKind::Document || $attachment->is_flowspec_reference) {
+                continue; // handled by referencedDocumentation() / referenceFlowspecs()
+            }
+
+            if ($attachment->hasInlineText()) {
+                $textDocs->push(['label' => $attachment->label, 'content' => (string) $attachment->content]);
+
+                continue;
+            }
+
+            $media = $attachment->media;
+
+            if ($media === null) {
+                continue;
+            }
+
+            $mime = (string) $media->mime_type;
+
+            // Only images and PDFs ride along natively, and this is the SAME
+            // decision the ingest step priced the file with
+            // (NativeAttachmentType) — a `Skipped` state alone isn't enough,
+            // since SourceTextExtractor also returns it for a format it simply
+            // can't read, which has nothing to send.
+            $kind = NativeAttachmentType::for($mime, $media->extension);
+
+            if ($kind === null) {
+                continue;
+            }
+
+            if ($maxBytes > 0 && $bytes + (int) $media->size > $maxBytes) {
+                $omitted[] = $attachment->label;
+
+                continue;
+            }
+
+            $bytes += (int) $media->size;
+
+            $native[] = $kind === NativeAttachmentType::IMAGE
+                ? new LocalImage($media->getPath(), $mime)
+                : new LocalDocument($media->getPath(), $mime);
+
+            $attachedMeta[] = ['id' => $attachment->id, 'name' => $attachment->label, 'kind' => $kind];
+        }
+
+        return [$textDocs, $native, $attachedMeta, $omitted];
+    }
+
+    /**
+     * Pasted `{meta, flowSpec}` documents, already minified at attach time.
+     * They get their own prompt section instead of being mixed in with prose
+     * material — see AttachFlowspecText for why this is a flag on a text
+     * attachment rather than a third kind of attachment.
+     *
+     * @param  Collection<int, FlowspecAttachment>  $attachments
+     * @return Collection<int, string>
+     */
+    private function referenceFlowspecs(Collection $attachments): Collection
+    {
+        return $attachments
+            ->filter(fn (FlowspecAttachment $a) => $a->is_flowspec_reference && filled($a->content))
+            ->map(fn (FlowspecAttachment $a) => (string) $a->content)
             ->values();
     }
 
     /**
-     * Documentation for Solutions the model cited by name in a conversational
-     * response ("I need to know how IAM authenticates…") but that weren't
-     * already in `$consideredSolutions` — each page/integration found becomes
-     * an "add" button in the chat (same `{type, id}` reference as the
-     * "Specific documents" chips picker, so the click reuses the addChip()
-     * already existing in chips.js). Reuses inferSolutions()'s matching —
-     * never suggests a name the model couldn't have seen somewhere real in
-     * the catalog.
+     * Documentation worth attaching, for text that names systems by name —
+     * whether that text is the message someone is typing or the assistant's own
+     * "I'd need the IAM docs" reply. Each hit becomes an "adicionar ao contexto"
+     * button; nothing is added until it's clicked.
      *
-     * @param  Collection<int, Solution>  $consideredSolutions
+     * Never invents a name: it matches against the real Solution catalog, and
+     * skips anything the conversation already has attached.
+     *
+     * @param  list<string>  $attachedKeys  `type:id` references already in the context
      * @return list<array{type: string, id: int, label: string}>
      */
-    public function suggestDocumentsFor(string $text, Collection $consideredSolutions): array
+    public function suggestFor(string $text, array $attachedKeys = []): array
     {
-        // pluck('id'), not modelKeys(): unlike $mentioned (always coming
-        // from inferSolutions(), a real Eloquent\Collection),
-        // $consideredSolutions is the method's public parameter — it accepts
-        // any Collection<Solution>, not just Eloquent\Collection.
-        $consideredIds = $consideredSolutions->pluck('id')->all();
-
-        $mentioned = $this->inferSolutions($this->normalize($text))
-            ->reject(fn (Solution $solution) => in_array($solution->id, $consideredIds, true))
-            ->values();
+        $mentioned = $this->matchSolutions($this->normalize($text));
 
         if ($mentioned->isEmpty()) {
             return [];
         }
 
-        // Only the columns used in the labels — doesn't pull the longText
-        // `documentation` (it's only used in the WHERE), per conversational message.
+        // Only the columns used in the labels — never the longText
+        // `documentation` (it's only used in the WHERE), since this runs on
+        // every conversational reply and on composer keystrokes.
         $pages = DocumentationPage::query()
             ->where('container_type', Solution::class)
             ->whereIn('container_id', $mentioned->modelKeys())
@@ -134,146 +225,72 @@ class FlowspecContextResolver
             ->where('documentation', '<>', '')
             ->get(['id', 'name']);
 
-        // collect($model->all()) before ->map() — same care as the ->merge()
-        // in selectDocuments(): mapping directly on an empty Eloquent\Collection
-        // doesn't downgrade it to Support\Collection, and Eloquent's
-        // primary-key merge breaks against a plain array.
-        $pageSuggestions = collect($pages->all())->map(fn (DocumentationPage $page) => [
-            'type'  => 'page',
-            'id'    => $page->id,
-            'label' => "{$solutionsById[$page->container_id]->name} — {$page->title}",
-        ]);
+        // collect($model->all()) before ->map(): mapping an empty
+        // Eloquent\Collection doesn't downgrade it to a Support\Collection, and
+        // Eloquent's primary-key merge breaks against plain arrays.
+        $suggestions = collect($pages->all())
+            ->map(fn (DocumentationPage $page) => [
+                'type'  => 'page',
+                'id'    => $page->id,
+                'label' => "{$solutionsById[$page->container_id]->name} — {$page->title}",
+            ])
+            ->merge(collect($integrations->all())->map(fn (Integration $integration) => [
+                'type'  => 'integration',
+                'id'    => $integration->id,
+                'label' => $integration->name,
+            ]));
 
-        $integrationSuggestions = collect($integrations->all())->map(fn (Integration $integration) => [
-            'type'  => 'integration',
-            'id'    => $integration->id,
-            'label' => $integration->name,
-        ]);
-
-        $limit = (int) config('services.flowspec.max_suggested_documents');
-
-        return $pageSuggestions->merge($integrationSuggestions)->take($limit)->values()->all();
+        return $suggestions
+            ->reject(fn (array $ref) => in_array($this->morphKey($ref), $attachedKeys, true))
+            ->take((int) config('services.flowspec.max_suggested_documents'))
+            ->values()
+            ->all();
     }
 
     /**
-     * Documented pages of the chosen Solutions + documentation of the
-     * integrations they participate in, ordered by matches against terms in
-     * the request (contracts, payloads, endpoints cited) and trimmed together
-     * to the same character budget. On a relevance tie, integration docs come
-     * before pages (for a flowSpec, it's the more direct source). What's left
-     * out comes back in `omitted` to be flagged in the chat.
+     * The `type:id` keys a chat already has attached, in the shape suggestFor()
+     * rejects against.
      *
-     * @param  Collection<int, Solution>  $solutions
-     * @return array{Collection<int, DocumentationPage>, Collection<int, Integration>, list<array{type: string, id: int, label: string}>}
+     * @return list<string>
      */
-    private function selectDocuments(Collection $solutions, string $normalizedRequest): array
+    public function attachedKeys(FlowspecChat $chat): array
     {
-        if ($solutions->isEmpty()) {
-            return [collect(), collect(), []];
-        }
+        return $chat->attachments()
+            ->where('kind', FlowspecAttachmentKind::Document)
+            ->get(['reference_type', 'reference_id'])
+            ->map(fn (FlowspecAttachment $a) => "{$a->reference_type}:{$a->reference_id}")
+            ->all();
+    }
 
-        $terms = $this->significantTerms($normalizedRequest);
+    /**
+     * Picker reference (`page:12`) -> stored morph key
+     * (`App\Models\DocumentationPage:12`).
+     *
+     * @param  array{type: string, id: int}  $ref
+     */
+    private function morphKey(array $ref): string
+    {
+        $class = $ref['type'] === 'page' ? DocumentationPage::class : Integration::class;
 
-        $pages = DocumentationPage::query()
-            ->where('container_type', Solution::class)
-            ->whereIn('container_id', $solutions->modelKeys())
-            ->whereNotNull('documentation')
-            ->where('documentation', '<>', '')
-            ->orderBy('position')
-            ->get();
+        return "{$class}:{$ref['id']}";
+    }
 
-        $solutionsById = $solutions->keyBy->getKey();
-        $pages->each(fn (DocumentationPage $page) => $page->setRelation('container', $solutionsById[$page->container_id]));
+    /**
+     * Solutions whose name appears as a whole word in the text.
+     *
+     * @return Collection<int, Solution>
+     */
+    private function matchSolutions(string $normalizedText): Collection
+    {
+        return Solution::query()
+            ->get(['id', 'name'])
+            ->filter(function (Solution $solution) use ($normalizedText) {
+                $name = $this->normalize($solution->name);
 
-        $integrations = Integration::query()
-            ->whereHas('participants', fn ($query) => $query->whereIn('solutions.id', $solutions->modelKeys()))
-            ->whereNotNull('documentation')
-            ->where('documentation', '<>', '')
-            ->get();
-
-        // collect($model->all()) forces a "pure" Support\Collection before
-        // ->map() — mapping directly on an Eloquent\Collection would return
-        // another Eloquent\Collection (even with arrays inside), and the
-        // ->merge() below would use Eloquent's primary-key dictionary merge
-        // (getKey()), which breaks against a plain array.
-        $units = collect($pages->all())
-            ->map(fn (DocumentationPage $page) => ['kind' => 'page', 'model' => $page, 'heading' => $page->title, 'body' => $page->documentation])
-            ->merge(collect($integrations->all())->map(fn (Integration $integration) => ['kind' => 'integration', 'model' => $integration, 'heading' => $integration->name, 'body' => $integration->documentation]));
-
-        $scored = $units
-            ->map(function (array $unit) use ($terms) {
-                $haystack = $this->normalize($unit['heading'] . ' ' . $unit['body']);
-                $unit['score'] = collect($terms)->filter(fn (string $term) => str_contains($haystack, $term))->count();
-
-                return $unit;
+                return $name !== ''
+                    && preg_match('/(?<![a-z0-9])' . preg_quote($name, '/') . '(?![a-z0-9])/', $normalizedText) === 1;
             })
-            // Term relevance rules (score * 2). Tie on score: INTEGRATION docs
-            // come before pages — for generating a flowSpec (which is itself
-            // the integration's description: endpoints, contracts, protocols),
-            // integration documentation is the more direct source. It's only a
-            // tiebreaker: a page clearly more relevant to the request still
-            // beats a barely relevant integration.
-            ->sortByDesc(fn (array $unit) => $unit['score'] * 2 + ($unit['kind'] === 'integration' ? 1 : 0))
             ->values();
-
-        $budget = (int) config('services.flowspec.doc_budget_chars');
-        $selected = collect();
-        $omitted = [];
-
-        foreach ($scored as $unit) {
-            $size = mb_strlen($unit['body']);
-
-            if ($selected->isNotEmpty() && $budget - $size < 0) {
-                $omitted[] = ['type' => $unit['kind'], 'id' => $unit['model']->getKey(), 'label' => $unit['heading']];
-
-                continue;
-            }
-
-            $budget -= $size;
-            $selected->push($unit);
-        }
-
-        // Re-presents each type in its natural order, not the score order.
-        $selectedPages = $selected->where('kind', 'page')->pluck('model')
-            ->sortBy(fn (DocumentationPage $page) => [$page->container_id, $page->position])->values();
-
-        $selectedIntegrations = $selected->where('kind', 'integration')->pluck('model')
-            ->sortBy(fn (Integration $integration) => $integration->name)->values();
-
-        return [$selectedPages, $selectedIntegrations, $omitted];
-    }
-
-    /**
-     * Context chosen by hand via the chips picker — no scoring or budget
-     * trimming: whatever was selected goes into the prompt in full.
-     *
-     * @param  list<array{type: string, id: int}>  $documentRefs
-     * @return array{Collection<int, DocumentationPage>, Collection<int, Integration>, list<array{type: string, id: int, label: string}>}
-     */
-    private function selectExplicitDocuments(array $documentRefs): array
-    {
-        $refs = collect($documentRefs);
-        $pageIds = $refs->where('type', 'page')->pluck('id')->all();
-        $integrationIds = $refs->where('type', 'integration')->pluck('id')->all();
-
-        $pages = $pageIds === [] ? collect() : DocumentationPage::query()
-            ->whereIn('id', $pageIds)
-            ->whereNotNull('documentation')
-            ->where('documentation', '<>', '')
-            ->with('container')
-            ->get()
-            ->sortBy(fn (DocumentationPage $page) => [$page->container_id, $page->position])
-            ->values();
-
-        $integrations = $integrationIds === [] ? collect() : Integration::query()
-            ->whereIn('id', $integrationIds)
-            ->whereNotNull('documentation')
-            ->where('documentation', '<>', '')
-            ->get()
-            ->sortBy('name')
-            ->values();
-
-        return [$pages, $integrations, []];
     }
 
     /** @return list<string> */
@@ -327,13 +344,5 @@ class FlowspecContextResolver
     private function normalize(string $text): string
     {
         return mb_strtolower(Str::ascii($text));
-    }
-
-    /** @return list<string> unique words from the request with 4+ characters */
-    private function significantTerms(string $normalizedRequest): array
-    {
-        preg_match_all('/[a-z0-9][a-z0-9_-]{3,}/', $normalizedRequest, $matches);
-
-        return array_values(array_unique($matches[0]));
     }
 }

@@ -2,16 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Actions\Flowspec\NormalizeReferenceFlowspec;
 use App\Http\Requests\StoreFlowspecMessageRequest;
 use App\Jobs\GenerateFlowspecReply;
 use App\Models\FlowspecChat;
+use App\View\Components\Flowspec\ContextPanel;
 use App\View\Components\Flowspec\Thread;
 use Illuminate\Validation\ValidationException;
 
 class FlowspecMessageController extends Controller
 {
-    public function store(StoreFlowspecMessageRequest $request, FlowspecChat $chat, NormalizeReferenceFlowspec $normalize)
+    public function store(StoreFlowspecMessageRequest $request, FlowspecChat $chat)
     {
         // One pending turn at a time: the composer stays enabled during
         // "generating…" (it lives outside the thread slot), so the server
@@ -25,16 +25,9 @@ class FlowspecMessageController extends Controller
             ]);
         }
 
-        $reference = $request->referenceFlowspec();
-
         $message = $chat->messages()->create([
             'role'    => 'user',
             'content' => $request->validated('message'),
-            'meta'    => [
-                'solution_ids'       => $request->solutionIds(),
-                'document_refs'      => $request->documentRefs(),
-                'reference_flowspec' => $reference ? $normalize->handle($reference) : null,
-            ],
         ]);
 
         $chat->touch();
@@ -42,15 +35,15 @@ class FlowspecMessageController extends Controller
         GenerateFlowspecReply::dispatch($message);
 
         return response()->json([
-            'updatableSlots' => [Thread::slot($chat)],
-            // Clears the composer — the thread (with "generating…") is already
-            // back in the slot. Also resets the context chips and the composer
-            // attachment UI (reference pill/panel, textarea height): the
-            // composer lives outside the slot and its attachments only apply to
-            // this message; without clearing, the same system/document/reference
-            // would be resent on every following message.
-            'js' => "document.dispatchEvent(new CustomEvent('ak:chips-reset', {detail: {names: ['solutions', 'documents']}}));"
-                . "document.dispatchEvent(new CustomEvent('ak:flowspec-composer-reset', {detail: {formId: 'flowspec-message-form'}}));",
+            // The context panel comes back too, not because the attachments
+            // changed but because the METER did: a new turn grows the history,
+            // which is the one context line that moves on its own.
+            'updatableSlots' => [Thread::slot($chat), ContextPanel::slot($chat)],
+            // Clears only the textarea. The conversation's context deliberately
+            // survives the send — it belongs to the chat now, and resetting it
+            // is what used to make the second question in a thread lose the
+            // documentation the first was answered with.
+            'js' => "document.dispatchEvent(new CustomEvent('ak:flowspec-composer-reset', {detail: {formId: 'flowspec-message-form'}}));",
         ]);
     }
 }

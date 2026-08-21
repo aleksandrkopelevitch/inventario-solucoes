@@ -1,12 +1,12 @@
 <?php
 
 use App\Actions\Cati\IngestSubmissionSource;
-use App\Enums\SubmissionSourceExtraction;
+use App\Enums\ContextExtractionState;
 use App\Enums\SubmissionSourceKind;
 use App\Models\Submission;
-use App\Support\Cati\PptxTextExtractor;
-use App\Support\Cati\SensitiveTextScanner;
-use App\Support\Cati\SourceTextExtractor;
+use App\Support\Context\PptxTextExtractor;
+use App\Support\Context\SensitiveTextScanner;
+use App\Support\Context\SourceTextExtractor;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -194,7 +194,7 @@ it('marks a deck as read with slide markers for provenance', function () {
 
     $extracted = app(SourceTextExtractor::class)->extract($path, 'pptx');
 
-    expect($extracted->state)->toBe(SubmissionSourceExtraction::Done)
+    expect($extracted->state)->toBe(ContextExtractionState::Done)
         ->and($extracted->text)->toContain('## Slide 1')
         ->and($extracted->text)->toContain('## Slide 2')
         ->and($extracted->text)->toContain('Notas do apresentador:')
@@ -208,7 +208,7 @@ it('skips a pdf instead of failing on it', function () {
     // that are working fine.
     $extracted = app(SourceTextExtractor::class)->extract('/dev/null', 'pdf');
 
-    expect($extracted->state)->toBe(SubmissionSourceExtraction::Skipped)
+    expect($extracted->state)->toBe(ContextExtractionState::Skipped)
         ->and($extracted->text)->toBeNull()
         ->and($extracted->note)->toContain('anexo nativo');
 });
@@ -219,7 +219,7 @@ it('fails a corrupt office file without throwing', function () {
 
     $extracted = app(SourceTextExtractor::class)->extract($path, 'pptx');
 
-    expect($extracted->state)->toBe(SubmissionSourceExtraction::Failed)
+    expect($extracted->state)->toBe(ContextExtractionState::Failed)
         ->and($extracted->note)->toContain('Não foi possível ler');
 });
 
@@ -273,7 +273,7 @@ it('ingests an uploaded deck as a source with its text and provenance', function
 
     expect($source->kind)->toBe(SubmissionSourceKind::Upload)
         ->and($source->label)->toBe('CATI_SKBridge.pptx')
-        ->and($source->extraction_state)->toBe(SubmissionSourceExtraction::Done)
+        ->and($source->extraction_state)->toBe(ContextExtractionState::Done)
         ->and($source->hasText())->toBeTrue()
         ->and($source->extracted_text)->toContain('CATI SKBridge')
         ->and($source->sensitive_findings)->toBeNull()
@@ -295,7 +295,7 @@ it('keeps the upload even when the file cannot be read', function () {
 
     // The row exists so the user can see what happened, rather than the file
     // silently not being there.
-    expect($source->extraction_state)->toBe(SubmissionSourceExtraction::Failed)
+    expect($source->extraction_state)->toBe(ContextExtractionState::Failed)
         ->and($source->media_id)->not->toBeNull()
         ->and($source->hasText())->toBeFalse();
 });

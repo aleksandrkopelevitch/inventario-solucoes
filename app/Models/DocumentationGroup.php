@@ -34,6 +34,17 @@ class DocumentationGroup extends Model
     }
 
     /**
+     * Only pages with actual content — the same scope Solution carries, and for
+     * the same reason: a page with an empty body is a heading with nothing
+     * under it wherever documentation is listed to be chosen from (the flowSpec
+     * context picker) or counted as coverage.
+     */
+    public function documentedPages(): MorphMany
+    {
+        return $this->pages()->whereNotNull('documentation')->where('documentation', '<>', '');
+    }
+
+    /**
      * No real FK to cascade (container is polymorphic) — deletes each page
      * through its own model, so it also triggers media cleanup (Spatie hooks
      * into DocumentationPage's `deleting`).

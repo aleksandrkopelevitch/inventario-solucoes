@@ -18,7 +18,7 @@
                     <x-heroicon-o-cpu-chip class="size-6" />
                 </div>
                 <h1 class="font-display text-[26px] font-semibold leading-tight text-ink">Gerar um flowSpec</h1>
-                <p class="mt-1.5 max-w-lg text-sm text-muted">Descreva a integração e gere um pipeline Digibee pronto para colar no canvas, com base na documentação do inventário. Cite os sistemas pelo nome (SVL, IAM…) — use <x-heroicon-o-paper-clip class="inline size-4 align-text-bottom" /> para anexar documentação específica ou um flowSpec de referência.</p>
+                <p class="mt-1.5 max-w-lg text-sm text-muted">Descreva a integração e gere um pipeline Digibee pronto para colar no canvas. Use <x-heroicon-o-paper-clip class="inline size-4 align-text-bottom" /> para anexar a documentação do inventário ou um arquivo seu — texto longo colado na caixa também vira anexo. O que estiver anexado vale para toda a conversa.</p>
             </div>
 
             {{-- Composer — pinned to the bottom, full width --}}
@@ -27,7 +27,6 @@
                     formId="flowspec-new-chat-form"
                     :action="route('flowspec.store')"
                     messageId="flowspec-new-message"
-                    referenceId="flowspec-new-reference"
                     submitLabel="Gerar flowSpec"
                     placeholder="Ex.: com base na documentação do SVL e do IAM, crie um flowSpec que receba o colaborador, gerencie cache de token JWT por 30 min e faça POST no SVL." />
             </div>

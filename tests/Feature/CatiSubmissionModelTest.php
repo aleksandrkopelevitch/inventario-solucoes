@@ -2,7 +2,7 @@
 
 use App\Enums\SubmissionSectionKey;
 use App\Enums\SubmissionSectionState;
-use App\Enums\SubmissionSourceExtraction;
+use App\Enums\ContextExtractionState;
 use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Models\CatiExample;
@@ -152,7 +152,7 @@ it('reports a skipped extraction as attachable, not as text', function () {
 
     expect($withText->hasText())->toBeTrue()
         ->and($skipped->hasText())->toBeFalse()
-        ->and($skipped->extraction_state)->toBe(SubmissionSourceExtraction::Skipped);
+        ->and($skipped->extraction_state)->toBe(ContextExtractionState::Skipped);
 });
 
 it('counts a chat as awaiting a reply only inside the stall window', function () {

@@ -20,7 +20,7 @@
                     formId="flowspec-message-form"
                     :action="route('flowspec.messages.store', $chat)"
                     messageId="flowspec-message-input"
-                    referenceId="flowspec-reference-input"
+                    :chat="$chat"
                     submitLabel="Enviar"
                     placeholder="Peça um ajuste no flowSpec ou descreva a próxima geração…" />
             </div>
