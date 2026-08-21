@@ -135,3 +135,19 @@ PT-BR and minified JSON, both of which tokenize worse than the familiar English
   plain `new FormData(form)` in `ajax-post.js` carry them with the first message
   — no custom submit path. Clear the input after an immediate upload on an
   existing chat, or the next message re-sends the same bytes.
+- **A multi-file pick uploads one file at a time, awaited.** The ceiling is
+  enforced per REQUEST, against the conversation as it stands when that request
+  is validated, so N parallel uploads are each measured against the state before
+  any of them landed — files that individually fit collectively blow a limit all
+  of them passed, and the last response repaints the panel from a snapshot taken
+  before its siblings committed. Batching them into one `files[]` body would be
+  atomic but exceeds `post_max_size` long before `max:20480` per file does, so
+  the fix is the `for…of` with `await` in `attachFiles()`, not a batch.
+- **`withValidator`'s `after` callback sees RAW input, not a validated set.**
+  `Validator::passes()` fires those callbacks unconditionally — the rules above
+  them having already failed does not skip them. So `count($this->input('documents'))`
+  in `guardContextCount()` met a `documents=page:1` scalar the `array` rule had
+  just rejected and threw a TypeError: a 500 out of a request whose 422 was
+  already written. Count through the same parsers the controller attaches with
+  (`documentRefs()`/`pastedTexts()`/`uploadedFiles()`), which ignore anything
+  that isn't the shape they expect.

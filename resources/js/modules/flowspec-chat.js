@@ -183,6 +183,10 @@ function pillHtml(label, key, inputs) {
  * One entry point for both kinds of context and both destinations. `payload` is
  * whatever the attach endpoint accepts (`file`, `text`+`label`, `documents[]`);
  * `stage` describes the same thing for the staged list.
+ *
+ * Resolves to whether the context is now there, so a caller attaching several
+ * things in a row can stop at the first refusal instead of firing the rest at
+ * a server that has already said no.
  */
 async function addContext(form, { payload, stage }) {
     const config = configOf(form)
@@ -204,7 +208,7 @@ async function addContext(form, { payload, stage }) {
 
         renderStaged(form)
         syncStagedFiles(form)
-        return
+        return true
     }
 
     // No `_token` in the body: ajax.js sends the CSRF token as a header.
@@ -219,6 +223,8 @@ async function addContext(form, { payload, stage }) {
         const data = await response.json()
         updateSlots(data)
         if (data.message) Toast.open({ content: data.message, type: data.type || 'success' })
+
+        return true
     } catch (error) {
         let message = 'Não foi possível anexar.'
         if (error.response) {
@@ -229,15 +235,36 @@ async function addContext(form, { payload, stage }) {
             }
         }
         Toast.show(message, 'warning')
+
+        return false
     }
 }
 
-function attachFiles(form, files) {
-    if (!files.length || contextIsFull(form)) return
+/**
+ * One file at a time, awaited — never a request per file fired at once.
+ *
+ * The context ceiling is enforced per REQUEST (GuardsFlowspecContext), against
+ * the conversation as it stands when that request is validated. Firing the
+ * whole selection in parallel means every one of them is measured against the
+ * state before ANY of them landed, so files that each fit can collectively
+ * blow a limit all of them passed — and the last response to arrive repaints
+ * the context panel from a snapshot taken before its siblings committed.
+ *
+ * Batching them into a single `files[]` request would also make the check
+ * atomic, but it puts the whole selection in one body: `post_max_size` is well
+ * below what `max:20480` per file allows, so a multi-file pick would start
+ * failing as a truncated request instead of as an honest 422.
+ */
+async function attachFiles(form, files) {
+    const selection = Array.from(files)
+    if (!selection.length || contextIsFull(form)) return
 
-    Array.from(files).forEach((file) => {
-        addContext(form, { payload: { file }, stage: { kind: 'file', file } })
-    })
+    for (const file of selection) {
+        // Stops at the first refusal: once the server has said the context is
+        // full, the remaining files would each earn their own identical Toast.
+        const attached = await addContext(form, { payload: { file }, stage: { kind: 'file', file } })
+        if (!attached) return
+    }
 }
 
 function attachText(form, content, label) {
@@ -360,11 +387,15 @@ document.addEventListener('change', (e) => {
 
         attachFiles(form, fileInput.files)
 
-        // With a conversation the files uploaded right away, so the input has
+        // With a conversation the files upload right away, so the input has
         // done its job and must be emptied — otherwise the next message would
         // resend the same bytes to an endpoint that ignores them. With no
         // conversation the input IS the staging area, and syncStagedFiles() owns
         // its contents, so clearing it here would throw the selection away.
+        //
+        // Safe to clear while attachFiles() is still uploading: it copies the
+        // FileList before its first `await`, and the File objects it kept stay
+        // readable after the input that produced them is emptied.
         if (configOf(form).chatId) fileInput.value = ''
         return
     }

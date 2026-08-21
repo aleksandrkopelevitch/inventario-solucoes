@@ -267,3 +267,61 @@ it('reports the estimated context and any trim in the message meta', function ()
     expect($context->toMeta())
         ->toHaveKeys(['pages', 'integration_docs', 'text_docs', 'reference_flowspecs', 'attached_files', 'omitted_attachments']);
 });
+
+/*
+|--------------------------------------------------------------------------
+| Malformed context input
+|--------------------------------------------------------------------------
+|
+| The count guard runs in `withValidator`'s `after` callback, and Laravel fires
+| those even when the rules above them already failed — so it reads RAW input,
+| not a validated set. Counting it with `count()` therefore died on any scalar
+| where an array was declared: a 500 out of a request the validator had already
+| written a 422 for.
+|
+*/
+
+it('answers a scalar where an array was declared with a 422, never a 500', function () {
+    $user = User::factory()->create();
+    $chat = FlowspecChat::factory()->for($user)->create();
+
+    foreach ([['documents' => 'page:1'], ['texts' => 'não é array'], ['files' => 'nem isso']] as $payload) {
+        $this->actingAs($user)
+            ->postJson(route('flowspec.attachments.store', $chat), $payload)
+            ->assertStatus(422)
+            ->assertJson(['type' => 'warning']);
+    }
+
+    expect($chat->attachments()->count())->toBe(0);
+});
+
+it('does the same on the endpoint that opens a conversation', function () {
+    Queue::fake();
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->postJson(route('flowspec.store'), ['message' => 'gera aí', 'documents' => 'page:1'])
+        ->assertStatus(422);
+
+    expect(FlowspecChat::query()->count())->toBe(0);
+    Queue::assertNotPushed(App\Jobs\GenerateFlowspecReply::class);
+});
+
+it('still counts both shapes of the same input against the attachment cap', function () {
+    // `text`/`file` (one at a time) and `texts[]`/`files[]` (the staged new-chat
+    // composer) are the same thing arriving two ways — the cap has to see both,
+    // which is why the count goes through the same parsers the controller
+    // attaches with instead of reading the raw keys.
+    config()->set('services.flowspec.max_attachments', 2);
+
+    $user = User::factory()->create();
+    $chat = FlowspecChat::factory()->for($user)->create();
+
+    $response = $this->actingAs($user)->postJson(route('flowspec.attachments.store', $chat), [
+        'text'  => 'primeiro texto',
+        'texts' => [['content' => 'segundo texto'], ['content' => 'terceiro texto']],
+    ])->assertStatus(422);
+
+    expect($response->json('message'))->toContain('máximo de 2 itens')
+        ->and($chat->attachments()->count())->toBe(0);
+});

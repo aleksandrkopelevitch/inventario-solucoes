@@ -98,17 +98,23 @@ trait GuardsFlowspecContext
      * Also bounds the COUNT, independent of size: a hundred one-line pastes
      * costs little in tokens but makes every following turn's context list and
      * prompt assembly needlessly heavy.
+     *
+     * Counted through the same three parsers the controller attaches with, and
+     * for a reason beyond symmetry: an `after` callback runs even when the
+     * rules above it already failed (`Validator::passes()` fires them
+     * unconditionally), so this code sees RAW input. `count($this->input(...))`
+     * on a `documents=page:1` scalar — which the `array` rule has already
+     * rejected — is a TypeError, i.e. a 500 where the 422 was already written.
+     * The parsers each ignore anything that isn't the shape they expect.
      */
     protected function guardContextCount(Validator $validator, ?FlowspecChat $chat): void
     {
         $validator->after(function (Validator $validator) use ($chat) {
             $max = (int) config('services.flowspec.max_attachments');
             $existing = $chat?->attachments()->count() ?? 0;
-            $incoming = count($this->input('documents', []))
-                + count($this->input('texts', []))
-                + count($this->allFiles()['files'] ?? [])
-                + (int) $this->hasFile('file')
-                + (int) filled($this->input('text'));
+            $incoming = count($this->documentRefs())
+                + count($this->pastedTexts())
+                + count($this->uploadedFiles());
 
             if ($existing + $incoming > $max) {
                 $validator->errors()->add(
