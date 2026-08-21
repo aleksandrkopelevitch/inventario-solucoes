@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Cati\IngestSubmissionSource;
-use App\Enums\SubmissionSourceExtraction;
+use App\Enums\ContextExtractionState;
 use App\Enums\SubmissionSourceKind;
 use App\Http\Requests\StoreSubmissionSourceRequest;
 use App\Models\Submission;
@@ -26,7 +26,7 @@ class SubmissionSourceController extends Controller
                 // A link isn't fetched server-side — doing so would be an SSRF
                 // surface for no gain here, since the person can paste the text
                 // if they want it read.
-                'extraction_state' => SubmissionSourceExtraction::Skipped,
+                'extraction_state' => ContextExtractionState::Skipped,
                 'extraction_note'  => 'Link registrado como referência; o conteúdo não é baixado.',
             ]);
 

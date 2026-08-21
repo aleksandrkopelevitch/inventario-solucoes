@@ -7,20 +7,33 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
 
 /**
  * An Especialista em Integrações (F8) conversation: a thread of user prompts
- * and the assistant's generated Digibee flowSpec replies.
+ * and the assistant's generated Digibee flowSpec replies, plus the context
+ * attached to it (FlowspecAttachment — chat-scoped, not message-scoped).
  */
-class FlowspecChat extends Model
+class FlowspecChat extends Model implements HasMedia
 {
     /** @use HasFactory<FlowspecChatFactory> */
-    use HasFactory;
+    use HasFactory, InteractsWithMedia;
+
+    /** Files the user uploaded as context for this conversation. */
+    public const ATTACHMENTS_COLLECTION = 'flowspec_attachments';
 
     protected $fillable = [
         'user_id',
         'title',
     ];
+
+    public function registerMediaCollections(): void
+    {
+        // No conversions: these files are read (text extraction) or handed to
+        // the model as native attachments, never displayed as thumbnails.
+        $this->addMediaCollection(self::ATTACHMENTS_COLLECTION);
+    }
 
     public function user(): BelongsTo
     {
@@ -30,6 +43,16 @@ class FlowspecChat extends Model
     public function messages(): HasMany
     {
         return $this->hasMany(FlowspecMessage::class)->orderBy('id');
+    }
+
+    /**
+     * The conversation's context. Ordered by id so the prompt sees them in the
+     * order they were attached, which is also the order the composer lists them
+     * in — a person reasoning about "why did it answer that" reads one list.
+     */
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(FlowspecAttachment::class)->orderBy('id');
     }
 
     /**

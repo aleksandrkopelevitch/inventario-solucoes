@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Enums\SubmissionSourceExtraction;
+use App\Enums\ContextExtractionState;
 use App\Enums\SubmissionSourceKind;
 use Database\Factories\SubmissionSourceFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -41,7 +41,7 @@ class SubmissionSource extends Model
     {
         return [
             'kind'               => SubmissionSourceKind::class,
-            'extraction_state'   => SubmissionSourceExtraction::class,
+            'extraction_state'   => ContextExtractionState::class,
             'sensitive_findings' => 'array',
         ];
     }
@@ -71,6 +71,6 @@ class SubmissionSource extends Model
     /** Text is available to inline into a prompt (as opposed to riding along as a native attachment). */
     public function hasText(): bool
     {
-        return $this->extraction_state === SubmissionSourceExtraction::Done && filled($this->extracted_text);
+        return $this->extraction_state === ContextExtractionState::Done && filled($this->extracted_text);
     }
 }

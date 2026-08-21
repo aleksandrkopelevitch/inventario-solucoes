@@ -2,7 +2,7 @@
 
 namespace Database\Factories;
 
-use App\Enums\SubmissionSourceExtraction;
+use App\Enums\ContextExtractionState;
 use App\Enums\SubmissionSourceKind;
 use App\Models\Submission;
 use App\Models\SubmissionSource;
@@ -25,7 +25,7 @@ class SubmissionSourceFactory extends Factory
             'url'              => null,
             'media_id'         => null,
             'extracted_text'   => 'Slide 1: Título' . PHP_EOL . 'Slide 2: Propósito',
-            'extraction_state' => SubmissionSourceExtraction::Done,
+            'extraction_state' => ContextExtractionState::Done,
             'extraction_note'  => null,
         ];
     }
@@ -36,7 +36,7 @@ class SubmissionSourceFactory extends Factory
         return $this->state(fn () => [
             'label'            => 'arquitetura.pdf',
             'extracted_text'   => null,
-            'extraction_state' => SubmissionSourceExtraction::Skipped,
+            'extraction_state' => ContextExtractionState::Skipped,
             'extraction_note'  => 'PDF vai como anexo nativo para o modelo.',
         ]);
     }
@@ -48,7 +48,7 @@ class SubmissionSourceFactory extends Factory
             'label'            => 'Wiki do CATI',
             'url'              => $url,
             'extracted_text'   => null,
-            'extraction_state' => SubmissionSourceExtraction::Skipped,
+            'extraction_state' => ContextExtractionState::Skipped,
         ]);
     }
 }

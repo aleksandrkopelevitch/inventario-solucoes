@@ -7,6 +7,7 @@ use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\DocumentationGroupController;
 use App\Http\Controllers\DocumentationGroupPageController;
 use App\Http\Controllers\DocumentationHubController;
+use App\Http\Controllers\FlowspecAttachmentController;
 use App\Http\Controllers\FlowspecChatController;
 use App\Http\Controllers\FlowspecExampleController;
 use App\Http\Controllers\FlowspecGuidelineController;
@@ -287,6 +288,17 @@ Route::middleware('auth')->group(function () {
     Route::post('flowspec', [FlowspecChatController::class, 'store'])->name('flowspec.store');
     Route::get('flowspec/documents/search', [FlowspecChatController::class, 'searchDocuments'])->name('flowspec.documents.search');
 
+    // Suggestions for the text being typed — the replacement for the automatic
+    // documentation injection this module used to do (see
+    // FlowspecChatController::suggestDocuments). Static, and NOT nested under
+    // `{chat}`: the new-chat composer needs it before a chat exists, so the chat
+    // arrives as an authorized `?chat=` parameter instead.
+    Route::get('flowspec/documents/suggest', [FlowspecChatController::class, 'suggestDocuments'])->name('flowspec.documents.suggest');
+
+    // The picker panel, for the same reason: one panel serves the new-chat
+    // screen and an open conversation.
+    Route::get('flowspec/attachments/picker', [FlowspecAttachmentController::class, 'picker'])->name('flowspec.attachments.picker');
+
     // Corpus curation (admin) — manage the flowSpec reference base directly,
     // in a modal (FlowspecExampleController). Static paths must precede the
     // `flowspec/{chat}` catch-all below, like documents/search above.
@@ -360,6 +372,14 @@ Route::middleware('auth')->group(function () {
 
     Route::get('flowspec/{chat}/status', [FlowspecChatController::class, 'status'])->name('flowspec.status');
     Route::post('flowspec/{chat}/messages', [FlowspecMessageController::class, 'store'])->name('flowspec.messages.store');
+    Route::post('flowspec/{chat}/attachments', [FlowspecAttachmentController::class, 'store'])->name('flowspec.attachments.store');
+
+    // Scoped: without it, DELETE flowspec/{a}/attachments/{attachment} would
+    // detach context belonging to conversation {b} — including another user's,
+    // since the policy is checked against {a}.
+    Route::scopeBindings()->group(function () {
+        Route::delete('flowspec/{chat}/attachments/{attachment}', [FlowspecAttachmentController::class, 'destroy'])->name('flowspec.attachments.destroy');
+    });
 
     // Documentation Hub — cross-cutting view of what's documented (solutions +
     // integrations) and what's missing. Replaces the old coverage panel.

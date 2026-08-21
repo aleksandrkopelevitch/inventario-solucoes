@@ -34,7 +34,7 @@ return new class extends Migration
             $table->string('extraction_state')->default('pending');
             $table->string('extraction_note')->nullable();
             // Likely credentials spotted in the extracted text. Flagged, never
-            // removed — see App\Support\Cati\SensitiveTextScanner.
+            // removed — see App\Support\Context\SensitiveTextScanner.
             $table->json('sensitive_findings')->nullable();
             $table->timestamps();
         });

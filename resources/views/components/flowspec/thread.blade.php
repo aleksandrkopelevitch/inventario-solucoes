@@ -44,23 +44,40 @@
                     <div @class(['ak-flowspec-md text-sm', 'text-crit' => $failed, 'text-ink' => ! $failed])>{!! $rendered[$message->id]['content'] !!}</div>
                 @endif
 
-                {{-- Botões de "adicionar documentação" — só numa resposta conversacional
-                     (FlowspecGenerationService::suggestedDocuments()). Cada botão reusa a
-                     mesma referência `type:id` do chips picker "Documentos específicos":
-                     o clique (chips.js, `data-ak-chips-add`) adiciona direto no campo
-                     `documents` do composer, sem o usuário precisar buscar na mão. --}}
+                {{-- Botões de "adicionar ao contexto" — só numa resposta conversacional
+                     (FlowspecGenerationService::suggestedDocuments()). Isto é o que
+                     substituiu a injeção automática de documentação: o modelo cita o
+                     sistema pelo nome, a busca no catálogo acha as páginas reais, e o
+                     clique (flowspec-chat.js, `data-ak-fs-suggest-add`) anexa direto ao
+                     contexto DA CONVERSA — vale para todas as mensagens seguintes, não
+                     só para a próxima. --}}
                 @if (($meta['suggested_documents'] ?? []) !== [])
                     <div class="mt-3 rounded-field border border-line bg-canvas p-3">
-                        <p class="text-xs font-medium text-ink">Notei que a documentação de outros sistemas pode ajudar — adicionar ao contexto?</p>
+                        <p class="text-xs font-medium text-ink">Notei que a documentação de outros sistemas pode ajudar — anexar ao contexto desta conversa?</p>
                         <div class="mt-2 flex flex-wrap gap-1.5">
                             @foreach ($meta['suggested_documents'] as $doc)
                                 <x-forms.button type="button" variant="glass" class="!px-2.5 !py-1 !text-xs"
-                                    data-ak-chips-add="{{ json_encode(['name' => 'documents', 'value' => $doc['type'] . ':' . $doc['id'], 'label' => $doc['label']]) }}">
+                                    data-ak-fs-suggest-add="{{ json_encode(['ref' => $doc['type'] . ':' . $doc['id'], 'label' => $doc['label']]) }}">
                                     <x-heroicon-o-plus class="size-3.5" /> {{ $doc['label'] }}
                                 </x-forms.button>
                             @endforeach
                         </div>
                     </div>
+                @endif
+
+                {{-- Histórico aparado — o contexto anexado nunca é cortado em silêncio
+                     (o servidor recusa anexo que não cabe), mas a conversa cresce sozinha
+                     e o mais antigo sai. Dizer isso é obrigatório: um chat que esqueceu o
+                     próprio começo sem avisar parece o modelo se perdendo. --}}
+                @if (($meta['history_trimmed'] ?? 0) > 0)
+                    <p class="mt-3 flex items-start gap-1.5 rounded-field border border-line bg-canvas px-3 py-2 text-xs text-muted">
+                        <x-heroicon-o-scissors class="mt-0.5 size-3.5 shrink-0" />
+                        <span>
+                            As {{ $meta['history_trimmed'] }} mensagens mais antigas desta conversa ficaram de fora deste pedido
+                            para caber no limite de contexto. Se o começo dela ainda importa, anexe a documentação
+                            correspondente ou abra uma conversa nova.
+                        </span>
+                    </p>
                 @endif
 
                 @if ($message->flow_spec !== null)
@@ -90,21 +107,27 @@
                             <summary class="cursor-pointer text-xs font-medium text-muted hover:text-ink">Contexto usado (debug)</summary>
                             <dl class="mt-2 flex flex-col gap-2 rounded-field border border-line bg-canvas p-3 text-xs text-body">
                                 <div>
-                                    <dt class="font-medium text-muted">Solutions consideradas</dt>
-                                    <dd>{{ ($meta['solutions'] ?? []) !== [] ? implode(', ', $meta['solutions']) : '—' }}</dd>
-                                </div>
-                                <div>
-                                    <dt class="font-medium text-muted">Páginas de documentação usadas</dt>
+                                    <dt class="font-medium text-muted">Páginas de documentação anexadas</dt>
                                     <dd>{{ ($meta['pages'] ?? []) !== [] ? implode(', ', $meta['pages']) : '—' }}</dd>
                                 </div>
                                 <div>
-                                    <dt class="font-medium text-muted">Documentação de integrações usada</dt>
+                                    <dt class="font-medium text-muted">Documentação de integrações anexada</dt>
                                     <dd>{{ ($meta['integration_docs'] ?? []) !== [] ? implode(', ', $meta['integration_docs']) : '—' }}</dd>
                                 </div>
-                                @if (($meta['omitted_documents'] ?? []) !== [])
+                                <div>
+                                    <dt class="font-medium text-muted">Textos e arquivos anexados</dt>
+                                    <dd>{{ array_merge($meta['text_docs'] ?? [], $meta['attached_files'] ?? []) !== [] ? implode(', ', array_merge($meta['text_docs'] ?? [], $meta['attached_files'] ?? [])) : '—' }}</dd>
+                                </div>
+                                @if (($meta['reference_flowspecs'] ?? 0) > 0)
                                     <div>
-                                        <dt class="font-medium text-muted">Documentos omitidos (orçamento de contexto)</dt>
-                                        <dd>{{ implode(', ', $meta['omitted_documents']) }}</dd>
+                                        <dt class="font-medium text-muted">flowSpecs de referência colados</dt>
+                                        <dd>{{ $meta['reference_flowspecs'] }}</dd>
+                                    </div>
+                                @endif
+                                @if (($meta['omitted_attachments'] ?? []) !== [])
+                                    <div>
+                                        <dt class="font-medium text-muted">Anexos omitidos (limite de bytes da requisição)</dt>
+                                        <dd>{{ implode(', ', $meta['omitted_attachments']) }}</dd>
                                     </div>
                                 @endif
                                 <div>
@@ -122,6 +145,10 @@
                                 <div>
                                     <dt class="font-medium text-muted">Tokens</dt>
                                     <dd>{{ $meta['tokens']['prompt'] ?? 0 }} prompt / {{ $meta['tokens']['completion'] ?? 0 }} completion</dd>
+                                </div>
+                                <div>
+                                    <dt class="font-medium text-muted">Contexto estimado no envio</dt>
+                                    <dd>{{ number_format($meta['context_tokens'] ?? 0, 0, ',', '.') }} tokens{{ ($meta['history_trimmed'] ?? 0) > 0 ? ' · ' . $meta['history_trimmed'] . ' mensagens aparadas' : '' }}</dd>
                                 </div>
                             </dl>
                         </details>

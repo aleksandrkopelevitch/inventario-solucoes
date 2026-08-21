@@ -10,7 +10,7 @@ use App\Models\Solution;
 use App\Models\Submission;
 use App\Support\Cati\DeckSpecValidator;
 use App\Support\Cati\MarkdownToBlocks;
-use App\Support\Cati\PptxTextExtractor;
+use App\Support\Context\PptxTextExtractor;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;

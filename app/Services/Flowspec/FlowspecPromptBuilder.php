@@ -7,6 +7,7 @@ use App\Models\FlowspecExample;
 use App\Models\FlowspecGuideline;
 use App\Models\FlowspecMessage;
 use App\Models\Integration;
+use App\Support\Context\TokenEstimator;
 use Illuminate\Support\Collection;
 
 /**
@@ -16,8 +17,14 @@ use Illuminate\Support\Collection;
  * branches, closed catalog, secrets only via account/global), plus any
  * admin-curated FlowspecGuideline documents (always included, in full —
  * unlike the tag-selected FlowspecExample corpus); the user prompt joins the
- * catalog, corpus examples, trimmed documentation, chat history and the
- * request.
+ * corpus examples, the documentation and material attached to the conversation,
+ * any pasted reference pipeline, the chat history and the request.
+ *
+ * The history is the only section with a ceiling here. Everything else was
+ * already bounded when it was attached (FlowspecContextBudget refuses context
+ * that wouldn't fit), so it goes in whole — but a conversation grows on its own
+ * and can't be refused, so its oldest turns are dropped instead, and the count
+ * is reported back so the UI can say so.
  */
 class FlowspecPromptBuilder
 {
@@ -85,18 +92,31 @@ class FlowspecPromptBuilder
         return FlowspecGuideline::query()->active()->orderBy('title')->get();
     }
 
-    /** @param Collection<int, FlowspecMessage> $history */
-    public function userPrompt(FlowspecContext $context, string $request, Collection $history, ?string $referenceFlowspec = null): string
+    /**
+     * @param  Collection<int, FlowspecMessage>  $history
+     * @param  int  $historyAllowanceTokens  what the conversation history may
+     *                                       cost on this turn — whatever the
+     *                                       context limit has left after the
+     *                                       fixed prompt and the attached
+     *                                       context (FlowspecContextUsage).
+     *                                       0 or less means "no ceiling", the
+     *                                       shape every caller that doesn't
+     *                                       budget passes.
+     */
+    public function userPrompt(FlowspecContext $context, string $request, Collection $history, int $historyAllowanceTokens = 0): FlowspecPrompt
     {
+        [$historySection, $trimmed] = $this->historySection($history, $historyAllowanceTokens);
+
         $sections = array_filter([
             $this->examplesSection($context->examples),
             $this->documentationSection($context),
-            $this->referenceFlowspecSection($referenceFlowspec),
-            $this->historySection($history),
+            $this->materialSection($context),
+            $this->referenceFlowspecSection($context->referenceFlowspecs),
+            $historySection,
             "# PEDIDO\n\n{$request}",
         ]);
 
-        return implode("\n\n---\n\n", $sections);
+        return new FlowspecPrompt(implode("\n\n---\n\n", $sections), $trimmed);
     }
 
     /**
@@ -150,20 +170,66 @@ class FlowspecPromptBuilder
     }
 
     /**
-     * The pipeline the user pasted as the base for this request — already
+     * Pipelines the user pasted as the base for the conversation — already
      * minified with the canvas `meta` stripped (NormalizeReferenceFlowspec).
-     * Placed as reference material before the request itself, like the docs
-     * and examples above it.
+     * Placed as reference material before the request itself, like the docs and
+     * examples above it.
+     *
+     * A Collection, not a single string: these are text attachments on the
+     * chat now (see AttachFlowspecText), and a conversation can legitimately
+     * carry two pipelines — "junte esses dois fluxos" is a normal request.
+     *
+     * @param  Collection<int, string>  $referenceFlowspecs
      */
-    private function referenceFlowspecSection(?string $referenceFlowspec): string
+    private function referenceFlowspecSection(Collection $referenceFlowspecs): string
     {
-        if ($referenceFlowspec === null || $referenceFlowspec === '') {
+        if ($referenceFlowspecs->isEmpty()) {
             return '';
         }
 
+        $blocks = $referenceFlowspecs->values()->map(function (string $json, int $index) use ($referenceFlowspecs) {
+            $heading = $referenceFlowspecs->count() === 1 ? '' : '## Pipeline ' . ($index + 1) . "\n\n";
+
+            return $heading . $json;
+        });
+
         return "# FLOWSPEC DE REFERÊNCIA\n\n"
-            . "(pipeline anexado pelo usuário como base do pedido — ajuste/estenda sobre ele; gere UUIDs novos, não reaproveite os deste anexo)\n\n"
-            . $referenceFlowspec;
+            . "(pipeline(s) anexado(s) pelo usuário como base do pedido — ajuste/estenda sobre eles; gere UUIDs novos, não reaproveite os destes anexos)\n\n"
+            . $blocks->implode("\n\n");
+    }
+
+    /**
+     * Material the user brought into the conversation: uploads read as text and
+     * long pastes. Files the model reads natively (PDF/image) are NOT here —
+     * they are handed to the API as attachments — but they are NAMED here, so
+     * the model knows what it is looking at and can cite it back the way it
+     * cites a documentation page.
+     */
+    private function materialSection(FlowspecContext $context): string
+    {
+        $blocks = $context->textDocs->map(
+            fn (array $doc) => "## {$doc['label']}\n\n{$doc['content']}"
+        );
+
+        $names = array_column($context->attachedMeta, 'name');
+
+        if ($blocks->isEmpty() && $names === []) {
+            return '';
+        }
+
+        $section = "# MATERIAL ANEXADO PELO USUÁRIO\n\n";
+
+        if ($names !== []) {
+            $section .= '(além do texto abaixo, estes arquivos vão anexados nesta mesma requisição e você os lê diretamente: '
+                . implode('; ', $names) . ")\n\n";
+        }
+
+        if ($context->omittedAttachments !== []) {
+            $section .= '(arquivos que não couberam no limite de anexos da requisição: '
+                . implode('; ', $context->omittedAttachments) . ")\n\n";
+        }
+
+        return $section . $blocks->implode("\n\n");
     }
 
     private function documentationSection(FlowspecContext $context): string
@@ -182,20 +248,16 @@ class FlowspecPromptBuilder
             return "## Integração: {$integration->name}\n\n{$integration->documentation}";
         });
 
-        $section = "# DOCUMENTAÇÃO DOS SISTEMAS ENVOLVIDOS\n\n" . $pageBlocks->merge($integrationBlocks)->implode("\n\n");
-
-        if ($context->omittedDocuments !== []) {
-            // `omittedDocuments` is a list of `{type, id, label}` refs (to
-            // become an "add" button in the chat) — here only the label goes
-            // into the prompt.
-            $section .= "\n\n(Documentos omitidos por orçamento de contexto: " . implode('; ', array_column($context->omittedDocuments, 'label')) . ')';
-        }
-
-        return $section;
+        // No "omitted by budget" note any more: nothing here was trimmed. The
+        // attach endpoints refuse documentation that wouldn't fit the context
+        // limit, so everything attached is everything sent — which is what
+        // makes the composer's meter trustworthy.
+        return "# DOCUMENTAÇÃO DOS SISTEMAS ENVOLVIDOS\n\n" . $pageBlocks->merge($integrationBlocks)->implode("\n\n");
     }
 
     /**
      * @param  Collection<int, FlowspecMessage>  $history
+     * @return array{string, int} the section, and how many oldest messages it dropped to fit
      *
      * Only the most recent flowSpec is re-embedded in full — earlier ones
      * collapse to a placeholder (`flow_spec` is what's checked; every
@@ -210,10 +272,10 @@ class FlowspecPromptBuilder
      * otherwise a chat with a few failed-then-retried turns bakes tens of KB
      * of dead JSON into every future prompt for the rest of its life.
      */
-    private function historySection(Collection $history): string
+    private function historySection(Collection $history, int $allowanceTokens = 0): array
     {
         if ($history->isEmpty()) {
-            return '';
+            return ['', 0];
         }
 
         $latestWithSpec = $history->last(fn (FlowspecMessage $message) => $message->flow_spec !== null);
@@ -231,9 +293,54 @@ class FlowspecPromptBuilder
             }
 
             return "**{$role}:** {$body}";
-        });
+        })->values();
 
-        return "# HISTÓRICO DA CONVERSA\n\n" . $blocks->implode("\n\n");
+        [$blocks, $trimmed] = $this->fitHistory($blocks, $allowanceTokens);
+
+        $section = "# HISTÓRICO DA CONVERSA\n\n";
+
+        if ($trimmed > 0) {
+            $section .= "({$trimmed} mensagem(ns) mais antiga(s) desta conversa foram omitidas para caber no limite de contexto — o usuário foi avisado disso na tela.)\n\n";
+        }
+
+        return [$section . $blocks->implode("\n\n"), $trimmed];
+    }
+
+    /**
+     * Drops the OLDEST messages until the history fits its allowance.
+     *
+     * Oldest-first because the recent turns are the ones the next answer has to
+     * be consistent with — including the flowSpec currently on the table. The
+     * newest block is always kept even when it alone blows the allowance: a
+     * request answered with no history at all is worse than one slightly over
+     * budget, and the alternative (refusing to answer) would lock someone out
+     * of their own conversation.
+     *
+     * @param  Collection<int, string>  $blocks
+     * @return array{Collection<int, string>, int}
+     */
+    private function fitHistory(Collection $blocks, int $allowanceTokens): array
+    {
+        if ($allowanceTokens <= 0) {
+            return [$blocks, 0];
+        }
+
+        $budget = TokenEstimator::charsFor($allowanceTokens);
+        $kept = [];
+        $used = 0;
+
+        foreach ($blocks->reverse() as $block) {
+            $size = mb_strlen($block);
+
+            if ($kept !== [] && $used + $size > $budget) {
+                break;
+            }
+
+            $used += $size;
+            $kept[] = $block;
+        }
+
+        return [collect(array_reverse($kept)), $blocks->count() - count($kept)];
     }
 
     private function tagList(FlowspecExample $example): string

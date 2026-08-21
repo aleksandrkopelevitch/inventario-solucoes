@@ -5,48 +5,62 @@ namespace App\Services\Flowspec;
 use App\Models\DocumentationPage;
 use App\Models\FlowspecExample;
 use App\Models\Integration;
-use App\Models\Solution;
 use Illuminate\Support\Collection;
 
 /**
- * Context material resolved for a flowSpec generation: the Solutions
- * considered, their documentation pages and the documentation of the
- * integrations they participate in (already trimmed to the budget — or,
- * when the request came with explicit `document_refs` from the chips picker,
- * exactly the documents chosen, with no scoring or trimming), the corpus
- * examples selected by tag, and the tags that drove the selection — everything
- * `FlowspecPromptBuilder` needs, plus the trail (`omittedDocuments`, `tags`,
- * examples used) that becomes the message's `meta`.
+ * The material one generation actually runs on — all of it attached to the
+ * conversation by hand, none of it inferred (see FlowspecContextResolver).
+ *
+ * `pages`/`integrationDocs` are inventory documentation read live from their
+ * references; `textDocs` and `attachments` are the material the user brought,
+ * split into what gets inlined and what the model reads natively;
+ * `referenceFlowspecs` are pasted pipelines, which earn their own prompt
+ * section. `omittedAttachments` and `tags` are the audit trail that becomes the
+ * message's `meta`.
  */
 final class FlowspecContext
 {
     /**
-     * @param  Collection<int, Solution>  $solutions
      * @param  Collection<int, DocumentationPage>  $pages
      * @param  Collection<int, Integration>  $integrationDocs  integrations with their own `documentation`
-     * @param  list<array{type: string, id: int, label: string}>  $omittedDocuments  trimmed by budget — full reference, not just the label, so they can become an "add" suggestion (see FlowspecGenerationService::suggestedDocuments())
+     * @param  Collection<int, array{label: string, content: string}>  $textDocs  uploads read as text + pasted text
+     * @param  Collection<int, string>  $referenceFlowspecs  pasted `{meta, flowSpec}` documents, already minified
+     * @param  list<object>  $attachments  Laravel\Ai LocalImage/LocalDocument handed to the model
+     * @param  list<array{id: int, name: string, kind: string}>  $attachedMeta
+     * @param  list<string>  $omittedAttachments  dropped by the aggregate byte ceiling, never silently
      * @param  Collection<int, FlowspecExample>  $examples
      * @param  list<string>  $tags  candidate tags derived from the request
      */
     public function __construct(
-        public readonly Collection $solutions,
         public readonly Collection $pages,
         public readonly Collection $integrationDocs,
-        public readonly array $omittedDocuments,
+        public readonly Collection $textDocs,
+        public readonly Collection $referenceFlowspecs,
+        public readonly array $attachments,
+        public readonly array $attachedMeta,
+        public readonly array $omittedAttachments,
         public readonly Collection $examples,
         public readonly array $tags,
     ) {}
+
+    /** Documentation from the inventory that this request is standing on. */
+    public function hasDocumentation(): bool
+    {
+        return $this->pages->isNotEmpty() || $this->integrationDocs->isNotEmpty();
+    }
 
     /** Auditable summary recorded in `flowspec_messages.meta`. */
     public function toMeta(): array
     {
         return [
-            'solutions'         => $this->solutions->pluck('name')->all(),
-            'pages'             => $this->pages->pluck('title')->all(),
-            'integration_docs'  => $this->integrationDocs->pluck('name')->all(),
-            'omitted_documents' => array_column($this->omittedDocuments, 'label'),
-            'examples'          => $this->examples->pluck('slug')->all(),
-            'tags'              => $this->tags,
+            'pages'               => $this->pages->pluck('title')->all(),
+            'integration_docs'    => $this->integrationDocs->pluck('name')->all(),
+            'text_docs'           => $this->textDocs->pluck('label')->all(),
+            'reference_flowspecs' => $this->referenceFlowspecs->count(),
+            'attached_files'      => array_column($this->attachedMeta, 'name'),
+            'omitted_attachments' => $this->omittedAttachments,
+            'examples'            => $this->examples->pluck('slug')->all(),
+            'tags'                => $this->tags,
         ];
     }
 }

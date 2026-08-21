@@ -1,6 +1,10 @@
 <?php
 
+use App\Models\DocumentationPage;
+use App\Models\FlowspecAttachment;
+use App\Models\FlowspecChat;
 use App\Models\Integration;
+use App\Services\Flowspec\FlowspecContext;
 use Tests\TestCase;
 
 /*
@@ -52,4 +56,29 @@ function attachParticipants(Integration $integration, array $participants): void
             : [],
     ];
     $integration->save();
+}
+
+/**
+ * A flowSpec context with nothing attached — what the prompt-builder tests need,
+ * since they exercise one section at a time rather than a resolved conversation.
+ */
+function emptyFlowspecContext(): FlowspecContext
+{
+    return new FlowspecContext(
+        pages: collect(),
+        integrationDocs: collect(),
+        textDocs: collect(),
+        referenceFlowspecs: collect(),
+        attachments: [],
+        attachedMeta: [],
+        omittedAttachments: [],
+        examples: collect(),
+        tags: [],
+    );
+}
+
+/** Attaches an inventory documentation page to a conversation's context. */
+function attachPage(FlowspecChat $chat, DocumentationPage $page): FlowspecAttachment
+{
+    return FlowspecAttachment::factory()->for($chat, 'chat')->document($page)->create();
 }
