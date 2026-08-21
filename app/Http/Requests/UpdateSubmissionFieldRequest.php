@@ -8,14 +8,18 @@ use Illuminate\Validation\Rule;
 
 /**
  * Updates ONE of a submission's own fields in place on the detail header
- * (`Submissions\DetailHeader` + `<x-ui.inline-edit>`), without opening the
- * panel.
+ * (`Submissions\DetailHeader` + `<x-ui.inline-edit>`).
  *
  * Every rule is `sometimes` because the header sends only the field just
  * confirmed. `slug` is deliberately absent: renaming must not move the URL of
- * the page rendering the request. No rule here may be STRICTER than the
- * panel's (UpdateSubmissionRequest) for the same column, or a value the panel
- * accepted could no longer be re-saved inline.
+ * the page rendering the request.
+ *
+ * `name` and `solution_id` are the only fields creation still asks for, so for
+ * those two no rule here may be STRICTER than `StoreSubmissionRequest`'s — a
+ * value the creation panel accepted must stay re-savable inline. The rest
+ * (`status`, `requester_person_id`, `committee_date`, `ticket_reference`) have
+ * no panel at all any more: this request is their ONLY writer, so these rules
+ * are not a mirror of anything, they are the contract.
  */
 class UpdateSubmissionFieldRequest extends FormRequest
 {

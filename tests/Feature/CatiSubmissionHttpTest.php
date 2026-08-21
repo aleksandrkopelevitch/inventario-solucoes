@@ -14,6 +14,7 @@ use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\Routing\Exception\RouteNotFoundException;
 
 uses(LazilyRefreshDatabase::class);
 
@@ -83,6 +84,45 @@ it('renders the detail page with the header, checklist, sections and chat', func
         // The composer's hooks must actually render, or sending does nothing.
         ->toContain('data-ak-cati-chat-input')
         ->toContain('data-ak-cati-chat-send');
+});
+
+it('hints at attaching material or talking to the assistant on a genuinely fresh submission', function () {
+    $html = $this->get(route('submissions.show', ownedSubmission()))->assertOk()->getContent();
+
+    expect($html)->toContain('submission-onboarding-hint')
+        ->toContain('Tem um deck ou documento antigo');
+});
+
+it('stops hinting once a source is attached, even with every section still blank', function () {
+    $submission = ownedSubmission();
+    SubmissionSource::factory()->create(['submission_id' => $submission->id]);
+
+    expect($this->get(route('submissions.show', $submission))->getContent())
+        ->not->toContain('submission-onboarding-hint');
+});
+
+it('stops hinting once a section has content, even with no material attached', function () {
+    $submission = ownedSubmission();
+    $submission->section(SubmissionSectionKey::Summary)->update(['content' => 'Ponto único de conexão.']);
+
+    expect($this->get(route('submissions.show', $submission))->getContent())
+        ->not->toContain('submission-onboarding-hint');
+});
+
+it('stops hinting once the person replies in the chat, even with nothing else done', function () {
+    $submission = ownedSubmission();
+
+    // First load seeds the assistant's own opening message — that alone must
+    // NOT count as "the person engaged", or the banner would never show at all.
+    $this->get(route('submissions.show', $submission))->assertOk();
+    expect($this->get(route('submissions.show', $submission))->getContent())
+        ->toContain('submission-onboarding-hint');
+
+    $chat = $submission->chats()->first();
+    $chat->messages()->create(['role' => 'user', 'content' => 'Roda numa VM na Google Cloud.']);
+
+    expect($this->get(route('submissions.show', $submission))->getContent())
+        ->not->toContain('submission-onboarding-hint');
 });
 
 it('edits one header field in place and refreshes the checklist with it', function () {
@@ -327,4 +367,41 @@ it('resolves create before the slug binding', function () {
     // `submissions/create` must stay above `submissions/{submission}`, or the
     // binding looks for a submission whose slug is "create".
     $this->getJson(route('submissions.create'))->assertOk()->assertJsonStructure(['content']);
+});
+
+it('offers only a name and a solution on the creation panel', function () {
+    // Everything else is filled in on the detail header once the record
+    // exists — asking for it here would mean filling it in twice, once blind.
+    $html = $this->getJson(route('submissions.create'))->assertOk()->json('content');
+
+    expect($html)->toContain('name="name"')
+        ->toContain('name="solution_id"')
+        ->not->toContain('name="requester_person_id"')
+        ->not->toContain('name="committee_date"')
+        ->not->toContain('name="ticket_reference"')
+        ->not->toContain('name="status"');
+});
+
+it('ignores fields that only the header may set, even if someone posts them', function () {
+    $solution = Solution::factory()->create();
+
+    $this->postJson(route('submissions.store'), [
+        'name'                => 'CATI SKBridge',
+        'solution_id'         => $solution->id,
+        'requester_person_id' => 999,
+        'ticket_reference'    => 'INC-1',
+        'status'              => 'approved',
+    ])->assertOk();
+
+    $submission = Submission::firstWhere('name', 'CATI SKBridge');
+
+    expect($submission->solution_id)->toBe($solution->id)
+        ->and($submission->requester_person_id)->toBeNull()
+        ->and($submission->ticket_reference)->toBeNull()
+        ->and($submission->status)->toBe(SubmissionStatus::Draft);
+});
+
+it('has no standalone edit page — every field lives on the detail header', function () {
+    expect(fn () => route('submissions.edit', ownedSubmission()))->toThrow(RouteNotFoundException::class)
+        ->and(fn () => route('submissions.update', ownedSubmission()))->toThrow(RouteNotFoundException::class);
 });
