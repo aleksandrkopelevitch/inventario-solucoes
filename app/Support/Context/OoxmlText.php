@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Support\Cati;
+namespace App\Support\Context;
 
 use SimpleXMLElement;
 

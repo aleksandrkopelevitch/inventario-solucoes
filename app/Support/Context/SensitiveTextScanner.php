@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Support\Cati;
+namespace App\Support\Context;
 
 /**
  * Flags likely credentials in gathered material — and only flags them.

@@ -12,7 +12,7 @@ namespace App\Enums;
  * does for a Solution's context documents. Reporting it as an error would
  * teach users to re-upload files that are working fine.
  */
-enum SubmissionSourceExtraction: string
+enum ContextExtractionState: string
 {
     case Pending = 'pending';
     case Done = 'done';
