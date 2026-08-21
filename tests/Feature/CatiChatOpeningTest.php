@@ -9,6 +9,7 @@ use App\Models\SubmissionChat;
 use App\Models\User;
 use App\Support\Cati\DeviationRules;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 uses(LazilyRefreshDatabase::class);
 
@@ -103,4 +104,25 @@ it('has something to say even when every mandatory section is already filled', f
 
     expect(DeviationRules::for($submission->fresh()))->toBe([])
         ->and($chat->messages()->first()->content)->toContain('quer ajustar alguma antes de resumir');
+});
+
+it('reads the submission the caller already loaded instead of fetching it again', function () {
+    // The controller hands the chat a submission it has just loaded with
+    // everything the opening message reads. Re-fetching it here would walk
+    // sections, sources, solution, vendor and integrations one relation at a
+    // time — and strict mode would not say a word, this being a single row.
+    $submission = Submission::factory()->withSections()->create([
+        'solution_id' => Solution::factory()->create()->id,
+    ]);
+
+    $chat = chatFor($submission);
+    $chat->setRelation('submission', $submission->fresh(['solution', 'sections', 'sources']));
+
+    DB::enableQueryLog();
+    app(SeedSubmissionChatOpening::class)->handle($chat);
+    $queries = collect(DB::getQueryLog())->pluck('query');
+    DB::disableQueryLog();
+
+    expect($queries->filter(fn (string $query) => str_contains($query, 'from "submissions"'))->all())->toBe([])
+        ->and($chat->messages()->count())->toBe(1);
 });

@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use App\Actions\Flowspec\AttachFlowspecDocuments;
 use App\Actions\Flowspec\AttachFlowspecFile;
 use App\Actions\Flowspec\AttachFlowspecText;
+use App\Enums\FlowspecDocumentType;
 use App\Http\Requests\StoreFlowspecAttachmentRequest;
-use App\Models\DocumentationPage;
 use App\Models\FlowspecAttachment;
 use App\Models\FlowspecChat;
 use App\View\Components\Flowspec\ContextPanel;
@@ -160,7 +160,7 @@ class FlowspecAttachmentController extends Controller
         return $chat->attachments()
             ->whereNotNull('reference_id')
             ->get(['reference_type', 'reference_id'])
-            ->map(fn (FlowspecAttachment $a) => ($a->reference_type === DocumentationPage::class ? 'page' : 'integration') . ":{$a->reference_id}")
+            ->map(fn (FlowspecAttachment $a) => FlowspecDocumentType::forMorphClass((string) $a->reference_type)->reference($a->reference_id))
             ->all();
     }
 }

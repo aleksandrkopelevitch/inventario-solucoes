@@ -403,3 +403,76 @@ it('attaches a page from a standalone documentation group', function () {
     $context = app(FlowspecContextResolver::class)->resolve($chat, 'gera');
     expect($context->pages->pluck('id')->all())->toBe([$page->id]);
 });
+
+/*
+|--------------------------------------------------------------------------
+| The backfill's rollback
+|--------------------------------------------------------------------------
+|
+| `2026_08_21_110950_backfill_flowspec_reference_attachments` carries each old
+| conversation's pasted pipeline over from `flowspec_messages.meta`. Its
+| `down()` has to give back exactly that and nothing else: a row it created is
+| indistinguishable BY COLUMN from one AttachFlowspecText writes when a user
+| pastes a pipeline, so a blanket delete of "every text attachment flagged
+| is_flowspec_reference" destroys real work on rollback.
+|
+*/
+
+it('rolls back only the pipelines it backfilled, never a paste of the users', function () {
+    $migrated = FlowspecChat::factory()->create();
+    $untouched = FlowspecChat::factory()->create();
+
+    // A conversation from before the change: its pipeline lived on the message.
+    $migrated->messages()->create([
+        'role'    => 'user',
+        'content' => 'ajusta esse pipeline',
+        'meta'    => ['reference_flowspec' => '{"meta":{},"flowSpec":{"antigo":true}}'],
+    ]);
+
+    $migration = require database_path('migrations/2026_08_21_110950_backfill_flowspec_reference_attachments.php');
+    $migration->up();
+
+    $backfilled = $migrated->attachments()->sole();
+    expect($backfilled->content)->toContain('antigo');
+
+    // …and a pipeline pasted AFTER the change, in a conversation the migration
+    // never read. Same kind, same label, same flag — the only three columns the
+    // blanket delete looked at.
+    $pasted = app(App\Actions\Flowspec\AttachFlowspecText::class)
+        ->handle($untouched, '{"meta":{},"flowSpec":{"novo":true}}');
+
+    expect($pasted->label)->toBe($backfilled->label)
+        ->and($pasted->is_flowspec_reference)->toBeTrue();
+
+    $migration->down();
+
+    expect(FlowspecAttachment::find($backfilled->id))->toBeNull()
+        ->and(FlowspecAttachment::find($pasted->id))->not->toBeNull();
+});
+
+it('leaves a later identical paste behind, dropping only the row it inserted', function () {
+    $chat = FlowspecChat::factory()->create();
+    $reference = '{"meta":{},"flowSpec":{"mesmo":true}}';
+
+    // Minified on the way in, exactly as the old controller stored it — which is
+    // also what AttachFlowspecText will produce from the same paste below.
+    $chat->messages()->create([
+        'role'    => 'user',
+        'content' => 'base',
+        'meta'    => ['reference_flowspec' => app(App\Actions\Flowspec\NormalizeReferenceFlowspec::class)->handle($reference)],
+    ]);
+
+    $migration = require database_path('migrations/2026_08_21_110950_backfill_flowspec_reference_attachments.php');
+    $migration->up();
+
+    $backfilled = $chat->attachments()->sole();
+
+    // Byte-identical to the backfilled row: nothing distinguishes the two but
+    // insertion order, and the older one is necessarily the migration's.
+    $pasted = app(App\Actions\Flowspec\AttachFlowspecText::class)->handle($chat, $reference);
+    expect($pasted->content)->toBe($backfilled->content);
+
+    $migration->down();
+
+    expect($chat->attachments()->pluck('id')->all())->toBe([$pasted->id]);
+});

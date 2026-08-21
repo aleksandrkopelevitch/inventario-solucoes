@@ -110,6 +110,33 @@ PT-BR and minified JSON, both of which tokenize worse than the familiar English
   prompt dropped is a meter that lies. It consults the **extension** alongside
   the mime type, because a stored mime is whatever the server sniffed and is
   regularly less specific than the file plainly is.
+- **An Office file must be sized by its UNCOMPRESSED contents.** A `.docx` is a
+  zip of XML: measured against this app's own extractor, 38 KB of file carried
+  555 KB of text (14x) and a repetitive document reached 146x. Estimating the
+  pre-ingest guard from the compressed size undercounts by that factor, and
+  nothing downstream re-checks — by the time the true count exists
+  (`AttachFlowspecFile`, from the extracted text) the row is stored, so one
+  ordinary Word document walked straight through the ceiling. `TokenEstimator::
+  extractableBytes()` reads the zip central directory instead (0.025 ms; 0.016 ms
+  to fail on a 10 MB non-zip), which is a genuine upper bound because the text
+  is a subset of the XML holding it — measured 1.27-1.34x the extracted text.
+  Pass the PATH to `forUploadedBytes()`, not just the size.
+- **Re-attaching a document must not be charged.** `AttachFlowspecDocuments` is
+  idempotent, so counting an already-attached reference measures something that
+  will never be created — the guard refuses for room that would never be used.
+  `newDocumentRefs()` subtracts them first.
+- **`FlowspecDocumentType` is the only place that maps `page:12` to a model.**
+  References travel as `type:id` and are stored as a morph pair; four separate
+  copies of that ternary existed before the enum. A stray fifth copy that
+  disagrees makes a comparison silently never match, which reads as "not
+  attached" — and double-counts.
+- **The meter costs ~3.75 ms and reloads the corpus every call** (21 examples /
+  60 KB, measured 2026-08-21), twice per attach request: once in the guard, once
+  rendering `ContextPanel`. Deliberately NOT cached — 60 KB does not justify an
+  invalidation story, and a stale meter is worse than a cheap one. If the corpus
+  reaches a few hundred examples this becomes the thing to fix, and the fix is a
+  scoped binding memoizing the two chat-independent lines (fixed prompt +
+  corpus), not a cache store.
 - **`ContextExtractionState::Skipped` is not one thing.** `SourceTextExtractor`
   returns it both for a PDF/image (deliberately unextracted — it goes natively,
   and it costs) and for a format it simply cannot read (it goes nowhere, and it
@@ -135,3 +162,19 @@ PT-BR and minified JSON, both of which tokenize worse than the familiar English
   plain `new FormData(form)` in `ajax-post.js` carry them with the first message
   — no custom submit path. Clear the input after an immediate upload on an
   existing chat, or the next message re-sends the same bytes.
+- **A multi-file pick uploads one file at a time, awaited.** The ceiling is
+  enforced per REQUEST, against the conversation as it stands when that request
+  is validated, so N parallel uploads are each measured against the state before
+  any of them landed — files that individually fit collectively blow a limit all
+  of them passed, and the last response repaints the panel from a snapshot taken
+  before its siblings committed. Batching them into one `files[]` body would be
+  atomic but exceeds `post_max_size` long before `max:20480` per file does, so
+  the fix is the `for…of` with `await` in `attachFiles()`, not a batch.
+- **`withValidator`'s `after` callback sees RAW input, not a validated set.**
+  `Validator::passes()` fires those callbacks unconditionally — the rules above
+  them having already failed does not skip them. So `count($this->input('documents'))`
+  in `guardContextCount()` met a `documents=page:1` scalar the `array` rule had
+  just rejected and threw a TypeError: a 500 out of a request whose 422 was
+  already written. Count through the same parsers the controller attaches with
+  (`documentRefs()`/`pastedTexts()`/`uploadedFiles()`), which ignore anything
+  that isn't the shape they expect.

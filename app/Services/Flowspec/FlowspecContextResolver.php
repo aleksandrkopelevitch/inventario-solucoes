@@ -3,6 +3,7 @@
 namespace App\Services\Flowspec;
 
 use App\Enums\FlowspecAttachmentKind;
+use App\Enums\FlowspecDocumentType;
 use App\Enums\FlowspecTag;
 use App\Models\DocumentationPage;
 use App\Models\FlowspecAttachment;
@@ -270,9 +271,7 @@ class FlowspecContextResolver
      */
     private function morphKey(array $ref): string
     {
-        $class = $ref['type'] === 'page' ? DocumentationPage::class : Integration::class;
-
-        return "{$class}:{$ref['id']}";
+        return FlowspecDocumentType::from($ref['type'])->morphKey($ref['id']);
     }
 
     /**

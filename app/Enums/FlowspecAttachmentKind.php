@@ -37,10 +37,4 @@ enum FlowspecAttachmentKind: string
             self::Text     => 'document',
         };
     }
-
-    /** Text this attachment contributes is copied into `content` (as opposed to read live from a reference). */
-    public function carriesOwnContent(): bool
-    {
-        return $this !== self::Document;
-    }
 }

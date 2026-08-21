@@ -2,6 +2,8 @@
 
 namespace App\Support\Context;
 
+use ZipArchive;
+
 /**
  * Rough token accounting for anything that goes into an LLM prompt.
  *
@@ -75,18 +77,71 @@ final class TokenEstimator
      * budget guard needs, since it has to refuse an upload before spending the
      * work of extracting it.
      *
-     * For text and Office formats it counts one token per 3.5 BYTES rather than
-     * characters. Bytes >= characters in UTF-8, so for plain text that is a
-     * true ceiling; for zipped XML it is a proxy that can read either way, and
-     * reading high is the direction this class always chooses.
+     * Counts one token per 3.5 BYTES of readable content rather than per
+     * character. Bytes >= characters in UTF-8, so for plain text that is a true
+     * ceiling. For a ZIP container it is emphatically NOT — see
+     * `extractableBytes()`, which is why `$path` is worth passing.
      */
-    public static function forUploadedBytes(?string $mimeType, ?string $extension, int $bytes): int
+    public static function forUploadedBytes(?string $mimeType, ?string $extension, int $bytes, ?string $path = null): int
     {
         $kind = NativeAttachmentType::for($mimeType, $extension);
 
         return $kind === null
-            ? self::forChars($bytes)
+            ? self::forChars(self::extractableBytes($path, $bytes))
             : self::forNativeAttachment($kind, $bytes);
+    }
+
+    /**
+     * Bytes of text a file can actually yield, as opposed to bytes it occupies.
+     *
+     * The two are the same thing for plain text and wildly different for an
+     * Office file, which is a ZIP of XML: measured against this app's own
+     * DocxTextExtractor, a 38 KB .docx of varied prose carries 555 KB of text
+     * (14x), and a repetitive one reaches 146x. Estimating such a file by its
+     * COMPRESSED size undercounts by that same factor — enough for one ordinary
+     * Word document to walk straight through the context ceiling this estimate
+     * exists to hold, since nothing downstream re-checks: by the time the real
+     * count is known (AttachFlowspecFile, from the extracted text) the row is
+     * already stored.
+     *
+     * The zip's central directory declares the uncompressed size of every part
+     * without extracting anything — 0.025 ms for that file, and 0.016 ms to
+     * fail on a 10 MB non-zip, so it is cheap enough to just try. Text is a
+     * subset of the XML holding it, making that total a genuine upper bound:
+     * measured at 1.27-1.34x the text finally extracted, i.e. erring high,
+     * which is this class's whole policy. A declared size that lies only ever
+     * lies upward here (a crafted archive gets refused, not admitted).
+     *
+     * Anything that won't open as a zip falls back to its own size, which is
+     * the right answer twice over: plain text really is its own ceiling, and a
+     * corrupt archive is a file SourceTextExtractor will fail to read, and a
+     * failed read costs nothing at all.
+     */
+    private static function extractableBytes(?string $path, int $bytes): int
+    {
+        if ($path === null || ! is_readable($path)) {
+            return $bytes;
+        }
+
+        $zip = new ZipArchive;
+
+        if ($zip->open($path, ZipArchive::RDONLY) !== true) {
+            return $bytes;
+        }
+
+        $uncompressed = 0;
+
+        for ($index = 0; $index < $zip->numFiles; $index++) {
+            $stat = $zip->statIndex($index);
+
+            if ($stat !== false) {
+                $uncompressed += (int) $stat['size'];
+            }
+        }
+
+        $zip->close();
+
+        return max($bytes, $uncompressed);
     }
 
     /** Character budget equivalent to a token allowance — the inverse, for trimming text to fit. */

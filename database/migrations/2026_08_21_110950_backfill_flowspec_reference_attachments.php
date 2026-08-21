@@ -33,6 +33,67 @@ return new class extends Migration
 {
     public function up(): void
     {
+        foreach ($this->latestReferencePerChat() as $chatId => $reference) {
+            DB::table('flowspec_attachments')->insert([
+                'flowspec_chat_id'      => $chatId,
+                'kind'                  => 'text',
+                'label'                 => 'flowSpec de referência',
+                'content'               => $reference,
+                'extraction_state'      => 'done',
+                'is_flowspec_reference' => true,
+                // chars / 3.5, matching App\Support\Context\TokenEstimator.
+                // Inlined rather than called: a migration that has already run
+                // everywhere must not start failing if that class is moved.
+                'token_estimate' => (int) ceil(mb_strlen($reference) / 3.5),
+                'created_at'     => now(),
+                'updated_at'     => now(),
+            ]);
+        }
+    }
+
+    /**
+     * Removes exactly the rows `up()` inserted — rebuilt from the same source,
+     * matched per conversation by the content it carried over.
+     *
+     * It cannot be a blanket delete of "every text attachment flagged
+     * `is_flowspec_reference`", which is what this used to be: those three
+     * columns are precisely what App\Actions\Flowspec\AttachFlowspecText writes
+     * for a pipeline a user pastes, so the sweep took real pastes with it. A
+     * rollback would have deleted work nobody could get back — from
+     * conversations this migration never touched.
+     *
+     * Where a later paste happens to be byte-identical to the backfilled one,
+     * the OLDEST matching row is the one to drop: it was inserted while this
+     * migration ran, before the paste that matches it could exist.
+     */
+    public function down(): void
+    {
+        foreach ($this->latestReferencePerChat() as $chatId => $reference) {
+            $id = DB::table('flowspec_attachments')
+                ->where('flowspec_chat_id', $chatId)
+                ->where('kind', 'text')
+                ->where('is_flowspec_reference', true)
+                ->where('label', 'flowSpec de referência')
+                ->where('content', $reference)
+                ->orderBy('id')
+                ->value('id');
+
+            if ($id !== null) {
+                DB::table('flowspec_attachments')->where('id', $id)->delete();
+            }
+        }
+    }
+
+    /**
+     * Each conversation's most recent pre-migration paste — the one thing this
+     * migration carries over, and therefore also the only thing it may take
+     * back. Read from `flowspec_messages.meta`, which nothing here writes to,
+     * so `up()` and `down()` always agree on what "mine" means.
+     *
+     * @return array<int, string> flowspec_chat_id => reference JSON
+     */
+    private function latestReferencePerChat(): array
+    {
         $latest = [];
 
         DB::table('flowspec_messages')
@@ -51,32 +112,6 @@ return new class extends Migration
                 }
             });
 
-        foreach ($latest as $chatId => $reference) {
-            DB::table('flowspec_attachments')->insert([
-                'flowspec_chat_id'      => $chatId,
-                'kind'                  => 'text',
-                'label'                 => 'flowSpec de referência',
-                'content'               => $reference,
-                'extraction_state'      => 'done',
-                'is_flowspec_reference' => true,
-                // chars / 3.5, matching App\Support\Context\TokenEstimator.
-                // Inlined rather than called: a migration that has already run
-                // everywhere must not start failing if that class is moved.
-                'token_estimate' => (int) ceil(mb_strlen($reference) / 3.5),
-                'created_at'     => now(),
-                'updated_at'     => now(),
-            ]);
-        }
-    }
-
-    public function down(): void
-    {
-        // Only what this migration could have created. The messages it read from
-        // are untouched, so re-running `up()` reproduces the same rows.
-        DB::table('flowspec_attachments')
-            ->where('kind', 'text')
-            ->where('is_flowspec_reference', true)
-            ->where('label', 'flowSpec de referência')
-            ->delete();
+        return $latest;
     }
 };

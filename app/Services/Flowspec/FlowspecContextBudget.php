@@ -99,6 +99,13 @@ class FlowspecContextBudget
             // COALESCE, not a PHP null guard: with no matching rows SUM() is
             // NULL, and `(int) null` would read as a legitimate zero — masking
             // a reference whose target was deleted rather than costing nothing.
+            //
+            // LENGTH() counts CHARACTERS on PostgreSQL (prod) and SQLite (dev),
+            // which is what TokenEstimator's chars-per-token wants. It counts
+            // BYTES on MySQL, where accented PT-BR would silently inflate the
+            // estimate — port this to CHAR_LENGTH() before ever pointing this
+            // app at MySQL. (SQLite has no CHAR_LENGTH, so it can't just be
+            // written that way today.)
             $chars += (int) $type::query()
                 ->whereKey($ids)
                 ->selectRaw("COALESCE(SUM(LENGTH({$column})), 0) as total")
