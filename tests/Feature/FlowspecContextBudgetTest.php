@@ -325,3 +325,123 @@ it('still counts both shapes of the same input against the attachment cap', func
     expect($response->json('message'))->toContain('máximo de 2 itens')
         ->and($chat->attachments()->count())->toBe(0);
 });
+
+/*
+|--------------------------------------------------------------------------
+| Sizing a file before it is read
+|--------------------------------------------------------------------------
+|
+| The ceiling is checked BEFORE ingest, on an upload nobody has extracted yet,
+| so the estimate is the only thing standing between a conversation and a
+| document that will not fit. An Office file is a zip: sized by its compressed
+| bytes it reads as a fraction of what it costs.
+|
+*/
+
+/** A real .docx — a zip of WordprocessingML, the shape DocxTextExtractor reads. */
+function wordFileOf(string $text, int $paragraphs): Illuminate\Http\UploadedFile
+{
+    $path = tempnam(sys_get_temp_dir(), 'flowspec') . '.docx';
+    $namespace = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+
+    $body = '';
+    for ($i = 0; $i < $paragraphs; $i++) {
+        $body .= '<w:p><w:r><w:t>' . htmlspecialchars("{$text} {$i}.", ENT_XML1) . '</w:t></w:r></w:p>';
+    }
+
+    $zip = new ZipArchive;
+    $zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+    $zip->addFromString('word/document.xml', '<?xml version="1.0"?><w:document xmlns:w="' . $namespace . '"><w:body>' . $body . '</w:body></w:document>');
+    $zip->close();
+
+    return new Illuminate\Http\UploadedFile($path, 'contrato.docx', null, null, true);
+}
+
+it('sizes a zipped document by what it holds, not by what it weighs', function () {
+    $file = wordFileOf('O fornecedor disponibilizará o ambiente de homologação em dez dias úteis', 4000);
+
+    $compressed = TokenEstimator::forChars((int) $file->getSize());
+    $estimated = TokenEstimator::forUploadedBytes($file->getMimeType(), 'docx', (int) $file->getSize(), $file->getRealPath());
+    $real = TokenEstimator::forText((new App\Support\Context\DocxTextExtractor)->extract($file->getRealPath()));
+
+    // The compressed size reads as a small fraction of the truth; the estimate
+    // has to land at or above it, the way this class errs everywhere else.
+    expect($compressed)->toBeLessThan($real / 5)
+        ->and($estimated)->toBeGreaterThanOrEqual($real);
+});
+
+it('refuses a document whose text will not fit, even when its file is small', function () {
+    // Room for ~28k tokens. The upload is a few hundred KB on disk — under the
+    // ceiling if measured that way — but carries millions of characters.
+    config()->set('services.flowspec.context_limit_tokens', 100000);
+    config()->set('services.flowspec.history_reserve_tokens', 40000);
+
+    $user = User::factory()->create();
+    $chat = FlowspecChat::factory()->for($user)->create();
+    $file = wordFileOf('Cláusula de nível de serviço com janela de manutenção acordada', 40000);
+
+    $response = $this->actingAs($user)
+        ->post(route('flowspec.attachments.store', $chat), ['file' => $file], ['Accept' => 'application/json'])
+        ->assertStatus(422);
+
+    expect($response->json('message'))->toContain('limite de contexto')
+        ->and($chat->attachments()->count())->toBe(0);
+});
+
+it('still accepts a zipped document that genuinely fits', function () {
+    config()->set('services.flowspec.context_limit_tokens', 500000);
+
+    $user = User::factory()->create();
+    $chat = FlowspecChat::factory()->for($user)->create();
+
+    $this->actingAs($user)
+        ->post(route('flowspec.attachments.store', $chat), ['file' => wordFileOf('Escopo do contrato', 20)], ['Accept' => 'application/json'])
+        ->assertOk();
+
+    expect($chat->attachments()->sole()->label)->toBe('contrato.docx');
+});
+
+it('does not charge for a document the conversation already has', function () {
+    // Attaching twice is a no-op (AttachFlowspecDocuments dedupes), so the
+    // second request must not be measured for something it will never create —
+    // a stale suggestion button is exactly this request.
+    $user = User::factory()->create();
+    $chat = FlowspecChat::factory()->for($user)->create();
+    $page = DocumentationPage::factory()->for(Solution::factory()->create(), 'container')
+        ->create(['documentation' => str_repeat('x', 40000)]);
+
+    $this->actingAs($user)
+        ->postJson(route('flowspec.attachments.store', $chat), ['documents' => ["page:{$page->id}"]])
+        ->assertOk();
+
+    // Room for far less than the page costs: a second attach measured against
+    // it would be refused, even though nothing new would be stored.
+    config()->set('services.flowspec.context_limit_tokens', app(FlowspecContextBudget::class)->for($chat)->total() + 1000);
+    config()->set('services.flowspec.history_reserve_tokens', 0);
+
+    $response = $this->actingAs($user)
+        ->postJson(route('flowspec.attachments.store', $chat), ['documents' => ["page:{$page->id}"]])
+        ->assertOk();
+
+    expect($response->json('message'))->toBe('Isso já estava no contexto desta conversa.')
+        ->and($chat->attachments()->count())->toBe(1);
+});
+
+it('does not charge an already-attached document against the count cap either', function () {
+    $user = User::factory()->create();
+    $chat = FlowspecChat::factory()->for($user)->create();
+    $page = DocumentationPage::factory()->for(Solution::factory()->create(), 'container')
+        ->create(['documentation' => 'contrato']);
+
+    $this->actingAs($user)
+        ->postJson(route('flowspec.attachments.store', $chat), ['documents' => ["page:{$page->id}"]])
+        ->assertOk();
+
+    config()->set('services.flowspec.max_attachments', 1);
+
+    $this->actingAs($user)
+        ->postJson(route('flowspec.attachments.store', $chat), ['documents' => ["page:{$page->id}"]])
+        ->assertOk();
+
+    expect($chat->attachments()->count())->toBe(1);
+});

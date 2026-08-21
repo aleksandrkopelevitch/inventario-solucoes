@@ -56,9 +56,18 @@ class SubmissionController extends Controller
         // and for a key added to the enum after this record was created.
         $submission->ensureSections();
 
+        $submission = $submission->fresh(['solution', 'requester', 'sections', 'sources']);
+        $chat = $this->chatFor($submission);
+
         return view('submissions.show', [
-            'submission' => $submission->fresh(['solution', 'requester', 'sections', 'sources']),
-            'chat'       => $this->chatFor($submission),
+            'submission' => $submission,
+            'chat'       => $chat,
+            // Resolved here rather than in the view: the banner's third
+            // condition is a query, and a Blade partial is the wrong place to
+            // run one (the other two read relations the page already has).
+            'isUntouched' => $submission->sources->isEmpty()
+                && $submission->sections->every(fn ($section) => blank($section->content))
+                && $chat->messages()->where('role', 'user')->doesntExist(),
         ]);
     }
 
@@ -174,9 +183,30 @@ class SubmissionController extends Controller
         return $slug;
     }
 
+    /**
+     * This person's interview for this submission, opened if it doesn't exist.
+     *
+     * A GET that writes, deliberately: an empty chat is a blank box, and the
+     * opening line has to be there when the page first renders. Both writes are
+     * guarded against the same race — two tabs loading a fresh submission at
+     * once — since `submission_chats` is unique per (user, submission) and the
+     * seeder's "no messages yet" check is otherwise read-then-write.
+     *
+     * The submission is handed to the chat in memory: the caller has already
+     * loaded it with everything the opening message reads, and letting the
+     * action re-fetch it would re-query the sections, sources, solution, vendor
+     * and integrations one relation at a time — none of which strict mode would
+     * catch, this being a single-row fetch.
+     */
     private function chatFor(Submission $submission): SubmissionChat
     {
-        $chat = $submission->chats()->firstOrCreate(['user_id' => request()->user()->id]);
+        $chat = rescue(
+            fn () => $submission->chats()->firstOrCreate(['user_id' => request()->user()->id]),
+            fn () => $submission->chats()->where('user_id', request()->user()->id)->sole(),
+            report: false,
+        );
+
+        $chat->setRelation('submission', $submission);
 
         app(SeedSubmissionChatOpening::class)->handle($chat);
 

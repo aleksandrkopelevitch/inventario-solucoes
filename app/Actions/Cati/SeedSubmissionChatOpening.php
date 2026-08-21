@@ -9,6 +9,7 @@ use App\Models\SubmissionChat;
 use App\Support\Cati\ConformanceChecks;
 use App\Support\Cati\DeviationRules;
 use App\Support\Cati\SubmissionRequirements;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Gives a submission's interview a first line, before the person ever types
@@ -33,17 +34,31 @@ class SeedSubmissionChatOpening
     {
         // A chat with any message already has its own history — seeding here
         // would either duplicate the opening or, worse, land in the middle of
-        // a real conversation.
+        // a real conversation. Checked before the lock below so the ordinary
+        // case — every page load after the first — stays one cheap query.
         if ($chat->messages()->exists()) {
             return;
         }
 
         $chat->loadMissing('submission.solution');
 
-        $chat->messages()->create([
-            'role'    => 'assistant',
-            'content' => $this->build($chat->submission),
-        ]);
+        // Built outside the transaction: it reads the whole checklist, and none
+        // of that needs to happen while holding a row lock.
+        $content = $this->build($chat->submission);
+
+        DB::transaction(function () use ($chat, $content) {
+            // Re-checked under a lock on the chat row, because the check above
+            // is a read followed by a write and this runs on a GET: two tabs
+            // opening the same fresh submission both saw "no messages", and the
+            // person would find the assistant greeting them twice.
+            SubmissionChat::query()->whereKey($chat->getKey())->lockForUpdate()->first();
+
+            if ($chat->messages()->exists()) {
+                return;
+            }
+
+            $chat->messages()->create(['role' => 'assistant', 'content' => $content]);
+        });
     }
 
     private function build(Submission $submission): string

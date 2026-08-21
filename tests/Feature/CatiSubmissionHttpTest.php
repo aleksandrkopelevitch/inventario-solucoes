@@ -405,3 +405,16 @@ it('has no standalone edit page — every field lives on the detail header', fun
     expect(fn () => route('submissions.edit', ownedSubmission()))->toThrow(RouteNotFoundException::class)
         ->and(fn () => route('submissions.update', ownedSubmission()))->toThrow(RouteNotFoundException::class);
 });
+
+it('hands the chat a submission that is already in memory', function () {
+    // What keeps SeedSubmissionChatOpening from re-fetching a record the page
+    // has already loaded in full — and re-walking its relations one query at a
+    // time, with strict mode unable to complain about a single-row fetch.
+    $response = $this->get(route('submissions.show', ownedSubmission()))->assertOk();
+
+    $chat = $response->viewData('chat');
+
+    expect($chat->relationLoaded('submission'))->toBeTrue()
+        ->and($chat->submission->relationLoaded('sections'))->toBeTrue()
+        ->and($chat->submission->relationLoaded('solution'))->toBeTrue();
+});

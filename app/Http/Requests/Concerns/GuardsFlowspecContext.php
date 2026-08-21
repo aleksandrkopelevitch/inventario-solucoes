@@ -2,11 +2,11 @@
 
 namespace App\Http\Requests\Concerns;
 
-use App\Models\DocumentationPage;
+use App\Enums\FlowspecDocumentType;
 use App\Models\FlowspecChat;
-use App\Models\Integration;
 use App\Rules\FlowspecDocumentReference;
 use App\Services\Flowspec\FlowspecContextBudget;
+use App\Services\Flowspec\FlowspecContextResolver;
 use App\Support\Context\TokenEstimator;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Http\UploadedFile;
@@ -77,7 +77,7 @@ trait GuardsFlowspecContext
     protected function guardContextBudget(Validator $validator, ?FlowspecChat $chat): void
     {
         $validator->after(function (Validator $validator) use ($chat) {
-            $incoming = $this->incomingContextTokens();
+            $incoming = $this->incomingContextTokens($chat);
 
             if ($incoming === 0) {
                 return;
@@ -112,7 +112,7 @@ trait GuardsFlowspecContext
         $validator->after(function (Validator $validator) use ($chat) {
             $max = (int) config('services.flowspec.max_attachments');
             $existing = $chat?->attachments()->count() ?? 0;
-            $incoming = count($this->documentRefs())
+            $incoming = count($this->newDocumentRefs($chat))
                 + count($this->pastedTexts())
                 + count($this->uploadedFiles());
 
@@ -126,11 +126,11 @@ trait GuardsFlowspecContext
     }
 
     /** Estimated tokens this request wants to ADD to the conversation's context. */
-    private function incomingContextTokens(): int
+    private function incomingContextTokens(?FlowspecChat $chat): int
     {
         $tokens = 0;
 
-        foreach ($this->documentRefs() as $ref) {
+        foreach ($this->newDocumentRefs($chat) as $ref) {
             $tokens += TokenEstimator::forChars($this->referencedChars($ref));
         }
 
@@ -139,21 +139,69 @@ trait GuardsFlowspecContext
         }
 
         foreach ($this->uploadedFiles() as $file) {
+            // The path, not just the size: an Office file is a zip, and its
+            // compressed size is nowhere near what it will cost once read
+            // (TokenEstimator::extractableBytes).
             $tokens += TokenEstimator::forUploadedBytes(
                 $file->getMimeType(),
                 $file->getClientOriginalExtension(),
                 (int) $file->getSize(),
+                $file->getRealPath() ?: null,
             );
         }
 
         return $tokens;
     }
 
+    /**
+     * The referenced documents this request would actually ADD.
+     *
+     * Attaching a document twice is idempotent (AttachFlowspecDocuments skips
+     * what a conversation already has), so charging the second one against
+     * either ceiling measures something that will never be created: a chat can
+     * be told its context is full by a request that was about to add nothing,
+     * and then answer "isso já estava no contexto" if it isn't. Rare — the
+     * picker disables what is attached and suggestFor() never offers it — but
+     * a suggestion button rendered before the same page was attached from
+     * another tab is exactly that request.
+     *
+     * @return list<array{type: string, id: int}>
+     */
+    private function newDocumentRefs(?FlowspecChat $chat): array
+    {
+        $refs = $this->documentRefs();
+
+        if ($chat === null || $refs === []) {
+            return $refs;
+        }
+
+        $attached = app(FlowspecContextResolver::class)->attachedKeys($chat);
+
+        // tryFrom, never from(): this reads raw input, and a `documents=foo:1`
+        // that FlowspecDocumentReference has already rejected must not become a
+        // ValueError out of the callback validating it. An unrecognised type
+        // simply isn't attached to anything, so it stays in the count.
+        return array_values(array_filter($refs, function (array $ref) use ($attached) {
+            $type = FlowspecDocumentType::tryFrom($ref['type']);
+
+            return $type === null || ! in_array($type->morphKey($ref['id']), $attached, true);
+        }));
+    }
+
     /** @param array{type: string, id: int} $ref */
     private function referencedChars(array $ref): int
     {
-        $model = $ref['type'] === 'page' ? DocumentationPage::class : Integration::class;
+        $type = FlowspecDocumentType::tryFrom($ref['type']);
 
+        if ($type === null) {
+            return 0;
+        }
+
+        $model = $type->modelClass();
+
+        // LENGTH() would be one query instead of a fetch, but `documentation`
+        // is measured in CHARACTERS here and LENGTH() counts bytes on MySQL —
+        // the estimate must not change meaning with the driver.
         return mb_strlen((string) $model::query()->whereKey($ref['id'])->value('documentation'));
     }
 

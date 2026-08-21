@@ -35,10 +35,11 @@
         <x-submissions.deliberation :submission="$submission" />
     </div>
 
-    @if ($submission->sources->isEmpty()
-            && $submission->sections->every(fn ($section) => blank($section->content))
-            && $chat->messages()->where('role', 'user')->doesntExist())
-        {{-- Only while genuinely nothing has happened yet — it stops rendering
+    @if ($isUntouched)
+        {{-- `$isUntouched` is computed in SubmissionController::show() — one of
+             its three conditions is a query, which doesn't belong in a view.
+
+             Only while genuinely nothing has happened yet — it stops rendering
              the moment a source is attached, a section gets content, or the
              person actually replies in the chat (the seeded opening message
              from SeedSubmissionChatOpening doesn't count — that's the
