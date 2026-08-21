@@ -44,24 +44,51 @@ return [
         'provider' => env('DIGIBEE_FLOWSPEC_AI_PROVIDER', 'gemini'),
         'model'    => env('DIGIBEE_FLOWSPEC_AI_MODEL', 'gemini-3.6-flash'),
 
-        // Context selection (FlowspecContextResolver) and correction loop
-        // (FlowspecGenerationService). 2-3 examples: more dilutes the signal.
+        // Corpus selection and correction loop (FlowspecGenerationService).
+        // 2-3 examples: more dilutes the signal.
         'max_examples'     => env('DIGIBEE_FLOWSPEC_MAX_EXAMPLES', 3),
         'max_attempts'     => env('DIGIBEE_FLOWSPEC_MAX_ATTEMPTS', 3),
-        'doc_budget_chars' => env('DIGIBEE_FLOWSPEC_DOC_BUDGET_CHARS', 60000),
         'fallback_example' => env('DIGIBEE_FLOWSPEC_FALLBACK_EXAMPLE', 'update-bigquery-rest'),
         'timeout'          => env('DIGIBEE_FLOWSPEC_AI_TIMEOUT', 180),
 
-        // Char ceiling for the optional reference flowSpec pasted into the
-        // composer (NormalizeReferenceFlowspec minifies it and drops the
-        // canvas `meta` before it reaches the prompt). The prose `message`
-        // stays capped at 8000 — this is separate headroom for a full pasted
-        // pipeline JSON, which easily exceeds that.
+        /*
+        |----------------------------------------------------------------------
+        | Attached context (FlowspecAttachment)
+        |----------------------------------------------------------------------
+        |
+        | A conversation's attached context is re-sent on EVERY turn, so these
+        | bound what one chat can accumulate.
+        |
+        */
+
+        // Count ceiling on one chat's attachments, independent of their size:
+        // bounds the per-turn query/render work even when every attachment is
+        // tiny. Far above any realistic hand-picked selection.
+        'max_attachments' => env('DIGIBEE_FLOWSPEC_MAX_ATTACHMENTS', 40),
+
+        // Aggregate byte ceiling for native attachments (PDF/image) in one
+        // request, mirroring documentation_ai — below the provider's inline
+        // request limit. Past it, further files are omitted and flagged.
+        'max_attachment_bytes' => env('DIGIBEE_FLOWSPEC_MAX_ATTACHMENT_BYTES', 18000000),
+
+        // Pasting more than this many characters into the composer turns the
+        // paste into a text attachment instead of stuffing the textarea — the
+        // behavior the Claude client has. Mirrored client-side in
+        // flowspec-chat.js, so keep the two in step.
+        'paste_threshold_chars' => env('DIGIBEE_FLOWSPEC_PASTE_THRESHOLD_CHARS', 2000),
+
+        // Char ceiling for ONE pasted text attachment. Sized for a full pasted
+        // pipeline JSON (recognized as a flowSpec reference and minified by
+        // NormalizeReferenceFlowspec before it reaches the prompt), which
+        // easily exceeds the prose `message` cap of 8000.
         'max_reference_chars' => env('DIGIBEE_FLOWSPEC_MAX_REFERENCE_CHARS', 200000),
 
-        // "Add documentation" buttons offered alongside a conversational
-        // reply (FlowspecContextResolver::suggestDocumentsFor) — more than
-        // this turns into noise in the chat bubble.
+        // "Add documentation" buttons offered next to the composer and
+        // alongside a conversational reply
+        // (FlowspecContextResolver::suggestFor) — more than this turns
+        // into noise. These are SUGGESTIONS only: nothing enters the context
+        // until someone clicks, which is why name-matching no longer injects
+        // documentation on its own.
         'max_suggested_documents' => env('DIGIBEE_FLOWSPEC_MAX_SUGGESTED_DOCUMENTS', 6),
 
         // Validation ceiling for a single FlowspecGuideline document (always

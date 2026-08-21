@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Actions\Flowspec\NormalizeReferenceFlowspec;
+use App\Actions\Flowspec\AttachFlowspecDocuments;
+use App\Actions\Flowspec\AttachFlowspecFile;
+use App\Actions\Flowspec\AttachFlowspecText;
 use App\Http\Requests\StoreFlowspecChatRequest;
 use App\Jobs\GenerateFlowspecReply;
 use App\Models\DocumentationPage;
 use App\Models\FlowspecChat;
 use App\Models\Integration;
+use App\Services\Flowspec\FlowspecContextResolver;
 use App\View\Components\Flowspec\Thread;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,6 +22,10 @@ use Illuminate\Support\Str;
  * the POST persists the user's message and dispatches GenerateFlowspecReply;
  * the thread (Flowspec\Thread, updatable slot) shows "generating…" and the
  * `status` polling swaps the slot once the reply arrives.
+ *
+ * Context (attached documentation, files and pastes) belongs to the CHAT and is
+ * managed by FlowspecAttachmentController — except on `store()`, the one moment
+ * there is no chat yet to attach to.
  */
 class FlowspecChatController extends Controller
 {
@@ -31,22 +38,35 @@ class FlowspecChatController extends Controller
         ]);
     }
 
-    public function store(StoreFlowspecChatRequest $request, NormalizeReferenceFlowspec $normalize)
-    {
+    public function store(
+        StoreFlowspecChatRequest $request,
+        AttachFlowspecDocuments $documents,
+        AttachFlowspecFile $files,
+        AttachFlowspecText $texts,
+    ) {
         $chat = $request->user()->flowspecChats()->create([
             'title' => Str::limit($request->validated('message'), 80),
         ]);
 
-        $reference = $request->referenceFlowspec();
+        // The context staged in the new-chat composer becomes the conversation's
+        // context, BEFORE the message is created: the generation job reads the
+        // chat's attachments, so anything attached after the dispatch could miss
+        // the very turn it was meant for.
+        if ($request->documentRefs() !== []) {
+            $documents->handle($chat, $request->documentRefs());
+        }
+
+        foreach ($request->uploadedFiles() as $file) {
+            $files->handle($chat, $file);
+        }
+
+        foreach ($request->pastedTexts() as $text) {
+            $texts->handle($chat, $text['content'], $text['label']);
+        }
 
         $message = $chat->messages()->create([
             'role'    => 'user',
             'content' => $request->validated('message'),
-            'meta'    => [
-                'solution_ids'       => $request->solutionIds(),
-                'document_refs'      => $request->documentRefs(),
-                'reference_flowspec' => $reference ? $normalize->handle($reference) : null,
-            ],
         ]);
 
         GenerateFlowspecReply::dispatch($message);
@@ -83,12 +103,10 @@ class FlowspecChatController extends Controller
     }
 
     /**
-     * Search for the "Specific documents" chips picker — documentation pages
-     * (from any Solution or DocumentationGroup) and integrations with their
-     * own documentation, combined into a single result set. IDs come
-     * prefixed (`page:{id}`/`integration:{id}`) so
-     * FlowspecDocumentReference/ParsesFlowspecContextInput can distinguish
-     * the two types when saving `meta.document_refs`.
+     * Search behind the picker panel — documentation pages (from any Solution or
+     * DocumentationGroup) and integrations that document themselves, in one
+     * result set. IDs come prefixed (`page:{id}`/`integration:{id}`) so
+     * FlowspecDocumentReference can tell the two types apart.
      */
     public function searchDocuments(Request $request): JsonResponse
     {
@@ -136,5 +154,54 @@ class FlowspecChatController extends Controller
         // `$integrations` actually holds. Reproduces with any term that
         // matches an integration but no documentation page.
         return response()->json(['results' => collect($pages)->merge($integrations)->take(10)->values()]);
+    }
+
+    /**
+     * Documentation worth attaching for the text being typed — the replacement
+     * for the automatic injection this module used to do.
+     *
+     * Same word-boundary match over the Solution catalog as before (no AI, no
+     * embedding: naming a system is a literal string match), except the result
+     * is a row of "adicionar ao contexto" buttons instead of 60k characters
+     * silently entering the prompt. Nothing here costs a token until it's
+     * clicked, which is what lets the composer's meter be honest about what the
+     * next request will cost.
+     */
+    public function suggestDocuments(Request $request, FlowspecContextResolver $resolver): JsonResponse
+    {
+        $this->authorize('viewAny', FlowspecChat::class);
+
+        $text = trim((string) $request->query('q', ''));
+
+        // Below this there is nothing to match on but noise, and every
+        // keystroke would run the catalog scan.
+        if (mb_strlen($text) < 3) {
+            return response()->json(['suggestions' => []]);
+        }
+
+        $chat = $this->suggestionChat($request);
+
+        return response()->json([
+            'suggestions' => $resolver->suggestFor($text, $chat === null ? [] : $resolver->attachedKeys($chat)),
+        ]);
+    }
+
+    /**
+     * `?chat=` here is untrusted input on a static route (the new-chat screen
+     * has no chat to bind), so it is authorized by hand — otherwise it would
+     * leak which documentation another user's conversation has attached, via
+     * what this endpoint declines to suggest.
+     */
+    private function suggestionChat(Request $request): ?FlowspecChat
+    {
+        $id = $request->query('chat');
+
+        if (! is_numeric($id)) {
+            return null;
+        }
+
+        $chat = FlowspecChat::query()->find((int) $id);
+
+        return $chat !== null && $request->user()->can('view', $chat) ? $chat : null;
     }
 }

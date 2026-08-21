@@ -2,6 +2,7 @@
 
 namespace App\Services\Flowspec;
 
+use App\Models\FlowspecChat;
 use App\Models\FlowspecMessage;
 use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Responses\AgentResponse;
@@ -9,16 +10,19 @@ use Laravel\Ai\Responses\AgentResponse;
 use function Laravel\Ai\agent;
 
 /**
- * Orchestrates a flowSpec generation: resolves context (docs + examples, no
- * RAG), builds the prompt, calls the model via laravel/ai (provider/model
- * from `config('services.flowspec')`) and runs the correction loop —
- * normalizes, validates and re-prompts with the concrete errors up to
- * `max_attempts`. No JSON in the first response = conversational response
- * (a question/request for detail), returned as text with no re-prompt — and
- * in that case, `meta.suggested_documents` (`suggestedDocuments()`) brings
- * real documentation that might be missing (cited by name by the model, or
- * trimmed by budget), to become an "add" button in the chat instead of the
- * user needing the chips picker.
+ * Orchestrates a flowSpec generation: resolves the conversation's ATTACHED
+ * context (documentation references + the user's own files/pastes) plus the
+ * tag-selected corpus examples, builds the prompt, calls the model via
+ * laravel/ai (provider/model from `config('services.flowspec')`) and runs the
+ * correction loop — normalizes, validates and re-prompts with the concrete
+ * errors up to `max_attempts`.
+ *
+ * No JSON in the first response = conversational response (a question/request
+ * for detail), returned as text with no re-prompt — and in that case,
+ * `meta.suggested_documents` (`suggestedDocuments()`) names real documentation
+ * the conversation doesn't have yet, to become an "adicionar ao contexto"
+ * button. Nothing there enters a prompt until it is clicked: this service never
+ * resolves context the user didn't attach.
  */
 class FlowspecGenerationService
 {
@@ -31,11 +35,10 @@ class FlowspecGenerationService
     ) {}
 
     /**
-     * Generates the response for an already-persisted user message: the
-     * request is its `content`, explicit Solutions come from its
-     * `meta.solution_ids`, documents chosen by hand come from
-     * `meta.document_refs`, and the history is the messages preceding it in
-     * the chat.
+     * Generates the response for an already-persisted user message: the request
+     * is its `content`, the context is whatever is attached to its CHAT (not to
+     * the message — see the flowspec_attachments migration), and the history is
+     * the messages preceding it in the chat.
      */
     public function generate(FlowspecMessage $userMessage): FlowspecGenerationResult
     {
@@ -45,16 +48,13 @@ class FlowspecGenerationService
         // strict-mode guard on multi-row hydrations, so even outside
         // production this wouldn't throw LazyLoadingViolationException).
         $userMessage->loadMissing('chat');
+        $chat = $userMessage->chat;
 
-        $history = $userMessage->chat->messages()
+        $history = $chat->messages()
             ->where('id', '<', $userMessage->id)
             ->get();
 
-        $context = $this->resolver->resolve(
-            $userMessage->content,
-            array_map(intval(...), $userMessage->meta['solution_ids'] ?? []),
-            $userMessage->meta['document_refs'] ?? [],
-        );
+        $context = $this->resolver->resolve($chat, $userMessage->content);
 
         Log::debug('flowSpec: contexto resolvido', [
             'chat_id'    => $userMessage->flowspec_chat_id,
@@ -62,12 +62,9 @@ class FlowspecGenerationService
             ...$context->toMeta(),
         ]);
 
-        $basePrompt = $this->prompts->userPrompt(
-            $context,
-            $userMessage->content,
-            $history,
-            $userMessage->meta['reference_flowspec'] ?? null,
-        );
+        $built = $this->prompts->userPrompt($context, $userMessage->content, $history);
+
+        $basePrompt = $built->text;
 
         $maxAttempts = (int) config('services.flowspec.max_attempts');
         $attempts = [];
@@ -81,7 +78,7 @@ class FlowspecGenerationService
 
         for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
             // Only the prompt size — never the text: it carries whole
-            // documentation (up to doc_budget_chars), which can contain
+            // documentation and whatever the user attached, which can contain
             // secrets (what CredentialScrubber exists to catch) and alone
             // generates hundreds of KB of log per attempt when LOG_LEVEL=debug.
             Log::debug("flowSpec: prompt tentativa {$attempt}", [
@@ -89,7 +86,7 @@ class FlowspecGenerationService
                 'prompt_chars' => mb_strlen($prompt),
             ]);
 
-            $response = $this->prompt($prompt);
+            $response = $this->prompt($prompt, $context->attachments);
             $text = $response->text;
             $tokens['prompt'] += $response->usage->promptTokens;
             $tokens['completion'] += $response->usage->completionTokens;
@@ -196,42 +193,44 @@ class FlowspecGenerationService
                 // selection), but the content can change later, so this is
                 // the historical record of what guidance actually applied.
                 'guidelines' => $this->prompts->activeGuidelines()->pluck('title')->all(),
+                'history_trimmed' => $built->trimmedHistoryTurns,
                 // Only on an actual CONVERSATIONAL response — not when the
                 // loop ran out of attempts with invalid JSON (there $document
                 // is also null, but inferring suggestions from broken JSON
                 // makes no sense).
-                'suggested_documents' => $conversational ? $this->suggestedDocuments($context, $text) : [],
+                'suggested_documents' => $conversational ? $this->suggestedDocuments($chat, $text) : [],
             ],
         );
     }
 
     /**
-     * "Add documentation" buttons for a conversational response: joins what
-     * was already left out by budget (`context->omittedDocuments` — empty in
-     * the explicit `document_refs` mode, which trims nothing) with what the
-     * model cited by name while asking for more context
-     * (`FlowspecContextResolver::suggestDocumentsFor`) — deduped by
-     * `type:id`, since both signals can point to the same document.
+     * "Adicionar ao contexto" buttons for a conversational response:
+     * documentation the model cited by name while asking for more context, that
+     * this conversation doesn't already have attached.
+     *
+     * This is the entire replacement for the old automatic injection — the same
+     * name-matching, but the user decides. Nothing here costs a token until a
+     * button is clicked.
      *
      * @return list<array{type: string, id: int, label: string}>
      */
-    private function suggestedDocuments(FlowspecContext $context, string $conversationalText): array
+    private function suggestedDocuments(FlowspecChat $chat, string $conversationalText): array
     {
-        $mentioned = $this->resolver->suggestDocumentsFor($conversationalText, $context->solutions);
-
-        return collect($context->omittedDocuments)
-            ->merge($mentioned)
-            ->unique(fn (array $ref) => "{$ref['type']}:{$ref['id']}")
-            ->take((int) config('services.flowspec.max_suggested_documents'))
-            ->values()
-            ->all();
+        return $this->resolver->suggestFor($conversationalText, $this->resolver->attachedKeys($chat));
     }
 
-    /** Protected so tests can substitute the real API call with a test double. */
-    protected function prompt(string $prompt): AgentResponse
+    /**
+     * Protected so tests can substitute the real API call with a test double.
+     *
+     * @param  list<object>  $attachments  PDFs/images the model reads natively
+     *                                     (Laravel\Ai\Files\LocalDocument /
+     *                                     LocalImage) instead of as inlined text
+     */
+    protected function prompt(string $prompt, array $attachments = []): AgentResponse
     {
         return agent(instructions: $this->prompts->systemPrompt())->prompt(
             $prompt,
+            attachments: $attachments,
             provider: config('services.flowspec.provider'),
             model: config('services.flowspec.model'),
             timeout: (int) config('services.flowspec.timeout'),

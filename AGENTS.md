@@ -732,17 +732,25 @@ happens between requests, not inside a burst.
 
 ## Media (Spatie MediaLibrary)
 
-Only 4 models use `HasMedia`/`InteractsWithMedia`, each with its own single collection and its own purpose — there is no generic shared collection/conversion pair to reuse:
+Only 6 models use `HasMedia`/`InteractsWithMedia`, each with its own single collection and its own purpose — there is no generic shared collection/conversion pair to reuse:
 
 - `User` — `avatar` (single-file), with one registered conversion, `thumb` (120×120, `nonQueued()` since the source is tiny). `User::avatarUrl()` falls back to `ui-avatars.com` (an external, third-party image, requested client-side from the `<img src>`) when no avatar was uploaded — a deliberate, low-risk default, not an oversight.
 - `Solution` — `context_documents` (`Solution::CONTEXT_COLLECTION`), the "Assiste IA" context documents (PDF/image/text), served by `SolutionContextDocumentController` — never through `MediaController`/`files.show`.
 - `Integration` and `DocumentationPage` — both implement `App\Contracts\Documentable` and share the `docs` collection (`Documentable::DOCS_COLLECTION = 'docs'`): images/files embedded in Markdown documentation, referenced as `/files/{id}` and served by `MediaController`/`files.show` (authenticated) or `PublicDocumentationController::file()` (magic-link, token-scoped).
+- `Submission` — `submission_sources` (`Submission::SOURCES_COLLECTION`), the gathered material behind a CATI submission, served by `SubmissionSourceController::show()`.
+- `FlowspecChat` — `flowspec_attachments` (`FlowspecChat::ATTACHMENTS_COLLECTION`), files a person attached as context to an Especialista em Integrações conversation. Never served back to a browser at all: these are read for text or handed to the model as native attachments, and are deleted with the attachment row.
 
 No model has more than one conversion, and nothing uses a `->image()` accessor. **`Solution` and `Company` logos are NOT MediaLibrary** — `logo_path` is a plain string column, uploaded via `$request->file('logo')->store('{solution,company}-logos', 'public')` directly in `SolutionController`/`CompanyController`, a deliberately simpler mechanism since a logo needs no conversions/metadata.
 
 Avatar/logo uploads (the six Person/Solution/Company Store+Update requests) all share `['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048']`, and `avatar-upload.js` mirrors that list client-side so a doomed file never gets an encouraging preview — **keep the two in step**. `accept="image/*"` on the input is only a picker hint and enforces nothing. SVG is intentionally absent: Laravel 13's bare `image` rule rejects it unless written `image:allow_svg` (so it never actually worked, even while `mimes:` still listed it), and an SVG served from the public disk executes its own scripts when opened directly by URL. Documentation media is a different rule (`file`, not `image`) and **does** accept SVG.
 
-Never register a new collection/conversion without checking the 4 above first — and note `MediaController::show()`'s guard should compare against `Documentable::DOCS_COLLECTION`, not a hardcoded `'docs'` literal (the two happen to match; don't let them drift apart silently).
+The last two are read by the shared `App\Support\Context` extractors
+(`SourceTextExtractor` + `SensitiveTextScanner`), which partition an upload into
+text to inline vs. a PDF/image the model reads natively — the one piece of this
+that two feature areas genuinely share. `App\Support\Context\NativeAttachmentType`
+is the single place that decides which of the two a given file is.
+
+Never register a new collection/conversion without checking the 6 above first — and note `MediaController::show()`'s guard should compare against `Documentable::DOCS_COLLECTION`, not a hardcoded `'docs'` literal (the two happen to match; don't let them drift apart silently).
 
 ### SSRF surface — documentation editor's "paste image URL"
 

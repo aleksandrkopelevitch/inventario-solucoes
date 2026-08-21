@@ -41,37 +41,50 @@ document.addEventListener('click', async (e) => {
 })
 
 /* ----------------------------------------------------------------------------
- * Composer (ChatGPT/Claude-style box — components/flowspec/composer.blade.php).
- * The 📎 attach menu reuses the existing context plumbing (no file upload):
- * it opens the systems/documents chips overlays and reveals the reference
- * panel; selections render as pills above the textarea.
+ * Composer — components/flowspec/composer.blade.php
+ *
+ * There are exactly TWO kinds of context, and both arrive through this module:
+ * documentation already in the inventory (the picker panel) and material the
+ * user brings (a file from disk, or a long paste that becomes a text
+ * attachment, the way the Claude client does it).
+ *
+ * Everything here branches on ONE thing: whether a conversation exists yet.
+ *
+ * - It does (`chatId` set): attach immediately over AJAX. The server answers
+ *   with the context panel's slot, so the list and the token meter are always
+ *   server-truth — never a client guess.
+ * - It doesn't (the new-chat screen): STAGE it. Staged context is rendered as
+ *   pills plus real hidden inputs inside the form, so the ordinary
+ *   `new FormData(form)` in ajax-post.js carries it along with the first
+ *   message and no custom submit path is needed.
  * ------------------------------------------------------------------------- */
 
-function chipsFieldByName(form, name) {
-    return Array.from((form || document).querySelectorAll('[data-ak-chips]')).find((el) => {
-        try {
-            return JSON.parse(el.dataset.akChips || '{}').name === name
-        } catch {
-            return false
-        }
-    })
+const SUGGEST_DEBOUNCE_MS = 600
+const SUGGEST_MIN_LENGTH = 3
+
+// form -> { files: File[], texts: [{content, label}], documents: [{ref, label}] }
+const staged = new WeakMap()
+// form -> pending suggestion debounce timer
+const suggestTimers = new WeakMap()
+// form -> id of the most recent suggestion request, so a slow response to an
+// earlier keystroke can't repaint over a newer one (same guard as chips.js).
+const suggestSeq = new WeakMap()
+
+function configOf(form) {
+    try {
+        return JSON.parse(form?.dataset.akFsComposer || '{}')
+    } catch {
+        return {}
+    }
+}
+
+function stagedOf(form) {
+    if (!staged.has(form)) staged.set(form, { files: [], texts: [], documents: [] })
+    return staged.get(form)
 }
 
 function closeAttachMenu(form) {
     form?.querySelector('[data-ak-fs-menu]')?.classList.add('hidden')
-}
-
-// Collapse the pill row's padding/gap to zero when empty so an empty composer
-// shows no band — WITHOUT display:none, which would hide the chips' fixed
-// search overlays nested inside this wrapper (see composer.blade.php).
-function syncPills(wrapper) {
-    if (!wrapper) return
-    const refPill = wrapper.querySelector('[data-ak-fs-reference-pill]')
-    const hasChips = !!wrapper.querySelector('[data-ak-chip]')
-    const hasReference = refPill && !refPill.classList.contains('hidden')
-    const show = hasChips || hasReference
-    wrapper.classList.toggle('pt-3', show)
-    wrapper.classList.toggle('gap-1.5', show)
 }
 
 function autoGrow(el) {
@@ -79,48 +92,307 @@ function autoGrow(el) {
     el.style.height = `${el.scrollHeight}px`
 }
 
-document.addEventListener('click', (e) => {
-    // 📎 menu → open a chips overlay via its (hidden) trigger.
-    const openBtn = e.target.closest('[data-ak-fs-open]')
-    if (openBtn) {
-        const form = openBtn.closest('form')
-        chipsFieldByName(form, openBtn.dataset.akFsOpen)?.querySelector('[data-ak-chips-trigger]')?.click()
-        closeAttachMenu(form)
-        return
-    }
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+}
 
-    // 📎 menu → open the reference-flowSpec modal (autofocus handles the caret).
-    const refToggle = e.target.closest('[data-ak-fs-toggle-reference]')
-    if (refToggle) {
-        window.Modal?.open(refToggle.dataset.akFsToggleReference)
-        closeAttachMenu(refToggle.closest('form'))
-        return
-    }
+/* ----------------------------------- staging ------------------------------ */
 
-    // Reference pill × → clear the reference textarea.
-    const refClear = e.target.closest('[data-ak-fs-reference-clear]')
-    if (refClear) {
-        const form = refClear.closest('form')
-        const input = form?.querySelector('[data-ak-fs-reference-input]')
-        if (input) {
-            input.value = ''
-            input.dispatchEvent(new Event('input', { bubbles: true }))
+/**
+ * Files can't be assigned to a file input one by one — `input.files` is a
+ * read-only FileList. A DataTransfer is the one writable way to build one, and
+ * rebuilding it from the staged array on every add/remove is what lets
+ * `new FormData(form)` pick the staged files up natively.
+ */
+function syncStagedFiles(form) {
+    const input = form.querySelector('[data-ak-fs-file-input]')
+    if (!input) return
+
+    const transfer = new DataTransfer()
+    stagedOf(form).files.forEach((file) => transfer.items.add(file))
+    input.files = transfer.files
+}
+
+function renderStaged(form) {
+    const wrapper = form.querySelector('[data-ak-fs-pending]')
+    if (!wrapper) return
+
+    const state = stagedOf(form)
+    const pills = []
+
+    state.documents.forEach((doc, i) => {
+        pills.push(pillHtml(doc.label, `document:${i}`, [
+            `<input type="hidden" name="documents[]" value="${escapeHtml(doc.ref)}">`,
+        ]))
+    })
+
+    state.files.forEach((file, i) => {
+        // No hidden input: the file input itself carries these (syncStagedFiles).
+        pills.push(pillHtml(file.name, `file:${i}`, []))
+    })
+
+    state.texts.forEach((text, i) => {
+        pills.push(pillHtml(text.label, `text:${i}`, [
+            `<input type="hidden" name="texts[${i}][content]" value="${escapeHtml(text.content)}">`,
+            `<input type="hidden" name="texts[${i}][label]" value="${escapeHtml(text.label)}">`,
+        ]))
+    })
+
+    wrapper.innerHTML = pills.join('')
+    wrapper.classList.toggle('pt-3', pills.length > 0)
+}
+
+function pillHtml(label, key, inputs) {
+    return `<span class="inline-flex max-w-full items-center gap-1.5 rounded-full border border-dashed border-line-2 bg-raised py-1 pl-2.5 pr-1 text-xs font-medium text-body">
+        <span class="truncate" title="${escapeHtml(label)}">${escapeHtml(label)}</span>
+        <button type="button" data-ak-fs-unstage="${escapeHtml(key)}" aria-label="Remover ${escapeHtml(label)}"
+                class="ml-0.5 rounded-full px-1 leading-none text-muted hover:bg-hot-soft hover:text-hot">&times;</button>
+        ${inputs.join('')}
+    </span>`
+}
+
+/* ---------------------------------- attaching ----------------------------- */
+
+/**
+ * One entry point for both kinds of context and both destinations. `payload` is
+ * whatever the attach endpoint accepts (`file`, `text`+`label`, `documents[]`);
+ * `stage` describes the same thing for the staged list.
+ */
+async function addContext(form, { payload, stage }) {
+    const config = configOf(form)
+
+    if (!config.chatId) {
+        const state = stagedOf(form)
+        if (stage.kind === 'file') state.files.push(stage.file)
+        if (stage.kind === 'text') state.texts.push({ content: stage.content, label: stage.label })
+        if (stage.kind === 'documents') {
+            // Deduped here as well as server-side (AttachFlowspecDocuments):
+            // picking the same page twice is an ordinary thing to do — the
+            // picker and the assistant's suggestion buttons point at the same
+            // references — and two identical pills read as a bug.
+            const already = new Set(state.documents.map((doc) => doc.ref))
+            stage.documents
+                .filter((doc) => !already.has(doc.ref))
+                .forEach((doc) => state.documents.push(doc))
         }
+
+        renderStaged(form)
+        syncStagedFiles(form)
         return
+    }
+
+    // No `_token` in the body: ajax.js sends the CSRF token as a header.
+    const body = new FormData()
+    Object.entries(payload).forEach(([key, value]) => {
+        if (Array.isArray(value)) value.forEach((item) => body.append(`${key}[]`, item))
+        else if (value !== null && value !== undefined) body.append(key, value)
+    })
+
+    try {
+        const response = await ajaxModule.init('POST', config.attachUrl, body)
+        const data = await response.json()
+        updateSlots(data)
+        if (data.message) Toast.open({ content: data.message, type: data.type || 'success' })
+    } catch (error) {
+        let message = 'Não foi possível anexar.'
+        if (error.response) {
+            try {
+                message = (await error.response.json()).message ?? message
+            } catch {
+                /* keep the fallback */
+            }
+        }
+        Toast.show(message, 'warning')
+    }
+}
+
+function attachFiles(form, files) {
+    if (!files.length) return
+
+    Array.from(files).forEach((file) => {
+        addContext(form, { payload: { file }, stage: { kind: 'file', file } })
+    })
+}
+
+function attachText(form, content, label) {
+    addContext(form, {
+        payload: { text: content, label },
+        stage: { kind: 'text', content, label },
+    })
+}
+
+function attachDocuments(form, documents) {
+    if (!documents.length) return
+
+    addContext(form, {
+        payload: { documents: documents.map((doc) => doc.ref) },
+        stage: { kind: 'documents', documents },
+    })
+}
+
+/** First line of a paste, so four pasted blocks are tellable apart. */
+function labelForPaste(text) {
+    const first = text.trim().split('\n')[0].trim()
+    if (!first) return 'Texto colado'
+    return first.length > 60 ? `${first.slice(0, 57)}…` : first
+}
+
+/* ---------------------------------- events -------------------------------- */
+
+document.addEventListener('click', (e) => {
+    // 📎 menu → open the file dialog. (The picker item opens the side panel on
+    // its own via data-ak-panel-open, with no code in between.)
+    const fileBtn = e.target.closest('[data-ak-fs-open-file]')
+    if (fileBtn) {
+        const form = fileBtn.closest('form')
+        closeAttachMenu(form)
+        form?.querySelector('[data-ak-fs-file-input]')?.click()
+        return
+    }
+
+    // Closes the 📎 menu behind the picker. Deliberately does NOT return or
+    // preventDefault: side-panel.js is listening for this same click, and it is
+    // what actually opens the panel.
+    const pickerBtn = e.target.closest('[data-ak-fs-open-picker]')
+    if (pickerBtn) closeAttachMenu(pickerBtn.closest('form'))
+
+    // Remove a persisted attachment from the conversation's context.
+    const detach = e.target.closest('[data-ak-fs-detach]')
+    if (detach) {
+        removeAttachment(detach)
+        return
+    }
+
+    // Remove a staged (not yet persisted) item.
+    const unstage = e.target.closest('[data-ak-fs-unstage]')
+    if (unstage) {
+        const form = unstage.closest('form')
+        const [kind, index] = unstage.dataset.akFsUnstage.split(':')
+        const state = stagedOf(form)
+        const bucket = kind === 'file' ? 'files' : kind === 'text' ? 'texts' : 'documents'
+        state[bucket].splice(Number(index), 1)
+        renderStaged(form)
+        syncStagedFiles(form)
+        return
+    }
+
+    // "adicionar ao contexto" — from a suggestion row or an assistant reply.
+    const suggestion = e.target.closest('[data-ak-fs-suggest-add]')
+    if (suggestion) {
+        const form = document.querySelector('[data-ak-fs-composer]')
+        const { ref, label } = JSON.parse(suggestion.dataset.akFsSuggestAdd)
+        attachDocuments(form, [{ ref, label }])
+        suggestion.remove()
+        return
+    }
+
+    // Picker: "Marcar visíveis" — only the rows the current filter left showing,
+    // never the whole group. A GitBook-imported solution has hundreds of pages,
+    // and checking all of them would blow both the attachment cap and the
+    // context limit in one click.
+    const visibleBtn = e.target.closest('[data-ak-fs-picker-visible]')
+    if (visibleBtn) {
+        e.preventDefault()
+        const group = visibleBtn.closest('[data-ak-fs-picker-group]')
+        group.open = true
+        group.querySelectorAll('[data-ak-fs-picker-row]:not(.hidden) [data-ak-fs-picker-item]:not(:disabled)')
+            .forEach((box) => { box.checked = true })
+        syncPickerFooter(group.closest('[data-ak-fs-picker-panel]'))
+        return
+    }
+
+    const apply = e.target.closest('[data-ak-fs-picker-apply]')
+    if (apply) {
+        const panel = apply.closest('[data-ak-fs-picker-panel]')
+        const form = document.querySelector('[data-ak-fs-composer]')
+        const documents = Array.from(panel.querySelectorAll('[data-ak-fs-picker-item]:checked:not(:disabled)'))
+            .map((box) => ({ ref: box.value, label: box.dataset.pickerLabel }))
+
+        attachDocuments(form, documents)
+        document.querySelector('[data-ak-panel-close]')?.click()
     }
 })
 
+async function removeAttachment(trigger) {
+    // A real DELETE, not a POST with `_method` spoofing: the route is registered
+    // as DELETE and ajax.js already carries the CSRF token in a header, so
+    // there is nothing a body would be needed for.
+    try {
+        const response = await ajaxModule.init('DELETE', trigger.dataset.akFsDetach)
+        updateSlots(await response.json())
+    } catch {
+        Toast.show('Não foi possível remover do contexto.', 'warning')
+    }
+}
+
+document.addEventListener('change', (e) => {
+    const fileInput = e.target.closest('[data-ak-fs-file-input]')
+    if (fileInput) {
+        const form = fileInput.closest('form')
+
+        attachFiles(form, fileInput.files)
+
+        // With a conversation the files uploaded right away, so the input has
+        // done its job and must be emptied — otherwise the next message would
+        // resend the same bytes to an endpoint that ignores them. With no
+        // conversation the input IS the staging area, and syncStagedFiles() owns
+        // its contents, so clearing it here would throw the selection away.
+        if (configOf(form).chatId) fileInput.value = ''
+        return
+    }
+
+    const pickerItem = e.target.closest('[data-ak-fs-picker-item]')
+    if (pickerItem) syncPickerFooter(pickerItem.closest('[data-ak-fs-picker-panel]'))
+})
+
 document.addEventListener('input', (e) => {
-    const ref = e.target.closest('[data-ak-fs-reference-input]')
-    if (ref) {
-        const form = ref.closest('form')
-        form?.querySelector('[data-ak-fs-reference-pill]')?.classList.toggle('hidden', ref.value.trim() === '')
-        syncPills(form?.querySelector('[data-ak-fs-pills]'))
+    const search = e.target.closest('[data-ak-fs-picker-search]')
+    if (search) {
+        filterPicker(search.closest('[data-ak-fs-picker-panel]'), search.value)
         return
     }
 
     const input = e.target.closest('[data-ak-fs-input]')
-    if (input) autoGrow(input)
+    if (input) {
+        autoGrow(input)
+        scheduleSuggestions(input.closest('form'), input.value)
+    }
+})
+
+/**
+ * A long paste becomes a text attachment instead of a wall of text in the
+ * composer — the Claude client's behavior, and the reason the standalone
+ * "flowSpec de referência" editor could go away: a pasted pipeline is just a
+ * paste, and the server recognizes it for what it is (AttachFlowspecText).
+ *
+ * A pasted IMAGE or file goes through the same door as one picked from disk.
+ */
+document.addEventListener('paste', (e) => {
+    const input = e.target.closest('[data-ak-fs-input]')
+    if (!input) return
+
+    const form = input.closest('form')
+    const files = Array.from(e.clipboardData?.files ?? [])
+
+    if (files.length) {
+        e.preventDefault()
+        attachFiles(form, files)
+        return
+    }
+
+    const text = e.clipboardData?.getData('text/plain') ?? ''
+    const threshold = configOf(form).pasteThreshold || 2000
+
+    if (text.length <= threshold) return
+
+    e.preventDefault()
+    attachText(form, text, labelForPaste(text))
+    Toast.show('Texto longo anexado ao contexto da conversa.')
 })
 
 // Enter sends (Shift+Enter = newline), like ChatGPT/Claude.
@@ -132,9 +404,12 @@ document.addEventListener('keydown', (e) => {
     input.closest('form')?.querySelector('[data-ak-fs-send]')?.click()
 })
 
-// Reset the composer after a message is sent (server-dispatched — see
-// FlowspecMessageController). The composer lives outside the swapped thread
-// slot, so it isn't re-rendered; reset it explicitly.
+/**
+ * Reset after a message is sent (server-dispatched — see
+ * FlowspecMessageController). Only the textarea: the conversation's context
+ * deliberately survives the send, which is the whole point of it living on the
+ * chat instead of on the message.
+ */
 document.addEventListener('ak:flowspec-composer-reset', (e) => {
     const form = document.getElementById(e.detail?.formId)
     if (!form) return
@@ -145,32 +420,120 @@ document.addEventListener('ak:flowspec-composer-reset', (e) => {
         autoGrow(message)
     }
 
-    const reference = form.querySelector('[data-ak-fs-reference-input]')
-    if (reference) reference.value = ''
-
-    form.querySelector('[data-ak-fs-reference-pill]')?.classList.add('hidden')
-    form.querySelector('[data-ak-fs-menu]')?.classList.add('hidden')
-    syncPills(form.querySelector('[data-ak-fs-pills]'))
+    form.querySelector('[data-ak-fs-suggestions]')?.replaceChildren()
+    closeAttachMenu(form)
 })
 
-const observedPills = new WeakSet()
+/* --------------------------------- suggestions ---------------------------- */
 
-export function init() {
-    // Keep each composer's pill row in sync with chip add/remove and the
-    // reference pill (both mutated by other modules / server JS).
-    document.querySelectorAll('[data-ak-fs-pills]').forEach((wrapper) => {
-        syncPills(wrapper)
-        if (observedPills.has(wrapper)) return
-        observedPills.add(wrapper)
-        new MutationObserver(() => syncPills(wrapper)).observe(wrapper, {
-            childList: true,
-            subtree: true,
-            attributes: true,
-            attributeFilter: ['class'],
-        })
+function scheduleSuggestions(form, text) {
+    const config = configOf(form)
+    if (!config.suggestUrl) return
+
+    clearTimeout(suggestTimers.get(form))
+
+    const target = form.querySelector('[data-ak-fs-suggestions]')
+    if (text.trim().length < SUGGEST_MIN_LENGTH) {
+        target?.replaceChildren()
+        return
+    }
+
+    suggestTimers.set(form, setTimeout(() => fetchSuggestions(form, text), SUGGEST_DEBOUNCE_MS))
+}
+
+async function fetchSuggestions(form, text) {
+    const config = configOf(form)
+    const seq = (suggestSeq.get(form) ?? 0) + 1
+    suggestSeq.set(form, seq)
+
+    const url = `${config.suggestUrl}${config.suggestUrl.includes('?') ? '&' : '?'}q=${encodeURIComponent(text)}`
+
+    try {
+        const response = await ajaxModule.init('GET', url)
+        const data = await response.json()
+        if (seq !== suggestSeq.get(form)) return // a later keystroke already won
+        renderSuggestions(form, data.suggestions ?? [])
+    } catch {
+        /* a suggestion nobody asked for isn't worth an error message */
+    }
+}
+
+function renderSuggestions(form, suggestions) {
+    const target = form.querySelector('[data-ak-fs-suggestions]')
+    if (!target) return
+
+    if (!suggestions.length) {
+        target.replaceChildren()
+        return
+    }
+
+    const buttons = suggestions.map((doc) => {
+        const payload = escapeHtml(JSON.stringify({ ref: `${doc.type}:${doc.id}`, label: doc.label }))
+        return `<button type="button" data-ak-fs-suggest-add="${payload}"
+            class="inline-flex items-center gap-1 rounded-full border border-accent-line bg-accent-soft px-2.5 py-1 text-xs font-medium text-ink hover:bg-accent-line">
+            + ${escapeHtml(doc.label)}
+        </button>`
     })
 
+    target.innerHTML = `<div class="flex flex-wrap items-center gap-1.5 pb-1">
+        <span class="text-[11px] text-faint">Anexar documentação?</span>
+        ${buttons.join('')}
+    </div>`
+}
+
+/* ----------------------------------- picker ------------------------------- */
+
+/**
+ * Client-side filtering, with matching groups opened automatically. The list is
+ * rendered whole (see the panel's own note) precisely so narrowing it costs
+ * nothing but a loop.
+ */
+function filterPicker(panel, term) {
+    if (!panel) return
+
+    const needle = term.trim().toLowerCase()
+    let anyVisible = false
+
+    panel.querySelectorAll('[data-ak-fs-picker-group]').forEach((group) => {
+        let visible = 0
+
+        group.querySelectorAll('[data-ak-fs-picker-row]').forEach((row) => {
+            const match = needle === '' || (row.dataset.search ?? '').includes(needle)
+            row.classList.toggle('hidden', !match)
+            if (match) visible++
+        })
+
+        group.classList.toggle('hidden', visible === 0)
+        group.querySelector('[data-ak-fs-picker-group-count]').textContent = visible
+        // Only a real search opens groups: with an empty box they stay as the
+        // user left them, so clearing the filter doesn't expand 600 rows.
+        if (needle !== '') group.open = visible > 0
+        if (visible > 0) anyVisible = true
+    })
+
+    panel.querySelector('[data-ak-fs-picker-empty]')?.classList.toggle('hidden', anyVisible)
+}
+
+function syncPickerFooter(panel) {
+    if (!panel) return
+
+    const count = panel.querySelectorAll('[data-ak-fs-picker-item]:checked:not(:disabled)').length
+    const label = panel.querySelector('[data-ak-fs-picker-count]')
+    const apply = panel.querySelector('[data-ak-fs-picker-apply]')
+
+    if (label) {
+        label.textContent = count === 0
+            ? 'Nenhum selecionado'
+            : `${count} ${count === 1 ? 'selecionado' : 'selecionados'}`
+    }
+    if (apply) apply.disabled = count === 0
+}
+
+/* ------------------------------------ init -------------------------------- */
+
+export function init() {
     document.querySelectorAll('[data-ak-fs-input]').forEach(autoGrow)
+    document.querySelectorAll('[data-ak-fs-picker-panel]').forEach(syncPickerFooter)
 
     // Keep the newest message in view (initial load + after each slot swap).
     const scroll = document.querySelector('[data-ak-fs-scroll]')

@@ -52,8 +52,7 @@ it('creates a chat, persists the user message and dispatches the generation job'
     $user = flowspecUser();
 
     $response = $this->actingAs($user)->postJson(route('flowspec.store'), [
-        'message'   => 'gera um flowspec de token para o SVL',
-        'solutions' => [],
+        'message' => 'gera um flowspec de token para o SVL',
     ]);
 
     $chat = FlowspecChat::query()->firstOrFail();
@@ -66,131 +65,17 @@ it('creates a chat, persists the user message and dispatches the generation job'
     Queue::assertPushed(GenerateFlowspecReply::class);
 });
 
-it('extracts solution ids from the chips payload (value/label pairs, not a flat id array)', function () {
-    Queue::fake();
-    $user = flowspecUser();
-    $svl = Solution::factory()->create(['name' => 'SVL']);
-
-    $this->actingAs($user)->postJson(route('flowspec.store'), [
-        'message'   => 'gera um flowspec de token para o SVL',
-        'solutions' => [['value' => $svl->id, 'label' => $svl->name]],
-    ])->assertOk();
-
-    $message = FlowspecChat::query()->firstOrFail()->messages()->firstOrFail();
-
-    expect($message->meta['solution_ids'])->toBe([$svl->id]);
-});
-
-it('extracts document refs from the chips payload (page:{id}/integration:{id})', function () {
-    Queue::fake();
-    $user = flowspecUser();
-    $page = DocumentationPage::factory()->for(Solution::factory(), 'container')->create(['documentation' => 'x']);
-    $integration = Integration::factory()->create(['documentation' => 'y']);
-
-    $this->actingAs($user)->postJson(route('flowspec.store'), [
-        'message'   => 'gera um flowspec',
-        'documents' => [
-            ['value' => "page:{$page->id}", 'label' => $page->title],
-            ['value' => "integration:{$integration->id}", 'label' => $integration->name],
-        ],
-    ])->assertOk();
-
-    $message = FlowspecChat::query()->firstOrFail()->messages()->firstOrFail();
-
-    expect($message->meta['document_refs'])->toBe([
-        ['type' => 'page', 'id' => $page->id],
-        ['type' => 'integration', 'id' => $integration->id],
-    ]);
-});
-
-it('renders the chat page composer with the reference flowspec field', function () {
-    $user = flowspecUser();
-    $chat = $user->flowspecChats()->create(['title' => 'Chat']);
-
-    $this->actingAs($user)
-        ->get(route('flowspec.show', $chat))
-        ->assertOk()
-        // Composer renders with both the message input and the reference
-        // flowSpec field (revealed from the 📎 attach menu).
-        ->assertSee('id="flowspec-message-input"', false)
-        ->assertSee('id="flowspec-reference-input"', false)
-        ->assertSee('flowSpec de referência');
-});
-
-it('normalizes a pasted reference flowspec into meta (minified, canvas meta dropped)', function () {
-    Queue::fake();
-    $user = flowspecUser();
-
-    $reference = json_encode([
-        'meta'     => ['abc' => ['position' => ['x' => 200, 'y' => 0]]],
-        'flowSpec' => ['disconnected-root:x' => [[
-            'id'       => 'abc', 'type' => 'connector', 'name' => 'log-connector',
-            'stepName' => 'Log', 'params' => ['message' => 'oi'],
-        ]]],
-    ], JSON_PRETTY_PRINT);
-
-    $this->actingAs($user)->postJson(route('flowspec.store'), [
-        'message'            => 'ajusta esse pipeline',
-        'reference_flowspec' => $reference,
-    ])->assertOk();
-
-    $stored = FlowspecChat::query()->firstOrFail()->messages()->firstOrFail()->meta['reference_flowspec'];
-
-    expect($stored)->toBeString()
-        ->and($stored)->not->toContain("\n") // minified
-        ->and(json_decode($stored, true))->not->toHaveKey('meta') // canvas positions dropped
-        ->and(json_decode($stored, true))->toHaveKey('flowSpec');
-});
-
-it('persists a reference flowspec on a follow-up message too', function () {
-    Queue::fake();
-    $user = flowspecUser();
-    $chat = $user->flowspecChats()->create(['title' => 'Chat']);
-
-    $this->actingAs($user)->postJson(route('flowspec.messages.store', $chat), [
-        'message'            => 'ajusta o timeout',
-        'reference_flowspec' => '{"meta":{"a":1},"flowSpec":{"x":[]}}',
-    ])->assertOk();
-
-    $stored = $chat->messages()->firstOrFail()->meta['reference_flowspec'];
-
-    expect(json_decode($stored, true))->toBe(['flowSpec' => ['x' => []]]);
-});
-
-it('rejects a reference flowspec that is not valid JSON', function () {
-    Queue::fake();
-    $user = flowspecUser();
-
-    $response = $this->actingAs($user)->postJson(route('flowspec.store'), [
-        'message'            => 'ajusta esse pipeline',
-        'reference_flowspec' => '{ isto não é json',
-    ])->assertStatus(422)->assertJson(['type' => 'warning']);
-
-    expect($response->json('message'))->toContain('JSON')
-        ->and(FlowspecChat::query()->count())->toBe(0);
-    Queue::assertNotPushed(GenerateFlowspecReply::class);
-});
-
-it('stores a null reference_flowspec when the field is omitted', function () {
-    Queue::fake();
-    $user = flowspecUser();
-
-    $this->actingAs($user)->postJson(route('flowspec.store'), ['message' => 'gera aí'])->assertOk();
-
-    expect(FlowspecChat::query()->firstOrFail()->messages()->firstOrFail()->meta['reference_flowspec'])->toBeNull();
-});
-
 it('rejects a malformed document reference', function () {
     Queue::fake();
     $user = flowspecUser();
 
     $this->actingAs($user)->postJson(route('flowspec.store'), [
         'message'   => 'gera um flowspec',
-        'documents' => [['value' => 'nao-existe:1', 'label' => 'x']],
+        'documents' => ['nao-existe:1'],
     ])->assertStatus(422);
 });
 
-it('searches documentation pages and integrations for the "Documentos específicos" chips picker', function () {
+it('searches documentation pages and integrations for the picker', function () {
     $user = flowspecUser();
     $solution = Solution::factory()->create(['name' => 'SVL']);
     $page = DocumentationPage::factory()->for($solution, 'container')->create(['title' => 'Autenticação', 'documentation' => 'x']);
@@ -313,21 +198,23 @@ it('persists only the exception type on failure, never the raw provider message'
         ->and(json_encode($reply->meta))->not->toContain('sk-secret-123');
 });
 
-it('rejects a context selection larger than the allowed maximum', function () {
+it('refuses more context items than the per-conversation maximum', function () {
     Queue::fake();
+    config()->set('services.flowspec.max_attachments', 3);
     $user = flowspecUser();
-    // 21 real solutions so only the array `max` rule can fail (each value still
-    // passes exists:solutions,id).
-    $solutions = Solution::factory()->count(21)->create()
-        ->map(fn (Solution $s) => ['value' => $s->id, 'label' => $s->name])
+
+    $solution = Solution::factory()->create();
+    $pages = DocumentationPage::factory()->count(4)->for($solution, 'container')
+        ->create(['documentation' => 'conteudo'])
+        ->map(fn (DocumentationPage $page) => "page:{$page->id}")
         ->all();
 
     $response = $this->actingAs($user)
-        ->postJson(route('flowspec.store'), ['message' => 'gera aí', 'solutions' => $solutions])
+        ->postJson(route('flowspec.store'), ['message' => 'gera aí', 'documents' => $pages])
         ->assertStatus(422)
         ->assertJson(['type' => 'warning']);
 
-    expect($response->json('message'))->toContain('20')
+    expect($response->json('message'))->toContain('3')
         ->and(FlowspecChat::query()->count())->toBe(0);
     Queue::assertNotPushed(GenerateFlowspecReply::class);
 });
