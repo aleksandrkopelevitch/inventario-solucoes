@@ -154,6 +154,20 @@ return [
         // request, mirroring documentation_ai.
         'max_attachment_bytes' => env('CATI_MAX_ATTACHMENT_BYTES', 20971520),
 
+        // Past this many characters, a paste into the interview's composer
+        // becomes a `text` material source instead of the message itself —
+        // the Claude client's behaviour. Mirrored in cati-chat.js (served
+        // from here, so the two can't drift), and deliberately the same
+        // default as the flowSpec composer: it is the same gesture.
+        'paste_threshold_chars' => env('CATI_PASTE_THRESHOLD_CHARS', 2000),
+
+        // Ceiling for ONE pasted text source. Well above the prose `message`
+        // cap of 8000 because the whole point is that a pasted document is
+        // not prose — a previous CATI deck reads out at ~10k characters, and
+        // `doc_budget_chars` is what actually decides how much of it reaches
+        // a prompt.
+        'max_pasted_chars' => env('CATI_MAX_PASTED_CHARS', 200000),
+
         // Deck rendering (Fase 2). The renderer is a Python script driven over
         // Symfony Process — python-pptx opens the real corporate template and
         // uses its layouts, which is what keeps a generated deck from looking

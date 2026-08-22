@@ -464,11 +464,16 @@ nunca fique polando em silêncio se o worker estiver morto. Registre em
   velhos enquanto a grade atualiza. Criar pela side panel.
 
 `resources/views/submissions/show.blade.php`
-: a bancada. `Submissions\DetailHeader` (slot `submission-detail-header-slot`) —
-  nome, status, solução e solicitante, todos `x-ui.inline-edit` apontando para
-  `submissions.field.update`. Abaixo: `Submissions\Checklist`,
-  `Submissions\Sections`, `Submissions\Sources`, o gatilho do chat e os botões
-  de exportação.
+: a bancada — **reformulada em 2026-08-22 para ser a entrevista, não um painel**
+  (ver "A bancada é a conversa" abaixo). `Submissions\DetailHeader` (slot
+  `submission-detail-header-slot`), agora enxuto: nome, status e os quatro
+  campos numa linha só, todos `x-ui.inline-edit` apontando para
+  `submissions.field.update`. Abaixo, uma barra com `Submissions\StageStrip` +
+  o seletor de abas, e três painéis montados ao mesmo tempo:
+  **Preparação** (thread + `x-submissions.composer` + `Submissions\Progress` +
+  `Submissions\Sources`), **Documento** (`Submissions\Sections` + exportações) e
+  **Comitê** (`Submissions\Checklist` + `Submissions\PreReview` +
+  `Submissions\Deliberation` + o formulário de deliberação).
 
 Cada seção é um card com o chip de estado, a leitura em Markdown
 (`x-ui.markdown` + `.ak-rich-text`) e `x-ui.inline-edit type="textarea"` para
@@ -476,6 +481,52 @@ editar — nada nesta página parece formulário até alguém pedir para editar.
 
 **Estados vazios** com `x-ui.empty-state` + ilustração unDraw, não linha de
 texto cinza.
+
+### A bancada é a conversa (2026-08-22)
+
+A Fase 1 entregou tudo o que o comitê precisa, mas numa tela em que a
+entrevista era um widget de 360px com um textarea de duas linhas, ao lado de
+seis cards abertos ao mesmo tempo. Nada ali dizia "responda e eu escrevo" —
+dizia "preencha este formulário". A reformulação mantém cada peça e muda a
+hierarquia:
+
+- **Três abas, os três painéis sempre montados.** Um slot devolvido por uma
+  mutação precisa aterrissar mesmo com a aba escondida: `ajax-slot.js` troca
+  por id e ignora em silêncio um id que não está no DOM, então desmontar a aba
+  inativa deixaria ela velha até o reload. O painel `Preparação` **não** nasce
+  com `hidden` — `tabs.js` esconde todos e reabre esse sincronamente no
+  `init()`, e sem JS é nele que a pessoa cai.
+- **`App\Support\Cati\SubmissionStages`** — Material → Entrevista → Revisão →
+  Comitê, derivado do registro, nunca marcado à mão. "Atual" é a primeira etapa
+  não concluída **depois** da última concluída: anexar material é opcional, e
+  "primeira não concluída" prenderia o ponteiro em `material` para sempre numa
+  submissão com o documento escrito.
+- **`Submissions\Progress`** saiu do `Checklist`: as 11 seções com estado e os
+  fatos do catálogo ficam ao lado da conversa; conformidade, itens estruturais
+  e as perguntas do comitê ficam na aba `Comitê`. Toda mutação que mexe em
+  seção devolve `Sections` + `Progress` + `Checklist` + `StageStrip` juntos —
+  três deles vivem em abas que podem não estar visíveis.
+- **Colar texto longo vira anexo**, como no cliente do Claude
+  (`SubmissionSourceKind::Text`, limiar em `services.cati.paste_threshold_chars`).
+  Colado como mensagem, um documento de arquitetura soterraria a conversa, seria
+  reenviado literalmente como histórico a cada turno e não teria como ser
+  removido; como material ele é uma linha que alguém lê, confere contra
+  credencial e apaga. Anexar (arquivo, link, colagem, arrastar-e-soltar) é
+  trabalho do composer — o card "Material" virou só a lista.
+
+Duas armadilhas pagas na reformulação, ambas invisíveis no código:
+
+- **`<form>` dentro de `<form>` é descartado pelo parser.** Cada chip de
+  material carrega seu próprio form DELETE escondido; com os chips dentro do
+  form da mensagem, o parser some com a tag interna e reparenteia os filhos —
+  `getElementById()` devolve null e `ajax-post.js` morre em
+  `new FormData(null)`. Por isso a caixa arredondada é uma `<div>` e o
+  `<form>` da mensagem é filho dela.
+- **`sources` sem `.media` só quebra com DOIS anexos.** `Builder::hydrate()`
+  arma o guard de lazy loading apenas quando `count($items) > 1`, então um
+  único material carrega `media` em silêncio e a página parece certa; o segundo
+  vira 500. Um teste com um anexo só não é teste de regressão nenhum — o que
+  existe hoje anexa dois.
 
 ### Navegação
 

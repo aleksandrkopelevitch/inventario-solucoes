@@ -6,7 +6,10 @@
             $formId = "confirm-section-{$section->id}";
         @endphp
 
-        <article class="group/row rounded-card border border-line bg-surface p-5 shadow-card">
+        {{-- Anchored: the progress rail on the "Preparação" tab links straight
+             at one section (data-ak-cati-goto-section), and cati-chat.js needs
+             a node to scroll to after it switches tabs. --}}
+        <article id="submission-section-{{ $key->value }}" class="group/row scroll-mt-4 rounded-card border border-line bg-surface p-5 shadow-card">
             <header class="mb-2 flex flex-wrap items-center gap-2">
                 <h3 class="font-display text-sm font-bold text-ink">{{ $key->label() }}</h3>
 

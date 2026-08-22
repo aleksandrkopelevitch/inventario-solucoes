@@ -23,7 +23,11 @@ class Sources extends Component
 
     public function render(): View
     {
-        $this->submission->loadMissing('sources');
+        // `sources.media`, not `sources`: the view reads $source->media, and
+        // strict mode only arms on MULTI-row hydration — with a single source
+        // attached this lazy-loads in silence, in any environment, and blows
+        // up as a 500 the moment a second one exists (see AGENTS.md).
+        $this->submission->loadMissing('sources.media');
 
         return view('components.submissions.sources', [
             'domId'      => self::DOM_ID,

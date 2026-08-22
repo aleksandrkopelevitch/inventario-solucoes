@@ -2,12 +2,15 @@
 
 use App\Enums\SubmissionSectionKey;
 use App\Enums\SubmissionSectionState;
+use App\Enums\SubmissionStatus;
 use App\Models\Company;
 use App\Models\Integration;
 use App\Models\Solution;
 use App\Models\Submission;
+use App\Models\SubmissionSource;
 use App\Support\Cati\DeviationRules;
 use App\Support\Cati\SubmissionRequirements;
+use App\Support\Cati\SubmissionStages;
 use Database\Seeders\AttributeOptionSeeder;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 
@@ -210,4 +213,118 @@ it('always asks what else was considered', function () {
 
     expect(deviation($blank, 'alternatives_blank')['severity'])->toBe('low')
         ->and(deviation($answered, 'alternatives_blank'))->toBeNull();
+});
+
+/*
+|--------------------------------------------------------------------------
+| Stages — the workbench's forward motion (App\Support\Cati\SubmissionStages)
+|--------------------------------------------------------------------------
+*/
+
+function stage(array $stages, string $key): array
+{
+    return collect($stages)->firstWhere('key', $key);
+}
+
+it('opens a brand-new submission at the material stage', function () {
+    $stages = SubmissionStages::for(catiSubmission());
+
+    expect(stage($stages, 'material')['state'])->toBe(SubmissionStages::CURRENT)
+        ->and(stage($stages, 'interview')['state'])->toBe(SubmissionStages::PENDING)
+        ->and(stage($stages, 'committee')['state'])->toBe(SubmissionStages::PENDING);
+});
+
+it('never marks a later stage current just because it happens to be satisfied', function () {
+    // Material attached, sections empty. "Revisão" is vacuously unfinished and
+    // "Comitê" undecided — the person is at the interview, and pointing them
+    // at the review would send them to confirm text that does not exist.
+    $submission = catiSubmission();
+    SubmissionSource::factory()->create(['submission_id' => $submission->id]);
+
+    $stages = SubmissionStages::for($submission->fresh());
+
+    expect(stage($stages, 'material')['state'])->toBe(SubmissionStages::DONE)
+        ->and(stage($stages, 'interview')['state'])->toBe(SubmissionStages::CURRENT)
+        ->and(stage($stages, 'review')['state'])->toBe(SubmissionStages::PENDING);
+});
+
+it('moves the pointer past a skipped stage instead of stranding on it', function () {
+    // Attaching material is optional — someone can just answer the questions.
+    // With "current = first unfinished", the strip would still read "Material"
+    // on a submission whose document is written.
+    $submission = catiSubmission();
+
+    foreach (SubmissionSectionKey::mandatoryCases() as $key) {
+        $submission->section($key)->update(['content' => 'Texto.', 'state' => SubmissionSectionState::Drafted]);
+    }
+
+    $stages = SubmissionStages::for($submission->fresh());
+
+    expect(stage($stages, 'material')['state'])->toBe(SubmissionStages::PENDING)
+        ->and(stage($stages, 'interview')['state'])->toBe(SubmissionStages::DONE)
+        ->and(stage($stages, 'review')['state'])->toBe(SubmissionStages::CURRENT);
+});
+
+it('finishes the interview stage on content and the review stage on confirmation', function () {
+    $submission = catiSubmission();
+    SubmissionSource::factory()->create(['submission_id' => $submission->id]);
+
+    // Written by the assistant and applied — content, but nobody signed it.
+    foreach (SubmissionSectionKey::mandatoryCases() as $key) {
+        $submission->section($key)->update([
+            'content' => 'Texto.',
+            'state'   => SubmissionSectionState::Drafted,
+        ]);
+    }
+
+    $stages = SubmissionStages::for($submission->fresh());
+
+    expect(stage($stages, 'interview')['state'])->toBe(SubmissionStages::DONE)
+        ->and(stage($stages, 'review')['state'])->toBe(SubmissionStages::CURRENT);
+
+    foreach (SubmissionSectionKey::mandatoryCases() as $key) {
+        $submission->section($key)->update(['state' => SubmissionSectionState::Confirmed]);
+    }
+
+    expect(stage(SubmissionStages::for($submission->fresh()), 'review')['state'])->toBe(SubmissionStages::DONE);
+});
+
+it('closes the committee stage only once the record carries a real outcome', function () {
+    $submitted = catiSubmission();
+    $submitted->update(['status' => SubmissionStatus::Submitted]);
+
+    expect(stage(SubmissionStages::for($submitted->fresh()), 'committee')['state'])->not->toBe(SubmissionStages::DONE);
+
+    $submitted->update(['status' => SubmissionStatus::ApprovedWithConditions]);
+
+    expect(stage(SubmissionStages::for($submitted->fresh()), 'committee')['state'])->toBe(SubmissionStages::DONE);
+});
+
+it('counts progress over all eleven sections, not just the mandatory six', function () {
+    // A bar reading 6/6 while five deck slides are blank is the kind of "done"
+    // that only shows up in the meeting.
+    $submission = catiSubmission();
+
+    foreach (SubmissionSectionKey::mandatoryCases() as $key) {
+        $submission->section($key)->update(['content' => 'Texto.', 'state' => SubmissionSectionState::Confirmed]);
+    }
+
+    $progress = SubmissionStages::progress($submission->fresh());
+
+    expect($progress['total'])->toBe(count(SubmissionSectionKey::cases()))
+        ->and($progress['answered'])->toBe(6)
+        ->and($progress['confirmed'])->toBe(6)
+        ->and($progress['percent'])->toBeLessThan(100);
+});
+
+it('counts a section as answered but unconfirmed while it is still a draft', function () {
+    $submission = catiSubmission();
+    $submission->section(SubmissionSectionKey::Summary)->update([
+        'content' => 'Texto.',
+        'state'   => SubmissionSectionState::Drafted,
+    ]);
+
+    $progress = SubmissionStages::progress($submission->fresh());
+
+    expect($progress['answered'])->toBe(1)->and($progress['confirmed'])->toBe(0);
 });

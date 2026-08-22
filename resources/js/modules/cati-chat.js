@@ -4,7 +4,7 @@ import {setButtonLoading} from './button-loading.js'
 
 /**
  * CATI interview composer — the conversation that fills a submission's
- * sections.
+ * sections, and the material it reads from.
  *
  * Built against docs-chat.js's polling/composer pattern, minus the parts that
  * only exist because the documentation assistant sits next to a live editor:
@@ -12,6 +12,19 @@ import {setButtonLoading} from './button-loading.js'
  * The thread renders inside the page (not a panel), so a reply still
  * generating re-renders its own [data-ak-cati-chat-poll] marker on the next
  * page load and init() picks the polling straight back up.
+ *
+ * Attaching material is the composer's job, the way it is in the Claude
+ * client: a long paste becomes a text attachment, a dropped or picked file is
+ * uploaded, a link is registered. All three post to the same endpoint
+ * (submissions.sources.store) and come back as slots, so the chips above the
+ * textarea, the Material card, the stage strip and the structural checklist
+ * all move together.
+ *
+ * The one thing that is NOT like flowspec-chat.js: there is no staging mode.
+ * The conversation always exists by the time this page renders
+ * (SubmissionController::chatFor opens it on the GET), and material belongs
+ * to the submission rather than to the chat, so everything attaches
+ * immediately.
  *
  * Applying a draft is a plain data-ak-ajax button in the thread — it writes
  * the sections server-side and swaps the slots — so nothing about it lives in
@@ -25,6 +38,22 @@ const MAX_POLL_ATTEMPTS = 300
 
 let timer = null
 let attempts = 0
+
+/* ------------------------------------------------------------------ */
+/*  Composer config                                                    */
+/* ------------------------------------------------------------------ */
+
+function composerOf(el) {
+    return el?.closest('[data-ak-cati-composer]') ?? document.querySelector('[data-ak-cati-composer]')
+}
+
+function configOf(form) {
+    try {
+        return JSON.parse(form?.dataset.akCatiComposer || '{}')
+    } catch (_) {
+        return {}
+    }
+}
 
 /* ------------------------------------------------------------------ */
 /*  Sending                                                            */
@@ -77,15 +106,7 @@ async function send(btn) {
             }
         }
     } catch (error) {
-        let text = 'Não consegui enviar a mensagem.'
-        if (error.response) {
-            try {
-                text = (await error.response.json()).message ?? text
-            } catch (_) {
-                // keep the default
-            }
-        }
-        Toast.open({content: text, title: 'Atenção', type: 'warning'})
+        Toast.open({content: await errorMessage(error, 'Não consegui enviar a mensagem.'), title: 'Atenção', type: 'warning'})
     } finally {
         setButtonLoading(btn, false)
     }
@@ -104,6 +125,220 @@ function autoGrow(el) {
     el.style.height = 'auto'
     el.style.height = `${el.scrollHeight}px`
 }
+
+async function errorMessage(error, fallback) {
+    if (!error?.response) return fallback
+
+    try {
+        return (await error.response.json()).message ?? fallback
+    } catch (_) {
+        return fallback
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Attaching material                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * One entry point for all three kinds. `payload` is whatever
+ * StoreSubmissionSourceRequest accepts: `file`, `text` (+ `label`), or `url`.
+ *
+ * Resolves to whether it landed, so a caller attaching several things in a
+ * row can stop at the first refusal instead of firing the rest at a server
+ * that has already said no.
+ */
+async function attach(form, payload) {
+    const url = configOf(form).attachUrl
+    if (!url) return false
+
+    // No `_token` in the body: ajax.js sends the CSRF token as a header.
+    const body = new FormData()
+    Object.entries(payload).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && value !== '') body.append(key, value)
+    })
+
+    try {
+        const response = await ajaxModule.init('POST', url, body)
+        const data = await response.json()
+        updateSlots(data)
+        if (data.message) Toast.open({content: data.message, type: data.type || 'success'})
+
+        return true
+    } catch (error) {
+        Toast.show(await errorMessage(error, 'Não foi possível anexar.'), 'warning')
+
+        return false
+    }
+}
+
+/**
+ * One file at a time, awaited — never a request per file fired at once.
+ *
+ * Same reasoning as the flowSpec composer: batching the whole selection into
+ * one body exceeds `post_max_size` long before `max:20480` per file does, so a
+ * multi-file pick would start failing as a truncated request instead of as an
+ * honest 422. Stopping at the first refusal keeps a rejected batch from
+ * earning one identical Toast per file.
+ */
+async function attachFiles(form, files) {
+    for (const file of Array.from(files)) {
+        if (!(await attach(form, {file}))) return
+    }
+}
+
+/** 📎 → file dialog. */
+document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-ak-cati-open-file]')) {
+        e.preventDefault()
+        composerOf(e.target)?.querySelector('[data-ak-cati-file-input]')?.click()
+    }
+})
+
+document.addEventListener('change', async (e) => {
+    const input = e.target.closest('[data-ak-cati-file-input]')
+    if (!input || !input.files?.length) return
+
+    const form = composerOf(input)
+    const files = Array.from(input.files)
+    // Cleared BEFORE the upload, not after: the input is inside the composer's
+    // own <form>, and leaving the selection on it would re-send the same bytes
+    // with anything else that ever posts this form.
+    input.value = ''
+
+    await attachFiles(form, files)
+})
+
+/** 📎 → "Anexar" next to the link field. */
+document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-ak-cati-link-add]')
+    if (!btn) return
+    e.preventDefault()
+
+    const form = composerOf(btn)
+    const input = form?.querySelector('[data-ak-cati-link-input]')
+    const url = (input?.value || '').trim()
+
+    if (!url) {
+        Toast.show('Cole o endereço antes de anexar.', 'warning')
+        return
+    }
+
+    setButtonLoading(btn, true)
+    try {
+        if (await attach(form, {url})) input.value = ''
+    } finally {
+        setButtonLoading(btn, false)
+    }
+})
+
+/**
+ * A long paste becomes a text attachment instead of a wall of text in the
+ * composer — the Claude client's behaviour, and the reason it is worth the
+ * code: pasted into the message, an old architecture document would bury the
+ * conversation, be re-sent verbatim as history on every later turn, and leave
+ * nothing to detach afterwards. As material it is a row someone can read,
+ * check for credentials, and remove.
+ *
+ * A pasted IMAGE or file goes through the same door as one picked from disk.
+ */
+document.addEventListener('paste', (e) => {
+    const input = e.target.closest('[data-ak-cati-chat-input]')
+    if (!input) return
+
+    const form = composerOf(input)
+    const files = Array.from(e.clipboardData?.files ?? [])
+
+    if (files.length) {
+        e.preventDefault()
+        attachFiles(form, files)
+        return
+    }
+
+    const text = e.clipboardData?.getData('text/plain') ?? ''
+    const config = configOf(form)
+    const threshold = config.pasteThreshold || 2000
+
+    if (text.length <= threshold) return
+
+    e.preventDefault()
+
+    // Refused here as well as server-side, because the server's 422 arrives
+    // after the whole payload was uploaded and the paste is already gone from
+    // the clipboard's point of view.
+    if (config.maxPastedChars && text.length > config.maxPastedChars) {
+        Toast.show('O texto colado é grande demais. Anexe como arquivo.', 'warning')
+        return
+    }
+
+    // No Toast here: the server's own message says a paste became material
+    // (SubmissionSourceController::confirmation), and announcing it twice for
+    // one gesture stacks two notifications.
+    attach(form, {text, label: labelForPaste(text)})
+})
+
+/** First non-blank line of a paste, so four pasted blocks are tellable apart. */
+function labelForPaste(text) {
+    const first = (text.split('\n').find((line) => line.trim() !== '') || '').trim()
+    if (!first) return 'Texto colado'
+    return first.length > 60 ? `${first.slice(0, 57)}…` : first
+}
+
+/* ---------------------------- drag & drop --------------------------------- */
+
+// `dragging` on the form drives the drop highlight (a data-attribute variant
+// in composer.blade.php, so there is no class list to keep in step here).
+document.addEventListener('dragover', (e) => {
+    const form = e.target.closest?.('[data-ak-cati-composer]')
+    if (!form || !e.dataTransfer?.types?.includes('Files')) return
+
+    e.preventDefault()
+    form.dataset.dragging = 'true'
+})
+
+document.addEventListener('dragleave', (e) => {
+    const form = e.target.closest?.('[data-ak-cati-composer]')
+    // Only when the pointer actually left the composer — dragging across a
+    // child fires dragleave for the child on the way out of it.
+    if (form && !form.contains(e.relatedTarget)) delete form.dataset.dragging
+})
+
+document.addEventListener('drop', (e) => {
+    const form = e.target.closest?.('[data-ak-cati-composer]')
+    if (!form) return
+
+    const files = Array.from(e.dataTransfer?.files ?? [])
+    if (!files.length) return
+
+    e.preventDefault()
+    delete form.dataset.dragging
+    attachFiles(form, files)
+})
+
+/* ------------------------------------------------------------------ */
+/*  Jumping from the progress rail to a section                        */
+/* ------------------------------------------------------------------ */
+
+// The section cards live on the "Documento" tab, which is display:none until
+// its trigger is clicked — so switch the tab first, then scroll. Clicking the
+// trigger (rather than calling tabs.js) keeps the active/inactive class
+// bookkeeping in the one place that owns it.
+document.addEventListener('click', (e) => {
+    const trigger = e.target.closest('[data-ak-cati-goto-section]')
+    if (!trigger) return
+
+    document.querySelectorAll('[data-ak-tabs]').forEach((tab) => {
+        try {
+            if (JSON.parse(tab.dataset.akTabs || '{}').targetId === 'submission-tab-document') tab.click()
+        } catch (_) {
+            // not our tab group
+        }
+    })
+
+    document
+        .getElementById(`submission-section-${trigger.dataset.akCatiGotoSection}`)
+        ?.scrollIntoView({behavior: 'smooth', block: 'start'})
+})
 
 /* ------------------------------------------------------------------ */
 /*  Polling while the thread says a reply is being generated           */

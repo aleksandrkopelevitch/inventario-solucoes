@@ -1,50 +1,18 @@
+{{-- What the committee will push back on. The catalog's facts and the
+     per-section progress live in x-submissions.progress, next to the
+     interview — see the note on App\View\Components\Submissions\Checklist. --}}
 <div id="{{ $domId }}" class="flex flex-col gap-5 rounded-card border border-line bg-surface p-5 shadow-card">
     <div>
-        <h2 class="font-display text-sm font-bold text-ink">O que já sabemos</h2>
-        <p class="mt-0.5 text-xs text-muted">Vem do catálogo — ninguém precisa perguntar.</p>
+        <h2 class="font-display text-sm font-bold text-ink">Itens estruturais</h2>
+        <p class="mt-0.5 text-xs text-muted">O que a submissão precisa ter, além do texto das seções.</p>
 
-        @if ($facts === [])
-            <p class="mt-3 text-sm text-muted">
-                Vincule uma solução do catálogo para o comitê já saber categoria, nuvem, criticidade e integrações.
-            </p>
-        @else
-            <dl class="mt-3 flex flex-col gap-1.5">
-                @foreach ($facts as $fact)
-                    <div class="flex items-baseline gap-2 text-sm">
-                        <dt class="shrink-0 text-muted">{{ $fact['label'] }}</dt>
-                        <dd class="min-w-0 flex-1 truncate font-medium text-ink">{{ $fact['value'] }}</dd>
-                    </div>
-                @endforeach
-            </dl>
-        @endif
-    </div>
-
-    <div class="border-t border-line pt-4">
-        <h2 class="font-display text-sm font-bold text-ink">Falta responder</h2>
-
-        @if ($missing === [])
-            <p class="mt-2 inline-flex items-center gap-1.5 text-sm text-accent">
-                <x-heroicon-o-check-circle class="size-4" />
-                As seções obrigatórias estão preenchidas.
-            </p>
-        @else
-            <ul class="mt-2 flex flex-col gap-1 pl-0">
-                @foreach ($missing as $key)
-                    <li class="flex items-center gap-2 text-sm text-ink">
-                        <span class="size-1.5 shrink-0 rounded-full bg-hot"></span>
-                        {{ \App\Enums\SubmissionSectionKey::from($key)->label() }}
-                    </li>
-                @endforeach
-            </ul>
-        @endif
-
-        <ul class="mt-3 flex flex-col gap-1 border-t border-line pt-3 pl-0">
+        <ul class="mt-3 flex flex-col gap-1.5 pl-0">
             @foreach ($structural as $item)
-                <li class="flex items-center gap-2 text-xs {{ $item['satisfied'] ? 'text-muted' : 'text-ink' }}">
+                <li class="flex items-center gap-2 text-sm {{ $item['satisfied'] ? 'text-muted' : 'text-ink' }}">
                     @if ($item['satisfied'])
-                        <x-heroicon-o-check class="size-3.5 shrink-0 text-accent" />
+                        <x-heroicon-o-check class="size-4 shrink-0 text-accent" />
                     @else
-                        <x-heroicon-o-minus-small class="size-3.5 shrink-0 text-faint" />
+                        <x-heroicon-o-minus-small class="size-4 shrink-0 text-faint" />
                     @endif
                     {{ $item['label'] }}
                     @if ($item['value']) <span class="truncate text-faint">— {{ $item['value'] }}</span> @endif
