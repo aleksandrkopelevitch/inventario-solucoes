@@ -157,6 +157,22 @@ it('renders the material list with TWO sources, where strict mode actually arms'
     $this->get(route('submissions.show', $submission))->assertOk()->assertSee('dois.md');
 });
 
+it('gives the long-form editors the full width of their card', function () {
+    // x-ui.inline-edit defaults to `min-w-48 max-w-xs` — right for retyping one
+    // datum on a crowded header, wrong for a section of a committee document
+    // (measured: a 256px field under full-width Markdown read mode) and wrong
+    // for a 22px display title. Both opt out explicitly, and nothing else in
+    // the stack complains if that opt-out is dropped in a refactor.
+    $html = $this->get(route('submissions.show', ownedSubmission()))->assertOk()->getContent();
+
+    expect($html)
+        ->toContain('hidden w-full max-w-full max-w-full')
+        ->toContain('hidden min-w-72 max-w-2xl max-w-full')
+        // …and the default ceiling is still on the short header fields, which
+        // genuinely want it.
+        ->toContain('hidden min-w-48 max-w-xs max-w-full');
+});
+
 it('hints at attaching material or talking to the assistant on a genuinely fresh submission', function () {
     $html = $this->get(route('submissions.show', ownedSubmission()))->assertOk()->getContent();
 

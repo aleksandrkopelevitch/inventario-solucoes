@@ -14,11 +14,19 @@
         <div class="min-w-0 flex-1">
             <p class="mb-0.5 text-[11px] font-semibold uppercase tracking-wider text-muted">Comitê de Arquitetura</p>
 
+            {{-- Same reason the section editors carry one (see
+                 x-submissions.sections): the component's default `max-w-xs`
+                 ceiling is 256px of usable field for a 22px display heading,
+                 and a real submission name — "Integração SKBridge com a
+                 central de estoque" — is retyped through a peephole. Matches
+                 what Solutions' and People's headers already pass for their
+                 own titles. --}}
             <x-ui.inline-edit
                 :action="$canEdit ? route('submissions.field.update', $submission) : null"
                 name="name"
                 label="Nome da submissão"
                 :value="$submission->name"
+                edit-class="min-w-72 max-w-2xl"
                 input-class="!font-display !text-[22px]/[28px] !font-bold !text-ink">
                 <span class="font-display text-[22px]/[28px] font-bold text-ink">{{ $submission->name }}</span>
             </x-ui.inline-edit>

@@ -33,11 +33,20 @@
                 @endif
             </header>
 
+            {{-- `edit-class` is not optional here. x-ui.inline-edit defaults to
+                 `min-w-48 max-w-xs` — a ceiling sized for retyping one datum on
+                 a crowded header, which is the wrong shape for a section of a
+                 committee document: read mode is full-width Markdown, so
+                 editing it in a 320px box is both a jarring reflow and less
+                 room than the text needs. Same opt-out the app's other
+                 long-form fields already use (people/notes,
+                 solutions/detail-header's notes). --}}
             <x-ui.inline-edit
                 :action="$canEdit ? route('submissions.sections.update', [$submission, $section]) : null"
                 name="content"
                 type="textarea"
-                :rows="6"
+                :rows="10"
+                edit-class="w-full max-w-full"
                 :label="$key->label()"
                 :value="$section->content"
                 empty="Não preenchido">
