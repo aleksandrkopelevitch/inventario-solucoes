@@ -6,7 +6,10 @@
             $formId = "confirm-section-{$section->id}";
         @endphp
 
-        <article class="group/row rounded-card border border-line bg-surface p-5 shadow-card">
+        {{-- Anchored: the progress rail on the "Preparação" tab links straight
+             at one section (data-ak-cati-goto-section), and cati-chat.js needs
+             a node to scroll to after it switches tabs. --}}
+        <article id="submission-section-{{ $key->value }}" class="group/row scroll-mt-4 rounded-card border border-line bg-surface p-5 shadow-card">
             <header class="mb-2 flex flex-wrap items-center gap-2">
                 <h3 class="font-display text-sm font-bold text-ink">{{ $key->label() }}</h3>
 
@@ -30,11 +33,20 @@
                 @endif
             </header>
 
+            {{-- `edit-class` is not optional here. x-ui.inline-edit defaults to
+                 `min-w-48 max-w-xs` — a ceiling sized for retyping one datum on
+                 a crowded header, which is the wrong shape for a section of a
+                 committee document: read mode is full-width Markdown, so
+                 editing it in a 320px box is both a jarring reflow and less
+                 room than the text needs. Same opt-out the app's other
+                 long-form fields already use (people/notes,
+                 solutions/detail-header's notes). --}}
             <x-ui.inline-edit
                 :action="$canEdit ? route('submissions.sections.update', [$submission, $section]) : null"
                 name="content"
                 type="textarea"
-                :rows="6"
+                :rows="10"
+                edit-class="w-full max-w-full"
                 :label="$key->label()"
                 :value="$section->content"
                 empty="Não preenchido">

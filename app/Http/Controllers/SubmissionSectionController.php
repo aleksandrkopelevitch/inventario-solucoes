@@ -8,7 +8,9 @@ use App\Jobs\CondenseSubmissionForSlides;
 use App\Models\Submission;
 use App\Models\SubmissionSection;
 use App\View\Components\Submissions\Checklist;
+use App\View\Components\Submissions\Progress;
 use App\View\Components\Submissions\Sections;
+use App\View\Components\Submissions\StageStrip;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -90,9 +92,18 @@ class SubmissionSectionController extends Controller
         $submission->load(['sections', 'sources', 'solution']);
 
         return response()->json([
-            'type'           => 'success',
-            'message'        => $message,
-            'updatableSlots' => [Sections::slot($submission), Checklist::slot($submission)],
+            'type'    => 'success',
+            'message' => $message,
+            // Progress and the stage strip both read section state, and both
+            // live on a DIFFERENT tab than the card that was just edited —
+            // exactly the case where forgetting one leaves a stale widget
+            // nobody notices until they switch back.
+            'updatableSlots' => [
+                Sections::slot($submission),
+                Progress::slot($submission),
+                Checklist::slot($submission),
+                StageStrip::slot($submission),
+            ],
         ]);
     }
 }

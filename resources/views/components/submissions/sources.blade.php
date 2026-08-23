@@ -1,9 +1,23 @@
+{{-- The material, in full: what was read out of each file and anything in it
+     that looks like a credential.
+
+     Attaching happens in the composer's 📎 (or by pasting/dropping into it),
+     never here — one door, next to the conversation that actually uses the
+     material. This card is the manager: the whole list, its state, and the
+     way out. --}}
 <div id="{{ $domId }}" class="rounded-card border border-line bg-surface p-5 shadow-card">
-    <h2 class="font-display text-sm font-bold text-ink">Material</h2>
-    <p class="mt-0.5 text-xs text-muted">Decks antigos, PDFs, imagens e links. O texto é lido no upload.</p>
+    <div class="flex items-baseline justify-between gap-2">
+        <h2 class="font-display text-sm font-bold text-ink">Material</h2>
+        @if ($sources->isNotEmpty())
+            <span class="text-xs tabular-nums text-muted">{{ $sources->count() }}</span>
+        @endif
+    </div>
 
     @if ($sources->isEmpty())
-        <p class="mt-3 text-sm text-muted">Nada anexado ainda.</p>
+        <p class="mt-2 text-xs text-muted">
+            Tem um deck ou documento antigo? Anexe pelo <x-heroicon-o-paper-clip class="inline size-3.5 align-text-bottom" />
+            da conversa — ou cole o texto direto na caixa. O assistente lê e já chega com rascunho.
+        </p>
     @else
         <ul class="mt-3 flex flex-col gap-2 pl-0">
             @foreach ($sources as $source)
@@ -41,22 +55,5 @@
                 </li>
             @endforeach
         </ul>
-    @endif
-
-    @if ($canEdit)
-        <form id="submission-source-form" class="mt-4 flex flex-col gap-2" enctype="multipart/form-data">
-            @csrf
-            <x-forms.field label="Anexar arquivo" for="submission-source-file" hint="PDF, PPTX, DOCX, texto ou imagem — até 20 MB.">
-                <x-forms.input type="file" id="submission-source-file" name="file" />
-            </x-forms.field>
-            <x-forms.field label="Ou um link" for="submission-source-url">
-                <x-forms.input type="url" id="submission-source-url" name="url" placeholder="https://…" />
-            </x-forms.field>
-            <x-forms.button class="self-start"
-                data-ak-ajax="submission-source-form"
-                data-ak-action="{{ route('submissions.sources.store', $submission) }}">
-                Anexar
-            </x-forms.button>
-        </form>
     @endif
 </div>

@@ -11,6 +11,7 @@ use App\View\Components\Submissions\Checklist;
 use App\View\Components\Submissions\Deliberation;
 use App\View\Components\Submissions\DetailHeader;
 use App\View\Components\Submissions\PreReview;
+use App\View\Components\Submissions\StageStrip;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -120,6 +121,7 @@ class SubmissionDecisionController extends Controller
                 DetailHeader::slot($submission->fresh(['solution', 'requester'])),
                 Checklist::slot($submission->fresh(['sections', 'sources', 'solution'])),
                 Deliberation::slot($submission->fresh()),
+                StageStrip::slot($submission->fresh(['sections', 'sources'])),
             ],
         ]);
     }

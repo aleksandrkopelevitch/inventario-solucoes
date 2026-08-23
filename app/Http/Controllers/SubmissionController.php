@@ -14,7 +14,9 @@ use App\View\Components\Submissions\Checklist;
 use App\View\Components\Submissions\DetailHeader;
 use App\View\Components\Submissions\Index as SubmissionsIndex;
 use App\View\Components\Submissions\PreReview;
+use App\View\Components\Submissions\Progress;
 use App\View\Components\Submissions\ResultsCount;
+use App\View\Components\Submissions\StageStrip;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -56,7 +58,7 @@ class SubmissionController extends Controller
         // and for a key added to the enum after this record was created.
         $submission->ensureSections();
 
-        $submission = $submission->fresh(['solution', 'requester', 'sections', 'sources']);
+        $submission = $submission->fresh(['solution', 'requester', 'sections', 'sources.media']);
         $chat = $this->chatFor($submission);
 
         return view('submissions.show', [
@@ -123,7 +125,11 @@ class SubmissionController extends Controller
             // either from the header changes which facts are known.
             'updatableSlots' => [
                 DetailHeader::slot($submission->fresh(['solution', 'requester'])),
+                // The facts come from the linked Solution, and the last stage
+                // reads the status — both editable right here on the header.
+                Progress::slot($submission->fresh(['sections', 'sources', 'solution'])),
                 Checklist::slot($submission->fresh(['sections', 'sources', 'solution'])),
+                StageStrip::slot($submission->fresh(['sections', 'sources'])),
                 // Submitting from the header starts a pre-review; without this
                 // the card would keep showing the old state until a reload.
                 PreReview::slot($submission->fresh()),

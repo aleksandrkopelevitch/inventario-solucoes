@@ -1,7 +1,9 @@
 <?php
 
+use App\Enums\ContextExtractionState;
 use App\Enums\SubmissionSectionKey;
 use App\Enums\SubmissionSectionState;
+use App\Enums\SubmissionSourceKind;
 use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Jobs\GenerateSubmissionChatReply;
@@ -10,6 +12,7 @@ use App\Models\Submission;
 use App\Models\SubmissionChat;
 use App\Models\SubmissionSource;
 use App\Models\User;
+use App\Services\Cati\SubmissionContextResolver;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
@@ -86,6 +89,90 @@ it('renders the detail page with the header, checklist, sections and chat', func
         ->toContain('data-ak-cati-chat-send');
 });
 
+it('renders the workbench: three mounted tab panels, the stage strip and the progress rail', function () {
+    $submission = ownedSubmission();
+
+    $html = $this->get(route('submissions.show', $submission))->assertOk()->getContent();
+
+    expect($html)
+        ->toContain('submission-stage-strip-slot')
+        ->toContain('submission-progress-slot')
+        ->toContain('submission-composer-context-slot')
+        // All three panels are in the DOM at once — a slot returned for a
+        // hidden tab has to land, or that tab is stale until a reload.
+        ->toContain('id="submission-tab-prep"')
+        ->toContain('id="submission-tab-document"')
+        ->toContain('id="submission-tab-committee"')
+        // The tab config must reach the browser compiled, not as a literal
+        // directive (the @json trap — see AGENTS.md).
+        ->toContain('data-ak-tabs="{&quot;targetContainerId&quot;')
+        ->and($html)->not->toContain('@json(');
+});
+
+it('renders the composer with every hook attaching depends on', function () {
+    // Each of these is a silent failure on its own: no paste-to-attachment, no
+    // file picker, no link field, no drop target.
+    $html = $this->get(route('submissions.show', ownedSubmission()))->assertOk()->getContent();
+
+    expect($html)
+        ->toContain('data-ak-cati-composer=')
+        ->toContain('data-ak-cati-file-input')
+        ->toContain('data-ak-cati-open-file')
+        ->toContain('data-ak-cati-link-input')
+        ->toContain('data-ak-cati-link-add')
+        // Served from config so the client and StoreSubmissionSourceRequest
+        // can't drift on where "long" starts.
+        ->toContain('&quot;pasteThreshold&quot;:' . config('services.cati.paste_threshold_chars'));
+});
+
+it('shows attached material as a chip in the composer, not only in the material card', function () {
+    $submission = ownedSubmission();
+    SubmissionSource::factory()->create([
+        'submission_id' => $submission->id,
+        'kind'          => SubmissionSourceKind::Text,
+        'label'         => 'Arquitetura do SKBridge',
+    ]);
+
+    $html = $this->get(route('submissions.show', $submission))->assertOk()->getContent();
+
+    // Once in the chips above the textarea, once in the Material card.
+    expect(substr_count($html, 'Arquitetura do SKBridge'))->toBeGreaterThan(1);
+});
+
+it('renders the material list with TWO sources, where strict mode actually arms', function () {
+    // One source is not a regression test: Builder::hydrate() only sets the
+    // per-instance no-lazy-loading flag when count($items) > 1, so an unloaded
+    // `media` on a single row lazy-loads in silence and the page looks fine.
+    // The second row is what turns the same code into a 500 (see AGENTS.md).
+    Storage::fake('public');
+
+    $submission = ownedSubmission();
+
+    foreach (['um.md', 'dois.md'] as $name) {
+        $this->postJson(route('submissions.sources.store', $submission), [
+            'file' => UploadedFile::fake()->createWithContent($name, 'conteúdo'),
+        ])->assertOk();
+    }
+
+    $this->get(route('submissions.show', $submission))->assertOk()->assertSee('dois.md');
+});
+
+it('gives the long-form editors the full width of their card', function () {
+    // x-ui.inline-edit defaults to `min-w-48 max-w-xs` — right for retyping one
+    // datum on a crowded header, wrong for a section of a committee document
+    // (measured: a 256px field under full-width Markdown read mode) and wrong
+    // for a 22px display title. Both opt out explicitly, and nothing else in
+    // the stack complains if that opt-out is dropped in a refactor.
+    $html = $this->get(route('submissions.show', ownedSubmission()))->assertOk()->getContent();
+
+    expect($html)
+        ->toContain('hidden w-full max-w-full max-w-full')
+        ->toContain('hidden min-w-72 max-w-2xl max-w-full')
+        // …and the default ceiling is still on the short header fields, which
+        // genuinely want it.
+        ->toContain('hidden min-w-48 max-w-xs max-w-full');
+});
+
 it('hints at attaching material or talking to the assistant on a genuinely fresh submission', function () {
     $html = $this->get(route('submissions.show', ownedSubmission()))->assertOk()->getContent();
 
@@ -136,11 +223,23 @@ it('edits one header field in place and refreshes the checklist with it', functi
     $ids = collect($response->json('updatableSlots'))->pluck('id')->all();
 
     expect($submission->fresh()->solution_id)->toBe($solution->id)
-        // Linking a solution changes which facts are known, so the checklist
-        // has to come back with the header — and the pre-review card too, since
-        // setting the status to "submetida" from here starts one.
-        ->and($ids)->toBe(['submission-detail-header-slot', 'submission-checklist-slot', 'submission-pre-review-slot'])
-        // The checklist is the one that now knows about the solution.
+        // Linking a solution changes which facts are known, so the progress
+        // rail and the checklist have to come back with the header — plus the
+        // stage strip (the last stage reads the status) and the pre-review
+        // card, since setting the status to "submetida" from here starts one.
+        ->and($ids)->toBe([
+            'submission-detail-header-slot',
+            'submission-progress-slot',
+            'submission-checklist-slot',
+            'submission-stage-strip-slot',
+            'submission-pre-review-slot',
+        ])
+        // The two halves of "knowing about the solution", now on two
+        // surfaces: the catalog's facts moved to the progress rail, next to
+        // the interview that must not ask about them…
+        ->and(collect($response->json('updatableSlots'))->firstWhere('id', 'submission-progress-slot')['content'])
+        ->toContain('Nuvem')
+        // …while the checklist keeps the structural item that names it.
         ->and(collect($response->json('updatableSlots'))->firstWhere('id', 'submission-checklist-slot')['content'])
         ->toContain('SkyMob');
 });
@@ -167,7 +266,14 @@ it('marks a section confirmed when a human types it', function () {
     expect($section->fresh()->state)->toBe(SubmissionSectionState::Confirmed)
         ->and($section->fresh()->updated_by_id)->toBe($this->user->id)
         ->and(collect($response->json('updatableSlots'))->pluck('id')->all())
-        ->toBe(['submission-sections-slot', 'submission-checklist-slot']);
+        // Progress and the stage strip live on other tabs; both read section
+        // state, so both come back with the card that changed.
+        ->toBe([
+            'submission-sections-slot',
+            'submission-progress-slot',
+            'submission-checklist-slot',
+            'submission-stage-strip-slot',
+        ]);
 });
 
 it('takes an emptied section back to blank rather than leaving it confirmed', function () {
@@ -216,7 +322,111 @@ it('attaches an uploaded file as material and reads its text', function () {
 
     expect($source->extracted_text)->toContain('Propósito do SKBridge')
         ->and(collect($response->json('updatableSlots'))->pluck('id')->all())
-        ->toBe(['submission-sources-slot', 'submission-checklist-slot']);
+        // The composer's chips first: attaching happens there, so that is the
+        // slot the person is looking at when the response lands.
+        ->toBe([
+            'submission-composer-context-slot',
+            'submission-sources-slot',
+            'submission-checklist-slot',
+            'submission-stage-strip-slot',
+        ]);
+});
+
+it('turns a long paste into a text source instead of a chat message', function () {
+    $submission = ownedSubmission();
+
+    // No trailing whitespace: Laravel's TrimStrings middleware trims request
+    // input, so a padded fixture would fail on the padding rather than on
+    // anything this test is about.
+    $text = "Arquitetura do SKBridge\n\n" . trim(str_repeat('Detalhe da integração. ', 200));
+
+    $response = $this->postJson(route('submissions.sources.store', $submission), ['text' => $text])->assertOk();
+
+    $source = $submission->sources()->first();
+
+    expect($source->kind)->toBe(SubmissionSourceKind::Text)
+        // Nothing to extract — the text IS the source, so it is inlinable
+        // straight away (SubmissionSource::hasText()).
+        ->and($source->extraction_state)->toBe(ContextExtractionState::Done)
+        ->and($source->extracted_text)->toBe($text)
+        ->and($source->hasText())->toBeTrue()
+        // No message was created: a paste is material, not a turn.
+        ->and($submission->chats()->withCount('messages')->get()->sum('messages_count'))->toBe(0)
+        ->and(collect($response->json('updatableSlots'))->pluck('id')->all())
+        ->toContain('submission-composer-context-slot');
+});
+
+it('labels a pasted text by its first non-blank line, server-side', function () {
+    $submission = ownedSubmission();
+
+    // Leading blank lines are exactly what a paste out of a document looks
+    // like, and the client's own label is not trusted to have handled them.
+    $this->postJson(route('submissions.sources.store', $submission), [
+        'text' => "\n\n   Arquitetura do SKBridge   \nresto do documento",
+    ])->assertOk();
+
+    expect($submission->sources()->first()->label)->toBe('Arquitetura do SKBridge');
+});
+
+it('explains a paste in the toast, since nobody asked for that attach', function () {
+    // The person pasted into a message box and the text vanished from it —
+    // "Material anexado." leaves that unexplained.
+    $submission = ownedSubmission();
+
+    $response = $this->postJson(route('submissions.sources.store', $submission), [
+        'text' => 'O SKBridge fala SFTP com a central.',
+    ])->assertOk();
+
+    expect($response->json('message'))->toContain('Texto longo anexado');
+});
+
+it('scans a pasted text for credentials like it scans an uploaded file', function () {
+    // The likeliest thing anyone pastes into a box about architecture is a
+    // config block, which is where secrets live.
+    $submission = ownedSubmission();
+
+    $response = $this->postJson(route('submissions.sources.store', $submission), [
+        'text' => "Config do conector\nclient_secret=SuperSecreta123",
+    ])->assertOk();
+
+    expect($response->json('message'))->toContain('credencial')
+        // Flagged, never removed.
+        ->and($submission->sources()->first()->extracted_text)->toContain('SuperSecreta123');
+});
+
+it('refuses a paste past the ceiling with the app\'s json error shape', function () {
+    $submission = ownedSubmission();
+
+    $response = $this->postJson(route('submissions.sources.store', $submission), [
+        'text' => str_repeat('a', ((int) config('services.cati.max_pasted_chars')) + 1),
+    ])->assertStatus(422)->assertJson(['type' => 'warning']);
+
+    expect($response->json('message'))->toContain('grande demais')
+        ->and($submission->sources()->count())->toBe(0);
+});
+
+it('refuses material with neither a file, a link nor a text', function () {
+    $submission = ownedSubmission();
+
+    $response = $this->postJson(route('submissions.sources.store', $submission), [])
+        ->assertStatus(422)
+        ->assertJson(['type' => 'warning']);
+
+    expect($response->json('message'))->toContain('cole um texto');
+});
+
+it('feeds a pasted text into the interview prompt as attached material', function () {
+    // The whole point of making a paste a source rather than a message: it is
+    // re-read on every turn, from the material, not from the history.
+    $submission = ownedSubmission();
+
+    $this->postJson(route('submissions.sources.store', $submission), [
+        'text' => 'O SKBridge fala SFTP com a central.',
+    ])->assertOk();
+
+    $context = app(SubmissionContextResolver::class)->resolve($submission->fresh());
+
+    expect($context->textSources->pluck('text')->implode(' '))->toContain('fala SFTP com a central');
 });
 
 it('warns instead of staying silent when material carries a credential', function () {

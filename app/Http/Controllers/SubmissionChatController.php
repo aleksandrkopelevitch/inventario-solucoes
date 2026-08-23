@@ -11,7 +11,9 @@ use App\Models\SubmissionChat;
 use App\Models\SubmissionMessage;
 use App\View\Components\Submissions\ChatThread;
 use App\View\Components\Submissions\Checklist;
+use App\View\Components\Submissions\Progress;
 use App\View\Components\Submissions\Sections;
+use App\View\Components\Submissions\StageStrip;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -119,7 +121,9 @@ class SubmissionChatController extends Controller
             'message'        => $applied === 1 ? 'Rascunho aplicado à seção.' : "Rascunho aplicado a {$applied} seções.",
             'updatableSlots' => [
                 Sections::slot($submission),
+                Progress::slot($submission),
                 Checklist::slot($submission),
+                StageStrip::slot($submission),
                 ChatThread::slot($message->chat),
             ],
         ]);
