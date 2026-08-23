@@ -15,7 +15,7 @@ final class SubmissionContext
     /**
      * @param  array{facts: list<array<string, mixed>>, structural: list<array<string, mixed>>, sections: list<array<string, mixed>>}  $requirements
      * @param  list<array{key: string, section: string, question: string, why: string, severity: string}>  $deviations
-     * @param  Collection<int, array{label: string, text: string}>  $textSources
+     * @param  Collection<int, array{label: string, text: string, flagged: list<string>}>  $textSources
      * @param  list<object>  $attachments
      * @param  list<array{id: int, name: string, kind: string}>  $attachedMeta
      * @param  list<string>  $omittedSources

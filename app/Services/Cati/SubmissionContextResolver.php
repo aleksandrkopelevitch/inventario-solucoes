@@ -47,7 +47,7 @@ class SubmissionContextResolver
     }
 
     /**
-     * @return array{0: Collection<int, array{label: string, text: string}>, 1: list<object>, 2: list<array{id: int, name: string, kind: string}>, 3: list<string>}
+     * @return array{0: Collection<int, array{label: string, text: string, flagged: list<string>}>, 1: list<object>, 2: list<array{id: int, name: string, kind: string}>, 3: list<string>}
      */
     private function partitionSources(Submission $submission): array
     {
@@ -104,7 +104,7 @@ class SubmissionContextResolver
     }
 
     /**
-     * @param  Collection<int, array{label: string, text: string}>  $textSources
+     * @param  Collection<int, array{label: string, text: string, flagged: list<string>}>  $textSources
      * @return array{0: int, 1: string|null} remaining budget, and the label omitted (if any)
      */
     private function pushText(Collection $textSources, SubmissionSource $source, int $budget): array
@@ -119,7 +119,19 @@ class SubmissionContextResolver
             $text = mb_substr($text, 0, $budget) . "\n\n[material truncado]";
         }
 
-        $textSources->push(['label' => $source->label, 'text' => $text]);
+        $textSources->push([
+            'label' => $source->label,
+            'text'  => $text,
+            // The scanner already found these and the UI already badges them.
+            // The prompt is the third reader that needs to know: it inlines the
+            // raw text either way, and a draft that quotes a `client_secret`
+            // into a section gets promoted into the Solution's documentation
+            // and printed on a slide (PromoteApprovedSubmission).
+            'flagged' => array_values(array_unique(array_column(
+                $source->sensitive_findings ?? [],
+                'type',
+            ))),
+        ]);
 
         return [$budget - mb_strlen($text), null];
     }

@@ -528,6 +528,50 @@ Duas armadilhas pagas na reformulação, ambas invisíveis no código:
   vira 500. Um teste com um anexo só não é teste de regressão nenhum — o que
   existe hoje anexa dois.
 
+### O prompt da entrevista (2026-08-23)
+
+Reformulado depois de a bancada ficar pronta, e por um motivo específico: o
+módulo já calculava três coisas que eram descartadas antes de chegar ao
+modelo.
+
+- **`SubmissionSectionKey::question()`** chegava só na mensagem de abertura. A
+  entrevista via `domains_data — Domínios e dados` e adivinhava o resto — de
+  novo a cada turno. Agora cada seção vai com a pergunta que precisa responder,
+  o estado, o texto atual e a marca `[OBRIGATÓRIA]` / `[só no deck]`, sob um
+  aviso de que texto escrito não é o mesmo que pergunta respondida.
+- **O mapa fato → seções** que `SubmissionRequirements` monta de propósito. Ia
+  como `label: value` e o modelo redescobria a cada turno que o fornecedor
+  informa resumo, modelo de operação e custos. Agora vai
+  `- Fornecedor: Acme → informa: summary, operating_model, plan_costs`.
+- **Os achados do scanner de credenciais.** A UI já marcava; o prompt inlinava
+  o texto cru sem aviso nenhum. Um rascunho que copia um `client_secret` para
+  dentro de uma seção não é problema cosmético: aprovar promove as seções para
+  a documentação da solução e o renderer imprime no slide.
+
+Regras novas no system prompt, todas por falha observada e não por estilo:
+"não sei" é resposta e encerra o assunto (registre a lacuna, não reformule a
+pergunta, não invente valor); não afirme ausência que ninguém declarou;
+material e pessoa em conflito → a pessoa vence, mas nomeie a divergência;
+nunca reproduza credencial, descreva o mecanismo; seção é prosa completa, a
+versão de slide é outra passada; e quando parar.
+
+**O histórico agora é aparado** (`services.cati.history_budget_chars`, padrão
+40k). Era a única parte do prompt que crescia sem limite sendo reenviada a cada
+turno — e entrevista longa aqui é o caso normal, não o extremo, então a falha
+chegava no meio de uma submissão que alguém preencheu a tarde inteira. Apara do
+mais antigo, mantém sempre o turno mais recente, e **avisa** quantas mensagens
+saíram: conversa que esqueceu o próprio começo em silêncio lê como assistente
+perdendo o fio.
+
+Verificado com dois turnos reais contra o modelo, não só por teste de string.
+No primeiro, uma mensagem curta ("confirmo as notas; custo eu não sei ainda")
+produziu rascunho de 6 seções, com o segredo do OAuth2 descrito como mecanismo
+em vez de copiado, e `plan_costs` registrando a pendência em vez de estimar.
+Esse mesmo turno mostrou o furo que virou a regra da ausência: o modelo tinha
+escrito "não há tráfego de dados pessoais sensíveis" sem ninguém ter dito isso.
+No segundo turno, com a regra, virou "mapeamento de dados pessoais ainda não
+realizado".
+
 ### Navegação
 
 Sem entrada na sidebar a página fica órfã. Em `layout.blade.php`, no grupo
