@@ -150,6 +150,22 @@ return [
         // checklist and the conversation history.
         'doc_budget_chars' => env('CATI_DOC_BUDGET_CHARS', 60000),
 
+        // Ceiling on the conversation history folded into one turn.
+        //
+        // Everything else in this prompt is already bounded — material by
+        // `doc_budget_chars`, examples by `max_examples`, guidelines by
+        // curation — and the history was the one part that grew forever while
+        // being re-sent on EVERY turn. A long interview is the normal case
+        // here, not the edge one, so the failure mode was a provider error
+        // arriving halfway through a submission somebody had been filling in
+        // all afternoon.
+        //
+        // Trimmed oldest-first and always reported to the model
+        // (SubmissionChatPromptBuilder::historySection) — a conversation that
+        // silently forgot its own beginning reads as the assistant losing
+        // track.
+        'history_budget_chars' => env('CATI_HISTORY_BUDGET_CHARS', 40000),
+
         // Aggregate byte ceiling for native attachments (PDF/image) in one
         // request, mirroring documentation_ai.
         'max_attachment_bytes' => env('CATI_MAX_ATTACHMENT_BYTES', 20971520),
