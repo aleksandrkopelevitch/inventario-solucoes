@@ -41,6 +41,11 @@
                 <x-heroicon-o-document-text class="size-4" /> Documento
             </x-forms.button>
             <x-forms.button type="button" variant="ghost" role="tab" aria-selected="false" tabindex="-1"
+                data-ak-tabs="{{ json_encode([...$tabBase, 'targetId' => 'submission-tab-diagrams']) }}"
+                class="{{ $tabIdle }}">
+                <x-heroicon-o-share class="size-4" /> Diagramas
+            </x-forms.button>
+            <x-forms.button type="button" variant="ghost" role="tab" aria-selected="false" tabindex="-1"
                 data-ak-tabs="{{ json_encode([...$tabBase, 'targetId' => 'submission-tab-committee']) }}"
                 class="{{ $tabIdle }}">
                 <x-heroicon-o-clipboard-document-check class="size-4" /> Comitê
@@ -134,6 +139,19 @@
             </div>
 
             <x-submissions.sections :submission="$submission" />
+        </div>
+
+        {{-- ---------------------------------------------------------------
+             Diagramas — the four drawings the committee's checklist asks for.
+             --------------------------------------------------------------- --}}
+        <div id="submission-tab-diagrams" class="hidden flex flex-col gap-4">
+            <p class="text-sm text-muted">
+                O comitê pede o desenho da solução e um C4 com no mínimo C1 e C2.
+                AS IS e TO BE são desenhados no mesmo canvas das integrações — o C4 vem
+                da ferramenta que você já usa.
+            </p>
+
+            <x-submissions.diagrams :submission="$submission" />
         </div>
 
         {{-- ---------------------------------------------------------------

@@ -6,6 +6,7 @@ use App\Enums\SubmissionSectionKey;
 use App\Enums\SubmissionSectionState;
 use App\Models\Submission;
 use App\Models\SubmissionSection;
+use App\Support\Cati\SubmissionRequirements;
 use Illuminate\Support\Collection;
 
 /**
@@ -27,9 +28,15 @@ class RenderTicketText
      * `architecture` is deliberately absent: its checklist item is "Diagramas
      * de arquitetura anexados (desenho da solução e C4 com mínimo C1/C2)",
      * which is a claim about ATTACHMENTS, not about the section being written.
-     * Fase 1 has no diagrams, so ticking it from the section's state would put
-     * a false compliance claim in front of the committee. It is emitted
-     * unticked until Fase 3 can answer it honestly.
+     * It was emitted permanently unticked through Fases 1 and 2, because
+     * ticking it from the section's state would have put a false compliance
+     * claim in front of the committee.
+     *
+     * Since Fase 3 the submission carries the drawings themselves, so the item
+     * is derived from what is actually there
+     * (`SubmissionRequirements::diagramsComplete()`) — and it stays a claim
+     * about attachments: it ticks when all four slots are filled, never
+     * because the architecture section reads well.
      */
     private const CHECKLIST = [
         'summary'        => 'Resumo da proposta preenchido',
@@ -44,7 +51,7 @@ class RenderTicketText
 
     public function handle(Submission $submission): string
     {
-        $submission->loadMissing('sections');
+        $submission->loadMissing(['sections', 'diagrams.media']);
 
         $sections = $submission->sections->keyBy(fn ($section) => $section->key->value);
 
@@ -60,7 +67,7 @@ class RenderTicketText
 
         return implode("\n\n***\n\n", $blocks)
             . "\n\n***\n\n"
-            . $this->checklist($sections);
+            . $this->checklist($sections, SubmissionRequirements::diagramsComplete($submission));
     }
 
     /**
@@ -70,7 +77,7 @@ class RenderTicketText
      *
      * @param  Collection<string, SubmissionSection>  $sections
      */
-    private function checklist($sections): string
+    private function checklist($sections, bool $diagramsComplete): string
     {
         $lines = ['### Checklist Final', ''];
 
@@ -83,7 +90,7 @@ class RenderTicketText
             // The diagrams item sits between the summary and the benefits on
             // the form, right after "Arquitetura de Solução".
             if ($key === 'summary') {
-                $lines[] = '* [ ] ' . self::DIAGRAMS_ITEM;
+                $lines[] = '* [' . ($diagramsComplete ? 'x' : ' ') . '] ' . self::DIAGRAMS_ITEM;
             }
         }
 

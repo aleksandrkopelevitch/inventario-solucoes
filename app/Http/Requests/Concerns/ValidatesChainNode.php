@@ -8,8 +8,8 @@ use Illuminate\Validation\Rule;
 /**
  * The three fields that make up a chain node (`chain.nodes[i]`) in the F3
  * data-viz — `kind` + `solution_id`/`label` —, shared by
- * AddIntegrationChainNodeRequest (a brand-new block) and
- * UpdateIntegrationChainNodeRequest (retitling / converting an existing one),
+ * AddChainNodeRequest (a brand-new block) and
+ * UpdateChainNodeRequest (retitling / converting an existing one),
  * which validate exactly the same shape: the block panel and the block's title
  * editor are the same form, one creating and the other editing.
  *

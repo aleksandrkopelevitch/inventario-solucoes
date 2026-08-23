@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Integration;
+use App\Http\Requests\Concerns\AuthorizesChainOwner;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -46,8 +46,10 @@ use Illuminate\Validation\Rule;
  * (`integration-viz.js`'s `rebuildNotes()`), so there's nothing sized to
  * validate beyond the position and the text itself.
  */
-class SaveIntegrationLayoutRequest extends FormRequest
+class SaveChainLayoutRequest extends FormRequest
 {
+    use AuthorizesChainOwner;
+
     /** Possible anchors: 4 main ones + 2 on top + 2 on the bottom. */
     public const ANCHORS = ['l', 'r', 't', 'b', 'tl', 'tr', 'bl', 'br'];
 
@@ -70,14 +72,6 @@ class SaveIntegrationLayoutRequest extends FormRequest
      * persisted here so it's remembered per integration.
      */
     public const THEMES = ['original', 'casual', 'corporativo', 'tech'];
-
-    public function authorize(): bool
-    {
-        $integration = $this->route('integration');
-
-        return $integration instanceof Integration
-            && ($this->user()?->can('update', $integration) ?? false);
-    }
 
     /**
      * @return array<string, mixed>

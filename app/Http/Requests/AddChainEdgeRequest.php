@@ -4,14 +4,15 @@ namespace App\Http\Requests;
 
 use App\Models\Integration;
 use Illuminate\Contracts\Validation\Validator;
+use App\Http\Requests\Concerns\AuthorizesChainOwner;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
  * Creates a new edge between two blocks already present in the chain — dragging
  * an arrow out of a block's port, or the data-viz F3 "connect mode" (click one
- * block, then another): unlike `AddIntegrationChainNodeRequest` (which always
- * appends a new node) and `RetargetIntegrationChainEdgeRequest` (which moves the
+ * block, then another): unlike `AddChainNodeRequest` (which always
+ * appends a new node) and `RetargetChainEdgeRequest` (which moves the
  * end of an existing edge), this endpoint adds a new edge without touching the
  * nodes — that's what makes the chain a genuinely free graph, letting any pair
  * of already drawn blocks be connected.
@@ -20,30 +21,28 @@ use Illuminate\Validation\Rule;
  * different (A -> B over REST *and* over SFTP), so only an exact duplicate
  * (same from/to/arrow/protocol) is refused — see `after()`.
  */
-class AddIntegrationChainEdgeRequest extends FormRequest
+class AddChainEdgeRequest extends FormRequest
 {
-    public function authorize(): bool
-    {
-        $integration = $this->route('integration');
-
-        return $integration instanceof Integration
-            && ($this->user()?->can('update', $integration) ?? false);
-    }
+    use AuthorizesChainOwner;
 
     /**
      * @return array<string, mixed>
      */
     public function rules(): array
     {
-        $integration = $this->route('integration');
-        $max = max(0, count($integration?->chain['nodes'] ?? []) - 1);
+        // Resolved by TYPE, never by parameter name: this request serves both
+        // the integration canvas and a submission's drawing, and a by-name
+        // lookup returns null on the other owner — which silently collapses
+        // `$max` to 0 and rejects every edge past the root as "out of range".
+        // A rule that fails on the WORKING path reads as a broken canvas.
+        $max = max(0, count($this->chainOwner()?->chainData()['nodes'] ?? []) - 1);
 
         return [
             'from'  => ['required', 'integer', 'min:0', 'max:' . $max],
             'to'    => ['required', 'integer', 'min:0', 'max:' . $max, 'different:from'],
             'arrow' => ['required', Rule::in(['->', '<-', '<->'])],
             // Free text, not just `App\Enums\Protocol` values — see
-            // `UpdateIntegrationChainProtocolRequest` for the same rule.
+            // `UpdateChainProtocolRequest` for the same rule.
             'protocol' => ['nullable', 'string', 'max:60'],
         ];
     }
@@ -77,7 +76,7 @@ class AddIntegrationChainEdgeRequest extends FormRequest
                     return;
                 }
 
-                $duplicate = collect($this->route('integration')?->chain['edges'] ?? [])
+                $duplicate = collect($this->chainOwner()?->chainData()['edges'] ?? [])
                     ->contains(fn (array $edge): bool => ($edge['from'] ?? null) === $this->integer('from')
                         && ($edge['to'] ?? null) === $this->integer('to')
                         && ($edge['arrow'] ?? '->') === $this->input('arrow')

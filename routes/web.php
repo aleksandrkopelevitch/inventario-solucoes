@@ -28,6 +28,7 @@ use App\Http\Controllers\SolutionMapController;
 use App\Http\Controllers\SubmissionChatController;
 use App\Http\Controllers\SubmissionController;
 use App\Http\Controllers\SubmissionDecisionController;
+use App\Http\Controllers\SubmissionDiagramController;
 use App\Http\Controllers\SubmissionExportController;
 use App\Http\Controllers\SubmissionSectionController;
 use App\Http\Controllers\SubmissionSourceController;
@@ -363,6 +364,41 @@ Route::middleware('auth')->group(function () {
         Route::delete('submissions/{submission}/sources/{source}', [SubmissionSourceController::class, 'destroy'])->name('submissions.sources.destroy');
 
         Route::get('submissions/{submission}/chat/{chat}/status', [SubmissionChatController::class, 'status'])->name('submissions.chat.status');
+
+        /*
+         | The submission's four drawings. `{diagram}` resolves through
+         | Submission::diagrams(), so a diagram belonging to another submission
+         | 404s instead of being edited through the wrong parent.
+         |
+         | The nine chain endpoints mirror the integration canvas's ONE FOR ONE
+         | — same request classes, same controller trait (Concerns\EditsChain),
+         | same response shapes — because it is the same canvas over a
+         | different owner. `integration-viz.js` never learns which one it is
+         | drawing: every URL it calls arrives inside the graph payload
+         | (`ChainCanvas::chainUrls()`).
+         |
+         | The index params are a plain integer into `chain.nodes`/`chain.edges`
+         | (`whereNumber`), not a model — exactly as on the integration routes.
+         */
+        Route::prefix('submissions/{submission}/diagrams/{diagram}')->name('submissions.diagrams.')->group(function () {
+            Route::get('/', [SubmissionDiagramController::class, 'edit'])->name('edit');
+            Route::patch('layout', [SubmissionDiagramController::class, 'saveLayout'])->name('layout.save');
+            Route::get('picture', [SubmissionDiagramController::class, 'showPicture'])->name('picture.show');
+            Route::post('picture', [SubmissionDiagramController::class, 'storePicture'])->name('picture.store');
+
+            Route::post('upload', [SubmissionDiagramController::class, 'storeUpload'])->name('upload.store');
+            Route::delete('upload', [SubmissionDiagramController::class, 'destroyUpload'])->name('upload.destroy');
+
+            Route::post('chain/nodes', [SubmissionDiagramController::class, 'addNode'])->name('chain.node.add');
+            Route::post('chain/images', [SubmissionDiagramController::class, 'addImageNode'])->name('chain.image.add');
+            Route::patch('chain/nodes/{node}', [SubmissionDiagramController::class, 'updateNode'])->whereNumber('node')->name('chain.node.update');
+            Route::delete('chain/nodes/{node}', [SubmissionDiagramController::class, 'removeNode'])->whereNumber('node')->name('chain.node.remove');
+
+            Route::post('chain/edges', [SubmissionDiagramController::class, 'addEdge'])->name('chain.edge.add');
+            Route::patch('chain/protocol/{edge}', [SubmissionDiagramController::class, 'updateProtocol'])->whereNumber('edge')->name('chain.protocol.update');
+            Route::patch('chain/edge/{edge}', [SubmissionDiagramController::class, 'retargetEdge'])->whereNumber('edge')->name('chain.edge.retarget');
+            Route::delete('chain/edge/{edge}', [SubmissionDiagramController::class, 'removeEdge'])->whereNumber('edge')->name('chain.edge.remove');
+        });
     });
 
     // NOT scoped: a message is two hops from a submission (submission → chat →

@@ -6,12 +6,12 @@ use App\Enums\ChainNodeKind;
 use App\Enums\Protocol;
 use App\Models\Integration;
 use App\Models\Solution;
+use App\Support\ChainGraph;
 use App\Support\ChainLabeler;
 use App\Support\Heroicons;
 use App\View\Components\Concerns\Renderable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\Component;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
@@ -96,86 +96,17 @@ class IntegrationsMap extends Component
      */
     public function graph(Integration $integration, ChainLabeler $labeler, Collection $solutions): ?array
     {
-        $chain = $integration->chain;
-        if (! $chain) {
-            return null;
-        }
-
-        // Comments per node (only exist when the layout was saved with them) —
-        // indexed by the node's position in the chain, the same positional
-        // convention already used by `viz_layout.nodes`/`edges`. Without a stable
-        // identity key per node (id/slug), reordering the chain leaves comments
-        // "stuck" at the wrong position — see note in the PR.
-        $comments = $integration->viz_layout['comments'] ?? [];
-
-        // One query for every image node's media, instead of one per node —
-        // `resolveNode()` receives this batch and never queries on its own
-        // when it's given (only single-node call sites, updateNode()/addNode()/
-        // addImageNode(), fall back to querying by themselves).
-        $mediaIds = collect($chain['nodes'] ?? [])
-            ->filter(fn ($node) => ChainNodeKind::fromNode($node) === ChainNodeKind::Image)
-            ->pluck('media_id')
-            ->filter()
-            ->unique()
-            ->values();
-        $mediaById = $mediaIds->isEmpty() ? collect() : Media::whereIn('id', $mediaIds)->get()->keyBy('id');
-
-        return [
-            'nodes' => collect($chain['nodes'] ?? [])
-                ->map(fn ($node, $i) => self::resolveNode($node, $solutions, $comments[$i] ?? null, $mediaById))
-                ->values()
-                ->all(),
-            'edges' => collect($chain['edges'] ?? [])
-                ->map(fn ($edge) => [
-                    'from'     => $edge['from'] ?? 0,
-                    'to'       => $edge['to'] ?? 0,
-                    'arrow'    => $edge['arrow'] ?? '->',
-                    'protocol' => self::resolveProtocol($edge['protocol'] ?? null),
-                ])
-                ->values()
-                ->all(),
-            // Saved visual layout (block positions + link endpoint anchors) +
-            // wiring for the save button (only when the user can edit).
-            'layout'   => $integration->viz_layout,
-            'editable' => Gate::allows('update', $integration),
-            'saveUrl'  => route('solutions.integrations.layout.save', [$this->solution, $integration]),
-            // Where the client posts the rendered PNG right after a successful
-            // layout save — a derived picture of the canvas, used by the CATI
-            // deck. Fire-and-forget on the client: a failed capture must never
-            // fail the save.
-            'diagramUrl' => route('solutions.integrations.diagram.store', [$this->solution, $integration]),
-            // The integration's own name/status are NOT here: they're edited
-            // in the page's top bar (`Solutions\IntegrationMeta`), which talks
-            // to `solutions.integrations.update` directly. The canvas used to
-            // carry a second editor for them until 2026-08-17.
-            // Index placeholders ("NODE_INDEX"/"EDGE_INDEX") substituted
-            // in the JS (integration-viz.js) before the specific PATCH/POST — the
-            // root node (index 0) is locked in the controller, never on the client;
-            // every link (edge) is editable and reconnectable.
-            'nodeUpdateUrl' => route('solutions.integrations.chain.node.update', [$this->solution, $integration, 'NODE_INDEX']),
-            // DELETE that removes a block AND every link touching it (a node
-            // can't go while an edge still points at its index). The root node
-            // (index 0) is rejected server-side; the trash is also hidden for it.
-            'nodeRemoveUrl' => route('solutions.integrations.chain.node.remove', [$this->solution, $integration, 'NODE_INDEX']),
-            // PATCH that updates the protocol and/or direction (arrow) of an existing link.
-            'edgeUpdateUrl' => route('solutions.integrations.chain.protocol.update', [$this->solution, $integration, 'EDGE_INDEX']),
-            // POST from the "Adicionar bloco" panel — appends a pure, isolated
-            // block (kind + Solution/free text, no edge and no protocol); the
-            // wiring is a separate gesture afterwards (`edgeAddUrl`/`edgeRetargetUrl`).
-            'nodeAddUrl' => route('solutions.integrations.chain.node.add', [$this->solution, $integration]),
-            // POST (multipart) from pasting an image directly on the canvas
-            // (Ctrl+V) — appends an isolated Image block, same spirit as
-            // `nodeAddUrl` above but carrying the picture instead of kind/Solution.
-            'imageAddUrl' => route('solutions.integrations.chain.image.add', [$this->solution, $integration]),
-            // PATCH that reconnects the endpoint of a link to another block —
-            // dragging the arrow's handle to a node different from the current one.
-            'edgeRetargetUrl' => route('solutions.integrations.chain.edge.retarget', [$this->solution, $integration, 'EDGE_INDEX']),
-            // POST that creates a new link between two existing blocks — dragging
-            // an arrow out of a block's port, or "connect mode".
-            'edgeAddUrl' => route('solutions.integrations.chain.edge.add', [$this->solution, $integration]),
-            // DELETE that removes an existing link, without removing the nodes — this is what allows leaving a block without any connection.
-            'edgeRemoveUrl' => route('solutions.integrations.chain.edge.remove', [$this->solution, $integration, 'EDGE_INDEX']),
-        ];
+        // The build itself lives in App\Support\ChainGraph — a submission's
+        // AS IS / TO BE drawings are the same canvas over a different owner,
+        // and nothing in here was ever Integration-specific except where the
+        // URLs come from. This wrapper stays because the page and
+        // `SolutionIntegrationController::removeNode()` both call it with the
+        // browsing solution in hand, which is the context the URLs need.
+        return ChainGraph::for(
+            $integration->withSolutionContext($this->solution),
+            $labeler,
+            $solutions,
+        );
     }
 
     /**

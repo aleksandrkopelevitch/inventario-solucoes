@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\AuthorizesChainOwner;
 use App\Http\Requests\Concerns\ValidatesChainNode;
-use App\Models\Integration;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -11,21 +11,15 @@ use Illuminate\Foundation\Http\FormRequest;
  * (`ChainNodeKind`: system / decision / actor / start / end) plus a registered Solution or
  * free text, and nothing else. It never creates an edge: every block is born
  * isolated, and the wiring comes afterwards, by dragging an arrow out of any
- * block's port or via "connect mode" (both `AddIntegrationChainEdgeRequest`),
+ * block's port or via "connect mode" (both `AddChainEdgeRequest`),
  * or by retargeting an existing edge onto it
- * (`RetargetIntegrationChainEdgeRequest`).
+ * (`RetargetChainEdgeRequest`).
  */
-class AddIntegrationChainNodeRequest extends FormRequest
+class AddChainNodeRequest extends FormRequest
 {
+    use AuthorizesChainOwner;
+
     use ValidatesChainNode;
-
-    public function authorize(): bool
-    {
-        $integration = $this->route('integration');
-
-        return $integration instanceof Integration
-            && ($this->user()?->can('update', $integration) ?? false);
-    }
 
     /**
      * @return array<string, mixed>

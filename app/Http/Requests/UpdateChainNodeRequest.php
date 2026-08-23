@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\AuthorizesChainOwner;
 use App\Http\Requests\Concerns\ValidatesChainNode;
-use App\Models\Integration;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -13,17 +13,11 @@ use Illuminate\Foundation\Http\FormRequest;
  * free text. The root node (index 0) never reaches here — blocked in the
  * controller before any content authorization.
  */
-class UpdateIntegrationChainNodeRequest extends FormRequest
+class UpdateChainNodeRequest extends FormRequest
 {
+    use AuthorizesChainOwner;
+
     use ValidatesChainNode;
-
-    public function authorize(): bool
-    {
-        $integration = $this->route('integration');
-
-        return $integration instanceof Integration
-            && ($this->user()?->can('update', $integration) ?? false);
-    }
 
     /**
      * @return array<string, mixed>

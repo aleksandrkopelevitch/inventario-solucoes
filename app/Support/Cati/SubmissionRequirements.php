@@ -2,10 +2,12 @@
 
 namespace App\Support\Cati;
 
+use App\Enums\SubmissionDiagramKind;
 use App\Enums\SubmissionSectionKey;
 use App\Enums\SubmissionSectionState;
 use App\Models\AttributeOption;
 use App\Models\Submission;
+use App\Models\SubmissionDiagram;
 
 /**
  * The deterministic, non-AI checklist for a submission — the single most
@@ -44,7 +46,7 @@ class SubmissionRequirements
         // Explicit: strict mode does NOT arm on a single-model fetch, so an
         // unloaded relation here would lazy-load in silence, in any
         // environment — including inside the queued job that builds the prompt.
-        $submission->loadMissing(['sections', 'sources', 'solution.vendor', 'solution.integrations']);
+        $submission->loadMissing(['sections', 'sources', 'diagrams.media', 'solution.vendor', 'solution.integrations']);
 
         return [
             'facts'      => self::facts($submission),
@@ -163,6 +165,12 @@ class SubmissionRequirements
                 'value'     => $sources->isEmpty() ? null : $sources->count() . ' arquivo(s)',
             ],
             [
+                'key'       => 'diagrams',
+                'label'     => 'Diagramas de arquitetura',
+                'satisfied' => self::diagramsComplete($submission),
+                'value'     => self::diagramsSummary($submission),
+            ],
+            [
                 'key'       => 'ticket',
                 'label'     => 'Chamado no Leo Resolve',
                 'satisfied' => filled($submission->ticket_reference),
@@ -201,6 +209,47 @@ class SubmissionRequirements
      *
      * @return list<string> section keys
      */
+    /**
+     * Whether all four drawings the committee asks for are actually there.
+     *
+     * A claim about ATTACHMENTS, never about prose: it must not tick because
+     * the `architecture` section reads well. Through Fases 1 and 2 there were
+     * no drawings at all, so `RenderTicketText` emitted the item permanently
+     * unticked rather than derive a false compliance claim from a section's
+     * state; this is what finally answers it honestly.
+     *
+     * An AS IS / TO BE counts only once something beyond the seeded root node
+     * exists (`SubmissionDiagram::isFilled()`) — opening the canvas is not
+     * drawing on it.
+     */
+    public static function diagramsComplete(Submission $submission): bool
+    {
+        $filled = self::filledDiagramKinds($submission);
+
+        return collect(SubmissionDiagramKind::cases())
+            ->every(fn (SubmissionDiagramKind $kind) => in_array($kind->value, $filled, true));
+    }
+
+    /** "2 de 4" — what the checklist row shows next to the label. */
+    private static function diagramsSummary(Submission $submission): ?string
+    {
+        $count = count(self::filledDiagramKinds($submission));
+
+        return $count === 0 ? null : $count . ' de ' . count(SubmissionDiagramKind::cases());
+    }
+
+    /** @return list<string> the kinds with something in them */
+    private static function filledDiagramKinds(Submission $submission): array
+    {
+        $submission->loadMissing('diagrams.media');
+
+        return $submission->diagrams
+            ->filter(fn (SubmissionDiagram $diagram) => $diagram->isFilled())
+            ->map(fn (SubmissionDiagram $diagram) => $diagram->kind->value)
+            ->values()
+            ->all();
+    }
+
     public static function missingMandatory(Submission $submission): array
     {
         $submission->loadMissing('sections');

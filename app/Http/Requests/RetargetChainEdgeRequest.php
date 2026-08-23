@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Integration;
+use App\Http\Requests\Concerns\AuthorizesChainOwner;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -13,23 +13,19 @@ use Illuminate\Validation\Validator;
  * (`integration-viz.js::retargetEdge()`). This is what enables the free
  * graph: the edge is no longer stuck to the pair of nodes it was created with.
  */
-class RetargetIntegrationChainEdgeRequest extends FormRequest
+class RetargetChainEdgeRequest extends FormRequest
 {
-    public function authorize(): bool
-    {
-        $integration = $this->route('integration');
-
-        return $integration instanceof Integration
-            && ($this->user()?->can('update', $integration) ?? false);
-    }
+    use AuthorizesChainOwner;
 
     /**
      * @return array<string, mixed>
      */
     public function rules(): array
     {
-        $integration = $this->route('integration');
-        $nodeCount = count($integration?->chain['nodes'] ?? []);
+        // By TYPE, never by parameter name — see the note in
+        // AddChainEdgeRequest: this request serves both owners, and a by-name
+        // lookup fails on the working path rather than visibly.
+        $nodeCount = count($this->chainOwner()?->chainData()['nodes'] ?? []);
 
         return [
             'end'  => ['required', Rule::in(['from', 'to'])],
@@ -41,9 +37,8 @@ class RetargetIntegrationChainEdgeRequest extends FormRequest
     protected function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator) {
-            $integration = $this->route('integration');
             $edgeIndex = (int) $this->route('edge');
-            $edge = $integration?->chain['edges'][$edgeIndex] ?? null;
+            $edge = $this->chainOwner()?->chainData()['edges'][$edgeIndex] ?? null;
 
             if (! $edge || ! $this->filled('end') || ! $this->filled('node')) {
                 return;
