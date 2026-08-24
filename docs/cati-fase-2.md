@@ -14,7 +14,7 @@ texto, tudo pronto). Aqui o registro vira `.pptx`.
 | Diagrama publicado pelo canvas a cada "Salvar" | **feito** — `Integration::DIAGRAM_COLLECTION` |
 | Renderizador Python (python-pptx) | **feito** — `scripts/render_deck.py` + `RenderSubmissionDeck` |
 | Rota + botão "Baixar deck" | **feito** — `submissions.export.deck` |
-| Slides de diagrama (imagem do canvas + link) | **feito** |
+| Slides de diagrama (imagem do canvas + link) | **feito** — um por integração da Solution; os desenhos PRÓPRIOS da submissão (AS IS/TO BE/C4) vieram na Fase 3, `docs/cati-fase-3.md` |
 | Passe de condensação por LLM | **feito** — `SlideCondenser` + `CondenseSubmissionForSlides` |
 
 ## Decisões

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\ChainNodeKind;
+use App\Enums\SubmissionDiagramKind;
 use App\Enums\SubmissionSectionKey;
 use App\Enums\SubmissionSectionState;
 use App\Enums\SubmissionStatus;
@@ -11,6 +13,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 
@@ -155,6 +158,83 @@ class Submission extends Model implements HasMedia
     public function chats(): HasMany
     {
         return $this->hasMany(SubmissionChat::class);
+    }
+
+    public function diagrams(): HasMany
+    {
+        return $this->hasMany(SubmissionDiagram::class);
+    }
+
+    /**
+     * The TO BE this submission's approval blessed, if it had one.
+     *
+     * HasOne, not HasMany: a submission is deliberated once. See
+     * `ApprovedTopology` for why the approval records a pending row instead of
+     * writing the catalog outright.
+     */
+    public function approvedTopology(): HasOne
+    {
+        return $this->hasOne(ApprovedTopology::class);
+    }
+
+    /**
+     * The row for one drawing, creating it if it doesn't exist yet.
+     *
+     * A DRAWN kind is born with the same single root node an Integration gets
+     * (`SolutionIntegrationController::store()`), for the same reason: the F3
+     * canvas draws a chain, and a chain with no nodes has nothing to hang the
+     * first gesture on. The root is the linked catalog Solution when there is
+     * one — the proposal is about that system, so making the person place it
+     * by hand is asking for something already on the record — and free text
+     * carrying the submission's own name when there isn't (a brand-new
+     * system, which is most of what reaches this committee).
+     *
+     * An UPLOADED kind gets no chain at all; it carries a picture instead.
+     */
+    public function diagram(SubmissionDiagramKind $kind): SubmissionDiagram
+    {
+        return $this->diagrams()->firstOrCreate(
+            ['kind' => $kind->value],
+            ['chain' => $kind->isDrawn() ? $this->seedChain() : null],
+        );
+    }
+
+    /**
+     * Creates the four rows still missing, in one insert.
+     *
+     * Idempotent, and called when the diagrams surface is first opened rather
+     * than at creation: four empty rows on every submission ever created would
+     * be four rows nobody asked for, and the enum can grow a fifth kind later
+     * without a data migration.
+     */
+    public function ensureDiagrams(): void
+    {
+        // toBase(): Eloquent's pluck() runs the column through the model's
+        // casts, so `pluck('kind')` hands back enum instances and the strict
+        // in_array() below would never match a string — the same trap
+        // `ensureSections()` documents.
+        $existing = $this->diagrams()->toBase()->pluck('kind')->all();
+
+        foreach (SubmissionDiagramKind::cases() as $kind) {
+            if (! in_array($kind->value, $existing, true)) {
+                $this->diagram($kind);
+            }
+        }
+    }
+
+    /** @return array{nodes: list<array<string, mixed>>, edges: list<mixed>} */
+    private function seedChain(): array
+    {
+        $this->loadMissing('solution');
+
+        return [
+            'nodes' => [[
+                'solution_id' => $this->solution_id,
+                'label'       => $this->solution_id ? null : $this->name,
+                'kind'        => ChainNodeKind::System->value,
+            ]],
+            'edges' => [],
+        ];
     }
 
     /**

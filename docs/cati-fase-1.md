@@ -51,8 +51,12 @@ Uma decisão do Bloco D que é de correção, não de estilo:
   automaticamente.** Ele afirma que ANEXOS existem (desenho da solução + C4
   C1/C2), não que a seção foi escrita. Na Fase 1 não há diagrama nenhum, então
   derivá-lo do estado da seção `architecture` colocaria uma afirmação de
-  conformidade falsa na frente do comitê. Sai sempre desmarcado até a Fase 3
-  poder respondê-lo de verdade — e aí vira derivável.
+  conformidade falsa na frente do comitê. Saiu sempre desmarcado até a Fase 3
+  (2026-08-23), que deu à submissão os desenhos em si — agora é derivado de
+  quantos dos quatro slots estão preenchidos
+  (`SubmissionRequirements::diagramsComplete()`), e continua sendo uma
+  afirmação sobre ANEXOS: não marca porque a seção de arquitetura ficou boa.
+  Ver `docs/cati-fase-3.md`.
 
 Duas decisões tomadas no Bloco C que valem mais que o código:
 
@@ -707,7 +711,8 @@ Todas já custaram tempo aqui pelo menos uma vez:
 Não construa agora, e não crie coluna "para depois" — migration é barata e uma
 coluna nula por três meses não é:
 
-- `chain_asis` / `chain_tobe` e qualquer render de diagrama (Fase 3).
+- `chain_asis` / `chain_tobe` e qualquer render de diagrama (Fase 3 — feita em
+  2026-08-23 como `submission_diagrams`, quatro tipos, `docs/cati-fase-3.md`).
 - Exportador `.pptx`, deck spec, validador de spec (Fase 2).
 - `decision`, `conditions`, `decided_at` (Fase 4).
 - Pré-revisão adversarial e conformidade automática (Fase 4).

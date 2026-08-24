@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Integration;
+use App\Http\Requests\Concerns\AuthorizesChainOwner;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -12,15 +12,9 @@ use Illuminate\Foundation\Http\FormRequest;
  * removing the only edge that kept it connected to the rest of the graph
  * does not remove the node itself.
  */
-class RemoveIntegrationChainEdgeRequest extends FormRequest
+class RemoveChainEdgeRequest extends FormRequest
 {
-    public function authorize(): bool
-    {
-        $integration = $this->route('integration');
-
-        return $integration instanceof Integration
-            && ($this->user()?->can('update', $integration) ?? false);
-    }
+    use AuthorizesChainOwner;
 
     /**
      * @return array<string, mixed>

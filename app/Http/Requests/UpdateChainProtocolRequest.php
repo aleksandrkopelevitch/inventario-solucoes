@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Integration;
+use App\Http\Requests\Concerns\AuthorizesChainOwner;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -21,15 +22,9 @@ use Illuminate\Validation\Rule;
  * case still resolves to that case's human label (`IntegrationsMap::resolveProtocol()`);
  * anything else is displayed as typed.
  */
-class UpdateIntegrationChainProtocolRequest extends FormRequest
+class UpdateChainProtocolRequest extends FormRequest
 {
-    public function authorize(): bool
-    {
-        $integration = $this->route('integration');
-
-        return $integration instanceof Integration
-            && ($this->user()?->can('update', $integration) ?? false);
-    }
+    use AuthorizesChainOwner;
 
     /**
      * @return array<string, mixed>

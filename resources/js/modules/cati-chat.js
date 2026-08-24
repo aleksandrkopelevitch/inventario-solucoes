@@ -316,6 +316,42 @@ document.addEventListener('drop', (e) => {
 })
 
 /* ------------------------------------------------------------------ */
+/*  C4 diagram slots (Diagramas tab)                                   */
+/* ------------------------------------------------------------------ */
+
+// The button opens the hidden input; the input uploads on `change`. No
+// separate "Enviar" step, for the same reason the documentation assistant's
+// context upload has none: it is the step people skip.
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-ak-cati-diagram-pick]')
+    if (!btn) return
+
+    e.preventDefault()
+    document.getElementById(btn.dataset.akCatiDiagramPick)?.querySelector('input[type=file]')?.click()
+})
+
+document.addEventListener('change', async (e) => {
+    const input = e.target.closest('[data-ak-cati-diagram-upload]')
+    if (!input || !input.files?.length) return
+
+    const url = input.dataset.akCatiDiagramUpload
+    const body = new FormData()
+    body.append('image', input.files[0])
+    // Cleared before the request: the input lives in its own form, and a
+    // selection left on it would ride along with anything else posting it.
+    input.value = ''
+
+    try {
+        const response = await ajaxModule.init('POST', url, body)
+        const data = await response.json()
+        updateSlots(data)
+        if (data.message) Toast.open({content: data.message, type: data.type || 'success'})
+    } catch (error) {
+        Toast.show(await errorMessage(error, 'Não foi possível enviar o diagrama.'), 'warning')
+    }
+})
+
+/* ------------------------------------------------------------------ */
 /*  Jumping from the progress rail to a section                        */
 /* ------------------------------------------------------------------ */
 

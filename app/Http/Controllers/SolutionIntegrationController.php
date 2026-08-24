@@ -2,25 +2,23 @@
 
 namespace App\Http\Controllers;
 
-use App\Actions\SyncIntegrationFromChain;
-use App\Contracts\Documentable;
 use App\Enums\ChainNodeKind;
 use App\Enums\Direction;
+use App\Http\Controllers\Concerns\EditsChain;
 use App\Http\Controllers\Concerns\NavigatesSolutionDocs;
-use App\Http\Requests\AddIntegrationChainEdgeRequest;
-use App\Http\Requests\AddIntegrationChainImageRequest;
-use App\Http\Requests\AddIntegrationChainNodeRequest;
-use App\Http\Requests\RemoveIntegrationChainEdgeRequest;
-use App\Http\Requests\RemoveIntegrationChainNodeRequest;
-use App\Http\Requests\RetargetIntegrationChainEdgeRequest;
-use App\Http\Requests\SaveIntegrationLayoutRequest;
+use App\Http\Requests\AddChainEdgeRequest;
+use App\Http\Requests\AddChainImageRequest;
+use App\Http\Requests\AddChainNodeRequest;
+use App\Http\Requests\RemoveChainEdgeRequest;
+use App\Http\Requests\RemoveChainNodeRequest;
+use App\Http\Requests\RetargetChainEdgeRequest;
+use App\Http\Requests\SaveChainLayoutRequest;
 use App\Http\Requests\StoreIntegrationRequest;
-use App\Http\Requests\UpdateIntegrationChainNodeRequest;
-use App\Http\Requests\UpdateIntegrationChainProtocolRequest;
+use App\Http\Requests\UpdateChainNodeRequest;
+use App\Http\Requests\UpdateChainProtocolRequest;
 use App\Http\Requests\UpdateIntegrationMetaRequest;
 use App\Models\Integration;
 use App\Models\Solution;
-use App\Support\ChainLabeler;
 use App\View\Components\Documentation\PagesNav;
 use App\View\Components\Solutions\IntegrationMeta;
 use App\View\Components\Solutions\IntegrationsMap;
@@ -47,12 +45,7 @@ class SolutionIntegrationController extends Controller
     // Only for `update()`'s response: renaming an integration also renames it
     // in the pages rail rendered beside the editor's top bar, and that rail is
     // built from the same two helpers the documentation controllers use.
-    use NavigatesSolutionDocs;
-
-    public function __construct(
-        private readonly SyncIntegrationFromChain $sync,
-        private readonly ChainLabeler $labeler,
-    ) {}
+    use EditsChain, NavigatesSolutionDocs;
 
     /**
      * Creates a brand-new Integration with the context solution as the root
@@ -80,7 +73,7 @@ class SolutionIntegrationController extends Controller
             'chain'       => $chain,
         ]);
 
-        $this->sync->handle($integration);
+        $integration->afterChainMutation();
 
         return response()->json([
             'type'    => 'success',
@@ -122,357 +115,73 @@ class SolutionIntegrationController extends Controller
         ]);
     }
 
-    /**
-     * Saves the F3 graph's visual layout (block positions, edge endpoint
-     * anchors, each block's markdown comment — all keyed by the node's index
-     * in the chain —, whether a block/edge is drawn dashed, and the
-     * freestanding swimlanes, `lanes`, drawn behind the canvas). Presentation
-     * only — the `chain` remains the source of topology, so we do NOT call
-     * SyncIntegrationFromChain here nor touch participants/source/target/direction.
+    /*
+     |--------------------------------------------------------------------------
+     | Chain mutations
+     |--------------------------------------------------------------------------
+     |
+     | The bodies live in `Concerns\EditsChain`, which performs them against
+     | any `ChainCanvas`. They moved there when a submission's AS IS / TO BE
+     | drawings became a second owner of the same canvas: the chain's rules
+     | (indices, reindexing on delete, which node is protected, what may
+     | reference a Solution) are subtle enough that a second copy would
+     | diverge, and the divergence would only show up as a diagram quietly
+     | drawing the wrong thing.
+     |
+     | What stays here is what is Integration-specific: the route signature
+     | (so the scoped `{solution}/{integration}` binding and each FormRequest's
+     | own `authorize()` keep working untouched) and the solution context the
+     | canvas's URLs are built against. Re-deriving participants /
+     | source/target / direction after a write is NOT triggered here either —
+     | it is `Integration::afterChainMutation()`, which the trait calls.
      */
-    public function saveLayout(SaveIntegrationLayoutRequest $request, Solution $solution, Integration $integration): JsonResponse
-    {
-        $integration->update([
-            'viz_layout' => $request->safe()->only(['nodes', 'edges', 'comments', 'lanes', 'notes', 'theme']),
-        ]);
 
-        return response()->json([
-            'type'    => 'success',
-            'message' => 'Layout salvo.',
-        ]);
+    public function saveLayout(SaveChainLayoutRequest $request, Solution $solution, Integration $integration): JsonResponse
+    {
+        return $this->saveChainLayout(
+            $integration,
+            $request->safe()->only(['nodes', 'edges', 'comments', 'lanes', 'notes', 'theme']),
+        );
     }
 
-    /**
-     * Updates a single node (F3 data-viz block): its kind (system / decision /
-     * actor / start / end — a block can be converted between them) and its
-     * title, chosen from a registered Solution (pulls name/logo/attributes) or
-     * free text. Still edits the `chain` (source of truth for topology), so
-     * SyncIntegrationFromChain runs again: swapping a node's Solution — or
-     * turning it into a decision/actor/start/end, which never references one — can
-     * change participants/source/target/direction. The root node (index 0)
-     * is fixed — it never reaches here (blocked client-side, enforced by the
-     * 404 below).
-     */
-    public function updateNode(UpdateIntegrationChainNodeRequest $request, Solution $solution, Integration $integration, int $node): JsonResponse
+    public function updateNode(UpdateChainNodeRequest $request, Solution $solution, Integration $integration, int $node): JsonResponse
     {
-        $chain = $integration->chain;
-        abort_if(! $chain || $node <= 0 || ! isset($chain['nodes'][$node]), 404);
-
-        $chain['nodes'][$node] = $this->chainNode($request->validated());
-        $integration->update(['chain' => $chain]);
-        $this->sync->handle($integration);
-
-        $integration = $integration->fresh();
-        $solutions = $this->labeler->resolveSolutions(collect([$integration->chain]));
-        $comment = $integration->viz_layout['comments'][$node] ?? null;
-
-        return response()->json([
-            'type'    => 'success',
-            'message' => 'Bloco atualizado.',
-            'node'    => IntegrationsMap::resolveNode($integration->chain['nodes'][$node], $solutions, $comment),
-            'summary' => $this->labeler->label($integration->chain, $solutions),
-        ]);
+        return $this->updateChainNode($integration->withSolutionContext($solution), $request->validated(), $node);
     }
 
-    /**
-     * Removes a block from the chain (the trash in the block's contextual
-     * toolbar) and, necessarily, every link touching it — `chain.edges`
-     * references nodes BY INDEX, so a node can't leave while an edge still
-     * points at it, and every index above the removed one shifts down by one.
-     *
-     * This is the only chain mutation that has to REINDEX, and it has to do so
-     * in four parallel structures at once. Miss one and the canvas silently
-     * shows the wrong thing:
-     *
-     *  - `chain.edges`: edges touching the node are dropped; on the survivors,
-     *    a `from`/`to` above the removed index is decremented.
-     *  - `viz_layout.nodes` and `viz_layout.comments`: both indexed BY NODE
-     *    INDEX — splice the same position, or every block below inherits its
-     *    neighbour's position and comment.
-     *  - `viz_layout.edges`: indexed BY EDGE INDEX (parallel to `chain.edges`)
-     *    — keep only the anchors of the edges that survived, in order. Same
-     *    trap `removeEdge()` already documents, one dimension wider.
-     *
-     * The root node (index 0) is fixed, exactly as in `updateNode()`.
-     *
-     * The response carries a WHOLE rebuilt graph (`IntegrationsMap::graph()`,
-     * the same shape the page was first drawn from) rather than a patch: after
-     * a reindex there is no local surgery the client could safely do, so it
-     * re-renders. That also keeps the reindexing logic in one language.
-     */
-    public function removeNode(RemoveIntegrationChainNodeRequest $request, Solution $solution, Integration $integration, int $node): JsonResponse
+    public function removeNode(RemoveChainNodeRequest $request, Solution $solution, Integration $integration, int $node): JsonResponse
     {
-        $chain = $integration->chain;
-        abort_if(! $chain || $node <= 0 || ! isset($chain['nodes'][$node]), 404);
-
-        $nodes = array_values($chain['nodes']);
-        array_splice($nodes, $node, 1);
-
-        // Which edges survive, and where they used to live — the old positions
-        // are what `viz_layout.edges` is still keyed by.
-        $keptEdges = [];
-        $keptAnchorIndexes = [];
-        foreach (array_values($chain['edges'] ?? []) as $i => $edge) {
-            $from = $edge['from'] ?? null;
-            $to = $edge['to'] ?? null;
-
-            if ($from === $node || $to === $node) {
-                continue;
-            }
-
-            if (is_int($from) && $from > $node) {
-                $edge['from'] = $from - 1;
-            }
-            if (is_int($to) && $to > $node) {
-                $edge['to'] = $to - 1;
-            }
-
-            $keptEdges[] = $edge;
-            $keptAnchorIndexes[] = $i;
-        }
-
-        $chain['nodes'] = $nodes;
-        $chain['edges'] = $keptEdges;
-
-        $integration->update([
-            'chain'      => $chain,
-            'viz_layout' => $this->layoutWithoutNode($integration->viz_layout, $node, $keptAnchorIndexes),
-        ]);
-        $this->sync->handle($integration);
-
-        $integration = $integration->fresh();
-        $solutions = $this->labeler->resolveSolutions(collect([$integration->chain]));
-
-        return response()->json([
-            'type'    => 'success',
-            'message' => 'Bloco excluído.',
-            'graph'   => (new IntegrationsMap($solution))->graph($integration, $this->labeler, $solutions),
-            'summary' => $this->labeler->label($integration->chain, $solutions),
-        ]);
+        return $this->removeChainNode($integration->withSolutionContext($solution), $node);
     }
 
-    /**
-     * Updates the protocol and/or direction (`arrow`) of a single edge —
-     * edited in place from the editor anchored to the protocol pill in the
-     * F3 data-viz. Unlike the node, there's no protected edge (no "root"
-     * among edges); `$edge` is the index in `chain.edges`. Still edits the
-     * `chain`, so SyncIntegrationFromChain runs again: the
-     * `integrations.protocol` scalar (1st edge with a protocol, summary
-     * only) and `direction` (bidirectional depends on `arrow`) are also
-     * derived from here.
-     */
-    public function updateProtocol(UpdateIntegrationChainProtocolRequest $request, Solution $solution, Integration $integration, int $edge): JsonResponse
+    public function updateProtocol(UpdateChainProtocolRequest $request, Solution $solution, Integration $integration, int $edge): JsonResponse
     {
-        $chain = $integration->chain;
-        $edges = $chain['edges'] ?? [];
-        abort_if(! $chain || $edge < 0 || ! isset($edges[$edge]), 404);
-
-        $data = $request->validated();
-        $edges[$edge]['protocol'] = $data['protocol'];
-        if (array_key_exists('arrow', $data)) {
-            $edges[$edge]['arrow'] = $data['arrow'];
-        }
-        $chain['edges'] = $edges;
-
-        $integration->update(['chain' => $chain]);
-        $this->sync->handle($integration);
-
-        return response()->json([
-            'type'     => 'success',
-            'message'  => 'Ligação atualizada.',
-            'protocol' => IntegrationsMap::resolveProtocol($edges[$edge]['protocol']),
-            'arrow'    => $edges[$edge]['arrow'] ?? '->',
-        ]);
+        return $this->updateChainProtocol($integration->withSolutionContext($solution), $request->validated(), $edge);
     }
 
-    /**
-     * Appends a new block to the chain (the F3 data-viz's "Adicionar bloco"
-     * panel) — a PURE node: its kind (system / decision / actor / start / end)
-     * plus a registered Solution or free text, with NO edge and no protocol. Every
-     * block is born isolated; wiring is a separate, later gesture — drag an
-     * arrow out of any block's port or use "connect mode" (`addEdge()`), or
-     * drag an existing edge's endpoint onto it (`retargetEdge()`). Still
-     * edits the `chain` (source of truth for topology), so
-     * SyncIntegrationFromChain runs again — a solution-backed block becomes a
-     * participant even with no edge yet.
-     */
-    public function addNode(AddIntegrationChainNodeRequest $request, Solution $solution, Integration $integration): JsonResponse
+    public function addNode(AddChainNodeRequest $request, Solution $solution, Integration $integration): JsonResponse
     {
-        $chain = $integration->chain;
-        abort_if(! $chain, 404);
-
-        $chain['nodes'][] = $this->chainNode($request->validated());
-        $newIndex = count($chain['nodes']) - 1;
-
-        $integration->update(['chain' => $chain]);
-        $this->sync->handle($integration);
-
-        $integration = $integration->fresh();
-        $solutions = $this->labeler->resolveSolutions(collect([$integration->chain]));
-
-        return response()->json([
-            'type'    => 'success',
-            'message' => 'Bloco adicionado.',
-            'node'    => IntegrationsMap::resolveNode($integration->chain['nodes'][$newIndex], $solutions, null),
-            'summary' => $this->labeler->label($integration->chain, $solutions),
-        ]);
+        return $this->addChainNode($integration->withSolutionContext($solution), $request->validated());
     }
 
-    /**
-     * Appends a new IMAGE block to the chain — pasting a picture directly onto
-     * the F3 canvas (Ctrl+V), the only way an `App\Enums\ChainNodeKind::Image`
-     * block is created. Stores the upload in `Integration`'s `docs` media
-     * collection (same collection/serving route as documentation-embedded
-     * images) and appends the node referencing it in one request, response
-     * shaped exactly like `addNode()`'s so the client reuses the same
-     * append-without-redrawing path. Like every other new block, it's born
-     * isolated — the image can still send/receive arrows afterwards, exactly
-     * like any other block, since edges only ever reference a node by index.
-     */
-    public function addImageNode(AddIntegrationChainImageRequest $request, Solution $solution, Integration $integration): JsonResponse
+    public function addImageNode(AddChainImageRequest $request, Solution $solution, Integration $integration): JsonResponse
     {
-        $chain = $integration->chain;
-        abort_if(! $chain, 404);
-
-        $media = $integration->addMediaFromRequest('image')->toMediaCollection(Documentable::DOCS_COLLECTION);
-
-        $chain['nodes'][] = [
-            'solution_id' => null,
-            'label'       => 'Imagem',
-            'kind'        => ChainNodeKind::Image->value,
-            'media_id'    => $media->id,
-        ];
-        $newIndex = count($chain['nodes']) - 1;
-
-        $integration->update(['chain' => $chain]);
-        $this->sync->handle($integration);
-
-        $integration = $integration->fresh();
-        $solutions = $this->labeler->resolveSolutions(collect([$integration->chain]));
-
-        return response()->json([
-            'type'    => 'success',
-            'message' => 'Imagem adicionada.',
-            'node'    => IntegrationsMap::resolveNode($integration->chain['nodes'][$newIndex], $solutions, null),
-            'summary' => $this->labeler->label($integration->chain, $solutions),
-        ]);
+        return $this->addChainImageNode($integration->withSolutionContext($solution), $request->file('image'));
     }
 
-    /**
-     * Rewires one endpoint of an existing edge (`from` or `to`) to any other
-     * block — dragging the arrow's handle in the F3 data-viz to another node
-     * (`integration-viz.js::retargetEdge()`). This is what turns the chain
-     * into a free graph instead of a straight line: once rewired outside the
-     * 0→1→2→… sequence, `ChainLabeler::isLinear()` starts rejecting that
-     * chain (used only to choose the textual summary's format, see
-     * `ChainLabeler::label()`). Still edits the `chain`, so
-     * SyncIntegrationFromChain runs again.
-     */
-    public function retargetEdge(RetargetIntegrationChainEdgeRequest $request, Solution $solution, Integration $integration, int $edge): JsonResponse
+    public function retargetEdge(RetargetChainEdgeRequest $request, Solution $solution, Integration $integration, int $edge): JsonResponse
     {
-        $chain = $integration->chain;
-        $edges = $chain['edges'] ?? [];
-        abort_if(! $chain || $edge < 0 || ! isset($edges[$edge]), 404);
-
-        $data = $request->validated();
-        $edges[$edge][$data['end']] = $data['node'];
-        $chain['edges'] = $edges;
-
-        $integration->update(['chain' => $chain]);
-        $this->sync->handle($integration);
-
-        $integration = $integration->fresh();
-        $solutions = $this->labeler->resolveSolutions(collect([$integration->chain]));
-
-        return response()->json([
-            'type'    => 'success',
-            'message' => 'Ligação atualizada.',
-            'from'    => $edges[$edge]['from'],
-            'to'      => $edges[$edge]['to'],
-            'summary' => $this->labeler->label($integration->chain, $solutions),
-        ]);
+        return $this->retargetChainEdge($integration->withSolutionContext($solution), $request->validated(), $edge);
     }
 
-    /**
-     * Creates a new edge between two blocks that already exist in the chain
-     * — the F3 data-viz's "connect mode" (block toolbar button, then click
-     * on another block). Unlike `addNode()`, it doesn't add any node; unlike
-     * `retargetEdge()`, it doesn't move an existing edge — it's a brand-new
-     * edge from scratch, which lets you connect any pair of already-drawn
-     * blocks, even if they weren't part of the same "line" of the chain.
-     * Still edits the `chain`, so SyncIntegrationFromChain runs again.
-     */
-    public function addEdge(AddIntegrationChainEdgeRequest $request, Solution $solution, Integration $integration): JsonResponse
+    public function addEdge(AddChainEdgeRequest $request, Solution $solution, Integration $integration): JsonResponse
     {
-        $chain = $integration->chain;
-        abort_if(! $chain, 404);
-
-        $data = $request->validated();
-        $chain['edges'][] = [
-            'from'     => $data['from'],
-            'to'       => $data['to'],
-            'arrow'    => $data['arrow'],
-            'protocol' => $data['protocol'],
-        ];
-        $newIndex = count($chain['edges']) - 1;
-
-        $integration->update(['chain' => $chain]);
-        $this->sync->handle($integration);
-
-        $integration = $integration->fresh();
-        $solutions = $this->labeler->resolveSolutions(collect([$integration->chain]));
-
-        return response()->json([
-            'type'    => 'success',
-            'message' => 'Ligação criada.',
-            // The index this edge got in `chain.edges` — every other edge
-            // endpoint (protocol update, retarget, remove) addresses edges BY
-            // INDEX, so the client must not infer it from its own insertion
-            // order: two creates in flight whose responses land out of order
-            // would leave every later PATCH/DELETE pointing at the wrong edge.
-            'index'    => $newIndex,
-            'from'     => $data['from'],
-            'to'       => $data['to'],
-            'arrow'    => $data['arrow'],
-            'protocol' => IntegrationsMap::resolveProtocol($data['protocol']),
-            'summary'  => $this->labeler->label($integration->chain, $solutions),
-        ]);
+        return $this->addChainEdge($integration->withSolutionContext($solution), $request->validated());
     }
 
-    /**
-     * Removes an existing edge from the chain (the "disconnect" button in
-     * the F3 data-viz's edge editor) — the nodes keep existing; if this was
-     * a block's only edge, it now appears isolated in the graph. This is
-     * what makes the wiring genuinely free: not every block needs to be
-     * connected to another. `viz_layout.edges` is reindexed alongside it (it
-     * runs parallel to `chain.edges` by position), otherwise the saved
-     * anchors of edges after this one would slide to the wrong edge.
-     */
-    public function removeEdge(RemoveIntegrationChainEdgeRequest $request, Solution $solution, Integration $integration, int $edge): JsonResponse
+    public function removeEdge(RemoveChainEdgeRequest $request, Solution $solution, Integration $integration, int $edge): JsonResponse
     {
-        $chain = $integration->chain;
-        $edges = $chain['edges'] ?? [];
-        abort_if(! $chain || $edge < 0 || ! isset($edges[$edge]), 404);
-
-        array_splice($edges, $edge, 1);
-        $chain['edges'] = $edges;
-
-        $vizLayout = $integration->viz_layout;
-        if (isset($vizLayout['edges']) && array_key_exists($edge, $vizLayout['edges'])) {
-            array_splice($vizLayout['edges'], $edge, 1);
-        }
-
-        $integration->update(['chain' => $chain, 'viz_layout' => $vizLayout]);
-        $this->sync->handle($integration);
-
-        $integration = $integration->fresh();
-        $solutions = $this->labeler->resolveSolutions(collect([$integration->chain]));
-
-        return response()->json([
-            'type'    => 'success',
-            'message' => 'Ligação removida.',
-            'summary' => $this->labeler->label($integration->chain, $solutions),
-        ]);
+        return $this->removeChainEdge($integration->withSolutionContext($solution), $edge);
     }
 
     public function destroy(Solution $solution, Integration $integration): JsonResponse
@@ -489,62 +198,6 @@ class SolutionIntegrationController extends Controller
             'message'        => 'Integração removida.',
             'updatableSlots' => [IntegrationsMap::slot($solution)],
         ]);
-    }
-
-    /**
-     * `viz_layout` with a removed node's entries taken out and everything
-     * reindexed to match the new `chain` — see `removeNode()` for why all three
-     * arrays have to move together. Returns null unchanged when there's no
-     * layout saved yet (nothing to reindex).
-     *
-     * @param  array<string, mixed>|null  $layout
-     * @param  array<int, int>  $keptAnchorIndexes  old `chain.edges` positions that survived, in order
-     * @return array<string, mixed>|null
-     */
-    private function layoutWithoutNode(?array $layout, int $node, array $keptAnchorIndexes): ?array
-    {
-        if (! $layout) {
-            return $layout;
-        }
-
-        // Positions and comments are per NODE index.
-        foreach (['nodes', 'comments'] as $key) {
-            if (isset($layout[$key]) && is_array($layout[$key]) && array_key_exists($node, $layout[$key])) {
-                $values = array_values($layout[$key]);
-                array_splice($values, $node, 1);
-                $layout[$key] = $values;
-            }
-        }
-
-        // Anchors are per EDGE index: rebuild from the surviving positions.
-        if (isset($layout['edges']) && is_array($layout['edges'])) {
-            $anchors = array_values($layout['edges']);
-            $layout['edges'] = array_values(array_map(
-                fn (int $old) => $anchors[$old] ?? ['from' => 'r', 'to' => 'l'],
-                $keptAnchorIndexes,
-            ));
-        }
-
-        return $layout;
-    }
-
-    /**
-     * A chain node in storage shape, from the validated fields of
-     * `AddIntegrationChainNodeRequest`/`UpdateIntegrationChainNodeRequest`
-     * (both validate the same three fields — see `ValidatesChainNode`).
-     * Built explicitly, in a fixed key order, so `chain.nodes` never depends
-     * on which keys the request happened to carry.
-     *
-     * @param  array{solution_id?: int|null, label?: string|null, kind?: string|null}  $data
-     * @return array{solution_id: int|null, label: string|null, kind: string}
-     */
-    private function chainNode(array $data): array
-    {
-        return [
-            'solution_id' => $data['solution_id'] ?? null,
-            'label'       => $data['label'] ?? null,
-            'kind'        => $data['kind'] ?? ChainNodeKind::System->value,
-        ];
     }
 
     private function uniqueSlug(string $name): string

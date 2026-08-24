@@ -2,6 +2,7 @@
 
 namespace App\Actions\Cati;
 
+use App\Enums\SubmissionDiagramKind;
 use App\Enums\SubmissionSectionKey;
 use App\Models\Integration;
 use App\Models\Submission;
@@ -145,23 +146,81 @@ class BuildDeckSpec
     }
 
     /**
-     * One slide per integration the Solution takes part in that has a picture
-     * of its canvas.
+     * The architecture slides.
      *
-     * The image is what the F3 canvas published on its last save, and it goes
-     * in with a hyperlink back to that canvas. Native shapes would make the
-     * deck a SECOND place the diagram can be edited — someone nudges a box
+     * A submission's OWN drawings come first, in the committee's order: AS IS,
+     * TO BE, then the two C4 views. They are what the committee is actually
+     * deliberating on — a proposal is about what will change, and until Fase 3
+     * there was nowhere to draw that, so the deck could only ever show how the
+     * catalog looks today.
+     *
+     * A picture with a LINK, never native shapes. Autoshapes would make the
+     * deck a second place the diagram can be edited — someone nudges a box
      * during the meeting and the deck and the inventory disagree, silently.
-     * A picture plus a link keeps the canvas authoritative: one editing
-     * surface, many views.
+     * One editing surface, many views.
+     *
+     * The Solution's existing integration canvases still follow, and they are
+     * not redundant: they are the catalog's own record of what exists today,
+     * at the level of one integration each, while AS IS is the submitter's
+     * summary of the same reality. A submission that drew an AS IS suppresses
+     * them, because two answers to "how does it work today" on consecutive
+     * slides is a question from the committee, not an answer.
      *
      * @return list<array<string, mixed>>
      */
     private function diagrams(Submission $submission): array
     {
+        $submission->loadMissing(['diagrams.media', 'solution.integrations']);
+
+        $slides = [];
+        $drewAsIs = false;
+
+        foreach (SubmissionDiagramKind::cases() as $kind) {
+            $diagram = $submission->diagrams->firstWhere(fn ($d) => $d->kind === $kind);
+            $media = $diagram?->isFilled() ? $diagram->picture() : null;
+
+            // A slot with nothing in it is skipped rather than printed empty:
+            // a slide with a hole in it reads as a mistake, and the ticket's
+            // checklist already reports which drawings are missing.
+            if ($media === null || ! is_file($media->getPath())) {
+                continue;
+            }
+
+            $drewAsIs = $drewAsIs || $kind === SubmissionDiagramKind::AsIs;
+
+            $slides[] = [
+                'layout' => 'content',
+                'title'  => $kind->slideTitle(),
+                'blocks' => [[
+                    'type' => 'image',
+                    'path' => $media->getPath(),
+                    // Only a drawn kind has a canvas to go back to; an
+                    // uploaded C4 came from a tool this app does not host.
+                    'link' => $kind->isDrawn()
+                        ? route('submissions.diagrams.edit', [$submission, $diagram])
+                        : null,
+                ]],
+            ];
+        }
+
+        return [...$slides, ...$this->integrationDiagrams($submission, $drewAsIs)];
+    }
+
+    /**
+     * One slide per integration of the linked Solution that has a picture of
+     * its canvas — the catalog's own view of what exists today.
+     *
+     * Suppressed once the submission drew its own AS IS: the two answer the
+     * same question at different altitudes, and printing both invites the
+     * committee to spot the difference instead of reading the proposal.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function integrationDiagrams(Submission $submission, bool $drewAsIs): array
+    {
         $solution = $submission->solution;
 
-        if ($solution === null) {
+        if ($solution === null || $drewAsIs) {
             return [];
         }
 
