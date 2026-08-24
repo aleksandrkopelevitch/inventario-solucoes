@@ -66,7 +66,18 @@ class SolutionController extends Controller
             return response()->json(['solution' => $solution]);
         }
 
-        return view('solutions.show', ['solution' => $solution]);
+        return view('solutions.show', [
+            'solution' => $solution,
+            // A committee approved a topology for this solution and nobody
+            // applied it yet: the integrations list below is showing the
+            // previous scenario, and saying so is the whole point of tracking
+            // it (App\Models\ApprovedTopology). Resolved here rather than in
+            // the view — it is a query.
+            'pendingTopologies' => $solution->pendingTopologies()
+                ->with('submission:id,name,slug')
+                ->orderBy('approved_at')
+                ->get(),
+        ]);
     }
 
     /** Search by name for the "Systems" chips autocomplete in the Person form. */

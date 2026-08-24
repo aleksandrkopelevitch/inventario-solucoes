@@ -108,11 +108,15 @@ adicionar bloco, renomear inline, salvar e publicar o PNG —
 `POST /picture`, todos 200, nenhum erro de console. A aba mostra "Pronto" e a
 miniatura do canvas capturado.
 
-## Fora de escopo
+## Fora de escopo — e uma consequência que não era esperada
 
-- Promover o TO BE aprovado de volta para o inventário (Fase 4). Hoje
-  `PromoteApprovedSubmission` publica as SEÇÕES na documentação da solução; a
-  topologia não vai junto, e o contrato `afterChainMutation()` vazio é o que
-  garante que ela não vá por acidente.
+- Promover o TO BE aprovado de volta para o inventário. **Isto virou trabalho
+  imediato**, não Fase 4 distante: dar desenhos próprios à submissão reabriu um
+  buraco que `cati-fase-4.md` declarava fechado ("a topologia já está promovida
+  no instante em que é desenhada" — verdade enquanto o desenho era o canvas
+  vivo do inventário). Fechado em 2026-08-24 por `ApprovedTopology`; ver a
+  seção correspondente em `docs/cati-fase-4.md`. O `afterChainMutation()` vazio
+  continua certo: proposta não escreve no catálogo — **aprovação** escreve, e é
+  outro momento.
 - Comparar AS IS × TO BE (um diff de topologia). O modelo permite — os dois são
   chains no mesmo formato —, mas ninguém pediu ainda.

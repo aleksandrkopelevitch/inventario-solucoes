@@ -164,6 +164,10 @@
             </div>
 
             <aside class="flex min-w-0 flex-col gap-5">
+                {{-- Above the deliberation on purpose: an approval that hasn't
+                     reached the catalog is the one thing still owed, and it is
+                     what goes stale if nobody sees it. --}}
+                <x-submissions.topology-handoff :submission="$submission" />
                 <x-submissions.deliberation :submission="$submission" />
 
                 @can('update', $submission)

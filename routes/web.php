@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ApprovedTopologyController;
 use App\Http\Controllers\AttributeOptionController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginController;
@@ -406,6 +407,23 @@ Route::middleware('auth')->group(function () {
     // `Submission::messages()` relation that doesn't and shouldn't exist.
     // SubmissionChatController::apply() checks the ownership explicitly instead.
     Route::post('submissions/{submission}/chat/messages/{message}/apply', [SubmissionChatController::class, 'apply'])->name('submissions.chat.messages.apply');
+
+    /*
+     | Closing the loop a committee opened: the TO BE it approved either lands on
+     | a real Integration or is declared already reflected.
+     |
+     | NOT scoped, for the same reason the message route above isn't:
+     | `scopeBindings()` resolves `{topology}` through a PLURAL
+     | `Submission::topologies()`, and the relation is a HasOne — a submission is
+     | deliberated once. A HasMany that can only ever hold one row would be a lie
+     | written to satisfy the router, so the controller checks ownership itself.
+     |
+     | The target integration is checked against the SOLUTION in
+     | ApplyApprovedTopologyRequest: an approval must never overwrite an
+     | integration belonging to somebody else.
+     */
+    Route::post('submissions/{submission}/topology/{topology}/apply', [ApprovedTopologyController::class, 'apply'])->name('submissions.topology.apply');
+    Route::post('submissions/{submission}/topology/{topology}/dismiss', [ApprovedTopologyController::class, 'dismiss'])->name('submissions.topology.dismiss');
 
     Route::get('flowspec/{chat}/status', [FlowspecChatController::class, 'status'])->name('flowspec.status');
     Route::post('flowspec/{chat}/messages', [FlowspecMessageController::class, 'store'])->name('flowspec.messages.store');

@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 
@@ -162,6 +163,18 @@ class Submission extends Model implements HasMedia
     public function diagrams(): HasMany
     {
         return $this->hasMany(SubmissionDiagram::class);
+    }
+
+    /**
+     * The TO BE this submission's approval blessed, if it had one.
+     *
+     * HasOne, not HasMany: a submission is deliberated once. See
+     * `ApprovedTopology` for why the approval records a pending row instead of
+     * writing the catalog outright.
+     */
+    public function approvedTopology(): HasOne
+    {
+        return $this->hasOne(ApprovedTopology::class);
     }
 
     /**

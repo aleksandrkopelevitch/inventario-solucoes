@@ -10,6 +10,24 @@
         <x-solutions.detail-header :solution="$solution" />
     </div>
 
+    {{-- 2.5. A committee approved a topology for this solution and nobody has
+         applied it to the catalog yet. Above the integrations list on purpose:
+         it is a warning ABOUT that list — the graph below is showing the
+         previous scenario. Not a slot: nothing on this page changes it, and it
+         is resolved on the submission's own screen. --}}
+    @foreach ($pendingTopologies as $pending)
+        <div class="animate-ak-rise mt-5 flex flex-wrap items-center gap-3 rounded-card border border-cat-amber-line bg-cat-amber-soft px-4 py-3" style="animation-delay: 80ms">
+            <x-heroicon-o-arrow-path-rounded-square class="size-5 shrink-0 text-cat-amber-ink" />
+            <p class="min-w-0 flex-1 text-sm text-cat-amber-ink">
+                O comitê aprovou uma topologia para esta solução em
+                {{ $pending->approved_at->format('d/m/Y') }} que ainda não foi aplicada —
+                as integrações abaixo mostram o cenário anterior.
+            </p>
+            <a href="{{ route('submissions.show', $pending->submission) }}"
+               class="shrink-0 text-sm font-medium text-cat-amber-ink underline">Ver a submissão</a>
+        </div>
+    @endforeach
+
     {{-- 3. What this solution HAS been documented with, in one card: the
          integrations it takes part in on the left, its documentation pages on
          the right. They were two stacked cards until 2026-08-17 — the same

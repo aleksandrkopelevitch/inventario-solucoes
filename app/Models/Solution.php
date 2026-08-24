@@ -149,6 +149,20 @@ class Solution extends Model implements HasMedia
         return $this->hasMany(Integration::class, 'target_solution_id');
     }
 
+    /**
+     * Topologies a committee approved for this solution that the catalog has
+     * not caught up with yet.
+     *
+     * Surfaced on the solution's own page because that is where someone reads
+     * the topology and trusts it. An approved change nobody applied is drift,
+     * and drift that is invisible is the failure the CATI module exists to
+     * prevent — see `App\Models\ApprovedTopology`.
+     */
+    public function pendingTopologies(): HasMany
+    {
+        return $this->hasMany(ApprovedTopology::class)->pending();
+    }
+
     /** Every integration this solution participates in, in any role. */
     public function integrations(): BelongsToMany
     {
