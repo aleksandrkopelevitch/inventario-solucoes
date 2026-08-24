@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\SubmissionSectionKey;
 use App\Enums\SubmissionSectionState;
+use App\Http\Requests\ApplySubmissionDraftRequest;
 use App\Http\Requests\StoreSubmissionChatMessageRequest;
 use App\Jobs\GenerateSubmissionChatReply;
 use App\Models\Submission;
@@ -15,7 +16,6 @@ use App\View\Components\Submissions\Progress;
 use App\View\Components\Submissions\Sections;
 use App\View\Components\Submissions\StageStrip;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class SubmissionChatController extends Controller
 {
@@ -68,34 +68,45 @@ class SubmissionChatController extends Controller
     }
 
     /**
-     * Applies a reply's drafts into their sections.
+     * Applies a reply's drafts into their sections — every one of them as a
+     * draft, or a single one signed off in the same gesture.
      *
      * Deliberately different from the documentation assistant, where "Aplicar"
      * is bookkeeping and the client pushes Markdown into an editor: there is no
-     * editor here, so this WRITES. What it writes stays `drafted` — applying is
-     * not signing, and confirming is a separate gesture.
+     * editor here, so this WRITES.
+     *
+     * Applying is not signing. What it writes stays `drafted`, and confirming
+     * stays a separate act — with ONE exception, which exists because the
+     * interview now routinely drafts six sections from a single message and
+     * reviewing them a card at a time on another tab was the slowest step
+     * left: a per-section "aplicar e confirmar", reachable only from inside
+     * that draft's own `<details>`. Expanding it is what makes the claim
+     * ("a human read this") true, which is why the button is not in the
+     * reply's header next to the apply-all. See ApplySubmissionDraftRequest.
      */
-    public function apply(Request $request, Submission $submission, SubmissionMessage $message): JsonResponse
+    public function apply(ApplySubmissionDraftRequest $request, Submission $submission, SubmissionMessage $message): JsonResponse
     {
-        $this->authorize('update', $submission);
-
         $message->loadMissing('chat');
         abort_unless($message->chat->submission_id === $submission->id, 404);
 
+        $only = $request->sectionKey();
+        $confirm = $request->shouldConfirm();
         $applied = 0;
 
         foreach ($message->drafts ?? [] as $draft) {
             $key = SubmissionSectionKey::tryFrom($draft['key'] ?? '');
 
-            if ($key === null) {
+            if ($key === null || ($only !== null && $key !== $only)) {
                 continue;
             }
 
             $submission->section($key)->update([
                 'content' => $draft['markdown'],
-                'state'   => SubmissionSectionState::Drafted,
+                'state'   => $confirm ? SubmissionSectionState::Confirmed : SubmissionSectionState::Drafted,
                 // Provenance: a generated document is trustworthy exactly as
-                // far as a reviewer can trace it.
+                // far as a reviewer can trace it. It stays `chat` even when
+                // confirmed — the text came from the assistant, and who signed
+                // it is `updated_by_id`.
                 'provenance'    => ['source' => 'chat', 'message_id' => $message->id],
                 'updated_by_id' => $request->user()->id,
             ]);
@@ -117,8 +128,12 @@ class SubmissionChatController extends Controller
         $submission->load(['sections', 'sources', 'solution']);
 
         return response()->json([
-            'type'           => 'success',
-            'message'        => $applied === 1 ? 'Rascunho aplicado à seção.' : "Rascunho aplicado a {$applied} seções.",
+            'type'    => 'success',
+            'message' => match (true) {
+                $confirm       => 'Seção aplicada e confirmada.',
+                $applied === 1 => 'Rascunho aplicado à seção.',
+                default        => "Rascunho aplicado a {$applied} seções.",
+            },
             'updatableSlots' => [
                 Sections::slot($submission),
                 Progress::slot($submission),
