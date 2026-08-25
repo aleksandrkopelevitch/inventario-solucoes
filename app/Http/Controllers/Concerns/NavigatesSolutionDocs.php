@@ -20,8 +20,8 @@ use App\Services\DocumentationPageService;
 trait NavigatesSolutionDocs
 {
     /**
-     * Rows in reading order, each carrying its `depth` (0 or 1 — the tree is
-     * two levels) and which nesting arrows it can offer. Both come straight
+     * Rows in reading order, each carrying its `depth` (0..MAX_DEPTH-1) and
+     * which structural gestures it can offer. Both come straight
      * off `DocumentationPageService::tree()`, which is also what validates an
      * incoming move: the rail and the endpoint read one source.
      *
@@ -42,6 +42,7 @@ trait NavigatesSolutionDocs
             'hasChildren'  => $row['hasChildren'],
             'canNest'      => $row['canNest'],
             'canPromote'   => $row['canPromote'],
+            'canAddChild'  => $row['canAddChild'],
             'editUrl'      => route('solutions.docs.page.edit', [$solution, $row['page']]),
             'renameUrl'    => route('solutions.docs.pages.rename', [$solution, $row['page']]),
             'destroyUrl'   => route('solutions.docs.pages.destroy', [$solution, $row['page']]),

@@ -15,8 +15,10 @@ use Illuminate\Support\Str;
  * the container is polymorphic (`Solution` or `DocumentationGroup`), both
  * expose the same `pages()` relation.
  *
- * The tree is TWO levels deep: root pages, each optionally holding children
- * (`DocumentationPage::canBeNested()` is what refuses a third). `position`
+ * The tree goes up to `DocumentationPage::MAX_DEPTH` levels — a page, a
+ * subpage and a sub-subpage today (`canReceiveChildren()`/`canBeNestedUnder()`
+ * are what refuse a deeper one, counting the whole subtree being moved rather
+ * than just the page itself). `position`
  * orders a page among its SIBLINGS, so the container's `pages()` relation — a
  * flat `orderBy('position')` over roots and children alike — is NOT reading
  * order. Anything that shows the tree to a human walks `tree()` instead;
@@ -118,20 +120,34 @@ class DocumentationPageService
      */
     public function moveToContainer(DocumentationPage $page, Model $destination): void
     {
-        $children = $page->children()->get();
-
         $page->slug = $this->uniqueSlugFrom($destination, $page->slug);
         $page->position = $this->nextPosition($destination, null);
         $page->parent()->dissociate();
         $page->container()->associate($destination);
         $page->save();
 
-        // After the parent, so a child's slug is also checked against the
-        // parent's freshly resolved one.
-        foreach ($children as $child) {
+        $this->moveDescendantsToContainer($page, $destination);
+    }
+
+    /**
+     * Re-files everything under `$page` into the same container, depth-first —
+     * the whole subtree travels, not just the first level. With three levels in
+     * play, moving only the direct children would leave the grandchildren
+     * pointing at pages that now live in another solution: rows still reachable
+     * through their parent, but counted as documentation of a container they
+     * were never filed under.
+     *
+     * Parents before children on purpose, so a child's slug is checked against
+     * a destination that already holds its freshly resolved parent.
+     */
+    private function moveDescendantsToContainer(DocumentationPage $page, Model $destination): void
+    {
+        foreach ($page->children()->get() as $child) {
             $child->slug = $this->uniqueSlugFrom($destination, $child->slug);
             $child->container()->associate($destination);
             $child->save();
+
+            $this->moveDescendantsToContainer($child, $destination);
         }
     }
 
@@ -196,9 +212,9 @@ class DocumentationPageService
     }
 
     /**
-     * The container's pages in READING order — each root immediately followed
-     * by its children — carrying, per row, the depth to indent by and which of
-     * the two nesting gestures that row can actually perform.
+     * The container's pages in READING order — each page immediately followed
+     * by its own subtree — carrying, per row, the depth to indent by and which
+     * of the three structural gestures that row can actually perform.
      *
      * Those flags are here rather than in the nav builders for two reasons:
      * they're free (the whole flat list is already in memory, so no row costs
@@ -206,42 +222,54 @@ class DocumentationPageService
      * `canMove()` reads the very same flags to validate an incoming move — so
      * a button the rail doesn't offer is also a button nobody can forge.
      *
-     * @return Collection<int, array{page: DocumentationPage, depth: int, hasChildren: bool, canNest: bool, canPromote: bool}>
+     * @return Collection<int, array{page: DocumentationPage, depth: int, hasChildren: bool, canNest: bool, canPromote: bool, canAddChild: bool, descendantLevels: int}>
      */
     public function tree(Model $container): Collection
     {
-        $pages = $container->pages()->get();
-        $children = $pages->reject(fn (DocumentationPage $page) => $page->isRoot())->groupBy('parent_id');
+        $byParent = $container->pages()->get()->groupBy('parent_id');
 
-        return $pages
-            ->filter(fn (DocumentationPage $page) => $page->isRoot())
-            ->values()
-            ->flatMap(function (DocumentationPage $root, int $index) use ($children) {
-                $own = $children->get($root->id, collect());
-
-                return collect([[
-                    'page'  => $root,
-                    'depth' => 0,
-                    // Nesting a root means sliding it under the root ABOVE it,
-                    // which only exists from the second row on — and only a
-                    // childless page can go there without taking children of
-                    // its own down to a third level.
-                    'hasChildren' => $own->isNotEmpty(),
-                    'canNest'     => $index > 0 && $own->isEmpty(),
-                    'canPromote'  => false,
-                ]])->concat($own->map(fn (DocumentationPage $child) => [
-                    'page'        => $child,
-                    'depth'       => 1,
-                    'hasChildren' => false,
-                    'canNest'     => false,
-                    'canPromote'  => true,
-                ]));
-            })
-            ->values();
+        return $this->treeLevel($byParent, null, 0);
     }
 
     /**
-     * Whether a nesting move is available for this page — answered from the
+     * One level of the walk, recursing into each page's own children.
+     *
+     * `$byParent` is the container's WHOLE page list grouped by `parent_id`
+     * (one query, done by the caller), so the recursion is pure array work —
+     * a per-node `children()` query here would be a query per page in the rail.
+     *
+     * @param  Collection<int|string|null, Collection<int, DocumentationPage>>  $byParent
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function treeLevel(Collection $byParent, ?int $parentId, int $depth): Collection
+    {
+        $siblings = $byParent->get($parentId === null ? '' : $parentId, collect())->values();
+
+        return $siblings->flatMap(function (DocumentationPage $page, int $index) use ($byParent, $depth) {
+            $children = $this->treeLevel($byParent, $page->id, $depth + 1);
+            $height = 1 + (int) $children->max('descendantLevels');
+
+            return collect([[
+                'page'  => $page,
+                'depth' => $depth,
+                // Nesting means sliding under the sibling ABOVE, which only
+                // exists from the second row on — and the whole subtree has to
+                // fit: a page with subpages of its own drags them one level
+                // down with it, so what is checked is its HEIGHT, never just
+                // its own depth.
+                'hasChildren' => $children->isNotEmpty(),
+                'canNest'     => $index > 0 && $depth + $height <= DocumentationPage::MAX_DEPTH - 1,
+                'canPromote'  => $depth > 0,
+                'canAddChild' => $depth < DocumentationPage::MAX_DEPTH - 1,
+                // Só pra o cálculo de altura do nível de cima — o consumidor
+                // (rail, doc pública, card) ignora esta chave.
+                'descendantLevels' => $height,
+            ]])->concat($children);
+        })->values();
+    }
+
+    /**
+     * Whether a structural move is available for this page — answered from the
      * same tree the rail renders, so the UI and the validation can never
      * disagree about which arrows a page has. `up`/`down` are always allowed:
      * at the ends of a list they no-op, as they always have.
@@ -290,7 +318,7 @@ class DocumentationPageService
     {
         $parent = $this->previousSibling($page);
 
-        if (! $parent || ! $page->canBeNested() || ! $parent->canReceiveChildren()) {
+        if (! $parent || ! $page->canBeNestedUnder($parent)) {
             return;
         }
 
@@ -300,10 +328,15 @@ class DocumentationPageService
     }
 
     /**
-     * Promotes a child back to the root list, right AFTER the parent it left —
+     * Promotes a page one level UP, landing right after the parent it left —
      * the rail is how people navigate, and a page that reappears at the very
-     * bottom of it reads as lost rather than promoted. Making room means
-     * shifting the roots below the parent down by one.
+     * bottom of a list reads as lost rather than promoted. Making room means
+     * shifting the parent's own siblings below it down by one.
+     *
+     * Note what it is promoted INTO: the parent's sibling set, which is the
+     * root list only when the parent was a root. A sub-subpage promoted becomes
+     * a subpage of its grandparent, not a root — one step at a time, which is
+     * also what the rail's arrow implies.
      */
     private function promote(DocumentationPage $page): void
     {
@@ -314,12 +347,14 @@ class DocumentationPageService
         }
 
         $page->container->pages()
-            ->whereNull('parent_id')
+            ->where('parent_id', $parent->parent_id)
             ->where('position', '>', $parent->position)
             ->increment('position');
 
         $page->position = $parent->position + 1;
-        $page->parent()->dissociate();
+        // `associate(null)` and not `dissociate()`: the page joins the
+        // GRANDPARENT, which is null only when the parent was a root.
+        $page->parent()->associate($parent->parent_id ? $parent->parent()->first() : null);
         $page->save();
     }
 

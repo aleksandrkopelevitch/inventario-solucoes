@@ -7,7 +7,8 @@ use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 /**
- * Vertical tree (GitBook-style, TWO levels deep) for a Solution: its own pages
+ * Vertical tree (GitBook-style, up to `DocumentationPage::MAX_DEPTH` levels
+ * deep) for a Solution: its own pages
  * (titled with the SOLUTION's name, manageable — create/rename/move/nest/delete)
  * and, right below, the doc for each Integration it participates in
  * ("Integrações", link-only — consolidating both into a single screen, see
@@ -31,10 +32,10 @@ class PagesNav extends Component
 
     /**
      * `$pages` arrives FLAT, in reading order, each row carrying its own
-     * `depth` (0 or 1) — see the view for why the tree isn't rendered
+     * `depth` (0..MAX_DEPTH-1) — see the view for why the tree isn't rendered
      * recursively.
      *
-     * @param  array<int, array{id: int, title: string, depth: int, hasChildren: bool, canNest: bool, canPromote: bool, editUrl: string, renameUrl: string, destroyUrl: string, moveUrl: string, containerUrl: string, destinations: array<string, array<int, array{value: string, label: string}>>, active: bool, hasContent: bool}>  $pages
+     * @param  array<int, array{id: int, title: string, depth: int, hasChildren: bool, canNest: bool, canPromote: bool, canAddChild: bool, editUrl: string, renameUrl: string, destroyUrl: string, moveUrl: string, containerUrl: string, destinations: array<string, array<int, array{value: string, label: string}>>, active: bool, hasContent: bool}>  $pages
      * @param  array<int, array{title: string, editUrl: string, active: bool, hasContent: bool}>  $integrations
      */
     public function __construct(

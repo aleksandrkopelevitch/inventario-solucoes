@@ -33,7 +33,8 @@ use Illuminate\Support\Str;
  * NavigatesSolutionDocs — same sidebar shown by
  * IntegrationDocumentationController). Thin — delegates to the
  * EditsDocumentation trait (per page) and to DocumentationPageService (tree
- * rules: create/rename/move/nest/delete — the tree is two levels deep).
+ * rules: create/rename/move/nest/delete — the tree goes up to
+ * `DocumentationPage::MAX_DEPTH` levels).
  */
 class SolutionDocumentationController extends Controller
 {

@@ -139,8 +139,8 @@ class PublicDocumentationController extends Controller
     {
         $pages = app(DocumentationPageService::class)->tree($solution)->map(fn (array $row) => [
             'label' => $row['page']->title,
-            // Two levels, so the index indents a subpage instead of listing it
-            // as a peer of the page it belongs to (see the layout).
+            // Depth so the index indents a subpage instead of listing it as a
+            // peer of the page it belongs to (see the layout).
             'depth'   => $row['depth'],
             'url'     => route('public.docs.page', [$token, $row['page']]),
             'active'  => $current instanceof DocumentationPage && $current->is($row['page']),

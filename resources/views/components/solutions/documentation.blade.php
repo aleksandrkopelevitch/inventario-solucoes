@@ -43,13 +43,14 @@
 
     @if ($pages->isNotEmpty())
         <div class="mt-4 flex flex-col gap-2">
-            {{-- A subpage sits indented under its page, with the smaller
-                 chevron icon — the tree is two levels deep and this card is
-                 where someone first sees its shape. --}}
+            {{-- Subpages sit indented under their page, one step per level and
+                 with the smaller turn-down icon — this card is where someone
+                 first sees the shape of a solution's documentation. --}}
             @foreach ($pages as $page)
                 <a href="{{ $page['url'] }}" @class([
                     'group flex items-center gap-2.5 rounded-field border border-line bg-surface px-3.5 py-2.5 text-sm no-underline transition-colors hover:border-accent-line hover:bg-accent-soft/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent',
-                    'ml-5' => ($page['depth'] ?? 0) > 0,
+                    'ml-5' => ($page['depth'] ?? 0) === 1,
+                    'ml-10' => ($page['depth'] ?? 0) >= 2,
                 ])>
                     @if (($page['depth'] ?? 0) > 0)
                         <x-heroicon-o-arrow-turn-down-right class="size-3.5 shrink-0 text-faint" />

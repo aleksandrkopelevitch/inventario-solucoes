@@ -15,7 +15,7 @@ paths:
 ## GitBook import — and the three "firsts" it introduced
 
 > **The import still FLATTENS, on purpose.** `documentation_pages` gained a
-> second level (`parent_id`, capped at two — see `DocumentationPage`), but
+> levels of its own (`parent_id`, capped by `DocumentationPage::MAX_DEPTH`), but
 > `GitbookPageTree` was left flattening a space depth-first with ancestry in the
 > title ("Getting started › Instalação"): GitBook nests to ANY depth, so two
 > levels still don't map onto it, and changing the shape would rewrite the
@@ -146,7 +146,7 @@ When you need a GitBook API fact, read `https://api.gitbook.com/openapi.json`
 under a different Solution or standalone group — the other half of the import,
 and the only way content leaves its landing zone. Not to be confused with
 `…pages.move`, which moves a page WITHIN its container — `up`/`down` among its
-siblings, `in`/`out` between the tree's two levels; they are two different
+siblings, `in`/`out` one level at a time; they are two different
 endpoints with two different requests
 (`MoveDocumentationPageToContainerRequest` vs `MoveDocumentationPageRequest`).
 
@@ -169,12 +169,12 @@ Six things about it that are easy to get wrong:
   container, not globally (`unique(container_type, container_id, slug)`). It is
   kept when free there and suffixed when not; `position` always goes to the end
   of the destination.
-- **A nesting is never left straddling two containers.** The page tree is two
-  levels deep, so a move has to resolve the other half: a page WITH subpages
-  takes them along (they'd otherwise read as pages of the destination while
-  belonging to another container's tree), and a SUBPAGE moved on its own lands
-  as a top-level page, since its parent stayed behind. Both children and parent
-  get their slugs re-checked against the destination, parent first.
+- **A nesting is never left straddling two containers.** A move has to resolve
+  the other half of it: a page with subpages takes its WHOLE subtree along
+  (grandchildren included — moving one level would leave the rest filed under a
+  container they were never in), and a SUBPAGE moved on its own lands as a
+  top-level page, since its parent stayed behind. Slugs are re-checked against
+  the destination depth-first, parents before children.
 - **`destinationsFor()` is called ONCE per rail, not per row.** It queries every
   Solution and group; per-row would be two queries per page in the sidebar. The
   current container is excluded from the options, which is also what makes the

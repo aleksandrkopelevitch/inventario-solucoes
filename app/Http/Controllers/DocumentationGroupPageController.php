@@ -160,6 +160,7 @@ class DocumentationGroupPageController extends Controller
             'hasChildren'  => $row['hasChildren'],
             'canNest'      => $row['canNest'],
             'canPromote'   => $row['canPromote'],
+            'canAddChild'  => $row['canAddChild'],
             'editUrl'      => route('documentation.groups.pages.edit', [$group, $row['page']]),
             'renameUrl'    => route('documentation.groups.pages.rename', [$group, $row['page']]),
             'destroyUrl'   => route('documentation.groups.pages.destroy', [$group, $row['page']]),

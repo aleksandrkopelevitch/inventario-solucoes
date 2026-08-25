@@ -15,7 +15,7 @@ use Illuminate\View\Component;
  * longer a single blob), so this lists the titles linking to each page; the
  * full content lives in the editor's own screen (`solutions.docs.edit`, which
  * resolves/opens the first page). Subpages are listed indented under their
- * page — the tree is two levels deep. A page can also be CREATED from here, and
+ * page, one step per level. A page can also be CREATED from here, and
  * the endpoint answers with a redirect straight into the new page's editor —
  * the same one gesture the pages rail inside the editor gives.
  *

@@ -8,18 +8,19 @@ namespace App\Support\Gitbook;
  *
  * This is the one real structural mismatch between the two apps: GitBook nests
  * to any depth (a `group` node holds pages; a `document` node can itself hold
- * child pages), while a DocumentationGroup here has TWO levels. Depth-first
+ * child pages), while a DocumentationGroup here stops at
+ * `DocumentationPage::MAX_DEPTH` levels. Depth-first
  * order is preserved, so the reading order survives the flattening even though
  * the nesting doesn't; with `$prefixTitles` (the default) a nested page also
  * carries its ancestry in its title — "Getting started › Instalação" — which
  * is what makes a flattened space still legible when you re-file its pages by
  * hand afterwards.
  *
- * The flattening stayed after the page tree gained its second level, and that
- * is a decision rather than an oversight: two levels still don't fit an
+ * The flattening stayed after the page tree gained levels of its own, and that
+ * is a decision rather than an oversight: a capped depth still doesn't fit an
  * arbitrarily deep space, and re-importing with nesting would rewrite the
- * titles of every page already imported. Teaching this class to use the first
- * level of nesting is a migration of its own.
+ * titles of every page already imported. Teaching this class to use the levels
+ * that now exist is a migration of its own.
  *
  * Two node types are deliberately dropped, and both are counted so the import
  * can say so rather than losing them quietly:

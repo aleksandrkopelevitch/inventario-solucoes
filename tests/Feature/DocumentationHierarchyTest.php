@@ -54,21 +54,113 @@ it('creates a subpage under an existing page', function () {
     expect($response->json('redirect'))->toBe(route('solutions.docs.page.edit', [$solution, $child]));
 });
 
-it('keeps the tree two levels deep by refusing a subpage of a subpage', function () {
+it('creates a sub-subpage — three levels are allowed', function () {
     $solution = Solution::factory()->create();
     $parent = rootPage($solution, 'Operação');
     $child = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Backup', 'position' => 1]);
 
-    $response = $this->actingAs(treeAdmin())
+    $this->actingAs(treeAdmin())
         ->postJson(route('solutions.docs.pages.store', $solution), [
             'title'  => 'Retenção',
             'parent' => $child->id,
         ])
+        ->assertOk();
+
+    $grandchild = DocumentationPage::where('title', 'Retenção')->firstOrFail();
+
+    expect($grandchild->parent_id)->toBe($child->id)
+        ->and($grandchild->depth())->toBe(2)
+        ->and($parent->subtreeHeight())->toBe(3);
+});
+
+it('stops at the last level, refusing a fourth', function () {
+    $solution = Solution::factory()->create();
+    $parent = rootPage($solution, 'Operação');
+    $child = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Backup', 'position' => 1]);
+    $grandchild = DocumentationPage::factory()->childOf($child)->create(['title' => 'Retenção', 'position' => 1]);
+
+    $response = $this->actingAs(treeAdmin())
+        ->postJson(route('solutions.docs.pages.store', $solution), [
+            'title'  => 'Nível quatro',
+            'parent' => $grandchild->id,
+        ])
         ->assertStatus(422)
         ->assertJson(['type' => 'warning']);
 
-    expect($response->json('message'))->toContain('subpágina não pode receber outra subpágina');
-    expect(DocumentationPage::where('title', 'Retenção')->exists())->toBeFalse();
+    expect($response->json('message'))->toContain('último nível');
+    expect(DocumentationPage::where('title', 'Nível quatro')->exists())->toBeFalse();
+    expect(DocumentationPage::MAX_DEPTH)->toBe(3);
+});
+
+it('nests a subpage under the subpage above it, reaching the third level', function () {
+    $solution = Solution::factory()->create();
+    $parent = rootPage($solution, 'Operação');
+    $first = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Backup', 'position' => 1]);
+    $second = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Retenção', 'position' => 2]);
+
+    $this->actingAs(treeAdmin())
+        ->patchJson(route('solutions.docs.pages.move', [$solution, $second]), ['direction' => 'in'])
+        ->assertOk()
+        ->assertJson(['message' => 'Página aninhada.']);
+
+    expect($second->fresh())
+        ->parent_id->toBe($first->id)
+        ->and($second->fresh()->depth())->toBe(2);
+});
+
+it('refuses to nest a page whose own subpages would pass the last level', function () {
+    $solution = Solution::factory()->create();
+    $parent = rootPage($solution, 'Operação');
+    $first = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Backup', 'position' => 1]);
+    $second = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Retenção', 'position' => 2]);
+    // `second` is a subpage WITH a subpage: nesting it under `first` would put
+    // this one on a fourth level.
+    DocumentationPage::factory()->childOf($second)->create(['title' => 'Cofre', 'position' => 1]);
+
+    $response = $this->actingAs(treeAdmin())
+        ->patchJson(route('solutions.docs.pages.move', [$solution, $second]), ['direction' => 'in'])
+        ->assertStatus(422);
+
+    expect($response->json('message'))->toContain('passariam do último nível');
+    expect($second->fresh()->parent_id)->toBe($parent->id);
+});
+
+it('refuses to nest a page that is already at the last level', function () {
+    $solution = Solution::factory()->create();
+    $parent = rootPage($solution, 'Operação');
+    $child = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Backup', 'position' => 1]);
+    DocumentationPage::factory()->childOf($child)->create(['title' => 'Retenção', 'position' => 1]);
+    $sibling = DocumentationPage::factory()->childOf($child)->create(['title' => 'Cofre', 'position' => 2]);
+
+    $response = $this->actingAs(treeAdmin())
+        ->patchJson(route('solutions.docs.pages.move', [$solution, $sibling]), ['direction' => 'in'])
+        ->assertStatus(422);
+
+    expect($response->json('message'))->toContain('último nível');
+    expect($sibling->fresh()->parent_id)->toBe($child->id);
+});
+
+it('promotes a sub-subpage one level, into its grandparent instead of the root list', function () {
+    $solution = Solution::factory()->create();
+    $parent = rootPage($solution, 'Operação');
+    $child = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Backup', 'position' => 1]);
+    $childSibling = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Suporte', 'position' => 2]);
+    $grandchild = DocumentationPage::factory()->childOf($child)->create(['title' => 'Retenção', 'position' => 1]);
+
+    $this->actingAs(treeAdmin())
+        ->patchJson(route('solutions.docs.pages.move', [$solution, $grandchild]), ['direction' => 'out'])
+        ->assertOk()
+        ->assertJson(['message' => 'Página promovida.']);
+
+    expect($grandchild->fresh())
+        // One step up: a subpage of the grandparent, not a top-level page.
+        ->parent_id->toBe($parent->id)
+        ->and($grandchild->fresh()->depth())->toBe(1);
+
+    // …and it lands right after the page it left, pushing that page's siblings down.
+    expect(app(DocumentationPageService::class)->tree($solution)->pluck('page.title')->all())
+        ->toBe(['Operação', 'Backup', 'Retenção', 'Suporte']);
+    expect($childSibling->fresh()->position)->toBe(3);
 });
 
 it('refuses a parent that belongs to another container', function () {
@@ -151,31 +243,20 @@ it('refuses to nest the first page of the list, which has nothing above it', fun
     expect($first->fresh()->parent_id)->toBeNull();
 });
 
-it('refuses to nest a page that has subpages of its own', function () {
+it('nests a root page that already has subpages, carrying them one level down', function () {
     $solution = Solution::factory()->create();
-    rootPage($solution, 'Operação', 1);
+    $first = rootPage($solution, 'Operação', 1);
     $second = rootPage($solution, 'Backup', 2);
-    DocumentationPage::factory()->childOf($second)->create(['title' => 'Retenção', 'position' => 1]);
+    $child = DocumentationPage::factory()->childOf($second)->create(['title' => 'Retenção', 'position' => 1]);
 
-    $response = $this->actingAs(treeAdmin())
+    $this->actingAs(treeAdmin())
         ->patchJson(route('solutions.docs.pages.move', [$solution, $second]), ['direction' => 'in'])
-        ->assertStatus(422);
+        ->assertOk();
 
-    expect($response->json('message'))->toContain('subpáginas não pode ser aninhada');
-    expect($second->fresh()->parent_id)->toBeNull();
-});
-
-it('refuses to nest a page that is already a subpage', function () {
-    $solution = Solution::factory()->create();
-    $parent = rootPage($solution, 'Operação');
-    $child = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Backup', 'position' => 1]);
-
-    $response = $this->actingAs(treeAdmin())
-        ->patchJson(route('solutions.docs.pages.move', [$solution, $child]), ['direction' => 'in'])
-        ->assertStatus(422);
-
-    expect($response->json('message'))->toContain('já é uma subpágina');
-    expect($child->fresh()->parent_id)->toBe($parent->id);
+    expect($second->fresh()->parent_id)->toBe($first->id);
+    // The subpage came along and is now on the third level, still under `second`.
+    expect($child->fresh()->parent_id)->toBe($second->id);
+    expect($child->fresh()->depth())->toBe(2);
 });
 
 it('refuses to promote a page that is already at the first level', function () {
@@ -281,10 +362,13 @@ it('opens the docs on the first root page, never on a subpage', function () {
 |--------------------------------------------------------------------------
 */
 
-it('carries the subpages along when their parent moves to another container', function () {
+it('carries the whole subtree along when a parent moves to another container', function () {
     $group = DocumentationGroup::factory()->create();
     $parent = DocumentationPage::factory()->for($group, 'container')->create(['title' => 'Espaço importado', 'position' => 1]);
     $child = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Detalhe', 'position' => 1]);
+    // A third level: moving only the first one would leave this row filed under
+    // a container it was never in.
+    $grandchild = DocumentationPage::factory()->childOf($child)->create(['title' => 'Detalhe do detalhe', 'position' => 1]);
     $solution = Solution::factory()->create();
 
     $this->actingAs(treeAdmin())
@@ -298,6 +382,10 @@ it('carries the subpages along when their parent moves to another container', fu
         ->container_id->toBe($solution->id)
         // Still its parent's subpage — the nesting survives the move.
         ->parent_id->toBe($parent->id);
+
+    expect($grandchild->fresh())
+        ->container_id->toBe($solution->id)
+        ->parent_id->toBe($child->id);
 
     expect($group->pages()->count())->toBe(0);
 });
@@ -330,10 +418,11 @@ it('promotes a subpage moved on its own, since its parent stays behind', functio
 |--------------------------------------------------------------------------
 */
 
-it('renders the pages rail as a two-level tree', function () {
+it('renders the pages rail as a three-level tree, one indent step per level', function () {
     $solution = Solution::factory()->create();
     $parent = rootPage($solution, 'Operação');
-    DocumentationPage::factory()->childOf($parent)->create(['title' => 'Rotina de backup', 'position' => 1]);
+    $child = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Rotina de backup', 'position' => 1]);
+    DocumentationPage::factory()->childOf($child)->create(['title' => 'Retenção de cópias', 'position' => 1]);
 
     $content = $this->actingAs(treeAdmin())
         ->get(route('solutions.docs.page.edit', [$solution, $parent]))
@@ -342,28 +431,30 @@ it('renders the pages rail as a two-level tree', function () {
 
     expect($content)
         ->toContain('Rotina de backup')
-        // The subpage's row hangs off a guide line, indented under its page.
+        ->toContain('Retenção de cópias')
+        // One guide line per level: the subpage at one step, the sub-subpage at two.
         ->toContain('ml-3 border-l border-line pl-1.5')
-        // A root page offers a subpage; the nesting gestures are offered only
-        // where they're possible (this parent has nothing above it, and its
-        // child can be promoted).
+        ->toContain('ml-6 border-l border-line pl-1.5')
         ->toContain('Nova subpágina')
-        ->toContain('Promover a página')
+        ->toContain('Promover um nível')
+        // Nothing sits above the root here, so nesting isn't offered anywhere.
         ->not->toContain('Aninhar na página acima');
 });
 
-it('offers a subpage no way to nest deeper', function () {
+it('offers no subpage on a page already at the last level', function () {
     $solution = Solution::factory()->create();
     $parent = rootPage($solution, 'Operação');
     $child = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Backup', 'position' => 1]);
+    DocumentationPage::factory()->childOf($child)->create(['title' => 'Retenção', 'position' => 1]);
 
     $content = $this->actingAs(treeAdmin())
         ->get(route('solutions.docs.page.edit', [$solution, $child]))
         ->assertOk()
         ->getContent();
 
-    // One "Nova subpágina" — the parent's. The child's row doesn't offer it.
-    expect(substr_count($content, 'Nova subpágina'))->toBe(1);
+    // Two rows can still take a child (the root and its subpage); the
+    // sub-subpage cannot, so exactly two menus offer it.
+    expect(substr_count($content, 'Nova subpágina'))->toBe(2);
 });
 
 it('indents a subpage in the public documentation index', function () {
@@ -418,10 +509,20 @@ it('nests pages inside a standalone documentation group too', function () {
 
     expect($second->fresh()->parent_id)->toBe($first->id);
 
+    // A third level is fine here too…
     $this->actingAs(treeAdmin())
         ->postJson(route('documentation.groups.pages.store', $group), [
             'title'  => 'Terceiro nível',
             'parent' => $second->id,
+        ])
+        ->assertOk();
+
+    // …and a fourth is not.
+    $third = DocumentationPage::where('title', 'Terceiro nível')->firstOrFail();
+    $this->actingAs(treeAdmin())
+        ->postJson(route('documentation.groups.pages.store', $group), [
+            'title'  => 'Quarto nível',
+            'parent' => $third->id,
         ])
         ->assertStatus(422);
 });

@@ -13,7 +13,8 @@ use Illuminate\Validation\Rule;
  * under another Solution or group.
  *
  * `up`/`down` walk the page's sibling list and have always been silent no-ops
- * at its ends. `in`/`out` — the two gestures that change the page's LEVEL —
+ * at its ends. `in`/`out` — the two gestures that change the page's LEVEL, one
+ * step at a time —
  * are validated instead of silently ignored: they're offered by the rail only
  * when they're possible, so a request for an impossible one means a stale rail
  * or a forged payload, and answering "Ordem atualizada." to it would be a lie.
@@ -62,19 +63,30 @@ class MoveDocumentationPageRequest extends FormRequest
 
     /**
      * Why this level change can't happen, in the words the person clicking
-     * would need — or null when it can. The sibling condition is delegated to
-     * the service, which reads it off the same tree the rail rendered.
+     * would need — or null when it can.
+     *
+     * The three `in` failures are worth distinguishing: `$fits` covers
+     * everything the DEPTH CAP refuses (either the page itself has no room
+     * left, or its own subpages wouldn't), and once it fits, the only reason
+     * left for the service to refuse is having nothing above to nest under.
      */
     private function nestingFailure(DocumentationPage $page, string $direction): ?string
     {
-        $pages = app(DocumentationPageService::class);
+        if ($direction === 'out') {
+            return $page->isRoot() ? 'Esta página já está no primeiro nível.' : null;
+        }
+
+        if ($direction !== 'in') {
+            return null;
+        }
+
+        $fits = $page->depth() + $page->subtreeHeight() <= DocumentationPage::MAX_DEPTH - 1;
 
         return match (true) {
-            $direction === 'in' && ! $page->isRoot()              => 'Esta página já é uma subpágina.',
-            $direction === 'in' && ! $page->canBeNested()         => 'Uma página com subpáginas não pode ser aninhada.',
-            $direction === 'in' && ! $pages->canMove($page, 'in') => 'Não há página acima para receber esta subpágina.',
-            $direction === 'out' && $page->isRoot()               => 'Esta página já está no primeiro nível.',
-            default                                               => null,
+            ! $fits && $page->subtreeHeight() > 1                        => 'As subpáginas dela passariam do último nível — promova ou mova as subpáginas primeiro.',
+            ! $fits                                                      => 'Esta página já está no último nível.',
+            ! app(DocumentationPageService::class)->canMove($page, 'in') => 'Não há página acima para receber esta subpágina.',
+            default                                                      => null,
         };
     }
 }

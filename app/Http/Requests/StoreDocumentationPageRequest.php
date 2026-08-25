@@ -12,10 +12,12 @@ use Illuminate\Foundation\Http\FormRequest;
  * `SaveDocumentationPageTitleRequest` — because a rename can never change where
  * a page sits in the tree.
  *
- * The `parent` rule is what keeps the tree two levels deep on the way in: the
- * chosen parent has to be a page of THIS container (never another solution's,
- * which is why it's looked up through the container's own relation rather than
- * by `exists:documentation_pages,id`) and has to be a root itself.
+ * The `parent` rule is what holds the depth cap on the way in: the chosen
+ * parent has to be a page of THIS container (never another solution's, which
+ * is why it's looked up through the container's own relation rather than by
+ * `exists:documentation_pages,id`) and has to have room for a child under it
+ * (`DocumentationPage::canReceiveChildren()` — anything at the last level
+ * doesn't).
  */
 class StoreDocumentationPageRequest extends FormRequest
 {
@@ -45,7 +47,7 @@ class StoreDocumentationPageRequest extends FormRequest
                     }
 
                     if (! $parent->canReceiveChildren()) {
-                        $fail('Uma subpágina não pode receber outra subpágina.');
+                        $fail('Esta página já está no último nível — ela não pode receber subpáginas.');
                     }
                 },
             ],
