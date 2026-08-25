@@ -823,6 +823,7 @@ function mount(root) {
     const laneToolbarTitleInput = laneToolbarTitleWrap?.querySelector('input') ?? null
     const addEditor = root.querySelector('[data-viz-add-editor]')
     const addKindIcons = root.querySelector('[data-viz-add-kind-icons]')
+    const addHint = root.querySelector('[data-viz-add-hint]')
     const bottomBar = root.querySelector('[data-viz-bottombar]')
     const toolbar = root.querySelector('[data-viz-toolbar]')
     const toolbarStyle = root.querySelector('[data-viz-toolbar-style]')
@@ -938,7 +939,22 @@ function mount(root) {
 
     function applyView() {
         world.style.transform = `translate(${view.x}px,${view.y}px) scale(${view.scale})`
+        // Contra-escala das AFFORDANCES (portas do bloco, alças da ponta da
+        // seta, âncoras, o pill vazio de protocolo): elas vivem dentro de
+        // `world`, então a transform acima as engordaria junto com o desenho
+        // — a 220% uma porta de 11px vira 24px e passa a dominar o bloco que
+        // deveria só apontar. Multiplicando por `1/scale` elas mantêm o mesmo
+        // tamanho EM TELA em qualquer zoom, que é o que se espera de um
+        // controle (o desenho em si — blocos, texto, traço, seta, pill com
+        // protocolo escrito — continua escalando, porque é conteúdo).
+        root.style.setProperty('--viz-inv-scale', String(1 / view.scale))
         if (zoomLabel) zoomLabel.textContent = Math.round(view.scale * 100) + '%'
+        // O painel "Adicionar bloco" aberto por um drop está ancorado num
+        // ponto de MUNDO (`quickAddPos`), então segue esse ponto no zoom —
+        // como o `<input>` de protocolo logo abaixo. Um pan fecha o painel
+        // antes (o pointerdown no fundo passa por `selectNode(null)`), o
+        // zoom pela roda/pelos botões não.
+        if (quickAddPos) positionAddEditorAt(quickAddPos.x, quickAddPos.y)
         inlineProtocolReposition?.()
         inlineLaneLabelReposition?.()
         // A raia/o bloco/a seta em si não precisam de nada aqui: são filhos
@@ -2991,9 +3007,25 @@ function mount(root) {
         input.focus()
         input.select()
 
+        // O `<input>` e o dropdown vivem DENTRO de `n.el`, que tem o
+        // `pointerdown` que arrasta o bloco (`startNodePointer()`) — e esse
+        // dá `preventDefault()`, que além de começar um arraste no lugar do
+        // clique também IMPEDE o `mousedown`/`click` de compatibilidade de
+        // existir. Sem estes dois guards, nada aqui dentro é clicável: nem o
+        // texto (pra posicionar o cursor), nem uma sugestão. Ver o `rule` de
+        // pointer events do canvas.
+        //
+        // No input, só `stopPropagation()`: um `preventDefault()` aqui mataria
+        // o posicionamento do cursor e a seleção de texto com o mouse.
+        input.addEventListener('pointerdown', (e) => e.stopPropagation())
+
         const suggestBox = isSystem ? document.createElement('div') : null
         if (suggestBox) {
             suggestBox.className = 'ak-viz-inline-suggest hidden'
+            // No dropdown, `preventDefault()` TAMBÉM: é o que preserva o foco
+            // do input (o default do pointerdown/mousedown é mover o foco),
+            // então o `blur` não resolve a edição por baixo do clique.
+            suggestBox.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault() })
             n.el.appendChild(suggestBox)
         }
         let matches = []
@@ -3011,7 +3043,14 @@ function mount(root) {
             if (!suggestBox) return
             const term = input.value.trim().toLowerCase()
             matches = term ? getSolutionsList().filter((s) => s.name.toLowerCase().includes(term)).slice(0, 8) : []
-            highlighted = -1
+            // A primeira sugestão já nasce em destaque: é ela que o Enter
+            // aplica, e o destaque é o que AVISA isso antes de teclar. Sem
+            // isso, Enter caía no caminho de texto livre e trocava a Solução
+            // do bloco pelo que estava digitado ("Access" no lugar de
+            // "AccessOne (IAM)") — a sugestão na tela não tinha como ser
+            // aplicada. Texto livre segue possível: um termo que não casa com
+            // nada não abre dropdown nenhum.
+            highlighted = matches.length ? 0 : -1
             suggestBox.innerHTML = ''
             suggestBox.classList.toggle('hidden', !matches.length)
             matches.forEach((s, i) => {
@@ -3019,14 +3058,17 @@ function mount(root) {
                 item.type = 'button'
                 item.className = 'ak-viz-inline-suggest-item'
                 item.textContent = s.name
-                // `mousedown` (não `click`): dispara ANTES do `blur` do
-                // input, e `preventDefault()` aqui impede esse blur de
-                // sequer ocorrer — sem isso, o input perderia o foco (e
-                // chamaria `resolve()` pelo caminho de texto livre) antes
-                // do clique na sugestão ser processado.
-                item.addEventListener('mousedown', (e) => { e.preventDefault(); resolve(s) })
+                // `pointerdown`, como todo gesto deste canvas (ver o `rule`):
+                // `stopPropagation()` impede o arraste do bloco por baixo e
+                // `preventDefault()` preserva o foco do input, então o `blur`
+                // não resolve a edição antes do clique. Um `mousedown` aqui
+                // NUNCA chega a disparar — `startNodePointer()` cancela o
+                // pointerdown que o geraria — e um `click` também não; era
+                // exatamente por isso que clicar numa sugestão não fazia nada.
+                item.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); resolve(s) })
                 suggestBox.appendChild(item)
             })
+            paintHighlight()
         }
 
         function cleanup() {
@@ -3077,6 +3119,9 @@ function mount(root) {
                 paintHighlight()
             }
         }
+        // Clicar fora confirma o mesmo que o Enter — a sugestão em destaque,
+        // se houver. Uma regra só: o que está destacado na tela é o que vai
+        // ser aplicado, seja teclando, clicando na linha ou clicando fora.
         const onBlur = () => resolve(highlighted >= 0 ? matches[highlighted] : null)
 
         autosize()
@@ -3117,10 +3162,47 @@ function mount(root) {
         closeProtocolEditor()
         quickAddOrigin = null
         quickAddPos = null
+        // Sem ponto de drop, volta pro canto fixo do `left-3 top-3` da
+        // classe: limpar o inline é o que devolve a posição pra ela.
+        resetAddEditorPosition()
+        if (addHint) addHint.textContent = 'O bloco nasce solto — depois arraste uma seta de qualquer bloco até ele.'
 
         addEditor?.classList.remove('hidden')
         addEditor?.classList.add('flex')
         buildAddKindIcons()
+    }
+
+    function resetAddEditorPosition() {
+        if (!addEditor) return
+        addEditor.style.left = ''
+        addEditor.style.top = ''
+    }
+
+    /**
+     * Coloca o painel "Adicionar bloco" ao lado de um PONTO DE MUNDO — a ponta
+     * da seta que acabou de ser solta em canvas vazio. A escolha do tipo é a
+     * continuação daquele gesto, então o cartão aparece onde o gesto terminou,
+     * não num canto a 1000px de distância (era esse o comportamento antigo, e
+     * ele obrigava a atravessar a tela pra escolher "Sistema" e voltar).
+     *
+     * O painel NÃO vive dentro de `world`, então a conversão é manual (mesma
+     * matemática de `screenToWorld()`, ao contrário) e o resultado é preso
+     * dentro do stage — perto da borda direita/de baixo o cartão dobra pra
+     * dentro em vez de vazar pra fora da tela.
+     */
+    function positionAddEditorAt(wx, wy) {
+        if (!addEditor) return
+        const sr = stage.getBoundingClientRect()
+        const vr = viewport.getBoundingClientRect()
+        const GAP = 14
+        const pw = addEditor.offsetWidth || 224
+        const ph = addEditor.offsetHeight || 120
+
+        const x = (vr.left - sr.left) + wx * view.scale + view.x + GAP
+        const y = (vr.top - sr.top) + wy * view.scale + view.y + GAP
+
+        addEditor.style.left = Math.round(Math.max(12, Math.min(x, sr.width - pw - 12))) + 'px'
+        addEditor.style.top = Math.round(Math.max(12, Math.min(y, sr.height - ph - 12))) + 'px'
     }
 
     // MESMO painel, aberto ao soltar uma seta puxada de uma porta (`drag.type
@@ -3128,8 +3210,11 @@ function mount(root) {
     // `mouseup` de `drag.type === 'connect'` mais abaixo. `fromIndex`/
     // `fromSide` é a porta de origem (pra ligar depois de criar, ver
     // `createNodeFromKind()` acima); `wx`/`wy` é o ponto de MUNDO onde soltar,
-    // pra o bloco novo nascer exatamente ali (não à direita do último) — o
-    // painel em si abre sempre no mesmo canto fixo, não no ponto do drop.
+    // que serve pra DUAS coisas: o bloco novo nasce exatamente ali (não à
+    // direita do último) e o painel abre ali do lado
+    // (`positionAddEditorAt()`), na ponta da seta que acabou de ser solta —
+    // escolher o tipo é a continuação daquele gesto. Só o "+" da topbar, que
+    // não tem ponto nenhum pra ancorar, abre no canto fixo.
     function openQuickAddEditor(fromIndex, fromSide, wx, wy) {
         if (!editable || !graphRef) return
         selectNode(null)
@@ -3140,6 +3225,10 @@ function mount(root) {
         addEditor?.classList.remove('hidden')
         addEditor?.classList.add('flex')
         buildAddKindIcons()
+        if (addHint) addHint.textContent = 'A seta que você soltou já liga o bloco novo aqui.'
+        // Depois de mostrar (e de montar os ícones): escondido, `offsetWidth`
+        // /`offsetHeight` são 0 e o clamp na borda não teria com o que contar.
+        positionAddEditorAt(wx, wy)
     }
 
     function closeAddEditor() {
@@ -3154,6 +3243,7 @@ function mount(root) {
         if (!addEditor || addEditor.classList.contains('hidden')) return
         addEditor.classList.add('hidden')
         addEditor.classList.remove('flex')
+        resetAddEditorPosition()
     }
 
     addNodeBtn?.addEventListener('click', () => {
@@ -3443,10 +3533,17 @@ function mount(root) {
         input.spellcheck = false
         input.className = 'ak-viz-plabel-input'
         input.value = graphRef.edges[index]?.protocol?.value ?? ''
+        // Mesmos guards de `startInlineLabelEdit()`, por um caminho parecido:
+        // aqui os elementos ficam no `stage`, e um pointerdown que suba até o
+        // `viewport` chama `startPanning()` → `selectNode(null)` →
+        // `closeProtocolEditor()`, ou seja, o editor é DESMONTADO no meio do
+        // clique e a sugestão nunca é aplicada.
+        input.addEventListener('pointerdown', (e) => e.stopPropagation())
         stage.appendChild(input)
 
         const suggestBox = document.createElement('div')
         suggestBox.className = 'ak-viz-plabel-suggest hidden'
+        suggestBox.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault() })
         stage.appendChild(suggestBox)
 
         let matches = []
@@ -3475,7 +3572,11 @@ function mount(root) {
             const term = input.value.trim().toLowerCase()
             const all = getProtocolsList()
             matches = (term ? all.filter((p) => p.label.toLowerCase().includes(term)) : all).slice(0, 8)
-            highlighted = -1
+            // Destaca a primeira só quando há algo DIGITADO: com o campo
+            // vazio a lista mostra o enum inteiro, e aí um destaque faria o
+            // Enter aplicar o primeiro protocolo da lista em vez de limpar o
+            // protocolo, que é o que um campo vazio quer dizer.
+            highlighted = term && matches.length ? 0 : -1
             suggestBox.innerHTML = ''
             suggestBox.classList.toggle('hidden', !matches.length)
             matches.forEach((p, i) => {
@@ -3483,13 +3584,15 @@ function mount(root) {
                 item.type = 'button'
                 item.className = 'ak-viz-plabel-suggest-item'
                 item.textContent = p.label
-                // `mousedown` (não `click`) + `preventDefault()`, mesmo
-                // motivo de `startInlineLabelEdit()`: dispara antes do
-                // `blur` do input, que senão já teria resolvido via texto
-                // livre antes do clique na sugestão ser processado.
-                item.addEventListener('mousedown', (e) => { e.preventDefault(); resolve(p.label) })
+                // `pointerdown` + `stopPropagation()` + `preventDefault()`,
+                // mesmo motivo de `startInlineLabelEdit()`: um `mousedown`
+                // aqui chegava a disparar (o pan não cancela o pointerdown),
+                // mas só DEPOIS de `selectNode(null)` já ter fechado este
+                // editor, então a sugestão clicada se perdia.
+                item.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); resolve(p.label) })
                 suggestBox.appendChild(item)
             })
+            paintHighlight()
         }
 
         // Só desmonta o `<input>`/sugestões e restaura o texto estático da

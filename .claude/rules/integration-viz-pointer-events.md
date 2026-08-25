@@ -21,9 +21,31 @@ bug is why the old dedicated `touchstart`/`touchmove`/`touchend` pan was
 REMOVED rather than kept alongside the pointer listeners (keeping both makes
 the pan run *simultaneously* with the drag). `.ak-viz-viewport` sets
 `touch-action: none`, which is what stops the browser from stealing the gesture
-to scroll. The two remaining `mousedown` listeners are the autocomplete
-suggestion rows, whose `preventDefault()` preserves input focus and whose
-parent editor already stops propagation.
+to scroll. There are now **zero** `mouse*` listeners in the module.
+
+The last two were the autocomplete suggestion rows (block label, protocol
+pill), and this note used to justify them with "their parent editor already
+stops propagation" — which was never true, and cost a real bug (found
+2026-08-25: clicking a suggestion in a block's label editor did nothing at
+all). Two things to keep in mind, because both are non-obvious:
+
+- **`preventDefault()` on `pointerdown` means the compatibility `mousedown`/
+  `mouseup`/`click` never fire.** The inline label editor's `<input>` and its
+  dropdown are children of the node element, whose own `pointerdown`
+  (`startNodePointer()`) cancels the event to start a drag — so every
+  `mousedown`/`click` listener inside that editor was dead code, and clicking
+  into the text to place the caret did nothing either. Anything mounted INSIDE
+  a node needs its own `pointerdown` guard: `stopPropagation()` always, plus
+  `preventDefault()` where focus must survive the click (a dropdown row), and
+  NOT on the input itself, or caret placement and text selection break.
+- **Mounting in the `stage` instead is not safer, just differently broken.**
+  A `pointerdown` that reaches the viewport calls `startPanning()` →
+  `selectNode(null)`, which closes the protocol editor mid-click: the row's
+  `mousedown` did fire, but on an element already torn down. Same guard,
+  same reason.
+
+An autocomplete row therefore resolves on `pointerdown`, not on click — which
+is also what makes it work with a finger.
 
 `pointercancel` must stay wired next to `pointerup`: a touch pointer can be
 cancelled by the browser (system gesture, second finger) without ever firing

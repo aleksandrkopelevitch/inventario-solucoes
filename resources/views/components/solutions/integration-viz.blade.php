@@ -289,8 +289,9 @@
              edge now that the (flex-1) title is gone from this bar. --}}
         <div class="ml-auto flex shrink-0 items-center gap-1">
             {{-- Add block: always at the END of the chain (root → ... → new)
-                 — opens the `data-viz-add-editor` panel (fixed top-left of
-                 the canvas). Only visible when the integration is editable
+                 — opens the `data-viz-add-editor` panel (top-left of the
+                 canvas; a drop-created block opens it at the drop point
+                 instead). Only visible when the integration is editable
                  (same gate as the Save button). --}}
             <x-forms.button type="button" variant="ghost" data-viz-add-node title="Adicionar bloco"
                 class="!hidden !rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
@@ -770,17 +771,25 @@
              naming/linking a Solution (system's autocomplete) happens
              directly on the canvas, not in this panel. No arrow, no protocol
              either way: the block is born isolated, wiring is the separate
-             gesture of dragging an arrow out of any block's port. Same fixed
-             top-left panel as the block/lane/protocol toolbars (mutually
-             exclusive with all three) — opened by the topbar's "+" button, or
-             by dropping a dragged arrow on empty canvas
-             (`openQuickAddEditor()`), which only changes WHERE the new block
-             is born (the drop point in world space), never where this panel
-             itself appears. --}}
+             gesture of dragging an arrow out of any block's port. Mutually
+             exclusive with the block/lane/protocol toolbars. WHERE it opens
+             depends on how it was opened: the topbar's "+" has nothing to
+             anchor to, so it uses the fixed top-left corner of the classes
+             below; dropping a dragged arrow on empty canvas
+             (`openQuickAddEditor()`) anchors it beside the drop point
+             instead (`positionAddEditorAt()` writes inline left/top, clamped
+             to the stage, and `closeAddEditor()` clears them again) — the
+             new block is born at that same point, so panel and block appear
+             together at the arrow's end rather than a screen apart. --}}
         <div data-viz-add-editor
             class="pointer-events-auto absolute left-3 top-3 z-20 hidden max-h-[calc(100%-24px)] w-56 flex-col gap-2 overflow-y-auto rounded-xl border border-line bg-surface p-2.5 shadow-[0_8px_28px_rgba(16,24,40,.16)]">
             <div data-viz-add-kind-icons class="flex flex-wrap items-center gap-1.5"></div>
-            <p class="text-[11px] leading-snug text-faint">O bloco nasce solto — depois arraste uma seta de qualquer bloco até ele.</p>
+            {{-- Text set from the JS, because the two ways in mean opposite
+                 things: from the "+" the block really is born loose, while a
+                 block created by dropping an arrow is born already wired to
+                 that arrow — and this card now opens right at the arrow's tip,
+                 where "drag an arrow to it" would contradict what's on screen. --}}
+            <p data-viz-add-hint class="text-[11px] leading-snug text-faint"></p>
         </div>
 
         {{-- Lane toolbar: opened by a click (no drag) on any lane
@@ -1292,6 +1301,21 @@
                 stroke-dasharray: 3 2;
             }
             .ak-viz-edges .ak-viz-plabel.is-empty .ak-viz-plabel-text { fill: var(--viz-line); }
+            /* O pill VAZIO ("+ protocolo") é um convite a clicar, não conteúdo
+               do desenho — e só quem edita o vê (ver `drawProtocolPill()`:
+               viewer sem protocolo definido não recebe pill nenhum). Então ele
+               segue a mesma contra-escala das portas/alças e mantém o tamanho
+               em tela em qualquer zoom, em vez de virar a coisa mais gorda da
+               seta a 220%. O pill COM protocolo escrito não entra aqui: aquilo
+               é conteúdo, escala com o diagrama e sai no screenshot.
+               `transform-box: fill-box` é o que faz o `transform-origin:
+               center` valer o centro da própria pill (num <g> de SVG, o
+               default seria a origem do sistema de coordenadas). */
+            .ak-viz-edges .ak-viz-plabel.is-empty {
+                transform-box: fill-box;
+                transform-origin: center;
+                transform: scale(var(--viz-inv-scale, 1));
+            }
             .ak-viz-edges .ak-viz-plabel.is-editable:hover .ak-viz-plabel-box { stroke: var(--viz-select); }
             .ak-viz-edges .ak-viz-plabel.is-editable:hover .ak-viz-plabel-text { fill: var(--viz-select); }
             /* Presentation-mode dot (`integration-viz.js::startPresentAnimation()`)
@@ -1792,7 +1816,13 @@
                 border-radius: 50%;
                 background: #fff;
                 border: 1.5px solid var(--viz-select);
-                transform: translate(-50%, -50%);
+                /* `scale(1/zoom)`: a porta é um CONTROLE, não desenho — tem
+                   que medir o mesmo em tela a 60% e a 300%. `--viz-inv-scale`
+                   é escrito por `applyView()` a cada pan/zoom; o
+                   `translate(-50%,-50%)` continua centrando no ponto de
+                   ancoragem (a escala é em torno do centro do próprio
+                   elemento), então nada da matemática de âncora muda. */
+                transform: translate(-50%, -50%) scale(var(--viz-inv-scale, 1));
                 opacity: 0;
                 /* Invisible until hover/selection (below) — MUST also ignore
                    clicks while invisible, or its 11px hit target silently
@@ -1821,7 +1851,7 @@
             .ak-viz-node.is-selected .ak-viz-port { opacity: 1; pointer-events: auto; }
             .ak-viz-port:hover {
                 background: var(--viz-select);
-                transform: translate(-50%, -50%) scale(1.35);
+                transform: translate(-50%, -50%) scale(calc(1.35 * var(--viz-inv-scale, 1)));
             }
             /* Ports would only get in the way while a block is being dragged. */
             .ak-viz-node.is-dragging .ak-viz-port { display: none; }
@@ -1833,7 +1863,8 @@
                 border-radius: 50%;
                 background: #fff;
                 border: 1.5px solid var(--viz-line);
-                transform: translate(-50%, -50%);
+                /* Mesma contra-escala da porta, e pelo mesmo motivo. */
+                transform: translate(-50%, -50%) scale(var(--viz-inv-scale, 1));
                 cursor: grab;
                 z-index: 6;
                 box-shadow: 0 1px 1.5px rgba(16, 24, 40, .15);
@@ -1841,13 +1872,13 @@
             }
             .ak-viz-handle:hover {
                 border-color: var(--viz-select);
-                transform: translate(-50%, -50%) scale(1.3);
+                transform: translate(-50%, -50%) scale(calc(1.3 * var(--viz-inv-scale, 1)));
             }
             .ak-viz-handle.is-dragging {
                 border-color: var(--viz-highlight);
                 background: var(--viz-highlight);
                 cursor: grabbing;
-                transform: translate(-50%, -50%) scale(1.3);
+                transform: translate(-50%, -50%) scale(calc(1.3 * var(--viz-inv-scale, 1)));
             }
             /* Alvos de precisão num aparelho de toque. A porta (11px) e a alça
                da ponta da seta (9px) são confortáveis com um mouse e
@@ -1874,7 +1905,8 @@
                 height: 10px;
                 border-radius: 50%;
                 background: rgba(74, 144, 217, .22);
-                transform: translate(-50%, -50%);
+                /* Idem porta/alça: sinalização de ancoragem, não desenho. */
+                transform: translate(-50%, -50%) scale(var(--viz-inv-scale, 1));
                 z-index: 4;
                 pointer-events: none;
             }
