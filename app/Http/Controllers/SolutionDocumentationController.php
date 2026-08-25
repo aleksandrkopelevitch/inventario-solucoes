@@ -10,6 +10,7 @@ use App\Http\Requests\MoveDocumentationPageToContainerRequest;
 use App\Http\Requests\SaveDocumentationPageTitleRequest;
 use App\Http\Requests\SaveDocumentationRequest;
 use App\Http\Requests\StoreDocumentationChatMessageRequest;
+use App\Http\Requests\StoreDocumentationPageRequest;
 use App\Http\Requests\UploadDocumentationMediaRequest;
 use App\Models\DocumentationChat;
 use App\Models\DocumentationChatMessage;
@@ -32,7 +33,7 @@ use Illuminate\Support\Str;
  * NavigatesSolutionDocs — same sidebar shown by
  * IntegrationDocumentationController). Thin — delegates to the
  * EditsDocumentation trait (per page) and to DocumentationPageService (tree
- * rules: create/rename/move/delete).
+ * rules: create/rename/move/nest/delete — the tree is two levels deep).
  */
 class SolutionDocumentationController extends Controller
 {
@@ -54,7 +55,7 @@ class SolutionDocumentationController extends Controller
      */
     public function index(Solution $solution): RedirectResponse
     {
-        $page = $solution->pages()->first();
+        $page = $this->pages->firstPage($solution);
 
         if (! $page) {
             if (auth()->user()->cannot('update', $solution)) {
@@ -67,9 +68,9 @@ class SolutionDocumentationController extends Controller
         return redirect()->route('solutions.docs.page.edit', [$solution, $page]);
     }
 
-    public function store(SaveDocumentationPageTitleRequest $request, Solution $solution): JsonResponse
+    public function store(StoreDocumentationPageRequest $request, Solution $solution): JsonResponse
     {
-        $page = $this->pages->create($solution, $request->validated()['title']);
+        $page = $this->pages->create($solution, $request->validated()['title'], $request->parentPage());
 
         return response()->json([
             'type'     => 'success',
@@ -156,8 +157,12 @@ class SolutionDocumentationController extends Controller
         $this->pages->move($page, $request->validated()['direction']);
 
         return response()->json([
-            'type'           => 'success',
-            'message'        => 'Ordem atualizada.',
+            'type'    => 'success',
+            'message' => match ($request->validated()['direction']) {
+                'in'    => 'Página aninhada.',
+                'out'   => 'Página promovida.',
+                default => 'Ordem atualizada.',
+            },
             'updatableSlots' => [PagesNav::slot(
                 $this->solutionPagesNav($solution, $page->fresh()),
                 $this->solutionIntegrationsNav($solution, null),

@@ -1,7 +1,13 @@
 {{-- Inner content of the collapsible docs sidebar. The <aside> wrapper that
      animates the width lives in documentation/edit.blade.php, OUTSIDE this
      updatable slot — so the collapsed state survives a page-move slot swap
-     (ajax-slot.js replaces the element carrying this $domId wholesale). --}}
+     (ajax-slot.js replaces the element carrying this $domId wholesale).
+
+     The list is a TWO-level tree: rows arrive from the controller in reading
+     order (each root followed by its children) with their own `depth`, so this
+     stays a single flat `@foreach` — one `$loop->index` per row, which is what
+     keeps every hidden form id below unique. Recursing instead would either
+     duplicate those ids or need a counter threaded through the recursion. --}}
 <div id="{{ $domId }}" class="flex w-72 flex-1 flex-col overflow-hidden">
     {{-- The rail is titled with what it documents — the solution (or group) —
          not with the generic word "Páginas": inside a solution's docs, every
@@ -33,14 +39,19 @@
         <ul class="flex flex-col gap-0.5">
             @foreach ($pages as $page)
                 @php ($i = $loop->index)
-                <li>
+                {{-- A subpage is indented and hangs off a guide line, so the
+                     rail reads as a tree even where a parent's title is long
+                     enough to truncate. --}}
+                <li @class(['ml-3 border-l border-line pl-1.5' => ($page['depth'] ?? 0) > 0])>
                     <div @class([
                         'group flex items-center gap-1 rounded-field px-2 py-1.5 transition-colors',
                         'bg-accent-soft' => $page['active'],
                         'hover:bg-raised' => ! $page['active'],
                     ])>
                         <a href="{{ $page['editUrl'] }}" @class([
-                            'min-w-0 flex-1 truncate text-sm transition-colors',
+                            'min-w-0 flex-1 truncate transition-colors',
+                            'text-sm' => ($page['depth'] ?? 0) === 0,
+                            'text-[13px]' => ($page['depth'] ?? 0) > 0,
                             'font-semibold text-accent' => $page['active'],
                             'text-ink' => ! $page['active'],
                             'italic text-muted' => ! $page['hasContent'],
@@ -64,6 +75,10 @@
                         </div>
                     </div>
 
+                    {{-- Up/down move a page among its SIBLINGS: a subpage
+                         reorders inside its parent and never escapes it that
+                         way — changing level is the "Aninhar"/"Promover" pair
+                         in the menu below. --}}
                     <form id="doc-page-move-up-{{ $i }}" class="hidden">
                         @csrf
                         @method('PATCH')
@@ -80,21 +95,67 @@
                             class="!justify-start !px-2 !py-1 !text-xs">
                             <x-heroicon-o-pencil class="size-3.5" /> Renomear
                         </x-forms.button>
+
+                        {{-- The tree is two levels deep, so only a root page can
+                             take subpages — a subpage's menu simply doesn't
+                             offer it (and StoreDocumentationPageRequest refuses
+                             it anyway if the rail is stale). --}}
+                        @if (($page['depth'] ?? 0) === 0)
+                            <x-forms.button type="button" variant="ghost" data-ak-toggle="doc-page-child-{{ $i }}" data-ak-toggle-classes="hidden"
+                                class="!justify-start !px-2 !py-1 !text-xs">
+                                <x-heroicon-o-plus class="size-3.5" /> Nova subpágina
+                            </x-forms.button>
+                        @endif
+
+                        {{-- The two level changes, offered only when they're
+                             possible: "Aninhar" needs a page above it at the
+                             same level (and no subpages of its own, which would
+                             land on a third level), "Promover" only exists for
+                             a subpage. --}}
+                        @if ($page['canNest'] ?? false)
+                            <x-forms.button type="button" variant="ghost" data-ak-ajax="doc-page-nest-{{ $i }}" data-ak-action="{{ $page['moveUrl'] }}"
+                                class="!justify-start !px-2 !py-1 !text-xs">
+                                <x-heroicon-o-arrow-small-right class="size-3.5" /> Aninhar na página acima
+                            </x-forms.button>
+                        @endif
+                        @if ($page['canPromote'] ?? false)
+                            <x-forms.button type="button" variant="ghost" data-ak-ajax="doc-page-promote-{{ $i }}" data-ak-action="{{ $page['moveUrl'] }}"
+                                class="!justify-start !px-2 !py-1 !text-xs">
+                                <x-heroicon-o-arrow-small-left class="size-3.5" /> Promover a página
+                            </x-forms.button>
+                        @endif
+
                         @if (! empty($page['destinations'] ?? []))
                             <x-forms.button type="button" variant="ghost" data-ak-toggle="doc-page-container-{{ $i }}" data-ak-toggle-classes="hidden"
                                 class="!justify-start !px-2 !py-1 !text-xs">
                                 <x-heroicon-o-arrow-right-circle class="size-3.5" /> Mover para…
                             </x-forms.button>
                         @endif
+
+                        {{-- Deleting a parent takes its subpages with it, so the
+                             confirmation says so — the rail is the only place
+                             that knows how many are about to go. --}}
                         <x-forms.button type="button" variant="ghost" data-ak-ajax="doc-page-destroy-{{ $i }}" data-ak-action="{{ $page['destroyUrl'] }}"
-                            data-ak-confirm="Excluir a página &quot;{{ $page['title'] }}&quot;? Esta ação não pode ser desfeita."
+                            data-ak-confirm="Excluir a página &quot;{{ $page['title'] }}&quot;@if ($page['hasChildren'] ?? false) e todas as suas subpáginas@endif? Esta ação não pode ser desfeita."
                             class="!justify-start !px-2 !py-1 !text-xs !text-crit">
                             <x-heroicon-o-trash class="size-3.5" /> Excluir
                         </x-forms.button>
                     </div>
+
                     <form id="doc-page-destroy-{{ $i }}" class="hidden">
                         @csrf
                         @method('DELETE')
+                    </form>
+
+                    <form id="doc-page-nest-{{ $i }}" class="hidden">
+                        @csrf
+                        @method('PATCH')
+                        <input type="hidden" name="direction" value="in" />
+                    </form>
+                    <form id="doc-page-promote-{{ $i }}" class="hidden">
+                        @csrf
+                        @method('PATCH')
+                        <input type="hidden" name="direction" value="out" />
                     </form>
 
                     <form id="doc-page-rename-{{ $i }}" class="hidden ml-2 mt-1 flex gap-1.5">
@@ -106,10 +167,26 @@
                         </x-forms.button>
                     </form>
 
+                    {{-- Creating a subpage is the SAME endpoint as the rail's
+                         "+", plus the parent it goes under — one way a page
+                         comes into existence, one redirect straight into it. --}}
+                    @if (($page['depth'] ?? 0) === 0)
+                        <form id="doc-page-child-{{ $i }}" class="hidden ml-2 mt-1 flex gap-1.5">
+                            @csrf
+                            <input type="hidden" name="parent" value="{{ $page['id'] }}" />
+                            <x-forms.input name="title" placeholder="Título da subpágina" class="!text-xs" />
+                            <x-forms.button data-ak-ajax="doc-page-child-{{ $i }}" data-ak-action="{{ $createPageUrl }}" class="!h-8 !shrink-0 !px-2.5 !text-xs">
+                                Criar
+                            </x-forms.button>
+                        </form>
+                    @endif
+
                     {{-- Re-file the page under another solution or group. The
                          current container is already absent from the options
                          (destinationsFor()), so every choice here is a real
-                         move; confirming navigates to the page's new url. --}}
+                         move; confirming navigates to the page's new url. A
+                         parent takes its subpages along; a subpage moved on its
+                         own lands as a top-level page at the destination. --}}
                     @if (! empty($page['destinations'] ?? []))
                         <form id="doc-page-container-{{ $i }}" class="hidden ml-2 mt-1 flex gap-1.5">
                             @csrf

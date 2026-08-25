@@ -47,7 +47,7 @@ class DocumentationGroupController extends Controller
      */
     public function show(DocumentationGroup $group): RedirectResponse
     {
-        $page = $group->pages()->first();
+        $page = $this->pages->firstPage($group);
 
         if (! $page) {
             if (auth()->user()->cannot('update', $group)) {

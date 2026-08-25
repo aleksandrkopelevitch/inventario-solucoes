@@ -40,10 +40,15 @@
             <aside class="hidden w-60 shrink-0 md:sticky md:top-14 md:block md:max-h-[calc(100vh_-_3.5rem)] md:overflow-y-auto md:py-10">
                 <p class="px-2 pb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-muted">Nesta solução</p>
                 <nav class="flex flex-col gap-0.5">
+                    {{-- A page's subpages are indented under it (the tree is
+                         two levels deep): a visitor reading top to bottom
+                         should see which pages belong to which. --}}
                     @foreach ($nav as $item)
                         <a href="{{ $item['url'] }}"
                            @class([
-                               'flex items-center justify-between gap-2 rounded-field px-3 py-2 text-sm no-underline transition-colors',
+                               'flex items-center justify-between gap-2 rounded-field py-2 text-sm no-underline transition-colors',
+                               'px-3' => ($item['depth'] ?? 0) === 0,
+                               'ml-3 border-l border-line px-2.5 text-[13px]' => ($item['depth'] ?? 0) > 0,
                                'bg-accent-soft font-semibold text-accent' => $item['active'],
                                'text-body hover:bg-raised' => ! $item['active'],
                            ])>

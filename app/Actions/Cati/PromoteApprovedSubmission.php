@@ -78,7 +78,10 @@ class PromoteApprovedSubmission
         // produced — so the picture is settled first and the body built around
         // whatever it returns.
         if (! $page->exists) {
-            $page->fill(['title' => $title, 'documentation' => '', 'position' => $solution->pages()->max('position') + 1]);
+            // End of the solution's TOP-LEVEL pages: `position` orders a page
+            // among its siblings, so the promoted page joins the root list
+            // rather than counting subpage positions it will never share.
+            $page->fill(['title' => $title, 'documentation' => '', 'position' => $solution->pages()->whereNull('parent_id')->max('position') + 1]);
             $solution->pages()->save($page);
         }
 

@@ -7,8 +7,8 @@ use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 /**
- * Vertical tree (flat list, GitBook-style) for a Solution: its own pages
- * (titled with the SOLUTION's name, manageable — create/rename/move/delete)
+ * Vertical tree (GitBook-style, TWO levels deep) for a Solution: its own pages
+ * (titled with the SOLUTION's name, manageable — create/rename/move/nest/delete)
  * and, right below, the doc for each Integration it participates in
  * ("Integrações", link-only — consolidating both into a single screen, see
  * NavigatesSolutionDocs). A
@@ -19,9 +19,9 @@ use Illuminate\View\Component;
  * `DocumentationGroupPageController`), which are the ones that know the
  * route names for each context.
  *
- * Updatable slot: used after REORDERING a page (the only action that doesn't
- * navigate to another screen — moving a page to another container changes its
- * url, so that one answers with a redirect instead).
+ * Updatable slot: used after REORDERING or RENESTING a page (the only actions
+ * that don't navigate to another screen — creating, renaming or re-filing a
+ * page under another container all answer with a url instead).
  */
 class PagesNav extends Component
 {
@@ -29,8 +29,14 @@ class PagesNav extends Component
 
     public const DOM_ID = 'documentation-pages-nav-slot';
 
-    /** @param  array<int, array{title: string, editUrl: string, renameUrl: string, destroyUrl: string, moveUrl: string, containerUrl: string, destinations: array<string, array<int, array{value: string, label: string}>>, active: bool, hasContent: bool}>  $pages
-     *  @param  array<int, array{title: string, editUrl: string, active: bool, hasContent: bool}>  $integrations */
+    /**
+     * `$pages` arrives FLAT, in reading order, each row carrying its own
+     * `depth` (0 or 1) — see the view for why the tree isn't rendered
+     * recursively.
+     *
+     * @param  array<int, array{id: int, title: string, depth: int, hasChildren: bool, canNest: bool, canPromote: bool, editUrl: string, renameUrl: string, destroyUrl: string, moveUrl: string, containerUrl: string, destinations: array<string, array<int, array{value: string, label: string}>>, active: bool, hasContent: bool}>  $pages
+     * @param  array<int, array{title: string, editUrl: string, active: bool, hasContent: bool}>  $integrations
+     */
     public function __construct(
         public array $pages,
         public array $integrations,
