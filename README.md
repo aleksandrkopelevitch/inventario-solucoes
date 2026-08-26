@@ -16,11 +16,11 @@ parte deste projeto.
 
 ## Stack
 
-- **Backend:** Laravel 13+, PHP 8.3+, SQLite (dev) / PostgreSQL (prod)
+- **Backend:** Laravel 13+, PHP 8.3+, SQLite ou PostgreSQL em dev (`.env.example` vem com SQLite), PostgreSQL em prod
 - **Frontend:** Blade, Vanilla JS (sem jQuery), Tailwind CSS 4
 - **Build:** Vite 8 (requer **Node 20+**)
 - **Auth:** sessão web, sem self-registration (contas só por convite de admin)
-- **Testes:** Pest 4
+- **Testes:** Pest 4 — sempre em SQLite `:memory:`, qualquer que seja o banco de dev (`phpunit.xml` define `DB_CONNECTION`/`DB_DATABASE`, e o Dotenv do Laravel não sobrescreve variável de ambiente já definida, então a suíte nunca toca o banco de verdade)
 
 ## Setup
 
