@@ -9,7 +9,7 @@ namespace App\Enums;
  * The committee's own checklist asks for "desenho da solução e C4 com mínimo
  * C1/C2", and those two halves are answered differently on purpose:
  *
- * - **AS IS / TO BE are DRAWN here**, on the same F3 canvas the integrations
+ * - **AS IS / TO BE are DRAWN here**, on the same F3 canvas the diagrams
  *   use, because they are topology — the thing this inventory already models
  *   and already renders. Accepting them as uploaded pictures would give the
  *   proposal's architecture no home but a PNG: editable nowhere, diffable

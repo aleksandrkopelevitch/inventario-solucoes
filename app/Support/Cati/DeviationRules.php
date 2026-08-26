@@ -60,7 +60,7 @@ class DeviationRules
      */
     public static function for(Submission $submission): array
     {
-        $submission->loadMissing(['sections', 'solution.vendor', 'solution.integrations']);
+        $submission->loadMissing(['sections', 'solution.vendor', 'solution.diagrams']);
 
         return [
             ...self::fromConformance($submission),
@@ -144,15 +144,15 @@ class DeviationRules
             ];
         }
 
-        $integrations = $solution?->integrations ?? collect();
+        $diagrams = $solution?->diagrams ?? collect();
 
-        if ($integrations->isNotEmpty() && blank($content->get(SubmissionSectionKey::LegacyImpact->value))) {
+        if ($diagrams->isNotEmpty() && blank($content->get(SubmissionSectionKey::LegacyImpact->value))) {
             $rules[] = [
                 'key'      => 'legacy_impact_blank',
                 'section'  => SubmissionSectionKey::LegacyImpact->value,
-                'question' => 'A solução já tem ' . $integrations->count() . ' integração(ões) catalogada(s) ('
-                    . $integrations->pluck('name')->implode(', ') . '). Quais delas mudam, e há algo a descomissionar?',
-                'why'      => 'Integrações existentes no inventário, sem impacto descrito',
+                'question' => 'A solução já aparece em ' . $diagrams->count() . ' diagrama(s) do catálogo ('
+                    . $diagrams->pluck('name')->implode(', ') . '). Quais desses fluxos mudam, e há algo a descomissionar?',
+                'why'      => 'Fluxos já desenhados no inventário, sem impacto descrito',
                 'severity' => 'high',
             ];
         }

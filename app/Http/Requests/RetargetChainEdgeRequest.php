@@ -10,7 +10,7 @@ use Illuminate\Validation\Validator;
 /**
  * Retargets one end (`from` or `to`) of an existing chain edge to another
  * node — dragging the arrow's handle in data-viz F3 to any other block
- * (`integration-viz.js::retargetEdge()`). This is what enables the free
+ * (`chain-viz.js::retargetEdge()`). This is what enables the free
  * graph: the edge is no longer stuck to the pair of nodes it was created with.
  */
 class RetargetChainEdgeRequest extends FormRequest

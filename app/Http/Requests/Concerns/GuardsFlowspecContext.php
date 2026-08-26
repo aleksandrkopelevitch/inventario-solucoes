@@ -40,7 +40,7 @@ trait GuardsFlowspecContext
         $max = (int) config('services.flowspec.max_attachments');
 
         return [
-            // Inventory documentation, as `page:{id}` / `integration:{id}`
+            // Inventory documentation, as `page:{id}` / `diagram:{id}`
             // references from the picker. `max` bounds the DB lookups one
             // request can trigger at validation time.
             'documents'   => ['nullable', 'array', 'max:' . $max],

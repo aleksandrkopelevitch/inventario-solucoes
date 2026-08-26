@@ -55,7 +55,7 @@ class FlowspecAttachment extends Model
         return $this->belongsTo(Media::class);
     }
 
-    /** DocumentationPage or Integration, for kind=document. @return MorphTo<Model, $this> */
+    /** A DocumentationPage, for kind=document. @return MorphTo<Model, $this> */
     public function reference(): MorphTo
     {
         return $this->morphTo();

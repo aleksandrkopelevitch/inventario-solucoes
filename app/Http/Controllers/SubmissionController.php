@@ -201,7 +201,7 @@ class SubmissionController extends Controller
      * The submission is handed to the chat in memory: the caller has already
      * loaded it with everything the opening message reads, and letting the
      * action re-fetch it would re-query the sections, sources, solution, vendor
-     * and integrations one relation at a time — none of which strict mode would
+     * and diagrams one relation at a time — none of which strict mode would
      * catch, this being a single-row fetch.
      */
     private function chatFor(Submission $submission): SubmissionChat

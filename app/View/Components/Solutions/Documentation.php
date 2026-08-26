@@ -9,10 +9,10 @@ use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 /**
- * Documentation column of the solution detail page's "integrações +
- * documentação" card (the integrations are the other half — see
- * `Solutions\IntegrationsMap`). The Solution has a tree of 1..N pages (no
- * longer a single blob), so this lists the titles linking to each page; the
+ * Documentation column of the solution detail page's "diagramas +
+ * documentação" card (the diagrams are the other half — see
+ * `Solutions\Diagrams`). The Solution has a tree of 1..N pages, so this lists
+ * the titles linking to each page; the
  * full content lives in the editor's own screen (`solutions.docs.edit`, which
  * resolves/opens the first page). Subpages are listed indented under their
  * page, one step per level. A page can also be CREATED from here, and
@@ -48,6 +48,9 @@ class Documentation extends Component
                 'depth'      => $row['depth'],
                 'url'        => route('solutions.docs.page.edit', [$this->solution, $row['page']]),
                 'hasContent' => trim((string) $row['page']->documentation) !== '',
+                // The FK, never the relation: `tree()` is a multi-row
+                // hydration, which is exactly where strict mode arms.
+                'hasDiagram' => $row['page']->diagram_id !== null,
             ]),
             'editUrl'       => route('solutions.docs.edit', $this->solution),
             'createPageUrl' => route('solutions.docs.pages.store', $this->solution),

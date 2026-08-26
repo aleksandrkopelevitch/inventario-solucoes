@@ -9,7 +9,6 @@ use App\Http\Requests\StoreFlowspecChatRequest;
 use App\Jobs\GenerateFlowspecReply;
 use App\Models\DocumentationPage;
 use App\Models\FlowspecChat;
-use App\Models\Integration;
 use App\Services\Flowspec\FlowspecContextResolver;
 use App\View\Components\Flowspec\Thread;
 use Illuminate\Http\JsonResponse;
@@ -103,10 +102,11 @@ class FlowspecChatController extends Controller
     }
 
     /**
-     * Search behind the picker panel — documentation pages (from any Solution or
-     * DocumentationGroup) and integrations that document themselves, in one
-     * result set. IDs come prefixed (`page:{id}`/`integration:{id}`) so
-     * FlowspecDocumentReference can tell the two types apart.
+     * Search behind the picker panel — documentation pages, from any Solution or
+     * DocumentationGroup. IDs come prefixed (`page:{id}`) because the reference
+     * is stored as a morph pair and `FlowspecDocumentReference` validates that
+     * shape; it used to also carry `diagram:{id}`, back when an integration held
+     * documentation of its own.
      */
     public function searchDocuments(Request $request): JsonResponse
     {
@@ -131,29 +131,15 @@ class FlowspecChatController extends Controller
                 'meta' => 'Página de documentação',
             ]);
 
-        $integrations = Integration::query()
-            ->whereNotNull('documentation')
-            ->where('documentation', '<>', '')
-            ->where('name', 'like', "%{$term}%")
-            ->limit(8)
-            ->get(['id', 'name'])
-            ->map(fn (Integration $integration) => [
-                'id'   => "integration:{$integration->id}",
-                'name' => $integration->name,
-                'meta' => 'Documentação de integração',
-            ]);
-
-        // `collect()` forces a plain Support\Collection before merging: when
-        // `$pages` has zero matches, Eloquent\Collection::map() keeps it as an
-        // (empty) Eloquent\Collection instead of downgrading to a base
-        // Collection — `contains(fn ($item) => ! $item instanceof Model)` is
-        // vacuously false over zero items, so the downgrade in Eloquent's
-        // `map()` never fires. `$pages->merge($integrations)` then runs
-        // Eloquent\Collection::merge(), which assumes every item is a Model
-        // and calls `$item->getKey()` — a fatal error on the plain arrays
-        // `$integrations` actually holds. Reproduces with any term that
-        // matches an integration but no documentation page.
-        return response()->json(['results' => collect($pages)->merge($integrations)->take(10)->values()]);
+        // `collect()` forces a plain Support\Collection: with zero matches,
+        // Eloquent\Collection::map() keeps it an (empty) Eloquent\Collection
+        // rather than downgrading to a base one — `contains(fn ($item) => !
+        // $item instanceof Model)` is vacuously false over zero items, so the
+        // downgrade in Eloquent's `map()` never fires, and anything treating
+        // the result as a collection of Models then calls `getKey()` on a plain
+        // array. It cost a fatal error once, when a second result set was
+        // merged in here; the cast is cheap insurance either way.
+        return response()->json(['results' => collect($pages)->take(10)->values()]);
     }
 
     /**

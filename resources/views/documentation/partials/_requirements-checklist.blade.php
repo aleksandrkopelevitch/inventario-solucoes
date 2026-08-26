@@ -2,7 +2,7 @@
     // $requirements: App\Support\Documentation\DocumentationRequirements::for().
     // Two visual groups when attribute-backed items are present (a Solution
     // page): "Do cadastro da Solução" (facts, never gaps) vs "Cobertura do
-    // conteúdo" (best-effort keyword checks). An Integration has no
+    // conteúdo" (best-effort keyword checks). An Diagram has no
     // `attribute` items, so it renders as one flat list.
     $attributeItems = collect($requirements)->where('source', 'attribute')->values();
     $otherItems = collect($requirements)->reject(fn ($item) => $item['source'] === 'attribute')->values();

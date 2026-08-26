@@ -9,7 +9,7 @@ use Illuminate\View\Component;
 
 /**
  * List of standalone Groups ("Aninhamentos") in the Documentation hub —
- * outside the search/status filter for solutions and integrations (they have
+ * outside the search/status filter for solutions and diagrams (they have
  * no % coverage, just a simple listing). Own slot to reflect create/rename/
  * delete without needing to reload the whole page.
  */

@@ -1,7 +1,7 @@
 {{-- A submission's AS IS / TO BE, on its own full-height page.
 
      Its own page rather than a panel inside the workbench, for the same
-     reason an integration's canvas has one: the canvas is a pan/zoom surface
+     reason a diagram's canvas has one: the canvas is a pan/zoom surface
      with its own toolbar and fullscreen, and 340px of a tab is not a place
      anyone can draw an architecture. --}}
 <x-layouts.layout :title="$diagram->kind->label()" :fluid="true">

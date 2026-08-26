@@ -29,7 +29,7 @@ trait ValidatesChainNode
      * `kind` is validated against only the PICKABLE kinds (`ChainNodeKind::pickable()`)
      * — not every enum case — so a client can never create or convert a block
      * into `Image` through these generic endpoints; that kind is only ever
-     * produced by `SolutionIntegrationController::addImageNode()`, which always
+     * produced by `DiagramController::addImageNode()`, which always
      * pairs it with an uploaded `media_id` in the same request.
      *
      * @return array<int, string>

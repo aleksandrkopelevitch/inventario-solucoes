@@ -1,6 +1,5 @@
 @php
     use App\Models\DocumentationGroup;
-    use App\Models\Integration;
     use App\Models\Solution;
 
     // Every container that has documentation worth attaching, in one list.
@@ -8,9 +7,9 @@
     // BOTH kinds are here on purpose. A Solution's own pages are the obvious
     // ones, but almost all of this inventory's documentation lives in
     // DocumentationGroups — the imported GitBook spaces ("Integrações Digibee",
-    // "Dados • BigQuery • GCP"…), which are exactly what an integration spec
-    // needs to stand on. Listing only Solutions offered 4 of 617 documented
-    // pages, which reads as "there is nothing to attach".
+    // "Dados • BigQuery • GCP"…), which are exactly what a flowSpec needs to
+    // stand on. Listing only Solutions offered 4 of 617 documented pages, which
+    // reads as "there is nothing to attach".
     //
     // `documentedPages` is the existing scope for "pages with real content": a
     // page with an empty body would be a heading with nothing under it.
@@ -32,16 +31,12 @@
         ->reject(fn (array $container) => $container['pages']->isEmpty())
         ->values();
 
-    // Integration documentation gets its own section: an integration belongs to
-    // two solutions, so filing it under one of them would be a lie.
-    $integrations = Integration::query()
-        ->whereNotNull('documentation')
-        ->where('documentation', '<>', '')
-        ->orderBy('name')
-        ->get(['id', 'name']);
-
+    // There used to be a third section under these two, listing each
+    // integration's own documentation. Integrations no longer hold any — a
+    // drawing is a Diagram and carries no prose — so every attachable thing
+    // here is a page in one of the containers above.
     $isAttached = fn (string $ref) => in_array($ref, $attached, true);
-    $total = $containers->sum(fn (array $container) => $container['pages']->count()) + $integrations->count();
+    $total = $containers->sum(fn (array $container) => $container['pages']->count());
 @endphp
 
 {{-- The picker, in the generic side panel. A browsable list rather than a
@@ -98,19 +93,6 @@
                         @endforeach
                     </x-flowspec.picker-group>
                 @endforeach
-
-                @if ($integrations->isNotEmpty())
-                    <x-flowspec.picker-group title="Integrações" eyebrow="Documentação de integração" :count="$integrations->count()">
-                        @foreach ($integrations as $integration)
-                            <x-flowspec.picker-row
-                                :ref="'integration:' . $integration->id"
-                                :title="$integration->name"
-                                :search="$integration->name"
-                                :attached="$isAttached('integration:' . $integration->id)"
-                                :label="$integration->name" />
-                        @endforeach
-                    </x-flowspec.picker-group>
-                @endif
 
                 <p data-ak-fs-picker-empty class="hidden py-6 text-center text-sm text-muted">Nada com esse nome.</p>
             </div>

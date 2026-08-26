@@ -12,7 +12,7 @@ const CHIP_EXIT_MS = 150
 
 // Matches the `$activeClass` string baked server-side into `<x-forms.select>`
 // via `filled($filters[...]) ? $activeClass : ''` (solutions/companies/
-// integrations/people index pages). That class is only ever computed at
+// diagrams/people index pages). That class is only ever computed at
 // render time, so picking a filter value via AJAX left the dropdown
 // visually unmarked until a full reload re-rendered the Blade view with the
 // new $filters — this mirrors the same classes client-side so the highlight

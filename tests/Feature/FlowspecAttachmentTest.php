@@ -7,7 +7,7 @@ use App\Jobs\GenerateFlowspecReply;
 use App\Models\DocumentationPage;
 use App\Models\FlowspecAttachment;
 use App\Models\FlowspecChat;
-use App\Models\Integration;
+use App\Models\Diagram;
 use App\Models\Solution;
 use App\Models\User;
 use App\Services\Flowspec\FlowspecContextResolver;
@@ -125,16 +125,16 @@ it('is idempotent: re-attaching the same document says so instead of duplicating
         ->and($response->json('message'))->toContain('já estava no contexto');
 });
 
-it('attaches an integration\'s own documentation', function () {
+it('refuses to attach a diagram — a drawing has no text to contribute', function () {
     $user = attachmentUser();
     $chat = FlowspecChat::factory()->for($user)->create();
-    $integration = Integration::factory()->create(['name' => 'IAM -> SVL', 'documentation' => 'fluxo completo']);
+    $diagram = Diagram::factory()->create(['name' => 'IAM -> SVL']);
 
     $this->actingAs($user)
-        ->postJson(route('flowspec.attachments.store', $chat), ['documents' => ["integration:{$integration->id}"]])
-        ->assertOk();
+        ->postJson(route('flowspec.attachments.store', $chat), ['documents' => ["diagram:{$diagram->id}"]])
+        ->assertStatus(422);
 
-    expect($chat->attachments()->first()->reference_type)->toBe(Integration::class);
+    expect($chat->attachments()->count())->toBe(0);
 });
 
 /*

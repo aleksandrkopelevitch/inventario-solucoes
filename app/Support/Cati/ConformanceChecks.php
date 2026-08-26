@@ -9,7 +9,7 @@ use Illuminate\Support\Str;
 
 /**
  * Grades a submission against the corporate standards the CATI form asks about
- * — SDLC, integrations, observability, security, plus the M2C target cloud.
+ * — SDLC, diagrams, observability, security, plus the M2C target cloud.
  *
  * This is the "fitness function" idea from Building Evolutionary Architectures,
  * scaled to what this app actually knows: a standard the record can answer for
@@ -50,7 +50,7 @@ class ConformanceChecks
      */
     public static function for(Submission $submission): array
     {
-        $submission->loadMissing(['sections', 'solution.integrations']);
+        $submission->loadMissing(['sections', 'solution.diagrams']);
 
         $solution = $submission->solution;
         $content = $submission->sections->mapWithKeys(
@@ -62,7 +62,7 @@ class ConformanceChecks
             ->implode(' ');
 
         $standards = $text(SubmissionSectionKey::Standards);
-        $hasIntegrations = ($solution?->integrations->count() ?? 0) > 0;
+        $hasDiagrams = ($solution?->diagrams->count() ?? 0) > 0;
 
         return [
             self::cloudTarget($solution?->cloud),
@@ -76,7 +76,7 @@ class ConformanceChecks
                 question: 'Que processo de desenvolvimento a solução segue — esteira, revisão de código, versionamento?',
             ),
 
-            self::integrationPlatform($hasIntegrations, $text(SubmissionSectionKey::Architecture, SubmissionSectionKey::Standards)),
+            self::integrationPlatform($hasDiagrams, $text(SubmissionSectionKey::Architecture, SubmissionSectionKey::Standards)),
 
             self::mentionCheck(
                 key: 'observability',
@@ -132,13 +132,13 @@ class ConformanceChecks
     }
 
     /** @return array{key: string, label: string, verdict: ConformanceVerdict, detail: string, question: string} */
-    private static function integrationPlatform(bool $hasIntegrations, string $haystack): array
+    private static function integrationPlatform(bool $hasDiagrams, string $haystack): array
     {
-        // Nothing in the schema records WHICH platform mediates an integration
-        // (`Integration.protocol` is the transport — rest, sftp — not the
+        // Nothing in the schema records WHICH platform mediates a diagram
+        // (`Diagram.protocol` is the transport — rest, sftp — not the
         // platform), so this can only ever be a content check.
         $verdict = match (true) {
-            ! $hasIntegrations                                               => ConformanceVerdict::Ok,
+            ! $hasDiagrams                                               => ConformanceVerdict::Ok,
             Str::contains($haystack, self::PLATFORM_TERMS, ignoreCase: true) => ConformanceVerdict::Ok,
             default                                                          => ConformanceVerdict::Attention,
         };
@@ -148,7 +148,7 @@ class ConformanceChecks
             'label'   => 'Padrão de integração',
             'verdict' => $verdict,
             'detail'  => match (true) {
-                ! $hasIntegrations                  => 'Sem integrações catalogadas.',
+                ! $hasDiagrams                  => 'Sem diagramas catalogados.',
                 $verdict === ConformanceVerdict::Ok => 'Plataforma de integração citada.',
                 default                             => 'Integrações existentes, sem plataforma citada.',
             },

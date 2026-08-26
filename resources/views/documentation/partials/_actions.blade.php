@@ -1,5 +1,5 @@
 {{-- Documentation-specific actions (copy Markdown / Especialista / Salvar /
-     share). Extracted so the integration's unified page (see
+     share). Extracted so the diagram's unified page (see
      documentation/edit.blade.php) can render this same cluster inside the
      Documentação tab instead of the persistent top bar — it has nothing to
      do with the Diagrama tab, which has its own Salvar (chain layout) inside

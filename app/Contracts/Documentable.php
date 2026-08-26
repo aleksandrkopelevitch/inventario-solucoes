@@ -9,11 +9,18 @@ use Spatie\MediaLibrary\HasMedia;
  * GitBook-style extended notation) and media embedded in it (Spatie
  * MediaLibrary's `docs` collection, referenced by `/files/{id}` inside the text).
  *
- * Implemented by DocumentationPage (the page unit, owning the documentation
- * of a Solution or of a DocumentationGroup) and by Integration (which stays
- * single-page). Consumed by the block editor (Editor.js) via
+ * Implemented by DocumentationPage and nothing else — it is the one kind of
+ * documentation there is. `Integration` used to implement it too, with a
+ * `documentation` column of its own; that entity became `Diagram`, which holds
+ * a drawing and no prose. Consumed by the block editor (Editor.js) via
  * App\Http\Controllers\Concerns\EditsDocumentation and by the read-only
  * render App\Support\GitbookRenderer.
+ *
+ * `DOCS_COLLECTION` still has readers beyond that one implementer, and
+ * deliberately so: `MediaController::show()` authorizes `/files/{id}` by this
+ * collection name alone, so every canvas owner (`Diagram`,
+ * `SubmissionDiagram`) stores its pasted image nodes in a collection with
+ * exactly this name in order to be servable at all.
  *
  * @property string|null $documentation
  */

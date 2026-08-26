@@ -1,8 +1,10 @@
 # Inventário de Soluções — Claude Guidelines
 
 Catalog of Leo Madeiras' solutions/integrations: solution, people and company
-records, a graphical topology editor for a solution's integrations, and a
-read-only map of the ecosystem. Fork of the generic infra from the
+records, a documentation module (a page tree per solution or standalone group),
+a **diagrams** module (the graphical topology editor, one drawing at a time),
+and a read-only map of the ecosystem derived from those drawings. Fork of the
+generic infra from the
 **akop-pro** reference project (forms, slots, JS modules, layout shells) — that
 project's legacy domain (CRM, DISC, multi-tenancy) is not part of this one.
 See `README.md` for an overview and feature list.
@@ -88,9 +90,15 @@ class AnalyzeProposal
 }
 ```
 
-### Integration topology invariant — the chain is the single source of truth
+### Diagram topology invariant — the chain is the single source of truth
 
-An `Integration`'s topology lives in its `chain` json — a genuinely free
+A `Diagram` is a drawing of a flow, and a first-class record: `/diagrams` is its
+module, `/diagrams/{diagram}` is the canvas that authors it. It used to be an
+`Integration` — reachable only through a solution that took part in it, carrying
+a `documentation` column of its own — and both halves of that are gone (see
+§ Documentation page tree for what replaced the second one).
+
+Its topology lives in the `chain` json — a genuinely free
 graph: `{nodes: [{solution_id, label, kind}], edges: [{from, to, arrow, protocol}]}`,
 where `from`/`to` are indices into `nodes` (not consecutive positions) and
 each edge carries its own direction (`'->'|'<-'|'<->'`) and protocol.
@@ -108,12 +116,24 @@ the server fills in when left blank; `image` has no label/kind picker at all
 (see `ChainNodeKind::pickable()`). Nodes
 written before kinds existed have no `kind` key at all and read as `system`
 (`ChainNodeKind::fromNode()`); the three consumers that care —
-`SyncIntegrationFromChain`, `ChainLabeler::nodeLabel()` and
-`IntegrationsMap::resolveNode()` — all decide via
+`SyncDiagramFromChain`, `ChainLabeler::nodeLabel()` and
+`ChainGraph::resolveNode()` — all decide via
 `ChainNodeKind::referencesSolution()`, so a stale `solution_id` on a
 decision/actor node can never resurrect it as a participant. Both endpoints
 that write a node (`addNode`/`updateNode`) validate the same three fields via
 the `ValidatesChainNode` trait.
+
+**Three kinds are drawn as a CIRCLE with the label outside the shape** —
+`start`, `end` and `actor` (`chain-viz.js::paintNode()`, one branch for all
+three). That matters beyond looks: the label is absolutely positioned at
+`top: 100%`, deliberately OUTSIDE the node's box, because `node.w`/`h` come
+from `offsetWidth`/`offsetHeight` and every port and edge anchor is computed
+from them — let the label into the box and the anchors drift toward whatever
+the text's height happens to be. Every other kind is a **white** box; shape
+carries the kind (chamfered hexagon = decision, dashed border = external free
+text) and color is left to mean whatever the author decides
+(`viz_layout.nodes[i].color`). Only the two flow terminals keep a fill of their
+own, green/red.
 
 **Removing a node is the one mutation that REINDEXES.** `removeNode()` drops
 the block, every edge touching it, and decrements every surviving `from`/`to`
@@ -121,36 +141,70 @@ above the removed index — then reindexes `viz_layout` in three places, because
 `nodes` and `comments` there are keyed by NODE index while `edges` (anchors) is
 keyed by EDGE index. Miss one and blocks silently inherit their neighbour's
 position or comment. Root (index 0) is never removable. It's also the only
-chain endpoint that returns a **whole rebuilt graph** (`IntegrationsMap::graph()`,
-public for this reason) instead of a patch: after a reindex there's nothing the
+chain endpoint that returns a **whole rebuilt graph** (`ChainGraph::for()`)
+instead of a patch: after a reindex there's nothing the
 client can safely patch, so it calls `render()` again — and drops its
 `savedLayouts` cache entry first, since that cache is keyed by the old node
 count.
 
 Two edges between the same pair of blocks are legitimate when they say
 something different (A `->` B over REST *and* over SFTP, or one edge each
-way), so `AddIntegrationChainEdgeRequest` refuses only an **exact** duplicate
+way), so `AddChainEdgeRequest` refuses only an **exact** duplicate
 (same `from`/`to`/`arrow`/`protocol`) — dragging an arrow out of a port creates
 `->`/no-protocol with no dialog on the way, so repeating the gesture is easy to
 do by accident, and the second arrow would double-count in the degree math
 above while being indistinguishable in the canvas.
 
-`App\Actions\SyncIntegrationFromChain`
+`App\Actions\SyncDiagramFromChain`
 is the ONLY thing that writes the derived columns (`participants` pivot with
 `position`, `source/target_solution_id`, `direction`, and the summary scalar
 `protocol` = first non-null edge protocol) — it runs after every mutation to
-`chain` (`SolutionIntegrationController::store/updateNode/updateProtocol/
-addNode/retargetEdge/addEdge/removeEdge/removeNode`). `Integration.viz_layout`
+`chain`, via `Diagram::afterChainMutation()`, which
+`Concerns\EditsChain` calls for every one of the nine endpoints. The ecosystem
+map is a reading of those columns, which is what makes it a reading of the
+drawings rather than a second truth. `Diagram.viz_layout`
 (`{nodes: [{x,y}], edges: [{from,to}], comments}`) is a purely **visual**
 concern — node position/style and per-block comments in the graphical canvas
-(`resources/js/modules/integration-viz.js`) — and must NEVER drive topology;
+(`resources/js/modules/chain-viz.js`) — and must NEVER drive topology;
 `saveLayout()` writes only `viz_layout`, never touching `chain` or the derived
 columns. Don't write the derived columns directly — edit `chain` and let the
-action re-derive. There is no separate diagram/canvas editor page — the same
-canvas that displays the chain is what authors it (see `SolutionIntegrationController`'s
-docblock and `integration-viz.blade.php`).
+action re-derive.
+
+**Adding a block must not change the zoom.** `appendNode()` used to end with
+`fit()`, which recomputes `view.scale` — so drawing a ten-block flow meant ten
+scale jumps and threw away the zoom the person had chosen to work at. It calls
+`panIntoView()` instead: the minimum pan that brings the new block into the
+viewport, scale untouched, and nothing at all when it was already visible. Only
+"Organizar", "Centralizar" and the initial load re-frame. (Do not confuse
+`panIntoView()` with `revealNode()` in the same file — that one is presentation
+mode's fade-in. The two names collided in the first version of this and the
+second declaration silently won.)
+
+**The canvas is owner-agnostic, and there are two owners.**
+`App\Contracts\ChainCanvas` is the contract; `Concerns\EditsChain` performs
+all nine mutations against anything implementing it. `Diagram` re-derives its
+columns in `afterChainMutation()`; a `SubmissionDiagram` (a proposal's AS IS /
+TO BE) derives nothing, deliberately. The client never learns which it is
+editing, because every endpoint it calls arrives inside the graph payload
+(`ChainCanvas::chainUrls()`) — which is why `chain-viz.js` contains no route of
+its own and must keep containing none.
 
 ### Documentation page tree — `position` orders SIBLINGS, not the container
+
+**There is exactly ONE kind of documentation: the page.** There used to be two —
+a page tree, and an integration's own single-page `documentation` column with
+its own editor route, its own place in the rail and its own coverage
+percentage. The second one is gone. What it was really for (text beside a
+drawing) is now a page pointing at a `Diagram`
+(`documentation_pages.diagram_id`, nullable, written only by
+`Concerns\LinksPageDiagram` through `diagram()->associate()` — it is NOT in
+`$fillable`, like `parent_id` and `container_*`). The FK lives on the PAGE, so
+one diagram serves 1..N pages: the same drawing legitimately explains several
+pages, often in several solutions' trees, while a page never has two drawings to
+reconcile. A page that has one grows a Documentação/Diagrama tab pair and mounts
+the canvas; linking answers with a `redirect`, not a slot, because the shape of
+the screen changes with it. `nullOnDelete`: deleting a drawing must never take
+the text explaining it.
 
 A Solution's (or standalone `DocumentationGroup`'s) documentation is a tree of
 `DocumentationPage`s up to `DocumentationPage::MAX_DEPTH` levels deep (5 today,
@@ -237,7 +291,7 @@ single-row fetch (`find()`, `firstOrFail()`, a `belongsTo`/`hasOne` relation,
 or a model a queued job restores via `SerializesModels`) never arms it, so an
 unloaded relation on it silently lazy-loads with **no exception, in any
 environment** — verified 2026-07-15 by calling
-`Integration::query()->find($id)->source` inside a `LazilyRefreshDatabase`
+`Diagram::query()->find($id)->source` inside a `LazilyRefreshDatabase`
 Feature test with `app()->isProduction()` confirmed false: no exception.
 Jobs are where this bites most — `handle(SomeModel $thing)` then
 `$thing->relatedModel->...` gets zero protection from strict mode, which is
@@ -247,13 +301,17 @@ that walk a relation off a single fetched model — don't rely on a missing
 `with()` being caught by strict mode or by a test.
 
 If a View Component maps a parent's already-loaded collection and a child
-partial needs to walk back up (`$block->integration` when the component only
-has `$this->integration`), set the relation in memory instead of eager
-loading a query you don't need:
+partial needs to walk back up (`$page->container` when the component only has
+`$this->solution`), set the relation in memory instead of eager loading a query
+you don't need:
 
 ```php
-$block->setRelation('integration', $this->integration); // no query — already in hand
+$page->setRelation('container', $this->solution); // no query — already in hand
 ```
+
+Both page controllers do exactly that before rendering the editor, and for a
+sharper reason than performance: `DocumentationPagePolicy` delegates every
+answer to `$page->container`, so without it the policy is what lazy-loads.
 
 ## DB Performance
 
@@ -288,13 +346,21 @@ from reality once by citing Portuguese paths that 404.
 
 Reference implementation in this app: `routes/web.php`'s
 `Route::scopeBindings()->group(...)` around the
-`solutions/{solution}/integrations/{integration}/...` routes. `{integration}`
-404s unless the `{solution}` participates in it (resolved via
-`Solution::integrations()`). The nested chain-editing routes under it
-(`chain/nodes/{node}`, `chain/protocol/{edge}`, `chain/edge/{edge}`) take a
-plain integer index into `chain.nodes`/`chain.edges` (`whereNumber(...)`), not
-a model — those aren't scoped bindings, just route params validated as
-numeric and range-checked inside the controller.
+`solutions/{solution}/documentation/{page}/...` routes. `{page}` 404s unless it
+belongs to the `{solution}` in the URL (resolved via `Solution::pages()`), so a
+page can never be edited through the wrong owner.
+
+The **diagrams** routes are the counter-example, and the contrast is the point:
+`diagrams/{diagram}/...` is flat, because a diagram is addressed by itself.
+They used to be nested under a participating solution, which meant every URL
+carried a `{solution}` the endpoint didn't need plus a scope check to keep the
+two in agreement; a diagram reaches a solution the other way round now (a page
+points at it). Its chain-editing routes (`chain/nodes/{node}`,
+`chain/protocol/{edge}`, `chain/edge/{edge}`) take a plain integer INDEX into
+`chain.nodes`/`chain.edges` (`whereNumber(...)`), not a model — those aren't
+bindings at all, just route params validated as numeric and range-checked
+inside the controller. The submission-diagram routes mirror all nine one for
+one.
 
 ## Security
 
@@ -671,7 +737,7 @@ hardcode a hex color or a one-off `border-radius` that already has a token.
 **Legitimate exceptions** (custom CSS is the right tool):
 - **Rendered Markdown**, in all three of its flavours — the HTML comes out of a
   renderer, so there is no element to hang a utility class on before it exists:
-  `.ak-viz-md` (inline `<style>` in `integration-viz.blade.php`, a node's
+  `.ak-viz-md` (inline `<style>` in `components/chain/viz.blade.php`, a node's
   comment preview in the F3 canvas), `.html-content` (`app.css`, a whole
   GitBook documentation PAGE — `documentation/partials/_reader.blade.php`
   renders it and `docs-toc.js` reads it; an older note here claimed it was
@@ -684,11 +750,11 @@ hardcode a hex color or a one-off `border-radius` that already has a token.
   scrollbar styling in `resources/css/components/scrollbar.css`.
 - `resources/views/components/ecosystem-map.blade.php` (the DOM+SVG ecosystem
   map, radial hub-and-spoke layout) and
-  `resources/views/components/solutions/integration-viz.blade.php` (the F3
-  per-solution integration canvas) share the same scoped `--viz-*` token set
-  and `.ak-viz-node`/`.ak-viz-node-avatar` classes, so both render nodes
-  identically — a legitimate exception since the content (JS-built graph
-  nodes/edges) never passes through Blade.
+  `resources/views/components/chain/viz.blade.php` (the F3 diagram canvas,
+  shared by a `Diagram` and a submission's drawings) share the same scoped
+  `--viz-*` token set and `.ak-viz-node`/`.ak-viz-node-avatar` classes, so both
+  render nodes identically — a legitimate exception since the content (JS-built
+  graph nodes/edges) never passes through Blade.
 
 Before adding a new custom class or `<style>` block, check whether the same
 result is reachable with `@class([...])`, arbitrary-value utilities (`w-[172px]`),
@@ -701,7 +767,7 @@ leftover from a copied reference bundle), delete it rather than leaving it —
 
 | | `App\Support\GitbookRenderer` | `App\Support\MarkdownText` |
 |---|---|---|
-| for | documentation pages/integrations, authored in the Editor.js block editor | the short free-text fields: a person's/company's `notes`, a solution's `description` and `support_operation_note` |
+| for | documentation pages, authored in the Editor.js block editor | the short free-text fields: a person's/company's `notes`, a solution's `description` and `support_operation_note` |
 | speaks | Markdown **+ GitBook notation** (`{% hint %}`, `{% tabs %}`, `{% file %}`) | plain Markdown (GFM), nothing else |
 | raw HTML in the source | `html_input=allow` — it's how images arrive as `<figure><img src="/files/{id}">` | `html_input=strip`, plus `allow_unsafe_links=false`: a `<script>` in someone's notes must never run for the next reader |
 | single newline | a normal Markdown soft break | rendered as `<br>` (`renderer.soft_break`), because these fields were plain textareas read back with `whitespace-pre-line` and every note already in the database relies on it |
@@ -779,7 +845,8 @@ Only 6 models use `HasMedia`/`InteractsWithMedia`, each with its own single coll
 
 - `User` — `avatar` (single-file), with one registered conversion, `thumb` (120×120, `nonQueued()` since the source is tiny). `User::avatarUrl()` falls back to `ui-avatars.com` (an external, third-party image, requested client-side from the `<img src>`) when no avatar was uploaded — a deliberate, low-risk default, not an oversight.
 - `Solution` — `context_documents` (`Solution::CONTEXT_COLLECTION`), the "Assiste IA" context documents (PDF/image/text), served by `SolutionContextDocumentController` — never through `MediaController`/`files.show`.
-- `Integration` and `DocumentationPage` — both implement `App\Contracts\Documentable` and share the `docs` collection (`Documentable::DOCS_COLLECTION = 'docs'`): images/files embedded in Markdown documentation, referenced as `/files/{id}` and served by `MediaController`/`files.show` (authenticated) or `PublicDocumentationController::file()` (magic-link, token-scoped).
+- `DocumentationPage` — the `docs` collection (`Documentable::DOCS_COLLECTION = 'docs'`): images/files embedded in Markdown documentation, referenced as `/files/{id}` and served by `MediaController`/`files.show` (authenticated) or `PublicDocumentationController::file()` (magic-link, token-scoped). It is the only `Documentable`; `Diagram` and `SubmissionDiagram` also register a collection named `docs`, but for a different reason — an image PASTED onto the canvas has to be servable at `/files/{id}`, and `MediaController::show()` authorizes by collection name alone, so nothing outside that name can be served at all.
+- `Diagram` — `docs` (pasted image nodes, above) plus `diagram` (`Diagram::DIAGRAM_COLLECTION`, `singleFile()`): the canvas rendered to a PNG by the client on every layout save, so the CATI deck can show an architecture without a browser in the loop. Derived, never an input.
 - `Submission` — `submission_sources` (`Submission::SOURCES_COLLECTION`), the gathered material behind a CATI submission, served by `SubmissionSourceController::show()`.
 - `FlowspecChat` — `flowspec_attachments` (`FlowspecChat::ATTACHMENTS_COLLECTION`), files a person attached as context to an Especialista em Integrações conversation. Never served back to a browser at all: these are read for text or handed to the model as native attachments, and are deleted with the attachment row.
 
@@ -797,7 +864,7 @@ Never register a new collection/conversion without checking the 6 above first �
 
 ### SSRF surface — documentation editor's "paste image URL"
 
-`EditsDocumentation::storeDocumentationMedia()` (shared by `SolutionDocumentationController`/`IntegrationDocumentationController`/`DocumentationGroupPageController`) has two upload paths: a multipart `file`, or a `url` the SERVER downloads via Spatie's `addMediaFromUrl()` (Editor.js's Image plugin "paste a URL" flow). `UploadDocumentationMediaRequest` only validates `starts_with:http://,https://` — same as Spatie's own internal check — with **no private/loopback/link-local guard**, so without `App\Rules\PublicUrl` (validates the resolved IP via `FILTER_FLAG_NO_PRIV_RANGE|FILTER_FLAG_NO_RES_RANGE`) an admin could make the server fetch an internal-only URL (cloud metadata endpoint, internal admin panel, etc.) — exploitability is admin-scoped (only `update` on Solution/Integration/DocumentationGroupPage reaches this), but still real. The guard resolves DNS at validation time, so it does **not** close a DNS-rebinding race (attacker's DNS answers public at validation, private moments later at fetch time) — accepted as a documented residual risk, not something this rule claims to solve.
+`EditsDocumentation::storeDocumentationMedia()` (shared by `SolutionDocumentationController`/`DocumentationGroupPageController`) has two upload paths: a multipart `file`, or a `url` the SERVER downloads via Spatie's `addMediaFromUrl()` (Editor.js's Image plugin "paste a URL" flow). `UploadDocumentationMediaRequest` only validates `starts_with:http://,https://` — same as Spatie's own internal check — with **no private/loopback/link-local guard**, so without `App\Rules\PublicUrl` (validates the resolved IP via `FILTER_FLAG_NO_PRIV_RANGE|FILTER_FLAG_NO_RES_RANGE`) an admin could make the server fetch an internal-only URL (cloud metadata endpoint, internal admin panel, etc.) — exploitability is admin-scoped (only `update` on a page's container reaches this), but still real. The guard resolves DNS at validation time, so it does **not** close a DNS-rebinding race (attacker's DNS answers public at validation, private moments later at fetch time) — accepted as a documented residual risk, not something this rule claims to solve.
 
 ## Style
 
@@ -810,6 +877,8 @@ Never register a new collection/conversion without checking the 6 above first �
 ## JavaScript — use modules before creating new ones
 
 Before writing any new JS behavior, check if an existing module in `resources/js/modules/` already handles it. The project has modules for: toggle, tabs, side panel, AJAX form submission, filters, search, chips (multi-select with autocomplete), and more. (Modules inherited from akop-pro with zero consumers — mask, standalone autocomplete, copy-content, url-location, event-helpers, string-helpers, search-in-container, switch-button, radio-group — were removed on 2026-07-16; they weren't even part of `app.js`'s bundle. `file-upload.js` was removed on 2026-07-27 for the same reason, just discovered later — it WAS registered in `app.js`'s `globalModules`, but no Blade view ever rendered its `data-ak-file-upload` hook; actual image/logo upload UI goes through `avatar-upload.js`/`<x-forms.image-upload>` instead. `solution-attributes.js` went on 2026-08-15, for a different reason: its one consumer — the Solution header's 8 attribute badges — moved to `inline-edit.js`, which left it with no `data-ak-solution-attribute` hook anywhere in the app.)
+
+The canvas modules were RENAMED, not removed, on 2026-08-26: `integration-viz.js` → `chain-viz.js` and `integration-select.js` → `chain-select.js`, with their hooks (`data-integration-viz` → `data-ak-chain-viz`, `data-ak-integration-select` → `data-ak-chain-select`, `data-integration-graph` → `data-ak-chain-graph`) and their event (`ak:integration-selected` → `ak:diagram-selected`). They never were integration-specific — the canvas draws any `ChainCanvas` — and `data-integration-viz`/`data-integration-graph` were also two of the last hooks violating the `data-ak-*` convention.
 
 Only create a new module when the behavior is genuinely not covered. When creating one, follow the delegation pattern:
 
@@ -1139,9 +1208,10 @@ Every new GET-accessible page needs an entry in the sidebar nav (the
 orphaned, reachable only by typing the URL directly. The `active` key
 accepts a string or an array of `routeIs()` patterns; use an array when an
 item needs to light up on several routes (e.g. "Soluções" lists
-`['solutions.index', 'solutions.show', 'solutions.integrations.*']`, so it
-stays active on the solution's detail page and on integration pages nested
-under it too).
+`['solutions.index', 'solutions.show']`, so it stays lit on a solution's detail
+page too). A page that got its own top-level section — `/diagrams` did — should
+LEAVE the borrowed patterns behind: "Soluções" listing `diagrams.*` would light
+two rail items at once.
 
 > The dynamic `#dashboard-bg` (gradient/photo by user preference) from the
 > akop-pro reference project was **removed** when applying the Leo identity

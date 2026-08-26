@@ -9,7 +9,6 @@ use App\Models\DocumentationPage;
 use App\Models\FlowspecAttachment;
 use App\Models\FlowspecChat;
 use App\Models\FlowspecExample;
-use App\Models\Integration;
 use App\Models\Solution;
 use App\Support\Context\NativeAttachmentType;
 use Illuminate\Support\Collection;
@@ -43,14 +42,13 @@ class FlowspecContextResolver
     {
         $attachments = $chat->attachments()->with('media')->get();
 
-        [$pages, $integrationDocs] = $this->referencedDocumentation($attachments);
+        $pages = $this->referencedDocumentation($attachments);
         [$textDocs, $nativeAttachments, $attachedMeta, $omittedAttachments] = $this->partitionMaterial($attachments);
 
         $tags = $this->candidateTags($this->normalize($request));
 
         return new FlowspecContext(
             pages: $pages,
-            integrationDocs: $integrationDocs,
             textDocs: $textDocs,
             referenceFlowspecs: $this->referenceFlowspecs($attachments),
             attachments: $nativeAttachments,
@@ -67,16 +65,17 @@ class FlowspecContextResolver
      * conversation pointing at it on the very next turn.
      *
      * @param  Collection<int, FlowspecAttachment>  $attachments
-     * @return array{Collection<int, DocumentationPage>, Collection<int, Integration>}
+     * @return Collection<int, DocumentationPage>
      */
-    private function referencedDocumentation(Collection $attachments): array
+    private function referencedDocumentation(Collection $attachments): Collection
     {
-        $documents = $attachments->where('kind', FlowspecAttachmentKind::Document);
+        $pageIds = $attachments
+            ->where('kind', FlowspecAttachmentKind::Document)
+            ->where('reference_type', DocumentationPage::class)
+            ->pluck('reference_id')
+            ->all();
 
-        $pageIds = $documents->where('reference_type', DocumentationPage::class)->pluck('reference_id')->all();
-        $integrationIds = $documents->where('reference_type', Integration::class)->pluck('reference_id')->all();
-
-        $pages = $pageIds === [] ? collect() : DocumentationPage::query()
+        return $pageIds === [] ? collect() : DocumentationPage::query()
             ->whereKey($pageIds)
             ->whereNotNull('documentation')
             ->where('documentation', '<>', '')
@@ -84,16 +83,6 @@ class FlowspecContextResolver
             ->get()
             ->sortBy(fn (DocumentationPage $page) => [$page->container_id, $page->position])
             ->values();
-
-        $integrations = $integrationIds === [] ? collect() : Integration::query()
-            ->whereKey($integrationIds)
-            ->whereNotNull('documentation')
-            ->where('documentation', '<>', '')
-            ->get()
-            ->sortBy('name')
-            ->values();
-
-        return [$pages, $integrations];
     }
 
     /**
@@ -220,28 +209,14 @@ class FlowspecContextResolver
 
         $solutionsById = $mentioned->keyBy->getKey();
 
-        $integrations = Integration::query()
-            ->whereHas('participants', fn ($query) => $query->whereIn('solutions.id', $mentioned->modelKeys()))
-            ->whereNotNull('documentation')
-            ->where('documentation', '<>', '')
-            ->get(['id', 'name']);
-
         // collect($model->all()) before ->map(): mapping an empty
-        // Eloquent\Collection doesn't downgrade it to a Support\Collection, and
-        // Eloquent's primary-key merge breaks against plain arrays.
-        $suggestions = collect($pages->all())
+        // Eloquent\Collection doesn't downgrade it to a Support\Collection.
+        return collect($pages->all())
             ->map(fn (DocumentationPage $page) => [
                 'type'  => 'page',
                 'id'    => $page->id,
                 'label' => "{$solutionsById[$page->container_id]->name} — {$page->title}",
             ])
-            ->merge(collect($integrations->all())->map(fn (Integration $integration) => [
-                'type'  => 'integration',
-                'id'    => $integration->id,
-                'label' => $integration->name,
-            ]));
-
-        return $suggestions
             ->reject(fn (array $ref) => in_array($this->morphKey($ref), $attachedKeys, true))
             ->take((int) config('services.flowspec.max_suggested_documents'))
             ->values()

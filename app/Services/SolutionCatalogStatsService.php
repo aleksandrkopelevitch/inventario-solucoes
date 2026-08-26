@@ -3,12 +3,12 @@
 namespace App\Services;
 
 use App\Models\AttributeOption;
-use App\Models\Integration;
+use App\Models\Diagram;
 use App\Models\Solution;
 
 /**
  * Global catalog counters for the Soluções index hero (stat-strip) — total
- * solutions by status plus the total integration count. Deliberately
+ * solutions by status plus the total diagram count. Deliberately
  * independent of any active filter, same as `DocumentationCoverageService`'s
  * counters: this is the "whole inventory at a glance" summary, not a
  * reflection of the filtered grid below it.
@@ -19,7 +19,7 @@ class SolutionCatalogStatsService
      * @return array{
      *     total: int,
      *     byStatus: array<int, array{value: string, label: string, count: int}>,
-     *     integrations: int,
+     *     diagrams: int,
      * }
      */
     public function summary(): array
@@ -42,7 +42,7 @@ class SolutionCatalogStatsService
         return [
             'total'        => $counts->sum(),
             'byStatus'     => $byStatus,
-            'integrations' => Integration::query()->count(),
+            'diagrams' => Diagram::query()->count(),
         ];
     }
 }

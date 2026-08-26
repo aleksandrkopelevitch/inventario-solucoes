@@ -24,13 +24,13 @@ use Illuminate\Validation\Rule;
  * fill (`color`) and header strip (`headerColor`) are independent — a lane
  * saved before `headerColor` existed simply omits the key, and the client
  * derives its header color from `color` in that case
- * (`integration-viz.js`'s `laneHeaderColor()`), so `headerColor` is the only
+ * (`chain-viz.js`'s `laneHeaderColor()`), so `headerColor` is the only
  * lane field that's genuinely optional in the sense of "may be absent
  * forever", not just "missing on old data". Every other lane property
  * (`rounded`, `dashed`, `opacity`, `orientation`, `showTitle`, `fontSize`) is
  * validated as optional too — the client backfills a default for whichever
  * ones are missing on a lane saved before that property existed
- * (`integration-viz.js`'s `applyLayout()`), so the server only needs to
+ * (`chain-viz.js`'s `applyLayout()`), so the server only needs to
  * validate the ones actually present. There used to be a background
  * `pattern` (solid/diagonal/cross) — removed down to solid-only; the rule is
  * gone entirely rather than restricted to `Rule::in(['solid'])`, so an old
@@ -43,7 +43,7 @@ use Illuminate\Validation\Rule;
  * color choice, always the post-it yellow) at a world-space `x`/`y`, same as
  * a lane never referencing a node/index. No `width`/`height`: the note has a
  * fixed width and grows in height with its own content
- * (`integration-viz.js`'s `rebuildNotes()`), so there's nothing sized to
+ * (`chain-viz.js`'s `rebuildNotes()`), so there's nothing sized to
  * validate beyond the position and the text itself.
  */
 class SaveChainLayoutRequest extends FormRequest
@@ -66,10 +66,10 @@ class SaveChainLayoutRequest extends FormRequest
     public const LANE_FONT_SIZES = ['sm', 'md', 'lg'];
 
     /**
-     * Screenshot/canvas color "look" (`integration-viz.js`'s `EXPORT_PRESETS`)
+     * Screenshot/canvas color "look" (`chain-viz.js`'s `EXPORT_PRESETS`)
      * — CSS-only (background + edge/pill/block-border color, never font or
      * size), applied live on the canvas (not just at export time) and
-     * persisted here so it's remembered per integration.
+     * persisted here so it's remembered per diagram.
      */
     public const THEMES = ['original', 'casual', 'corporativo', 'tech'];
 

@@ -11,7 +11,7 @@
     </div>
 
     {{-- 2.5. A committee approved a topology for this solution and nobody has
-         applied it to the catalog yet. Above the integrations list on purpose:
+         applied it to the catalog yet. Above the diagrams list on purpose:
          it is a warning ABOUT that list — the graph below is showing the
          previous scenario. Not a slot: nothing on this page changes it, and it
          is resolved on the submission's own screen. --}}
@@ -21,7 +21,7 @@
             <p class="min-w-0 flex-1 text-sm text-cat-amber-ink">
                 O comitê aprovou uma topologia para esta solução em
                 {{ $pending->approved_at->format('d/m/Y') }} que ainda não foi aplicada —
-                as integrações abaixo mostram o cenário anterior.
+                os diagramas abaixo mostram o cenário anterior.
             </p>
             <a href="{{ route('submissions.show', $pending->submission) }}"
                class="shrink-0 text-sm font-medium text-cat-amber-ink underline">Ver a submissão</a>
@@ -29,13 +29,13 @@
     @endforeach
 
     {{-- 3. What this solution HAS been documented with, in one card: the
-         integrations it takes part in on the left, its documentation pages on
+         diagrams it takes part in on the left, its documentation pages on
          the right. They were two stacked cards until 2026-08-17 — the same
          kind of thing (a list of pages you open to read/edit, both living
          under the same consolidated docs screen), read one under the other as
          if they were unrelated sections.
 
-         Each column stays its OWN updatable slot (`IntegrationsMap` /
+         Each column stays its OWN updatable slot (`Diagrams` /
          `Documentation`): creating or deleting on one side must not re-render
          the other. That's also why the card's chrome (border/shadow/radius)
          lives here and not in either component — a slot swap replaces the
@@ -44,7 +44,7 @@
          right column itself (it re-renders identically on every swap). --}}
     <div class="animate-ak-rise mt-5 grid overflow-hidden rounded-card border border-line bg-surface shadow-card lg:grid-cols-2"
          style="animation-delay: 90ms">
-        <x-solutions.integrations-map :solution="$solution" />
+        <x-solutions.diagrams :solution="$solution" />
         <x-solutions.documentation :solution="$solution" />
     </div>
 </x-layouts.layout>

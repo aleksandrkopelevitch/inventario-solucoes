@@ -21,7 +21,7 @@
 
                         <x-forms.field label="Aplicar em" for="apply-topology-target"
                             hint="Uma proposta costuma descrever algo que ainda não existe — nesse caso, crie uma integração nova.">
-                            <x-forms.select id="apply-topology-target" name="integration_id">
+                            <x-forms.select id="apply-topology-target" name="diagram_id">
                                 <option value="">Criar uma integração nova</option>
                                 @foreach ($targets as $target)
                                     <option value="{{ $target->id }}">{{ $target->name }}</option>
@@ -58,11 +58,11 @@
                     <span class="font-semibold">Topologia aplicada ao catálogo</span>
                     em {{ $topology->applied_at->format('d/m/Y') }}
                     @if ($topology->appliedBy) por {{ $topology->appliedBy->name }} @endif.
-                    @if ($topology->integration && $submission->solution)
+                    @if ($topology->diagram && $submission->solution)
                         {{-- $submission->solution is the one eager-loaded by the
                              component; the topology's own is the same record. --}}
-                        <a href="{{ route('solutions.integrations.docs.edit', [$submission->solution, $topology->integration]) }}"
-                           class="font-medium underline">{{ $topology->integration->name }}</a>
+                        <a href="{{ route('diagrams.show', $topology->diagram) }}"
+                           class="font-medium underline">{{ $topology->diagram->name }}</a>
                     @endif
                 </p>
             </div>

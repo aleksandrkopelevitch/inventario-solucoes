@@ -17,13 +17,13 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  * One of the four drawings behind a submission
  * (`App\Enums\SubmissionDiagramKind`).
  *
- * Two of them (AS IS, TO BE) are drawn on the same F3 canvas the integrations
+ * Two of them (AS IS, TO BE) are drawn on the same F3 canvas the diagrams
  * use, which is why this implements `ChainCanvas`: the canvas takes its
  * endpoints from the graph payload, so it never learns it is editing
- * something other than an Integration. The other two (C4 C1/C2) hold an
+ * something other than a Diagram. The other two (C4 C1/C2) hold an
  * uploaded picture and no chain at all.
  *
- * **Nothing is ever derived from this chain.** An Integration's chain drives
+ * **Nothing is ever derived from this chain.** An Diagram's chain drives
  * participants, source/target, direction and protocol; a submission's drives
  * nothing, because a proposal is a thing being argued about, not a record of
  * what exists. A rejected proposal writing into the catalog is precisely the

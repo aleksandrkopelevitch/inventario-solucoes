@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * `PromoteApprovedSubmission` used to argue that promoting topology was
  * unnecessary — "the architect edits the inventory's own chain while
  * preparing, so the topology is already promoted the moment it is drawn". That
- * was true while the diagrams were pictures of the LIVE integration canvas. It
+ * was true while the diagrams were pictures of the LIVE diagram canvas. It
  * stopped being true when a submission got drawings of its own, whose
  * `afterChainMutation()` is deliberately empty: an approved TO BE lived only
  * on the submission, and the catalog drifted again — the exact failure this
@@ -23,8 +23,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * Why a record instead of writing the catalog at approval:
  *
- * - A submission's TO BE is a FREE GRAPH. It can describe several integrations
- *   at once, or one that does not exist yet. Choosing which `Integration` it
+ * - A submission's TO BE is a FREE GRAPH. It can describe several diagrams
+ *   at once, or one that does not exist yet. Choosing which `Diagram` it
  *   becomes is a judgment call, and an approval that guesses would overwrite
  *   real topology with a guess.
  * - Silence is what caused the drift. A pending row is visible on the Solution
@@ -46,7 +46,7 @@ class ApprovedTopology extends Model
         'chain',
         'viz_layout',
         'approved_at',
-        'integration_id',
+        'diagram_id',
         'applied_at',
         'applied_by_id',
         'dismissed_at',
@@ -76,9 +76,9 @@ class ApprovedTopology extends Model
     }
 
     /** What it was applied to, when it was. */
-    public function integration(): BelongsTo
+    public function diagram(): BelongsTo
     {
-        return $this->belongsTo(Integration::class);
+        return $this->belongsTo(Diagram::class);
     }
 
     public function appliedBy(): BelongsTo

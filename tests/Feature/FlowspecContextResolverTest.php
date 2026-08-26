@@ -4,7 +4,7 @@ use App\Models\DocumentationGroup;
 use App\Models\DocumentationPage;
 use App\Models\FlowspecAttachment;
 use App\Models\FlowspecChat;
-use App\Models\Integration;
+use App\Models\Diagram;
 use App\Models\Solution;
 use App\Services\Flowspec\FlowspecContextResolver;
 use App\Services\Flowspec\FlowspecPromptBuilder;
@@ -108,21 +108,33 @@ it('attaches documentation from any container, including a standalone group', fu
         'title'         => 'Processo transversal',
         'documentation' => 'conteudo do processo',
     ]);
-    $integration = Integration::factory()->create(['name' => 'IAM -> SVL', 'documentation' => 'doc da integracao']);
 
     attachPage($chat, $page);
+
+    $context = (new FlowspecContextResolver)->resolve($chat, 'bom dia');
+
+    expect($context->pages->pluck('id')->all())->toBe([$page->id]);
+});
+
+it('ignores a stored reference to something that is not a page', function () {
+    // Diagram references were a real, attachable kind until integration
+    // documentation was retired. A row left over from then must not be read as
+    // documentation — it has none — and must not break the turn either.
+    $chat = FlowspecChat::factory()->create();
+    $diagram = Diagram::factory()->create(['name' => 'IAM -> SVL']);
+
     FlowspecAttachment::factory()->for($chat, 'chat')->create([
         'kind'           => App\Enums\FlowspecAttachmentKind::Document,
-        'label'          => $integration->name,
-        'reference_type' => Integration::class,
-        'reference_id'   => $integration->id,
+        'label'          => $diagram->name,
+        'reference_type' => Diagram::class,
+        'reference_id'   => $diagram->id,
         'content'        => null,
     ]);
 
     $context = (new FlowspecContextResolver)->resolve($chat, 'bom dia');
 
-    expect($context->pages->pluck('id')->all())->toBe([$page->id])
-        ->and($context->integrationDocs->pluck('id')->all())->toBe([$integration->id]);
+    expect($context->pages)->toBeEmpty()
+        ->and($context->hasDocumentation())->toBeFalse();
 });
 
 it('drops a reference whose documentation was emptied after it was attached', function () {
@@ -209,14 +221,15 @@ it('suggests documentation for a solution named in the text', function () {
     $svl = Solution::factory()->create(['name' => 'SVL']);
     $iam = Solution::factory()->create(['name' => 'IAM']);
     $page = DocumentationPage::factory()->for($iam, 'container')->create(['title' => 'Autenticação', 'documentation' => 'x']);
-    $integration = Integration::factory()->create(['name' => 'IAM -> SVL', 'documentation' => 'y']);
-    $integration->participants()->attach([$iam->id => ['position' => 0], $svl->id => ['position' => 1]]);
+    // A diagram naming both solutions is deliberately NOT suggested: a drawing
+    // has no text to put in the prompt.
+    $diagram = Diagram::factory()->create(['name' => 'IAM -> SVL']);
+    $diagram->participants()->attach([$iam->id => ['position' => 0], $svl->id => ['position' => 1]]);
 
     $suggestions = (new FlowspecContextResolver)->suggestFor('Preciso saber como o IAM autentica antes de continuar.');
 
     expect($suggestions)->toBe([
         ['type' => 'page', 'id' => $page->id, 'label' => 'IAM — Autenticação'],
-        ['type' => 'integration', 'id' => $integration->id, 'label' => 'IAM -> SVL'],
     ]);
 });
 

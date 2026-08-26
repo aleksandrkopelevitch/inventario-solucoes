@@ -7,22 +7,22 @@
 
 {{--
     Ecosystem map (read-only) — radial hub-and-spoke layout: each solution
-    is a hub (rounded card, same look as each solution's integration canvas
-    — `resources/views/components/solutions/integration-viz.blade.php`)
+    is a hub (rounded card, same look as each solution's diagram canvas
+    — `resources/views/components/solutions/chain/viz.blade.php`)
     with a ring of direct neighbors around it. Neighbors (satellites) are
     the SAME card type (avatar + name, compact variant) — not an avatar
     alone — so the name is always readable. Replaces the old
     `<x-flow-canvas>` (2D canvas + dagre left→right), which drew one curve
     per chain SEGMENT with no dedup, tangling the drawing as more
-    integrations were registered.
+    diagrams were registered.
 
-    Data source: IntegrationGraphService's neutral contract (already
+    Data source: DiagramGraphService's neutral contract (already
     deduped by pair — one edge per pair of solutions, not one per segment —
-    see `IntegrationGraphService::dedupePairs()`), fetched via `sourceUrl`
+    see `DiagramGraphService::dedupePairs()`), fetched via `sourceUrl`
     (today only `solutions.map.data`). The whole drawing is DOM+SVG (not
     2D canvas) — real nodes in `<div>`s, edges in an overlay `<svg>`, both
     inside `[data-eco-world]` with a single pan/zoom `transform`, exactly
-    the same pattern as `integration-viz.js` (without any of that page's
+    the same pattern as `chain-viz.js` (without any of that page's
     authoring tools: no drag, no node/edge editor, no comment sidebar —
     clicking a hub or satellite opens a popover with that solution's
     attributes + a "Ver mais" button to its page, in a new tab).
@@ -114,10 +114,10 @@
         </div>
     </div>
 
-    {{-- Inline (not @push): like integration-viz, the page mounts this
+    {{-- Inline (not @push): like diagram-viz, the page mounts this
          component only once, with no risk of duplicating the style. Reuses
          the same `--viz-*`/`.ak-viz-node*` tokens/classes from
-         integration-viz so hub and satellite render with the same
+         diagram-viz so hub and satellite render with the same
          card — `.ak-eco-*` is just the new vocabulary (satellite's compact
          variant, count badge, attribute popover). --}}
     <style>
@@ -169,7 +169,7 @@
                 opacity: .16;
             }
 
-            /* Hub card — identical to the block in integration-viz. */
+            /* Hub card — identical to the block in diagram-viz. */
             .ak-viz-node {
                 position: absolute;
                 display: flex;
@@ -209,7 +209,7 @@
             /* Hub is draggable (ecosystem-map.js::startHubDrag) — `grab`/
                `grabbing` signals that, unlike the satellite (click-only).
                `--readonly` (no `positionUrl` — a viewer, per
-               IntegrationGraphService::putNode()) drops back to a plain
+               DiagramGraphService::putNode()) drops back to a plain
                click cursor: dragging never persists for that role, so the
                grab affordance would be a lie. */
             .ak-viz-node.ak-eco-hub { cursor: grab; }
@@ -320,7 +320,7 @@
             [data-ecosystem-map]:fullscreen .ak-viz-viewport { border-radius: 0; }
 
             /* Attributes popover — opened by clicking a hub or satellite
-               (ecosystem-map.js::openPopover). Same look as integration-viz's
+               (ecosystem-map.js::openPopover). Same look as diagram-viz's
                floating editors (rounded card + shadow). */
             .ak-eco-popover {
                 position: absolute;

@@ -1,28 +1,13 @@
 <?php
 
 use App\Models\DocumentationPage;
-use App\Models\Integration;
+use App\Models\Diagram;
 use App\Models\Solution;
 use App\Models\User;
 use App\Services\DocumentationCoverageService;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 
 uses(LazilyRefreshDatabase::class);
-
-/** Creates an integration linked to a solution (pivot), without creating extra solutions. */
-function integrationFor(Solution $solution, ?string $documentation, string $name): Integration
-{
-    $integration = Integration::factory()->create([
-        'name'               => $name,
-        'source_solution_id' => $solution->id,
-        'target_solution_id' => $solution->id,
-        'documentation'      => $documentation,
-    ]);
-
-    attachParticipants($integration, [[$solution, 0]]);
-
-    return $integration;
-}
 
 /** Creates a Solution already with a documentation page with the given content (or none, if null). */
 function solutionWithDoc(?string $documentation, array $attributes = []): Solution
@@ -36,19 +21,20 @@ function solutionWithDoc(?string $documentation, array $attributes = []): Soluti
     return $solution;
 }
 
-it('computes coverage counters from real content, for solutions and integrations', function () {
-    $a = solutionWithDoc('# Doc');
+it('computes coverage counters from real content, for solutions and their pages', function () {
+    solutionWithDoc('# Doc');
     $b = solutionWithDoc('# Doc');
     solutionWithDoc(null);
 
-    integrationFor($a, '# Doc', 'Int documentada');
-    integrationFor($b, '', 'Int vazia');       // empty string = pending
-    integrationFor($b, null, 'Int nula');      // null = pending
+    // Two more pages on B, one of them empty — the second counter is about
+    // pages, not solutions, so this is what separates the two numbers.
+    DocumentationPage::factory()->for($b, 'container')->create(['documentation' => '# Outra']);
+    DocumentationPage::factory()->for($b, 'container')->create(['documentation' => '']);
 
     $counters = (new DocumentationCoverageService)->counters();
 
     expect($counters['solutions'])->toBe(['documented' => 2, 'total' => 3, 'percent' => round(2 / 3 * 100)])
-        ->and($counters['integrations'])->toBe(['documented' => 1, 'total' => 3, 'percent' => round(1 / 3 * 100)]);
+        ->and($counters['pages'])->toBe(['documented' => 3, 'total' => 4, 'percent' => round(3 / 4 * 100)]);
 });
 
 it('filters the list by pending status', function () {
@@ -60,29 +46,40 @@ it('filters the list by pending status', function () {
     expect($groups->pluck('solution.name')->all())->toBe(['Pendente']);
 });
 
-it('filters the list by item type', function () {
-    $solution = solutionWithDoc('# Doc', ['name' => 'Solução X']);
-    integrationFor($solution, null, 'Integração Y');
+it('keeps a documented solution visible for the sake of its own empty page', function () {
+    $solution = solutionWithDoc('# Doc', ['name' => 'Meia documentada']);
+    DocumentationPage::factory()->for($solution, 'container')->create(['title' => 'Vazia', 'documentation' => '']);
 
-    $service = new DocumentationCoverageService;
+    $groups = (new DocumentationCoverageService)->groups(['status' => 'pending']);
 
-    // Solutions only: the group appears, with no integration rows.
-    $onlySolutions = $service->groups(['type' => 'solutions']);
-    expect($onlySolutions)->toHaveCount(1)
-        ->and($onlySolutions->first()['solution']['showStatus'])->toBeTrue()
-        ->and($onlySolutions->first()['integrations'])->toBeEmpty();
-
-    // Integrations only: the group appears via the integration; the solution status isn't shown.
-    $onlyIntegrations = $service->groups(['type' => 'integrations']);
-    expect($onlyIntegrations)->toHaveCount(1)
-        ->and($onlyIntegrations->first()['solution']['showStatus'])->toBeFalse()
-        ->and($onlyIntegrations->first()['integrations']->pluck('name')->all())->toBe(['Integração Y']);
+    // The solution itself passes the "documented" bar, so the pending filter
+    // rejects it — but one of its pages doesn't, and that page is the whole
+    // reason someone filtered.
+    expect($groups->pluck('solution.name')->all())->toBe(['Meia documentada'])
+        ->and($groups->first()['pages']->pluck('title')->all())->toBe(['Vazia']);
 });
 
-it('searches by solution name or integration name', function () {
+it('lists a solution\'s pages alphabetically, marking the ones with a diagram', function () {
+    $solution = solutionWithDoc(null, ['name' => 'Solução X']);
+    DocumentationPage::factory()->for($solution, 'container')->create(['title' => 'Zeta', 'documentation' => '# z']);
+    $alfa = DocumentationPage::factory()->for($solution, 'container')->create(['title' => 'Alfa', 'documentation' => '# a']);
+    $alfa->diagram()->associate(Diagram::factory()->create())->save();
+
+    // By name, not `first()`: `Diagram::factory()` creates its own
+    // source/target solutions, so this solution is not alone in the list.
+    $pages = (new DocumentationCoverageService)->groups([])
+        ->firstWhere('solution.name', 'Solução X')['pages'];
+
+    // Alphabetical, deliberately: `position` orders siblings only, so a flat
+    // ordering by it across depths is neither the tree nor anything else.
+    expect($pages->pluck('title')->all())->toBe(['Alfa', 'Zeta'])
+        ->and($pages->pluck('hasDiagram')->all())->toBe([true, false]);
+});
+
+it('searches by solution name or page title', function () {
     Solution::factory()->create(['name' => 'Alpha']);
     $beta = Solution::factory()->create(['name' => 'Beta']);
-    integrationFor($beta, null, 'Gamma');
+    DocumentationPage::factory()->for($beta, 'container')->create(['title' => 'Gamma', 'documentation' => '# g']);
 
     $groups = (new DocumentationCoverageService)->groups(['search' => 'gamma']);
 

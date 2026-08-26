@@ -15,7 +15,7 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  * One piece of gathered material behind a submission.
  *
  * An `Inventory` source carries no file at all — it points at a Solution,
- * Integration or DocumentationPage through `reference`, and the interview
+ * Diagram or DocumentationPage through `reference`, and the interview
  * reads that record live rather than a copy of it that would go stale.
  */
 class SubmissionSource extends Model

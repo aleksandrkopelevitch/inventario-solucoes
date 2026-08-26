@@ -6,7 +6,6 @@ use App\Models\DocumentationPage;
 use App\Models\FlowspecExample;
 use App\Models\FlowspecGuideline;
 use App\Models\FlowspecMessage;
-use App\Models\Integration;
 use App\Support\Context\TokenEstimator;
 use Illuminate\Support\Collection;
 
@@ -234,25 +233,21 @@ class FlowspecPromptBuilder
 
     private function documentationSection(FlowspecContext $context): string
     {
-        if ($context->pages->isEmpty() && $context->integrationDocs->isEmpty()) {
+        if ($context->pages->isEmpty()) {
             return '';
         }
 
-        $pageBlocks = $context->pages->map(function (DocumentationPage $page) {
+        $blocks = $context->pages->map(function (DocumentationPage $page) {
             $solution = $page->container->name;
 
             return "## {$solution} — {$page->title}\n\n{$page->documentation}";
-        });
-
-        $integrationBlocks = $context->integrationDocs->map(function (Integration $integration) {
-            return "## Integração: {$integration->name}\n\n{$integration->documentation}";
         });
 
         // No "omitted by budget" note any more: nothing here was trimmed. The
         // attach endpoints refuse documentation that wouldn't fit the context
         // limit, so everything attached is everything sent — which is what
         // makes the composer's meter trustworthy.
-        return "# DOCUMENTAÇÃO DOS SISTEMAS ENVOLVIDOS\n\n" . $pageBlocks->merge($integrationBlocks)->implode("\n\n");
+        return "# DOCUMENTAÇÃO DOS SISTEMAS ENVOLVIDOS\n\n" . $blocks->implode("\n\n");
     }
 
     /**

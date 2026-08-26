@@ -27,7 +27,7 @@ class SubmissionContextResolver
 {
     public function resolve(Submission $submission): SubmissionContext
     {
-        $submission->loadMissing(['sections', 'sources.media', 'solution.vendor', 'solution.integrations']);
+        $submission->loadMissing(['sections', 'sources.media', 'solution.vendor', 'solution.diagrams']);
 
         [$textSources, $attachments, $attachedMeta, $omitted] = $this->partitionSources($submission);
 

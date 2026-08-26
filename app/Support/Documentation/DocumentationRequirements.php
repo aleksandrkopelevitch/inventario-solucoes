@@ -5,29 +5,31 @@ namespace App\Support\Documentation;
 use App\Contracts\Documentable;
 use App\Models\AttributeOption;
 use App\Models\DocumentationPage;
-use App\Models\Integration;
 use App\Models\Solution;
 use Illuminate\Support\Str;
 
 /**
  * Deterministic, non-AI "minimum requirements" checklist for a documentation
- * target — surfaced as an advisory widget next to the Documentation Assistant
- * chat AND fed into its prompt, so it never needs to ask about something it
- * can already tell. Never blocks Salvar; purely informational.
+ * page — surfaced as an advisory widget next to the Documentation Assistant
+ * chat AND fed into its prompt, so it never needs to ask about something it can
+ * already tell. Never blocks Salvar; purely informational.
  *
- * Two shapes, by target:
- * - `Integration`: mostly structural (fields already on the model) plus a
- *   couple of best-effort content checks (keyword presence in the Markdown —
- *   honest, not a quality judgment).
- * - A `DocumentationPage` whose `container` is a `Solution`: the "hosting
- *   model / category / etc." items are `source: attribute` — already known
- *   from the Solution's record, so they're reported as facts (never as gaps
- *   the user should fill in the chat), plus the same couple of content checks.
+ * Only one shape now: a `DocumentationPage` whose `container` is a `Solution`.
+ * The "hosting model / criticality / directorate" items are `source:
+ * attribute` — already known from the Solution's record, so they're reported as
+ * facts, never as gaps the user should fill in the chat — plus a few
+ * best-effort content checks (keyword presence in the Markdown: honest, not a
+ * quality judgment), plus the drawing when the page points at one.
  *
- * Returns `[]` for anything else (a DocumentationPage under a standalone
- * DocumentationGroup has no Solution to pull attributes from, and the
- * Documentation Assistant isn't wired into that controller at all today) —
- * this is the "quando for o caso" (when applicable) rule.
+ * There used to be a second shape for an `Integration`, checking its
+ * protocol/sync mode/participants and whether its chain had anything drawn on
+ * it. Those are a diagram's properties, and a diagram no longer carries
+ * documentation for a checklist to sit beside — what survives of it is the one
+ * item below that reads the LINKED diagram.
+ *
+ * Returns `[]` for anything else (a page under a standalone
+ * DocumentationGroup has no Solution to pull attributes from) — this is the
+ * "quando for o caso" (when applicable) rule.
  */
 class DocumentationRequirements
 {
@@ -36,31 +38,9 @@ class DocumentationRequirements
     {
         $content = (string) ($content ?? ($target->documentation ?? ''));
 
-        return match (true) {
-            $target instanceof Integration                                                 => self::forIntegration($target, $content),
-            $target instanceof DocumentationPage && $target->container instanceof Solution => self::forSolutionPage($target->container, $content),
-            default                                                                        => [],
-        };
-    }
-
-    /**
-     * `direction`/`criticality` are NOT NULL columns on `integrations` (always
-     * set), so they'd never actually flag a gap — only the genuinely optional
-     * structural fields are worth checking here.
-     *
-     * @return list<array{key: string, label: string, satisfied: bool, source: string, value?: string}>
-     */
-    private static function forIntegration(Integration $integration, string $content): array
-    {
-        $nodes = $integration->chain['nodes'] ?? [];
-
-        return [
-            ['key' => 'protocol', 'label' => 'Protocolo definido', 'satisfied' => $integration->protocol !== null, 'source' => 'structural'],
-            ['key' => 'sync_mode', 'label' => 'Modo de sincronização definido', 'satisfied' => $integration->sync_mode !== null, 'source' => 'structural'],
-            ['key' => 'participants', 'label' => 'Participantes identificados', 'satisfied' => $integration->participants()->count() >= 2, 'source' => 'structural'],
-            ['key' => 'diagram', 'label' => 'Diagrama do fluxo desenhado', 'satisfied' => count($nodes) > 1, 'source' => 'structural'],
-            ...self::contentItems($content),
-        ];
+        return $target instanceof DocumentationPage && $target->container instanceof Solution
+            ? self::forSolutionPage($target, $content)
+            : [];
     }
 
     /**
@@ -71,8 +51,10 @@ class DocumentationRequirements
      *
      * @return list<array{key: string, label: string, satisfied: bool, source: string, value?: string}>
      */
-    private static function forSolutionPage(Solution $solution, string $content): array
+    private static function forSolutionPage(DocumentationPage $page, string $content): array
     {
+        $solution = $page->container;
+
         $attributes = [
             ['key' => 'environment', 'label' => 'Hospedagem', 'group' => 'environment', 'value' => $solution->environment],
             ['key' => 'criticality', 'label' => 'Criticidade', 'group' => 'criticality', 'value' => $solution->criticality],
@@ -87,10 +69,38 @@ class DocumentationRequirements
             'value'     => AttributeOption::labelFor($attr['group'], $attr['value']),
         ], $attributes);
 
-        return [...$items, ...self::contentItems($content)];
+        return [...$items, ...self::diagramItems($page), ...self::contentItems($content)];
     }
 
-    /** Best-effort, keyword-based content checks — shared by both target types. */
+    /**
+     * The linked drawing, and ONLY when there is one.
+     *
+     * Not every page documents a flow, so an always-present "tem diagrama" row
+     * would report a gap on most pages that have none to have. A page that DOES
+     * point at a diagram and finds it still holding only its root block is a
+     * real gap, and the one this reports.
+     *
+     * @return list<array{key: string, label: string, satisfied: bool, source: string}>
+     */
+    private static function diagramItems(DocumentationPage $page): array
+    {
+        if ($page->diagram_id === null) {
+            return [];
+        }
+
+        // `diagram_id` is checked first so this only ever loads the relation for
+        // a page that actually has one.
+        $nodes = $page->diagram?->chain['nodes'] ?? [];
+
+        return [[
+            'key'       => 'diagram',
+            'label'     => 'Diagrama vinculado desenhado',
+            'satisfied' => count($nodes) > 1,
+            'source'    => 'structural',
+        ]];
+    }
+
+    /** Best-effort, keyword-based content checks. */
     private static function contentItems(string $content): array
     {
         return [

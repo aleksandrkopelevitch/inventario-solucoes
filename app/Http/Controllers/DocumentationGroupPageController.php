@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\EditsDocumentation;
+use App\Http\Controllers\Concerns\LinksPageDiagram;
+use App\Http\Requests\LinkPageDiagramRequest;
 use App\Http\Requests\MoveDocumentationPageRequest;
 use App\Http\Requests\MoveDocumentationPageToContainerRequest;
 use App\Http\Requests\SaveDocumentationPageTitleRequest;
@@ -24,7 +26,7 @@ use Illuminate\Http\JsonResponse;
  */
 class DocumentationGroupPageController extends Controller
 {
-    use EditsDocumentation;
+    use EditsDocumentation, LinksPageDiagram;
 
     public function __construct(private readonly DocumentationPageService $pages) {}
 
@@ -56,6 +58,11 @@ class DocumentationGroupPageController extends Controller
         )->with([
             'pagesNav'      => $this->navPages($group, $page),
             'createPageUrl' => route('documentation.groups.pages.store', $group),
+            // The page's drawing, if it has one, plus the picker that links or
+            // unlinks it — see LinksPageDiagram.
+            'diagram'        => $page->diagram,
+            'diagramOptions' => $this->diagramOptions(),
+            'diagramAction'  => route('documentation.groups.pages.diagram', [$group, $page]),
             'breadcrumbs'   => [
                 ['label' => 'Documentação', 'url' => route('documentation.index')],
                 ['label' => $group->name, 'url' => route('documentation.groups.show', $group)],
@@ -107,7 +114,6 @@ class DocumentationGroupPageController extends Controller
             },
             'updatableSlots' => [PagesNav::slot(
                 $this->navPages($group, $page->fresh()),
-                [],
                 route('documentation.groups.pages.store', $group),
                 $group->name,
                 route('documentation.groups.show', $group),
@@ -142,6 +148,14 @@ class DocumentationGroupPageController extends Controller
         return $this->storeDocumentationMedia($request, $page);
     }
 
+    /** Points this page at a diagram, or clears the link. */
+    public function diagram(LinkPageDiagramRequest $request, DocumentationGroup $group, DocumentationPage $page): JsonResponse
+    {
+        $page->setRelation('container', $group);
+
+        return $this->linkPageDiagram($page, $request->validated()['diagram_id']);
+    }
+
     /**
      * Rows in reading order, each carrying its `depth` and its available
      * nesting arrows — mirror of NavigatesSolutionDocs::solutionPagesNav(),
@@ -169,6 +183,9 @@ class DocumentationGroupPageController extends Controller
             'destinations' => $destinations,
             'active'       => $active->is($row['page']),
             'hasContent'   => trim((string) $row['page']->documentation) !== '',
+            // The FK, never the relation — `tree()` is a multi-row hydration,
+            // where strict mode turns a lazy load into a 500.
+            'hasDiagram' => $row['page']->diagram_id !== null,
         ])->all();
     }
 }

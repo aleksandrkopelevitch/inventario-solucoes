@@ -265,7 +265,7 @@ it('reports the estimated context and any trim in the message meta', function ()
     $context = app(FlowspecContextResolver::class)->resolve($chat, 'gera');
 
     expect($context->toMeta())
-        ->toHaveKeys(['pages', 'integration_docs', 'text_docs', 'reference_flowspecs', 'attached_files', 'omitted_attachments']);
+        ->toHaveKeys(['pages', 'text_docs', 'reference_flowspecs', 'attached_files', 'omitted_attachments']);
 });
 
 /*

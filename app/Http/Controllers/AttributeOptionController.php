@@ -6,7 +6,7 @@ use App\Enums\AttributeGroup;
 use App\Http\Requests\StoreAttributeOptionRequest;
 use App\Http\Requests\UpdateAttributeOptionRequest;
 use App\Models\AttributeOption;
-use App\Models\Integration;
+use App\Models\Diagram;
 use App\Models\Solution;
 use App\View\Components\AttributeOptions\GroupList;
 use Illuminate\Http\JsonResponse;
@@ -75,7 +75,7 @@ class AttributeOptionController extends Controller
         $this->authorize('manage', AttributeOption::class);
 
         $inUse = Solution::where($option->group, $option->value)->exists()
-            || ($option->group === 'criticality' && Integration::where('criticality', $option->value)->exists());
+            || ($option->group === 'criticality' && Diagram::where('criticality', $option->value)->exists());
 
         if ($inUse) {
             return response()->json([

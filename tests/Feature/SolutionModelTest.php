@@ -1,7 +1,7 @@
 <?php
 
 use App\Models\DocumentationPage;
-use App\Models\Integration;
+use App\Models\Diagram;
 use App\Models\Solution;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 
@@ -23,15 +23,15 @@ it('filters undocumented solutions by real content', function () {
         ->and($ids)->toContain($noPages->id);
 });
 
-it('counts active in/out integrations via scopeWithIntegrationCounts', function () {
+it('counts active in/out diagrams via scopeWithDiagramCounts', function () {
     $hub = Solution::factory()->create();
     $other = Solution::factory()->create();
 
-    Integration::factory()->active()->create(['source_solution_id' => $hub->id, 'target_solution_id' => $other->id]);
-    Integration::factory()->active()->create(['source_solution_id' => $other->id, 'target_solution_id' => $hub->id]);
-    Integration::factory()->create(['source_solution_id' => $hub->id, 'target_solution_id' => $other->id]); // planned, doesn't count
+    Diagram::factory()->active()->create(['source_solution_id' => $hub->id, 'target_solution_id' => $other->id]);
+    Diagram::factory()->active()->create(['source_solution_id' => $other->id, 'target_solution_id' => $hub->id]);
+    Diagram::factory()->create(['source_solution_id' => $hub->id, 'target_solution_id' => $other->id]); // planned, doesn't count
 
-    $loaded = Solution::withIntegrationCounts()->find($hub->id);
+    $loaded = Solution::withDiagramCounts()->find($hub->id);
 
     expect((int) $loaded->active_out)->toBe(1)
         ->and((int) $loaded->active_in)->toBe(1);

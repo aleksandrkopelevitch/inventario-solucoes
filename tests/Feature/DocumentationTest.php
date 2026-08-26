@@ -2,7 +2,7 @@
 
 use App\Enums\UserRole;
 use App\Models\DocumentationPage;
-use App\Models\Integration;
+use App\Models\Diagram;
 use App\Models\Solution;
 use App\Models\User;
 use App\Support\GitbookRenderer;
@@ -221,44 +221,9 @@ it('404s a page that does not belong to the solution in the url', function () {
 
 /*
 |--------------------------------------------------------------------------
-| Consolidation — pages + integrations in the same sidebar (one screen per solution)
+| The page↔diagram link (what replaced integration documentation)
 |--------------------------------------------------------------------------
 */
-
-it('lists the solution integrations alongside its pages when viewing a page', function () {
-    $solution = Solution::factory()->create();
-    $page = solutionPage($solution, '# Visão geral');
-    $integration = Integration::factory()->create([
-        'name'  => 'SAP -> AllStrategy',
-        'chain' => ['nodes' => [['solution_id' => $solution->id, 'label' => null]], 'edges' => []],
-    ]);
-    attachParticipants($integration, [[$solution, 0]]);
-
-    $response = $this->actingAs(docsAdmin())
-        ->get(route('solutions.docs.page.edit', [$solution, $page]))
-        ->assertOk();
-
-    expect($response->getContent())
-        ->toContain('SAP -&gt; AllStrategy')
-        ->toContain(route('solutions.integrations.docs.edit', [$solution, $integration]));
-});
-
-it('lists the solution pages alongside its integrations when viewing an integration doc', function () {
-    $solution = Solution::factory()->create();
-    $page = solutionPage($solution, '# Visão geral');
-    $integration = Integration::factory()->create([
-        'chain' => ['nodes' => [['solution_id' => $solution->id, 'label' => null]], 'edges' => []],
-    ]);
-    attachParticipants($integration, [[$solution, 0]]);
-
-    $response = $this->actingAs(docsAdmin())
-        ->get(route('solutions.integrations.docs.edit', [$solution, $integration]))
-        ->assertOk();
-
-    expect($response->getContent())
-        ->toContain($page->title)
-        ->toContain(route('solutions.docs.page.edit', [$solution, $page]));
-});
 
 it('links a solution doc page back to the solution and lists it in the pages rail', function () {
     $solution = Solution::factory()->create(['name' => 'AllStrategy']);
@@ -332,116 +297,158 @@ it('gives the pages rail a working mobile affordance instead of hiding it outrig
         ->and(substr_count($content, 'data-ak-toggle-classes="md:!w-0 md:!border-r-0 max-md:!translate-x-0"'))->toBe(2);
 });
 
-it('links an integration doc back to the solution and lists it under Integrações', function () {
-    $solution = Solution::factory()->create(['name' => 'AllStrategy']);
-    $integration = Integration::factory()->create([
-        'name'  => 'SAP -> AllStrategy',
-        'chain' => ['nodes' => [['solution_id' => $solution->id, 'label' => null]], 'edges' => []],
-    ]);
-    attachParticipants($integration, [[$solution, 0]]);
+it('offers the diagram picker on a page that has no diagram, and no canvas with it', function () {
+    $solution = Solution::factory()->create();
+    $page = solutionPage($solution, '# Visão geral');
+    Diagram::factory()->create(['name' => 'SAP -> AllStrategy']);
 
-    $response = $this->actingAs(docsAdmin())
-        ->get(route('solutions.integrations.docs.edit', [$solution, $integration]))
-        ->assertOk();
+    $content = $this->actingAs(docsAdmin())
+        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->assertOk()
+        ->getContent();
 
-    expect($response->getContent())
-        ->toContain('href="' . route('solutions.show', $solution) . '"')
-        ->toMatch('/>\s*SAP -&gt; AllStrategy\s*<\/a>/');
+    expect($content)
+        // The picker is always there — "this page has no diagram" is
+        // information, and the gesture that fixes it has to be reachable.
+        // `x-ui.inline-edit` json_encodes its config, which escapes every
+        // slash in the URL — assert the shape that actually reaches the page.
+        ->toContain(str_replace('/', '\\/', route('solutions.docs.pages.diagram', [$solution, $page])))
+        ->toContain('Sem diagrama')
+        // Every diagram is a candidate, whether or not this solution is in it.
+        ->toContain('SAP -&gt; AllStrategy')
+        // …but nothing is mounted until one is linked.
+        ->not->toContain('data-ak-chain-viz')
+        ->not->toContain('page-tab-panels');
 });
 
-/*
-|--------------------------------------------------------------------------
-| Unified page — Documentação/Diagrama tabs (the F3 canvas moved here)
-|--------------------------------------------------------------------------
-*/
-
-it('renders the Documentação/Diagrama tabs and mounts the chain canvas on the integration doc page', function () {
+it('renders the Documentação/Diagrama tabs and mounts the canvas once a page has a diagram', function () {
     $solution = Solution::factory()->create();
-    $integration = Integration::factory()->create([
+    $page = solutionPage($solution, '# Visão geral');
+    $diagram = Diagram::factory()->create([
         'name'  => 'SAP -> AllStrategy',
         'chain' => ['nodes' => [['solution_id' => $solution->id, 'label' => null]], 'edges' => []],
     ]);
-    attachParticipants($integration, [[$solution, 0]]);
+    $page->diagram()->associate($diagram)->save();
 
-    $response = $this->actingAs(docsAdmin())
-        ->get(route('solutions.integrations.docs.edit', [$solution, $integration]))
-        ->assertOk();
+    $content = $this->actingAs(docsAdmin())
+        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->assertOk()
+        ->getContent();
 
-    expect($response->getContent())
-        ->toContain('integration-tab-docs')
-        ->toContain('integration-tab-diagram')
-        ->toContain('data-integration-viz')
-        ->toContain('data-integration-graph=')
-        // The doc-specific actions live inside the Documentação panel now,
+    expect($content)
+        ->toContain('page-tab-docs')
+        ->toContain('page-tab-diagram')
+        ->toContain('data-ak-chain-viz')
+        ->toContain('data-ak-chain-graph=')
+        // The canvas posts to the DIAGRAM's own endpoints wherever it is
+        // mounted — the page it was opened from never appears in a chain URL.
+        // The graph payload is json_encoded into an attribute, so its slashes
+        // arrive escaped.
+        ->toContain(str_replace('/', '\\/', route('diagrams.chain.node.add', $diagram)))
+        // The doc-specific actions live inside the Documentação panel,
         // not the persistent top bar (only one Salvar visible per tab).
         ->toContain('data-ak-docs-save');
 });
 
-it('does not embed the chain canvas on a plain Solution documentation page', function () {
+it('marks a page that carries a diagram in the pages rail', function () {
     $solution = Solution::factory()->create();
-    $page = solutionPage($solution, '# Visão geral');
+    $plain = solutionPage($solution, '# Sem desenho');
+    $withDiagram = solutionPage($solution, '# Com desenho');
+    $withDiagram->diagram()->associate(Diagram::factory()->create())->save();
 
-    $response = $this->actingAs(docsAdmin())
-        ->get(route('solutions.docs.page.edit', [$solution, $page]))
-        ->assertOk();
+    $content = $this->actingAs(docsAdmin())
+        ->get(route('solutions.docs.page.edit', [$solution, $plain]))
+        ->assertOk()
+        ->getContent();
 
-    expect($response->getContent())
-        ->not->toContain('data-integration-viz')
-        ->not->toContain('integration-tab-panels');
+    // One marker for the one page that has a drawing — the rail is the only
+    // place the whole tree is visible at once.
+    expect(substr_count($content, 'title="Tem diagrama vinculado"'))->toBe(1);
 });
 
-it('lists the solution integrations as plain links, without the F3 canvas, on the solution page', function () {
+it('lets an admin point a page at a diagram and clear it again', function () {
     $solution = Solution::factory()->create();
-    $integration = Integration::factory()->create([
+    $page = solutionPage($solution, '# Visão geral');
+    $diagram = Diagram::factory()->create();
+
+    $this->actingAs(docsAdmin())
+        ->patchJson(route('solutions.docs.pages.diagram', [$solution, $page]), ['diagram_id' => $diagram->id])
+        ->assertOk()
+        ->assertJson(['type' => 'success', 'redirect' => route('solutions.docs.page.edit', [$solution, $page])]);
+
+    expect($page->fresh()->diagram_id)->toBe($diagram->id);
+
+    $this->actingAs(docsAdmin())
+        ->patchJson(route('solutions.docs.pages.diagram', [$solution, $page]), ['diagram_id' => null])
+        ->assertOk();
+
+    expect($page->fresh()->diagram_id)->toBeNull();
+});
+
+it('forbids a viewer from pointing a page at a diagram', function () {
+    $solution = Solution::factory()->create();
+    $page = solutionPage($solution, '# Visão geral');
+    $diagram = Diagram::factory()->create();
+
+    $this->actingAs(User::factory()->create(['role' => UserRole::Viewer->value]))
+        ->patchJson(route('solutions.docs.pages.diagram', [$solution, $page]), ['diagram_id' => $diagram->id])
+        ->assertStatus(403);
+
+    expect($page->fresh()->diagram_id)->toBeNull();
+});
+
+it('lets one diagram serve pages of more than one solution', function () {
+    $diagram = Diagram::factory()->create(['name' => 'SAP -> AllStrategy']);
+    $first = Solution::factory()->create(['name' => 'SAP']);
+    $second = Solution::factory()->create(['name' => 'AllStrategy']);
+    $firstPage = solutionPage($first, '# Lado SAP');
+    $secondPage = solutionPage($second, '# Lado AllStrategy');
+
+    $firstPage->diagram()->associate($diagram)->save();
+    $secondPage->diagram()->associate($diagram)->save();
+
+    expect($diagram->pages()->pluck('id')->all())->toBe([$firstPage->id, $secondPage->id]);
+
+    // …and the diagram's own page names both of them, which is the only place
+    // the 1..N side of the relation is visible.
+    $content = $this->actingAs(docsAdmin())->get(route('diagrams.show', $diagram))->assertOk()->getContent();
+
+    expect($content)
+        ->toContain(route('solutions.docs.page.edit', [$first, $firstPage]))
+        ->toContain(route('solutions.docs.page.edit', [$second, $secondPage]));
+});
+
+it('keeps a page and its text when the diagram it points at is deleted', function () {
+    $solution = Solution::factory()->create();
+    $page = solutionPage($solution, '# Conteúdo que deu trabalho');
+    $diagram = Diagram::factory()->create();
+    $page->diagram()->associate($diagram)->save();
+
+    $diagram->delete();
+
+    // `nullOnDelete`: deleting a drawing must never take documentation with it.
+    expect($page->fresh())->not->toBeNull()
+        ->and($page->fresh()->diagram_id)->toBeNull()
+        ->and($page->fresh()->documentation)->toBe('# Conteúdo que deu trabalho');
+});
+
+it('lists the solution diagrams as plain links, without the F3 canvas, on the solution page', function () {
+    $solution = Solution::factory()->create();
+    $diagram = Diagram::factory()->create([
         'name'  => 'SAP -> AllStrategy',
         'chain' => ['nodes' => [['solution_id' => $solution->id, 'label' => null]], 'edges' => []],
     ]);
-    attachParticipants($integration, [[$solution, 0]]);
+    attachParticipants($diagram, [[$solution, 0]]);
 
     $response = $this->actingAs(docsAdmin())
         ->get(route('solutions.show', $solution))
         ->assertOk();
 
     expect($response->getContent())
-        ->not->toContain('data-integration-viz')
-        ->toContain('href="' . route('solutions.integrations.docs.edit', [$solution, $integration]) . '"')
+        ->not->toContain('data-ak-chain-viz')
+        ->toContain('href="' . route('diagrams.show', $diagram) . '"')
         ->toContain('SAP -&gt; AllStrategy');
 });
-
-/*
-|--------------------------------------------------------------------------
-| Integration — scopeBindings + save (single-page, unchanged)
-|--------------------------------------------------------------------------
-*/
-
-it('lets an admin save integration documentation', function () {
-    $solution = Solution::factory()->create();
-    $integration = Integration::factory()->create([
-        'chain' => ['nodes' => [['solution_id' => $solution->id, 'label' => null]], 'edges' => []],
-    ]);
-    attachParticipants($integration, [[$solution, 0]]);
-
-    $this->actingAs(docsAdmin())
-        ->patchJson(route('solutions.integrations.docs.update', [$solution, $integration]), ['documentation' => 'Doc da integração'])
-        ->assertOk()
-        ->assertJson(['type' => 'success']);
-
-    expect($integration->fresh()->documentation)->toBe('Doc da integração');
-});
-
-it('404s the integration docs page when the integration does not belong to the solution', function () {
-    $solution = Solution::factory()->create();
-    $other = Solution::factory()->create();
-    $integration = Integration::factory()->create([
-        'chain' => ['nodes' => [['solution_id' => $other->id, 'label' => null]], 'edges' => []],
-    ]);
-    attachParticipants($integration, [[$other, 0]]);
-
-    $this->actingAs(docsAdmin())
-        ->get(route('solutions.integrations.docs.edit', [$solution, $integration]))
-        ->assertNotFound();
-});
-
 /*
 |--------------------------------------------------------------------------
 | Media — upload + serving (per page, now)

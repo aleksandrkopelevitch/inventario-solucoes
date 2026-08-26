@@ -12,20 +12,23 @@ namespace App\Enums;
  * existed have no `kind` key at all: `fromNode()` reads them as `System`.
  * `Decision`, `Actor`, `Start` and `End` are free text only (a person/area, a
  * branch in the flow, or a flow's start/end marker is never a catalog
- * Solution), so they never become participants in `SyncIntegrationFromChain`
+ * Solution), so they never become participants in `SyncDiagramFromChain`
  * — they still count toward their neighbors' in/out degree, exactly like a
  * free-text system node. `Start`/`End` are drawn as a small solid-color
  * circle (green/red) with the kind's icon inside and the label below —
- * see `integration-viz.js::paintNode()` — the flowchart convention for a
- * process' entry/exit points; nothing stops a chain from having zero, one, or
- * several of each.
+ * the flowchart convention for a process' entry/exit points; nothing stops a
+ * chain from having zero, one, or several of each. `Actor` wears the same
+ * silhouette (a white circle, since 2026-08-26): a person or an area is not a
+ * step in the flow, it is who the flow happens to, and the shape says so
+ * without a legend. See `chain-viz.js::paintNode()` — those three are the only
+ * kinds whose label lives OUTSIDE the shape.
  *
  * `Image` is a pasted picture (`chain.nodes[i].media_id`, into
- * `Integration`'s `docs` media collection) — also never a participant, and
+ * `Diagram`'s `docs` media collection) — also never a participant, and
  * NOT `pickable()`: it never appears in the kind picker cards
- * (`integration-viz.js::buildKindPicker()`), the only way to create one is
+ * (`chain-viz.js::buildKindPicker()`), the only way to create one is
  * pasting an image directly on the canvas (Ctrl+V), which posts straight to
- * its own endpoint (`SolutionIntegrationController::addImageNode()`) rather
+ * its own endpoint (`DiagramController::addImageNode()`) rather
  * than going through `ValidatesChainNode`. Excluding it from `pickable()` — and
  * from the `Rule::in` the trait validates `kind` against — is what guarantees
  * an image node is never created/converted without a `media_id` alongside it.
@@ -74,7 +77,7 @@ enum ChainNodeKind: string
      * Heroicon (outline) drawn inside the block, for the kinds that don't have
      * a solution logo/initial to show as avatar. Rendered server-side
      * (`Heroicons::outlineSvg()`) into the graph payload, since
-     * `integration-viz.js` builds the nodes in plain DOM.
+     * `chain-viz.js` builds the nodes in plain DOM.
      */
     public function icon(): ?string
     {
@@ -93,7 +96,7 @@ enum ChainNodeKind: string
 
     /**
      * Heroicon (outline) for the visual kind picker (icon + label cards,
-     * `integration-viz.js::buildKindPicker()`) — always non-null, unlike
+     * `chain-viz.js::buildKindPicker()`) — always non-null, unlike
      * `icon()` above. `System` has no fixed on-canvas icon (a system block
      * shows the Solution's logo, or nothing for free text), but the picker
      * still needs SOME glyph to represent the "Sistema" card, hence a

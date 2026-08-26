@@ -5,12 +5,12 @@ namespace App\Actions\Cati;
 use App\Enums\ChainNodeKind;
 use App\Enums\Direction;
 use App\Models\ApprovedTopology;
-use App\Models\Integration;
+use App\Models\Diagram;
 use App\Models\User;
 use Illuminate\Support\Str;
 
 /**
- * Writes an approved TO BE onto a real Integration — the moment the catalog
+ * Writes an approved TO BE onto a real Diagram — the moment the catalog
  * catches up with a committee decision.
  *
  * This is where the Fase 3 `ChainCanvas` contract pays for itself: the write
@@ -21,38 +21,38 @@ use Illuminate\Support\Str;
  * place in the app where topology changed without those following.
  *
  * A HUMAN chooses the target, always. A submission's TO BE is a free graph
- * that may describe several integrations or one that does not exist yet, and an
+ * that may describe several diagrams or one that does not exist yet, and an
  * approval that guessed would overwrite real topology with a guess — see
  * `ApprovedTopology`.
  */
 class ApplyApprovedTopology
 {
     /**
-     * @param  Integration|null  $target  null creates a new integration for the drawing
+     * @param  Diagram|null  $target  null creates a new diagram for the drawing
      */
-    public function handle(ApprovedTopology $topology, User $user, ?Integration $target = null): Integration
+    public function handle(ApprovedTopology $topology, User $user, ?Diagram $target = null): Diagram
     {
         $topology->loadMissing('solution');
 
-        $integration = $target ?? $this->newIntegration($topology);
+        $diagram = $target ?? $this->newDiagram($topology);
 
         // Through the contract, never by assignment: `afterChainMutation()` is
         // what re-derives participants/source/target/direction and the protocol
         // summary from the chain.
-        $integration->writeChain(chain: $topology->chain, layout: $topology->viz_layout);
-        $integration->afterChainMutation();
+        $diagram->writeChain(chain: $topology->chain, layout: $topology->viz_layout);
+        $diagram->afterChainMutation();
 
-        // A new integration is born with no participants at all, so the
+        // A new diagram is born with no participants at all, so the
         // solution the submission was about is attached by the sync above only
         // if the chain references it. Nothing else to do here — the chain is
         // the source of truth and it has just been written.
         $topology->update([
-            'integration_id' => $integration->id,
+            'diagram_id' => $diagram->id,
             'applied_at'     => now(),
             'applied_by_id'  => $user->id,
         ]);
 
-        return $integration->fresh();
+        return $diagram->fresh();
     }
 
     /** Marks the catalog as already correct, without touching any topology. */
@@ -66,7 +66,7 @@ class ApplyApprovedTopology
     }
 
     /**
-     * A brand-new Integration for a TO BE that describes something the catalog
+     * A brand-new Diagram for a TO BE that describes something the catalog
      * does not have yet — the common case for a proposal.
      *
      * Born with an empty chain and `planned` status; the caller writes the real
@@ -74,13 +74,13 @@ class ApplyApprovedTopology
      * name comes from the submission so the row is recognisable in the
      * solution's list before anyone opens it.
      */
-    private function newIntegration(ApprovedTopology $topology): Integration
+    private function newDiagram(ApprovedTopology $topology): Diagram
     {
         $topology->loadMissing('submission');
 
         $name = trim((string) $topology->submission?->name) ?: $topology->solution->name;
 
-        return Integration::create([
+        return Diagram::create([
             'name'   => $name,
             'slug'   => $this->uniqueSlug($name),
             'status' => 'planned',
@@ -94,11 +94,11 @@ class ApplyApprovedTopology
 
     private function uniqueSlug(string $name): string
     {
-        $base = Str::slug($name) ?: 'integracao';
+        $base = Str::slug($name) ?: 'diagrama';
         $slug = $base;
         $suffix = 1;
 
-        while (Integration::where('slug', $slug)->exists()) {
+        while (Diagram::where('slug', $slug)->exists()) {
             $slug = $base . '-' . (++$suffix);
         }
 

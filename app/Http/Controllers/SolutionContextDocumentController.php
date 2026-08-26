@@ -12,7 +12,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 /**
  * Context documents for a Solution (the `context_documents` collection),
  * reused by the documentation's "AI Assist". They are per-Solution and
- * shared across its pages and the docs of its integrations. Serving lives
+ * shared across its pages and the docs of its diagrams. Serving lives
  * here and not in MediaController, which only releases the `docs` collection.
  */
 class SolutionContextDocumentController extends Controller

@@ -5,13 +5,13 @@ namespace App\Http\Controllers;
 use App\Http\Requests\UpdateSolutionMapPositionRequest;
 use App\Models\AttributeOption;
 use App\Models\Solution;
-use App\Services\IntegrationGraphService;
+use App\Services\DiagramGraphService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class SolutionMapController extends Controller
 {
-    public function __construct(private readonly IntegrationGraphService $graph) {}
+    public function __construct(private readonly DiagramGraphService $graph) {}
 
     /**
      * Global ecosystem map page — renders the graph container that

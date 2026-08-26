@@ -15,10 +15,10 @@ use Illuminate\View\Component;
 /**
  * Mounts the F3 canvas for one of a submission's drawings.
  *
- * Deliberately the same shape as `Solutions\IntegrationWorkspace`, down to the
- * single hidden row `integration-select.js` auto-selects on load: the canvas
+ * Deliberately the same shape as `Diagrams\Workspace`, down to the
+ * single hidden row `chain-select.js` auto-selects on load: the canvas
  * has one mount contract, and a submission's AS IS / TO BE is that contract
- * pointed at a different `ChainCanvas`. Nothing in `integration-viz.js` knows
+ * pointed at a different `ChainCanvas`. Nothing in `chain-viz.js` knows
  * this component exists — the endpoints it calls all arrive inside the graph
  * payload below.
  */
@@ -37,7 +37,7 @@ class DiagramWorkspace extends Component
 
             // The three payloads the canvas's editors read (kind picker,
             // Solution autocomplete, protocol suggestions). Same lists the
-            // integration workspace renders — a proposal draws with the same
+            // diagram workspace renders — a proposal draws with the same
             // vocabulary the catalog does, which is the point of reusing the
             // canvas rather than building a second one.
             'solutionsList' => Solution::orderBy('name')->get(['id', 'name']),

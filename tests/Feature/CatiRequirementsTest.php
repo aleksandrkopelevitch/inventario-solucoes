@@ -4,7 +4,7 @@ use App\Enums\SubmissionSectionKey;
 use App\Enums\SubmissionSectionState;
 use App\Enums\SubmissionStatus;
 use App\Models\Company;
-use App\Models\Integration;
+use App\Models\Diagram;
 use App\Models\Solution;
 use App\Models\Submission;
 use App\Models\SubmissionSource;
@@ -79,16 +79,16 @@ it('has no facts at all when the submission is not tied to a solution', function
         ->and(collect($requirements['structural'])->firstWhere('key', 'solution')['satisfied'])->toBeFalse();
 });
 
-it('lists a solution\'s existing integrations as a fact for the legacy impact', function () {
+it('lists a solution\'s existing diagrams as a fact for the legacy impact', function () {
     $solution = Solution::factory()->create();
     $other = Solution::factory()->create();
-    $integration = Integration::factory()->create(['name' => 'SAP x SkyMob']);
-    attachParticipants($integration, [[$solution, 0], [$other, 1]]);
+    $diagram = Diagram::factory()->create(['name' => 'SAP x SkyMob']);
+    attachParticipants($diagram, [[$solution, 0], [$other, 1]]);
 
     $submission = Submission::factory()->withSections()->create(['solution_id' => $solution->id]);
 
-    expect(fact(SubmissionRequirements::for($submission), 'integrations')['value'])->toContain('SAP x SkyMob')
-        ->and(fact(SubmissionRequirements::for($submission), 'integrations')['sections'])->toContain('legacy_impact');
+    expect(fact(SubmissionRequirements::for($submission), 'diagrams')['value'])->toContain('SAP x SkyMob')
+        ->and(fact(SubmissionRequirements::for($submission), 'diagrams')['sections'])->toContain('legacy_impact');
 });
 
 it('tells the truth about a section emptied after being confirmed', function () {
@@ -129,10 +129,10 @@ it('spots a contracted solution with no vendor on record', function () {
         ->and(deviation(DeviationRules::for($withVendor), 'vendor_missing'))->toBeNull();
 });
 
-it('names the integrations at stake when the legacy impact is blank', function () {
+it('names the diagrams at stake when the legacy impact is blank', function () {
     $solution = Solution::factory()->create();
-    $integration = Integration::factory()->create(['name' => 'SAP x SkyMob']);
-    attachParticipants($integration, [[$solution, 0], [Solution::factory()->create(), 1]]);
+    $diagram = Diagram::factory()->create(['name' => 'SAP x SkyMob']);
+    attachParticipants($diagram, [[$solution, 0], [Solution::factory()->create(), 1]]);
 
     $submission = Submission::factory()->withSections()->create(['solution_id' => $solution->id]);
 
@@ -190,10 +190,10 @@ it('asks how to roll back a critical solution', function () {
         ->and(deviation($low, 'contingency'))->toBeNull();
 });
 
-it('asks which platform mediates the integrations, since no column records it', function () {
+it('asks which platform mediates the diagrams, since no column records it', function () {
     $solution = Solution::factory()->create();
-    $integration = Integration::factory()->create();
-    attachParticipants($integration, [[$solution, 0], [Solution::factory()->create(), 1]]);
+    $diagram = Diagram::factory()->create();
+    attachParticipants($diagram, [[$solution, 0], [Solution::factory()->create(), 1]]);
 
     $submission = Submission::factory()->withSections()->create(['solution_id' => $solution->id]);
     $submission->section(SubmissionSectionKey::Architecture)->update(['content' => 'Uma VM na nuvem conversa com a central.']);

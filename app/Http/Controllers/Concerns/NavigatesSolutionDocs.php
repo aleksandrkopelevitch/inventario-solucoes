@@ -3,19 +3,17 @@
 namespace App\Http\Controllers\Concerns;
 
 use App\Models\DocumentationPage;
-use App\Models\Integration;
 use App\Models\Solution;
 use App\Services\DocumentationPageService;
 
 /**
- * Consolidates, into a single navigation tree, a Solution's pages
- * (`DocumentationPage`, manageable: create/rename/move/nest/delete) and the
- * documentation of each Integration it participates in (single-page,
- * link-only — not manageable from here). Used both by
- * `SolutionDocumentationController` (navigating the Solution's own pages)
- * and `IntegrationDocumentationController` (navigating an integration's
- * docs), so both show the exact same sidebar — "one page per solution", as
- * requested.
+ * The pages rail for a Solution's documentation.
+ *
+ * It used to consolidate two different things into one tree — the solution's
+ * own pages plus each participating integration's single-page documentation —
+ * because there were two kinds of documentation and one screen had to show
+ * both. There is one kind now, so this builds one list; what a page has BESIDES
+ * text (a linked `Diagram`) travels as a flag on its row.
  */
 trait NavigatesSolutionDocs
 {
@@ -51,17 +49,11 @@ trait NavigatesSolutionDocs
             'destinations' => $destinations,
             'active'       => $active?->is($row['page']) ?? false,
             'hasContent'   => trim((string) $row['page']->documentation) !== '',
-        ])->all();
-    }
-
-    /** @return array<int, array<string, mixed>> */
-    private function solutionIntegrationsNav(Solution $solution, ?Integration $active): array
-    {
-        return $solution->integrations()->get()->map(fn (Integration $integration) => [
-            'title'      => $integration->name,
-            'editUrl'    => route('solutions.integrations.docs.edit', [$solution, $integration]),
-            'active'     => $active?->is($integration) ?? false,
-            'hasContent' => trim((string) $integration->documentation) !== '',
+            // The FK itself, never the loaded relation: `tree()` hydrates every
+            // page of the container in one multi-row query, which is exactly
+            // where strict mode arms — reading `$page->diagram` here would be a
+            // LazyLoadingViolationException on any container with two pages.
+            'hasDiagram' => $row['page']->diagram_id !== null,
         ])->all();
     }
 }

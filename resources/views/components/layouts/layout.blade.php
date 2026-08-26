@@ -19,13 +19,14 @@
     $sections = [
         'Catálogo' => [
             ['route' => 'profile.show', 'label' => 'Visão geral', 'icon' => 'home', 'active' => 'profile.show'],
-            ['route' => 'solutions.index', 'label' => 'Soluções', 'icon' => 'squares-2x2', 'active' => ['solutions.index', 'solutions.show', 'solutions.integrations.*']],
+            ['route' => 'solutions.index', 'label' => 'Soluções', 'icon' => 'squares-2x2', 'active' => ['solutions.index', 'solutions.show']],
             ['route' => 'people.index', 'label' => 'Pessoas', 'icon' => 'users', 'active' => 'people.*'],
             ['route' => 'companies.index', 'label' => 'Empresas', 'icon' => 'building-office-2', 'active' => 'companies.*'],
         ],
         'Governança' => [
             ['route' => 'documentation.index', 'label' => 'Documentação', 'icon' => 'book-open', 'active' => 'documentation.*'],
-            ['route' => 'solutions.map', 'label' => 'Mapa do ecossistema', 'icon' => 'share', 'active' => 'solutions.map'],
+            ['route' => 'diagrams.index', 'label' => 'Diagramas', 'icon' => 'share', 'active' => 'diagrams.*'],
+            ['route' => 'solutions.map', 'label' => 'Mapa do ecossistema', 'icon' => 'globe-alt', 'active' => 'solutions.map'],
             ['route' => 'flowspec.index', 'label' => 'Especialista em Integrações', 'icon' => 'cpu-chip', 'active' => 'flowspec.*'],
             ['route' => 'submissions.index', 'label' => 'Comitê de Arquitetura', 'icon' => 'clipboard-document-check', 'active' => 'submissions.*'],
         ],

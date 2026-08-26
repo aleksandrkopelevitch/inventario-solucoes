@@ -3,7 +3,7 @@
 use App\Models\DocumentationPage;
 use App\Models\FlowspecAttachment;
 use App\Models\FlowspecChat;
-use App\Models\Integration;
+use App\Models\Diagram;
 use App\Services\Flowspec\FlowspecContext;
 use Tests\TestCase;
 
@@ -27,27 +27,27 @@ pest()->extend(TestCase::class)->in('Feature');
 */
 
 /**
- * Attaches participants to an integration: [[Solution, position], ...]. Mirrors
- * what `SyncIntegrationFromChain` guarantees in production — participants never
+ * Attaches participants to a diagram: [[Solution, position], ...]. Mirrors
+ * what `SyncDiagramFromChain` guarantees in production — participants never
  * exist without a matching `chain` — by building a linear chain (in the order
  * of the given positions) when the test hasn't configured one explicitly.
- * Tests that need an integration genuinely without a `chain` (to exercise
- * that edge case) should attach via `$integration->participants()`
+ * Tests that need a diagram genuinely without a `chain` (to exercise
+ * that edge case) should attach via `$diagram->participants()`
  * directly, bypassing this helper.
  */
-function attachParticipants(Integration $integration, array $participants): void
+function attachParticipants(Diagram $diagram, array $participants): void
 {
     foreach ($participants as [$solution, $position]) {
-        $integration->participants()->attach($solution->id, ['position' => $position]);
+        $diagram->participants()->attach($solution->id, ['position' => $position]);
     }
 
-    if ($integration->chain) {
+    if ($diagram->chain) {
         return;
     }
 
     $sorted = collect($participants)->sortBy(fn ($p) => $p[1])->values();
 
-    $integration->chain = [
+    $diagram->chain = [
         'nodes' => $sorted->map(fn ($p) => ['solution_id' => $p[0]->id, 'label' => null])->all(),
         'edges' => $sorted->count() > 1
             ? collect(range(0, $sorted->count() - 2))
@@ -55,7 +55,7 @@ function attachParticipants(Integration $integration, array $participants): void
                 ->all()
             : [],
     ];
-    $integration->save();
+    $diagram->save();
 }
 
 /**
@@ -66,7 +66,6 @@ function emptyFlowspecContext(): FlowspecContext
 {
     return new FlowspecContext(
         pages: collect(),
-        integrationDocs: collect(),
         textDocs: collect(),
         referenceFlowspecs: collect(),
         attachments: [],

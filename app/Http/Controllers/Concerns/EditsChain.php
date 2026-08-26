@@ -6,15 +6,15 @@ use App\Contracts\ChainCanvas;
 use App\Enums\ChainNodeKind;
 use App\Support\ChainGraph;
 use App\Support\ChainLabeler;
-use App\View\Components\Solutions\IntegrationsMap;
+use App\View\Components\Solutions\Diagrams;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\UploadedFile;
 
 /**
  * The nine mutations the F3 canvas performs, against any `ChainCanvas`.
  *
- * These used to live in `SolutionIntegrationController`, spelled against
- * `Integration` directly. They moved here when a submission's AS IS / TO BE
+ * These used to live in `DiagramController`, spelled against
+ * `Diagram` directly. They moved here when a submission's AS IS / TO BE
  * drawings became a second owner, and the move is the point: the chain's
  * rules — indices, reindexing, what is allowed to reference a Solution, which
  * node is protected — are subtle enough that a second copy would diverge
@@ -23,7 +23,7 @@ use Illuminate\Http\UploadedFile;
  *
  * What is NOT here is what differs per owner: authorization (the FormRequests
  * already did that before this trait is reached) and whatever has to happen
- * after a write, which is `ChainCanvas::afterChainMutation()` — an Integration
+ * after a write, which is `ChainCanvas::afterChainMutation()` — a Diagram
  * re-derives its columns there, a submission's diagram derives nothing.
  *
  * Every method answers in the exact shape the canvas expects. The client
@@ -76,7 +76,7 @@ trait EditsChain
         return response()->json([
             'type'    => 'success',
             'message' => 'Bloco atualizado.',
-            'node'    => IntegrationsMap::resolveNode($owner->chainData()['nodes'][$node], $solutions, $comment),
+            'node'    => ChainGraph::resolveNode($owner->chainData()['nodes'][$node], $solutions, $comment),
             'summary' => $this->chainLabeler()->label($owner->chainData(), $solutions),
         ]);
     }
@@ -185,7 +185,7 @@ trait EditsChain
         return response()->json([
             'type'     => 'success',
             'message'  => 'Ligação atualizada.',
-            'protocol' => IntegrationsMap::resolveProtocol($edges[$edge]['protocol']),
+            'protocol' => ChainGraph::resolveProtocol($edges[$edge]['protocol']),
             'arrow'    => $edges[$edge]['arrow'] ?? '->',
         ]);
     }
@@ -300,7 +300,7 @@ trait EditsChain
             'from'     => $data['from'],
             'to'       => $data['to'],
             'arrow'    => $data['arrow'],
-            'protocol' => IntegrationsMap::resolveProtocol($data['protocol']),
+            'protocol' => ChainGraph::resolveProtocol($data['protocol']),
             'summary'  => $labeler->label($owner->chainData(), $labeler->resolveSolutions(collect([$owner->chainData()]))),
         ]);
     }
@@ -358,7 +358,7 @@ trait EditsChain
         return response()->json([
             'type'    => 'success',
             'message' => $message,
-            'node'    => IntegrationsMap::resolveNode($owner->chainData()['nodes'][$newIndex], $solutions, null),
+            'node'    => ChainGraph::resolveNode($owner->chainData()['nodes'][$newIndex], $solutions, null),
             'summary' => $labeler->label($owner->chainData(), $solutions),
         ]);
     }

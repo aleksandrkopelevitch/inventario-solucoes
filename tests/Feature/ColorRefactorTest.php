@@ -45,13 +45,54 @@ it('maps criticality to a semantic tone from the raw value', function () {
         ->and($tone(null))->toBe('green');
 });
 
-it('renders diagram nodes in the navy/blue palette with shadow and draggable-anchor styling', function () {
-    $html = Blade::render('<x-solutions.integration-viz />');
+it('renders diagram blocks white, keeping only the two flow terminals coloured', function () {
+    $html = Blade::render('<x-chain.viz />');
 
-    expect($html)->toContain('--viz-node: #E9EDFB')  // lavender/bluish nodes (reference mind-map palette, lightened 2026-07-28)
+    // White is the ground for every block (2026-08-26): shape says what a
+    // block IS, and colour is left to mean whatever the author decides. The
+    // per-kind pastels that used to live here are gone, so the tokens naming
+    // them must be gone too — a leftover `--viz-node-actor` would be a colour
+    // nothing reads.
+    expect($html)->toContain('--viz-node: #FFFFFF')
+        ->and($html)->toContain('--viz-node-start: #22C55E')
+        ->and($html)->toContain('--viz-node-end: #EF4444')
+        ->and($html)->not->toContain('--viz-node-free')
+        ->and($html)->not->toContain('--viz-node-actor')
+        ->and($html)->not->toContain('--viz-node-decision')
         ->and($html)->toContain('--viz-select: #4A90D9') // blue selection ring
         ->and($html)->toContain('.ak-viz-handle')    // draggable endpoint handles
         ->and($html)->toContain('.ak-viz-anchor');    // candidate anchors (4 + 2 + 2)
+});
+
+it('draws the decision hexagon with a real outline, not a clipped border', function () {
+    $html = Blade::render('<x-chain.viz />');
+
+    // `clip-path` clips the element's BORDER too, and a border follows the
+    // rectangular border box — so on a hexagon only the flat top/bottom spans
+    // of it survive and the diagonals get none. That was invisible while the
+    // block had a coloured fill (the fill drew the shape); with a white fill on
+    // a near-white canvas the block vanished. Two clipped layers is the fix:
+    // a line-coloured hexagon, and the white one 1px inside it.
+    expect($html)
+        ->toContain('.ak-viz-node.is-decision::before,')
+        ->toContain('.ak-viz-node.is-decision::after {')
+        ->toMatch('/is-decision::before \{\s*\n\s*inset: 0;\s*\n\s*background: rgba\(16, 24, 40, \.24\);/')
+        ->toMatch('/is-decision::after \{\s*\n\s*inset: 1px;\s*\n\s*background: var\(--viz-node\);/')
+        // `::after` is generated last, so the block's own text, ports and
+        // comment badge have to be lifted above both layers or it covers them.
+        ->toContain('.ak-viz-node.is-decision .ak-viz-node-body,');
+});
+
+it('gives the actor the same round silhouette as the flow terminals', function () {
+    $html = Blade::render('<x-chain.viz />');
+
+    // One CSS rule for all three, so an actor can never drift back into being
+    // a box with the icon beside its text.
+    expect($html)->toContain(".ak-viz-node.is-actor {\n                background: var(--viz-node);")
+        ->and($html)->toMatch('/\.ak-viz-node\.is-start,\s*\n\s*\.ak-viz-node\.is-end,\s*\n\s*\.ak-viz-node\.is-actor \{/')
+        // The label under a round block wears the arrow-pill's own chip:
+        // white fill + a `--viz-line` hairline, since it sits on open canvas.
+        ->and($html)->toContain('box-shadow: 0 0 0 1px var(--viz-line);');
 });
 
 it('gives the logo fallback a solid green anchor block (no gray tile)', function () {

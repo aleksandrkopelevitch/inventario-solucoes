@@ -5,7 +5,7 @@ import {renderMarkdownDiff} from './docs-diff.js'
 import {setEditorLocked} from './docs-editor.js'
 
 /**
- * Documentation Assistant — a conversation about one page/integration's
+ * Documentation Assistant — a conversation about one page/diagram's
  * documentation (built against flowspec-chat.js's polling/composer pattern,
  * reusing docs-ai.js's editor-lock and diff-review mechanics).
  *
@@ -30,7 +30,7 @@ import {setEditorLocked} from './docs-editor.js'
  * RESUME: if the user closes the panel or navigates away while a reply is
  * generating, a server-rendered marker ([data-ak-docs-chat-resume], present
  * only when this user has a chat still awaiting a reply for this
- * page/integration) locks the editor and polls on load, independently of
+ * page/diagram) locks the editor and polls on load, independently of
  * whether the panel/thread is even in the DOM.
  */
 
