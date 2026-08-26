@@ -307,11 +307,29 @@ function installGlobalHandlers() {
         }
     })
 
-    // Warns on leaving with unsaved changes.
-    window.addEventListener('beforeunload', (e) => {
-        if (!dirty) return
-        e.preventDefault()
-        e.returnValue = ''
+    // Leaving with unsaved changes doesn't ASK any more — it saves what it can.
+    //
+    // This used to be a `beforeunload` returning a value, i.e. the browser's own
+    // "Deseja sair desta página?" dialog. It fired on any navigation made inside
+    // the autosave window and, because Editor.js normalises content on mount,
+    // sometimes with no edit at all: a modal that appears when nothing is at
+    // stake only teaches people to dismiss modals. What replaces it is a shorter
+    // autosave window (below) plus a save the moment the tab stops being
+    // visible, which is when a person switches away or closes it.
+    //
+    // Deliberately NOT a `sendBeacon` of a pre-serialized snapshot: serializing
+    // on every keystroke runs `editor.save()` concurrently with the real save,
+    // and a snapshot that loses that race gets sent LATER — overwriting newer
+    // content with older. Measured, not theorised: it silently reverted a manual
+    // save during a click-through. An awaited save on `visibilitychange` cannot
+    // reorder like that; the price is that a hard navigation within the autosave
+    // window can still lose the last keystrokes, which is the same exposure as
+    // clicking "Leave" on the old dialog.
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'hidden' || !dirty) return
+
+        const btn = document.querySelector('[data-ak-docs-save]')
+        if (btn) save(btn, {silent: true})
     })
 }
 
@@ -320,10 +338,13 @@ function markDirty() {
     setStatus('Não salvo')
     clearTimeout(autosaveTimer)
     if (locked) return // no autosave while "Assiste IA" holds the editor
+    // 1.2s, down from 2.5s: with the exit dialog gone this window IS the
+    // exposure to losing a keystroke, and with the save Toast gone there is no
+    // longer a cost to saving more often.
     autosaveTimer = setTimeout(() => {
         const btn = document.querySelector('[data-ak-docs-save]')
         if (btn && dirty) save(btn, {silent: true})
-    }, 2500)
+    }, 1200)
 }
 
 async function save(btn, {silent = false} = {}) {
@@ -350,10 +371,10 @@ async function save(btn, {silent = false} = {}) {
 
         dirty = false
         updateSlots(data)
-        setStatus('Salvo ' + timeNow())
-        if (!silent) {
-            Toast.open({content: data.message, title: data.title || 'Alerta', type: data.type || 'success'})
-        }
+        // No Toast on success, manual save included: the status text beside the
+        // button is the confirmation, and it blinks so the change registers
+        // without a card sliding over the page every 2.5s of typing.
+        setStatus('Salvo ' + timeNow(), {blink: true})
     } catch (error) {
         let message = 'Erro ao salvar a documentação.'
         if (error.response) {
@@ -379,9 +400,19 @@ function timeNow() {
     return d.toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})
 }
 
-function setStatus(text) {
+function setStatus(text, {blink = false} = {}) {
     const el = document.querySelector('[data-ak-docs-status]')
-    if (el) el.textContent = text
+    if (!el) return
+
+    el.textContent = text
+    if (!blink) return
+
+    // Restart the animation even when the text is identical (two saves in the
+    // same minute read the same): removing the class and reading `offsetWidth`
+    // forces the reflow that lets it play again.
+    el.classList.remove('is-saved-blink')
+    void el.offsetWidth
+    el.classList.add('is-saved-blink')
 }
 
 /* ------------------------------------------------------------------ */

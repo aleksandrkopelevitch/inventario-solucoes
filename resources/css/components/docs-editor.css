@@ -412,3 +412,86 @@
     background: var(--color-surface);
     border-left: 3px solid var(--color-accent);
 }
+
+/* ── Popover de blocos (ajustes/tunes) e toolbox ───────────────────────
+   O popover do core (`.ce-popover`: campo "Buscar" + itens + Excluir) chega
+   com tipografia de 14.5px e itens de 32px de altura, o que numa lista de
+   quatro variações de aviso pesa mais que o bloco que ele está editando.
+   Aqui ele fica menor e mais leve — é um menu de contexto, não um painel.
+
+   E, sobretudo, ele PARA DE ABRIR PARA A ESQUERDA. O core ancora o painel
+   ~53px à esquerda do próprio botão de ajustes, que já mora fora da coluna de
+   texto (`.ce-toolbar__actions` é `absolute; left: -58px`): numa janela
+   estreita, ou com a rail de páginas aberta, essa borda esquerda cai POR BAIXO
+   da rail — medido a 1150px de largura, o painel ia de 342 a 542 enquanto a
+   rail terminava em 360. `left: 100%` fixa a borda esquerda do painel no fim
+   da caixa de botões, ou seja, no começo da coluna de texto: ele passa a
+   crescer para dentro do conteúdo, onde há espaço, e não há largura de janela
+   em que ele volte a ficar escondido. É `100%` e não um valor em px de
+   propósito — se o core mudar a largura dessa caixa, o alinhamento acompanha. */
+.ak-docs-editor .ce-toolbar .ce-popover__container {
+    left: 100%;
+    right: auto;
+    min-width: 184px;
+    max-width: 240px;
+    border-color: var(--color-line);
+    border-radius: var(--radius-field, 8px);
+    box-shadow: 0 6px 20px rgba(16, 24, 40, .10);
+    font-size: 0.8125rem;
+}
+.ak-docs-editor .ce-toolbar .ce-popover-item {
+    padding: 2px;
+    border-radius: 6px;
+}
+.ak-docs-editor .ce-toolbar .ce-popover-item__title {
+    font-size: 0.8125rem;
+    font-weight: 400;
+}
+.ak-docs-editor .ce-toolbar .ce-popover-item__icon {
+    width: 24px;
+    height: 24px;
+    box-shadow: none;
+}
+/* Item ativo (a variação de aviso em uso): o core pinta em azul próprio; aqui
+   segue o acento do app, e discreto — quem lê a lista precisa achar o item,
+   não ser avisado dele. */
+.ak-docs-editor .ce-toolbar .ce-popover-item--active {
+    background: var(--color-accent-soft);
+    color: var(--color-accent);
+}
+.ak-docs-editor .ce-toolbar .ce-popover-item--active .ce-popover-item__icon {
+    background: transparent;
+    color: inherit;
+}
+.ak-docs-editor .ce-toolbar .ce-popover__search,
+.ak-docs-editor .ce-toolbar .cdx-search-field {
+    font-size: 0.8125rem;
+}
+.ak-docs-editor .ce-toolbar .cdx-search-field {
+    padding: 4px 6px;
+    border-radius: 6px;
+}
+
+/* ── "Salvo HH:MM" pisca em vez de abrir um Toast ─────────────────────
+   Salvar (manual ou autosave) não abre mais aviso nenhum: o texto de status
+   ao lado do botão já diz o que aconteceu, e um Toast por save — com autosave
+   a cada 2,5s de digitação — é interrupção sem informação nova. O que ficou é
+   um realce de fundo de meio segundo no próprio status, suficiente para o
+   olho perceber que a hora mudou. Erro continua no Toast: aquilo o usuário
+   precisa ver mesmo que não esteja olhando para o canto. */
+@keyframes ak-docs-saved-blink {
+    0%   { background-color: transparent; }
+    18%  { background-color: color-mix(in oklab, var(--color-accent) 22%, transparent); }
+    100% { background-color: transparent; }
+}
+[data-ak-docs-status] {
+    border-radius: 5px;
+    padding: 2px 5px;
+    margin-inline: -5px;
+}
+[data-ak-docs-status].is-saved-blink {
+    animation: ak-docs-saved-blink 0.6s ease-out 1;
+}
+@media (prefers-reduced-motion: reduce) {
+    [data-ak-docs-status].is-saved-blink { animation: none; }
+}
