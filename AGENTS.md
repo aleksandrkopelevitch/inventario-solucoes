@@ -150,6 +150,48 @@ action re-derive. There is no separate diagram/canvas editor page — the same
 canvas that displays the chain is what authors it (see `SolutionIntegrationController`'s
 docblock and `integration-viz.blade.php`).
 
+### Documentation page tree — `position` orders SIBLINGS, not the container
+
+A Solution's (or standalone `DocumentationGroup`'s) documentation is a tree of
+`DocumentationPage`s up to `DocumentationPage::MAX_DEPTH` levels deep (3 today:
+page → subpage → sub-subpage), via a self-referencing `parent_id`. The cap is
+that constant and nothing else, so changing the depth is one edit there plus one
+literal indent step in the rail's view — and `parent_id` is deliberately absent
+from `$fillable`, like `container_type`/`container_id`: the tree is written
+through `parent()->associate()`, never mass-assigned.
+
+The trap is `position`: it orders a page among its **siblings**, so
+`$container->pages()` — a flat `orderBy('position')` over every page at every
+depth — is **not reading order**, and `pages()->first()` is not the container's
+first page. Anything that shows the tree to a human walks
+`DocumentationPageService::tree()` (one query, recursion in memory, each row
+carrying its `depth` and which gestures it can perform); anything that opens a
+container uses `firstPage()`. What only asks "is there content in here?"
+(coverage, the flowSpec picker, slug uniqueness) can keep using the flat
+relation, because depth doesn't change that answer.
+
+Three more rules that are easy to half-implement:
+
+- **A nesting is judged by the SUBTREE being moved, not by the page.** Sliding a
+  page one level down drags its own subpages with it, so what has to fit under
+  the cap is `parent depth + subtree height` (`canBeNestedUnder()`). A page with
+  subpages may be nested; a page with grandchildren may not.
+- **Moving a page to another container carries its whole subtree**, depth-first
+  (slugs re-checked against the destination, parents before children). Moving
+  one level would leave deeper pages filed under a container they were never in.
+  A page moved *without* its parent lands as a root there instead.
+- **Deleting goes through the models, recursively** — `children()->get()`, never
+  the `children` property, since a container delete hydrates its pages in bulk
+  and strict mode then turns a lazy load into a 500 (§ Strict mode). The FK's
+  `cascadeOnDelete` is the safety net; the model hook is what lets Spatie clean
+  each page's embedded media.
+
+The rail (`x-documentation.pages-nav`) renders that walk as ONE flat `@foreach`
+with an indent class per depth — deliberately not a recursive partial, so every
+row keeps a unique `$loop->index` for its hidden forms — and the indent steps
+are literal classes, because Tailwind only ships what it can see in the source
+(`ml-{{ $n }}` compiles to nothing).
+
 ## Eloquent
 
 - Always define return types on relationships:
