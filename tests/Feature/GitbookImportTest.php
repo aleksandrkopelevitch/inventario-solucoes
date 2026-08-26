@@ -91,30 +91,33 @@ it('reproduces the nesting, turning a group into a section page above its childr
     expect($tree->collapsed())->toBe(0);
 });
 
-it('collapses only what sits deeper than the cap, keeping that ancestry in the title', function () {
+it('reproduces a space as deep as the cap allows, collapsing only past it', function () {
+    // A chain one level deeper than the tree can hold, built from the constant
+    // so the fixture keeps testing the CLAMP rather than a hard-coded depth.
+    $leaf = ['id' => 'deep', 'type' => 'document', 'title' => 'Um nível a mais'];
+    $node = $leaf;
+    foreach (array_reverse(range(1, DocumentationPage::MAX_DEPTH - 1)) as $level) {
+        $node = ['id' => 'p' . $level, 'type' => 'document', 'title' => 'Nível ' . ($level + 1), 'pages' => [$node]];
+    }
     $tree = new GitbookPageTree([
-        ['id' => 'g1', 'type' => 'group', 'title' => 'Manual', 'pages' => [
-            ['id' => 'p1', 'type' => 'document', 'title' => 'Instalação', 'pages' => [
-                ['id' => 'p2', 'type' => 'document', 'title' => 'Requisitos', 'pages' => [
-                    ['id' => 'p3', 'type' => 'document', 'title' => 'Hardware', 'pages' => [
-                        ['id' => 'p4', 'type' => 'document', 'title' => 'Disco'],
-                    ]],
-                ]],
-            ]],
-        ]],
+        ['id' => 'g1', 'type' => 'group', 'title' => 'Manual', 'pages' => [$node]],
     ]);
 
-    // Manual(0) → Instalação(1) → Requisitos(2) is as deep as the tree goes, so
-    // everything below hangs off Instalação with the skipped levels in its name.
-    expect(array_map(fn ($page) => [$page->title, $page->depth, $page->parentId], $tree->pages()))->toBe([
+    $rows = array_map(fn ($page) => [$page->title, $page->depth, $page->parentId], $tree->pages());
+
+    // Everything down to the last level keeps its own row and its own parent…
+    expect(array_slice($rows, 0, DocumentationPage::MAX_DEPTH))->toBe([
         ['Manual', 0, null],
-        ['Instalação', 1, 'g1'],
-        ['Requisitos', 2, 'p1'],
-        ['Requisitos › Hardware', 2, 'p1'],
-        ['Requisitos › Hardware › Disco', 2, 'p1'],
+        ['Nível 2', 1, 'g1'],
+        ['Nível 3', 2, 'p1'],
+        ['Nível 4', 3, 'p2'],
+        ['Nível 5', 4, 'p3'],
     ]);
-    expect($tree->collapsed())->toBe(2);
-    expect(DocumentationPage::MAX_DEPTH)->toBe(3);
+    // …and the one page below it hangs off the deepest ancestor that can still
+    // hold children, carrying the level it lost in its title.
+    expect(end($rows))->toBe(['Nível 5 › Um nível a mais', 4, 'p3']);
+    expect($tree->collapsed())->toBe(1);
+    expect(DocumentationPage::MAX_DEPTH)->toBe(5);
 });
 
 it('flattens everything into titles with --flat, the way it always did', function () {

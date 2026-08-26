@@ -38,10 +38,11 @@ three decisions in there are worth knowing before touching it:
   deepest ancestor that can still hold children and takes the skipped ancestry
   as a prefix ("Requisitos › Hardware › Disco"). `collapsed()` reports how many,
   and the command warns with that number — an import that says nothing would
-  imply the whole shape came across. Measured on the real corpus (2026-08-26):
-  **2 of 38 spaces nest deeper than 3, both to exactly 5, and 86 of 629 rows
-  collapse.** Raising `MAX_DEPTH` to 5 would make the whole corpus lossless, at
-  the price of a narrower title column in the rail.
+  imply the whole shape came across. **`MAX_DEPTH` was raised from 3 to 5
+  because of this corpus** (surveyed 2026-08-26): 2 of its 38 spaces nest to
+  exactly five, and at three levels 86 of 629 rows collapsed. At five the whole
+  corpus comes across losslessly — worth re-measuring before changing the cap
+  again, the survey is a read-only walk of `pageTree()` per space.
 - **`--flat` still exists** and is the old behaviour, whole: every page a root,
   full ancestry in the title, groups contributing only theirs. Worth keeping for
   a space so deep that nesting only moves the truncation around.

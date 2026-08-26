@@ -50,7 +50,9 @@
                 <a href="{{ $page['url'] }}" @class([
                     'group flex items-center gap-2.5 rounded-field border border-line bg-surface px-3.5 py-2.5 text-sm no-underline transition-colors hover:border-accent-line hover:bg-accent-soft/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent',
                     'ml-5' => ($page['depth'] ?? 0) === 1,
-                    'ml-10' => ($page['depth'] ?? 0) >= 2,
+                    'ml-10' => ($page['depth'] ?? 0) === 2,
+                    'ml-14' => ($page['depth'] ?? 0) === 3,
+                    'ml-[72px]' => ($page['depth'] ?? 0) >= 4,
                 ])>
                     @if (($page['depth'] ?? 0) > 0)
                         <x-heroicon-o-arrow-turn-down-right class="size-3.5 shrink-0 text-faint" />

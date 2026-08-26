@@ -16,7 +16,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * edited by the Editor.js block — same as the old single blob on
  * `Solution`/`Integration`, except now a Solution (or a standalone
  * `DocumentationGroup`) can have 1..N of them, in a tree up to `MAX_DEPTH`
- * levels deep ordered by `position`. `container` is polymorphic (`Solution` or
+ * levels deep (five) ordered by `position`. `container` is polymorphic (`Solution` or
  * `DocumentationGroup`).
  *
  * The tree's shape is deliberately capped, and both halves of the cap matter:
@@ -42,12 +42,19 @@ class DocumentationPage extends Model implements Documentable
     use HasFactory, InteractsWithMedia;
 
     /**
-     * How many levels the tree may have: a page, a subpage and a sub-subpage.
-     * Everything that enforces the cap reads THIS — the depth is a knob, not a
-     * shape hard-coded across the module, so raising or lowering it is one
-     * edit here plus the indent step in the rail's view.
+     * How many levels the tree may have. Everything that enforces the cap reads
+     * THIS — the depth is a knob, not a shape hard-coded across the module — so
+     * changing it is one edit here plus one literal indent step per level in the
+     * three views that draw the tree (the pages rail, the public documentation
+     * index and the solution detail card): Tailwind only ships classes it can
+     * SEE in the source, so those steps cannot be computed.
+     *
+     * Five since 2026-08-26, and the number is not arbitrary: the GitBook
+     * corpus this app imported nests to exactly five, so anything less makes
+     * `GitbookPageTree` collapse the tail of two spaces into breadcrumb titles
+     * (it was 86 of 629 pages at three).
      */
-    public const MAX_DEPTH = 3;
+    public const MAX_DEPTH = 5;
 
     /**
      * `parent_id` is deliberately absent — like `container_type`/`container_id`
@@ -100,7 +107,7 @@ class DocumentationPage extends Model implements Documentable
         return $this->parent_id === null;
     }
 
-    /** 0 for a root, 1 for a subpage, 2 for a sub-subpage. */
+    /** 0 for a root, 1 for a subpage, and so on up to `MAX_DEPTH - 1`. */
     public function depth(): int
     {
         $depth = 0;
@@ -117,7 +124,7 @@ class DocumentationPage extends Model implements Documentable
         return $depth;
     }
 
-    /** 1 for a leaf, 2 for a page with children, 3 for a page with grandchildren. */
+    /** 1 for a leaf, 2 for a page with children, 3 for one with grandchildren, … */
     public function subtreeHeight(): int
     {
         $children = $this->children()->get();

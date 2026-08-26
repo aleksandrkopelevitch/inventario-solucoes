@@ -45,11 +45,18 @@
                      long enough to truncate. The steps are listed rather than
                      computed because Tailwind only ships the classes it can
                      SEE in the source — `ml-{{ $n }}` would compile to nothing.
-                     Add a step here if `DocumentationPage::MAX_DEPTH` grows. --}}
+                     One entry per level below the root, so this list is as long
+                     as `DocumentationPage::MAX_DEPTH - 1`; the last one also
+                     catches anything deeper, which the server refuses anyway.
+                     Beyond level 3 the step halves (`ml-2`): five levels of
+                     12px would eat a third of a 288px rail, and what has to
+                     survive is the title, not the ceremony. --}}
                 @php ($depth = (int) ($page['depth'] ?? 0))
                 <li @class([
                     'ml-3 border-l border-line pl-1.5' => $depth === 1,
-                    'ml-6 border-l border-line pl-1.5' => $depth >= 2,
+                    'ml-6 border-l border-line pl-1.5' => $depth === 2,
+                    'ml-8 border-l border-line pl-1.5' => $depth === 3,
+                    'ml-10 border-l border-line pl-1.5' => $depth >= 4,
                 ])>
                     <div @class([
                         'group flex items-center gap-1 rounded-field px-2 py-1.5 transition-colors',

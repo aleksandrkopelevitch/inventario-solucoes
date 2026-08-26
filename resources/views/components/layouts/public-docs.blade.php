@@ -50,7 +50,9 @@
                                'flex items-center justify-between gap-2 rounded-field py-2 text-sm no-underline transition-colors',
                                'px-3' => ($item['depth'] ?? 0) === 0,
                                'ml-3 border-l border-line px-2.5 text-[13px]' => ($item['depth'] ?? 0) === 1,
-                               'ml-6 border-l border-line px-2.5 text-[13px]' => ($item['depth'] ?? 0) >= 2,
+                               'ml-6 border-l border-line px-2.5 text-[13px]' => ($item['depth'] ?? 0) === 2,
+                               'ml-8 border-l border-line px-2.5 text-[13px]' => ($item['depth'] ?? 0) === 3,
+                               'ml-10 border-l border-line px-2.5 text-[13px]' => ($item['depth'] ?? 0) >= 4,
                                'bg-accent-soft font-semibold text-accent' => $item['active'],
                                'text-body hover:bg-raised' => ! $item['active'],
                            ])>
