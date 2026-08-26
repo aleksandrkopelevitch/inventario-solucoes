@@ -242,7 +242,12 @@ return [
         // Embedded images/files are re-hosted into the page's own `docs`
         // collection so the imported Markdown never points back at GitBook's
         // CDN (a link that dies the day the space does). Ceiling per asset.
-        'max_asset_bytes' => (int) env('GITBOOK_MAX_ASSET_BYTES', 20971520),
+        // 64MB. Sized from the corpus rather than guessed: the first full
+        // import left 12 assets behind for size alone, the largest 59.5MB.
+        // Note this is only ever HALF the answer — `GitbookAssetImporter`
+        // takes the smaller of this and `media-library.max_file_size`, and it
+        // was Spatie's 10MB default doing the clamping, not this number.
+        'max_asset_bytes' => (int) env('GITBOOK_MAX_ASSET_BYTES', 67108864),
 
         // An import is one request per page, so a space is a long chain of
         // them and a single transient blip would otherwise end the whole run.
