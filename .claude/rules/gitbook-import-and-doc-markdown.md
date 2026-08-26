@@ -14,15 +14,6 @@ paths:
 
 ## GitBook import — and the three "firsts" it introduced
 
-> **The import still FLATTENS, on purpose.** `documentation_pages` gained a
-> levels of its own (`parent_id`, capped by `DocumentationPage::MAX_DEPTH`), but
-> `GitbookPageTree` was left flattening a space depth-first with ancestry in the
-> title ("Getting started › Instalação"): GitBook nests to ANY depth, so two
-> levels still don't map onto it, and changing the shape would rewrite the
-> titles (and the nesting) of the 613 pages already imported. Making the import
-> use the first level of nesting is a separate, deliberate migration — not a
-> side effect of the tree gaining levels.
-
 `php artisan gitbook:import` pulls existing GitBook content into the
 documentation hub: one space becomes one standalone `DocumentationGroup`, each
 of its pages a `DocumentationPage`. A group and not a Solution on purpose — a
@@ -30,6 +21,52 @@ space rarely maps 1:1 onto one solution in this inventory, so the group is a
 landing zone the pages are re-filed FROM (see "Re-filing a page" below), not
 their final home. `--list` discovers space ids, `--dry-run` writes nothing,
 `--space=`/`--all` do the work. Strictly read-only against GitBook.
+
+### The space's shape comes across, clamped at `MAX_DEPTH`
+
+`GitbookPageTree` reproduces GitBook's nesting instead of flattening it, and
+three decisions in there are worth knowing before touching it:
+
+- **A `group` becomes a page with no content.** It is pure structure in GitBook
+  (a sidebar heading), but its children need something to hang from, and an
+  empty page is exactly how it reads. Counted separately (`sections()`) so it
+  doesn't inflate the page count, and its `documentation` is never written —
+  not even set to null on a re-run — so notes a person adds to a section page
+  survive re-imports, since GitBook has no content there to overwrite them with.
+- **Deeper than the cap collapses into the title, and is counted.** GitBook
+  nests to any depth; below `DocumentationPage::MAX_DEPTH` a node hangs off the
+  deepest ancestor that can still hold children and takes the skipped ancestry
+  as a prefix ("Requisitos › Hardware › Disco"). `collapsed()` reports how many,
+  and the command warns with that number — an import that says nothing would
+  imply the whole shape came across. Measured on the real corpus (2026-08-26):
+  **2 of 38 spaces nest deeper than 3, both to exactly 5, and 86 of 629 rows
+  collapse.** Raising `MAX_DEPTH` to 5 would make the whole corpus lossless, at
+  the price of a narrower title column in the rail.
+- **`--flat` still exists** and is the old behaviour, whole: every page a root,
+  full ancestry in the title, groups contributing only theirs. Worth keeping for
+  a space so deep that nesting only moves the truncation around.
+
+### A re-run is also the migration
+
+A page is matched inside the group by title, and one of the titles tried is
+`GitbookPage::origin()` — the legacy flattened string ("Começando › Instalação")
+that the pre-nesting import wrote. So re-importing a space that came in flat
+**renames its pages down to their bare titles and hangs them off each other in
+place**, instead of importing a second copy beside the first. There is no
+separate data migration for the 613 pages already imported; the re-run is it.
+
+Three details that make that work, each easy to break:
+
+- **Match order is specific → legacy → loose**: (title AND parent), then the
+  legacy flattened title, then the title anywhere in the group. Matched rows are
+  claimed and leave the working set, which is what keeps two identically-named
+  GitBook pages (or two sections named the same) from collapsing into one.
+- **Slugs deliberately don't follow the rename.** A page's URL stays stable —
+  the same rule the rest of the module keeps — so a re-shaped page keeps the
+  slug built from its old prefixed title. That is intentional, not an oversight.
+- **`position` is per sibling list**, one counter per parent, because that is
+  what `position` means since the tree gained depth (§ Documentation page tree
+  in AGENTS.md). One counter for the whole space would scramble every level.
 
 It is worth knowing this module exists for three reasons beyond GitBook:
 
@@ -122,11 +159,12 @@ markdown requests plus 400 downloads. `--dry-run` does NOT exercise any of the
 above — it returns after walking the page tree, before fetching a single page's
 markdown.
 
-Two more things about the import itself: it is **re-runnable** (pages matched by
-title within the group, media cleared before re-adding so re-imports don't
-accumulate orphans) and deliberately has **no wrapping transaction** — it is
-hundreds of HTTP requests, and a half-finished import that can be re-run beats
-one that rolls back an hour of downloads because page 180 failed.
+One more thing about the import itself (re-running is covered above): it
+deliberately has **no wrapping transaction** — it is hundreds of HTTP requests,
+and a half-finished import that can be re-run beats one that rolls back an hour
+of downloads because page 180 failed. Media is cleared before re-adding, so a
+re-import doesn't accumulate orphans; a section page is skipped entirely there,
+having no content to re-fetch.
 
 A related but genuinely OUT-of-scope shape, found in the same corpus: a prose
 line an author wrote themselves, `Link Gitbook: [texto](https://app.gitbook.com/o/…/s/…)`

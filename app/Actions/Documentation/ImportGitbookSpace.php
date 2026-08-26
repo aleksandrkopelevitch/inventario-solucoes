@@ -4,6 +4,7 @@ namespace App\Actions\Documentation;
 
 use App\Contracts\Documentable;
 use App\Models\DocumentationGroup;
+use App\Models\DocumentationPage;
 use App\Services\DocumentationPageService;
 use App\Support\Gitbook\GitbookAssetImporter;
 use App\Support\Gitbook\GitbookClient;
@@ -11,6 +12,7 @@ use App\Support\Gitbook\GitbookImportReport;
 use App\Support\Gitbook\GitbookMarkdownNormalizer;
 use App\Support\Gitbook\GitbookPage;
 use App\Support\Gitbook\GitbookPageTree;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 /**
@@ -24,12 +26,24 @@ use Illuminate\Support\Str;
  * space keeps the whole thing in one legible place, editable and copyable,
  * until someone decides where each page goes.
  *
- * **Re-runnable.** A page is matched inside the group by its title, so running
- * the import again updates the pages it already created instead of doubling
- * them, and re-orders them to match GitBook's current reading order. There is
- * deliberately no wrapping transaction: the work is dozens-to-hundreds of HTTP
- * requests, and a half-finished import that can simply be re-run is worth far
- * more than one that rolls back an hour of downloads because page 180 failed.
+ * **The space's SHAPE comes across too** (`GitbookPageTree` resolves it): a
+ * page keeps its parent, a `group` becomes an empty section page above its
+ * children, and only what sits deeper than `DocumentationPage::MAX_DEPTH` is
+ * collapsed into a title prefix. `--flat` brings back the old behaviour where
+ * every page was a root carrying its full ancestry in its title.
+ *
+ * **Re-runnable, and a re-run MIGRATES.** A page is matched inside the group by
+ * title, and the legacy flattened title (`GitbookPage::origin()` — exactly what
+ * the old import wrote) is one of the things matched: so re-importing a space
+ * that came in flat renames its pages down to their bare titles and hangs them
+ * off each other, in place, rather than duplicating the corpus next to itself.
+ * Slugs deliberately do NOT follow the rename — a page's URL stays stable, the
+ * same rule the rest of the module keeps.
+ *
+ * There is deliberately no wrapping transaction: the work is dozens-to-hundreds
+ * of HTTP requests, and a half-finished import that can simply be re-run is
+ * worth far more than one that rolls back an hour of downloads because page 180
+ * failed.
  */
 class ImportGitbookSpace
 {
@@ -43,21 +57,28 @@ class ImportGitbookSpace
     public function handle(
         string $spaceId,
         ?string $groupName = null,
-        bool $prefixTitles = true,
+        bool $nest = true,
         bool $dryRun = false,
     ): GitbookImportReport {
         $space = $this->client->space($spaceId);
         $title = trim((string) ($space['title'] ?? '')) ?: 'GitBook ' . $spaceId;
 
-        $tree = new GitbookPageTree($this->client->pageTree($spaceId), $prefixTitles);
+        $tree = new GitbookPageTree($this->client->pageTree($spaceId), $nest);
         $found = $tree->pages();
 
         if ($dryRun) {
             return new GitbookImportReport(
                 spaceId: $spaceId,
                 spaceTitle: $title,
-                planned: array_map(fn (GitbookPage $page) => $page->title, $found),
+                // Indented, so a dry run shows the SHAPE it would write and not
+                // just a list of names — the shape is the point now.
+                planned: array_map(
+                    fn (GitbookPage $page) => str_repeat('  ', $page->depth) . $page->title . ($page->isSection ? ' (seção)' : ''),
+                    $found,
+                ),
                 skipped: $tree->skipped(),
+                sections: $tree->sections(),
+                collapsed: $tree->collapsed(),
             );
         }
 
@@ -72,24 +93,49 @@ class ImportGitbookSpace
         $updated = 0;
         $assets = 0;
         $failures = [];
-        // A group can hold two pages with the same title (nothing stops it), so
-        // claiming each row at most once is what keeps two identically-named
-        // GitBook pages from collapsing into one.
-        $claimed = [];
+        // The group's pages, held in memory for the whole run: matching walks
+        // this set instead of querying per page (the biggest imported space has
+        // 133 of them), and a matched row leaves it — which is what keeps two
+        // identically-named GitBook pages from collapsing into one.
+        $unclaimed = $group->pages()->get();
+        // GitBook node id => the page it became, so a child can find its parent.
+        // Reading order guarantees the parent was handled first.
+        $models = [];
+        // Next `position` per sibling list: `position` orders a page among its
+        // siblings, so one counter per parent, not one for the whole space.
+        $positions = [];
 
-        foreach ($found as $position => $source) {
-            $existing = $group->pages()
-                ->where('title', $source->title)
-                ->whereNotIn('id', $claimed)
-                ->first();
+        foreach ($found as $source) {
+            $parent = $source->parentId === null ? null : ($models[$source->parentId] ?? null);
+            $existing = $this->match($unclaimed, $source, $parent);
 
-            $page = $existing ?? $this->pages->create($group, $source->title);
+            $page = $existing ?? $this->pages->create($group, $source->title, $parent);
             $existing ? $updated++ : $created++;
-            $claimed[] = $page->id;
+            $unclaimed = $unclaimed->reject(fn (DocumentationPage $candidate) => $candidate->is($page))->values();
+            $models[$source->id] = $page;
 
             // Needed by nothing here, but a page fetched fresh would lazy-load
             // its container the moment anything downstream touches it.
             $page->setRelation('container', $group);
+
+            $key = $parent?->id ?? 'root';
+            $positions[$key] = ($positions[$key] ?? 0) + 1;
+
+            // `parent_id` is not fillable — the tree is written through the
+            // relation. Set on every pass, not only on create: this is what
+            // re-shapes a space that was imported flat.
+            $page->parent()->associate($parent);
+            $page->title = $source->title;
+            $page->position = $positions[$key];
+            $page->save();
+
+            // A GitBook `group` has no content to fetch, and nothing here
+            // should erase what a person may have written INTO the section page
+            // afterwards — for a page with no source of truth in GitBook, no
+            // source of truth here either.
+            if ($source->isSection) {
+                continue;
+            }
 
             $markdown = $this->normalizer->normalize(
                 $this->client->pageMarkdown($spaceId, $source->id)
@@ -108,11 +154,7 @@ class ImportGitbookSpace
                 $rehosted->failed,
             )];
 
-            $page->update([
-                'documentation' => $rehosted->markdown ?: null,
-                // GitBook's reading order, preserved through the flattening.
-                'position' => $position + 1,
-            ]);
+            $page->update(['documentation' => $rehosted->markdown ?: null]);
         }
 
         return new GitbookImportReport(
@@ -124,7 +166,29 @@ class ImportGitbookSpace
             assets: $assets,
             skipped: $tree->skipped(),
             failures: $failures,
+            sections: $tree->sections(),
+            collapsed: $tree->collapsed(),
         );
+    }
+
+    /**
+     * The row this GitBook node already has in the group, if any — tried three
+     * ways, most specific first:
+     *
+     * 1. Same title AND already under the right parent: a plain re-import.
+     * 2. The LEGACY flattened title ("Começando › Instalação"), which is what
+     *    the old import wrote. Matching it is what makes a re-run re-shape the
+     *    space in place instead of importing a second copy beside it.
+     * 3. Same title anywhere in the group — a page whose parent moved in
+     *    GitBook, or one imported at a different depth before.
+     *
+     * @param  Collection<int, DocumentationPage>  $unclaimed
+     */
+    private function match(Collection $unclaimed, GitbookPage $source, ?DocumentationPage $parent): ?DocumentationPage
+    {
+        return $unclaimed->first(fn (DocumentationPage $page) => $page->title === $source->title && $page->parent_id === $parent?->id)
+            ?? $unclaimed->first(fn (DocumentationPage $page) => $page->title === $source->origin())
+            ?? $unclaimed->first(fn (DocumentationPage $page) => $page->title === $source->title);
     }
 
     /**
