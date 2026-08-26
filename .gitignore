@@ -2,6 +2,7 @@
 .DS_Store
 .env
 .env.backup
+.env.bak.pre-pgsql
 .env.production
 .phpactor.json
 .phpunit.result.cache
@@ -26,3 +27,5 @@ Thumbs.db
 
 # CATI deck renderer — project-local Python venv (see docs/cati-fase-2.md)
 /.venv-cati
+.claude/instructions-loaded.log
+.claude/instructions-loaded.errors.log
