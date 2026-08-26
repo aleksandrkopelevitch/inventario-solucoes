@@ -6,7 +6,7 @@ use App\Models\DocumentationPage;
 use App\Models\FlowspecChat;
 use App\Models\FlowspecExample;
 use App\Models\FlowspecGuideline;
-use App\Models\Integration;
+use App\Models\Diagram;
 use App\Models\Solution;
 use App\Models\User;
 use App\Services\Flowspec\FlowspecGenerationService;
@@ -75,29 +75,27 @@ it('rejects a malformed document reference', function () {
     ])->assertStatus(422);
 });
 
-it('searches documentation pages and integrations for the picker', function () {
+it('searches documentation pages for the picker', function () {
     $user = flowspecUser();
     $solution = Solution::factory()->create(['name' => 'SVL']);
     $page = DocumentationPage::factory()->for($solution, 'container')->create(['title' => 'Autenticação', 'documentation' => 'x']);
-    $integration = Integration::factory()->create(['name' => 'Autenticação SVL -> IAM', 'documentation' => 'y']);
     DocumentationPage::factory()->for($solution, 'container')->create(['title' => 'Sem relação', 'documentation' => 'z']);
 
     $response = $this->actingAs($user)
         ->getJson(route('flowspec.documents.search', ['q' => 'Autenticação']))
         ->assertOk();
 
-    expect($response->json('results.*.id'))->toBe(["page:{$page->id}", "integration:{$integration->id}"]);
+    expect($response->json('results.*.id'))->toBe(["page:{$page->id}"]);
 });
 
-it('finds an integration match even when no documentation page matches the term', function () {
+it('rejects a diagram reference — a drawing carries no text to attach', function () {
     $user = flowspecUser();
-    Integration::factory()->create(['name' => 'Access One -> SVL -> SAP | Gestão de Atendentes', 'documentation' => 'y']);
+    $diagram = Diagram::factory()->create(['name' => 'IAM -> SVL']);
 
-    $response = $this->actingAs($user)
-        ->getJson(route('flowspec.documents.search', ['q' => 'Gestão de Atendentes']))
-        ->assertOk();
-
-    expect($response->json('results.*.name'))->toBe(['Access One -> SVL -> SAP | Gestão de Atendentes']);
+    $this->actingAs($user)->postJson(route('flowspec.store'), [
+        'message'   => 'gera um flowspec',
+        'documents' => ["diagram:{$diagram->id}"],
+    ])->assertStatus(422);
 });
 
 it('appends a message to an existing chat and dispatches the job', function () {

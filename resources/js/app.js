@@ -14,8 +14,8 @@ import * as executeFilters from './modules/execute-filters.js'
 import * as executeSearch from './modules/execute-search.js'
 import * as sortableTable from './modules/sortable-table.js'
 import * as inlineEdit from './modules/inline-edit.js'
-import * as integrationSelect from './modules/integration-select.js'
-import * as integrationViz from './modules/integration-viz.js'
+import * as chainSelect from './modules/chain-select.js'
+import * as chainViz from './modules/chain-viz.js'
 import * as ecosystemMap from './modules/ecosystem-map.js'
 import * as docsEditor from './modules/docs-editor.js'
 import * as docsAnchors from './modules/docs-anchors.js'
@@ -47,8 +47,8 @@ window.globalModules = {
     "executeSearch" : executeSearch,
     "sortableTable" : sortableTable,
     "inlineEdit"         : inlineEdit,
-    "integrationSelect" : integrationSelect,
-    "integrationViz"    : integrationViz,
+    "chainSelect" : chainSelect,
+    "chainViz"    : chainViz,
     "ecosystemMap"      : ecosystemMap,
     "docsEditor"        : docsEditor,
     "docsAnchors"       : docsAnchors,

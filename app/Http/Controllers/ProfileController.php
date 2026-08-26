@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Models\Company;
 use App\Models\FlowspecMessage;
-use App\Models\Integration;
+use App\Models\Diagram;
 use App\Models\Person;
 use App\Models\Solution;
 use App\Services\DocumentationCoverageService;
@@ -23,21 +23,25 @@ class ProfileController extends Controller
         // landing page doubles as the fastest way into the four catalogs.
         $metrics = [
             ['label' => 'Soluções', 'value' => Solution::query()->count(), 'detail' => 'catalogadas', 'icon' => 'squares-2x2', 'url' => route('solutions.index')],
-            ['label' => 'Integrações', 'value' => Integration::query()->count(), 'detail' => 'mapeadas', 'icon' => 'arrows-right-left', 'url' => route('solutions.map')],
+            ['label' => 'Diagramas', 'value' => Diagram::query()->count(), 'detail' => 'desenhados', 'icon' => 'share', 'url' => route('diagrams.index')],
             ['label' => 'Pessoas', 'value' => Person::query()->count(), 'detail' => 'responsáveis', 'icon' => 'users', 'url' => route('people.index')],
             ['label' => 'Empresas', 'value' => Company::query()->count(), 'detail' => 'fornecedores', 'icon' => 'building-office-2', 'url' => route('companies.index')],
         ];
 
         // Real documentation coverage (whole inventory), measured by content.
+        // Both bars read the page tree now — a solution is documented when one
+        // of its pages has content, and the second bar is those pages
+        // themselves. There is no third documentation surface to chart.
         $coverageBars = [
             ['label' => 'Soluções', 'icon' => 'squares-2x2'] + $counters['solutions'],
-            ['label' => 'Integrações', 'icon' => 'arrows-right-left'] + $counters['integrations'],
+            ['label' => 'Páginas', 'icon' => 'document-text'] + $counters['pages'],
         ];
 
         // Shortcuts into the work — the things staff actually come here to do.
         $shortcuts = [
             ['label' => 'Documentação', 'detail' => 'Hub de cobertura por conteúdo', 'icon' => 'book-open', 'url' => route('documentation.index')],
-            ['label' => 'Mapa do ecossistema', 'detail' => 'Grafo das integrações', 'icon' => 'share', 'url' => route('solutions.map')],
+            ['label' => 'Diagramas', 'detail' => 'Fluxos desenhados do ecossistema', 'icon' => 'share', 'url' => route('diagrams.index')],
+            ['label' => 'Mapa do ecossistema', 'detail' => 'Grafo das integrações', 'icon' => 'globe-alt', 'url' => route('solutions.map')],
             ['label' => 'Especialista em Integrações', 'detail' => 'Gera flowSpecs para a Digibee', 'icon' => 'cpu-chip', 'url' => route('flowspec.index')],
         ];
 

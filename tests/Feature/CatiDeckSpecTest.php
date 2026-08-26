@@ -4,7 +4,7 @@ use App\Actions\Cati\BuildDeckSpec;
 use App\Actions\Cati\RenderSubmissionDeck;
 use App\Enums\SubmissionSectionKey;
 use App\Enums\SubmissionSectionState;
-use App\Models\Integration;
+use App\Models\Diagram;
 use App\Models\Person;
 use App\Models\Solution;
 use App\Models\Submission;
@@ -249,15 +249,15 @@ it('renders a real .pptx through the python renderer', function () {
     }
 });
 
-it('puts each integration\'s canvas picture on its own slide, after the architecture', function () {
+it('puts each diagram\'s canvas picture on its own slide, after the architecture', function () {
     Storage::fake('public');
 
     $solution = Solution::factory()->create();
-    $integration = Integration::factory()->create(['name' => 'SAP x SkyMob']);
-    attachParticipants($integration, [[$solution, 0], [Solution::factory()->create(), 1]]);
+    $diagram = Diagram::factory()->create(['name' => 'SAP x SkyMob']);
+    attachParticipants($diagram, [[$solution, 0], [Solution::factory()->create(), 1]]);
 
-    $integration->addMedia(UploadedFile::fake()->image('canvas.png', 1600, 900))
-        ->toMediaCollection(Integration::DIAGRAM_COLLECTION);
+    $diagram->addMedia(UploadedFile::fake()->image('canvas.png', 1600, 900))
+        ->toMediaCollection(Diagram::DIAGRAM_COLLECTION);
 
     $submission = Submission::factory()->withSections()->create(['solution_id' => $solution->id]);
     $submission->section(SubmissionSectionKey::Architecture)->update(['content' => 'VM na Google Cloud.']);
@@ -276,14 +276,14 @@ it('puts each integration\'s canvas picture on its own slide, after the architec
     expect($block['type'])->toBe('image')
         ->and(is_file($block['path']))->toBeTrue()
         // The link is what keeps the canvas the one place a diagram is edited.
-        ->and($block['link'])->toBe(route('solutions.integrations.docs.edit', [$solution, $integration]))
+        ->and($block['link'])->toBe(route('diagrams.show', $diagram))
         ->and((new DeckSpecValidator)->validate($spec))->toBe([]);
 });
 
-it('leaves out an integration whose canvas was never saved', function () {
+it('leaves out a diagram whose canvas was never saved', function () {
     $solution = Solution::factory()->create();
-    $integration = Integration::factory()->create(['name' => 'Sem desenho']);
-    attachParticipants($integration, [[$solution, 0], [Solution::factory()->create(), 1]]);
+    $diagram = Diagram::factory()->create(['name' => 'Sem desenho']);
+    attachParticipants($diagram, [[$solution, 0], [Solution::factory()->create(), 1]]);
 
     $submission = Submission::factory()->withSections()->create(['solution_id' => $solution->id]);
     $submission->section(SubmissionSectionKey::Architecture)->update(['content' => 'Texto.']);

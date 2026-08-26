@@ -1,7 +1,7 @@
 // Ecosystem map (read-only) — radial hub-and-spoke layout.
 //
 // Each solution becomes a hub (rounded card, same visual as the
-// integration-viz block) positioned once in a compact grid that packs the
+// diagram-viz block) positioned once in a compact grid that packs the
 // FOOTPRINTs (card + neighbor ring, when expanded) into rows, largest first.
 // No `dagre`/rank layout here: most pairs/clusters in this graph are small
 // and mostly disconnected from each other (many solutions with 0-2
@@ -29,7 +29,7 @@
 //
 // Clicking a card (hub or satellite) opens a popover with the solution's
 // attributes + a "See more" button (new tab) — it doesn't navigate directly.
-// Pan/zoom/fit/fullscreen follow the same pattern as integration-viz.js
+// Pan/zoom/fit/fullscreen follow the same pattern as chain-viz.js
 // (view.x/y/scale on a single #world transform, real Fullscreen API).
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
@@ -54,7 +54,7 @@ export function init() {
 
 // Same fallback as the catalog (`x-ui.logo`), redone in plain DOM — this
 // map's nodes don't go through Blade (they arrive via fetch), same reason as
-// integration-viz.js.
+// chain-viz.js.
 function buildAvatar(data) {
     const avatar = document.createElement('span')
     avatar.className = 'ak-viz-node-avatar'
@@ -855,7 +855,7 @@ function mount(root) {
                 e.stopPropagation()
                 if (e.button !== 0) return
                 // No `positionUrl` (a viewer — server never grants one, see
-                // IntegrationGraphService::putNode()) — dragging can never
+                // DiagramGraphService::putNode()) — dragging can never
                 // persist, so skip it entirely rather than let the hub move
                 // for the length of the gesture and snap back on reload.
                 if (!hub.positionUrl) return

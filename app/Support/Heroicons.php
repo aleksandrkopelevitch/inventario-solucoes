@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Cache;
 /**
  * Thin bridge to `blade-ui-kit/blade-heroicons` outside a Blade context —
  * used to embed the (outline) SVG of a chosen icon inside payloads consumed
- * by JS (e.g. `data-integration-graph`, read by `integration-viz.js`; the
+ * by JS (e.g. `data-ak-chain-graph`, read by `chain-viz.js`; the
  * documentation callouts' icon picker), where `<x-heroicon-o-*>` doesn't apply.
  */
 class Heroicons
@@ -19,7 +19,7 @@ class Heroicons
      * reads the file and rebuilds the markup on every call, and the callers here
      * ask for the SAME handful of icons once per graph node: a solution's
      * environment/cloud badges plus the block kind's glyph, for every node of
-     * every integration on the page. Values include null (icon doesn't exist),
+     * every diagram on the page. Values include null (icon doesn't exist),
      * so misses are memoized too.
      *
      * @var array<string, string|null>

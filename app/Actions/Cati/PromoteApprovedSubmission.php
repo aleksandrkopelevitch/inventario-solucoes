@@ -24,12 +24,12 @@ use Illuminate\Support\Str;
  * This docblock used to argue that promoting topology was unnecessary — "the
  * architect edits the inventory's own chain while preparing, so the topology is
  * already promoted the moment it is drawn". That was true while the diagrams
- * were pictures of the LIVE integration canvas. Fase 3 gave a submission
+ * were pictures of the LIVE diagram canvas. Fase 3 gave a submission
  * drawings of its OWN, whose `afterChainMutation()` is deliberately empty, so
  * an approved TO BE reached nothing and the catalog drifted again.
  *
  * It still does not WRITE the topology: a submission's TO BE is a free graph
- * that may describe several integrations or one that does not exist yet, and an
+ * that may describe several diagrams or one that does not exist yet, and an
  * approval that guessed the target would overwrite real topology with a guess.
  * It records an `ApprovedTopology` instead — pending, visible, and closable by
  * a person either way (see that model, and `ApplyApprovedTopology`).

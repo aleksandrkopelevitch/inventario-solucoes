@@ -11,7 +11,7 @@ use Illuminate\Http\Request;
 
 /**
  * Documentation Hub — cross-cutting management view of what is documented
- * and what's missing, for solutions and integrations (coverage by actual
+ * and what's missing, for solutions and diagrams (coverage by actual
  * content). Thin: aggregation lives in DocumentationCoverageService. Same
  * HTML/JSON action — JSON returns the filtered list's slot (catalog pattern).
  */

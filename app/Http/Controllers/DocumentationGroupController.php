@@ -13,7 +13,7 @@ use Illuminate\Support\Str;
 /**
  * CRUD for the Group ("Nesting") itself — the tree of pages inside it is
  * managed by DocumentationGroupPageController. A Group does not belong to
- * any Solution (it stays outside the solution/integration coverage hub).
+ * any Solution (it stays outside the solution/diagram coverage hub).
  */
 class DocumentationGroupController extends Controller
 {

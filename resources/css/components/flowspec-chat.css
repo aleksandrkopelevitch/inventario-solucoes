@@ -3,7 +3,7 @@
    are GitbookRenderer output (arbitrary Markdown → HTML), so they need
    real typography for headings/lists/code with no fixed element to
    attach a utility class to beforehand. Same legitimate-CSS-exception
-   reasoning as `.ak-viz-md` (integration-viz.blade.php) — kept as a
+   reasoning as `.ak-viz-md` (components/chain/viz.blade.php) — kept as a
    separate class rather than sharing that one because it's scoped to
    the unrelated F3 canvas. Deliberately NOT `.html-content` either:
    that class is sized for full documentation pages (h1 at text-4xl,

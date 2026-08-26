@@ -14,9 +14,9 @@
    emits them (a concatenated "bg-cat-{family}" elsewhere would never be seen). */
 @source "../../app/Support/CategoryPalette.php";
 
-/* Same deal for the integration status badge/dot tones, named as literals
+/* Same deal for the diagram status badge/dot tones, named as literals
    inside the enum so the two places that draw a status can't drift apart. */
-@source "../../app/Enums/IntegrationStatus.php";
+@source "../../app/Enums/DiagramStatus.php";
 
 /* Same again for the CATI submission tones: SubmissionStatus (7 lifecycle
    badges), SubmissionSectionState (empty / IA draft / confirmed) and
@@ -344,18 +344,18 @@
     .animate-bounce, .animate-spin { animation-duration: 1s !important; }
     .animate-pulse { animation-duration: 2s !important; }
 
-    /* Exception: the F3 integration canvas' presentation-mode block/edge
+    /* Exception: the F3 diagram canvas' presentation-mode block/edge
        reveal (`[data-presenting] .ak-viz-node`/`.ak-viz-edge`/`.ak-viz-plabel`,
-       integration-viz.js's `enterPresentation()`/`revealNode()`/`revealEdge()`)
+       chain-viz.js's `enterPresentation()`/`revealNode()`/`revealEdge()`)
        is not decorative — it's a mode the user opts into by explicitly
        clicking "Modo apresentação" to WATCH an animation (a glowing dot
        travelling the flow, blocks and arrows fading in as it reaches/travels
        them). The blanket rule above would make every block/arrow snap
        instantly to fully visible instead of fading in, defeating the one
        thing that mode exists for — restore their transition duration. */
-    [data-integration-viz][data-presenting] .ak-viz-node,
-    [data-integration-viz][data-presenting] .ak-viz-edge,
-    [data-integration-viz][data-presenting] .ak-viz-plabel {
+    [data-ak-chain-viz][data-presenting] .ak-viz-node,
+    [data-ak-chain-viz][data-presenting] .ak-viz-edge,
+    [data-ak-chain-viz][data-presenting] .ak-viz-plabel {
         transition-duration: .5s !important;
     }
 }

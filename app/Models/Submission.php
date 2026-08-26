@@ -180,8 +180,8 @@ class Submission extends Model implements HasMedia
     /**
      * The row for one drawing, creating it if it doesn't exist yet.
      *
-     * A DRAWN kind is born with the same single root node an Integration gets
-     * (`SolutionIntegrationController::store()`), for the same reason: the F3
+     * A DRAWN kind is born with the same single root node a Diagram gets
+     * (`DiagramController::store()`), for the same reason: the F3
      * canvas draws a chain, and a chain with no nodes has nothing to hang the
      * first gesture on. The root is the linked catalog Solution when there is
      * one — the proposal is about that system, so making the person place it

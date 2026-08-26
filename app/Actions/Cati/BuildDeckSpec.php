@@ -4,7 +4,7 @@ namespace App\Actions\Cati;
 
 use App\Enums\SubmissionDiagramKind;
 use App\Enums\SubmissionSectionKey;
-use App\Models\Integration;
+use App\Models\Diagram;
 use App\Models\Submission;
 use App\Support\Cati\MarkdownToBlocks;
 
@@ -38,7 +38,7 @@ class BuildDeckSpec
     /** @return array<string, mixed> */
     public function handle(Submission $submission): array
     {
-        $submission->loadMissing(['sections', 'solution', 'requester', 'solution.integrations.media']);
+        $submission->loadMissing(['sections', 'solution', 'requester', 'solution.diagrams.media']);
 
         $rows = $submission->sections->keyBy(fn ($section) => $section->key->value);
 
@@ -159,9 +159,9 @@ class BuildDeckSpec
      * during the meeting and the deck and the inventory disagree, silently.
      * One editing surface, many views.
      *
-     * The Solution's existing integration canvases still follow, and they are
+     * The Solution's existing diagram canvases still follow, and they are
      * not redundant: they are the catalog's own record of what exists today,
-     * at the level of one integration each, while AS IS is the submitter's
+     * at the level of one diagram each, while AS IS is the submitter's
      * summary of the same reality. A submission that drew an AS IS suppresses
      * them, because two answers to "how does it work today" on consecutive
      * slides is a question from the committee, not an answer.
@@ -170,7 +170,7 @@ class BuildDeckSpec
      */
     private function diagrams(Submission $submission): array
     {
-        $submission->loadMissing(['diagrams.media', 'solution.integrations']);
+        $submission->loadMissing(['diagrams.media', 'solution.diagrams']);
 
         $slides = [];
         $drewAsIs = false;
@@ -203,11 +203,11 @@ class BuildDeckSpec
             ];
         }
 
-        return [...$slides, ...$this->integrationDiagrams($submission, $drewAsIs)];
+        return [...$slides, ...$this->diagramSlides($submission, $drewAsIs)];
     }
 
     /**
-     * One slide per integration of the linked Solution that has a picture of
+     * One slide per diagram of the linked Solution that has a picture of
      * its canvas — the catalog's own view of what exists today.
      *
      * Suppressed once the submission drew its own AS IS: the two answer the
@@ -216,7 +216,7 @@ class BuildDeckSpec
      *
      * @return list<array<string, mixed>>
      */
-    private function integrationDiagrams(Submission $submission, bool $drewAsIs): array
+    private function diagramSlides(Submission $submission, bool $drewAsIs): array
     {
         $solution = $submission->solution;
 
@@ -226,8 +226,8 @@ class BuildDeckSpec
 
         $slides = [];
 
-        foreach ($solution->integrations as $integration) {
-            $media = $integration->getFirstMedia(Integration::DIAGRAM_COLLECTION);
+        foreach ($solution->diagrams as $diagram) {
+            $media = $diagram->getFirstMedia(Diagram::DIAGRAM_COLLECTION);
 
             // No picture yet means nobody has saved that canvas since the
             // feature existed. Skipping beats a slide with a hole in it.
@@ -237,11 +237,11 @@ class BuildDeckSpec
 
             $slides[] = [
                 'layout' => 'content',
-                'title'  => "Arquitetura — {$integration->name}",
+                'title'  => "Arquitetura — {$diagram->name}",
                 'blocks' => [[
                     'type' => 'image',
                     'path' => $media->getPath(),
-                    'link' => route('solutions.integrations.docs.edit', [$solution, $integration]),
+                    'link' => route('diagrams.show', $diagram),
                 ]],
             ];
         }

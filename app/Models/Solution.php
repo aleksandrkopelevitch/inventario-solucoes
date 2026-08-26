@@ -139,14 +139,14 @@ class Solution extends Model implements HasMedia
             ->withTimestamps();
     }
 
-    public function integrationsAsSource(): HasMany
+    public function diagramsAsSource(): HasMany
     {
-        return $this->hasMany(Integration::class, 'source_solution_id');
+        return $this->hasMany(Diagram::class, 'source_solution_id');
     }
 
-    public function integrationsAsTarget(): HasMany
+    public function diagramsAsTarget(): HasMany
     {
-        return $this->hasMany(Integration::class, 'target_solution_id');
+        return $this->hasMany(Diagram::class, 'target_solution_id');
     }
 
     /**
@@ -163,10 +163,10 @@ class Solution extends Model implements HasMedia
         return $this->hasMany(ApprovedTopology::class)->pending();
     }
 
-    /** Every integration this solution participates in, in any role. */
-    public function integrations(): BelongsToMany
+    /** Every diagram this solution participates in, in any role. */
+    public function diagrams(): BelongsToMany
     {
-        return $this->belongsToMany(Integration::class, 'integration_solution')
+        return $this->belongsToMany(Diagram::class, 'diagram_solution')
             ->withPivot(['position'])
             ->withTimestamps();
     }
@@ -183,11 +183,11 @@ class Solution extends Model implements HasMedia
         return $this->pages()->whereNotNull('documentation')->where('documentation', '<>', '');
     }
 
-    public function scopeWithIntegrationCounts(Builder $query): void
+    public function scopeWithDiagramCounts(Builder $query): void
     {
         $query->withCount([
-            'integrationsAsSource as active_out' => fn (Builder $q) => $q->where('status', 'active'),
-            'integrationsAsTarget as active_in'  => fn (Builder $q) => $q->where('status', 'active'),
+            'diagramsAsSource as active_out' => fn (Builder $q) => $q->where('status', 'active'),
+            'diagramsAsTarget as active_in'  => fn (Builder $q) => $q->where('status', 'active'),
         ]);
     }
 

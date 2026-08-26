@@ -26,13 +26,13 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * A submission's four drawings — the AS IS / TO BE canvases and the two
  * uploaded C4 views (`App\Enums\SubmissionDiagramKind`).
  *
- * The chain endpoints are the SAME nine the integrations use, running the
+ * The chain endpoints are the SAME nine the diagrams use, running the
  * same code (`Concerns\EditsChain`) against a different `ChainCanvas`. The
  * canvas client cannot tell the two apart: every URL it calls arrives inside
  * the graph payload it was drawn from, so nothing in
- * `integration-viz.js` knows a submission exists.
+ * `chain-viz.js` knows a submission exists.
  *
- * What is genuinely different is what happens after a write: an Integration
+ * What is genuinely different is what happens after a write: a Diagram
  * re-derives participants/source/target/direction, a submission's drawing
  * derives NOTHING (`SubmissionDiagram::afterChainMutation()`). A proposal is
  * a thing being argued about; letting a rejected one write into the catalog
@@ -46,7 +46,7 @@ class SubmissionDiagramController extends Controller
      * The canvas, on its own full-height page.
      *
      * A page rather than a panel inside the workbench, for the same reason an
-     * integration's canvas has one: it is a pan/zoom surface with a toolbar
+     * diagram's canvas has one: it is a pan/zoom surface with a toolbar
      * and a fullscreen mode, and 340px of a tab is not somewhere anyone can
      * draw an architecture.
      */
@@ -62,7 +62,7 @@ class SubmissionDiagramController extends Controller
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Chain — identical semantics to the integration canvas */
+    /*  Chain — identical semantics to the diagram canvas */
     /* ------------------------------------------------------------------ */
 
     public function saveLayout(SaveChainLayoutRequest $request, Submission $submission, SubmissionDiagram $diagram): JsonResponse
@@ -139,7 +139,7 @@ class SubmissionDiagramController extends Controller
     /**
      * The canvas's own rendered PNG, republished after every successful
      * layout save — fire-and-forget from the client, exactly as on the
-     * integration canvas.
+     * diagram canvas.
      *
      * A DERIVED artifact and never an input: it must not touch `chain` or
      * `viz_layout`. It exists so the deck can print the architecture without a

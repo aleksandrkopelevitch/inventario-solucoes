@@ -74,6 +74,19 @@
                             {{ $page['title'] }}
                         </a>
 
+                        {{-- A page that also carries a drawing says so right
+                             here, at whatever level it sits: the link is the
+                             module's whole point, and the rail is the only
+                             place the tree is visible as a tree. Hidden on
+                             hover, where the row's action buttons take over the
+                             same strip. --}}
+                        @if ($page['hasDiagram'] ?? false)
+                            <span title="Tem diagrama vinculado" aria-label="Tem diagrama vinculado"
+                                class="shrink-0 text-accent transition-opacity group-hover:opacity-0">
+                                <x-heroicon-o-share class="size-3.5" />
+                            </span>
+                        @endif
+
                         <div class="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100">
                             <x-forms.button type="button" variant="ghost" data-ak-ajax="doc-page-move-up-{{ $i }}" data-ak-action="{{ $page['moveUrl'] }}"
                                 class="!h-6 !w-6 !p-0" title="Mover para cima" aria-label="Mover para cima">
@@ -225,29 +238,5 @@
                 </li>
             @endforeach
         </ul>
-
-        {{-- Documentation for each Integration the Solution participates in —
-             consolidated into this same tree (not a separate screen). Link
-             only: renaming/moving/deleting an integration doesn't make sense here. --}}
-        @if (count($integrations))
-            <div class="mt-4 border-t border-line pt-3">
-                <span class="px-1 text-[11px] font-bold uppercase tracking-[0.12em] text-faint">Integrações</span>
-
-                <ul class="mt-2 flex flex-col gap-0.5">
-                    @foreach ($integrations as $integration)
-                        <li>
-                            <a href="{{ $integration['editUrl'] }}" @class([
-                                'block truncate rounded-field px-2 py-1.5 text-sm transition-colors',
-                                'bg-accent-soft font-semibold text-accent' => $integration['active'],
-                                'text-ink hover:bg-raised' => ! $integration['active'],
-                                'italic text-muted' => ! $integration['hasContent'],
-                            ])>
-                                {{ $integration['title'] }}
-                            </a>
-                        </li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
     </div>
 </div>

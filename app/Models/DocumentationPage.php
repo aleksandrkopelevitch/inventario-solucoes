@@ -12,12 +12,18 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Spatie\MediaLibrary\InteractsWithMedia;
 
 /**
- * A documentation page (Markdown + GitBook notation), the atomic unit
- * edited by the Editor.js block — same as the old single blob on
- * `Solution`/`Integration`, except now a Solution (or a standalone
- * `DocumentationGroup`) can have 1..N of them, in a tree up to `MAX_DEPTH`
- * levels deep (five) ordered by `position`. `container` is polymorphic (`Solution` or
- * `DocumentationGroup`).
+ * A documentation page (Markdown + GitBook notation), the atomic unit edited by
+ * the Editor.js block editor — and, since diagrams stopped carrying prose of
+ * their own, the ONLY kind of documentation in this app. A Solution (or a
+ * standalone `DocumentationGroup`) has 1..N of them, in a tree up to
+ * `MAX_DEPTH` levels deep (five) ordered by `position`. `container` is
+ * polymorphic (`Solution` or `DocumentationGroup`).
+ *
+ * A page at ANY level of that tree may point at a `Diagram` (`diagram_id`),
+ * which is what replaced the old integration-documentation pairing: the drawing
+ * and the text that explains it are separate things that reference each other,
+ * so one drawing can be explained from several pages (and therefore from
+ * several solutions) instead of being trapped inside one of them.
  *
  * The tree's shape is deliberately capped, and both halves of the cap matter:
  *
@@ -57,10 +63,11 @@ class DocumentationPage extends Model implements Documentable
     public const MAX_DEPTH = 5;
 
     /**
-     * `parent_id` is deliberately absent — like `container_type`/`container_id`
-     * (§ Security: no `$guarded = []`), the page's place in the tree is set
-     * through the relation (`parent()->associate()`), never mass-assigned from
-     * a request payload.
+     * `parent_id` and `diagram_id` are deliberately absent — like
+     * `container_type`/`container_id` (§ Security: no `$guarded = []`), every
+     * relation this page holds is set through the relation itself
+     * (`parent()->associate()`, `diagram()->associate()`), never
+     * mass-assigned from a request payload.
      */
     protected $fillable = [
         'title',
@@ -76,7 +83,7 @@ class DocumentationPage extends Model implements Documentable
 
     public function registerMediaCollections(): void
     {
-        // See Solution/Integration — documentation media, served by
+        // See Solution/Diagram — documentation media, served by
         // `files.show`, referenced as /files/{id} in the Markdown.
         $this->addMediaCollection(self::DOCS_COLLECTION);
     }
@@ -99,6 +106,18 @@ class DocumentationPage extends Model implements Documentable
     public function children(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id')->orderBy('position');
+    }
+
+    /**
+     * The drawing this page explains, if any.
+     *
+     * `belongsTo` and not the other way round: ONE diagram serves 1..N pages,
+     * so the FK lives here. Deleting the diagram leaves the page (and its
+     * text) alone — `nullOnDelete`.
+     */
+    public function diagram(): BelongsTo
+    {
+        return $this->belongsTo(Diagram::class);
     }
 
     /** A page at the top of the tree. */

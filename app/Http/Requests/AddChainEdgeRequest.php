@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Integration;
+use App\Models\Diagram;
 use Illuminate\Contracts\Validation\Validator;
 use App\Http\Requests\Concerns\AuthorizesChainOwner;
 use Illuminate\Foundation\Http\FormRequest;
@@ -31,7 +31,7 @@ class AddChainEdgeRequest extends FormRequest
     public function rules(): array
     {
         // Resolved by TYPE, never by parameter name: this request serves both
-        // the integration canvas and a submission's drawing, and a by-name
+        // the diagram canvas and a submission's drawing, and a by-name
         // lookup returns null on the other owner — which silently collapses
         // `$max` to 0 and rejects every edge past the root as "out of range".
         // A rule that fails on the WORKING path reads as a broken canvas.
@@ -63,7 +63,7 @@ class AddChainEdgeRequest extends FormRequest
      * way, so repeating the gesture between the same two blocks (from another
      * port, say) is easy to do by accident — and the result is a second arrow
      * that says exactly what the first one already said, indistinguishable in
-     * the canvas but double-counted in `SyncIntegrationFromChain`'s degrees.
+     * the canvas but double-counted in `SyncDiagramFromChain`'s degrees.
      *
      * @return array<int, callable>
      */

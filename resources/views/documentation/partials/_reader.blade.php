@@ -1,5 +1,5 @@
 {{-- The reading column: Editor.js (editable) or the rendered read-only
-     Markdown. Extracted so the integration's unified page can reuse it
+     Markdown. Extracted so the diagram's unified page can reuse it
      unchanged inside the Documentação tab (see documentation/edit.blade.php).
      Inherits the parent view's scope (canEdit, documentation, uploadUrl,
      renderedHtml). --}}
@@ -15,7 +15,7 @@
             data-config="{{ json_encode(['uploadUrl' => $uploadUrl]) }}"></div>
 
         {{-- Resume marker: present when this user has a Documentation Assistant
-             chat still generating a reply for this page/integration (e.g. they
+             chat still generating a reply for this page/diagram (e.g. they
              closed the panel or navigated away). docs-chat.js locks the editor
              and resumes polling on load — see AssistsDocumentation::chatResumeFor(). --}}
         @if ($chatResume ?? null)

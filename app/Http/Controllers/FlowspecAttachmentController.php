@@ -62,7 +62,7 @@ class FlowspecAttachmentController extends Controller
 
     /**
      * The picker panel: every Solution that has documentation, its pages, and
-     * the integrations it participates in that document themselves.
+     * the diagrams it participates in that document themselves.
      *
      * Not nested under `{chat}` — the new-chat screen has no chat and needs the
      * same picker. When a chat IS given, what it already has attached comes back

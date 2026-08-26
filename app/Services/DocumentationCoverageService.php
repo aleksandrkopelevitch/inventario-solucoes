@@ -3,50 +3,64 @@
 namespace App\Services;
 
 use App\Models\DocumentationGroup;
-use App\Models\Integration;
+use App\Models\DocumentationPage;
 use App\Models\Solution;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 /**
  * Documentation coverage across the inventory, measured by **actual content**.
- * Integration is still single-page (direct `documentation` column); Solution
- * now has a page tree — "documented" when at least one of its
- * `DocumentationPage`s has content (`Solution::documentedPages()`).
- * Feeds the Documentation hub (cross-cutting view of solutions + integrations
- * + standalone groups). Never in controller/Blade; counters via aggregated
- * queries (no N+1 and no loading the `documentation` longText).
+ *
+ * There is one kind of documentation now — the `DocumentationPage` tree — so
+ * this counts one thing at two levels: a Solution is documented when at least
+ * one of its pages has content, and a page is documented when it has any. The
+ * hub used to have a second, parallel half listing each integration's own
+ * `documentation` column; that column and the entity are gone, and drawings
+ * have a module of their own (`DiagramCatalogService`) rather than a coverage
+ * percentage here.
+ *
+ * Never called from a controller body or a Blade view; counters are aggregate
+ * queries, so the `documentation` longText is never loaded to produce them.
  */
 class DocumentationCoverageService
 {
-    /** SQL expression "has documentation" — only Integration still stores the doc in a direct column. */
-    private const INTEGRATION_HAS_DOCS = "documentation is not null and documentation <> ''";
-
     /**
-     * Global coverage counters (whole inventory, independent of any filter)
-     * for solutions and integrations.
+     * Global coverage counters (whole inventory, independent of any filter).
      *
      * @return array{
      *     solutions: array{documented: int, total: int, percent: float},
-     *     integrations: array{documented: int, total: int, percent: float},
+     *     pages: array{documented: int, total: int, percent: float},
      * }
      */
     public function counters(): array
     {
         return [
-            'solutions'    => $this->countSolutions(),
-            'integrations' => $this->countFor(Integration::query()),
+            'solutions' => $this->percentages(
+                Solution::query()->whereHas('documentedPages')->count(),
+                Solution::query()->count(),
+            ),
+            'pages' => $this->percentages(
+                DocumentationPage::query()->whereNotNull('documentation')->where('documentation', '<>', '')->count(),
+                DocumentationPage::query()->count(),
+            ),
         ];
     }
 
     /**
-     * List grouped by solution: each solution (with its doc status) and the
-     * integrations it participates in (each with its own). Applies the hub's
-     * filters (search by name, item type and documentation status).
+     * List grouped by solution: each solution (with its doc status) and its own
+     * pages (each with its own, plus whether it carries a diagram). Applies the
+     * hub's filters (search by name, documentation status).
+     *
+     * The pages are listed by TITLE, not by `position`. `position` orders a
+     * page among its SIBLINGS, so a flat `orderBy('position')` across every
+     * depth is not reading order (§ Documentation page tree) — and a list that
+     * is neither alphabetical nor the tree reads as broken. This is a coverage
+     * checklist, not the tree; walking `tree()` per solution would also be one
+     * query per row on a hundred-solution page.
      *
      * Structure of each item:
-     *   ['solution' => ['name','slug','url','hasDocs','showStatus'],
-     *    'integrations' => [['name','slug','url','hasDocs'], ...]]
+     *   ['solution' => ['name','slug','url','showUrl','hasDocs'],
+     *    'pages' => [['title','url','hasDocs','hasDiagram'], ...]]
      *
      * @param  array<string, mixed>  $filters
      * @return Collection<int, array<string, mixed>>
@@ -54,7 +68,6 @@ class DocumentationCoverageService
     public function groups(array $filters): Collection
     {
         $search = trim((string) ($filters['search'] ?? ''));
-        $type = in_array($filters['type'] ?? null, ['solutions', 'integrations'], true) ? $filters['type'] : 'all';
         $status = in_array($filters['status'] ?? null, ['documented', 'pending'], true) ? $filters['status'] : 'all';
 
         $solutions = Solution::query()
@@ -62,46 +75,41 @@ class DocumentationCoverageService
             ->withExists('documentedPages as has_docs')
             ->when($search !== '', fn (Builder $q) => $q->where(fn (Builder $w) => $w
                 ->where('name', 'like', "%{$search}%")
-                ->orWhereHas('integrations', fn (Builder $i) => $i->where('integrations.name', 'like', "%{$search}%"))))
-            ->with(['integrations' => fn ($rel) => $rel
-                ->select('integrations.id', 'integrations.name', 'integrations.slug')
-                ->selectRaw('(integrations.documentation is not null and integrations.documentation <> \'\') as has_docs')
-                ->orderBy('integrations.name')])
+                ->orWhereHas('pages', fn (Builder $p) => $p->where('title', 'like', "%{$search}%"))))
+            ->with(['pages' => fn ($rel) => $rel
+                ->select('documentation_pages.id', 'documentation_pages.container_type', 'documentation_pages.container_id',
+                    'documentation_pages.title', 'documentation_pages.slug', 'documentation_pages.diagram_id')
+                // The flag, not the longText: a hub listing every page of every
+                // solution would otherwise pull the whole corpus into memory.
+                ->selectRaw("(documentation is not null and documentation <> '') as has_docs")
+                ->reorder('documentation_pages.title')])
             ->orderBy('name')
             ->get();
 
         return $solutions
-            ->map(function (Solution $solution) use ($type, $status) {
-                $showStatus = $type !== 'integrations';
-                $showIntegrations = $type !== 'solutions';
-
-                $integrations = $showIntegrations
-                    ? $solution->integrations
-                        ->filter(fn (Integration $i) => $this->matchesStatus((bool) $i->has_docs, $status))
-                        ->map(fn (Integration $i) => [
-                            'name'    => $i->name,
-                            'slug'    => $i->slug,
-                            'url'     => route('solutions.integrations.docs.edit', [$solution, $i]),
-                            'hasDocs' => (bool) $i->has_docs,
-                        ])
-                        ->values()
-                    : collect();
+            ->map(function (Solution $solution) use ($status) {
+                $pages = $solution->pages
+                    ->filter(fn (DocumentationPage $page) => $this->matchesStatus((bool) $page->has_docs, $status))
+                    ->map(fn (DocumentationPage $page) => [
+                        'title'      => $page->title,
+                        'url'        => route('solutions.docs.page.edit', [$solution, $page]),
+                        'hasDocs'    => (bool) $page->has_docs,
+                        'hasDiagram' => $page->diagram_id !== null,
+                    ])
+                    ->values();
 
                 return [
                     'solution' => [
-                        'name'       => $solution->name,
-                        'slug'       => $solution->slug,
-                        'url'        => route('solutions.docs.edit', $solution),
-                        'showUrl'    => route('solutions.show', $solution),
-                        'hasDocs'    => (bool) $solution->has_docs,
-                        'showStatus' => $showStatus,
+                        'name'    => $solution->name,
+                        'slug'    => $solution->slug,
+                        'url'     => route('solutions.docs.edit', $solution),
+                        'showUrl' => route('solutions.show', $solution),
+                        'hasDocs' => (bool) $solution->has_docs,
                     ],
-                    'integrations' => $integrations,
-                    // Keeps the group visible if the solution itself matches
-                    // the status filter (when applicable) OR any integration
-                    // survived the filter.
-                    'keep' => ($showStatus && $this->matchesStatus((bool) $solution->has_docs, $status))
-                        || $integrations->isNotEmpty(),
+                    'pages' => $pages,
+                    // Keeps the group visible if the solution itself matches the
+                    // status filter OR any of its pages survived it.
+                    'keep' => $this->matchesStatus((bool) $solution->has_docs, $status) || $pages->isNotEmpty(),
                 ];
             })
             ->filter(fn (array $group) => $group['keep'])
@@ -111,7 +119,7 @@ class DocumentationCoverageService
 
     /**
      * Standalone groups ("Nestings") — simple listing for the hub, without a
-     * coverage % (they don't have a natural "total" like Solutions/Integrations).
+     * coverage % (they don't have a natural "total" the way Solutions do).
      *
      * @return Collection<int, array{name: string, slug: string, url: string, pageCount: int}>
      */
@@ -127,25 +135,6 @@ class DocumentationCoverageService
                 'url'       => route('documentation.groups.show', $group),
                 'pageCount' => $group->pages_count,
             ]);
-    }
-
-    /** @return array{documented: int, total: int, percent: float} */
-    private function countSolutions(): array
-    {
-        $total = Solution::query()->count();
-        $documented = Solution::query()->whereHas('documentedPages')->count();
-
-        return $this->percentages($documented, $total);
-    }
-
-    /** @return array{documented: int, total: int, percent: float} */
-    private function countFor(Builder $query): array
-    {
-        $row = $query
-            ->selectRaw('count(*) as total, sum(case when ' . self::INTEGRATION_HAS_DOCS . ' then 1 else 0 end) as documented')
-            ->first();
-
-        return $this->percentages((int) $row->documented, (int) $row->total);
     }
 
     /** @return array{documented: int, total: int, percent: float} */

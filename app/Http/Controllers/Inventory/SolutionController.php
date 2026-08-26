@@ -52,7 +52,7 @@ class SolutionController extends Controller
         ]);
     }
 
-    /** Detail (header — 9.2 items 1 and 2). Integrations/graph/coverage are steps 3/4/6. */
+    /** Detail (header — 9.2 items 1 and 2). Diagrams/graph/coverage are steps 3/4/6. */
     public function show(Request $request, Solution $solution)
     {
         $this->authorize('view', $solution);
@@ -69,7 +69,7 @@ class SolutionController extends Controller
         return view('solutions.show', [
             'solution' => $solution,
             // A committee approved a topology for this solution and nobody
-            // applied it yet: the integrations list below is showing the
+            // applied it yet: the diagrams list below is showing the
             // previous scenario, and saying so is the whole point of tracking
             // it (App\Models\ApprovedTopology). Resolved here rather than in
             // the view — it is a query.

@@ -12,9 +12,11 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 /**
  * The Documentation Assistant ("Assiste IA") conversation for one user about
- * one target (a DocumentationPage or an Integration, both Documentable) — one
- * ongoing chat per (user, target): reopening the panel resumes the same
- * thread instead of starting a new one (see the unique index in its migration).
+ * one target (a DocumentationPage) — one ongoing chat per (user, target):
+ * reopening the panel resumes the same thread instead of starting a new one
+ * (see the unique index in its migration). `target` stays a morph because it
+ * once also pointed at an `Integration`, the second kind of documentation this
+ * app no longer has; every row is a page today.
  */
 class DocumentationChat extends Model
 {

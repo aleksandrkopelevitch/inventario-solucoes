@@ -1,12 +1,18 @@
 # Inventário de Soluções
 
 Aplicação Laravel standalone para catalogar as soluções e integrações da Leo
-Madeiras: cadastro de soluções/pessoas/empresas, um editor gráfico de
-topologia de integrações por solução, um mapa read-only do ecossistema
-completo, documentação rica (estilo GitBook) para soluções e integrações — com
-um assistente de IA que gera rascunhos —, um hub que reúne a cobertura dessa
-documentação, e um Especialista em Integrações que gera flowSpec Digibee em
-formato de chat.
+Madeiras: cadastro de soluções/pessoas/empresas, um módulo de **Diagramas**
+(editor gráfico de topologia, um desenho por vez), um mapa read-only do
+ecossistema derivado desses desenhos, documentação rica (estilo GitBook) em
+árvore de páginas — com um assistente de IA que gera rascunhos —, um hub que
+reúne a cobertura dessa documentação, e um Especialista em Integrações que gera
+flowSpec Digibee em formato de chat.
+
+Uma página de documentação pode apontar para um diagrama, e é assim que texto e
+desenho se relacionam: um diagrama explica 1..N páginas (e, por elas, 1..N
+soluções). Até 2026-08-26 existiam **duas** documentações — a árvore de páginas
+e uma coluna própria de cada integração — e a segunda deixou de existir junto
+com a entidade `Integration`, que virou `Diagram`.
 
 A base de infraestrutura genérica (form components, sistema de slots, módulos
 JS, shells de layout, autenticação) foi portada do projeto de referência
@@ -60,7 +66,7 @@ Blade + JS vanilla organizado em módulos. Isso é uma decisão deliberada, não
 falta de ferramenta: o app é majoritariamente CRUD/catálogo (formulários,
 listas, filtros) com round-trip ao servidor por ação — cenário em que um SPA
 adicionaria hidratação, bundle e um segundo modelo mental sobre o Blade sem
-ganho. As duas telas de fato interativas (o canvas de integração e o mapa do
+ganho. As duas telas de fato interativas (o canvas de diagrama e o mapa do
 ecossistema) são SVG/DOM imperativo, que um framework tampouco simplificaria.
 Se um dia surgir reatividade local complexa, o caminho é **Alpine.js** (ilha
 declarativa) ou **Livewire** (componente server-driven) — ambos preservam este
@@ -140,9 +146,9 @@ Um job por thread/alvo de cada vez (`WithoutOverlapping`), porque a UI assume
   substitui por id. Ver abaixo.
 - **Controllers finos** — lógica ampla em Services, operações únicas em Actions;
   validação sempre em Form Requests; toda mutação passa por `authorize()`/Policy.
-- **Fonte de verdade única por domínio** — a topologia de integração vive só na
-  `chain`; colunas derivadas são reconstruídas por uma Action, nunca escritas à
-  mão (ver "Notas técnicas").
+- **Fonte de verdade única por domínio** — a topologia de um diagrama vive só
+  na `chain`; colunas derivadas são reconstruídas por uma Action, nunca
+  escritas à mão (ver "Notas técnicas").
 - **Assíncrono por job + polling** — features de IA disparam um job e o front
   faz polling do status até sair de `pending`; sem broadcasting (diagrama acima).
 - **Strict mode do Eloquent** fora de produção — relação não carregada lança
@@ -247,14 +253,19 @@ trait em um subdiretório `Concerns`. É o mesmo raciocínio do
   updatable slot" (`toSlot()`). Aplicável a qualquer componente que apareça
   num slot; ver § acima.
 - **`App\Http\Controllers\Concerns\*`** (`EditsDocumentation`,
-  `AssistsDocumentation`, `NavigatesSolutionDocs`) — a mesma tela de
-  documentação serve **Solução e Integração**, mas cada uma resolve seu
-  próprio model, rotas e breadcrumb. A trait guarda o que é idêntico (montar
-  a página do editor, salvar o Markdown, subir mídia, o painel e o polling do
-  Assiste IA, a árvore de navegação consolidada) e recebe do controller só o
-  que difere. Assim `SolutionDocumentationController` e
-  `IntegrationDocumentationController` renderizam a mesma coisa sem um
-  herdar do outro nem uma classe-base artificial.
+  `AssistsDocumentation`, `NavigatesSolutionDocs`, `LinksPageDiagram`) — a
+  mesma tela de documentação serve páginas de uma **Solução** e de um **grupo
+  avulso**, mas cada controller resolve seu próprio container, rotas e
+  breadcrumb. A trait guarda o que é idêntico (montar a página do editor,
+  salvar o Markdown, subir mídia, vincular/desvincular o diagrama, o painel e
+  o polling do Assiste IA) e recebe do controller só o que difere. Assim
+  `SolutionDocumentationController` e `DocumentationGroupPageController`
+  renderizam a mesma coisa sem um herdar do outro nem uma classe-base
+  artificial.
+- **`App\Http\Controllers\Concerns\EditsChain`** — as nove mutações do
+  canvas contra qualquer `ChainCanvas`. Dois donos hoje (`Diagram` e
+  `SubmissionDiagram`) e o cliente nunca sabe qual: toda URL que ele chama vem
+  dentro do payload do grafo.
 - **`App\Http\Requests\Concerns\ParsesFlowspecContextInput`** — regras de
   validação + parsing do contexto (solutions citadas, refs de documento)
   reaproveitados por mais de um Form Request do flowSpec.
@@ -271,15 +282,16 @@ dois lugares, por *forma* e não por tamanho:
 
 - **Action** = uma operação única, com um verbo, invocada de vários gatilhos.
   Classe com um `handle()` e DI no construtor. `App\Actions\
-  SyncIntegrationFromChain` (rederiva as colunas da topologia a cada mutação
-  da `chain` — são oito endpoints chamando a mesma coisa) e
+  SyncDiagramFromChain` (rederiva as colunas da topologia a cada mutação
+  da `chain` — são nove endpoints chamando a mesma coisa) e
   `App\Actions\Flowspec\SaveFlowspecExample`/`NormalizeReferenceFlowspec` são
   os exemplos: cada uma faz *uma* coisa, chamada de vários controllers/pontos,
   e por isso merece um objeto testável e injetável em vez de um método privado
   repetido.
 - **Service** = lógica *ampla* de um subdomínio, coordenando mais de um passo
   ou consulta. `DocumentationCoverageService` (agrega cobertura por conteúdo
-  real), `IntegrationGraphService` (monta/deduplica o grafo do ecossistema),
+  real), `DiagramCatalogService` (os números e a lista do módulo de
+  diagramas), `DiagramGraphService` (monta/deduplica o grafo do ecossistema),
   os `Services\Documentation\*` e `Services\Flowspec\*`. Não é "um verbo" — é
   um conjunto coeso de operações de uma área.
 
@@ -386,7 +398,7 @@ duas famílias:
    O `init()` varre `querySelectorAll('[data-ak-…]')` e monta cada elemento —
    mas precisa ser **idempotente**, porque `init()` roda de novo a cada troca de
    slot (ver adiante). A guarda é um **`WeakSet`** de elementos já
-   inicializados. Usado por `docs-editor`, `integration-viz`, `ecosystem-map`,
+   inicializados. Usado por `docs-editor`, `chain-viz`, `ecosystem-map`,
    `tabs`.
 
    ```js
@@ -432,8 +444,8 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   Diretoria), a grade de owners por papel e um bloco de anotações livres.
   Atributos em branco mostram "Não informado" em vez de sumir da ficha, e
   tudo ali é editável na própria página (ver abaixo). Abaixo do cabeçalho,
-  um card único reúne as integrações da solução e as páginas de documentação
-  dela, lado a lado (ver "Integrações").
+  um card único reúne os diagramas em que a solução aparece e as páginas de
+  documentação dela, lado a lado (ver "Diagramas").
 - **Edição in place nas três páginas de detalhe** (solução, pessoa, empresa):
   a página é de leitura, e cada dado vira editor sob **duplo clique** — ou um
   clique no lápis ao lado, que é o caminho do teclado e do toque. O side panel
@@ -450,8 +462,9 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
       mesmo, cada card devolvendo seu próprio slot.
 
   O mesmo gesto vale fora dessas três páginas onde um dado precisa ser lido e
-  ajustado no mesmo lugar: o nome e o status de uma integração, na barra de
-  cima da página de doc dela.
+  ajustado no mesmo lugar: o nome e o status de um diagrama, na barra de cima
+  do canvas dele, e o diagrama vinculado a uma página de documentação, na barra
+  de cima do editor.
 - **Atributos gerenciáveis em runtime**: os valores de cada um dos 8 grupos
   (`App\Enums\AttributeGroup`) são registros `AttributeOption` editáveis por
   admin em "Gerenciar atributos" (`/attributes`, sempre dentro da `#main-modal`,
@@ -463,26 +476,45 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   de contatos adicionais (`Person::contacts()`, tipo email/telefone/whatsapp/
   outro), editáveis no form pela seção repetível "Contatos adicionais" e, um a
   um, na própria página de detalhe.
-- **Integrações — sempre a partir de uma solução**: não existe catálogo
-  `/integrations` avulso. No detalhe da solução, um card único reúne as
-  **integrações** dela (à esquerda) e as **páginas de documentação** (à
-  direita) — o mesmo tipo de coisa, uma lista que se abre para ler/editar,
-  então uma moldura só. Cada lado cria o seu (o nome da integração é
-  opcional) e leva **direto** ao registro criado; um lado vazio mostra uma
-  ilustração dizendo o que falta, não uma linha de texto cinza.
+- **Diagramas** (`/diagrams`): o módulo dos desenhos. Um diagrama é um registro
+  de primeira classe — tem nome, status e uma página só sua
+  (`/diagrams/{slug}`) onde o canvas gráfico
+  (`resources/js/modules/chain-viz.js`) desenha e edita a `chain`. Nome e
+  **status** são editados in place na barra de cima
+  (`Diagrams\Meta`).
 
-  Cada integração tem uma página própria, aninhada na solução
-  (`/solutions/{slug}/integrations/{slug}/documentation`), com as abas
-  **Documentação** e **Diagrama**: o canvas gráfico
-  (`resources/js/modules/integration-viz.js`) que desenha e edita a chain é
-  essa segunda aba. Nome e **status** da integração são editados in place na
-  barra de cima dessa página (`Solutions\IntegrationMeta`), visíveis das duas
-  abas — o status é o que um leitor da doc quer saber sem abrir nada.
+  O índice mostra, por diagrama, o resumo da cadeia e **as páginas que o
+  explicam** — ou, quando não há nenhuma, diz isso em voz alta. Os dois
+  contadores no topo (Desenhados / Explicados) são contados separadamente
+  porque faltam separadamente: um canvas com só o bloco raiz não é um desenho,
+  e um desenho sem página é o buraco que este módulo existe para mostrar. No
+  modelo antigo esse buraco era invisível: a documentação era uma coluna da
+  própria integração, e uma coluna vazia parecia igual a qualquer outra.
+
+  Até 2026-08-26 isto era uma `Integration`, alcançável só por dentro de uma
+  solução que participasse dela (`/solutions/{slug}/integrations/{slug}/documentation`)
+  e com uma documentação de página única própria. As duas coisas foram
+  embora: o desenho é endereçado por si mesmo, e o texto que o explica é uma
+  página de documentação que aponta para ele.
+
+- **Diagramas de uma solução**: no detalhe da solução, um card único reúne os
+  **diagramas** em que ela aparece (à esquerda) e as **páginas de
+  documentação** dela (à direita) — o mesmo tipo de coisa, uma lista que se
+  abre para ler/editar, então uma moldura só. Cada lado cria o seu (o nome do
+  diagrama é opcional, e o bloco raiz nasce com a própria solução) e leva
+  **direto** ao registro criado; um lado vazio mostra uma ilustração dizendo o
+  que falta, não uma linha de texto cinza.
+
+  "Aparece" é a união dos dois caminhos, e os dois estão ali de propósito
+  porque quem lê não se importa com qual se aplica: a solução é um **bloco**
+  do desenho (pivot derivado da chain) **ou** uma página dela aponta para o
+  desenho (`documentation_pages.diagram_id`) — um diagrama pode explicar uma
+  solução sem que ela seja uma caixa dentro dele.
 
   A topologia vive só na `chain`, e tudo o mais é derivado dela:
 
   ```
-  Integration.chain (json)  ←  ÚNICA fonte de verdade da topologia
+  Diagram.chain (json)  ←  ÚNICA fonte de verdade da topologia
     nodes: [{ kind, solution_id?, label }]
             kind = system | decision | actor | start | end | image
     edges: [{ from, to, arrow, protocol }]
@@ -492,13 +524,13 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
        │  toda mutação da chain (store · add/update/removeNode ·
        │  add/retarget/removeEdge · updateProtocol) chama, em seguida:
        ▼
-  App\Actions\SyncIntegrationFromChain  ← o único que escreve as colunas abaixo
-       ├─ integration_solution (pivot, com position)   ← só nós kind=system
+  App\Actions\SyncDiagramFromChain  ← o único que escreve as colunas abaixo
+       ├─ diagram_solution (pivot, com position)       ← só nós kind=system
        ├─ source_solution_id / target_solution_id
        ├─ direction
        └─ protocol   (o 1º protocolo não-nulo, como resumo escalar)
 
-  Integration.viz_layout (json)  ←  paralelo, e PURAMENTE VISUAL
+  Diagram.viz_layout (json)  ←  paralelo, e PURAMENTE VISUAL
     x/y, cor, fonte, tracejado, post-it por bloco, raias
     saveLayout() nunca toca a chain, e nada daqui entra no cálculo acima
   ```
@@ -546,11 +578,11 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
     tem ponto nenhum pra ancorar, segue abrindo no canto fixo.
 - **Mapa do ecossistema** (`/map`): derivado (somente leitura), layout radial
   hub-and-spoke — cada solução é um hub com seus vizinhos diretos num círculo
-  ao redor (`<x-ecosystem-map>`, DOM+SVG, mesmo visual do canvas de integração
+  ao redor (`<x-ecosystem-map>`, DOM+SVG, mesmo visual do canvas de diagrama
   de cada solução; posicionamento por grid empacotado, não por rank — a
   maioria dos clusters é pequena e desconexa entre si). Ligações paralelas
   entre o mesmo par de soluções são deduplicadas em uma só
-  (`IntegrationGraphService`); hubs com muitas conexões nascem colapsados
+  (`DiagramGraphService`); hubs com muitas conexões nascem colapsados
   (badge com a contagem, clique expande/colapsa). Filtros por status/
   categoria/diretoria.
 - **Documentação rica (estilo GitBook)**: editor Editor.js persistido como
@@ -576,18 +608,26 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
       gera nada. O 5 não é arbitrário: é a profundidade do corpus do GitBook
       que o `gitbook:import` traz (dois espaços chegam a cinco níveis), então
       qualquer coisa menor achata a cauda deles em títulos com breadcrumb.
-    - **Integração** (`/solutions/{slug}/integrations/{slug}/documentation`): uma
-      página única, com as abas **Documentação** e **Diagrama** (o canvas da
-      chain) e, na barra de cima, o nome e o status editáveis in place.
     - **Grupos** (`/documentation/groups/{group}`): árvores de páginas
       *standalone*, fora de qualquer solução.
 
-  A tela é a mesma para os três, e a navegação é um **rail colapsável à
-  esquerda** que consolida, numa árvore só, as páginas da solução (um passo de
-  indentação por nível, com linha-guia) **e** a doc de cada integração de que
-  ela participa — a promessa de "uma tela por
-  solução" (`Concerns\NavigatesSolutionDocs` monta as duas seções; os dois
-  controllers renderizam idêntico). O rail é titulado com o nome da solução
+  **Qualquer página, em qualquer nível, pode apontar para um diagrama.** Aí ela
+  ganha as abas **Documentação** e **Diagrama** (o canvas da chain) e o desenho
+  é editado dali — nos mesmos endpoints do canvas dele, porque o cliente pega
+  toda URL do payload do grafo. O vínculo é um `<x-ui.inline-edit>` na barra de
+  cima (`documentation_pages.diagram_id`, um select cuja opção em branco é o
+  "desvincular"), e salvar **navega** em vez de trocar um slot: vincular muda o
+  formato da tela. A FK vive na **página**, então um diagrama serve 1..N páginas
+  — o mesmo desenho explica várias páginas, muitas vezes de soluções
+  diferentes, enquanto uma página nunca tem dois desenhos para conciliar.
+  Excluir o diagrama não leva a página (`nullOnDelete`): o texto é o que deu
+  trabalho.
+
+  A tela é a mesma para os dois, e a navegação é um **rail colapsável à
+  esquerda** com as páginas do container (um passo de indentação por nível, com
+  linha-guia) e um marcador nas linhas que carregam um diagrama. Ele tinha uma
+  segunda lista embaixo, "Integrações", com a documentação de página única de
+  cada uma — essa segunda documentação não existe mais. O rail é titulado com o nome da solução
   (ou do grupo), com um ↗ para o registro; colapsado, a barra de cima passa a
   mostrar `Solução ↗ › Página`, que é o que impede de perder o contexto. No
   menu de cada linha estão as mudanças de nível — "Nova subpágina" e
@@ -600,16 +640,17 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   subpáginas dela (em cascata, em qualquer profundidade); movê-la para outra
   solução/grupo leva a subárvore toda — e uma subpágina movida sozinha chega
   como página de primeiro nível, já que a mãe ficou para trás.
-  Um **link público** ("magic link", só para Solução) expõe a doc dela — e a de
-  cada integração dela — sem exigir login. Renderização read-only via
-  `App\Support\GitbookRenderer`.
+  Um **link público** ("magic link", só para Solução) expõe as páginas dela sem
+  exigir login. Renderização read-only via `App\Support\GitbookRenderer`. Só
+  páginas: um diagrama não carrega texto, e chega ao visitante como imagem
+  embutida numa página, como qualquer outra.
 - **Assiste IA (rascunho por LLM, em formato de chat)**: em qualquer página de
-  doc de Solução ou na doc de uma Integração, um painel lateral é uma
+  doc de Solução, um painel lateral é uma
   **conversa** — espelhando o composer do Especialista em Integrações — e não
   um formulário de um tiro só. Cada turno recebe o histórico, o Markdown atual
   do editor e os **documentos de contexto** marcados (coleção
-  `context_documents` por Solução — PDF/imagem/texto, compartilhados entre as
-  páginas dela e as docs das suas integrações; o upload persiste no `change`,
+  `context_documents` por Solução — PDF/imagem/texto, compartilhados por todas
+  as páginas dela; o upload persiste no `change`,
   sem botão "anexar" à parte). Textos entram embutidos no prompt (com orçamento
   de caracteres); PDFs/imagens vão como anexos nativos ao modelo (`laravel/ai`).
   A resposta vem de um job assíncrono (`GenerateDocumentationChatReply`, uma
@@ -629,7 +670,7 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   flowSpec Digibee a partir de um pedido em linguagem natural. Contexto **sem
   RAG** — Solutions citadas (explícitas via chips, ou inferidas casando o nome
   no texto), documentação recortada por orçamento de caracteres (páginas das
-  Solutions + documentação das integrações em que participam) e 2-3 exemplos de
+  Solutions) e 2-3 exemplos de
   um corpus curado por tags (`FlowspecExample`). A resposta é gerada em job
   assíncrono (`GenerateFlowspecReply`, uma vez por thread via
   `WithoutOverlapping`) com polling do thread; um loop **normaliza/valida** o
@@ -645,7 +686,7 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   usado de verdade nos pipelines Digibee da Leo Madeiras — ver "Notas
   técnicas" para a ferramenta que audita esse catálogo contra produção.
 - **Hub de Documentação** (`/documentation`): visão gerencial transversal do
-  que está documentado e do que falta — soluções **e** integrações, cada uma
+  que está documentado e do que falta — soluções **e** as páginas de cada uma
   com um selo por **conteúdo real** (não um flag manual), agrupadas por
   solução, com busca e filtro por tipo/status. Contadores agregados calculados
   em `DocumentationCoverageService`. Substitui o antigo painel de cobertura
@@ -662,27 +703,45 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   relação não carregada lança exceção em vez de silenciosamente disparar uma
   query. Ver `AGENTS.md` § Eloquent para o padrão de `setRelation()` quando um
   componente filho precisa de uma relação que o pai já tem em mãos.
-- **A cadeia (`chain`) é a única fonte de verdade da topologia de integração**
+- **A cadeia (`chain`) é a única fonte de verdade da topologia de um diagrama**
   — nunca escrever `participants`/`source_solution_id`/`target_solution_id`/
-  `direction` diretamente; editar `chain` e deixar `SyncIntegrationFromChain`
-  rederivar. `Integration.viz_layout` é posição/estilo do canvas, sem nenhum
-  efeito colateral em topologia. Ver `AGENTS.md` § Integration topology
+  `direction` diretamente; editar `chain` e deixar `SyncDiagramFromChain`
+  rederivar (via `Diagram::afterChainMutation()`, que `Concerns\EditsChain`
+  chama nos nove endpoints). `Diagram.viz_layout` é posição/estilo do canvas,
+  sem nenhum efeito colateral em topologia. Ver `AGENTS.md` § Diagram topology
   invariant.
-- **Integrações vivem só a partir da solução.** Não há módulo `/integrations`
-  avulso (catálogo/detalhe): criar acontece no card do detalhe da solução, e
-  tudo o mais na página da própria integração, sempre aninhada nessa solução
-  (doc + diagrama nas duas abas; nome/status na barra de cima). Também não há
-  uma página separada de "editor de diagrama" — o mesmo canvas que **mostra**
-  a chain é o que a **edita**. As rotas `solutions.integrations.*` usam
-  `scopeBindings`, então `{integration}` precisa pertencer à `{solution}` da
-  URL.
-- **Nome e status de uma integração têm um editor só.** Ficam na barra de cima
-  da página dela (`Solutions\IntegrationMeta`, dois `x-ui.inline-edit` no
-  mesmo endpoint `solutions.integrations.update`, cujas regras são
-  `sometimes`+`required` para confirmar um campo sem apagar o outro). O canvas
-  teve um segundo editor desses dois campos até 2026-08-17; dois editores do
-  mesmo campo dessincronizam na primeira edição, então ele foi removido — e
-  não deve voltar.
+- **Diagramas são endereçados por si mesmos.** As rotas são planas
+  (`/diagrams/{diagram}/...`), sem `{solution}` nenhum: eram aninhadas numa
+  solução participante até 2026-08-26, o que fazia cada URL carregar um
+  parâmetro que o endpoint não usava mais um `scopeBindings` para manter os
+  dois de acordo. A relação com a solução vem pelo outro lado agora (uma
+  página aponta para o diagrama). Também não há uma página separada de "editor
+  de diagrama" — o mesmo canvas que **mostra** a chain é o que a **edita**.
+- **O canvas não sabe de quem é o desenho.** `chain-viz.js` não tem rota
+  nenhuma: toda URL que ele chama chega dentro do payload do grafo
+  (`ChainCanvas::chainUrls()`). É isso que faz um segundo dono ser barato — os
+  desenhos AS IS/TO BE de uma submissão do CATI usam o mesmo cliente, sem uma
+  linha de diferença. Ver `AGENTS.md` § Diagram topology invariant.
+- **Adicionar um bloco não muda o zoom.** `appendNode()` chamava `fit()`, que
+  recalcula a escala — desenhar um fluxo de dez blocos dava dez saltos de zoom
+  e jogava fora a escala que a pessoa tinha escolhido. Agora é `panIntoView()`:
+  a panorâmica mínima para o bloco novo aparecer, escala intacta, e nada quando
+  ele já estava visível. Só "Organizar", "Centralizar" e a carga inicial
+  reenquadram.
+- **Bloco é branco; a FORMA diz o que ele é.** Hexágono chanfrado = decisão,
+  círculo = ator/início/fim, borda tracejada = texto livre externo. A cor ficou
+  livre para significar o que o autor decidir (`viz_layout.nodes[i].color`);
+  só os dois terminais de fluxo têm preenchimento próprio (verde/vermelho).
+  Ator, início e fim escrevem o rótulo **fora** da forma, numa chip igual à da
+  seta — e isso é estrutural, não estético: `node.w`/`h` vêm de
+  `offsetWidth`/`offsetHeight`, e um rótulo dentro da caixa arrasta as portas e
+  as âncoras das setas para fora do centro.
+- **Nome e status de um diagrama têm um editor só.** Ficam na barra de cima do
+  canvas (`Diagrams\Meta`, dois `x-ui.inline-edit` no mesmo endpoint
+  `diagrams.update`, cujas regras são `sometimes`+`required` para confirmar um
+  campo sem apagar o outro). O canvas teve um segundo editor desses dois
+  campos até 2026-08-17; dois editores do mesmo campo dessincronizam na
+  primeira edição, então ele foi removido — e não deve voltar.
 - **Busca e filtros de Soluções/Pessoas/Empresas** rodam via
   `execute-filters.js`/`execute-search.js` sobre `ajax.js` (contrato Promise
   baseado em `fetch`, não `XMLHttpRequest`) — ver `AGENTS.md` § `ajax.js`.
@@ -755,20 +814,24 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
 composer test
 ```
 
-Cobertura relevante: `IntegrationChain*Test` (edição de nó/ligação/protocolo/
-adicionar/remover/colar imagem na chain), `SyncIntegrationFromChainTest`
-(rederivação das colunas), `IntegrationLayoutSaveTest` (persistência de
-`viz_layout` sem tocar topologia), `SolutionAttributeInlineUpdateTest` (edição
+Cobertura relevante: `DiagramChain*Test` (edição de nó/ligação/protocolo/
+adicionar/remover/colar imagem na chain), `SyncDiagramFromChainTest`
+(rederivação das colunas), `DiagramLayoutSaveTest` (persistência de
+`viz_layout` sem tocar topologia), `DiagramsModuleTest` (o módulo: índice,
+contadores separados de desenhado/explicado, filtros, canvas, delete e a
+entrada no menu), `SolutionAttributeInlineUpdateTest` (edição
 inline dos 8 atributos), `{Solution,Person,Company}InlineFieldUpdateTest` e
 `{Solution,Person,Company}InlineRelationsTest` (edição in place das páginas de
 detalhe — campos, upload, e criar/trocar/remover relação), `DetailHeaderSlotTest`
 (a mutação devolve o slot da página de detalhe, não só o do índice),
-`SolutionWorkspaceCardTest` (o card de integrações + documentação: dois slots,
+`SolutionWorkspaceCardTest` (o card de diagramas + documentação: dois slots,
 os dois formulários de criação, estados vazios ilustrados e o status editável
-na barra da página da integração), `SolutionIntegrationTest` (criar redireciona
-para a integração; edição parcial de nome/status),
+na barra do canvas), `DiagramCrudTest` (criar redireciona para o canvas, com ou
+sem solução no bloco raiz; edição parcial de nome/status),
 `PersonContactsSyncTest` (sincronização de contatos adicionais),
-`DocumentationTest` (editor de blocos de Solução/Integração),
+`DocumentationTest` (editor de blocos, e o vínculo página↔diagrama: abas,
+picker, um diagrama servindo páginas de duas soluções, e a página sobrevivendo
+ao delete do diagrama),
 `DocumentationGroupTest` (grupos standalone), `PublicDocumentationTest` (magic
 link), `DocumentationCoverageTest` (hub de documentação, content-based),
 `DocumentationChatTest`/`DocumentationChatServiceTest` (Assiste IA — chat, job,

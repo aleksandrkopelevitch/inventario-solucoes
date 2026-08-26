@@ -8,14 +8,16 @@ use App\Contracts\ChainCanvas;
  * Authorizes a chain mutation against whichever `ChainCanvas` the route bound.
  *
  * The nine chain requests are shared by two route groups —
- * `solutions/{solution}/integrations/{integration}/chain/…` and
+ * `diagrams/{diagram}/chain/…` and
  * `submissions/{submission}/diagrams/{diagram}/chain/…` — because the payload
  * they validate is identical: it describes a node or an edge, not who owns
  * one. Only the owner differs, and only for the permission check.
  *
- * Resolved by TYPE rather than by parameter name on purpose. A name
- * (`$this->route('integration')`) would have to grow a branch per owner, in
- * nine files, and the branch that was forgotten would fail open — an
+ * Resolved by TYPE rather than by parameter name on purpose. Both groups happen
+ * to spell the parameter `{diagram}` today, and it binds a different model in
+ * each — which is exactly the coincidence a name-based lookup would be resting
+ * on. A name (`$this->route('diagram')`) would also have to grow a branch per
+ * owner, in nine files, and the branch that was forgotten would fail open: an
  * `authorize()` that returns false is a visible 403, but one that looks at the
  * wrong parameter and finds null is a 403 on the WORKING path, which reads as
  * a broken canvas.

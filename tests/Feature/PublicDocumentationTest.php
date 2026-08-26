@@ -2,7 +2,7 @@
 
 use App\Enums\UserRole;
 use App\Models\DocumentationPage;
-use App\Models\Integration;
+use App\Models\Diagram;
 use App\Models\Solution;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -134,44 +134,24 @@ it('404s a page that belongs to a different solution', function () {
         ->assertNotFound();
 });
 
-it('lists the solution pages and its integrations in the public sidebar', function () {
+it('lists the solution pages in the public sidebar, and nothing else', function () {
     $solution = Solution::factory()->create(['public_token' => 'tok-side', 'name' => 'Minha Solução']);
-    publicSolutionPage($solution, '# Visão geral');
-    $integration = Integration::factory()->create([
+    $page = publicSolutionPage($solution, '# Visão geral');
+
+    // A drawing the solution takes part in is deliberately NOT an entry here:
+    // the public surface renders documentation, and a diagram carries none. It
+    // reaches a visitor only as an image embedded in a page.
+    $diagram = Diagram::factory()->create([
         'name'  => 'Integração Alfa',
         'chain' => ['nodes' => [['solution_id' => $solution->id, 'label' => null]], 'edges' => []],
     ]);
-    attachParticipants($integration, [[$solution, 0]]);
+    attachParticipants($diagram, [[$solution, 0]]);
 
     $this->get(route('public.docs.solution', $solution->public_token))
         ->assertOk()
         ->assertSee('Minha Solução')
-        ->assertSee('Visão geral')
-        ->assertSee('Integração Alfa')
-        ->assertSee(route('public.docs.integration', [$solution->public_token, $integration]), false);
-});
-
-it('renders a participating integration doc publicly and 404s a non-participating one', function () {
-    $solution = Solution::factory()->create(['public_token' => 'tok-int']);
-    $mine = Integration::factory()->create([
-        'name'          => 'Minha Integração',
-        'documentation' => '# Doc da integração',
-        'chain'         => ['nodes' => [['solution_id' => $solution->id, 'label' => null]], 'edges' => []],
-    ]);
-    attachParticipants($mine, [[$solution, 0]]);
-
-    $other = Solution::factory()->create();
-    $foreign = Integration::factory()->create([
-        'chain' => ['nodes' => [['solution_id' => $other->id, 'label' => null]], 'edges' => []],
-    ]);
-    attachParticipants($foreign, [[$other, 0]]);
-
-    $this->get(route('public.docs.integration', [$solution->public_token, $mine]))
-        ->assertOk()
-        ->assertSee('<h1>Doc da integração', false);
-
-    $this->get(route('public.docs.integration', [$solution->public_token, $foreign]))
-        ->assertNotFound();
+        ->assertSee($page->title)
+        ->assertDontSee('Integração Alfa');
 });
 
 /*

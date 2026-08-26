@@ -1,4 +1,12 @@
 <x-layouts.layout :title="$title" :fluid="true">
+    @php
+        // A page with a linked diagram is a two-tab screen; without one it's
+        // just the editor. Everything below keys off this single flag, which is
+        // also what `@isset($integration)` used to mean — except the drawing is
+        // now a record of its own, shared with whatever other pages point at it.
+        $hasDiagram = isset($diagram) && $diagram !== null;
+    @endphp
+
     <div class="flex min-h-0 flex-1">
         @isset($pagesNav)
             {{-- Collapsible pages rail (mirrors the flowSpec conversations rail).
@@ -41,7 +49,7 @@
                         <x-heroicon-o-x-mark class="size-4" />
                     </x-forms.button>
                 </div>
-                <x-documentation.pages-nav :pages="$pagesNav" :integrations="$integrationsNav ?? []"
+                <x-documentation.pages-nav :pages="$pagesNav"
                                            :create-page-url="$createPageUrl"
                                            :title="$containerLabel" :title-url="$containerUrl" />
             </aside>
@@ -87,67 +95,61 @@
                                                id="docs-sidebar-closed-state" class="hidden max-md:hidden" />
                     @endisset
 
-                    @isset($integration)
-                        {{-- An integration's "page label" IS its name, and it
-                             carries a status besides — both editable right
-                             here (`Solutions\IntegrationMeta`), so writing the
-                             documentation and saying whether the integration
-                             is live are the same visit. Every other container
-                             (a solution's page, a group's page) renames from
-                             the pages rail instead. --}}
-                        <x-solutions.integration-meta :solution="$solution" :integration="$integration" />
-                    @else
-                        <span class="truncate text-sm font-bold text-ink">{{ $pageLabel }}</span>
-                    @endisset
+                    <span class="truncate text-sm font-bold text-ink">{{ $pageLabel }}</span>
                 </div>
 
                 <div class="flex shrink-0 items-center gap-3">
-                    @isset($integration)
-                        {{-- Documentação/Diagrama tabs — the integration's unified
-                             page. Segmented control (existing tabs.js module):
-                             switching swaps the two panels below without leaving
-                             the page or losing the pages-nav sidebar. The
-                             doc-specific actions (copy/assist/save) moved out of
-                             this persistent bar and into the Documentação panel
-                             itself (see below) — the Diagrama panel has its own
-                             Salvar (chain layout) inside the canvas, so showing
-                             both at once here would read as two different
-                             "Salvar" buttons stacked on top of each other. --}}
-                        {{-- Segmented control shape — bumped from `rounded-field`
-                             to a pill (2026-08-05), then corrected back to a
-                             near-square radius (2026-08-05, model artifact
-                             895f7854): the approved documentation model's
-                             `.doc-tabs`/`.doc-tab` uses a 9px/6px radius, NOT
-                             rounded-full — that pill shape is reserved for
-                             standalone action buttons (Salvar, Abrir
-                             especialista), not this kind of tab switcher.
-                             tabs.js only toggles the active/inactive classes
-                             below — the base radius classes are untouched by
-                             the state swap. --}}
+                    {{-- The page's link to a drawing. Always here, linked or
+                         not: "this page has no diagram" is information, and the
+                         gesture that fixes it has to be reachable from the
+                         page itself — the diagram never claims a page from its
+                         own side. --}}
+                    @isset($diagramAction)
+                        <x-documentation.diagram-link :diagram="$diagram" :options="$diagramOptions" :action="$diagramAction" />
+                    @endisset
+
+                    @if ($hasDiagram)
+                        {{-- Documentação/Diagrama tabs. Segmented control
+                             (existing tabs.js module): switching swaps the two
+                             panels below without leaving the page or losing the
+                             pages rail. The doc-specific actions
+                             (copy/assist/save) live inside the Documentação
+                             panel rather than in this persistent bar — the
+                             canvas has its own Salvar (chain layout) inside
+                             itself, so showing both here would read as two
+                             different "Salvar" buttons stacked on each other.
+
+                             Near-square radius (9px/6px), not a pill: the
+                             approved documentation model's `.doc-tabs`/
+                             `.doc-tab` reserves `rounded-full` for standalone
+                             action buttons (Salvar, Abrir especialista), not
+                             for a tab switcher. tabs.js only toggles the
+                             active/inactive classes below — the base radius
+                             classes are untouched by the state swap. --}}
                         <div class="flex items-center gap-1 rounded-[9px] bg-raised p-1" role="tablist" aria-label="Documentação ou diagrama">
                             <x-forms.button type="button" variant="ghost" role="tab" aria-selected="true" tabindex="0"
-                                data-ak-tabs="{{ json_encode(['targetId' => 'integration-tab-docs', 'targetContainerId' => 'integration-tab-panels', 'activeClasses' => ['!bg-surface', '!text-ink', '!shadow-sm'], 'inactiveClasses' => ['!bg-transparent', '!text-muted', '!shadow-none'], 'selectedOnInit' => true]) }}"
+                                data-ak-tabs="{{ json_encode(['targetId' => 'page-tab-docs', 'targetContainerId' => 'page-tab-panels', 'activeClasses' => ['!bg-surface', '!text-ink', '!shadow-sm'], 'inactiveClasses' => ['!bg-transparent', '!text-muted', '!shadow-none'], 'selectedOnInit' => true]) }}"
                                 class="!h-8 !gap-1.5 !rounded-md !bg-surface !px-3 !text-xs !font-semibold !text-ink !shadow-sm">
                                 <x-heroicon-o-document-text class="size-4" /> Documentação
                             </x-forms.button>
                             <x-forms.button type="button" variant="ghost" role="tab" aria-selected="false" tabindex="-1"
-                                data-ak-tabs="{{ json_encode(['targetId' => 'integration-tab-diagram', 'targetContainerId' => 'integration-tab-panels', 'activeClasses' => ['!bg-surface', '!text-ink', '!shadow-sm'], 'inactiveClasses' => ['!bg-transparent', '!text-muted', '!shadow-none']]) }}"
+                                data-ak-tabs="{{ json_encode(['targetId' => 'page-tab-diagram', 'targetContainerId' => 'page-tab-panels', 'activeClasses' => ['!bg-surface', '!text-ink', '!shadow-sm'], 'inactiveClasses' => ['!bg-transparent', '!text-muted', '!shadow-none']]) }}"
                                 class="!h-8 !gap-1.5 !rounded-md !bg-transparent !px-3 !text-xs !font-semibold !text-muted !shadow-none">
                                 <x-heroicon-o-share class="size-4" /> Diagrama
                             </x-forms.button>
                         </div>
                     @else
                         @include('documentation.partials._actions')
-                    @endisset
+                    @endif
                 </div>
             </div>
 
-            @isset($integration)
+            @if ($hasDiagram)
                 {{-- Two tab panels sharing one container id — tabs.js swaps
                      which one is visible; both stay mounted (the canvas draws
                      once on load, it shouldn't remount on every tab switch). --}}
-                <div id="integration-tab-panels" class="flex min-h-0 flex-1 flex-col">
-                    <div id="integration-tab-docs" class="ak-docs-scroll flex min-h-0 flex-1 flex-col overflow-y-auto bg-white">
+                <div id="page-tab-panels" class="flex min-h-0 flex-1 flex-col">
+                    <div id="page-tab-docs" class="ak-docs-scroll flex min-h-0 flex-1 flex-col overflow-y-auto bg-white">
                         {{-- Sticky: reads like the page's own top bar even though
                              it now lives inside this scrollable tab panel — moved
                              here (from the persistent top bar above) so it's
@@ -167,11 +169,15 @@
                         </div>
                     </div>
 
-                    {{-- The F3 chain canvas (Solutions\IntegrationWorkspace) — hidden
-                         until this tab is selected, but mounted immediately (not
-                         lazily), same as the Documentação panel above. --}}
-                    <div id="integration-tab-diagram" class="hidden flex min-h-0 flex-1 flex-col">
-                        <x-solutions.integration-workspace :solution="$solution" :integration="$integration" />
+                    {{-- The F3 chain canvas — hidden until this tab is
+                         selected, but mounted immediately (not lazily), same as
+                         the Documentação panel above. The workspace takes the
+                         DIAGRAM, not this page: every endpoint the canvas calls
+                         comes from `Diagram::chainUrls()`, so editing the
+                         drawing from here and from its own page are the same
+                         thing. --}}
+                    <div id="page-tab-diagram" class="hidden flex min-h-0 flex-1 flex-col">
+                        <x-diagrams.workspace :diagram="$diagram" />
                     </div>
                 </div>
             @else
@@ -190,7 +196,7 @@
                                class="hidden w-52 shrink-0 self-start xl:sticky xl:top-4 xl:block"></aside>
                     </div>
                 </div>
-            @endisset
+            @endif
         </section>
     </div>
 </x-layouts.layout>

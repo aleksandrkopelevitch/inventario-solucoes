@@ -15,7 +15,7 @@ class SubmissionDiagramFactory extends Factory
         return [
             'submission_id' => Submission::factory(),
             'kind'          => SubmissionDiagramKind::ToBe,
-            // The seeded root, same shape a brand-new Integration is born
+            // The seeded root, same shape a brand-new Diagram is born
             // with — a canvas needs somewhere to hang the first gesture.
             'chain'      => ['nodes' => [['solution_id' => null, 'label' => 'Sistema', 'kind' => 'system']], 'edges' => []],
             'viz_layout' => null,

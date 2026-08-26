@@ -66,6 +66,11 @@
                     ])>
                         {{ $page['title'] }}
                     </span>
+                    {{-- A page that also carries a drawing. Same marker as the
+                         pages rail and the hub use. --}}
+                    @if ($page['hasDiagram'] ?? false)
+                        <x-heroicon-o-share class="size-3.5 shrink-0 text-accent" title="Tem diagrama vinculado" />
+                    @endif
                     @unless ($page['hasContent'])
                         <span class="shrink-0 rounded-full bg-raised px-2 py-0.5 text-xs text-muted">Vazia</span>
                     @endunless

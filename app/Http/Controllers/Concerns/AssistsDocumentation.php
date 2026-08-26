@@ -14,13 +14,16 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Documentation Assistant ("Assiste IA"), shared by SolutionDocumentationController
- * and IntegrationDocumentationController. A conversation (DocumentationChat),
- * one per (user, target) — reopening the panel resumes the same thread. Each
- * controller resolves its own target (DocumentationPage or Integration) and
- * the Solution that owns the context documents, and delegates to this trait
+ * Documentation Assistant ("Assiste IA") for a documentation page. A
+ * conversation (DocumentationChat), one per (user, page) — reopening the panel
+ * resumes the same thread. `SolutionDocumentationController` resolves the page
+ * and the Solution that owns the context documents, and delegates to this trait
  * the side panel, sending a message (async job + polling) and applying a
  * proposed draft. Nothing is persisted to the page itself until the user saves.
+ *
+ * The target is typed as `Documentable` rather than `DocumentationPage`
+ * because it used to be either that or an `Integration` — the second kind of
+ * documentation this app no longer has. Nothing in here branches on it.
  */
 trait AssistsDocumentation
 {
@@ -117,12 +120,10 @@ trait AssistsDocumentation
     }
 
     /**
-     * An Integration's doc is reachable via ANY of its participating
-     * Solutions' URLs (`solutions/{solution}/integrations/{integration}/...`),
-     * so the same (user, target) chat can be opened under a different
-     * `$solution` than the one it was created under — keep `solution_id`
-     * synced to whichever Solution the current request is scoped to, since
-     * that's what the context documents (and 404 guards) key off.
+     * `solution_id` is kept synced to whichever Solution the current request is
+     * scoped to, rather than trusted from creation time: it is what the context
+     * documents (and the 404 guards) key off, and a page can be re-filed under
+     * another container while a chat about it is still open.
      */
     private function resolveChat(Solution $solution, Documentable $target): DocumentationChat
     {

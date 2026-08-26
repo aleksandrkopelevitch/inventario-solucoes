@@ -10,7 +10,7 @@
             Governança
         </span>
         <h1 class="mt-2 font-display text-[34px] font-bold leading-tight tracking-tight text-[color:var(--color-glow-ink)]">Documentação</h1>
-        <p class="mt-1 text-sm text-[color:var(--color-glow-ink)]/70">O que está documentado e o que ainda precisa — soluções e integrações do inventário.</p>
+        <p class="mt-1 text-sm text-[color:var(--color-glow-ink)]/70">O que está documentado e o que ainda precisa — soluções, páginas e grupos do inventário.</p>
     </x-ui.hero-panel>
 
     {{-- Global coverage counters (whole inventory; don't change with the
@@ -18,7 +18,7 @@
     <div class="grid gap-3.5 sm:grid-cols-2">
         @foreach ([
             'Soluções' => $counters['solutions'],
-            'Integrações' => $counters['integrations'],
+            'Páginas' => $counters['pages'],
         ] as $label => $counter)
             <div class="rounded-card border border-line bg-surface p-5 shadow-card">
                 <div class="flex items-baseline justify-between gap-2">
@@ -42,16 +42,9 @@
     <x-ui.filter-bar form-id="documentation-filter-form" class="mt-6">
         <x-slot:search>
             <x-ui.filter-search id="documentation-search" :url="route('documentation.index')"
-                placeholder="Buscar por solução ou integração"
+                placeholder="Buscar por solução ou página"
                 :value="$filters['search'] ?? null" />
         </x-slot:search>
-
-        <x-forms.select auto name="filter[type]" data-ak-filters="{{ json_encode($filterBind) }}"
-            class="{{ filled($filters['type'] ?? null) ? $activeClass : '' }}">
-            <option value="">Tudo</option>
-            <option value="solutions" @selected(($filters['type'] ?? '') === 'solutions')>Só soluções</option>
-            <option value="integrations" @selected(($filters['type'] ?? '') === 'integrations')>Só integrações</option>
-        </x-forms.select>
 
         <x-forms.select auto name="filter[status]" data-ak-filters="{{ json_encode($filterBind) }}"
             class="{{ filled($filters['status'] ?? null) ? $activeClass : '' }}">

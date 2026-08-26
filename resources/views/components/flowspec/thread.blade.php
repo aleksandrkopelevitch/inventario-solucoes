@@ -111,10 +111,6 @@
                                     <dd>{{ ($meta['pages'] ?? []) !== [] ? implode(', ', $meta['pages']) : '—' }}</dd>
                                 </div>
                                 <div>
-                                    <dt class="font-medium text-muted">Documentação de integrações anexada</dt>
-                                    <dd>{{ ($meta['integration_docs'] ?? []) !== [] ? implode(', ', $meta['integration_docs']) : '—' }}</dd>
-                                </div>
-                                <div>
                                     <dt class="font-medium text-muted">Textos e arquivos anexados</dt>
                                     <dd>{{ array_merge($meta['text_docs'] ?? [], $meta['attached_files'] ?? []) !== [] ? implode(', ', array_merge($meta['text_docs'] ?? [], $meta['attached_files'] ?? [])) : '—' }}</dd>
                                 </div>

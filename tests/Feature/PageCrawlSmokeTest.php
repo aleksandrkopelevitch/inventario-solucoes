@@ -6,7 +6,7 @@ use App\Models\Person;
 use App\Models\Solution;
 use App\Models\User;
 use Database\Seeders\AttributeOptionSeeder;
-use Database\Seeders\IntegrationSeeder;
+use Database\Seeders\DiagramSeeder;
 use Database\Seeders\SolutionSeeder;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 
@@ -24,7 +24,7 @@ uses(LazilyRefreshDatabase::class);
 it('renders every detail page for every seeded record without a 500', function () {
     $this->seed(AttributeOptionSeeder::class);
     $this->seed(SolutionSeeder::class);
-    $this->seed(IntegrationSeeder::class);
+    $this->seed(DiagramSeeder::class);
 
     $admin = User::factory()->create(['role' => UserRole::Admin->value]);
     $this->actingAs($admin);
@@ -48,7 +48,7 @@ it('renders every detail page for every seeded record without a 500', function (
 it('renders every index/catalog page for both admin and viewer without a 500', function () {
     $this->seed(AttributeOptionSeeder::class);
     $this->seed(SolutionSeeder::class);
-    $this->seed(IntegrationSeeder::class);
+    $this->seed(DiagramSeeder::class);
 
     $routes = [
         route('profile.show'),

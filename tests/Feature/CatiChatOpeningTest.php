@@ -83,7 +83,7 @@ it('has something to say even when every mandatory section is already filled', f
     // Neutralizes every conformance/completeness check, not just the six
     // mandatory sections: on-target cloud (no violation), on-premise (skips
     // the sensitive-data question), low criticality (skips contingency), no
-    // integrations (skips the platform question), not contracted (skips
+    // diagrams (skips the platform question), not contracted (skips
     // vendor_missing) — and Standards names all three keyword groups the
     // mention-checks look for, with Alternatives filled too.
     $solution = Solution::factory()->create([
@@ -109,7 +109,7 @@ it('has something to say even when every mandatory section is already filled', f
 it('reads the submission the caller already loaded instead of fetching it again', function () {
     // The controller hands the chat a submission it has just loaded with
     // everything the opening message reads. Re-fetching it here would walk
-    // sections, sources, solution, vendor and integrations one relation at a
+    // sections, sources, solution, vendor and diagrams one relation at a
     // time — and strict mode would not say a word, this being a single row.
     $submission = Submission::factory()->withSections()->create([
         'solution_id' => Solution::factory()->create()->id,

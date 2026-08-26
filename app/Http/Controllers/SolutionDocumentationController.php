@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\AssistsDocumentation;
 use App\Http\Controllers\Concerns\EditsDocumentation;
+use App\Http\Controllers\Concerns\LinksPageDiagram;
 use App\Http\Controllers\Concerns\NavigatesSolutionDocs;
+use App\Http\Requests\LinkPageDiagramRequest;
 use App\Http\Requests\MoveDocumentationPageRequest;
 use App\Http\Requests\MoveDocumentationPageToContainerRequest;
 use App\Http\Requests\SaveDocumentationPageTitleRequest;
@@ -28,17 +30,18 @@ use Illuminate\Support\Str;
 /**
  * Rich documentation per Solution — a tree of 1..N pages (Editor.js block
  * editor per page, Markdown format + GitBook notation in
- * `documentation_pages.documentation`), consolidated into a single screen
- * alongside the docs of each Integration the solution participates in (see
- * NavigatesSolutionDocs — same sidebar shown by
- * IntegrationDocumentationController). Thin — delegates to the
- * EditsDocumentation trait (per page) and to DocumentationPageService (tree
- * rules: create/rename/move/nest/delete — the tree goes up to
- * `DocumentationPage::MAX_DEPTH` levels).
+ * `documentation_pages.documentation`). Since integration documentation was
+ * retired this is the only kind of documentation there is, and a page may point
+ * at a `Diagram` (`diagram()` below) instead of a second editor existing for
+ * drawings.
+ *
+ * Thin — delegates to the EditsDocumentation trait (per page) and to
+ * DocumentationPageService (tree rules: create/rename/move/nest/delete — the
+ * tree goes up to `DocumentationPage::MAX_DEPTH` levels).
  */
 class SolutionDocumentationController extends Controller
 {
-    use AssistsDocumentation, EditsDocumentation, NavigatesSolutionDocs;
+    use AssistsDocumentation, EditsDocumentation, LinksPageDiagram, NavigatesSolutionDocs;
 
     public function __construct(private readonly DocumentationPageService $pages) {}
 
@@ -95,13 +98,17 @@ class SolutionDocumentationController extends Controller
             containerLabel: $solution->name,
             containerUrl: route('solutions.show', $solution),
         )->with([
-            'pagesNav'        => $this->solutionPagesNav($solution, $page),
-            'integrationsNav' => $this->solutionIntegrationsNav($solution, null),
-            'createPageUrl'   => route('solutions.docs.pages.store', $solution),
-            'chatPanelUrl'    => route('solutions.docs.chat.panel', [$solution, $page]),
-            'chatResume'      => $this->chatResumeFor($solution, $page),
+            'pagesNav'      => $this->solutionPagesNav($solution, $page),
+            'createPageUrl' => route('solutions.docs.pages.store', $solution),
+            'chatPanelUrl'  => route('solutions.docs.chat.panel', [$solution, $page]),
+            'chatResume'    => $this->chatResumeFor($solution, $page),
+            // The page's drawing, if it has one, plus the picker that links or
+            // unlinks it — see LinksPageDiagram.
+            'diagram'        => $page->diagram,
+            'diagramOptions' => $this->diagramOptions(),
+            'diagramAction'  => route('solutions.docs.pages.diagram', [$solution, $page]),
             // Share (public link) only exists on the Solution's own docs — the
-            // generic view (shared with IntegrationDocumentationController)
+            // generic view (shared with DocumentationGroupPageController)
             // treats it as optional via @isset.
             'coverageSolution' => $solution,
             // The Solution's name already becomes a breadcrumb — the top of
@@ -166,7 +173,6 @@ class SolutionDocumentationController extends Controller
             },
             'updatableSlots' => [PagesNav::slot(
                 $this->solutionPagesNav($solution, $page->fresh()),
-                $this->solutionIntegrationsNav($solution, null),
                 route('solutions.docs.pages.store', $solution),
                 $solution->name,
                 route('solutions.show', $solution),
@@ -198,6 +204,14 @@ class SolutionDocumentationController extends Controller
         return $this->storeDocumentationMedia($request, $page);
     }
 
+    /** Points this page at a diagram, or clears the link. */
+    public function diagram(LinkPageDiagramRequest $request, Solution $solution, DocumentationPage $page): JsonResponse
+    {
+        $page->setRelation('container', $solution);
+
+        return $this->linkPageDiagram($page, $request->validated()['diagram_id']);
+    }
+
     /* --- Documentation Assistant (chat that helps write the page's content) --- */
 
     public function chatPanel(Solution $solution, DocumentationPage $page): JsonResponse
@@ -218,13 +232,13 @@ class SolutionDocumentationController extends Controller
         return $this->sendChatMessage($request, $solution, $page);
     }
 
-    /** Polling — serves pages and integrations, the chat carries its own target. */
+    /** Polling — the chat carries its own target, so no {page} is needed. */
     public function chatStatus(Solution $solution, DocumentationChat $chat): JsonResponse
     {
         return $this->chatStatusResponse($solution, $chat);
     }
 
-    /** Marks a message's draft as applied — serves pages and integrations. */
+    /** Marks a message's draft as applied. */
     public function applyChatMessage(Solution $solution, DocumentationChatMessage $message): JsonResponse
     {
         return $this->applyChatMessageResponse($solution, $message);

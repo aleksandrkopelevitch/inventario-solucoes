@@ -7,7 +7,7 @@ use App\Enums\SubmissionSectionKey;
 use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Models\ApprovedTopology;
-use App\Models\Integration;
+use App\Models\Diagram;
 use App\Models\Solution;
 use App\Models\Submission;
 use App\Models\User;
@@ -80,8 +80,8 @@ it('records the approved TO BE as a pending topology instead of writing the cata
         ->and($topology->isPending())->toBeTrue()
         ->and($topology->solution_id)->toBe($submission->solution_id)
         ->and($topology->nodeCount())->toBe(2)
-        // Nothing was written to any integration.
-        ->and(Integration::count())->toBe(0);
+        // Nothing was written to any diagram.
+        ->and(Diagram::count())->toBe(0);
 });
 
 it('snapshots the chain, so later edits to the drawing cannot change what was approved', function () {
@@ -152,7 +152,7 @@ it('puts the approved drawing in the promoted documentation page, once', functio
 |--------------------------------------------------------------------------
 */
 
-it('applies the approved topology to a new integration and re-derives its columns', function () {
+it('applies the approved topology to a new diagram and re-derives its columns', function () {
     // The whole reason this goes through ChainCanvas::writeChain() +
     // afterChainMutation(): assigning `chain` directly would be the one place
     // in the app where topology moves without participants/source/target
@@ -162,53 +162,53 @@ it('applies the approved topology to a new integration and re-derives its column
     $topology = $submission->fresh()->approvedTopology;
 
     $this->postJson(route('submissions.topology.apply', [$submission, $topology]), [
-        'integration_id' => null,
+        'diagram_id' => null,
     ])->assertOk();
 
     $topology->refresh();
-    $integration = $topology->integration;
+    $diagram = $topology->diagram;
 
     expect($topology->isPending())->toBeFalse()
         ->and($topology->applied_by_id)->toBe($this->user->id)
-        ->and($integration)->not->toBeNull()
-        ->and($integration->chain['nodes'])->toHaveCount(2)
+        ->and($diagram)->not->toBeNull()
+        ->and($diagram->chain['nodes'])->toHaveCount(2)
         // Derived, not copied: the sync ran.
-        ->and($integration->participants()->pluck('solutions.id')->all())->toContain($submission->solution_id)
-        ->and($integration->source_solution_id)->toBe($submission->solution_id)
-        ->and($integration->protocol)->toBe('rest')
+        ->and($diagram->participants()->pluck('solutions.id')->all())->toContain($submission->solution_id)
+        ->and($diagram->source_solution_id)->toBe($submission->solution_id)
+        ->and($diagram->protocol)->toBe('rest')
         // The layout travels with it, or the canvas opens as a pile at origin.
-        ->and($integration->viz_layout['nodes'])->toHaveCount(2);
+        ->and($diagram->viz_layout['nodes'])->toHaveCount(2);
 });
 
-it('applies onto an existing integration of the same solution', function () {
+it('applies onto an existing diagram of the same solution', function () {
     $submission = approvableSubmission();
     approve($submission);
     $topology = $submission->fresh()->approvedTopology;
 
-    $integration = Integration::factory()->create(['name' => 'Antigo']);
-    $integration->participants()->attach($submission->solution_id, ['position' => 0]);
+    $diagram = Diagram::factory()->create(['name' => 'Antigo']);
+    $diagram->participants()->attach($submission->solution_id, ['position' => 0]);
 
     $this->postJson(route('submissions.topology.apply', [$submission, $topology]), [
-        'integration_id' => $integration->id,
+        'diagram_id' => $diagram->id,
     ])->assertOk();
 
-    expect($integration->fresh()->chain['nodes'])->toHaveCount(2)
-        ->and($topology->fresh()->integration_id)->toBe($integration->id);
+    expect($diagram->fresh()->chain['nodes'])->toHaveCount(2)
+        ->and($topology->fresh()->diagram_id)->toBe($diagram->id);
 });
 
-it('refuses to apply onto an integration belonging to another solution', function () {
+it('refuses to apply onto a diagram belonging to another solution', function () {
     // An approval on one solution silently overwriting another's topology is a
     // write nobody would ever look for.
     $submission = approvableSubmission();
     approve($submission);
     $topology = $submission->fresh()->approvedTopology;
 
-    $foreign = Integration::factory()->create(['name' => 'De outra solução']);
+    $foreign = Diagram::factory()->create(['name' => 'De outra solução']);
     $foreign->participants()->attach(Solution::factory()->create()->id, ['position' => 0]);
     $before = $foreign->chain;
 
     $response = $this->postJson(route('submissions.topology.apply', [$submission, $topology]), [
-        'integration_id' => $foreign->id,
+        'diagram_id' => $foreign->id,
     ])->assertStatus(422)->assertJson(['type' => 'warning']);
 
     expect($response->json('message'))->toContain('não é da solução')
@@ -233,7 +233,7 @@ it('records a dismissal as a different outcome from an application', function ()
         ->and($topology->applied_at)->toBeNull()
         ->and($topology->dismissed_at)->not->toBeNull()
         ->and($topology->dismissed_reason)->toContain('já era')
-        ->and(Integration::count())->toBe(0);
+        ->and(Diagram::count())->toBe(0);
 });
 
 it('refuses to resolve the same handoff twice', function () {
@@ -242,7 +242,7 @@ it('refuses to resolve the same handoff twice', function () {
     $topology = $submission->fresh()->approvedTopology;
 
     $this->postJson(route('submissions.topology.dismiss', [$submission, $topology]))->assertOk();
-    $this->postJson(route('submissions.topology.apply', [$submission, $topology]), ['integration_id' => null])
+    $this->postJson(route('submissions.topology.apply', [$submission, $topology]), ['diagram_id' => null])
         ->assertStatus(409);
 });
 
@@ -252,7 +252,7 @@ it('refuses a topology reached through the wrong submission', function () {
     approve($theirs);
 
     $this->postJson(route('submissions.topology.apply', [$mine, $theirs->fresh()->approvedTopology]), [
-        'integration_id' => null,
+        'diagram_id' => null,
     ])->assertNotFound();
 });
 
@@ -263,7 +263,7 @@ it('lets a viewer see the handoff but not resolve it', function () {
 
     $this->actingAs(User::factory()->create(['role' => UserRole::Viewer]));
 
-    $this->postJson(route('submissions.topology.apply', [$submission, $topology]), ['integration_id' => null])
+    $this->postJson(route('submissions.topology.apply', [$submission, $topology]), ['diagram_id' => null])
         ->assertForbidden();
 });
 
@@ -273,7 +273,7 @@ it('lets a viewer see the handoff but not resolve it', function () {
 |--------------------------------------------------------------------------
 */
 
-it('warns on the solution page that its integrations are showing the old scenario', function () {
+it('warns on the solution page that its diagrams are showing the old scenario', function () {
     // Drift that is invisible is the failure this module exists to prevent.
     $submission = approvableSubmission();
     approve($submission);
@@ -314,17 +314,17 @@ it('renders nothing at all when there is no handoff to make', function () {
         ->not->toContain('O catálogo ainda não reflete');
 });
 
-it('leaves an applied record readable after its integration is deleted', function () {
+it('leaves an applied record readable after its diagram is deleted', function () {
     $submission = approvableSubmission();
     approve($submission);
     $topology = $submission->fresh()->approvedTopology;
 
-    $integration = app(ApplyApprovedTopology::class)->handle($topology, $this->user);
-    $integration->delete();
+    $diagram = app(ApplyApprovedTopology::class)->handle($topology, $this->user);
+    $diagram->delete();
 
     // nullOnDelete, not cascade: the history of having applied it survives the
     // thing it was applied to.
     expect(ApprovedTopology::find($topology->id))->not->toBeNull()
         ->and(ApprovedTopology::find($topology->id)->applied_at)->not->toBeNull()
-        ->and(ApprovedTopology::find($topology->id)->integration_id)->toBeNull();
+        ->and(ApprovedTopology::find($topology->id)->diagram_id)->toBeNull();
 });

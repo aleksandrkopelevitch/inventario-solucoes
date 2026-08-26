@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Integration;
+use App\Models\Diagram;
 use App\Http\Requests\Concerns\AuthorizesChainOwner;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -19,7 +19,7 @@ use Illuminate\Validation\Rule;
  * `protocol` accepts free text, not just `App\Enums\Protocol` values — the
  * editor's field is a text input with a datalist of the enum's values as
  * suggestions, not a closed `<select>`. A value that happens to match an enum
- * case still resolves to that case's human label (`IntegrationsMap::resolveProtocol()`);
+ * case still resolves to that case's human label (`ChainGraph::resolveProtocol()`);
  * anything else is displayed as typed.
  */
 class UpdateChainProtocolRequest extends FormRequest

@@ -92,7 +92,7 @@ export default window.Modal = {
 
             Modal.open(modal.id, closeOnEsc)
 
-            // Navigation within an already-open modal (e.g. integrations
+            // Navigation within an already-open modal (e.g. diagrams
             // list → edit form): resets to the loading placeholder before
             // the fetch, instead of keeping the previous content visible.
             modal.querySelector('[data-content]').innerHTML = ''

@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Contracts\Documentable;
 use App\Models\DocumentationPage;
-use App\Models\Integration;
 use App\Models\Solution;
 use App\Services\DocumentationPageService;
 use App\Support\GitbookRenderer;
@@ -16,15 +15,20 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 /**
  * PUBLIC documentation for a solution ("magic link"), no auth. Access is via
  * an opaque token in the URL (`Solution::public_token`); from it, shows the
- * solution's own page tree (1..N, GitBook-style) and the docs for each
- * integration it participates in, GitBook-style (dedicated `public-docs`
- * layout, top bar + side index). Standalone Groups ("Nestings") are never
+ * solution's own page tree (1..N, GitBook-style) in a dedicated `public-docs`
+ * layout (top bar + side index). Standalone Groups ("Nestings") are never
  * exposed here — only the Solution's own tree.
  *
- * Embedded media (`/files/{id}` in the Markdown) is rewritten to a dedicated
- * public route (`public.docs.file`), validated against the solution/
- * integrations themselves — the authenticated `files.show` route doesn't
- * serve visitors.
+ * Pages, and only pages. There used to be a second half to this — one entry
+ * per integration the solution took part in, each rendering that integration's
+ * own `documentation` column — and it went away with the entity: a diagram
+ * carries no prose, so there is nothing here for it to render. A drawing
+ * embedded in a page's Markdown reaches a visitor the same way any other image
+ * does, through `public.docs.file`.
+ *
+ * Embedded media (`/files/{id}` in the Markdown) is rewritten to that
+ * dedicated public route, validated against the solution's own pages — the
+ * authenticated `files.show` route doesn't serve visitors.
  */
 class PublicDocumentationController extends Controller
 {
@@ -33,7 +37,7 @@ class PublicDocumentationController extends Controller
     {
         $solution = $this->resolve($token);
 
-        return $this->render($solution, app(DocumentationPageService::class)->firstPage($solution), 'Solução');
+        return $this->render($solution, app(DocumentationPageService::class)->firstPage($solution));
     }
 
     /**
@@ -50,16 +54,7 @@ class PublicDocumentationController extends Controller
         $solution = $this->resolve($token);
         $page = $solution->pages()->where('slug', $slug)->firstOrFail();
 
-        return $this->render($solution, $page, 'Solução');
-    }
-
-    public function integration(string $token, Integration $integration): View
-    {
-        $solution = $this->resolve($token);
-
-        abort_unless($this->belongsToSolution($solution, $integration), 404);
-
-        return $this->render($solution, $integration, 'Integração');
+        return $this->render($solution, $page);
     }
 
     public function file(string $token, Media $media): BinaryFileResponse
@@ -67,10 +62,9 @@ class PublicDocumentationController extends Controller
         $solution = $this->resolve($token);
         $owner = $media->model;
 
-        $allowed = $media->collection_name === Documentable::DOCS_COLLECTION && (
-            ($owner instanceof DocumentationPage && $this->belongsToSolutionPages($solution, $owner))
-            || ($owner instanceof Integration && $this->belongsToSolution($solution, $owner))
-        );
+        $allowed = $media->collection_name === Documentable::DOCS_COLLECTION
+            && $owner instanceof DocumentationPage
+            && $this->belongsToSolutionPages($solution, $owner);
 
         abort_unless($allowed, 404);
 
@@ -85,17 +79,12 @@ class PublicDocumentationController extends Controller
         return Solution::where('public_token', $token)->firstOrFail();
     }
 
-    private function belongsToSolution(Solution $solution, Integration $integration): bool
-    {
-        return $solution->integrations()->whereKey($integration->getKey())->exists();
-    }
-
     private function belongsToSolutionPages(Solution $solution, DocumentationPage $page): bool
     {
         return $page->container_type === Solution::class && (int) $page->container_id === $solution->id;
     }
 
-    private function render(Solution $solution, ?Documentable $current, string $eyebrow): View
+    private function render(Solution $solution, ?DocumentationPage $current): View
     {
         $token = $solution->public_token;
         $markdown = $current?->documentation;
@@ -103,7 +92,7 @@ class PublicDocumentationController extends Controller
         return view('public.docs', [
             'solution'     => $solution,
             'title'        => $current?->documentationTitle() ?? $solution->name,
-            'eyebrow'      => $eyebrow,
+            'eyebrow'      => 'Solução',
             'renderedHtml' => $this->renderMarkdown($markdown, $token),
             // Raw Markdown for the "Copiar Markdown" button, with media already
             // rewritten to the public routes (the internal /files/{id} does
@@ -130,31 +119,20 @@ class PublicDocumentationController extends Controller
     }
 
     /**
-     * Side index: every page in the solution's tree + every integration it
-     * participates in.
+     * Side index: every page in the solution's tree.
      *
      * @return Collection<int, array{label: string, depth: int, url: string, active: bool, hasDocs: bool}>
      */
-    private function nav(Solution $solution, ?Documentable $current, string $token): Collection
+    private function nav(Solution $solution, ?DocumentationPage $current, string $token): Collection
     {
-        $pages = app(DocumentationPageService::class)->tree($solution)->map(fn (array $row) => [
+        return app(DocumentationPageService::class)->tree($solution)->map(fn (array $row) => [
             'label' => $row['page']->title,
             // Depth so the index indents a subpage instead of listing it as a
             // peer of the page it belongs to (see the layout).
             'depth'   => $row['depth'],
             'url'     => route('public.docs.page', [$token, $row['page']]),
-            'active'  => $current instanceof DocumentationPage && $current->is($row['page']),
+            'active'  => $current?->is($row['page']) ?? false,
             'hasDocs' => trim((string) $row['page']->documentation) !== '',
         ]);
-
-        $integrations = $solution->integrations()->get()->map(fn (Integration $integration) => [
-            'label'   => $integration->name,
-            'depth'   => 0,
-            'url'     => route('public.docs.integration', [$token, $integration]),
-            'active'  => $current instanceof Integration && $current->is($integration),
-            'hasDocs' => trim((string) $integration->documentation) !== '',
-        ]);
-
-        return $pages->concat($integrations);
     }
 }

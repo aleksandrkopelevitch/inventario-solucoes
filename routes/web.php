@@ -14,8 +14,7 @@ use App\Http\Controllers\FlowspecExampleController;
 use App\Http\Controllers\FlowspecGuidelineController;
 use App\Http\Controllers\FlowspecMessageController;
 use App\Http\Controllers\HeroiconController;
-use App\Http\Controllers\IntegrationDiagramController;
-use App\Http\Controllers\IntegrationDocumentationController;
+use App\Http\Controllers\DiagramPictureController;
 use App\Http\Controllers\Inventory\CompanyController;
 use App\Http\Controllers\Inventory\PersonController;
 use App\Http\Controllers\Inventory\SolutionController;
@@ -24,7 +23,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicDocumentationController;
 use App\Http\Controllers\SolutionContextDocumentController;
 use App\Http\Controllers\SolutionDocumentationController;
-use App\Http\Controllers\SolutionIntegrationController;
+use App\Http\Controllers\DiagramController;
 use App\Http\Controllers\SolutionMapController;
 use App\Http\Controllers\SubmissionChatController;
 use App\Http\Controllers\SubmissionController;
@@ -73,66 +72,6 @@ Route::middleware('auth')->group(function () {
     Route::get('solutions/search', [SolutionController::class, 'search'])->name('solutions.search');
     Route::get('solutions/{solution}/edit', [SolutionController::class, 'edit'])->name('solutions.edit');
 
-    // Integrations are always scoped under a solution — there's no standalone
-    // /integrations catalog/module anymore. `scopeBindings` guarantees
-    // {integration} belongs to the {solution} in the URL (via
-    // Solution::integrations()). Static routes before {integration}.
-    Route::scopeBindings()->group(function () {
-        // Integrations of the solution detail page (F3) — the data-viz is what
-        // authors the chain (participants/source/target/direction derived via
-        // SyncIntegrationFromChain; protocol per step). `store`/`update` here
-        // only cover what the data-viz doesn't do on its own: creating a new
-        // Integration and renaming/changing the status of an existing one.
-        Route::post('solutions/{solution}/integrations', [SolutionIntegrationController::class, 'store'])->name('solutions.integrations.store');
-        Route::patch('solutions/{solution}/integrations/{integration}', [SolutionIntegrationController::class, 'update'])->name('solutions.integrations.update');
-        Route::patch('solutions/{solution}/integrations/{integration}/layout', [SolutionIntegrationController::class, 'saveLayout'])->name('solutions.integrations.layout.save');
-
-        // The canvas's own rendered PNG, posted right after a layout save and
-        // read by the CATI deck. Media only — never topology.
-        Route::post('solutions/{solution}/integrations/{integration}/diagram', [IntegrationDiagramController::class, 'store'])->name('solutions.integrations.diagram.store');
-        Route::get('solutions/{solution}/integrations/{integration}/diagram', [IntegrationDiagramController::class, 'show'])->name('solutions.integrations.diagram.show');
-        // Rich integration documentation (Editor.js block editor).
-        Route::get('solutions/{solution}/integrations/{integration}/documentation', [IntegrationDocumentationController::class, 'edit'])->name('solutions.integrations.docs.edit');
-        Route::patch('solutions/{solution}/integrations/{integration}/documentation', [IntegrationDocumentationController::class, 'update'])->name('solutions.integrations.docs.update');
-        Route::post('solutions/{solution}/integrations/{integration}/documentation/media', [IntegrationDocumentationController::class, 'media'])->name('solutions.integrations.docs.media');
-        // Documentation Assistant — a chat that helps write the integration doc
-        // (job + polling per turn). Context documents belong to the Solution
-        // (solutions.docs.context.* routes).
-        Route::get('solutions/{solution}/integrations/{integration}/documentation/chat', [IntegrationDocumentationController::class, 'chatPanel'])->name('solutions.integrations.docs.chat.panel');
-        Route::post('solutions/{solution}/integrations/{integration}/documentation/chat/messages', [IntegrationDocumentationController::class, 'sendMessage'])->name('solutions.integrations.docs.chat.messages.store');
-        // Kind/title of a single node (data-viz F3) — {node} is the index in the chain, not a model.
-        Route::patch('solutions/{solution}/integrations/{integration}/chain/nodes/{node}', [SolutionIntegrationController::class, 'updateNode'])
-            ->whereNumber('node')
-            ->name('solutions.integrations.chain.node.update');
-        // Removes a block AND every link touching it (indices shift — see removeNode()).
-        Route::delete('solutions/{solution}/integrations/{integration}/chain/nodes/{node}', [SolutionIntegrationController::class, 'removeNode'])
-            ->whereNumber('node')
-            ->name('solutions.integrations.chain.node.remove');
-        // Protocol of a single edge (data-viz F3) — {edge} is the index in chain.edges.
-        Route::patch('solutions/{solution}/integrations/{integration}/chain/protocol/{edge}', [SolutionIntegrationController::class, 'updateProtocol'])
-            ->whereNumber('edge')
-            ->name('solutions.integrations.chain.protocol.update');
-        // New block at the end of the chain (data-viz F3, "Adicionar bloco" panel).
-        Route::post('solutions/{solution}/integrations/{integration}/chain/nodes', [SolutionIntegrationController::class, 'addNode'])
-            ->name('solutions.integrations.chain.node.add');
-        // New IMAGE block — pasting a picture directly on the F3 canvas (Ctrl+V).
-        Route::post('solutions/{solution}/integrations/{integration}/chain/images', [SolutionIntegrationController::class, 'addImageNode'])
-            ->name('solutions.integrations.chain.image.add');
-        // Retargets one end of an existing edge to a different block (dragging
-        // the arrow handle in data-viz F3) — {edge} is the index in chain.edges.
-        Route::patch('solutions/{solution}/integrations/{integration}/chain/edge/{edge}', [SolutionIntegrationController::class, 'retargetEdge'])
-            ->whereNumber('edge')
-            ->name('solutions.integrations.chain.edge.retarget');
-        // New edge between two already-existing blocks ("link mode" in data-viz F3).
-        Route::post('solutions/{solution}/integrations/{integration}/chain/edges', [SolutionIntegrationController::class, 'addEdge'])
-            ->name('solutions.integrations.chain.edge.add');
-        // Removes an existing edge (the "unlink" button in the edge editor) — {edge} is the index in chain.edges.
-        Route::delete('solutions/{solution}/integrations/{integration}/chain/edge/{edge}', [SolutionIntegrationController::class, 'removeEdge'])
-            ->whereNumber('edge')
-            ->name('solutions.integrations.chain.edge.remove');
-        Route::delete('solutions/{solution}/integrations/{integration}', [SolutionIntegrationController::class, 'destroy'])->name('solutions.integrations.destroy');
-    });
-
     Route::get('solutions/{solution}', [SolutionController::class, 'show'])->name('solutions.show');
     Route::patch('solutions/{solution}', [SolutionController::class, 'update'])->name('solutions.update');
     // Inline editing of a single attribute from the detail header itself.
@@ -173,23 +112,22 @@ Route::middleware('auth')->group(function () {
     Route::delete('solutions/{solution}/documentation/share', [SolutionDocumentationController::class, 'unshare'])->name('solutions.docs.unshare');
 
     // "AI Assist" context documents (`context_documents` collection), per
-    // Solution — shared between its pages and its integrations' docs. {media}
-    // is a global binding of the Spatie model (checked against the Solution
-    // in the controller), so it stays outside the {page} scopeBindings.
+    // Solution — shared by every page in its tree. {media} is a global binding
+    // of the Spatie model (checked against the Solution in the controller), so
+    // it stays outside the {page} scopeBindings.
     Route::post('solutions/{solution}/documentation/context', [SolutionContextDocumentController::class, 'store'])->name('solutions.docs.context.store');
     Route::get('solutions/{solution}/documentation/context/{media}', [SolutionContextDocumentController::class, 'show'])->name('solutions.docs.context.show');
     Route::delete('solutions/{solution}/documentation/context/{media}', [SolutionContextDocumentController::class, 'destroy'])->name('solutions.docs.context.destroy');
 
-    // Documentation Assistant polling — a single endpoint for both pages AND
-    // integrations: the chat carries its own target/solution, so it doesn't
-    // need {page}/{integration} in the URL (and avoids scopeBindings'
-    // auto-scope trying to resolve {chat} as their child).
+    // Documentation Assistant polling — the chat carries its own
+    // target/solution, so it doesn't need {page} in the URL (and avoids
+    // scopeBindings' auto-scope trying to resolve {chat} as a page's child).
     Route::get('solutions/{solution}/documentation/chat/{chat}/status', [SolutionDocumentationController::class, 'chatStatus'])->name('solutions.docs.chat.status');
-    // Marks a message's draft as applied. Shared by pages and integrations.
+    // Marks a message's draft as applied.
     Route::post('solutions/{solution}/documentation/chat/messages/{message}/apply', [SolutionDocumentationController::class, 'applyChatMessage'])->name('solutions.docs.chat.messages.apply');
 
-    // {page} resolves via Solution::pages() (same mechanism as the
-    // {integration} scoped in Solution::integrations() above).
+    // {page} resolves via Solution::pages(), so a page belonging to another
+    // solution 404s instead of being edited through the wrong owner.
     Route::scopeBindings()->group(function () {
         Route::get('solutions/{solution}/documentation/{page}', [SolutionDocumentationController::class, 'edit'])->name('solutions.docs.page.edit');
         Route::patch('solutions/{solution}/documentation/{page}', [SolutionDocumentationController::class, 'update'])->name('solutions.docs.update');
@@ -200,6 +138,10 @@ Route::middleware('auth')->group(function () {
         // standalone group) — `/move` above only reorders it within this one.
         Route::patch('solutions/{solution}/documentation/{page}/container', [SolutionDocumentationController::class, 'moveToContainer'])->name('solutions.docs.pages.container');
         Route::post('solutions/{solution}/documentation/{page}/media', [SolutionDocumentationController::class, 'media'])->name('solutions.docs.media');
+        // Points the page at a Diagram, or clears the link (blank value). This
+        // is the ONE place the page↔diagram relation is written — a diagram
+        // never claims a page from its own side.
+        Route::patch('solutions/{solution}/documentation/{page}/diagram', [SolutionDocumentationController::class, 'diagram'])->name('solutions.docs.pages.diagram');
         // Documentation Assistant — a chat that helps write the page (job + polling per turn).
         Route::get('solutions/{solution}/documentation/{page}/chat', [SolutionDocumentationController::class, 'chatPanel'])->name('solutions.docs.chat.panel');
         Route::post('solutions/{solution}/documentation/{page}/chat/messages', [SolutionDocumentationController::class, 'sendMessage'])->name('solutions.docs.chat.messages.store');
@@ -371,15 +313,15 @@ Route::middleware('auth')->group(function () {
          | Submission::diagrams(), so a diagram belonging to another submission
          | 404s instead of being edited through the wrong parent.
          |
-         | The nine chain endpoints mirror the integration canvas's ONE FOR ONE
+         | The nine chain endpoints mirror the diagrams module's ONE FOR ONE
          | — same request classes, same controller trait (Concerns\EditsChain),
          | same response shapes — because it is the same canvas over a
-         | different owner. `integration-viz.js` never learns which one it is
+         | different owner. `chain-viz.js` never learns which one it is
          | drawing: every URL it calls arrives inside the graph payload
          | (`ChainCanvas::chainUrls()`).
          |
          | The index params are a plain integer into `chain.nodes`/`chain.edges`
-         | (`whereNumber`), not a model — exactly as on the integration routes.
+         | (`whereNumber`), not a model — exactly as on the diagrams routes.
          */
         Route::prefix('submissions/{submission}/diagrams/{diagram}')->name('submissions.diagrams.')->group(function () {
             Route::get('/', [SubmissionDiagramController::class, 'edit'])->name('edit');
@@ -410,7 +352,7 @@ Route::middleware('auth')->group(function () {
 
     /*
      | Closing the loop a committee opened: the TO BE it approved either lands on
-     | a real Integration or is declared already reflected.
+     | a real catalog Diagram or is declared already reflected.
      |
      | NOT scoped, for the same reason the message route above isn't:
      | `scopeBindings()` resolves `{topology}` through a PLURAL
@@ -418,9 +360,9 @@ Route::middleware('auth')->group(function () {
      | deliberated once. A HasMany that can only ever hold one row would be a lie
      | written to satisfy the router, so the controller checks ownership itself.
      |
-     | The target integration is checked against the SOLUTION in
-     | ApplyApprovedTopologyRequest: an approval must never overwrite an
-     | integration belonging to somebody else.
+     | The target diagram is checked against the SOLUTION in
+     | ApplyApprovedTopologyRequest: an approval must never overwrite a diagram
+     | belonging to somebody else.
      */
     Route::post('submissions/{submission}/topology/{topology}/apply', [ApprovedTopologyController::class, 'apply'])->name('submissions.topology.apply');
     Route::post('submissions/{submission}/topology/{topology}/dismiss', [ApprovedTopologyController::class, 'dismiss'])->name('submissions.topology.dismiss');
@@ -436,8 +378,69 @@ Route::middleware('auth')->group(function () {
         Route::delete('flowspec/{chat}/attachments/{attachment}', [FlowspecAttachmentController::class, 'destroy'])->name('flowspec.attachments.destroy');
     });
 
-    // Documentation Hub — cross-cutting view of what's documented (solutions +
-    // integrations) and what's missing. Replaces the old coverage panel.
+    /*
+     |--------------------------------------------------------------------------
+     | Diagrams — the drawings module
+     |--------------------------------------------------------------------------
+     |
+     | Flat, not nested: a diagram is addressed by itself. It used to be an
+     | `Integration` reachable only under a solution that took part in it, which
+     | meant every one of these URLs carried a `{solution}` the endpoint didn't
+     | need and a `scopeBindings` check to keep the two in agreement. A diagram
+     | reaches a solution the other way round now — a documentation page points
+     | at it — so there is nothing left to scope.
+     |
+     | The nine chain endpoints are the canvas's, and they mirror the
+     | submission-diagram ones ONE FOR ONE: same payloads, same responses, same
+     | FormRequests. `chain-viz.js` never learns which owner it is editing,
+     | because every URL it calls arrives inside the graph payload
+     | (`ChainCanvas::chainUrls()`).
+     |
+     | `{node}`/`{edge}` are plain integer INDICES into `chain.nodes`/`.edges`
+     | (`whereNumber`), not models.
+     */
+    Route::get('diagrams', [DiagramController::class, 'index'])->name('diagrams.index');
+    Route::post('diagrams', [DiagramController::class, 'store'])->name('diagrams.store');
+
+    Route::prefix('diagrams/{diagram}')->name('diagrams.')->group(function () {
+        Route::get('/', [DiagramController::class, 'show'])->name('show');
+        // Name/status only — never the chain (that is the canvas's, below).
+        Route::patch('/', [DiagramController::class, 'update'])->name('update');
+        Route::delete('/', [DiagramController::class, 'destroy'])->name('destroy');
+        // Purely visual: block positions, edge anchors, comments, lanes, notes.
+        Route::patch('layout', [DiagramController::class, 'saveLayout'])->name('layout.save');
+
+        // The canvas's own rendered PNG, posted right after a layout save and
+        // read by the CATI deck. Media only — never topology.
+        Route::post('picture', [DiagramPictureController::class, 'store'])->name('picture.store');
+        Route::get('picture', [DiagramPictureController::class, 'show'])->name('picture.show');
+
+        // Kind/title of a single block — {node} is the index in the chain.
+        Route::patch('chain/nodes/{node}', [DiagramController::class, 'updateNode'])
+            ->whereNumber('node')->name('chain.node.update');
+        // Removes a block AND every link touching it (indices shift — see removeChainNode()).
+        Route::delete('chain/nodes/{node}', [DiagramController::class, 'removeNode'])
+            ->whereNumber('node')->name('chain.node.remove');
+        // New block, born isolated — wiring is a separate gesture.
+        Route::post('chain/nodes', [DiagramController::class, 'addNode'])->name('chain.node.add');
+        // New IMAGE block — pasting a picture directly on the canvas (Ctrl+V).
+        Route::post('chain/images', [DiagramController::class, 'addImageNode'])->name('chain.image.add');
+        // Protocol and/or direction of a single link — {edge} is the index in chain.edges.
+        Route::patch('chain/protocol/{edge}', [DiagramController::class, 'updateProtocol'])
+            ->whereNumber('edge')->name('chain.protocol.update');
+        // Retargets one end of an existing link to a different block.
+        Route::patch('chain/edge/{edge}', [DiagramController::class, 'retargetEdge'])
+            ->whereNumber('edge')->name('chain.edge.retarget');
+        // New link between two blocks that already exist.
+        Route::post('chain/edges', [DiagramController::class, 'addEdge'])->name('chain.edge.add');
+        // Removes a link without removing its blocks.
+        Route::delete('chain/edge/{edge}', [DiagramController::class, 'removeEdge'])
+            ->whereNumber('edge')->name('chain.edge.remove');
+    });
+
+    // Documentation Hub — cross-cutting view of what's documented across
+    // solutions and standalone groups, and what's missing. Replaces the old
+    // coverage panel.
     Route::get('documentation', [DocumentationHubController::class, 'index'])->name('documentation.index');
 
     // Groups ("Nestings") — a tree of standalone pages, outside any Solution.
@@ -460,6 +463,9 @@ Route::middleware('auth')->group(function () {
         // group is the whole point of the GitBook import's landing zone.
         Route::patch('documentation/groups/{group}/{page}/container', [DocumentationGroupPageController::class, 'moveToContainer'])->name('documentation.groups.pages.container');
         Route::post('documentation/groups/{group}/{page}/media', [DocumentationGroupPageController::class, 'media'])->name('documentation.groups.pages.media');
+        // Same page↔diagram link as solutions.docs.pages.diagram, for a page
+        // that lives in a standalone group instead of a solution.
+        Route::patch('documentation/groups/{group}/{page}/diagram', [DocumentationGroupPageController::class, 'diagram'])->name('documentation.groups.pages.diagram');
     });
 
     // Media embedded in documentation (images/files from the `docs`
@@ -476,12 +482,11 @@ Route::middleware('auth')->group(function () {
 
 // Public documentation ("magic link") — NO auth. Access via an opaque token in
 // the URL (Solution::public_token); embedded media is served by a dedicated
-// route validated against the solution/its integrations itself (PublicDocumentationController).
+// route validated against the solution's own pages (PublicDocumentationController).
 Route::get('public-docs/{token}', [PublicDocumentationController::class, 'solution'])->name('public.docs.solution');
 // {slug} is not model-bound: a page's slug is only unique within its
 // container, never globally (see PublicDocumentationController::page()).
 Route::get('public-docs/{token}/page/{slug}', [PublicDocumentationController::class, 'page'])->name('public.docs.page');
-Route::get('public-docs/{token}/integration/{integration:slug}', [PublicDocumentationController::class, 'integration'])->name('public.docs.integration');
 Route::get('public-docs/{token}/file/{media}', [PublicDocumentationController::class, 'file'])->name('public.docs.file');
 
 Route::get('/', fn () => auth()->check()

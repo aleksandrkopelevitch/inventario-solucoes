@@ -44,7 +44,7 @@
 
     {{-- Page glue: rebuilds the query string from the filters above and
          tells the map to reload — not the map engine itself, just the
-         integration with this screen's controls. --}}
+         diagram with this screen's controls. --}}
     <script>
         (function () {
             const shell = document.getElementById('global-map');

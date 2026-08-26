@@ -2,7 +2,7 @@
 
 use App\Models\DocumentationGroup;
 use App\Models\DocumentationPage;
-use App\Models\Integration;
+use App\Models\Diagram;
 use App\Models\Solution;
 use App\Support\Documentation\DocumentationRequirements;
 use Database\Seeders\AttributeOptionSeeder;
@@ -15,39 +15,10 @@ function requirementItem(array $requirements, string $key): array
     return collect($requirements)->firstWhere('key', $key);
 }
 
-it('flags structural gaps for an integration with no topology drawn beyond the root', function () {
-    $solution = Solution::factory()->create();
-    $integration = Integration::factory()->create([
-        'protocol'  => null,
-        'sync_mode' => null,
-        'chain'     => ['nodes' => [['solution_id' => $solution->id, 'label' => null]], 'edges' => []],
-    ]);
+it('flags content gaps for a page with no error-handling or contact mention', function () {
+    $page = DocumentationPage::factory()->for(Solution::factory()->create(), 'container')->create();
 
-    $requirements = DocumentationRequirements::for($integration);
-
-    expect(requirementItem($requirements, 'protocol')['satisfied'])->toBeFalse()
-        ->and(requirementItem($requirements, 'sync_mode')['satisfied'])->toBeFalse()
-        ->and(requirementItem($requirements, 'participants')['satisfied'])->toBeFalse()
-        ->and(requirementItem($requirements, 'diagram')['satisfied'])->toBeFalse();
-});
-
-it('marks an integration\'s structural requirements satisfied once fields and topology are set', function () {
-    $a = Solution::factory()->create();
-    $b = Solution::factory()->create();
-    $integration = Integration::factory()->create();
-    attachParticipants($integration, [[$a, 0], [$b, 1]]);
-
-    $requirements = DocumentationRequirements::for($integration->fresh());
-
-    expect(requirementItem($requirements, 'protocol')['satisfied'])->toBeTrue()
-        ->and(requirementItem($requirements, 'participants')['satisfied'])->toBeTrue()
-        ->and(requirementItem($requirements, 'diagram')['satisfied'])->toBeTrue();
-});
-
-it('flags content gaps for an integration doc with no error-handling or contact mention', function () {
-    $integration = Integration::factory()->create();
-
-    $requirements = DocumentationRequirements::for($integration, 'Uma frase curta.');
+    $requirements = DocumentationRequirements::for($page, 'Uma frase curta.');
 
     expect(requirementItem($requirements, 'overview')['satisfied'])->toBeFalse()
         ->and(requirementItem($requirements, 'error_handling')['satisfied'])->toBeFalse()
@@ -55,15 +26,42 @@ it('flags content gaps for an integration doc with no error-handling or contact 
 });
 
 it('detects content gaps closing via simple keyword presence', function () {
-    $integration = Integration::factory()->create();
+    $page = DocumentationPage::factory()->for(Solution::factory()->create(), 'container')->create();
     $content = str_repeat('Texto de visão geral suficientemente longo. ', 3)
         . 'Em caso de erro, aciona contingência. O responsável pelo suporte é o time X.';
 
-    $requirements = DocumentationRequirements::for($integration, $content);
+    $requirements = DocumentationRequirements::for($page, $content);
 
     expect(requirementItem($requirements, 'overview')['satisfied'])->toBeTrue()
         ->and(requirementItem($requirements, 'error_handling')['satisfied'])->toBeTrue()
         ->and(requirementItem($requirements, 'contact')['satisfied'])->toBeTrue();
+});
+
+it('says nothing about a diagram on a page that has none', function () {
+    // Not every page documents a flow, so an always-present "tem diagrama" row
+    // would report a gap on most pages that have none to have.
+    $page = DocumentationPage::factory()->for(Solution::factory()->create(), 'container')->create();
+
+    expect(collect(DocumentationRequirements::for($page))->pluck('key')->all())->not->toContain('diagram');
+});
+
+it('flags a linked diagram whose canvas is still empty, and clears once it is drawn', function () {
+    $solution = Solution::factory()->create();
+    $page = DocumentationPage::factory()->for($solution, 'container')->create();
+    $diagram = Diagram::factory()->create([
+        // One root block is an empty canvas, not a drawing.
+        'chain' => ['nodes' => [['solution_id' => $solution->id, 'label' => null]], 'edges' => []],
+    ]);
+    $page->diagram()->associate($diagram)->save();
+
+    expect(requirementItem(DocumentationRequirements::for($page->fresh()), 'diagram')['satisfied'])->toBeFalse();
+
+    $diagram->update(['chain' => ['nodes' => [
+        ['solution_id' => $solution->id, 'label' => null],
+        ['solution_id' => null, 'label' => 'ERP externo'],
+    ], 'edges' => [['from' => 0, 'to' => 1, 'arrow' => '->', 'protocol' => null]]]]);
+
+    expect(requirementItem(DocumentationRequirements::for($page->fresh()), 'diagram')['satisfied'])->toBeTrue();
 });
 
 it('reports a solution page\'s hosting attribute as a fact sourced from the Solution record, never a chat question', function () {

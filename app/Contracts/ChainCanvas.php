@@ -8,7 +8,7 @@ use Spatie\MediaLibrary\HasMedia;
 /**
  * Something the F3 canvas can draw and edit.
  *
- * The canvas (`integration-viz.js`, ~4.5k lines) contains **no route of its
+ * The canvas (`chain-viz.js`, ~4.5k lines) contains **no route of its
  * own**: every endpoint it calls arrives inside the graph payload it is drawn
  * from (`nodeAddUrl`, `edgeRetargetUrl`, `saveUrl`, …). That is what makes a
  * second owner cheap — the client never learns there is one. This contract is
@@ -18,9 +18,9 @@ use Spatie\MediaLibrary\HasMedia;
  * Two implementations, and the difference between them is the whole reason
  * this exists:
  *
- * - `Integration` — its chain drives DERIVED columns (participants,
+ * - `Diagram` — its chain drives DERIVED columns (participants,
  *   source/target, direction, protocol), re-derived by
- *   `SyncIntegrationFromChain` after every mutation.
+ *   `SyncDiagramFromChain` after every mutation.
  * - `SubmissionDiagram` — a proposal's AS IS / TO BE. Nothing is derived from
  *   it: a submission is a thing being argued about, not a record of what
  *   exists, and letting a rejected proposal's topology write into the catalog
@@ -64,7 +64,7 @@ interface ChainCanvas extends HasMedia
     public function writeChain(?array $chain = null, ?array $layout = null): void;
 
     /**
-     * Runs after every chain write. `Integration` re-derives its columns here;
+     * Runs after every chain write. `Diagram` re-derives its columns here;
      * a submission's diagram has nothing to derive and does nothing.
      */
     public function afterChainMutation(): void;

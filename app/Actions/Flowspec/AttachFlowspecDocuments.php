@@ -6,7 +6,6 @@ use App\Enums\FlowspecAttachmentKind;
 use App\Models\DocumentationPage;
 use App\Models\FlowspecAttachment;
 use App\Models\FlowspecChat;
-use App\Models\Integration;
 use Illuminate\Support\Collection;
 
 /**
@@ -25,7 +24,7 @@ use Illuminate\Support\Collection;
 class AttachFlowspecDocuments
 {
     /**
-     * @param  list<array{type: string, id: int}>  $refs  `page`/`integration` references from the picker
+     * @param  list<array{type: string, id: int}>  $refs  `page` references from the picker
      * @return Collection<int, FlowspecAttachment> only the rows actually created
      */
     public function handle(FlowspecChat $chat, array $refs): Collection
@@ -64,39 +63,22 @@ class AttachFlowspecDocuments
      * that just isn't helping.
      *
      * @param  list<array{type: string, id: int}>  $refs
-     * @return Collection<int, DocumentationPage|Integration>
+     * @return Collection<int, DocumentationPage>
      */
     private function resolve(array $refs): Collection
     {
-        $refs = collect($refs);
+        $pageIds = collect($refs)->where('type', 'page')->pluck('id')->all();
 
-        $pageIds = $refs->where('type', 'page')->pluck('id')->all();
-        $integrationIds = $refs->where('type', 'integration')->pluck('id')->all();
-
-        $pages = $pageIds === [] ? collect() : DocumentationPage::query()
+        return $pageIds === [] ? collect() : DocumentationPage::query()
             ->whereKey($pageIds)
             ->whereNotNull('documentation')
             ->where('documentation', '<>', '')
             ->with('container')
             ->get();
-
-        $integrations = $integrationIds === [] ? collect() : Integration::query()
-            ->whereKey($integrationIds)
-            ->whereNotNull('documentation')
-            ->where('documentation', '<>', '')
-            ->get();
-
-        // collect($model->all()) before merging — an Eloquent\Collection's merge
-        // is a primary-key dictionary merge, which would collapse a page and an
-        // integration that happen to share an id. See the same care in
-        // FlowspecChatController::searchDocuments().
-        return collect($pages->all())->merge(collect($integrations->all()));
     }
 
-    private function label(DocumentationPage|Integration $model): string
+    private function label(DocumentationPage $page): string
     {
-        return $model instanceof DocumentationPage
-            ? "{$model->container->name} — {$model->title}"
-            : $model->name;
+        return "{$page->container->name} — {$page->title}";
     }
 }

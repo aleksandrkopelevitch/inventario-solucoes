@@ -9,9 +9,9 @@ use Illuminate\View\Component;
 
 /**
  * List for the Documentation hub, renderable as an updatable slot
- * (`documentation-hub-slot`) — solutions + integrations grouped by solution,
- * each with documentation status (based on real content). Filters by search,
- * type and status via DocumentationCoverageService::groups().
+ * (`documentation-hub-slot`) — solutions + diagrams grouped by solution,
+ * each carrying its documentation status (based on real content). Filters by
+ * search and status via DocumentationCoverageService::groups().
  */
 class Hub extends Component
 {

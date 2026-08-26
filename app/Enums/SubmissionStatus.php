@@ -39,7 +39,7 @@ enum SubmissionStatus: string
      *
      * The class strings MUST stay literal and this file MUST stay listed in
      * `resources/css/app.css`'s `@source` block — same contract as
-     * `App\Support\CategoryPalette` and `App\Enums\IntegrationStatus`. A
+     * `App\Support\CategoryPalette` and `App\Enums\DiagramStatus`. A
      * concatenated `bg-cat-{tone}-soft` would never be seen by Tailwind's JIT
      * and the badge would render uncolored.
      */

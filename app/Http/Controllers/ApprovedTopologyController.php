@@ -13,7 +13,7 @@ use Illuminate\Http\Request;
 
 /**
  * Closing the loop the committee opened: a topology it approved either lands on
- * a real Integration or is declared unnecessary.
+ * a real Diagram or is declared unnecessary.
  *
  * Two outcomes on purpose, and they are not the same claim — "the catalog now
  * says this" and "the catalog was already right" mean different things to
@@ -30,15 +30,15 @@ class ApprovedTopologyController extends Controller
         $this->belongsToSubmission($topology, $submission);
         abort_unless($topology->isPending(), 409);
 
-        $integration = $action->handle(
+        $diagram = $action->handle(
             $topology,
             $request->user(),
-            $request->targetIntegration(),
+            $request->targetDiagram(),
         );
 
         return $this->answered(
             $submission,
-            "Topologia aplicada em “{$integration->name}”.",
+            "Topologia aplicada em “{$diagram->name}”.",
         );
     }
 

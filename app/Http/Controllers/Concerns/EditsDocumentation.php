@@ -10,11 +10,11 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 
 /**
- * Logic shared by the block-based documentation editor (Editor.js) across
- * the documentable resources (Solution, Integration). Each controller
- * resolves its own model + route context (save/upload/back URLs,
- * breadcrumb) and delegates saving the Markdown, uploading media, and
- * assembling the page to this trait.
+ * Logic shared by the block-based documentation editor (Editor.js) between the
+ * two page controllers — a Solution's pages and a standalone group's. Each
+ * resolves its own model + route context (save/upload URLs, breadcrumb) and
+ * delegates saving the Markdown, uploading media, and assembling the screen to
+ * this trait.
  */
 trait EditsDocumentation
 {

@@ -46,7 +46,7 @@ class SubmissionRequirements
         // Explicit: strict mode does NOT arm on a single-model fetch, so an
         // unloaded relation here would lazy-load in silence, in any
         // environment — including inside the queued job that builds the prompt.
-        $submission->loadMissing(['sections', 'sources', 'diagrams.media', 'solution.vendor', 'solution.integrations']);
+        $submission->loadMissing(['sections', 'sources', 'diagrams.media', 'solution.vendor', 'solution.diagrams']);
 
         return [
             'facts'      => self::facts($submission),
@@ -118,11 +118,11 @@ class SubmissionRequirements
             ];
         }
 
-        if ($solution->integrations->isNotEmpty()) {
+        if ($solution->diagrams->isNotEmpty()) {
             $facts[] = [
-                'key'      => 'integrations',
+                'key'      => 'diagrams',
                 'label'    => 'Integrações já catalogadas',
-                'value'    => $solution->integrations->pluck('name')->implode(', '),
+                'value'    => $solution->diagrams->pluck('name')->implode(', '),
                 'sections' => [
                     SubmissionSectionKey::LegacyImpact->value,
                     SubmissionSectionKey::Architecture->value,

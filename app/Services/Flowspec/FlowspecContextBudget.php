@@ -7,7 +7,6 @@ use App\Models\DocumentationPage;
 use App\Models\FlowspecAttachment;
 use App\Models\FlowspecChat;
 use App\Models\FlowspecExample;
-use App\Models\Integration;
 use App\Support\Context\TokenEstimator;
 use Illuminate\Support\Collection;
 
@@ -32,10 +31,14 @@ use Illuminate\Support\Collection;
  */
 class FlowspecContextBudget
 {
-    /** Reference types a `document` attachment may point at, and the column holding their text. */
+    /**
+     * Reference types a `document` attachment may point at, and the column
+     * holding their text. One entry since integration documentation was
+     * retired; still a map because the reference is a morph pair and the
+     * lookup below is keyed by it.
+     */
     private const REFERENCE_TYPES = [
         DocumentationPage::class => 'documentation',
-        Integration::class       => 'documentation',
     ];
 
     public function __construct(private readonly FlowspecPromptBuilder $prompts) {}

@@ -1,6 +1,6 @@
 @php
-    // Status badge classes (documented vs. pending), reused for both
-    // solution and integration — same pair used in the related-docs index.
+    // Status badge classes (documented vs. pending), reused for both the
+    // solution and its pages — same pair used in the related-docs index.
     $badge = fn (bool $hasDocs) => [
         'inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
         'bg-accent-soft text-accent' => $hasDocs,
@@ -24,11 +24,9 @@
                             <a href="{{ $solution['showUrl'] }}" class="truncate font-display text-[15px] font-semibold text-ink no-underline transition-colors hover:text-accent">
                                 {{ $solution['name'] }}
                             </a>
-                            @if ($solution['showStatus'])
-                                <span @class($badge($solution['hasDocs']))>
-                                    {{ $solution['hasDocs'] ? 'Documentado' : 'Sem documentação' }}
-                                </span>
-                            @endif
+                            <span @class($badge($solution['hasDocs']))>
+                                {{ $solution['hasDocs'] ? 'Documentado' : 'Sem documentação' }}
+                            </span>
                         </div>
                         <a href="{{ $solution['url'] }}"
                             class="inline-flex shrink-0 items-center gap-1.5 rounded-field border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink no-underline transition-colors hover:border-accent-line hover:bg-accent-soft/40">
@@ -37,18 +35,26 @@
                         </a>
                     </div>
 
-                    {{-- Solution's integrations --}}
-                    @if ($group['integrations']->isNotEmpty())
+                    {{-- The solution's own pages. Alphabetical, deliberately —
+                         see DocumentationCoverageService::groups() for why this
+                         is not the tree's reading order. --}}
+                    @if ($group['pages']->isNotEmpty())
                         <ul class="divide-y divide-line border-t border-line">
-                            @foreach ($group['integrations'] as $integration)
+                            @foreach ($group['pages'] as $page)
                                 <li>
-                                    <a href="{{ $integration['url'] }}" class="flex items-center justify-between gap-3 px-4 py-2.5 pl-6 text-sm no-underline transition-colors hover:bg-raised">
+                                    <a href="{{ $page['url'] }}" class="flex items-center justify-between gap-3 px-4 py-2.5 pl-6 text-sm no-underline transition-colors hover:bg-raised">
                                         <span class="flex min-w-0 items-center gap-2 text-ink">
-                                            <x-heroicon-o-arrows-right-left class="size-3.5 shrink-0 text-faint" />
-                                            <span class="truncate">{{ $integration['name'] }}</span>
+                                            <x-heroicon-o-document-text class="size-3.5 shrink-0 text-faint" />
+                                            <span class="truncate">{{ $page['title'] }}</span>
+                                            {{-- A page that also carries a
+                                                 drawing. Same marker as the
+                                                 pages rail uses. --}}
+                                            @if ($page['hasDiagram'])
+                                                <x-heroicon-o-share class="size-3.5 shrink-0 text-accent" title="Tem diagrama vinculado" />
+                                            @endif
                                         </span>
-                                        <span @class($badge($integration['hasDocs']))>
-                                            {{ $integration['hasDocs'] ? 'Documentado' : 'Sem documentação' }}
+                                        <span @class($badge($page['hasDocs']))>
+                                            {{ $page['hasDocs'] ? 'Documentado' : 'Sem conteúdo' }}
                                         </span>
                                     </a>
                                 </li>

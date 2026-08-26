@@ -7,10 +7,10 @@ use App\Models\Solution;
 use Illuminate\Support\Collection;
 
 /**
- * Human-readable label of an integration chain (`{nodes, edges}` — each edge
+ * Human-readable label of a diagram chain (`{nodes, edges}` — each edge
  * is `{from, to, arrow, protocol}` by node index, no longer positional).
  * Shared between the controller (derived name when creation doesn't supply
- * one) and the solution detail's integration list (`Solutions\IntegrationsMap`),
+ * one) and the solution detail's diagram list (`Solutions\Diagrams`),
  * to avoid duplicating the "A -> B -> C" text assembly.
  */
 class ChainLabeler
@@ -19,8 +19,8 @@ class ChainLabeler
      * Solutions referenced by the given chains — a single query, to label
      * nodes and (in F3) link to the solution detail, without N+1. Also
      * brings `environment`/`cloud`/`logo_path` — used by
-     * `Solutions\IntegrationsMap` to highlight environment/cloud and the
-     * logo on top of each block in the data-viz (`integration-viz.js`).
+     * `Solutions\Diagrams` to highlight environment/cloud and the
+     * logo on top of each block in the data-viz (`chain-viz.js`).
      *
      * @param  Collection<int, array|null>  $chains
      * @return Collection<int, Solution>
@@ -38,7 +38,7 @@ class ChainLabeler
     }
 
     /**
-     * Full chain text — becomes the integration's name when the field is
+     * Full chain text — becomes the diagram's name when the field is
      * left blank. When the chain is a simple line (`isLinear()`), produces
      * "A -> B -> C" by walking the nodes in order. A chain retargeted into a
      * free graph in the data-viz (F3) no longer has that single order —
@@ -80,7 +80,7 @@ class ChainLabeler
      * A chain is "linear" when `edges[i]` always connects `nodes[i]` to
      * `nodes[i+1]`, in order — used only by `label()` above to choose the
      * text summary format ("A -> B -> C" vs. a list of separate edges).
-     * Every integration is born linear (just the root node); as soon as the
+     * Every diagram is born linear (just the root node); as soon as the
      * data-viz (F3) retargets an edge to a node outside that sequence, the
      * chain stops being linear.
      */

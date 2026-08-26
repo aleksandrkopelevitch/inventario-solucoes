@@ -4,7 +4,7 @@ use App\Actions\Cati\BuildDeckSpec;
 use App\Actions\Cati\RenderTicketText;
 use App\Enums\SubmissionDiagramKind;
 use App\Enums\UserRole;
-use App\Models\Integration;
+use App\Models\Diagram;
 use App\Models\Solution;
 use App\Models\Submission;
 use App\Models\User;
@@ -109,9 +109,9 @@ it('runs the same chain semantics against a submission drawing', function () {
     expect($diagram->fresh()->chain['edges'])->toHaveCount(1);
 });
 
-it('reindexes a submission drawing on delete, exactly as the integration canvas does', function () {
+it('reindexes a submission drawing on delete, exactly as the diagram canvas does', function () {
     // The one mutation that reindexes, against the second owner — if the
-    // shared trait ever grows an Integration-specific branch, this is what
+    // shared trait ever grows a Diagram-specific branch, this is what
     // catches it.
     $submission = diagramSubmission();
     $diagram = $submission->diagram(SubmissionDiagramKind::ToBe);
@@ -153,32 +153,33 @@ it('reindexes a submission drawing on delete, exactly as the integration canvas 
 });
 
 it('never derives anything from a submission drawing', function () {
-    // The whole reason a submission's chain is a different owner: an
-    // Integration's chain writes participants/source/target/direction, and a
+    // The whole reason a submission's chain is a different owner: a catalog
+    // Diagram's chain writes participants/source/target/direction, and a
     // proposal — which may well be rejected — must never write into the
-    // catalog.
+    // catalog. Two records on purpose: `$catalog` is what must not move,
+    // `$drawing` is what gets drawn on.
     $solution = Solution::factory()->create();
-    $integration = Integration::factory()->create();
-    $integration->participants()->attach($solution->id, ['position' => 0]);
+    $catalog = Diagram::factory()->create();
+    $catalog->participants()->attach($solution->id, ['position' => 0]);
 
     $submission = diagramSubmission(['solution_id' => $solution->id]);
-    $diagram = $submission->diagram(SubmissionDiagramKind::ToBe);
+    $drawing = $submission->diagram(SubmissionDiagramKind::ToBe);
 
     $before = [
-        'participants' => $integration->participants()->pluck('solutions.id')->all(),
-        'source'       => $integration->source_solution_id,
-        'direction'    => $integration->direction,
+        'participants' => $catalog->participants()->pluck('solutions.id')->all(),
+        'source'       => $catalog->source_solution_id,
+        'direction'    => $catalog->direction,
     ];
 
-    $this->postJson(route('submissions.diagrams.chain.node.add', [$submission, $diagram]), [
+    $this->postJson(route('submissions.diagrams.chain.node.add', [$submission, $drawing]), [
         'kind' => 'system', 'solution_id' => $solution->id,
     ])->assertOk();
 
-    $integration->refresh();
+    $catalog->refresh();
 
-    expect($integration->participants()->pluck('solutions.id')->all())->toBe($before['participants'])
-        ->and($integration->source_solution_id)->toBe($before['source'])
-        ->and($integration->direction)->toBe($before['direction']);
+    expect($catalog->participants()->pluck('solutions.id')->all())->toBe($before['participants'])
+        ->and($catalog->source_solution_id)->toBe($before['source'])
+        ->and($catalog->direction)->toBe($before['direction']);
 });
 
 it('refuses a drawing that belongs to another submission', function () {
@@ -210,7 +211,7 @@ it('mounts the canvas with submission urls, so the client never learns whose cha
     $html = $this->get(route('submissions.diagrams.edit', [$submission, $diagram]))->assertOk()->getContent();
 
     expect($html)
-        ->toContain('data-integration-graph')
+        ->toContain('data-ak-chain-graph')
         ->toContain('data-ak-node-kinds')
         // The endpoints travel inside the payload — this is what makes the
         // 4.5k-line canvas owner-agnostic with no client change at all.
@@ -345,15 +346,15 @@ it('puts the submission drawings on the deck, in the committee order', function 
         ->toBeNull();
 });
 
-it('stops printing the catalog integration canvases once the submission drew its own AS IS', function () {
+it('stops printing the catalog diagram canvases once the submission drew its own AS IS', function () {
     // Two answers to "how does it work today" on consecutive slides is a
     // question from the committee, not an answer.
     Storage::fake('public');
 
     $solution = Solution::factory()->create();
-    $integration = Integration::factory()->create(['name' => 'SKBridge ↔ ERP']);
-    $integration->participants()->attach($solution->id, ['position' => 0]);
-    $integration->addMedia(UploadedFile::fake()->image('integration.png'))->toMediaCollection(Integration::DIAGRAM_COLLECTION);
+    $diagram = Diagram::factory()->create(['name' => 'SKBridge ↔ ERP']);
+    $diagram->participants()->attach($solution->id, ['position' => 0]);
+    $diagram->addMedia(UploadedFile::fake()->image('diagram.png'))->toMediaCollection(Diagram::DIAGRAM_COLLECTION);
 
     $submission = diagramSubmission(['solution_id' => $solution->id]);
 

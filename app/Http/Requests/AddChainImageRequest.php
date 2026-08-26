@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Integration;
+use App\Models\Diagram;
 use App\Http\Requests\Concerns\AuthorizesChainOwner;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -11,7 +11,7 @@ use Illuminate\Foundation\Http\FormRequest;
  * directly onto the canvas (Ctrl+V), the only way an `App\Enums\ChainNodeKind::Image`
  * block is ever created. Unlike `AddChainNodeRequest`, this request
  * carries the picture itself rather than a kind/Solution/label triple: the
- * controller stores it in `Integration`'s `docs` media collection (the same
+ * controller stores it in `Diagram`'s `docs` media collection (the same
  * collection used for documentation-embedded images, served by
  * `MediaController`/`files.show`) and appends a node referencing it in one
  * request — no separate upload-then-attach round trip, so there's never a

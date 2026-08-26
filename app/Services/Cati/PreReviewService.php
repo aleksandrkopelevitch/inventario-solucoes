@@ -39,7 +39,7 @@ class PreReviewService
      */
     public function handle(Submission $submission): array
     {
-        $submission->loadMissing(['sections', 'solution.integrations', 'sources']);
+        $submission->loadMissing(['sections', 'solution.diagrams', 'sources']);
 
         $response = $this->prompt($this->prompts->userPrompt(
             submission: $submission,
