@@ -2,6 +2,7 @@
 
 namespace App\View\Components\Submissions;
 
+use App\Enums\SubmissionSectionState;
 use App\Models\Submission;
 use App\Support\Cati\SubmissionRequirements;
 use App\Support\Cati\SubmissionStages;
@@ -41,6 +42,13 @@ class Progress extends Component
             'sections' => $requirements['sections'],
             'facts'    => $requirements['facts'],
             'progress' => SubmissionStages::progress($this->submission),
+            // The next section that has text nobody has signed off on — what
+            // the "ir à próxima" button jumps to. Written sections only: an
+            // empty one is the interview's job, not the reviewer's, and
+            // sending someone to confirm a blank card is sending them nowhere.
+            'nextUnconfirmed' => collect($requirements['sections'])
+                ->first(fn (array $section) => $section['answered']
+                    && $section['state'] !== SubmissionSectionState::Confirmed->value),
         ]);
     }
 }

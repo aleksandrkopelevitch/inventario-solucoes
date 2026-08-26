@@ -547,6 +547,103 @@ it('applies a reply\'s drafts into their sections, as drafts', function () {
         ->and($response->json('message'))->toContain('2 seções');
 });
 
+it('applies and confirms one section from inside the reply', function () {
+    // The interview routinely drafts six sections from one message, and
+    // reviewing them a card at a time on another tab was the slowest step left.
+    $submission = ownedSubmission();
+    $chat = SubmissionChat::create(['user_id' => $this->user->id, 'submission_id' => $submission->id]);
+    $message = $chat->messages()->create([
+        'role'    => 'assistant',
+        'content' => 'Preenchi duas.',
+        'drafts'  => [
+            ['key' => 'summary', 'markdown' => 'Resumo.'],
+            ['key' => 'architecture', 'markdown' => 'Arquitetura.'],
+        ],
+    ]);
+
+    $response = $this->postJson(route('submissions.chat.messages.apply', [$submission, $message]), [
+        'key'     => 'summary',
+        'confirm' => true,
+    ])->assertOk();
+
+    expect($submission->section(SubmissionSectionKey::Summary)->fresh())
+        ->state->toBe(SubmissionSectionState::Confirmed)
+        ->content->toBe('Resumo.')
+        // Who signed it is updated_by_id; provenance still says the text came
+        // from the assistant.
+        ->updated_by_id->toBe($this->user->id)
+        ->and($submission->section(SubmissionSectionKey::Summary)->fresh()->provenance['source'])->toBe('chat')
+        // Only that one — the other draft is untouched.
+        ->and($submission->section(SubmissionSectionKey::Architecture)->fresh()->state)
+        ->toBe(SubmissionSectionState::Empty)
+        ->and($response->json('message'))->toContain('confirmada');
+});
+
+it('refuses to confirm a whole reply at once, which is what keeps Confirmed honest', function () {
+    // `Confirmed` claims a human read the text — RenderTicketText ticks the
+    // committee's checklist from it alone. A confirm without a section key
+    // would sign six sections in one click, so it fails closed and applies
+    // them as drafts instead.
+    $submission = ownedSubmission();
+    $chat = SubmissionChat::create(['user_id' => $this->user->id, 'submission_id' => $submission->id]);
+    $message = $chat->messages()->create([
+        'role'    => 'assistant',
+        'content' => 'Preenchi duas.',
+        'drafts'  => [
+            ['key' => 'summary', 'markdown' => 'Resumo.'],
+            ['key' => 'architecture', 'markdown' => 'Arquitetura.'],
+        ],
+    ]);
+
+    $this->postJson(route('submissions.chat.messages.apply', [$submission, $message]), ['confirm' => true])
+        ->assertOk();
+
+    expect($submission->section(SubmissionSectionKey::Summary)->fresh()->state)
+        ->toBe(SubmissionSectionState::Drafted)
+        ->and($submission->section(SubmissionSectionKey::Architecture)->fresh()->state)
+        ->toBe(SubmissionSectionState::Drafted);
+});
+
+it('offers the per-section confirm only from inside the draft, and drops it once signed', function () {
+    // Expanding the <details> is what makes "a human read this" true, so the
+    // button lives in there — never in the reply's header beside apply-all.
+    $submission = ownedSubmission();
+    $chat = SubmissionChat::create(['user_id' => $this->user->id, 'submission_id' => $submission->id]);
+    $chat->messages()->create([
+        'role'    => 'assistant',
+        'content' => 'Preenchi o resumo.',
+        'drafts'  => [['key' => 'summary', 'markdown' => 'Resumo.']],
+    ]);
+
+    expect($this->get(route('submissions.show', $submission))->getContent())
+        ->toContain('Aplicar e confirmar esta seção');
+
+    $submission->section(SubmissionSectionKey::Summary)
+        ->update(['content' => 'Resumo.', 'state' => SubmissionSectionState::Confirmed]);
+
+    expect($this->get(route('submissions.show', $submission))->getContent())
+        ->not->toContain('Aplicar e confirmar esta seção')
+        ->toContain('Seção confirmada');
+});
+
+it('points the progress rail at the next written-but-unsigned section', function () {
+    $submission = ownedSubmission();
+
+    // An EMPTY section is the interview's job, not the reviewer's — sending
+    // someone to confirm a blank card sends them nowhere.
+    expect($this->get(route('submissions.show', $submission))->getContent())
+        ->not->toContain('Revisar a próxima');
+
+    $submission->section(SubmissionSectionKey::Architecture)
+        ->update(['content' => 'Texto.', 'state' => SubmissionSectionState::Drafted]);
+
+    $html = $this->get(route('submissions.show', $submission))->assertOk()->getContent();
+
+    expect($html)->toContain('Revisar a próxima')
+        ->toContain('data-ak-cati-goto-section="architecture"')
+        ->toContain('0 de 11 confirmadas');
+});
+
 it('exports the ticket text and the document', function () {
     $submission = ownedSubmission(['name' => 'CATI SKBridge']);
     $submission->section(SubmissionSectionKey::Summary)

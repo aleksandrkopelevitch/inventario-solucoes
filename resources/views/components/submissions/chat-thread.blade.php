@@ -43,12 +43,40 @@
                             </div>
 
                             @foreach ($message->drafts as $draft)
+                                @php $draftFormId = "apply-draft-{$message->id}-{$draft['key']}"; @endphp
                                 <details class="text-sm">
                                     <summary class="cursor-pointer text-ink">
                                         {{ \App\Enums\SubmissionSectionKey::tryFrom($draft['key'])?->label() ?? $draft['key'] }}
                                     </summary>
                                     <div class="mt-1.5 border-l-2 border-line pl-3">
                                         <x-ui.markdown :text="$draft['markdown']" />
+
+                                        {{-- Signing off from here, without a trip to the
+                                             Documento tab — the interview routinely drafts six
+                                             sections from one message, and reviewing them a card
+                                             at a time was the slowest step left.
+
+                                             INSIDE the details on purpose: `Confirmed` claims a
+                                             human read the text, and a button in the reply's
+                                             header would let somebody sign six sections without
+                                             opening any of them. Expanding this is what makes
+                                             the claim true. --}}
+                                        @if (($sectionStates[$draft['key']] ?? null) !== \App\Enums\SubmissionSectionState::Confirmed)
+                                            <form id="{{ $draftFormId }}" class="hidden">
+                                                @csrf
+                                                <x-forms.input type="hidden" name="key" :value="$draft['key']" />
+                                                <x-forms.input type="hidden" name="confirm" value="1" />
+                                            </form>
+                                            <x-forms.button form="{{ $draftFormId }}" variant="glass" class="mt-2 !px-2.5 !py-1 !text-xs"
+                                                data-ak-ajax="{{ $draftFormId }}"
+                                                data-ak-action="{{ route('submissions.chat.messages.apply', [$chat->submission, $message]) }}">
+                                                <x-heroicon-o-check-badge class="size-3.5" /> Aplicar e confirmar esta seção
+                                            </x-forms.button>
+                                        @else
+                                            <p class="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-cat-emerald-ink">
+                                                <x-heroicon-o-check-circle class="size-3.5" /> Seção confirmada
+                                            </p>
+                                        @endif
                                     </div>
                                 </details>
                             @endforeach

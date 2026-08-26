@@ -20,9 +20,23 @@
             <div class="absolute inset-y-0 left-0 rounded-full bg-cat-emerald transition-[width] duration-300" style="width: {{ $confirmedPercent }}%"></div>
         </div>
 
-        <p class="mt-1.5 text-[11px] text-faint">
-            {{ $progress['confirmed'] }} confirmada{{ $progress['confirmed'] === 1 ? '' : 's' }} por você.
-        </p>
+        <div class="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <p class="text-[11px] text-faint">
+                {{ $progress['confirmed'] }} de {{ $progress['total'] }} confirmada{{ $progress['confirmed'] === 1 ? '' : 's' }} por você.
+            </p>
+
+            {{-- The review step is the slowest one left: the interview drafts
+                 six sections from one message, and finding which are still
+                 unsigned meant scrolling the whole Documento tab. This says how
+                 many are left and goes straight to the first. --}}
+            @if ($nextUnconfirmed)
+                <x-forms.button type="button" variant="ghost" class="!px-1.5 !py-0.5 !text-[11px] !font-medium"
+                    data-ak-cati-goto-section="{{ $nextUnconfirmed['key'] }}"
+                    title="Ir para {{ $nextUnconfirmed['label'] }}">
+                    Revisar a próxima <x-heroicon-o-arrow-right class="size-3" />
+                </x-forms.button>
+            @endif
+        </div>
 
         <ul class="mt-3 flex flex-col gap-0.5 pl-0">
             @foreach ($sections as $section)
