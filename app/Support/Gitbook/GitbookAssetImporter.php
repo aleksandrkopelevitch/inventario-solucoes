@@ -282,10 +282,15 @@ class GitbookAssetImporter
 
     /**
      * The real byte ceiling: the smaller of our own config and Spatie's own
-     * `media-library.max_file_size` (10MB, its package default — this app has
-     * never published/overridden that config file). Without taking the
-     * minimum, a `GITBOOK_MAX_ASSET_BYTES` above Spatie's ceiling promises a
-     * limit `addMedia()` will simply refuse to honour.
+     * `media-library.max_file_size`. Without taking the minimum, a
+     * `GITBOOK_MAX_ASSET_BYTES` above Spatie's ceiling promises a limit
+     * `addMedia()` will simply refuse to honour.
+     *
+     * Both are 64MB today, and the reason they had to move TOGETHER is the
+     * whole point of this method: Spatie's config was unpublished, so its 10MB
+     * package default was the one actually clamping, and raising only the
+     * GitBook setting would have changed nothing. `config/media-library.php`
+     * now overrides that one key — see the note in that file.
      */
     private function ceiling(): int
     {
