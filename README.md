@@ -520,6 +520,30 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   Markdown) e a paleta de cor/fonte de cada bloco. Todos os gestos rodam em
   **eventos de ponteiro**, então mouse, toque e caneta seguem um caminho de
   código só.
+
+  Três detalhes de edição que valem saber, porque são o que faz o canvas
+  parecer previsível:
+
+  - **Renomear um bloco `system` é a busca de Solução.** O duplo clique no
+    texto abre um `<input>` no lugar dele com autocomplete sobre o catálogo; a
+    primeira sugestão já nasce em destaque e é ela que o Enter (ou o clique na
+    linha, ou clicar fora) aplica — o destaque é o aviso de qual Solução vai
+    ser ligada. Digitar algo que não casa com nenhuma Solução não abre lista
+    nenhuma e vira **texto livre**, que é como um sistema fora do catálogo
+    entra no desenho. Mesma mecânica no pill de protocolo de uma ligação, com
+    o enum de protocolos no lugar do catálogo.
+  - **As affordances não engordam no zoom.** Portas do bloco, alças da ponta
+    da seta, pontos de ancoragem e o pill tracejado "+ protocolo" mantêm o
+    tamanho **em tela** em qualquer zoom (contra-escala por `--viz-inv-scale`,
+    escrito a cada pan/zoom): são controles, e um controle que dobra de tamanho
+    a 220% passa a dominar o bloco que deveria só apontar. O desenho em si —
+    blocos, texto, traço, seta, pill com protocolo escrito — escala normal,
+    porque é conteúdo e sai assim no screenshot exportado.
+  - **O cartão de tipo aparece onde o gesto terminou.** Soltar uma seta em
+    canvas vazio cria o bloco no ponto do drop e abre o "Adicionar bloco" ali
+    do lado (preso dentro do canvas: perto da borda ele dobra pra dentro), em
+    vez de mandar você atravessar a tela até um canto. O "+" da topbar, que não
+    tem ponto nenhum pra ancorar, segue abrindo no canto fixo.
 - **Mapa do ecossistema** (`/map`): derivado (somente leitura), layout radial
   hub-and-spoke — cada solução é um hub com seus vizinhos diretos num círculo
   ao redor (`<x-ecosystem-map>`, DOM+SVG, mesmo visual do canvas de integração
@@ -536,11 +560,20 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   heading e atalhos de Markdown (`## `, `- `, `> `, ` ``` `). Três contêineres:
     - **Solução** (`/solutions/{slug}/documentation`): árvore de 1..N páginas
       (`DocumentationPage`) com **até 3 níveis** — página → subpágina →
-      sub-subpágina (`DocumentationPage::MAX_DEPTH`, um único lugar pra mexer no
-      limite) — criar/renomear/mover/aninhar/excluir; a rota-índice resolve (ou
-      cria) a **primeira página de primeiro nível** e redireciona pra ela. Criar
-      uma página também é possível do detalhe da solução, e leva direto ao
-      editor dela.
+      sub-subpágina — criar/renomear/mover/aninhar/excluir; a rota-índice
+      resolve (ou cria) a **primeira página de primeiro nível** e redireciona
+      pra ela. Criar uma página também é possível do detalhe da solução, e leva
+      direto ao editor dela.
+
+      O limite é a constante `DocumentationPage::MAX_DEPTH`, e é ela que todo
+      mundo que barra profundidade lê (`canReceiveChildren()`,
+      `canBeNestedUnder()`, as flags que a rail usa por linha e o
+      `MoveDocumentationPageRequest`). Querer um quarto nível é mexer nela **e**
+      acrescentar um passo de indentação nas três views que desenham a árvore
+      (a rail, o índice da doc pública e o card do detalhe da solução): as
+      classes de indentação são **literais**, uma por nível, porque o Tailwind
+      só compila classe que ele consegue **ver** no fonte — `ml-{{ $n }}` não
+      gera nada.
     - **Integração** (`/solutions/{slug}/integrations/{slug}/documentation`): uma
       página única, com as abas **Documentação** e **Diagrama** (o canvas da
       chain) e, na barra de cima, o nome e o status editáveis in place.
