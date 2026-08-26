@@ -153,12 +153,13 @@ docblock and `integration-viz.blade.php`).
 ### Documentation page tree — `position` orders SIBLINGS, not the container
 
 A Solution's (or standalone `DocumentationGroup`'s) documentation is a tree of
-`DocumentationPage`s up to `DocumentationPage::MAX_DEPTH` levels deep (3 today:
-page → subpage → sub-subpage), via a self-referencing `parent_id`. The cap is
-that constant and nothing else, so changing the depth is one edit there plus one
-literal indent step in the rail's view — and `parent_id` is deliberately absent
-from `$fillable`, like `container_type`/`container_id`: the tree is written
-through `parent()->associate()`, never mass-assigned.
+`DocumentationPage`s up to `DocumentationPage::MAX_DEPTH` levels deep (5 today,
+which is the depth the imported GitBook corpus actually uses), via a
+self-referencing `parent_id`. The cap is that constant and nothing else, so
+changing the depth is one edit there plus one literal indent step per level in
+the three views that draw the tree — and `parent_id` is deliberately absent from
+`$fillable`, like `container_type`/`container_id`: the tree is written through
+`parent()->associate()`, never mass-assigned.
 
 The trap is `position`: it orders a page among its **siblings**, so
 `$container->pages()` — a flat `orderBy('position')` over every page at every

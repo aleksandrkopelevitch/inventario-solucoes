@@ -12,9 +12,11 @@ use App\Models\DocumentationGroup;
 class GitbookImportReport
 {
     /**
-     * @param  array<int, string>  $planned  Page titles, in the order they'd be created
+     * @param  array<int, string>  $planned  Page titles, indented by depth, in the order they'd be written
      * @param  array<string, int>  $skipped  Dropped GitBook node types => count
      * @param  array<int, string>  $failures  Assets left pointing at GitBook, with the reason
+     * @param  int  $sections  GitBook `group`s written as empty section pages
+     * @param  int  $collapsed  Pages too deep to nest, whose ancestry went into their title
      */
     public function __construct(
         public readonly string $spaceId,
@@ -26,6 +28,8 @@ class GitbookImportReport
         public readonly array $planned = [],
         public readonly array $skipped = [],
         public readonly array $failures = [],
+        public readonly int $sections = 0,
+        public readonly int $collapsed = 0,
     ) {}
 
     public function pageCount(): int

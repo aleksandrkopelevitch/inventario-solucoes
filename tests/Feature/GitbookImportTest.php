@@ -4,6 +4,8 @@ use App\Actions\Documentation\ImportGitbookSpace;
 use App\Contracts\Documentable;
 use App\Exceptions\GitbookApiException;
 use App\Models\DocumentationGroup;
+use App\Models\DocumentationPage;
+use App\Services\DocumentationPageService;
 use App\Support\Gitbook\GitbookMarkdownNormalizer;
 use App\Support\Gitbook\GitbookPageTree;
 use App\Support\GitbookRenderer;
@@ -61,11 +63,11 @@ function fakeGitbook(array $tree, array|Closure $markdown, string $title = 'Manu
 
 /*
 |--------------------------------------------------------------------------
-| Flattening the tree — the one real structural mismatch
+| Resolving the tree — the structural mismatch, now a clamp
 |--------------------------------------------------------------------------
 */
 
-it('flattens a nested space depth-first and carries ancestry into the titles', function () {
+it('reproduces the nesting, turning a group into a section page above its children', function () {
     $tree = new GitbookPageTree([
         ['id' => 'p1', 'type' => 'document', 'title' => 'Visão geral'],
         ['id' => 'g1', 'type' => 'group', 'title' => 'Começando', 'pages' => [
@@ -75,23 +77,85 @@ it('flattens a nested space depth-first and carries ancestry into the titles', f
         ]],
     ]);
 
+    expect(array_map(fn ($page) => [$page->title, $page->depth, $page->parentId], $tree->pages()))->toBe([
+        ['Visão geral', 0, null],
+        ['Começando', 0, null],
+        ['Instalação', 1, 'g1'],
+        ['Requisitos', 2, 'p2'],
+    ]);
+    // Reading order is still depth-first, and the group is the only row with no
+    // content of its own to fetch.
+    expect(array_map(fn ($page) => $page->id, $tree->pages()))->toBe(['p1', 'g1', 'p2', 'p3']);
+    expect(array_map(fn ($page) => $page->isSection, $tree->pages()))->toBe([false, true, false, false]);
+    expect($tree->sections())->toBe(1);
+    expect($tree->collapsed())->toBe(0);
+});
+
+it('reproduces a space as deep as the cap allows, collapsing only past it', function () {
+    // A chain one level deeper than the tree can hold, built from the constant
+    // so the fixture keeps testing the CLAMP rather than a hard-coded depth.
+    $leaf = ['id' => 'deep', 'type' => 'document', 'title' => 'Um nível a mais'];
+    $node = $leaf;
+    foreach (array_reverse(range(1, DocumentationPage::MAX_DEPTH - 1)) as $level) {
+        $node = ['id' => 'p' . $level, 'type' => 'document', 'title' => 'Nível ' . ($level + 1), 'pages' => [$node]];
+    }
+    $tree = new GitbookPageTree([
+        ['id' => 'g1', 'type' => 'group', 'title' => 'Manual', 'pages' => [$node]],
+    ]);
+
+    $rows = array_map(fn ($page) => [$page->title, $page->depth, $page->parentId], $tree->pages());
+
+    // Everything down to the last level keeps its own row and its own parent…
+    expect(array_slice($rows, 0, DocumentationPage::MAX_DEPTH))->toBe([
+        ['Manual', 0, null],
+        ['Nível 2', 1, 'g1'],
+        ['Nível 3', 2, 'p1'],
+        ['Nível 4', 3, 'p2'],
+        ['Nível 5', 4, 'p3'],
+    ]);
+    // …and the one page below it hangs off the deepest ancestor that can still
+    // hold children, carrying the level it lost in its title.
+    expect(end($rows))->toBe(['Nível 5 › Um nível a mais', 4, 'p3']);
+    expect($tree->collapsed())->toBe(1);
+    expect(DocumentationPage::MAX_DEPTH)->toBe(5);
+});
+
+it('flattens everything into titles with --flat, the way it always did', function () {
+    $tree = new GitbookPageTree([
+        ['id' => 'p1', 'type' => 'document', 'title' => 'Visão geral'],
+        ['id' => 'g1', 'type' => 'group', 'title' => 'Começando', 'pages' => [
+            ['id' => 'p2', 'type' => 'document', 'title' => 'Instalação', 'pages' => [
+                ['id' => 'p3', 'type' => 'document', 'title' => 'Requisitos'],
+            ]],
+        ]],
+    ], nest: false);
+
     expect(array_map(fn ($page) => $page->title, $tree->pages()))->toBe([
         'Visão geral',
         'Começando › Instalação',
         'Começando › Instalação › Requisitos',
     ]);
-    expect(array_map(fn ($page) => $page->id, $tree->pages()))->toBe(['p1', 'p2', 'p3']);
+    // No parents, no section pages — one flat list, as before.
+    expect(array_map(fn ($page) => $page->parentId, $tree->pages()))->toBe([null, null, null]);
+    expect($tree->sections())->toBe(0);
 });
 
-it('can keep nested titles bare', function () {
-    $tree = new GitbookPageTree([
+it('keeps the legacy flattened title reachable as origin(), whichever mode ran', function () {
+    $nodes = [
         ['id' => 'g1', 'type' => 'group', 'title' => 'Começando', 'pages' => [
             ['id' => 'p2', 'type' => 'document', 'title' => 'Instalação'],
         ]],
-    ], prefixTitles: false);
+    ];
 
-    expect($tree->pages()[0]->title)->toBe('Instalação');
-    expect($tree->pages()[0]->origin())->toBe('Começando › Instalação');
+    // It is what a re-run matches an already-imported (flat) page by, so it has
+    // to read the same from both modes.
+    $nested = collect((new GitbookPageTree($nodes))->pages())->firstWhere('id', 'p2');
+    $flat = collect((new GitbookPageTree($nodes, nest: false))->pages())->firstWhere('id', 'p2');
+
+    expect($nested->title)->toBe('Instalação');
+    expect($nested->origin())->toBe('Começando › Instalação');
+    expect($flat->title)->toBe('Começando › Instalação');
+    expect($flat->origin())->toBe('Começando › Instalação');
 });
 
 it('skips link and computed nodes and counts them instead of losing them quietly', function () {
@@ -221,7 +285,7 @@ it('normalizes every image shape into the single-line figure the editor reads', 
 |--------------------------------------------------------------------------
 */
 
-it('imports a space into a standalone group, one page per GitBook page, in reading order', function () {
+it('imports a space into a standalone group, keeping its shape and reading order', function () {
     fakeGitbook(
         [
             ['id' => 'p1', 'type' => 'document', 'title' => 'Visão geral'],
@@ -234,18 +298,66 @@ it('imports a space into a standalone group, one page per GitBook page, in readi
 
     $report = app(ImportGitbookSpace::class)->handle('space-1');
 
-    expect($report->created)->toBe(2);
+    // Three rows for two documents: the group came across as a section page.
+    expect($report->created)->toBe(3);
     expect($report->updated)->toBe(0);
+    expect($report->sections)->toBe(1);
 
     $group = DocumentationGroup::sole();
     expect($group->name)->toBe('Manual de Integrações');
     expect($group->slug)->toBe('manual-de-integracoes');
 
-    $pages = $group->pages()->get();
-    expect($pages->pluck('title')->all())->toBe(['Visão geral', 'Começando › Instalação']);
-    expect($pages->pluck('position')->all())->toBe([1, 2]);
-    expect($pages->first()->documentation)->toBe('# Visão geral');
-    expect($pages->first()->slug)->toBe('visao-geral');
+    $tree = app(DocumentationPageService::class)->tree($group)
+        ->map(fn (array $row) => [$row['page']->title, $row['depth']])
+        ->all();
+    expect($tree)->toBe([
+        ['Visão geral', 0],
+        ['Começando', 0],
+        ['Instalação', 1],
+    ]);
+
+    // `position` orders siblings, so the first root and the lone child both
+    // start at 1 (sorted by title here — the relation orders by position, which
+    // is exactly what makes those two share a number).
+    expect($group->pages()->get()->pluck('position', 'title')->sortKeys()->all())->toBe([
+        'Começando'   => 2,
+        'Instalação'  => 1,
+        'Visão geral' => 1,
+    ]);
+
+    $overview = $group->pages()->where('title', 'Visão geral')->sole();
+    expect($overview->documentation)->toBe('# Visão geral');
+    expect($overview->slug)->toBe('visao-geral');
+    // A section has no content in GitBook, so nothing was fetched for it.
+    expect($group->pages()->where('title', 'Começando')->sole()->documentation)->toBeNull();
+});
+
+it('re-shapes a space that was imported flat, instead of importing it twice', function () {
+    $nodes = [
+        ['id' => 'g1', 'type' => 'group', 'title' => 'Começando', 'pages' => [
+            ['id' => 'p2', 'type' => 'document', 'title' => 'Instalação'],
+        ]],
+    ];
+    fakeGitbook($nodes, ['p2' => '# Instalação']);
+
+    // The old behaviour: one root page carrying its ancestry in the title.
+    app(ImportGitbookSpace::class)->handle('space-1', nest: false);
+    $flat = DocumentationGroup::sole()->pages()->sole();
+    expect($flat->title)->toBe('Começando › Instalação');
+
+    // Re-running with nesting has to recognise that page by its legacy title
+    // and re-file it, not leave a second copy beside it.
+    $report = app(ImportGitbookSpace::class)->handle('space-1');
+
+    expect($report->created)->toBe(1);   // the section page
+    expect($report->updated)->toBe(1);   // the page that already existed
+    expect(DocumentationGroup::sole()->pages()->count())->toBe(2);
+
+    $moved = $flat->fresh();
+    expect($moved->title)->toBe('Instalação');
+    expect($moved->parent_id)->toBe(DocumentationGroup::sole()->pages()->where('title', 'Começando')->sole()->id);
+    // The URL does not move with the rename — same rule as any other rename.
+    expect($moved->slug)->toBe($flat->slug);
 });
 
 it('re-hosts embedded images into the page docs collection and repoints the markdown', function () {
@@ -355,8 +467,18 @@ it('keeps two identically titled GitBook pages as two pages', function () {
 
     $report = app(ImportGitbookSpace::class)->handle('space-1');
 
-    expect($report->created)->toBe(2);
-    expect(DocumentationGroup::sole()->pages()->get()->pluck('documentation')->all())->toBe(['um', 'dois']);
+    // Two sections, both named "A", each with its own "Notas" underneath.
+    expect($report->created)->toBe(4);
+    expect(DocumentationGroup::sole()->pages()->whereNotNull('parent_id')->get()->pluck('documentation')->all())
+        ->toBe(['um', 'dois']);
+
+    // And a re-run must keep them apart rather than collapsing the second into
+    // the first — the titles alone cannot tell them apart, the parents can.
+    $again = app(ImportGitbookSpace::class)->handle('space-1');
+    expect($again->created)->toBe(0);
+    expect($again->updated)->toBe(4);
+    expect(DocumentationGroup::sole()->pages()->whereNotNull('parent_id')->get()->pluck('documentation')->all())
+        ->toBe(['um', 'dois']);
 });
 
 it('accepts an explicit group name', function () {

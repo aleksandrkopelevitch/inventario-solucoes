@@ -559,8 +559,8 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   blocos separada. Suporta upload/colar/arrastar imagem e arquivo, âncoras de
   heading e atalhos de Markdown (`## `, `- `, `> `, ` ``` `). Três contêineres:
     - **Solução** (`/solutions/{slug}/documentation`): árvore de 1..N páginas
-      (`DocumentationPage`) com **até 3 níveis** — página → subpágina →
-      sub-subpágina — criar/renomear/mover/aninhar/excluir; a rota-índice
+      (`DocumentationPage`) com **até 5 níveis** — criar/renomear/mover/
+      aninhar/excluir; a rota-índice
       resolve (ou cria) a **primeira página de primeiro nível** e redireciona
       pra ela. Criar uma página também é possível do detalhe da solução, e leva
       direto ao editor dela.
@@ -568,12 +568,14 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
       O limite é a constante `DocumentationPage::MAX_DEPTH`, e é ela que todo
       mundo que barra profundidade lê (`canReceiveChildren()`,
       `canBeNestedUnder()`, as flags que a rail usa por linha e o
-      `MoveDocumentationPageRequest`). Querer um quarto nível é mexer nela **e**
+      `MoveDocumentationPageRequest`). Mexer nele é mexer nela **e**
       acrescentar um passo de indentação nas três views que desenham a árvore
       (a rail, o índice da doc pública e o card do detalhe da solução): as
       classes de indentação são **literais**, uma por nível, porque o Tailwind
       só compila classe que ele consegue **ver** no fonte — `ml-{{ $n }}` não
-      gera nada.
+      gera nada. O 5 não é arbitrário: é a profundidade do corpus do GitBook
+      que o `gitbook:import` traz (dois espaços chegam a cinco níveis), então
+      qualquer coisa menor achata a cauda deles em títulos com breadcrumb.
     - **Integração** (`/solutions/{slug}/integrations/{slug}/documentation`): uma
       página única, com as abas **Documentação** e **Diagrama** (o canvas da
       chain) e, na barra de cima, o nome e o status editáveis in place.

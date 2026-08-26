@@ -73,23 +73,31 @@ it('creates a sub-subpage — three levels are allowed', function () {
         ->and($parent->subtreeHeight())->toBe(3);
 });
 
-it('stops at the last level, refusing a fourth', function () {
+it('stops at the last level, refusing one past MAX_DEPTH', function () {
     $solution = Solution::factory()->create();
-    $parent = rootPage($solution, 'Operação');
-    $child = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Backup', 'position' => 1]);
-    $grandchild = DocumentationPage::factory()->childOf($child)->create(['title' => 'Retenção', 'position' => 1]);
+    $deepest = rootPage($solution, 'Nível 1');
+
+    // Build a chain exactly as deep as the cap allows, whatever the cap is.
+    foreach (range(2, DocumentationPage::MAX_DEPTH) as $level) {
+        $deepest = DocumentationPage::factory()->childOf($deepest)->create([
+            'title'    => 'Nível ' . $level,
+            'position' => 1,
+        ]);
+    }
+
+    expect($deepest->depth())->toBe(DocumentationPage::MAX_DEPTH - 1);
 
     $response = $this->actingAs(treeAdmin())
         ->postJson(route('solutions.docs.pages.store', $solution), [
-            'title'  => 'Nível quatro',
-            'parent' => $grandchild->id,
+            'title'  => 'Um nível a mais',
+            'parent' => $deepest->id,
         ])
         ->assertStatus(422)
         ->assertJson(['type' => 'warning']);
 
     expect($response->json('message'))->toContain('último nível');
-    expect(DocumentationPage::where('title', 'Nível quatro')->exists())->toBeFalse();
-    expect(DocumentationPage::MAX_DEPTH)->toBe(3);
+    expect(DocumentationPage::where('title', 'Um nível a mais')->exists())->toBeFalse();
+    expect(DocumentationPage::MAX_DEPTH)->toBe(5);
 });
 
 it('nests a subpage under the subpage above it, reaching the third level', function () {
@@ -111,11 +119,21 @@ it('nests a subpage under the subpage above it, reaching the third level', funct
 it('refuses to nest a page whose own subpages would pass the last level', function () {
     $solution = Solution::factory()->create();
     $parent = rootPage($solution, 'Operação');
-    $first = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Backup', 'position' => 1]);
+    DocumentationPage::factory()->childOf($parent)->create(['title' => 'Backup', 'position' => 1]);
     $second = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Retenção', 'position' => 2]);
-    // `second` is a subpage WITH a subpage: nesting it under `first` would put
-    // this one on a fourth level.
-    DocumentationPage::factory()->childOf($second)->create(['title' => 'Cofre', 'position' => 1]);
+
+    // `second` already reaches the last level through its own descendants, so
+    // it fits where it is but has nowhere to go: one step down would take the
+    // deepest of them past the cap. Built from the constant, so the fixture
+    // stays true whatever the cap is.
+    $deepest = $second;
+    foreach (range(1, DocumentationPage::MAX_DEPTH - 2) as $level) {
+        $deepest = DocumentationPage::factory()->childOf($deepest)->create([
+            'title'    => 'Cofre ' . $level,
+            'position' => 1,
+        ]);
+    }
+    expect($deepest->depth())->toBe(DocumentationPage::MAX_DEPTH - 1);
 
     $response = $this->actingAs(treeAdmin())
         ->patchJson(route('solutions.docs.pages.move', [$solution, $second]), ['direction' => 'in'])
@@ -127,17 +145,24 @@ it('refuses to nest a page whose own subpages would pass the last level', functi
 
 it('refuses to nest a page that is already at the last level', function () {
     $solution = Solution::factory()->create();
-    $parent = rootPage($solution, 'Operação');
-    $child = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Backup', 'position' => 1]);
-    DocumentationPage::factory()->childOf($child)->create(['title' => 'Retenção', 'position' => 1]);
-    $sibling = DocumentationPage::factory()->childOf($child)->create(['title' => 'Cofre', 'position' => 2]);
+    $page = rootPage($solution, 'Nível 1');
+
+    // A chain down to the cap, then two siblings on that last level: nesting one
+    // under the other would need a level that doesn't exist.
+    foreach (range(2, DocumentationPage::MAX_DEPTH) as $level) {
+        $page = DocumentationPage::factory()->childOf($page)->create(['title' => 'Nível ' . $level, 'position' => 1]);
+    }
+    $sibling = DocumentationPage::factory()->childOf($page->parent()->first())->create([
+        'title'    => 'Vizinho no último nível',
+        'position' => 2,
+    ]);
 
     $response = $this->actingAs(treeAdmin())
         ->patchJson(route('solutions.docs.pages.move', [$solution, $sibling]), ['direction' => 'in'])
         ->assertStatus(422);
 
     expect($response->json('message'))->toContain('último nível');
-    expect($sibling->fresh()->parent_id)->toBe($child->id);
+    expect($sibling->fresh()->parent_id)->toBe($page->parent_id);
 });
 
 it('promotes a sub-subpage one level, into its grandparent instead of the root list', function () {
@@ -433,6 +458,7 @@ it('renders the pages rail as a three-level tree, one indent step per level', fu
         ->toContain('Rotina de backup')
         ->toContain('Retenção de cópias')
         // One guide line per level: the subpage at one step, the sub-subpage at two.
+        // (`pages-nav` carries a step for every level up to MAX_DEPTH - 1.)
         ->toContain('ml-3 border-l border-line pl-1.5')
         ->toContain('ml-6 border-l border-line pl-1.5')
         ->toContain('Nova subpágina')
@@ -443,18 +469,21 @@ it('renders the pages rail as a three-level tree, one indent step per level', fu
 
 it('offers no subpage on a page already at the last level', function () {
     $solution = Solution::factory()->create();
-    $parent = rootPage($solution, 'Operação');
-    $child = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Backup', 'position' => 1]);
-    DocumentationPage::factory()->childOf($child)->create(['title' => 'Retenção', 'position' => 1]);
+    $page = rootPage($solution, 'Nível 1');
+
+    foreach (range(2, DocumentationPage::MAX_DEPTH) as $level) {
+        $page = DocumentationPage::factory()->childOf($page)->create(['title' => 'Nível ' . $level, 'position' => 1]);
+    }
 
     $content = $this->actingAs(treeAdmin())
-        ->get(route('solutions.docs.page.edit', [$solution, $child]))
+        ->get(route('solutions.docs.page.edit', [$solution, $page]))
         ->assertOk()
         ->getContent();
 
-    // Two rows can still take a child (the root and its subpage); the
-    // sub-subpage cannot, so exactly two menus offer it.
-    expect(substr_count($content, 'Nova subpágina'))->toBe(2);
+    // Every row in the chain can take a child except the deepest one.
+    expect(substr_count($content, 'Nova subpágina'))->toBe(DocumentationPage::MAX_DEPTH - 1);
+    // …and it is the deepest that also can't be nested any further.
+    expect(substr_count($content, 'Aninhar na página acima'))->toBe(0);
 });
 
 it('indents a subpage in the public documentation index', function () {
@@ -509,20 +538,26 @@ it('nests pages inside a standalone documentation group too', function () {
 
     expect($second->fresh()->parent_id)->toBe($first->id);
 
-    // A third level is fine here too…
-    $this->actingAs(treeAdmin())
-        ->postJson(route('documentation.groups.pages.store', $group), [
-            'title'  => 'Terceiro nível',
-            'parent' => $second->id,
-        ])
-        ->assertOk();
+    // Levels keep going, up to the cap…
+    $parent = $second;
+    foreach (range(3, DocumentationPage::MAX_DEPTH) as $level) {
+        $this->actingAs(treeAdmin())
+            ->postJson(route('documentation.groups.pages.store', $group), [
+                'title'  => 'Nível ' . $level,
+                'parent' => $parent->id,
+            ])
+            ->assertOk();
 
-    // …and a fourth is not.
-    $third = DocumentationPage::where('title', 'Terceiro nível')->firstOrFail();
+        $parent = DocumentationPage::where('title', 'Nível ' . $level)->firstOrFail();
+    }
+
+    expect($parent->depth())->toBe(DocumentationPage::MAX_DEPTH - 1);
+
+    // …and one past it is refused.
     $this->actingAs(treeAdmin())
         ->postJson(route('documentation.groups.pages.store', $group), [
-            'title'  => 'Quarto nível',
-            'parent' => $third->id,
+            'title'  => 'Um nível a mais',
+            'parent' => $parent->id,
         ])
         ->assertStatus(422);
 });

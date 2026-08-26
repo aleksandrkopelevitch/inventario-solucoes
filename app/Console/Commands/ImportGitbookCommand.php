@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Actions\Documentation\ImportGitbookSpace;
 use App\Exceptions\GitbookApiException;
+use App\Models\DocumentationPage;
 use App\Support\Gitbook\GitbookClient;
 use App\Support\Gitbook\GitbookImportReport;
 use Illuminate\Console\Command;
@@ -28,7 +29,7 @@ class ImportGitbookCommand extends Command
         {--all : Import every space of the organization}
         {--org= : Organization id, when the token can read more than one}
         {--group= : Name for the DocumentationGroup (defaults to the space title; single space only)}
-        {--no-prefix : Keep nested page titles bare instead of prefixing them with their GitBook ancestry}
+        {--flat : Import every page as a top-level one carrying its GitBook ancestry in the title, instead of reproducing the nesting}
         {--dry-run : Fetch and report what would be imported, without writing anything}';
 
     protected $description = 'Import GitBook spaces into standalone documentation groups';
@@ -64,7 +65,7 @@ class ImportGitbookCommand extends Command
                 $this->report($import->handle(
                     spaceId: $spaceId,
                     groupName: $this->option('group'),
-                    prefixTitles: ! $this->option('no-prefix'),
+                    nest: ! $this->option('flat'),
                     dryRun: (bool) $this->option('dry-run'),
                 ));
             }
@@ -164,15 +165,31 @@ class ImportGitbookCommand extends Command
                 'Dry run · ' . $report->spaceTitle . ' · ' . $report->pageCount() . ' page(s) would be imported'
             );
 
-            foreach ($report->planned as $index => $title) {
-                $this->line('  <fg=gray>' . ($index + 1) . '.</> ' . $title);
+            // No numbering here: the lines are already indented by depth, and a
+            // running count down the left edge fights the shape it is showing.
+            foreach ($report->planned as $title) {
+                $this->line('  <fg=gray>·</> ' . $title);
             }
         } else {
             $this->components->info($report->spaceTitle . ' → group "' . $report->group->name . '"');
             $this->components->twoColumnDetail('Pages created', (string) $report->created);
             $this->components->twoColumnDetail('Pages updated', (string) $report->updated);
             $this->components->twoColumnDetail('Assets re-hosted', (string) $report->assets);
+
+            if ($report->sections > 0) {
+                $this->components->twoColumnDetail('Sections (empty pages)', (string) $report->sections);
+            }
             $this->line('  <fg=gray>' . route('documentation.groups.show', $report->group) . '</>');
+        }
+
+        // Not a failure, but the one thing about a nested import an operator
+        // cannot see from the result: how much of the space was too deep to
+        // keep as levels and reads as a prefixed title instead.
+        if ($report->collapsed > 0) {
+            $this->components->warn(
+                $report->collapsed . ' page(s) sat deeper than ' . DocumentationPage::MAX_DEPTH
+                . ' levels — the ancestry that did not fit is in their titles instead'
+            );
         }
 
         foreach ($report->skipped as $type => $count) {
