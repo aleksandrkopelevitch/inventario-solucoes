@@ -4,7 +4,12 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-/** Title of a DocumentationPage — used both to create (store) and to rename. */
+/**
+ * Renaming a DocumentationPage — the title and nothing else: a rename can
+ * never move a page in the tree, and the slug (its URL) stays put too. Creating
+ * one goes through `StoreDocumentationPageRequest`, which also accepts the
+ * parent the new page goes under.
+ */
 class SaveDocumentationPageTitleRequest extends FormRequest
 {
     /** Same rule as SaveDocumentationRequest: only whoever edits the container (Solution/Group). */

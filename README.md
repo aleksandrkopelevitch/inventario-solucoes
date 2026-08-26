@@ -534,11 +534,13 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   preset de largura) numa coluna `documentation` só de texto — sem tabela de
   blocos separada. Suporta upload/colar/arrastar imagem e arquivo, âncoras de
   heading e atalhos de Markdown (`## `, `- `, `> `, ` ``` `). Três contêineres:
-    - **Solução** (`/solutions/{slug}/documentation`): árvore **plana** de 1..N
-      páginas (`DocumentationPage`) — criar/renomear/mover/excluir; a rota-índice
-      resolve (ou cria) a primeira página e redireciona pra ela. Criar uma
-      página também é possível do detalhe da solução, e leva direto ao editor
-      dela.
+    - **Solução** (`/solutions/{slug}/documentation`): árvore de 1..N páginas
+      (`DocumentationPage`) com **até 3 níveis** — página → subpágina →
+      sub-subpágina (`DocumentationPage::MAX_DEPTH`, um único lugar pra mexer no
+      limite) — criar/renomear/mover/aninhar/excluir; a rota-índice resolve (ou
+      cria) a **primeira página de primeiro nível** e redireciona pra ela. Criar
+      uma página também é possível do detalhe da solução, e leva direto ao
+      editor dela.
     - **Integração** (`/solutions/{slug}/integrations/{slug}/documentation`): uma
       página única, com as abas **Documentação** e **Diagrama** (o canvas da
       chain) e, na barra de cima, o nome e o status editáveis in place.
@@ -546,12 +548,23 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
       *standalone*, fora de qualquer solução.
 
   A tela é a mesma para os três, e a navegação é um **rail colapsável à
-  esquerda** que consolida, numa árvore só, as páginas da solução **e** a doc
-  de cada integração de que ela participa — a promessa de "uma tela por
+  esquerda** que consolida, numa árvore só, as páginas da solução (um passo de
+  indentação por nível, com linha-guia) **e** a doc de cada integração de que
+  ela participa — a promessa de "uma tela por
   solução" (`Concerns\NavigatesSolutionDocs` monta as duas seções; os dois
   controllers renderizam idêntico). O rail é titulado com o nome da solução
   (ou do grupo), com um ↗ para o registro; colapsado, a barra de cima passa a
-  mostrar `Solução ↗ › Página`, que é o que impede de perder o contexto.
+  mostrar `Solução ↗ › Página`, que é o que impede de perder o contexto. No
+  menu de cada linha estão as mudanças de nível — "Nova subpágina" e
+  "Aninhar na página acima" / "Promover um nível" —, oferecidas só quando são
+  possíveis (o servidor recusa as outras, e o que ele checa é a **subárvore
+  inteira**: uma página com subpáginas só desce um nível se as filhas dela
+  couberem no limite). "Promover" sobe **um** nível: uma sub-subpágina vira
+  subpágina da avó, não página de primeiro nível. ↑/↓ reordenam a página
+  **entre os seus irmãos**, nunca para fora da mãe. Excluir uma página leva as
+  subpáginas dela (em cascata, em qualquer profundidade); movê-la para outra
+  solução/grupo leva a subárvore toda — e uma subpágina movida sozinha chega
+  como página de primeiro nível, já que a mãe ficou para trás.
   Um **link público** ("magic link", só para Solução) expõe a doc dela — e a de
   cada integração dela — sem exigir login. Renderização read-only via
   `App\Support\GitbookRenderer`.

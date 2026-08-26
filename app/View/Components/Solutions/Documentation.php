@@ -2,8 +2,8 @@
 
 namespace App\View\Components\Solutions;
 
-use App\Models\DocumentationPage;
 use App\Models\Solution;
+use App\Services\DocumentationPageService;
 use App\View\Components\Concerns\Renderable;
 use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
@@ -14,7 +14,8 @@ use Illuminate\View\Component;
  * `Solutions\IntegrationsMap`). The Solution has a tree of 1..N pages (no
  * longer a single blob), so this lists the titles linking to each page; the
  * full content lives in the editor's own screen (`solutions.docs.edit`, which
- * resolves/opens the first page). A page can also be CREATED from here, and
+ * resolves/opens the first page). Subpages are listed indented under their
+ * page, one step per level. A page can also be CREATED from here, and
  * the endpoint answers with a redirect straight into the new page's editor —
  * the same one gesture the pages rail inside the editor gives.
  *
@@ -38,10 +39,15 @@ class Documentation extends Component
     {
         return view('components.solutions.documentation', [
             'domId' => self::DOM_ID,
-            'pages' => $this->solution->pages()->get()->map(fn (DocumentationPage $page) => [
-                'title'      => $page->title,
-                'url'        => route('solutions.docs.page.edit', [$this->solution, $page]),
-                'hasContent' => trim((string) $page->documentation) !== '',
+            // Reading order + depth, not the flat relation: a subpage's
+            // `position` only orders it among its siblings, so listing this
+            // card by `position` alone would scatter subpages among the pages
+            // they belong to.
+            'pages' => app(DocumentationPageService::class)->tree($this->solution)->map(fn (array $row) => [
+                'title'      => $row['page']->title,
+                'depth'      => $row['depth'],
+                'url'        => route('solutions.docs.page.edit', [$this->solution, $row['page']]),
+                'hasContent' => trim((string) $row['page']->documentation) !== '',
             ]),
             'editUrl'       => route('solutions.docs.edit', $this->solution),
             'createPageUrl' => route('solutions.docs.pages.store', $this->solution),

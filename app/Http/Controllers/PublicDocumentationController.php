@@ -6,6 +6,7 @@ use App\Contracts\Documentable;
 use App\Models\DocumentationPage;
 use App\Models\Integration;
 use App\Models\Solution;
+use App\Services\DocumentationPageService;
 use App\Support\GitbookRenderer;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
@@ -32,7 +33,7 @@ class PublicDocumentationController extends Controller
     {
         $solution = $this->resolve($token);
 
-        return $this->render($solution, $solution->pages()->first(), 'Solução');
+        return $this->render($solution, app(DocumentationPageService::class)->firstPage($solution), 'Solução');
     }
 
     /**
@@ -132,19 +133,23 @@ class PublicDocumentationController extends Controller
      * Side index: every page in the solution's tree + every integration it
      * participates in.
      *
-     * @return Collection<int, array{label: string, url: string, active: bool, hasDocs: bool}>
+     * @return Collection<int, array{label: string, depth: int, url: string, active: bool, hasDocs: bool}>
      */
     private function nav(Solution $solution, ?Documentable $current, string $token): Collection
     {
-        $pages = $solution->pages()->get()->map(fn (DocumentationPage $page) => [
-            'label'   => $page->title,
-            'url'     => route('public.docs.page', [$token, $page]),
-            'active'  => $current instanceof DocumentationPage && $current->is($page),
-            'hasDocs' => trim((string) $page->documentation) !== '',
+        $pages = app(DocumentationPageService::class)->tree($solution)->map(fn (array $row) => [
+            'label' => $row['page']->title,
+            // Depth so the index indents a subpage instead of listing it as a
+            // peer of the page it belongs to (see the layout).
+            'depth'   => $row['depth'],
+            'url'     => route('public.docs.page', [$token, $row['page']]),
+            'active'  => $current instanceof DocumentationPage && $current->is($row['page']),
+            'hasDocs' => trim((string) $row['page']->documentation) !== '',
         ]);
 
         $integrations = $solution->integrations()->get()->map(fn (Integration $integration) => [
             'label'   => $integration->name,
+            'depth'   => 0,
             'url'     => route('public.docs.integration', [$token, $integration]),
             'active'  => $current instanceof Integration && $current->is($integration),
             'hasDocs' => trim((string) $integration->documentation) !== '',

@@ -9,7 +9,7 @@ use App\Services\DocumentationPageService;
 
 /**
  * Consolidates, into a single navigation tree, a Solution's pages
- * (`DocumentationPage`, manageable: create/rename/move/delete) and the
+ * (`DocumentationPage`, manageable: create/rename/move/nest/delete) and the
  * documentation of each Integration it participates in (single-page,
  * link-only — not manageable from here). Used both by
  * `SolutionDocumentationController` (navigating the Solution's own pages)
@@ -19,23 +19,38 @@ use App\Services\DocumentationPageService;
  */
 trait NavigatesSolutionDocs
 {
-    /** @return array<int, array<string, mixed>> */
+    /**
+     * Rows in reading order, each carrying its `depth` (0..MAX_DEPTH-1) and
+     * which structural gestures it can offer. Both come straight
+     * off `DocumentationPageService::tree()`, which is also what validates an
+     * incoming move: the rail and the endpoint read one source.
+     *
+     * @return array<int, array<string, mixed>>
+     */
     private function solutionPagesNav(Solution $solution, ?DocumentationPage $active): array
     {
+        $service = app(DocumentationPageService::class);
+
         // One list for the whole rail, not one per row — see
         // DocumentationPageService::destinationsFor().
-        $destinations = app(DocumentationPageService::class)->destinationsFor($solution);
+        $destinations = $service->destinationsFor($solution);
 
-        return $solution->pages()->get()->map(fn (DocumentationPage $page) => [
-            'title'        => $page->title,
-            'editUrl'      => route('solutions.docs.page.edit', [$solution, $page]),
-            'renameUrl'    => route('solutions.docs.pages.rename', [$solution, $page]),
-            'destroyUrl'   => route('solutions.docs.pages.destroy', [$solution, $page]),
-            'moveUrl'      => route('solutions.docs.pages.move', [$solution, $page]),
-            'containerUrl' => route('solutions.docs.pages.container', [$solution, $page]),
+        return $service->tree($solution)->map(fn (array $row) => [
+            'id'           => $row['page']->id,
+            'title'        => $row['page']->title,
+            'depth'        => $row['depth'],
+            'hasChildren'  => $row['hasChildren'],
+            'canNest'      => $row['canNest'],
+            'canPromote'   => $row['canPromote'],
+            'canAddChild'  => $row['canAddChild'],
+            'editUrl'      => route('solutions.docs.page.edit', [$solution, $row['page']]),
+            'renameUrl'    => route('solutions.docs.pages.rename', [$solution, $row['page']]),
+            'destroyUrl'   => route('solutions.docs.pages.destroy', [$solution, $row['page']]),
+            'moveUrl'      => route('solutions.docs.pages.move', [$solution, $row['page']]),
+            'containerUrl' => route('solutions.docs.pages.container', [$solution, $row['page']]),
             'destinations' => $destinations,
-            'active'       => $active?->is($page) ?? false,
-            'hasContent'   => trim((string) $page->documentation) !== '',
+            'active'       => $active?->is($row['page']) ?? false,
+            'hasContent'   => trim((string) $row['page']->documentation) !== '',
         ])->all();
     }
 

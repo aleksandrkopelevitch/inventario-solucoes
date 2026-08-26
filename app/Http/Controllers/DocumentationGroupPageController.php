@@ -7,6 +7,7 @@ use App\Http\Requests\MoveDocumentationPageRequest;
 use App\Http\Requests\MoveDocumentationPageToContainerRequest;
 use App\Http\Requests\SaveDocumentationPageTitleRequest;
 use App\Http\Requests\SaveDocumentationRequest;
+use App\Http\Requests\StoreDocumentationPageRequest;
 use App\Http\Requests\UploadDocumentationMediaRequest;
 use App\Models\DocumentationGroup;
 use App\Models\DocumentationPage;
@@ -27,9 +28,9 @@ class DocumentationGroupPageController extends Controller
 
     public function __construct(private readonly DocumentationPageService $pages) {}
 
-    public function store(SaveDocumentationPageTitleRequest $request, DocumentationGroup $group): JsonResponse
+    public function store(StoreDocumentationPageRequest $request, DocumentationGroup $group): JsonResponse
     {
-        $page = $this->pages->create($group, $request->validated()['title']);
+        $page = $this->pages->create($group, $request->validated()['title'], $request->parentPage());
 
         return response()->json([
             'type'     => 'success',
@@ -98,8 +99,12 @@ class DocumentationGroupPageController extends Controller
         $this->pages->move($page, $request->validated()['direction']);
 
         return response()->json([
-            'type'           => 'success',
-            'message'        => 'Ordem atualizada.',
+            'type'    => 'success',
+            'message' => match ($request->validated()['direction']) {
+                'in'    => 'Página aninhada.',
+                'out'   => 'Página promovida.',
+                default => 'Ordem atualizada.',
+            },
             'updatableSlots' => [PagesNav::slot(
                 $this->navPages($group, $page->fresh()),
                 [],
@@ -137,21 +142,33 @@ class DocumentationGroupPageController extends Controller
         return $this->storeDocumentationMedia($request, $page);
     }
 
-    /** @return array<int, array<string, mixed>> */
+    /**
+     * Rows in reading order, each carrying its `depth` and its available
+     * nesting arrows — mirror of NavigatesSolutionDocs::solutionPagesNav(),
+     * which the same rail component renders for a Solution.
+     *
+     * @return array<int, array<string, mixed>>
+     */
     private function navPages(DocumentationGroup $group, DocumentationPage $active): array
     {
         $destinations = $this->pages->destinationsFor($group);
 
-        return $group->pages()->get()->map(fn (DocumentationPage $page) => [
-            'title'        => $page->title,
-            'editUrl'      => route('documentation.groups.pages.edit', [$group, $page]),
-            'renameUrl'    => route('documentation.groups.pages.rename', [$group, $page]),
-            'destroyUrl'   => route('documentation.groups.pages.destroy', [$group, $page]),
-            'moveUrl'      => route('documentation.groups.pages.move', [$group, $page]),
-            'containerUrl' => route('documentation.groups.pages.container', [$group, $page]),
+        return $this->pages->tree($group)->map(fn (array $row) => [
+            'id'           => $row['page']->id,
+            'title'        => $row['page']->title,
+            'depth'        => $row['depth'],
+            'hasChildren'  => $row['hasChildren'],
+            'canNest'      => $row['canNest'],
+            'canPromote'   => $row['canPromote'],
+            'canAddChild'  => $row['canAddChild'],
+            'editUrl'      => route('documentation.groups.pages.edit', [$group, $row['page']]),
+            'renameUrl'    => route('documentation.groups.pages.rename', [$group, $row['page']]),
+            'destroyUrl'   => route('documentation.groups.pages.destroy', [$group, $row['page']]),
+            'moveUrl'      => route('documentation.groups.pages.move', [$group, $row['page']]),
+            'containerUrl' => route('documentation.groups.pages.container', [$group, $row['page']]),
             'destinations' => $destinations,
-            'active'       => $active->is($page),
-            'hasContent'   => trim((string) $page->documentation) !== '',
+            'active'       => $active->is($row['page']),
+            'hasContent'   => trim((string) $row['page']->documentation) !== '',
         ])->all();
     }
 }
