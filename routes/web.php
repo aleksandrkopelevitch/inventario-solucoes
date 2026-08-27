@@ -488,6 +488,11 @@ Route::get('public-docs/{token}', [PublicDocumentationController::class, 'soluti
 // container, never globally (see PublicDocumentationController::page()).
 Route::get('public-docs/{token}/page/{slug}', [PublicDocumentationController::class, 'page'])->name('public.docs.page');
 Route::get('public-docs/{token}/file/{media}', [PublicDocumentationController::class, 'file'])->name('public.docs.file');
+// Command palette over the shared solution's own corpus (docs-search.js). JSON
+// only, and on its own path — it never shares a URL with a document response,
+// so the Back-button collision PreventJsonResponseCaching guards against
+// cannot arise here (see § Caching in AGENTS.md).
+Route::get('public-docs/{token}/search', [PublicDocumentationController::class, 'search'])->name('public.docs.search');
 
 Route::get('/', fn () => auth()->check()
     ? redirect()->route('profile.show')

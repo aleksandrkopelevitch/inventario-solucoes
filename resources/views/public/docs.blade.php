@@ -1,4 +1,4 @@
-<x-layouts.public-docs :title="$title" :heading="$solution->name" :nav="$nav">
+<x-layouts.public-docs :title="$title" :heading="$solution->name" :nav="$nav" :search-url="$searchUrl" :search-results="$searchResults">
     <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
             <p class="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-accent">{{ $eyebrow }}</p>

@@ -25,6 +25,7 @@ import * as docsCopy from './modules/docs-copy.js'
 import * as docsCode from './modules/docs-code.js'
 import * as docsToc from './modules/docs-toc.js'
 import * as docsChat from './modules/docs-chat.js'
+import * as docsSearch from './modules/docs-search.js'
 import * as flowspecChat from './modules/flowspec-chat.js'
 import * as catiChat from './modules/cati-chat.js'
 import * as mobileNav from './modules/mobile-nav.js'
@@ -58,6 +59,7 @@ window.globalModules = {
     "docsCode"          : docsCode,
     "docsToc"           : docsToc,
     "docsChat"          : docsChat,
+    "docsSearch"        : docsSearch,
     "flowspecChat"      : flowspecChat,
     "catiChat"          : catiChat,
     "mobileNav"         : mobileNav,
