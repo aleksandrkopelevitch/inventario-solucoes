@@ -80,6 +80,9 @@ class NotebookPageController extends Controller
             'diagram'        => $page->diagram,
             'diagramOptions' => $this->diagramOptions(),
             'diagramAction'  => route('notebooks.pages.diagram', [$notebook, $page]),
+            // Navigation cards for this page's own sub-pages — see
+            // x-documentation.child-pages for why an imported corpus needs them.
+            'childPages' => $this->childPages($notebook, $page),
             // Sharing and the linked solutions both belong to the CADERNO, not
             // to this page — they sit in the toolbar and are the same for every
             // page of the tree.
@@ -222,6 +225,26 @@ class NotebookPageController extends Controller
     public function applyChatMessage(Notebook $notebook, DocumentationChatMessage $message): JsonResponse
     {
         return $this->applyChatMessageResponse($notebook, $message);
+    }
+
+    /**
+     * This page's direct sub-pages, as navigation cards.
+     *
+     * `children()->get()`, never the `children` property: `edit()` reaches here
+     * with a page from a single-row route binding, where strict mode does NOT
+     * arm its guard (§ Strict mode) — so a lazy load would work silently in dev
+     * and quietly cost a query per render forever.
+     *
+     * @return array<int, array{title: string, url: string, hasChildren: bool, hasContent: bool}>
+     */
+    private function childPages(Notebook $notebook, DocumentationPage $page): array
+    {
+        return $page->children()->get()->map(fn (DocumentationPage $child) => [
+            'title'       => $child->title,
+            'url'         => route('notebooks.pages.edit', [$notebook, $child]),
+            'hasChildren' => $child->children()->exists(),
+            'hasContent'  => trim((string) $child->documentation) !== '',
+        ])->all();
     }
 
     /**

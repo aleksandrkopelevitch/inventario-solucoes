@@ -622,3 +622,60 @@ it('renders nothing for empty documentation', function () {
     expect(app(GitbookRenderer::class)->render(null))->toBe('')
         ->and(app(GitbookRenderer::class)->render('   '))->toBe('');
 });
+
+/*
+|--------------------------------------------------------------------------
+| Sub-page navigation — what GitBook draws for a parent page
+|--------------------------------------------------------------------------
+*/
+
+it('lists a page\'s sub-pages as navigation cards', function () {
+    $notebook = Notebook::factory()->create();
+    $parent = notebookPage($notebook, '# Seção');
+    $parent->update(['title' => 'Camada Raw']);
+    $child = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Material', 'documentation' => '# M']);
+
+    $response = $this->actingAs(docsAdmin())
+        ->get(route('notebooks.pages.edit', [$notebook, $parent]))
+        ->assertOk();
+
+    expect($response->getContent())
+        ->toContain('aria-label="Sub-páginas"')
+        ->toContain('Nesta seção')
+        ->toContain(route('notebooks.pages.edit', [$notebook, $child]));
+});
+
+it('draws no sub-page block on a page that has none', function () {
+    $notebook = Notebook::factory()->create();
+    $page = notebookPage($notebook, '# Folha');
+
+    $this->actingAs(docsAdmin())
+        ->get(route('notebooks.pages.edit', [$notebook, $page]))
+        ->assertOk()
+        ->assertDontSee('aria-label="Sub-páginas"', escape: false);
+});
+
+it('does not call an empty parent page undocumented when it has sub-pages', function () {
+    // A GitBook parent is usually just its own title — the children ARE the
+    // content. Printing "nothing here yet" above a list of them is a lie, and
+    // it is the state most of the imported corpus lands in.
+    $notebook = Notebook::factory()->create();
+    $parent = notebookPage($notebook, null);
+    DocumentationPage::factory()->childOf($parent)->create(['title' => 'Material']);
+
+    $this->actingAs(User::factory()->create()) // viewer: sees the read-only branch
+        ->get(route('notebooks.pages.edit', [$notebook, $parent]))
+        ->assertOk()
+        ->assertDontSee('Nenhuma documentação cadastrada')
+        ->assertSee('Nesta seção');
+});
+
+it('still says a page is undocumented when it has neither text nor sub-pages', function () {
+    $notebook = Notebook::factory()->create();
+    $page = notebookPage($notebook, null);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('notebooks.pages.edit', [$notebook, $page]))
+        ->assertOk()
+        ->assertSee('Nenhuma documentação cadastrada');
+});

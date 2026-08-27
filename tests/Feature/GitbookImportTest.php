@@ -1125,3 +1125,21 @@ it('does not abort the whole import when the foreign space itself is inaccessibl
     expect($report->assets)->toBe(0);
     expect($report->failures)->toHaveCount(1);
 });
+
+it('prints the dry-run plan through the command, page count included', function () {
+    // Regression: `GitbookImportReport::pageCount()` branches on whether a
+    // notebook was written, and the property was renamed out from under it —
+    // which no test caught, because every other assertion calls the ACTION
+    // directly and only the command ever asks for the count.
+    fakeGitbook(
+        [['id' => 'p1', 'type' => 'document', 'title' => 'Visão geral']],
+        ['p1' => '# Visão geral'],
+    );
+
+    $this->artisan('gitbook:import --space=space-1 --dry-run')
+        ->expectsOutputToContain('1 page(s) would be imported')
+        ->expectsOutputToContain('Visão geral')
+        ->assertSuccessful();
+
+    expect(Notebook::count())->toBe(0);
+});

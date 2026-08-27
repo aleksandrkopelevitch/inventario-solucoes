@@ -2,7 +2,7 @@
      Markdown. Extracted so the diagram's unified page can reuse it
      unchanged inside the Documentação tab (see documentation/edit.blade.php).
      Inherits the parent view's scope (canEdit, documentation, uploadUrl,
-     renderedHtml). --}}
+     renderedHtml, childPages). --}}
 <div class="min-w-0 max-w-3xl flex-1">
     @if ($canEdit)
         {{-- Raw source Markdown; the editor builds the blocks from here.
@@ -36,10 +36,18 @@
             <div class="html-content" data-ak-docs-content>
                 {!! $renderedHtml !!}
             </div>
-        @else
+        @elseif (empty($childPages ?? []))
+            {{-- Only when there is nothing at all. A page with no text but WITH
+                 sub-pages is a section heading, not a gap — GitBook's own
+                 corpus is full of them — so the cards below are the content and
+                 saying "nothing here yet" over them would be wrong. --}}
             <p class="rounded-field border border-dashed border-line px-4 py-10 text-center text-sm text-muted">
                 Nenhuma documentação cadastrada ainda.
             </p>
         @endif
     @endif
+
+    {{-- Outside the @if: navigation belongs to the page whether or not somebody
+         is editing its text, and whether or not there is any text to edit. --}}
+    <x-documentation.child-pages :pages="$childPages ?? []" />
 </div>

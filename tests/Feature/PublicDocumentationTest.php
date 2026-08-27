@@ -190,3 +190,22 @@ it('404s public media that does not belong to the shared caderno', function () {
     $this->get(route('public.docs.file', [$notebook->public_token, $foreignMedia->id]))
         ->assertNotFound();
 });
+
+it('lists sub-pages as navigation cards on the public documentation too', function () {
+    // A visitor has only the side index otherwise, and an imported section page
+    // carries no text of its own — so without these cards it is a dead end.
+    $notebook = Notebook::factory()->create(['public_token' => 'tok-children']);
+    $parent = publicPage($notebook, null);
+    $parent->update(['title' => 'Camada Raw', 'slug' => 'camada-raw']);
+    $child = DocumentationPage::factory()->childOf($parent)->create([
+        'title' => 'Material', 'slug' => 'material', 'documentation' => '# M',
+    ]);
+
+    $response = $this->get(route('public.docs.page', ['tok-children', 'camada-raw']))
+        ->assertOk();
+
+    expect($response->getContent())
+        ->toContain('Nesta seção')
+        ->toContain(route('public.docs.page', ['tok-children', $child->slug]))
+        ->not->toContain('Nenhuma documentação cadastrada');
+});

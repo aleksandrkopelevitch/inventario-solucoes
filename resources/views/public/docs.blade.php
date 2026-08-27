@@ -21,9 +21,13 @@
         <div class="html-content mt-6" data-ak-docs-content>
             {!! $renderedHtml !!}
         </div>
-    @else
+    @elseif (empty($childPages))
+        {{-- See the reader partial: a page with no text but with sub-pages is a
+             section, and the cards below are its content. --}}
         <p class="mt-6 rounded-field border border-dashed border-line px-4 py-10 text-center text-sm text-muted">
             Nenhuma documentação cadastrada ainda.
         </p>
     @endif
+
+    <x-documentation.child-pages :pages="$childPages" />
 </x-layouts.public-docs>

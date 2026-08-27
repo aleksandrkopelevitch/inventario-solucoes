@@ -145,7 +145,26 @@ class PublicDocumentationController extends Controller
             // paint of a page nobody has searched yet; the panel ships a
             // placeholder instead and docs-search.js fills it in.
             'searchResults' => $this->warmSearchPanel($notebook),
+            // Sub-page navigation. A GitBook parent page is usually empty —
+            // its own UI lists the children — so without this an imported
+            // section is a dead end for a visitor, who has only the side index.
+            'childPages' => $current ? $this->childPages($current, $token) : [],
         ]);
+    }
+
+    /**
+     * The current page's direct sub-pages, as navigation cards.
+     *
+     * @return array<int, array{title: string, url: string, hasChildren: bool, hasContent: bool}>
+     */
+    private function childPages(DocumentationPage $page, string $token): array
+    {
+        return $page->children()->get()->map(fn (DocumentationPage $child) => [
+            'title'       => $child->title,
+            'url'         => route('public.docs.page', [$token, $child->slug]),
+            'hasChildren' => $child->children()->exists(),
+            'hasContent'  => trim((string) $child->documentation) !== '',
+        ])->all();
     }
 
     /** Renders the Markdown and rewrites `/files/{id}` to the public route. */

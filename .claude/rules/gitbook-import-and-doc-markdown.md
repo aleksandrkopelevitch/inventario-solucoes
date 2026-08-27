@@ -52,6 +52,31 @@ three decisions in there are worth knowing before touching it:
   full ancestry in the title, groups contributing only theirs. Worth keeping for
   a space so deep that nesting only moves the truncation around.
 
+### A GitBook parent page is usually EMPTY — the app has to draw the children
+
+GitBook renders a page's sub-pages as navigation cards in its own UI, so an
+author writing there never puts links in the body. Imported literally, those
+pages arrive as a title and nothing else: `# DM - Dados Mestres`, 20 characters,
+three children. Measured on the two spaces kept after the 2026-08-27 wipe: **26
+parent pages, 16 of them with no text of their own.**
+
+`x-documentation.child-pages` is what replaces that UI — rendered beside the
+Markdown by `NotebookPageController::edit()` and `PublicDocumentationController`,
+never written into `documentation`. Two consequences worth keeping:
+
+- **It is navigation, not content.** Putting the links in the body would mean
+  the editor could save a stale copy of the tree, and a move would silently
+  invalidate them. It is computed per render instead (`children()->get()`).
+- **A page with no text but WITH children is not undocumented.** Both readers
+  suppress "Nenhuma documentação cadastrada ainda." in that case — the cards ARE
+  the content. Print both and the screen contradicts itself on 16 of 26 pages.
+
+Note also that a manual index someone DID write in GitBook is not portable:
+"Catalogo de Dags - Airflow" links its children as
+`[Introdução](/pages/eb6d4378…)`, GitBook's internal page-id path. Those don't
+resolve in this app and are left as-is — the same accepted limitation as the
+`Link Gitbook:` citations below.
+
 ### A re-run is also the migration
 
 A page is matched inside the caderno by title, and one of the titles tried is
