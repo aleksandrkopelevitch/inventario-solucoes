@@ -228,7 +228,13 @@ public magic link and from the search index. `/diagrams/{slug}` is behind auth,
 so for a visitor the button is both a dead end onto the login screen and a
 disclosure: it names a drawing they cannot reach and hands over its slug. The
 card itself renders either way — the picture and the name are documentation, the
-link is an editing affordance. The index passes `false` for a second reason: it
+link is an editing affordance. The PICTURE therefore needs a public route of its
+own (`public.docs.diagram`), authorised by CITATION rather than by the diagram:
+the token grants one caderno, and what that caderno shows is what its pages
+cite, so an uncited drawing 404s even with a valid token. Without it every
+citation on a shared link rendered a broken image, since
+`diagrams.picture.show` redirects a guest to the login screen — withholding the
+link and letting the image 302 are not the same thing. The index passes `false` for a second reason: it
 is CACHED, so a render that varied by the viewer's auth state would bake one
 audience's chrome into everybody's results, and "Abrir diagrama" is a button
 nobody should be able to search for.

@@ -306,10 +306,11 @@ it('keeps chrome out of the search index', function () {
         ->toBe(0);
 });
 
-it('names the caderno above the page title, and only there', function () {
-    // The topbar's "Documentação" eyebrow said what the whole screen already
-    // is. The label that earns its place is CADERNO, next to the page title —
-    // that is where two names sit side by side and need telling apart.
+it('prints no eyebrow over either title', function () {
+    // There were two — "DOCUMENTAÇÃO" over the caderno's name in the topbar and
+    // "CADERNO" over the page title — and each labelled something the screen
+    // already says. The names themselves stay; the small-caps words over them
+    // do not.
     $notebook = Notebook::factory()->create(['name' => 'Dados • BigQuery', 'public_token' => 'tok-labels']);
     $page = publicPage($notebook, "# Material\n\nTexto.");
     $page->update(['title' => 'Material', 'slug' => 'material']);
@@ -318,8 +319,51 @@ it('names the caderno above the page title, and only there', function () {
         ->assertOk()
         ->getContent();
 
+    // Both names are still on screen…
     expect($content)
-        ->toContain('Caderno')
         ->toContain('Dados • BigQuery')
-        ->not->toContain('>Documentação</p>');
+        ->toContain('Material')
+        // …and neither carries a label above it.
+        ->not->toContain('>Documentação</p>')
+        ->not->toContain('>Caderno</p>');
+});
+
+it('serves a cited diagram\'s picture to a visitor, through the token', function () {
+    // Withholding the "Abrir diagrama" link was right; letting the PICTURE 302
+    // to the login screen was not the same thing, and it left every citation on
+    // a shared link showing a broken image.
+    Storage::fake('public');
+    $diagram = Diagram::factory()->create(['name' => 'SAP ↔ SVL']);
+    $diagram->addMedia(UploadedFile::fake()->image('canvas.png'))->toMediaCollection(Diagram::DIAGRAM_COLLECTION);
+
+    $notebook = Notebook::factory()->create(['public_token' => 'tok-pic']);
+    $page = publicPage($notebook, "# Fluxo\n\n{% diagram slug=\"{$diagram->slug}\" %}");
+    $page->update(['slug' => 'fluxo']);
+
+    // The page points the image at the token-scoped route, never at the
+    // authenticated one.
+    $content = $this->get(route('public.docs.page', ['tok-pic', 'fluxo']))->assertOk()->getContent();
+
+    expect($content)
+        ->toContain(route('public.docs.diagram', ['tok-pic', $diagram->slug]))
+        ->not->toContain(route('diagrams.picture.show', $diagram));
+
+    // …and that route actually serves the bytes.
+    $this->get(route('public.docs.diagram', ['tok-pic', $diagram]))
+        ->assertOk()
+        ->assertHeader('content-type', 'image/png');
+});
+
+it('404s the picture of a diagram this caderno never cited', function () {
+    // Authorised by CITATION, not by the diagram: a valid token must not become
+    // a way to walk the whole drawing catalog.
+    Storage::fake('public');
+    $cited = Diagram::factory()->create();
+    $uncited = Diagram::factory()->create();
+    $uncited->addMedia(UploadedFile::fake()->image('other.png'))->toMediaCollection(Diagram::DIAGRAM_COLLECTION);
+
+    $notebook = Notebook::factory()->create(['public_token' => 'tok-uncited']);
+    publicPage($notebook, "# Fluxo\n\n{% diagram slug=\"{$cited->slug}\" %}");
+
+    $this->get(route('public.docs.diagram', ['tok-uncited', $uncited]))->assertNotFound();
 });

@@ -5,13 +5,11 @@
          imported page does, and printing both said the page's name twice. --}}
     <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-            {{-- The label belongs to the TITLE, so it renders whether the title
-                 comes from here or from the page's own opening H1 (the common
-                 case — see titleIsInContent()). `mb-1` rather than a margin on
-                 the h1: in the content case the heading below is `.html-content
-                 h1`, which brings its own `mt-8`, and two stacked margins put
-                 the label adrift from the thing it names. --}}
-            <p class="mb-1 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-accent">{{ $eyebrow }}</p>
+            {{-- No eyebrow over the title. There were two — "DOCUMENTAÇÃO" over
+                 the caderno's name in the topbar and "CADERNO" here — and both
+                 labelled something the screen already says: the topbar names
+                 the caderno, this names the page. A word in accent-coloured
+                 small caps over every title is chrome, not information. --}}
             @if ($showTitle)
                 <h1 class="font-display text-3xl font-semibold text-ink">{{ $title }}</h1>
             @endif
@@ -30,10 +28,10 @@
         {{-- Raw Markdown (media rewritten for public routes) — source for docs-copy.js. --}}
         <textarea data-ak-docs-markdown hidden>{{ $markdown }}</textarea>
 
-        {{-- No top margin when the content supplies the title: its own H1
-             carries `mt-8`, and stacking both leaves the CADERNO label floating
-             a paragraph above the name it labels. --}}
-        <div @class(['html-content', 'mt-6' => $showTitle, '-mt-6' => ! $showTitle]) data-ak-docs-content>
+        {{-- When the content supplies the title, its own H1 already carries
+             `mt-8` — adding a second top margin would push the page's name a
+             paragraph below the toolbar it belongs beside. --}}
+        <div @class(['html-content', 'mt-6' => $showTitle]) data-ak-docs-content>
             {!! $renderedHtml !!}
         </div>
     @elseif (empty($childPages))

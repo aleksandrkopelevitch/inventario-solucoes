@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Contracts\Documentable;
 use App\Http\Requests\SearchPublicDocumentationRequest;
+use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Services\DocumentationPageService;
@@ -15,6 +16,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Collection;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * PUBLIC documentation for a caderno ("magic link"), no auth. Access is via an
@@ -117,6 +119,46 @@ class PublicDocumentationController extends Controller
         ]);
     }
 
+    /**
+     * The picture of a diagram cited by this caderno.
+     *
+     * A citation renders the drawing's current PNG, and that image used to be
+     * requested from `diagrams.picture.show` — which is behind auth, so every
+     * cited diagram on a magic link rendered as a BROKEN image. Withholding the
+     * "Abrir diagrama" link was right; letting the picture 302 to the login
+     * screen was not the same thing.
+     *
+     * Authorised by CITATION, not by the diagram: the token grants this caderno,
+     * and what this caderno shows is what its pages cite. A diagram nobody cited
+     * here is a 404 even with a valid token, so the route can't be walked to
+     * enumerate the drawing catalog.
+     */
+    public function diagramPicture(string $token, Diagram $diagram): StreamedResponse
+    {
+        $notebook = $this->resolve($token);
+
+        // `\` and `%`/`_` escaped: a slug never contains them today (Str::slug
+        // emits neither), but a LIKE pattern built from data is not the place to
+        // rely on that staying true.
+        $needle = addcslashes('diagram slug="' . $diagram->slug . '"', '\\%_');
+
+        abort_unless(
+            $notebook->pages()->where('documentation', 'like', '%' . $needle . '%')->exists(),
+            404,
+        );
+
+        $media = $diagram->picture();
+
+        abort_if($media === null, 404);
+
+        return response()->stream(function () use ($media) {
+            readfile($media->getPath());
+        }, 200, [
+            'Content-Type'        => $media->mime_type,
+            'Content-Disposition' => 'inline; filename="' . addslashes($media->file_name) . '"',
+        ]);
+    }
+
     private function resolve(string $token): Notebook
     {
         return Notebook::where('public_token', $token)->firstOrFail();
@@ -130,7 +172,6 @@ class PublicDocumentationController extends Controller
         return view('public.docs', [
             'notebook' => $notebook,
             'title'    => $current?->documentationTitle() ?? $notebook->name,
-            'eyebrow'  => 'Caderno',
             // Whether the shell should print the title itself. See
             // `titleIsInContent()`: nearly every imported page opens with an H1
             // repeating its own title, and printing both says it twice.
@@ -213,12 +254,34 @@ class PublicDocumentationController extends Controller
         );
     }
 
-    /** Rewrites every `src|href="/files/{id}"` to the public `public.docs.file` route. */
+    /**
+     * Points every in-app asset URL at its token-scoped public twin.
+     *
+     * Two shapes, both emitted by the renderer as the AUTHENTICATED url it
+     * would use inside the app, and both rewritten here rather than made
+     * token-aware upstream — that is what keeps `GitbookRenderer` ignorant of
+     * magic links:
+     *
+     * - `/files/{id}` — media embedded in the Markdown.
+     * - `/diagrams/{slug}/picture` — the rendered picture of a cited drawing.
+     *   Missing this one left every citation on a shared link showing a broken
+     *   image, since that route redirects a guest to the login screen.
+     */
     private function rewriteFileUrls(string $content, string $token): string
     {
-        return preg_replace_callback(
+        $content = preg_replace_callback(
             '#(src|href)="/files/(\d+)"#',
             fn (array $m) => $m[1] . '="' . route('public.docs.file', [$token, $m[2]]) . '"',
+            $content,
+        );
+
+        // The host is optional in the pattern: `/files/{id}` reaches the
+        // renderer as a root-relative path written into the Markdown, but the
+        // picture URL is built with `route()`, which emits an ABSOLUTE url. A
+        // pattern anchored at `/` silently matched neither.
+        return preg_replace_callback(
+            '#(src|href)="(?:https?://[^/"]+)?/diagrams/([^/"]+)/picture"#',
+            fn (array $m) => $m[1] . '="' . route('public.docs.diagram', [$token, $m[2]]) . '"',
             $content,
         );
     }

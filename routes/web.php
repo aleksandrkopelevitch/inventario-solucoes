@@ -504,6 +504,10 @@ Route::get('public-docs/{token}', [PublicDocumentationController::class, 'notebo
 // notebook, never globally (see PublicDocumentationController::page()).
 Route::get('public-docs/{token}/page/{slug}', [PublicDocumentationController::class, 'page'])->name('public.docs.page');
 Route::get('public-docs/{token}/file/{media}', [PublicDocumentationController::class, 'file'])->name('public.docs.file');
+// The rendered picture of a diagram CITED by a page in the shared caderno. The
+// canvas itself stays behind auth — this serves the image and nothing else, the
+// same split `public.docs.file` makes for embedded media.
+Route::get('public-docs/{token}/diagram/{diagram}', [PublicDocumentationController::class, 'diagramPicture'])->name('public.docs.diagram');
 // Search over the shared caderno's own corpus (docs-search.js). JSON
 // only, and on its own path — it never shares a URL with a document response,
 // so the Back-button collision PreventJsonResponseCaching guards against
