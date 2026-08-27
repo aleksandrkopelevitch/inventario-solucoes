@@ -6,7 +6,8 @@
 //
 // Nativos em Markdown: header, paragraph, list (ordered/unordered/checklist),
 // quote, code, delimiter, table, image (<figure>). Sem Markdown nativo, via
-// notação GitBook: hint ({% hint %}), tabs ({% tabs %}), file ({% file %}).
+// notação GitBook: hint ({% hint %}), tabs ({% tabs %}), file ({% file %})
+// e diagram ({% diagram %} — citação de um desenho do catálogo, nossa).
 //
 // A mídia é referenciada por /files/{id} (rota files.show); os blocos image/
 // attaches guardam `mediaId` para reconstruir esse caminho no Markdown.
@@ -126,6 +127,10 @@ function serializeBlock(block) {
             return serializeImage(d)
         case 'attaches':
             return `{% file src="${fileSrc(d.file)}" %}`
+        case 'diagram':
+            // A block with no diagram chosen serializes to nothing rather than
+            // an empty citation the renderer would have to apologise for.
+            return d.slug ? `{% diagram slug="${escapeAttr(d.slug)}" %}` : ''
         case 'embed':
             return `{% embed url="${escapeAttr(d.source || d.embed || '')}" %}`
         case 'hint':
@@ -288,6 +293,15 @@ function parseLines(lines) {
             continue
         }
 
+        // diagram — a citation of a drawing from the catalog. Only the slug
+        // is stored; the name and the picture are resolved when rendered.
+        m = trimmed.match(/^\{%\s*diagram\s+slug="([^"]*)"\s*%\}$/)
+        if (m) {
+            blocks.push({type: 'diagram', data: {slug: m[1]}})
+            i++
+            continue
+        }
+
         // file
         m = trimmed.match(/^\{%\s*file\s+src="([^"]*)"\s*%\}$/)
         if (m) {
@@ -371,7 +385,7 @@ function startsNewBlock(line) {
     return (
         /^(#{1,6})\s+/.test(t) ||
         /^(```|~~~)/.test(t) ||
-        /^\{%\s*(hint|tabs|file|embed)/.test(t) ||
+        /^\{%\s*(hint|tabs|file|embed|diagram)/.test(t) ||
         /^<figure/.test(t) ||
         /^<img\s/i.test(t) ||
         /^(\*\*\*+|---+|___+)$/.test(t) ||

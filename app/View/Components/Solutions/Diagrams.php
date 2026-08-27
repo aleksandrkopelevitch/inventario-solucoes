@@ -77,20 +77,14 @@ class Diagrams extends Component
     {
         $columns = ['diagrams.id', 'diagrams.name', 'diagrams.slug', 'diagrams.status', 'diagrams.chain', 'diagrams.viz_layout'];
 
-        $participating = $this->solution->diagrams()->get($columns);
-
-        // Drawings explained by a page in any caderno linked to this solution.
-        // The reach is one relation longer than it used to be, and that is the
-        // point: a diagram documented in a shared caderno now shows up on every
-        // solution that caderno describes, instead of only on the one that
-        // happened to own the page.
-        $documented = Diagram::query()
-            ->whereHas('pages.notebook.solutions', fn ($query) => $query->whereKey($this->solution->id))
-            ->get($columns);
-
-        return $participating
-            ->concat($documented)
-            ->unique('id')
+        // The drawings this solution takes part in — the one relation a diagram
+        // has. There used to be a second source here (drawings explained by a
+        // page in a caderno linked to this solution), which went away with the
+        // page↔diagram FK: a citation lives in prose now, and a card that
+        // listed "diagrams mentioned anywhere in the text" would be a LIKE over
+        // every page's longText to render a sidebar.
+        return $this->solution->diagrams()
+            ->get($columns)
             ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
     }

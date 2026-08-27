@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Models\Solution;
@@ -46,31 +45,14 @@ it('detects content gaps closing via simple keyword presence', function () {
         ->and(requirementItem($requirements, 'contact')['satisfied'])->toBeTrue();
 });
 
-it('says nothing about a diagram on a page that has none', function () {
-    // Not every page documents a flow, so an always-present "tem diagrama" row
-    // would report a gap on most pages that have none to have.
+it('says nothing about diagrams at all', function () {
+    // The checklist had a "drawing is actually drawn" row read off the page's
+    // `diagram_id`. A page cites drawings in its text now, so there is no one
+    // drawing to check — and auditing every cited one would put this checklist
+    // in the business of grading other records.
     $page = pageOfSolution(Solution::factory()->create());
 
     expect(collect(DocumentationRequirements::for($page))->pluck('key')->all())->not->toContain('diagram');
-});
-
-it('flags a linked diagram whose canvas is still empty, and clears once it is drawn', function () {
-    $solution = Solution::factory()->create();
-    $page = pageOfSolution($solution);
-    $diagram = Diagram::factory()->create([
-        // One root block is an empty canvas, not a drawing.
-        'chain' => ['nodes' => [['solution_id' => $solution->id, 'label' => null]], 'edges' => []],
-    ]);
-    $page->diagram()->associate($diagram)->save();
-
-    expect(requirementItem(DocumentationRequirements::for($page->fresh()), 'diagram')['satisfied'])->toBeFalse();
-
-    $diagram->update(['chain' => ['nodes' => [
-        ['solution_id' => $solution->id, 'label' => null],
-        ['solution_id' => null, 'label' => 'ERP externo'],
-    ], 'edges' => [['from' => 0, 'to' => 1, 'arrow' => '->', 'protocol' => null]]]]);
-
-    expect(requirementItem(DocumentationRequirements::for($page->fresh()), 'diagram')['satisfied'])->toBeTrue();
 });
 
 it('reports the hosting attribute of a linked solution as a fact, never a chat question', function () {

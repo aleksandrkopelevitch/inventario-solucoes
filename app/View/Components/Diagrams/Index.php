@@ -3,7 +3,7 @@
 namespace App\View\Components\Diagrams;
 
 use App\Models\Diagram;
-use App\Models\DocumentationPage;
+use App\Models\Solution;
 use App\Services\DiagramCatalogService;
 use App\Support\ChainLabeler;
 use App\View\Components\Concerns\Renderable;
@@ -12,7 +12,7 @@ use Illuminate\View\Component;
 
 /**
  * The diagrams index's list, as an updatable slot (`diagrams-index-slot`) —
- * every diagram with its status, its chain summary and where it is explained.
+ * every diagram with its status, its chain summary and the systems it touches.
  *
  * Filtering goes through `Diagram::scopeFilter()` (via
  * `DiagramCatalogService::list()`) rather than being spelled out here, so the
@@ -48,13 +48,13 @@ class Index extends Component
                 'summary' => $diagram->chain ? $labeler->label($diagram->chain, $solutions) : null,
                 'blocks'  => count($diagram->chain['nodes'] ?? []),
                 'url'     => route('diagrams.show', $diagram),
-                // Where this drawing is explained. Eager-loaded with its
-                // notebook by the service, so naming the caderno a page belongs
-                // to costs no query per row.
-                'pages' => $diagram->pages->map(fn (DocumentationPage $page) => [
-                    'title'    => $page->title,
-                    'notebook' => $page->notebook?->name,
-                    'url'      => route('notebooks.pages.edit', [$page->notebook, $page]),
+                // The systems this drawing names among its blocks — the one
+                // relation a diagram has. Eager-loaded by the service, so a row
+                // costs no query. It used to list the pages that explained the
+                // diagram, back when a page could point at one.
+                'solutions' => $diagram->participants->map(fn (Solution $solution) => [
+                    'name' => $solution->name,
+                    'url'  => route('solutions.show', $solution),
                 ]),
             ]),
         ]);

@@ -10,17 +10,19 @@
      unique. Recursing instead would either duplicate those ids or need a
      counter threaded through the recursion. --}}
 <div id="{{ $domId }}" class="flex w-72 flex-1 flex-col overflow-hidden">
-    {{-- The rail is titled with what it documents — the solution (or group) —
-         not with the generic word "Páginas": inside a solution's docs, every
-         page in the list is already a page, and the one thing the screen never
-         said was WHOSE they are. The ↗ opens that record's own page, the same
-         split as everywhere else in the app (words read, icon travels). --}}
+    {{-- The rail is titled with the caderno it lists, and the title is where
+         that caderno gets RENAMED — no ↗ beside it. The icon used to link to
+         `notebooks.show`, which resolves to the first page of this very
+         caderno: from in here it pointed at the screen already on display. A
+         caderno is its own page, so the one useful gesture on its name is
+         editing it. --}}
     <div class="flex items-center justify-between gap-2 border-b border-line px-3 py-2.5">
-        <span class="flex min-w-0 items-center gap-1.5">
-            <span class="truncate text-[11px] font-bold uppercase tracking-[0.12em] text-faint">{{ $title }}</span>
-            @if ($titleUrl)
-                <x-ui.external-link :href="$titleUrl" :label="$title" class="text-faint" />
-            @endif
+        <span class="flex min-w-0 items-center gap-2">
+            <x-heroicon-o-book-open class="size-4 shrink-0 text-accent" />
+            <x-ui.inline-edit :action="$renameUrl" name="name" :value="$title"
+                              label="Nome do caderno" :editable="$canEdit" class="min-w-0 flex-1">
+                <span class="truncate text-[11px] font-bold uppercase tracking-[0.12em] text-ink">{{ $title }}</span>
+            </x-ui.inline-edit>
         </span>
         <x-forms.button type="button" variant="ghost" data-ak-toggle="doc-new-page-form" data-ak-toggle-classes="hidden"
             class="!h-7 !w-7 !p-0" aria-label="Nova página" title="Nova página">
@@ -28,7 +30,7 @@
         </x-forms.button>
     </div>
 
-    <div class="min-h-0 flex-1 overflow-y-auto p-2">
+    <div class="ak-sidebar-scroll min-h-0 flex-1 overflow-y-auto p-2">
         <form id="doc-new-page-form" class="hidden mb-2 flex gap-1.5">
             @csrf
             <x-forms.input name="title" placeholder="Título da página" class="!text-xs" autofocus />
@@ -99,19 +101,6 @@
                         ])>
                             {{ $page['title'] }}
                         </a>
-
-                        {{-- A page that also carries a drawing says so right
-                             here, at whatever level it sits: the link is the
-                             module's whole point, and the rail is the only
-                             place the tree is visible as a tree. Hidden on
-                             hover, where the row's action buttons take over the
-                             same strip. --}}
-                        @if ($page['hasDiagram'] ?? false)
-                            <span title="Tem diagrama vinculado" aria-label="Tem diagrama vinculado"
-                                class="shrink-0 text-accent transition-opacity group-hover:opacity-0">
-                                <x-heroicon-o-share class="size-3.5" />
-                            </span>
-                        @endif
 
                         <div class="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100">
                             <x-forms.button type="button" variant="ghost" data-ak-ajax="doc-page-move-up-{{ $i }}" data-ak-action="{{ $page['moveUrl'] }}"

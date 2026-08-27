@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\BuildsPagesNav;
 use App\Http\Requests\SaveNotebookRequest;
 use App\Http\Requests\SyncNotebookSolutionsRequest;
 use App\Models\Notebook;
@@ -29,6 +30,8 @@ use Illuminate\Support\Str;
  */
 class NotebookController extends Controller
 {
+    use BuildsPagesNav;
+
     /**
      * `panel` is refused for the same reason a page's slug refuses the segments
      * under `notebooks/{notebook}/`: `notebooks/panel` is a real route (the
@@ -112,14 +115,32 @@ class NotebookController extends Controller
         ]);
     }
 
+    /**
+     * Renaming answers with whichever surface asked.
+     *
+     * Two of them can: the catalog's side panel, and the pages rail's own
+     * header (a caderno is renamed where it is read). `?page=` is how the rail
+     * says which page it is showing — without it there is no way to rebuild the
+     * rail around the right active row, and the header would keep the old name
+     * until a reload. Same carry-it-in-the-URL trick the catalog's filters use
+     * to survive a side-panel save.
+     */
     public function update(SaveNotebookRequest $request, Notebook $notebook): JsonResponse
     {
         $notebook->update(['name' => $request->validated()['name']]);
+        $notebook = $notebook->fresh();
+
+        $page = $request->query('page')
+            ? $notebook->pages()->where('slug', $request->query('page'))->first()
+            : null;
 
         return response()->json([
             'type'           => 'success',
             'message'        => 'Caderno renomeado.',
-            'updatableSlots' => [Index::slot((array) $request->query('filter', []))],
+            'updatableSlots' => array_values(array_filter([
+                Index::slot((array) $request->query('filter', [])),
+                $page ? $this->pagesNavSlot($notebook, $page) : null,
+            ])),
         ]);
     }
 

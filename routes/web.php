@@ -473,10 +473,6 @@ Route::middleware('auth')->group(function () {
         // zone.
         Route::patch('notebooks/{notebook}/{page}/notebook', [NotebookPageController::class, 'moveToNotebook'])->name('notebooks.pages.notebook');
         Route::post('notebooks/{notebook}/{page}/media', [NotebookPageController::class, 'media'])->name('notebooks.pages.media');
-        // Points the page at a Diagram, or clears the link (blank value). This
-        // is the ONE place the page↔diagram relation is written — a diagram
-        // never claims a page from its own side.
-        Route::patch('notebooks/{notebook}/{page}/diagram', [NotebookPageController::class, 'diagram'])->name('notebooks.pages.diagram');
         // Documentation Assistant — a chat that helps write the page (job + polling per turn).
         Route::get('notebooks/{notebook}/{page}/chat', [NotebookPageController::class, 'chatPanel'])->name('notebooks.chat.panel');
         Route::post('notebooks/{notebook}/{page}/chat/messages', [NotebookPageController::class, 'sendMessage'])->name('notebooks.chat.messages.store');
@@ -485,6 +481,10 @@ Route::middleware('auth')->group(function () {
     // Media embedded in documentation (images/files from the `docs`
     // collection), referenced via /files/{id} inside the Markdown. Authenticated only.
     Route::get('files/{media}', [MediaController::class, 'show'])->name('files.show');
+
+    // The diagram catalog as a solution-grouped tree, for the documentation
+    // editor's `diagram` block picker. Read-only JSON.
+    Route::get('diagrams-catalog', [DiagramController::class, 'catalog'])->name('diagrams.catalog');
 
     // Heroicons outline icons for the documentation callout picker (only the
     // editor consumes this; read-only views already ship with the rendered SVG).

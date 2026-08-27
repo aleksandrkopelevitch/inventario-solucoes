@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Models\Solution;
@@ -84,19 +83,17 @@ it('keeps a documented caderno visible for the sake of its own empty page', func
         ->and($groups->first()['pages']->pluck('title')->all())->toBe(['Vazia']);
 });
 
-it('lists a caderno\'s pages alphabetically, marking the ones with a diagram', function () {
+it('lists a caderno\'s pages alphabetically', function () {
     $notebook = notebookWithDoc(null, ['name' => 'Caderno X']);
     DocumentationPage::factory()->for($notebook)->create(['title' => 'Zeta', 'documentation' => '# z']);
-    $alfa = DocumentationPage::factory()->for($notebook)->create(['title' => 'Alfa', 'documentation' => '# a']);
-    $alfa->diagram()->associate(Diagram::factory()->create())->save();
+    DocumentationPage::factory()->for($notebook)->create(['title' => 'Alfa', 'documentation' => '# a']);
 
     $pages = (new DocumentationCoverageService)->groups([])
         ->firstWhere('notebook.name', 'Caderno X')['pages'];
 
     // Alphabetical, deliberately: `position` orders siblings only, so a flat
     // ordering by it across depths is neither the tree nor anything else.
-    expect($pages->pluck('title')->all())->toBe(['Alfa', 'Zeta'])
-        ->and($pages->pluck('hasDiagram')->all())->toBe([true, false]);
+    expect($pages->pluck('title')->all())->toBe(['Alfa', 'Zeta']);
 });
 
 it('names the solutions a caderno documents on its own row', function () {

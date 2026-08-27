@@ -116,7 +116,7 @@ function makeImageTool(Base) {
 
 // Editor.js and its plugins are heavy (~400 kB) and only used on this page, so
 // they're loaded on demand (separate chunk) only when an editor is on screen.
-async function loadTools(uploadUrl) {
+async function loadTools(uploadUrl, catalogUrl) {
     const [
         {default: EditorJS},
         {default: Header},
@@ -131,6 +131,7 @@ async function loadTools(uploadUrl) {
         {default: Marker},
         {default: Embed},
         {default: HintTool},
+        {default: DiagramTool},
         {default: TabsTool},
         {default: DragDropTune},
     ] = await Promise.all([
@@ -147,6 +148,7 @@ async function loadTools(uploadUrl) {
         import('@editorjs/marker'),
         import('@editorjs/embed'),
         import('./docs-tools/hint'),
+        import('./docs-tools/diagram'),
         import('./docs-tools/tabs'),
         import('editorjs-drag-drop'),
     ])
@@ -217,6 +219,7 @@ async function loadTools(uploadUrl) {
             },
         },
         hint: {class: HintTool},
+        diagram: {class: DiagramTool, config: {catalogUrl}},
         tabs: {class: TabsTool, config: {EditorJS, getTools: buildTools, wire, onChange: markDirty, uploadUrl, i18n: EDITOR_I18N}},
         inlineCode: {class: InlineCode},
         marker: {class: Marker},
@@ -244,7 +247,7 @@ async function mount(holder) {
     const source = document.querySelector('[data-ak-docs-source]')
     const blocks = parse(source ? source.value : '')
 
-    const {EditorJS, tools} = await loadTools(config.uploadUrl || '')
+    const {EditorJS, tools} = await loadTools(config.uploadUrl || '', config.catalogUrl || '')
 
     const editor = new EditorJS({
         holder,

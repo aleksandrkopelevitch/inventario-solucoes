@@ -18,7 +18,12 @@ use Illuminate\Support\Str;
  * attribute` — already known from a Solution's record, so they're reported as
  * facts, never as gaps the user should fill in the chat — plus a few
  * best-effort content checks (keyword presence in the Markdown: honest, not a
- * quality judgment), plus the drawing when the page points at one.
+ * quality judgment).
+ *
+ * There used to be a "drawing is actually drawn" item, read off the page's
+ * `diagram_id`. A page cites drawings in its text now, so there is no one
+ * drawing to check — and checking every cited one would put the checklist in
+ * the business of auditing other records.
  *
  * Those attribute facts reach a Solution THROUGH the caderno
  * (`Notebook::solutions()`), which changes the shape in two ways worth knowing:
@@ -31,8 +36,7 @@ use Illuminate\Support\Str;
  * There used to be a second shape for an `Integration`, checking its
  * protocol/sync mode/participants and whether its chain had anything drawn on
  * it. Those are a diagram's properties, and a diagram no longer carries
- * documentation for a checklist to sit beside — what survives of it is the one
- * item below that reads the LINKED diagram.
+ * documentation for a checklist to sit beside.
  */
 class DocumentationRequirements
 {
@@ -74,7 +78,7 @@ class DocumentationRequirements
             }
         }
 
-        return [...$items, ...self::diagramItems($page), ...self::contentItems($content)];
+        return [...$items, ...self::contentItems($content)];
     }
 
     /**
@@ -91,34 +95,6 @@ class DocumentationRequirements
             ['key' => 'criticality', 'label' => 'Criticidade', 'group' => 'criticality', 'value' => $solution->criticality],
             ['key' => 'directorate', 'label' => 'Diretoria responsável', 'group' => 'directorate', 'value' => $solution->directorate],
         ];
-    }
-
-    /**
-     * The linked drawing, and ONLY when there is one.
-     *
-     * Not every page documents a flow, so an always-present "tem diagrama" row
-     * would report a gap on most pages that have none to have. A page that DOES
-     * point at a diagram and finds it still holding only its root block is a
-     * real gap, and the one this reports.
-     *
-     * @return list<array{key: string, label: string, satisfied: bool, source: string}>
-     */
-    private static function diagramItems(DocumentationPage $page): array
-    {
-        if ($page->diagram_id === null) {
-            return [];
-        }
-
-        // `diagram_id` is checked first so this only ever loads the relation for
-        // a page that actually has one.
-        $nodes = $page->diagram?->chain['nodes'] ?? [];
-
-        return [[
-            'key'       => 'diagram',
-            'label'     => 'Diagrama vinculado desenhado',
-            'satisfied' => count($nodes) > 1,
-            'source'    => 'structural',
-        ]];
     }
 
     /** Best-effort, keyword-based content checks. */

@@ -65,12 +65,6 @@
                                         <span class="flex min-w-0 items-center gap-2 text-ink">
                                             <x-heroicon-o-document-text class="size-3.5 shrink-0 text-faint" />
                                             <span class="truncate">{{ $page['title'] }}</span>
-                                            {{-- A page that also carries a
-                                                 drawing. Same marker as the
-                                                 pages rail uses. --}}
-                                            @if ($page['hasDiagram'])
-                                                <x-heroicon-o-share class="size-3.5 shrink-0 text-accent" title="Tem diagrama vinculado" />
-                                            @endif
                                         </span>
                                         <span @class($badge($page['hasDocs']))>
                                             {{ $page['hasDocs'] ? 'Documentado' : 'Sem conteúdo' }}

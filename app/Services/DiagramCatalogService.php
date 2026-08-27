@@ -15,10 +15,16 @@ use Illuminate\Support\Collection;
  * - **drawn**: the chain has more than its root block. A diagram created and
  *   never opened is one block and no edges, which is an empty canvas, not a
  *   drawing.
- * - **explained**: at least one `DocumentationPage` points at it. A drawing
- *   nobody wrote a word about is the thing this module makes visible — under
- *   the old model that gap was invisible, because a diagram's documentation
- *   was a column on the diagram itself and an empty one looked like any other.
+ * - **placed**: the drawing names at least one catalog Solution among its
+ *   blocks, so the ecosystem map can reach it. A diagram made only of free text
+ *   is legitimate but floats free of the inventory, and that is the gap worth
+ *   seeing.
+ *
+ * There used to be an **explained** counter here — "some page points at me" —
+ * back when `documentation_pages.diagram_id` existed. Prose cites a drawing in
+ * its text now, so the only way to answer it would be a LIKE over every page's
+ * `documentation` longText: exactly what the note below says these counters
+ * never do.
  *
  * Never called from a controller body or a Blade view; counters are aggregate
  * queries, so neither the chain json nor any page's `documentation` longText is
@@ -29,7 +35,7 @@ class DiagramCatalogService
     /**
      * @return array{
      *     drawn: array{value: int, total: int, percent: float},
-     *     explained: array{value: int, total: int, percent: float},
+     *     placed: array{value: int, total: int, percent: float},
      * }
      */
     public function counters(): array
@@ -37,16 +43,16 @@ class DiagramCatalogService
         $total = Diagram::count();
 
         return [
-            'drawn'     => $this->counter($this->drawnCount(), $total),
-            'explained' => $this->counter(Diagram::whereHas('pages')->count(), $total),
+            'drawn'  => $this->counter($this->drawnCount(), $total),
+            'placed' => $this->counter(Diagram::whereHas('participants')->count(), $total),
         ];
     }
 
     /**
      * The index's rows, filtered. Each carries what the list shows and nothing
-     * more — no chain json beyond what the summary label needs, and the pages
-     * eager-loaded with their notebook so a row can name where it is
-     * explained without a query per row.
+     * more — no chain json beyond what the summary label needs, and the
+     * participants eager-loaded so a row can name the systems it touches
+     * without a query per row.
      *
      * @param  array<string, mixed>  $filters
      * @return Collection<int, Diagram>
@@ -55,7 +61,7 @@ class DiagramCatalogService
     {
         return Diagram::query()
             ->filter($filters)
-            ->with(['pages:id,diagram_id,notebook_id,title,slug', 'pages.notebook:id,name,slug'])
+            ->with(['participants:id,name,slug'])
             ->orderBy('name')
             ->get(['id', 'name', 'slug', 'status', 'chain']);
     }

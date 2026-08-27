@@ -214,6 +214,25 @@ Anything asking "is this solution documented?" goes through
 the container: the public magic link (`notebooks.public_token`) and the Assiste
 IA context documents (`Notebook::CONTEXT_COLLECTION`).
 
+**A page CITES a diagram; it does not own one.** `documentation_pages.diagram_id`
+is gone, and with it the Documentação/Diagrama tab pair a linked page used to
+grow. A drawing is referenced from prose with `{% diagram slug="…" %}` — a fifth
+construct in the dialect, self-closing with one attribute, the same shape as the
+four GitBook ones, so both parsers (`GitbookRenderer` and `docs-markdown.js`)
+take it the way they take `file`.
+
+It renders as the drawing's current picture plus a link that opens the canvas in
+a **new tab**, and it degrades on purpose: a diagram with no snapshot yet says so
+(the PNG is posted by the BROWSER after a layout save, so a diagram nobody has
+opened since that feature landed has none), and a deleted diagram becomes a
+"removido" card rather than damaging the prose around it.
+
+Addressed by SLUG, never id: it is what the author picked and what the URL shows,
+it survives a database reload between environments, and a stale citation still
+reads as something. The picker (`diagrams.catalog`) groups the catalog by
+SOLUTION — the only relation a diagram has left — with a trailing group for
+drawings that name none, since those are still citable.
+
 **There is exactly ONE kind of documentation: the page.** There used to be two —
 a page tree, and an integration's own single-page `documentation` column with
 its own editor route, its own place in the rail and its own coverage
@@ -898,7 +917,7 @@ leftover from a copied reference bundle), delete it rather than leaving it —
 | | `App\Support\GitbookRenderer` | `App\Support\MarkdownText` |
 |---|---|---|
 | for | documentation pages, authored in the Editor.js block editor | the short free-text fields: a person's/company's `notes`, a solution's `description` and `support_operation_note` |
-| speaks | Markdown **+ GitBook notation** (`{% hint %}`, `{% tabs %}`, `{% file %}`) | plain Markdown (GFM), nothing else |
+| speaks | Markdown **+ GitBook notation** (`{% hint %}`, `{% tabs %}`, `{% file %}`) plus one of our own, `{% diagram slug="…" %}` | plain Markdown (GFM), nothing else |
 | raw HTML in the source | `html_input=allow` — it's how images arrive as `<figure><img src="/files/{id}">` | `html_input=strip`, plus `allow_unsafe_links=false`: a `<script>` in someone's notes must never run for the next reader |
 | single newline | a normal Markdown soft break | rendered as `<br>` (`renderer.soft_break`), because these fields were plain textareas read back with `whitespace-pre-line` and every note already in the database relies on it |
 | read side | `.html-content` + `GitbookRenderer` | `x-ui.markdown` + `.ak-rich-text` |

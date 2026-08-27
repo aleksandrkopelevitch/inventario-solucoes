@@ -74,12 +74,13 @@ class DocumentationSearchService
     private const SNIPPET_LENGTH = 240;
 
     /** Bumped whenever the entry shape changes — old cache entries then simply miss. */
-    // Bumped to v3 with the container swap: the index key hashed the
-    // container's CLASS alongside its id, so every key a `Solution`-owned
-    // corpus wrote is unreachable — and, worse, a notebook could collide with
-    // whatever id its old container happened to have. Old entries expire on
-    // their own TTL; nothing reads them again.
-    private const VERSION = 'v3';
+    // v3 was the container swap (the key hashed the container's CLASS, so a
+    // notebook could collide with whatever id its old container had). v4 is the
+    // `diagram` facet moving from a per-page column to a per-section needle in
+    // the rendered HTML — same key inputs would otherwise return entries tagged
+    // by a column that no longer exists. Old entries expire on their own TTL;
+    // nothing reads them again.
+    private const VERSION = 'v4';
 
     /**
      * Accent folding, one character in for one character out, so a character
@@ -265,8 +266,6 @@ class DocumentationSearchService
                 $misses[$keys[$page->id]] = $parsed;
             }
 
-            $pageTags = $page->diagram_id !== null ? ['diagram'] : [];
-
             $entries[] = $this->entry(
                 order: $order++,
                 kind: 'page',
@@ -277,7 +276,7 @@ class DocumentationSearchService
                 anchor: null,
                 level: 0,
                 text: $parsed['lead']['text'],
-                tags: array_values(array_unique([...$pageTags, ...$parsed['lead']['tags']])),
+                tags: $parsed['lead']['tags'],
             );
 
             foreach ($parsed['sections'] as $sectionData) {
@@ -350,7 +349,6 @@ class DocumentationSearchService
         return self::VERSION . ':docs-search:page:' . $page->id . ':' . md5(implode("\0", [
             $page->title,
             $page->slug,
-            (string) $page->diagram_id,
             (string) $page->documentation,
         ]));
     }
@@ -463,6 +461,11 @@ class DocumentationSearchService
             'image'   => '<img',
             'callout' => 'data-callout',
             'file'    => 'ak-doc-file',
+            // A cited drawing. It used to be a per-PAGE flag read off
+            // `documentation_pages.diagram_id`; with the citation living in the
+            // text, the facet is per SECTION like every other one — "the
+            // section with the drawing" rather than "somewhere on this page".
+            'diagram' => 'ak-doc-diagram',
         ] as $tag => $needle) {
             if (str_contains($html, $needle)) {
                 $tags[] = $tag;

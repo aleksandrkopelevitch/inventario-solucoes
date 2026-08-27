@@ -24,11 +24,10 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * reaches a Solution the long way round, through `Notebook::solutions()`, and
  * therefore reaches as many of them as the notebook actually documents.
  *
- * A page at ANY level of that tree may point at a `Diagram` (`diagram_id`),
- * which is what replaced the old integration-documentation pairing: the drawing
- * and the text that explains it are separate things that reference each other,
- * so one drawing can be explained from several pages (and therefore from
- * several solutions) instead of being trapped inside one of them.
+ * A page CITES drawings rather than owning one. `diagram_id` is gone: a page
+ * carries `{% diagram %}` blocks in its text, as many as the prose needs, which
+ * is what a reference actually is. The FK modelled "this page is the page of
+ * that drawing", which was never true of more than a handful of them.
  *
  * The tree's shape is deliberately capped, and both halves of the cap matter:
  *
@@ -68,11 +67,10 @@ class DocumentationPage extends Model implements Documentable
     public const MAX_DEPTH = 5;
 
     /**
-     * `parent_id`, `diagram_id` and `notebook_id` are deliberately absent
-     * (§ Security: no `$guarded = []`) — every relation this page holds is set
-     * through the relation itself (`parent()->associate()`,
-     * `diagram()->associate()`, `notebook()->associate()`), never mass-assigned
-     * from a request payload.
+     * `parent_id` and `notebook_id` are deliberately absent (§ Security: no
+     * `$guarded = []`) — every relation this page holds is set through the
+     * relation itself (`parent()->associate()`, `notebook()->associate()`),
+     * never mass-assigned from a request payload.
      */
     protected $fillable = [
         'title',
@@ -112,18 +110,6 @@ class DocumentationPage extends Model implements Documentable
     public function children(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id')->orderBy('position');
-    }
-
-    /**
-     * The drawing this page explains, if any.
-     *
-     * `belongsTo` and not the other way round: ONE diagram serves 1..N pages,
-     * so the FK lives here. Deleting the diagram leaves the page (and its
-     * text) alone — `nullOnDelete`.
-     */
-    public function diagram(): BelongsTo
-    {
-        return $this->belongsTo(Diagram::class);
     }
 
     /** A page at the top of the tree. */

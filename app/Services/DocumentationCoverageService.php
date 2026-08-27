@@ -73,7 +73,7 @@ class DocumentationCoverageService
      *
      * Structure of each item:
      *   ['notebook' => ['name','slug','url','hasDocs','solutions' => [['name','url'], ...]],
-     *    'pages' => [['title','url','hasDocs','hasDiagram'], ...]]
+     *    'pages' => [['title','url','hasDocs'], ...]]
      *
      * @param  array<string, mixed>  $filters
      * @return Collection<int, array<string, mixed>>
@@ -97,7 +97,7 @@ class DocumentationCoverageService
                 'solutions:id,name,slug',
                 'pages' => fn ($rel) => $rel
                     ->select('documentation_pages.id', 'documentation_pages.notebook_id',
-                        'documentation_pages.title', 'documentation_pages.slug', 'documentation_pages.diagram_id')
+                        'documentation_pages.title', 'documentation_pages.slug')
                     // The flag, not the longText: a hub listing every page of
                     // every caderno would otherwise pull the whole corpus into
                     // memory.
@@ -112,10 +112,9 @@ class DocumentationCoverageService
                 $pages = $notebook->pages
                     ->filter(fn (DocumentationPage $page) => $this->matchesStatus((bool) $page->has_docs, $status))
                     ->map(fn (DocumentationPage $page) => [
-                        'title'      => $page->title,
-                        'url'        => route('notebooks.pages.edit', [$notebook, $page]),
-                        'hasDocs'    => (bool) $page->has_docs,
-                        'hasDiagram' => $page->diagram_id !== null,
+                        'title'   => $page->title,
+                        'url'     => route('notebooks.pages.edit', [$notebook, $page]),
+                        'hasDocs' => (bool) $page->has_docs,
                     ])
                     ->values();
 

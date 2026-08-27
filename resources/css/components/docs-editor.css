@@ -213,6 +213,41 @@
     background-clip: content-box;
 }
 
+/* ── Rail de páginas: o scrollbar aparece ao passar o mouse na SIDEBAR ──
+   Mesma barra "overlay" acima, mas revelada pelo hover do container inteiro e
+   não pelo do próprio scroller. A diferença importa no rail autenticado, onde
+   o elemento que rola é uma div DENTRO da aside: com `:hover` só nela, a barra
+   não aparecia ao entrar pelo cabeçalho do caderno, que é exatamente por onde
+   o ponteiro chega vindo do topo.
+
+   A largura (a "calha") é constante nos dois estados — só a cor do polegar
+   muda. Alternar `display`/`width` no hover reflui o conteúdo do rail e faz os
+   títulos pularem um par de pixels justamente enquanto se mira um deles. */
+.ak-sidebar-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    transition: scrollbar-color 150ms ease;
+}
+.ak-sidebar-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.ak-sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+.ak-sidebar-scroll::-webkit-scrollbar-thumb {
+    background: transparent;
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+    transition: background-color 150ms ease;
+}
+
+.ak-sidebar:hover .ak-sidebar-scroll,
+.ak-sidebar-scroll:hover {
+    scrollbar-color: color-mix(in srgb, var(--color-ink) 22%, transparent) transparent;
+}
+.ak-sidebar:hover .ak-sidebar-scroll::-webkit-scrollbar-thumb,
+.ak-sidebar-scroll:hover::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--color-ink) 22%, transparent);
+    background-clip: content-box;
+}
+
 /* ── Tabs com blocos aninhados (editor) ─────────────────────────── */
 .ak-tabs {
     margin: 0.5rem 0;

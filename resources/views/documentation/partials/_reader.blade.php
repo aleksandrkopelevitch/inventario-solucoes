@@ -12,7 +12,7 @@
         {{-- Editor.js mount point (resources/js/modules/docs-editor.js).
              Block borders only appear on hover; the block menu opens with "/". --}}
         <div class="ak-docs-editor" data-ak-docs-editor
-            data-config="{{ json_encode(['uploadUrl' => $uploadUrl]) }}"></div>
+            data-config="{{ json_encode(['uploadUrl' => $uploadUrl, 'catalogUrl' => route('diagrams.catalog')]) }}"></div>
 
         {{-- Resume marker: present when this user has a Documentation Assistant
              chat still generating a reply for this page/diagram (e.g. they

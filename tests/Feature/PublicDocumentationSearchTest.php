@@ -1,9 +1,7 @@
 <?php
 
-use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
-use App\Services\DocumentationSearchService;
 use App\View\Components\Documentation\SearchResults;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 
@@ -267,17 +265,6 @@ it('picks up an edit even when it lands in the same second as the last search', 
 
     $this->getJson(route('public.docs.search', [$notebook->public_token, 'q' => 'novo']))
         ->assertOk()->assertJson(['total' => 1]);
-});
-
-it('tags a page that points at a diagram', function () {
-    $notebook = sharedNotebook('tok-diagram', "# Visão geral\n\nTexto.");
-    $page = $notebook->pages()->first();
-    $page->diagram()->associate(Diagram::factory()->create());
-    $page->save();
-
-    $entries = app(DocumentationSearchService::class)->index($notebook);
-
-    expect($entries[0]['tags'])->toContain('diagram');
 });
 
 it('escapes page text instead of letting it reach the palette as markup', function () {

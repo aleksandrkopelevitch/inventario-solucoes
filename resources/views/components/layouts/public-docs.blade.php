@@ -54,7 +54,7 @@
              (DocumentationPageService::navRows()), so this is right before any
              JavaScript runs; the module only handles clicks. --}}
         @if ($nav)
-            <aside class="hidden w-64 shrink-0 md:sticky md:top-14 md:block md:max-h-[calc(100vh_-_3.5rem)] md:overflow-y-auto md:py-10">
+            <aside class="ak-sidebar ak-sidebar-scroll hidden w-64 shrink-0 md:sticky md:top-14 md:block md:max-h-[calc(100vh_-_3.5rem)] md:overflow-y-auto md:py-10">
                 <p class="px-2 pb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-muted">Neste caderno</p>
                 <nav data-ak-docs-tree class="flex flex-col gap-px">
                     @foreach ($nav as $item)

@@ -286,3 +286,57 @@ it('forbids a viewer from creating or uploading media to a page', function () {
         ])
         ->assertForbidden();
 });
+
+it('renames the caderno from the rail header and hands the rail back', function () {
+    // The header is where a caderno is renamed — it is its own page, so there
+    // is no ↗ to somewhere else. `?page=` tells the endpoint which page the
+    // rail is showing, so it can rebuild it around the right active row.
+    $notebook = Notebook::factory()->create(['name' => 'Antigo']);
+    $page = DocumentationPage::factory()->for($notebook)->create(['title' => 'Visão geral']);
+
+    $response = $this->actingAs(notebookAdmin())
+        ->patchJson(route('notebooks.update', ['notebook' => $notebook, 'page' => $page->slug]), ['name' => 'Novo'])
+        ->assertOk();
+
+    expect($notebook->fresh()->name)->toBe('Novo');
+
+    $rail = collect($response->json('updatableSlots'))->firstWhere('id', 'documentation-pages-nav-slot');
+    expect($rail)->not->toBeNull()
+        ->and($rail['content'])->toContain('Novo')
+        // …and the ↗ that used to sit beside the name is gone.
+        ->and($rail['content'])->not->toContain('data-ak-inline-edit-link');
+});
+
+it('renames a page in place, refreshing both the top bar and the rail', function () {
+    // A rename never changes the slug, so there is nothing to navigate to —
+    // but the name shows in two places that are not in the same subtree.
+    $notebook = Notebook::factory()->create();
+    $page = DocumentationPage::factory()->for($notebook)->create(['title' => 'Antigo', 'slug' => 'antigo']);
+
+    $response = $this->actingAs(notebookAdmin())
+        ->patchJson(route('notebooks.pages.rename', [$notebook, $page]), ['title' => 'Novo título'])
+        ->assertOk();
+
+    expect($page->fresh())->title->toBe('Novo título')->slug->toBe('antigo');
+
+    $ids = collect($response->json('updatableSlots'))->pluck('id');
+    expect($ids)->toContain('documentation-page-title-slot')
+        ->and($ids)->toContain('documentation-pages-nav-slot')
+        // No redirect: the URL still points at this page.
+        ->and($response->json('redirect'))->toBeNull();
+});
+
+it('offers the caderno name and the page title as inline editors', function () {
+    $notebook = Notebook::factory()->create(['name' => 'Meu caderno']);
+    $page = DocumentationPage::factory()->for($notebook)->create(['title' => 'Visão geral']);
+
+    $content = $this->actingAs(notebookAdmin())
+        ->get(route('notebooks.pages.edit', [$notebook, $page]))
+        ->assertOk()
+        ->getContent();
+
+    expect($content)
+        ->toContain('data-ak-inline-edit-field="name"')
+        ->toContain('data-ak-inline-edit-field="title"')
+        ->toContain('id="documentation-page-title-slot"');
+});

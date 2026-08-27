@@ -115,7 +115,11 @@ it('shows the diagram status in the editor top bar, editable in place for an adm
         ->assertSee('data-ak-inline-edit-field="status"', false)
         ->assertSee('data-ak-inline-edit-field="name"', false);
 
-    expect($response->getContent())->toContain(route('diagrams.update', $diagram));
+    // The editor's endpoint rides inside a JSON attribute, so its slashes
+    // arrive escaped. Asserting the raw `route()` string passed only because
+    // the DELETE button's url happened to start with the same characters.
+    expect($response->getContent())
+        ->toContain(str_replace('/', '\\/', route('diagrams.update', $diagram)));
 });
 
 it('shows the same status as plain text to a viewer', function () {

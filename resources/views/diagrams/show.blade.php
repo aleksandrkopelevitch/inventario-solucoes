@@ -1,4 +1,4 @@
-{{-- A diagram's own page: a thin top bar (name + status, where it's explained,
+{{-- A diagram's own page: a thin top bar (name + status,
      a way back to the index) and the canvas filling everything below it.
 
      Fluid + full height, like the documentation editor: the canvas is the
@@ -15,25 +15,9 @@
             </div>
 
             <div class="flex shrink-0 items-center gap-2">
-                {{-- The pages that explain this drawing, as links. This is the
-                     diagram's half of the 1..N relation: the link itself is
-                     authored from the PAGE (a page has one diagram), so there
-                     is nothing to edit here — only somewhere to go. --}}
-                @if ($diagram->pages->isNotEmpty())
-                    @foreach ($diagram->pages as $page)
-                        <a href="{{ route('notebooks.pages.edit', [$page->notebook, $page]) }}"
-                            class="inline-flex max-w-52 items-center gap-1.5 rounded-field border border-line bg-surface px-2.5 py-1.5 text-xs font-medium text-ink no-underline transition-colors hover:border-accent-line hover:bg-accent-soft/40">
-                            <x-heroicon-o-document-text class="size-3.5 shrink-0 text-faint" />
-                            <span class="truncate">{{ $page->title }}</span>
-                        </a>
-                    @endforeach
-                @else
-                    <span class="inline-flex items-center gap-1.5 rounded-field border border-dashed border-line px-2.5 py-1.5 text-xs text-faint">
-                        <x-heroicon-o-link-slash class="size-3.5" />
-                        Sem página vinculada
-                    </span>
-                @endif
-
+                {{-- Nothing about documentation here: prose CITES a drawing
+                     with a `diagram` block, which lives in the text, so there
+                     is no link for this side to show or edit. --}}
                 @can('delete', $diagram)
                     {{-- `after=index` so the response navigates away: staying
                          on the page of a deleted diagram is a 404 on the next
@@ -41,7 +25,7 @@
                     <x-forms.button type="button" variant="ghost"
                         data-ak-ajax="diagram-page-delete"
                         data-ak-action="{{ route('diagrams.destroy', ['diagram' => $diagram, 'after' => 'index']) }}"
-                        data-ak-confirm="Excluir o diagrama &quot;{{ $diagram->name }}&quot;? As páginas vinculadas continuam existindo, apenas sem diagrama."
+                        data-ak-confirm="Excluir o diagrama &quot;{{ $diagram->name }}&quot;? Páginas que citam este desenho continuam existindo — a citação passa a mostrar que ele foi removido."
                         title="Excluir diagrama"
                         class="!p-1.5 text-muted hover:!text-crit">
                         <x-heroicon-o-trash class="size-4" />

@@ -3,9 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\AssistsDocumentation;
+use App\Http\Controllers\Concerns\BuildsPagesNav;
 use App\Http\Controllers\Concerns\EditsDocumentation;
-use App\Http\Controllers\Concerns\LinksPageDiagram;
-use App\Http\Requests\LinkPageDiagramRequest;
 use App\Http\Requests\MoveDocumentationPageRequest;
 use App\Http\Requests\MoveDocumentationPageToNotebookRequest;
 use App\Http\Requests\SaveDocumentationPageTitleRequest;
@@ -18,7 +17,7 @@ use App\Models\DocumentationChatMessage;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Services\DocumentationPageService;
-use App\View\Components\Documentation\PagesNav;
+use App\View\Components\Documentation\PageTitle;
 use App\View\Components\Solutions\Notebooks;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -41,7 +40,7 @@ use Illuminate\Http\JsonResponse;
  */
 class NotebookPageController extends Controller
 {
-    use AssistsDocumentation, EditsDocumentation, LinksPageDiagram;
+    use AssistsDocumentation, BuildsPagesNav, EditsDocumentation;
 
     public function __construct(private readonly DocumentationPageService $pages) {}
 
@@ -71,22 +70,23 @@ class NotebookPageController extends Controller
             notebookLabel: $notebook->name,
             notebookUrl: route('notebooks.show', $notebook),
         )->with([
-            'pagesNav'      => $this->pagesNav($notebook, $page),
-            'createPageUrl' => route('notebooks.pages.store', $notebook),
-            'chatPanelUrl'  => route('notebooks.chat.panel', [$notebook, $page]),
-            'chatResume'    => $this->chatResumeFor($notebook, $page),
-            // The page's drawing, if it has one, plus the picker that links or
-            // unlinks it — see LinksPageDiagram.
-            'diagram'        => $page->diagram,
-            'diagramOptions' => $this->diagramOptions(),
-            'diagramAction'  => route('notebooks.pages.diagram', [$notebook, $page]),
+            'pagesNav' => $this->pagesNav($notebook, $page),
+            // The rail's header renames the caderno in place — `?page=` so the
+            // endpoint can hand the rail back around the right active row.
+            'notebookRenameUrl' => route('notebooks.update', ['notebook' => $notebook, 'page' => $page->slug]),
+            'notebookEditable'  => auth()->user()?->can('update', $notebook) ?? false,
+            'createPageUrl'     => route('notebooks.pages.store', $notebook),
+            'chatPanelUrl'      => route('notebooks.chat.panel', [$notebook, $page]),
+            'chatResume'        => $this->chatResumeFor($notebook, $page),
             // Navigation cards for this page's own sub-pages — see
             // x-documentation.child-pages for why an imported corpus needs them.
             'childPages' => $this->childPages($notebook, $page),
             // Sharing and the linked solutions both belong to the CADERNO, not
             // to this page — they sit in the toolbar and are the same for every
             // page of the tree.
-            'notebook'    => $notebook,
+            'notebook' => $notebook,
+            // Drives the editable title in the top bar.
+            'titlePage'   => $page,
             'breadcrumbs' => [
                 ['label' => 'Cadernos', 'url' => route('notebooks.index')],
                 ['label' => $notebook->name, 'url' => route('notebooks.show', $notebook)],
@@ -114,14 +114,26 @@ class NotebookPageController extends Controller
         ]);
     }
 
+    /**
+     * A rename answers with SLOTS, not a redirect.
+     *
+     * The slug never follows the title (the URL is deliberately stable), so
+     * there is nothing to navigate to — and the name shows in two places that
+     * aren't in the same subtree: the top bar and the rail. It used to redirect
+     * because the only way to rename was the rail's own hidden form, which
+     * reloaded the screen to show the result.
+     */
     public function rename(SaveDocumentationPageTitleRequest $request, Notebook $notebook, DocumentationPage $page): JsonResponse
     {
         $this->pages->rename($page, $request->validated()['title']);
 
         return response()->json([
-            'type'     => 'success',
-            'message'  => 'Página renomeada.',
-            'redirect' => route('notebooks.pages.edit', [$notebook, $page]),
+            'type'           => 'success',
+            'message'        => 'Página renomeada.',
+            'updatableSlots' => [
+                PageTitle::slot($notebook, $page->fresh()),
+                $this->pagesNavSlot($notebook, $page->fresh()),
+            ],
         ]);
     }
 
@@ -151,12 +163,7 @@ class NotebookPageController extends Controller
                 'out'   => 'Página promovida.',
                 default => 'Ordem atualizada.',
             },
-            'updatableSlots' => [PagesNav::slot(
-                $this->pagesNav($notebook, $page->fresh()),
-                route('notebooks.pages.store', $notebook),
-                $notebook->name,
-                route('notebooks.show', $notebook),
-            )],
+            'updatableSlots' => [$this->pagesNavSlot($notebook, $page->fresh())],
         ]);
     }
 
@@ -185,14 +192,6 @@ class NotebookPageController extends Controller
     public function media(UploadDocumentationMediaRequest $request, Notebook $notebook, DocumentationPage $page): JsonResponse
     {
         return $this->storeDocumentationMedia($request, $page);
-    }
-
-    /** Points this page at a diagram, or clears the link. */
-    public function diagram(LinkPageDiagramRequest $request, Notebook $notebook, DocumentationPage $page): JsonResponse
-    {
-        $page->setRelation('notebook', $notebook);
-
-        return $this->linkPageDiagram($page, $request->validated()['diagram_id']);
     }
 
     /* --- Documentation Assistant (chat that helps write the page's content) --- */
@@ -244,49 +243,6 @@ class NotebookPageController extends Controller
             'url'         => route('notebooks.pages.edit', [$notebook, $child]),
             'hasChildren' => $child->children()->exists(),
             'hasContent'  => trim((string) $child->documentation) !== '',
-        ])->all();
-    }
-
-    /**
-     * Rows in reading order, each carrying its `depth` (0..MAX_DEPTH-1), which
-     * structural gestures it can offer, and whether its branch loads open. All
-     * three come straight off `DocumentationPageService::navRows()`, which
-     * wraps the same `tree()` that validates an incoming move: the rail and the
-     * endpoint read one source.
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    private function pagesNav(Notebook $notebook, ?DocumentationPage $active): array
-    {
-        // One list for the whole rail, not one per row — see
-        // DocumentationPageService::destinationsFor().
-        $destinations = $this->pages->destinationsFor($notebook);
-
-        return $this->pages->navRows($notebook, $active)->map(fn (array $row) => [
-            'id'          => $row['page']->id,
-            'title'       => $row['page']->title,
-            'depth'       => $row['depth'],
-            'hasChildren' => $row['hasChildren'],
-            // Tree state for the collapsible rail — see navRows().
-            'parentId'     => $row['parentId'],
-            'expanded'     => $row['expanded'],
-            'visible'      => $row['visible'],
-            'canNest'      => $row['canNest'],
-            'canPromote'   => $row['canPromote'],
-            'canAddChild'  => $row['canAddChild'],
-            'editUrl'      => route('notebooks.pages.edit', [$notebook, $row['page']]),
-            'renameUrl'    => route('notebooks.pages.rename', [$notebook, $row['page']]),
-            'destroyUrl'   => route('notebooks.pages.destroy', [$notebook, $row['page']]),
-            'moveUrl'      => route('notebooks.pages.move', [$notebook, $row['page']]),
-            'notebookUrl'  => route('notebooks.pages.notebook', [$notebook, $row['page']]),
-            'destinations' => $destinations,
-            'active'       => $active?->is($row['page']) ?? false,
-            'hasContent'   => trim((string) $row['page']->documentation) !== '',
-            // The FK itself, never the loaded relation: `tree()` hydrates every
-            // page of the notebook in one multi-row query, which is exactly
-            // where strict mode arms — reading `$page->diagram` here would be a
-            // LazyLoadingViolationException on any caderno with two pages.
-            'hasDiagram' => $row['page']->diagram_id !== null,
         ])->all();
     }
 }

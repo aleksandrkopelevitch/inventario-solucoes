@@ -64,29 +64,23 @@
                         </div>
                     </div>
 
-                    {{-- Where it's explained. A diagram with no page is the gap
-                         this list exists to show, so it gets a line of its own
-                         rather than simply nothing. --}}
-                    @if ($row['pages']->isNotEmpty())
-                        <ul class="divide-y divide-line border-t border-line">
-                            @foreach ($row['pages'] as $page)
-                                <li>
-                                    <a href="{{ $page['url'] }}" class="flex items-center justify-between gap-3 px-4 py-2.5 pl-6 text-sm no-underline transition-colors hover:bg-raised">
-                                        <span class="flex min-w-0 items-center gap-2 text-ink">
-                                            <x-heroicon-o-document-text class="size-3.5 shrink-0 text-faint" />
-                                            <span class="truncate">{{ $page['title'] }}</span>
-                                        </span>
-                                        @if ($page['notebook'])
-                                            <span class="shrink-0 truncate text-xs text-muted">{{ $page['notebook'] }}</span>
-                                        @endif
-                                    </a>
-                                </li>
+                    {{-- The systems the drawing names among its blocks. A
+                         diagram that names none floats free of the catalog —
+                         the ecosystem map can't place it — so that gets a line
+                         of its own rather than simply nothing. --}}
+                    @if ($row['solutions']->isNotEmpty())
+                        <div class="flex flex-wrap gap-1.5 border-t border-line px-4 py-3">
+                            @foreach ($row['solutions'] as $solution)
+                                <a href="{{ $solution['url'] }}"
+                                    class="inline-flex max-w-full items-center rounded-full bg-accent-soft px-2.5 py-1 text-xs font-medium text-ink no-underline ring-1 ring-accent-line transition-colors hover:bg-accent-line">
+                                    <span class="truncate">{{ $solution['name'] }}</span>
+                                </a>
                             @endforeach
-                        </ul>
+                        </div>
                     @else
                         <div class="flex items-center gap-2 border-t border-dashed border-line px-4 py-2.5 pl-6 text-xs text-faint">
                             <x-heroicon-o-exclamation-triangle class="size-3.5 shrink-0" />
-                            Nenhuma página de documentação aponta para este diagrama.
+                            Este desenho não cita nenhuma solução do catálogo.
                         </div>
                     @endif
                 </div>

@@ -40,10 +40,19 @@ class PagesNav extends Component
     public function __construct(
         public array $pages,
         public string $createPageUrl,
-        /** What these pages document — the Solution's (or group's) name. */
+        /** The caderno's name — what these pages document. */
         public string $title = 'Páginas',
-        /** That record's own page, opened by the ↗ beside the title. */
-        public ?string $titleUrl = null,
+        /**
+         * Where the header renames the caderno.
+         *
+         * It used to be the caderno's own URL, opened by an ↗ beside the title.
+         * That link went nowhere useful: `notebooks.show` resolves to the first
+         * page of this very caderno, so from inside it the icon pointed at the
+         * screen already on display. The name is now the thing you edit here
+         * instead.
+         */
+        public ?string $renameUrl = null,
+        public bool $canEdit = false,
     ) {}
 
     /**
@@ -53,9 +62,10 @@ class PagesNav extends Component
         array $pages,
         string $createPageUrl,
         string $title = 'Páginas',
-        ?string $titleUrl = null,
+        ?string $renameUrl = null,
+        bool $canEdit = false,
     ): array {
-        return (new static($pages, $createPageUrl, $title, $titleUrl))->toSlot(self::DOM_ID);
+        return (new static($pages, $createPageUrl, $title, $renameUrl, $canEdit))->toSlot(self::DOM_ID);
     }
 
     public function render(): View
@@ -65,7 +75,8 @@ class PagesNav extends Component
             'pages'         => $this->pages,
             'createPageUrl' => $this->createPageUrl,
             'title'         => $this->title,
-            'titleUrl'      => $this->titleUrl,
+            'renameUrl'     => $this->renameUrl,
+            'canEdit'       => $this->canEdit,
         ]);
     }
 }

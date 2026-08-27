@@ -1,12 +1,4 @@
 <x-layouts.layout :title="$title" :fluid="true">
-    @php
-        // A page with a linked diagram is a two-tab screen; without one it's
-        // just the editor. Everything below keys off this single flag, which is
-        // also what `@isset($integration)` used to mean — except the drawing is
-        // now a record of its own, shared with whatever other pages point at it.
-        $hasDiagram = isset($diagram) && $diagram !== null;
-    @endphp
-
     <div class="flex min-h-0 flex-1">
         @isset($pagesNav)
             {{-- Collapsible pages rail (mirrors the flowSpec conversations rail).
@@ -37,7 +29,7 @@
                  literally named `md`. That's why this rail didn't collapse at
                  all until 2026-08-15; the fix lives in toggle.js. --}}
             <aside id="docs-sidebar"
-                   class="flex w-72 shrink-0 flex-col overflow-hidden border-r border-line bg-white transition-[width] duration-200
+                   class="ak-sidebar flex w-72 shrink-0 flex-col overflow-hidden border-r border-line bg-white transition-[width] duration-200
                           max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:-translate-x-full max-md:shadow-xl max-md:transition-transform">
                 {{-- Mobile-only dismiss: the overlay covers the top bar's own
                      toggle button, so without this there'd be nothing left to
@@ -51,7 +43,9 @@
                 </div>
                 <x-documentation.pages-nav :pages="$pagesNav"
                                            :create-page-url="$createPageUrl"
-                                           :title="$notebookLabel" :title-url="$notebookUrl" />
+                                           :title="$notebookLabel"
+                                           :rename-url="$notebookRenameUrl ?? null"
+                                           :can-edit="$notebookEditable ?? false" />
             </aside>
         @endisset
 
@@ -95,108 +89,43 @@
                                                id="docs-sidebar-closed-state" class="hidden max-md:hidden" />
                     @endisset
 
-                    <span class="truncate text-sm font-bold text-ink">{{ $pageLabel }}</span>
+                    {{-- Editable in place. `$titlePage` is only set by the
+                         notebook editor; the diagram's unified page renders the
+                         same bar without one. --}}
+                    @isset($titlePage)
+                        <x-documentation.page-title :notebook="$notebook" :page="$titlePage" />
+                    @else
+                        <span class="truncate text-sm font-bold text-ink">{{ $pageLabel }}</span>
+                    @endisset
                 </div>
 
                 <div class="flex shrink-0 items-center gap-3">
-                    {{-- The page's link to a drawing. Always here, linked or
-                         not: "this page has no diagram" is information, and the
-                         gesture that fixes it has to be reachable from the
-                         page itself — the diagram never claims a page from its
-                         own side. --}}
-                    @isset($diagramAction)
-                        <x-documentation.diagram-link :diagram="$diagram" :options="$diagramOptions" :action="$diagramAction" />
-                    @endisset
-
-                    @if ($hasDiagram)
-                        {{-- Documentação/Diagrama tabs. Segmented control
-                             (existing tabs.js module): switching swaps the two
-                             panels below without leaving the page or losing the
-                             pages rail. The doc-specific actions
-                             (copy/assist/save) live inside the Documentação
-                             panel rather than in this persistent bar — the
-                             canvas has its own Salvar (chain layout) inside
-                             itself, so showing both here would read as two
-                             different "Salvar" buttons stacked on each other.
-
-                             Near-square radius (9px/6px), not a pill: the
-                             approved documentation model's `.doc-tabs`/
-                             `.doc-tab` reserves `rounded-full` for standalone
-                             action buttons (Salvar, Abrir especialista), not
-                             for a tab switcher. tabs.js only toggles the
-                             active/inactive classes below — the base radius
-                             classes are untouched by the state swap. --}}
-                        <div class="flex items-center gap-1 rounded-[9px] bg-raised p-1" role="tablist" aria-label="Documentação ou diagrama">
-                            <x-forms.button type="button" variant="ghost" role="tab" aria-selected="true" tabindex="0"
-                                data-ak-tabs="{{ json_encode(['targetId' => 'page-tab-docs', 'targetContainerId' => 'page-tab-panels', 'activeClasses' => ['!bg-surface', '!text-ink', '!shadow-sm'], 'inactiveClasses' => ['!bg-transparent', '!text-muted', '!shadow-none'], 'selectedOnInit' => true]) }}"
-                                class="!h-8 !gap-1.5 !rounded-md !bg-surface !px-3 !text-xs !font-semibold !text-ink !shadow-sm">
-                                <x-heroicon-o-document-text class="size-4" /> Documentação
-                            </x-forms.button>
-                            <x-forms.button type="button" variant="ghost" role="tab" aria-selected="false" tabindex="-1"
-                                data-ak-tabs="{{ json_encode(['targetId' => 'page-tab-diagram', 'targetContainerId' => 'page-tab-panels', 'activeClasses' => ['!bg-surface', '!text-ink', '!shadow-sm'], 'inactiveClasses' => ['!bg-transparent', '!text-muted', '!shadow-none']]) }}"
-                                class="!h-8 !gap-1.5 !rounded-md !bg-transparent !px-3 !text-xs !font-semibold !text-muted !shadow-none">
-                                <x-heroicon-o-share class="size-4" /> Diagrama
-                            </x-forms.button>
-                        </div>
-                    @else
-                        @include('documentation.partials._actions')
-                    @endif
+                    @include('documentation.partials._actions')
                 </div>
             </div>
 
-            @if ($hasDiagram)
-                {{-- Two tab panels sharing one container id — tabs.js swaps
-                     which one is visible; both stay mounted (the canvas draws
-                     once on load, it shouldn't remount on every tab switch). --}}
-                <div id="page-tab-panels" class="flex min-h-0 flex-1 flex-col">
-                    <div id="page-tab-docs" class="ak-docs-scroll flex min-h-0 flex-1 flex-col overflow-y-auto bg-white">
-                        {{-- Sticky: reads like the page's own top bar even though
-                             it now lives inside this scrollable tab panel — moved
-                             here (from the persistent top bar above) so it's
-                             swapped out for the canvas's own actions the moment
-                             the Diagrama tab is active. --}}
-                        <div class="sticky top-0 z-10 flex items-center justify-end gap-3 border-b border-line bg-white px-3 py-2">
-                            @include('documentation.partials._actions')
-                        </div>
-                        <div class="mx-auto flex w-full max-w-[64rem] gap-8 px-6 py-8 md:px-10">
-                            @include('documentation.partials._reader')
+            {{-- Scrollable content — fills the remaining height. A centered
+                 reading column (GitBook/Medium/Substack) plus an "on this page"
+                 headings navigator on the right (docs-toc.js), even though the
+                 layout is fluid.
 
-                            {{-- "Nesta página" headings navigator (H1/H2). Reads the live
-                                 Editor.js headings while editing, and the .html-content
-                                 permalinks when read-only. Built by docs-toc.js. --}}
-                            <aside data-ak-docs-toc
-                                   class="hidden w-52 shrink-0 self-start xl:sticky xl:top-4 xl:block"></aside>
-                        </div>
-                    </div>
+                 It used to be one of TWO branches: a page with a linked diagram
+                 became a Documentação/Diagrama tab pair with the F3 canvas
+                 mounted beside the text. That link is gone — a page CITES
+                 drawings in its content now (a `diagram` block), which is a
+                 reference rather than a second screen — so there is one shape
+                 again. --}}
+            <div class="ak-docs-scroll min-h-0 flex-1 overflow-y-auto bg-white">
+                <div class="mx-auto flex w-full max-w-[64rem] gap-8 px-6 py-8 md:px-10">
+                    @include('documentation.partials._reader')
 
-                    {{-- The F3 chain canvas — hidden until this tab is
-                         selected, but mounted immediately (not lazily), same as
-                         the Documentação panel above. The workspace takes the
-                         DIAGRAM, not this page: every endpoint the canvas calls
-                         comes from `Diagram::chainUrls()`, so editing the
-                         drawing from here and from its own page are the same
-                         thing. --}}
-                    <div id="page-tab-diagram" class="hidden flex min-h-0 flex-1 flex-col">
-                        <x-diagrams.workspace :diagram="$diagram" />
-                    </div>
+                    {{-- "Nesta página" headings navigator (H1/H2). Reads the live
+                         Editor.js headings while editing, and the .html-content
+                         permalinks when read-only. Built by docs-toc.js. --}}
+                    <aside data-ak-docs-toc
+                           class="hidden w-52 shrink-0 self-start xl:sticky xl:top-4 xl:block"></aside>
                 </div>
-            @else
-                {{-- Scrollable content — fills the remaining height. A centered
-                     reading column (GitBook/Medium/Substack) plus an "on this page"
-                     headings navigator on the right (docs-toc.js), even though the
-                     layout is fluid. --}}
-                <div class="ak-docs-scroll min-h-0 flex-1 overflow-y-auto bg-white">
-                    <div class="mx-auto flex w-full max-w-[64rem] gap-8 px-6 py-8 md:px-10">
-                        @include('documentation.partials._reader')
-
-                        {{-- "Nesta página" headings navigator (H1/H2). Reads the live
-                             Editor.js headings while editing, and the .html-content
-                             permalinks when read-only. Built by docs-toc.js. --}}
-                        <aside data-ak-docs-toc
-                               class="hidden w-52 shrink-0 self-start xl:sticky xl:top-4 xl:block"></aside>
-                    </div>
-                </div>
-            @endif
+            </div>
         </section>
     </div>
 </x-layouts.layout>

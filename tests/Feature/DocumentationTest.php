@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\SyncDiagramFromChain;
 use App\Enums\UserRole;
 use App\Models\Diagram;
 use App\Models\DocumentationPage;
@@ -303,141 +304,6 @@ it('gives the pages rail a working mobile affordance instead of hiding it outrig
         ->and(substr_count($content, 'data-ak-toggle-classes="md:!w-0 md:!border-r-0 max-md:!translate-x-0"'))->toBe(2);
 });
 
-it('offers the diagram picker on a page that has no diagram, and no canvas with it', function () {
-    $notebook = Notebook::factory()->create();
-    $page = notebookPage($notebook, '# Visão geral');
-    Diagram::factory()->create(['name' => 'SAP -> AllStrategy']);
-
-    $content = $this->actingAs(docsAdmin())
-        ->get(route('notebooks.pages.edit', [$notebook, $page]))
-        ->assertOk()
-        ->getContent();
-
-    expect($content)
-        // The picker is always there — "this page has no diagram" is
-        // information, and the gesture that fixes it has to be reachable.
-        // `x-ui.inline-edit` json_encodes its config, which escapes every
-        // slash in the URL — assert the shape that actually reaches the page.
-        ->toContain(str_replace('/', '\\/', route('notebooks.pages.diagram', [$notebook, $page])))
-        ->toContain('Sem diagrama')
-        // Every diagram is a candidate, whether or not this solution is in it.
-        ->toContain('SAP -&gt; AllStrategy')
-        // …but nothing is mounted until one is linked.
-        ->not->toContain('data-ak-chain-viz')
-        ->not->toContain('page-tab-panels');
-});
-
-it('renders the Documentação/Diagrama tabs and mounts the canvas once a page has a diagram', function () {
-    $notebook = Notebook::factory()->create();
-    $page = notebookPage($notebook, '# Visão geral');
-    $diagram = Diagram::factory()->create([
-        'name'  => 'SAP -> AllStrategy',
-        'chain' => ['nodes' => [['solution_id' => $notebook->id, 'label' => null]], 'edges' => []],
-    ]);
-    $page->diagram()->associate($diagram)->save();
-
-    $content = $this->actingAs(docsAdmin())
-        ->get(route('notebooks.pages.edit', [$notebook, $page]))
-        ->assertOk()
-        ->getContent();
-
-    expect($content)
-        ->toContain('page-tab-docs')
-        ->toContain('page-tab-diagram')
-        ->toContain('data-ak-chain-viz')
-        ->toContain('data-ak-chain-graph=')
-        // The canvas posts to the DIAGRAM's own endpoints wherever it is
-        // mounted — the page it was opened from never appears in a chain URL.
-        // The graph payload is json_encoded into an attribute, so its slashes
-        // arrive escaped.
-        ->toContain(str_replace('/', '\\/', route('diagrams.chain.node.add', $diagram)))
-        // The doc-specific actions live inside the Documentação panel,
-        // not the persistent top bar (only one Salvar visible per tab).
-        ->toContain('data-ak-docs-save');
-});
-
-it('marks a page that carries a diagram in the pages rail', function () {
-    $notebook = Notebook::factory()->create();
-    $plain = notebookPage($notebook, '# Sem desenho');
-    $withDiagram = notebookPage($notebook, '# Com desenho');
-    $withDiagram->diagram()->associate(Diagram::factory()->create())->save();
-
-    $content = $this->actingAs(docsAdmin())
-        ->get(route('notebooks.pages.edit', [$notebook, $plain]))
-        ->assertOk()
-        ->getContent();
-
-    // One marker for the one page that has a drawing — the rail is the only
-    // place the whole tree is visible at once.
-    expect(substr_count($content, 'title="Tem diagrama vinculado"'))->toBe(1);
-});
-
-it('lets an admin point a page at a diagram and clear it again', function () {
-    $notebook = Notebook::factory()->create();
-    $page = notebookPage($notebook, '# Visão geral');
-    $diagram = Diagram::factory()->create();
-
-    $this->actingAs(docsAdmin())
-        ->patchJson(route('notebooks.pages.diagram', [$notebook, $page]), ['diagram_id' => $diagram->id])
-        ->assertOk()
-        ->assertJson(['type' => 'success', 'redirect' => route('notebooks.pages.edit', [$notebook, $page])]);
-
-    expect($page->fresh()->diagram_id)->toBe($diagram->id);
-
-    $this->actingAs(docsAdmin())
-        ->patchJson(route('notebooks.pages.diagram', [$notebook, $page]), ['diagram_id' => null])
-        ->assertOk();
-
-    expect($page->fresh()->diagram_id)->toBeNull();
-});
-
-it('forbids a viewer from pointing a page at a diagram', function () {
-    $notebook = Notebook::factory()->create();
-    $page = notebookPage($notebook, '# Visão geral');
-    $diagram = Diagram::factory()->create();
-
-    $this->actingAs(User::factory()->create(['role' => UserRole::Viewer->value]))
-        ->patchJson(route('notebooks.pages.diagram', [$notebook, $page]), ['diagram_id' => $diagram->id])
-        ->assertStatus(403);
-
-    expect($page->fresh()->diagram_id)->toBeNull();
-});
-
-it('lets one diagram serve pages of more than one caderno', function () {
-    $diagram = Diagram::factory()->create(['name' => 'SAP -> AllStrategy']);
-    $first = Notebook::factory()->create(['name' => 'SAP']);
-    $second = Notebook::factory()->create(['name' => 'AllStrategy']);
-    $firstPage = notebookPage($first, '# Lado SAP');
-    $secondPage = notebookPage($second, '# Lado AllStrategy');
-
-    $firstPage->diagram()->associate($diagram)->save();
-    $secondPage->diagram()->associate($diagram)->save();
-
-    expect($diagram->pages()->pluck('id')->all())->toBe([$firstPage->id, $secondPage->id]);
-
-    // …and the diagram's own page names both of them, which is the only place
-    // the 1..N side of the relation is visible.
-    $content = $this->actingAs(docsAdmin())->get(route('diagrams.show', $diagram))->assertOk()->getContent();
-
-    expect($content)
-        ->toContain(route('notebooks.pages.edit', [$first, $firstPage]))
-        ->toContain(route('notebooks.pages.edit', [$second, $secondPage]));
-});
-
-it('keeps a page and its text when the diagram it points at is deleted', function () {
-    $notebook = Notebook::factory()->create();
-    $page = notebookPage($notebook, '# Conteúdo que deu trabalho');
-    $diagram = Diagram::factory()->create();
-    $page->diagram()->associate($diagram)->save();
-
-    $diagram->delete();
-
-    // `nullOnDelete`: deleting a drawing must never take documentation with it.
-    expect($page->fresh())->not->toBeNull()
-        ->and($page->fresh()->diagram_id)->toBeNull()
-        ->and($page->fresh()->documentation)->toBe('# Conteúdo que deu trabalho');
-});
-
 it('lists the solution diagrams as plain links, without the F3 canvas, on the solution page', function () {
     $solution = Solution::factory()->create();
     $diagram = Diagram::factory()->create([
@@ -696,4 +562,74 @@ it('collapses the authenticated rail to the branch being edited', function () {
 
     expect($content)->toMatch('/data-page-id="' . $child->id . '"(?![^>]*\\bhidden\\b)/')
         ->and($content)->toMatch('/data-page-id="' . $hidden->id . '"[^>]*\\bhidden\\b/');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Citing a diagram — the block that replaced the page↔diagram FK
+|--------------------------------------------------------------------------
+*/
+
+it('renders a cited diagram with its name and a link that opens in a new tab', function () {
+    $diagram = Diagram::factory()->create(['name' => 'SAP ↔ SVL']);
+
+    $html = app(GitbookRenderer::class)->render('{% diagram slug="' . $diagram->slug . '" %}');
+
+    expect($html)
+        ->toContain('ak-doc-diagram')
+        ->toContain('SAP ↔ SVL')
+        ->toContain('href="' . route('diagrams.show', $diagram) . '"')
+        // A citation must never cost the reader the page they were on.
+        ->toContain('target="_blank"')
+        ->toContain('rel="noopener"');
+});
+
+it('says the picture is missing rather than dropping the citation', function () {
+    // The PNG is posted by the browser after a layout save, so a drawing nobody
+    // has opened since that feature landed has none. The card still renders —
+    // the link is the point, and a citation that vanished because a DERIVED
+    // file is absent would read as a broken document.
+    $diagram = Diagram::factory()->create();
+
+    expect(app(GitbookRenderer::class)->render('{% diagram slug="' . $diagram->slug . '" %}'))
+        ->toContain('Sem imagem ainda')
+        ->toContain(route('diagrams.show', $diagram));
+});
+
+it('degrades a citation of a deleted diagram instead of breaking the page', function () {
+    $html = app(GitbookRenderer::class)->render("Antes.\n\n{% diagram slug=\"sumiu\" %}\n\nDepois.");
+
+    expect($html)
+        ->toContain('Diagrama removido')
+        ->toContain('sumiu')
+        // The prose around it survives untouched.
+        ->toContain('<p>Antes.</p>')
+        ->toContain('<p>Depois.</p>');
+});
+
+it('groups the diagram catalog by solution, loose drawings last', function () {
+    $solution = Solution::factory()->create(['name' => 'SAP']);
+    $placed = Diagram::factory()->create([
+        'name'  => 'Desenho do SAP',
+        'chain' => ['nodes' => [
+            ['solution_id' => $solution->id, 'label' => null, 'kind' => 'system'],
+            ['solution_id' => null, 'label' => 'Parceiro', 'kind' => 'system'],
+        ], 'edges' => [['from' => 0, 'to' => 1, 'arrow' => '->', 'protocol' => null]]],
+    ]);
+    app(SyncDiagramFromChain::class)->handle($placed);
+
+    Diagram::factory()->create(['name' => 'Só texto livre']);
+
+    $groups = $this->actingAs(docsAdmin())
+        ->getJson(route('diagrams.catalog'))
+        ->assertOk()
+        ->json('groups');
+
+    expect(collect($groups)->firstWhere('solution', 'SAP')['diagrams'])
+        ->toContain(['slug' => $placed->slug, 'name' => 'Desenho do SAP']);
+
+    // A drawing that names no catalog solution is still citable — it lands in
+    // a trailing group of its own rather than being hidden from the picker.
+    expect(end($groups)['solution'])->toBe('Sem solução no catálogo');
+    expect(collect(end($groups)['diagrams'])->pluck('name'))->toContain('Só texto livre');
 });
