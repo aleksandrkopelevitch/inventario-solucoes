@@ -73,12 +73,12 @@ class AttachFlowspecDocuments
             ->whereKey($pageIds)
             ->whereNotNull('documentation')
             ->where('documentation', '<>', '')
-            ->with('container')
+            ->with('notebook')
             ->get();
     }
 
     private function label(DocumentationPage $page): string
     {
-        return "{$page->container->name} — {$page->title}";
+        return "{$page->notebook?->name} — {$page->title}";
     }
 }

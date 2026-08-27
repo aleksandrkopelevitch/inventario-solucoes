@@ -1,10 +1,12 @@
 <?php
 
-use App\Models\DocumentationGroup;
+use App\Enums\ContextExtractionState;
+use App\Enums\FlowspecAttachmentKind;
+use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\FlowspecAttachment;
 use App\Models\FlowspecChat;
-use App\Models\Diagram;
+use App\Models\Notebook;
 use App\Models\Solution;
 use App\Services\Flowspec\FlowspecContextResolver;
 use App\Services\Flowspec\FlowspecPromptBuilder;
@@ -57,7 +59,7 @@ it('falls back to the generic anchor when no tag matches', function () {
 
 it('injects no documentation for a solution merely named in the request', function () {
     $svl = Solution::factory()->create(['name' => 'SVL']);
-    DocumentationPage::factory()->for($svl, 'container')->create(['title' => 'API', 'documentation' => 'como chamar o SVL']);
+    DocumentationPage::factory()->for(notebookFor($svl))->create(['title' => 'API', 'documentation' => 'como chamar o SVL']);
 
     $context = (new FlowspecContextResolver)->resolve(
         FlowspecChat::factory()->create(),
@@ -72,9 +74,9 @@ it('uses exactly the documentation attached to the conversation, in full', funct
     $chat = FlowspecChat::factory()->create();
     $svl = Solution::factory()->create(['name' => 'SVL']);
 
-    $attached = DocumentationPage::factory()->for($svl, 'container')
+    $attached = DocumentationPage::factory()->for(notebookFor($svl))
         ->create(['title' => 'Contrato', 'position' => 1, 'documentation' => str_repeat('endpoint token post ', 200)]);
-    DocumentationPage::factory()->for($svl, 'container')
+    DocumentationPage::factory()->for(notebookFor($svl))
         ->create(['title' => 'Não anexada', 'position' => 2, 'documentation' => 'nunca deveria entrar']);
 
     attachPage($chat, $attached);
@@ -89,7 +91,7 @@ it('uses exactly the documentation attached to the conversation, in full', funct
 
 it('reads an attached page live, so editing the documentation updates the conversation', function () {
     $chat = FlowspecChat::factory()->create();
-    $page = DocumentationPage::factory()->for(Solution::factory()->create(), 'container')
+    $page = DocumentationPage::factory()->for(notebookFor(Solution::factory()->create()))
         ->create(['title' => 'Contrato', 'documentation' => 'versão antiga']);
 
     attachPage($chat, $page);
@@ -101,10 +103,10 @@ it('reads an attached page live, so editing the documentation updates the conver
     expect($context->pages->first()->documentation)->toBe('versão nova, com o endpoint certo');
 });
 
-it('attaches documentation from any container, including a standalone group', function () {
+it('attaches documentation from any caderno, including one linked to no solution', function () {
     $chat = FlowspecChat::factory()->create();
-    $group = DocumentationGroup::factory()->create();
-    $page = DocumentationPage::factory()->for($group, 'container')->create([
+    $notebook = Notebook::factory()->create();
+    $page = DocumentationPage::factory()->for($notebook)->create([
         'title'         => 'Processo transversal',
         'documentation' => 'conteudo do processo',
     ]);
@@ -124,7 +126,7 @@ it('ignores a stored reference to something that is not a page', function () {
     $diagram = Diagram::factory()->create(['name' => 'IAM -> SVL']);
 
     FlowspecAttachment::factory()->for($chat, 'chat')->create([
-        'kind'           => App\Enums\FlowspecAttachmentKind::Document,
+        'kind'           => FlowspecAttachmentKind::Document,
         'label'          => $diagram->name,
         'reference_type' => Diagram::class,
         'reference_id'   => $diagram->id,
@@ -139,7 +141,7 @@ it('ignores a stored reference to something that is not a page', function () {
 
 it('drops a reference whose documentation was emptied after it was attached', function () {
     $chat = FlowspecChat::factory()->create();
-    $page = DocumentationPage::factory()->for(Solution::factory()->create(), 'container')
+    $page = DocumentationPage::factory()->for(notebookFor(Solution::factory()->create()))
         ->create(['title' => 'Contrato', 'documentation' => 'algo']);
 
     attachPage($chat, $page);
@@ -197,10 +199,10 @@ it('leaves a file it could not read out of the prompt entirely', function () {
     $chat = FlowspecChat::factory()->create();
 
     FlowspecAttachment::factory()->for($chat, 'chat')->create([
-        'kind'             => App\Enums\FlowspecAttachmentKind::File,
+        'kind'             => FlowspecAttachmentKind::File,
         'label'            => 'planilha.xlsx',
         'content'          => null,
-        'extraction_state' => App\Enums\ContextExtractionState::Failed,
+        'extraction_state' => ContextExtractionState::Failed,
         'extraction_note'  => 'Não foi possível ler o arquivo.',
         'token_estimate'   => 0,
     ]);
@@ -220,7 +222,9 @@ it('leaves a file it could not read out of the prompt entirely', function () {
 it('suggests documentation for a solution named in the text', function () {
     $svl = Solution::factory()->create(['name' => 'SVL']);
     $iam = Solution::factory()->create(['name' => 'IAM']);
-    $page = DocumentationPage::factory()->for($iam, 'container')->create(['title' => 'Autenticação', 'documentation' => 'x']);
+    $iamDocs = Notebook::factory()->create(['name' => 'IAM']);
+    $iamDocs->solutions()->attach($iam);
+    $page = DocumentationPage::factory()->for($iamDocs)->create(['title' => 'Autenticação', 'documentation' => 'x']);
     // A diagram naming both solutions is deliberately NOT suggested: a drawing
     // has no text to put in the prompt.
     $diagram = Diagram::factory()->create(['name' => 'IAM -> SVL']);
@@ -236,7 +240,7 @@ it('suggests documentation for a solution named in the text', function () {
 it('suggests nothing already attached to the conversation', function () {
     $chat = FlowspecChat::factory()->create();
     $svl = Solution::factory()->create(['name' => 'SVL']);
-    $page = DocumentationPage::factory()->for($svl, 'container')->create(['title' => 'Endpoints', 'documentation' => 'x']);
+    $page = DocumentationPage::factory()->for(notebookFor($svl))->create(['title' => 'Endpoints', 'documentation' => 'x']);
 
     attachPage($chat, $page);
 
@@ -252,9 +256,25 @@ it('suggests nothing for a name that is not in the catalog', function () {
 });
 
 it('matches a solution name regardless of accents and case', function () {
+    // Matching is on the SOLUTION's name; the label is the CADERNO's, which is
+    // how the picker and the attached chips name the same page.
     $solution = Solution::factory()->create(['name' => 'Gestão']);
-    $page = DocumentationPage::factory()->for($solution, 'container')->create(['title' => 'Fluxo', 'documentation' => 'x']);
+    $notebook = Notebook::factory()->create(['name' => 'Gestão']);
+    $notebook->solutions()->attach($solution);
+    $page = DocumentationPage::factory()->for($notebook)->create(['title' => 'Fluxo', 'documentation' => 'x']);
 
     expect((new FlowspecContextResolver)->suggestFor('preciso do GESTAO aqui'))
         ->toBe([['type' => 'page', 'id' => $page->id, 'label' => 'Gestão — Fluxo']]);
+});
+
+it('suggests one page once, even when its caderno documents several of the named systems', function () {
+    // A caderno describing an integration is legitimately linked to both ends
+    // of it; naming both in one sentence must not offer the same page twice.
+    $notebook = Notebook::factory()->create(['name' => 'Integração SAP ↔ SVL']);
+    $notebook->solutions()->attach(Solution::factory()->create(['name' => 'SAP']));
+    $notebook->solutions()->attach(Solution::factory()->create(['name' => 'SVL']));
+    $page = DocumentationPage::factory()->for($notebook)->create(['title' => 'Contrato', 'documentation' => 'x']);
+
+    expect((new FlowspecContextResolver)->suggestFor('como o SAP fala com o SVL?'))
+        ->toBe([['type' => 'page', 'id' => $page->id, 'label' => 'Integração SAP ↔ SVL — Contrato']]);
 });

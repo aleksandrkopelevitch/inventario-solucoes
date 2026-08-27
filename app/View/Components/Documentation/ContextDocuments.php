@@ -2,15 +2,15 @@
 
 namespace App\View\Components\Documentation;
 
-use App\Models\Solution;
+use App\Models\Notebook;
 use App\View\Components\Concerns\Renderable;
 use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
 
 /**
- * List of a Solution's context documents, renderable as an updatable slot
+ * List of a caderno's context documents, renderable as an updatable slot
  * (`context-documents-slot`) — the "Assiste IA" panel displays it and the
- * upload/remove endpoints (SolutionContextDocumentController) return it as
+ * upload/remove endpoints (NotebookContextDocumentController) return it as
  * `updatableSlots` to refresh without reloading the panel.
  */
 class ContextDocuments extends Component
@@ -19,19 +19,19 @@ class ContextDocuments extends Component
 
     public const DOM_ID = 'context-documents-slot';
 
-    public function __construct(public Solution $solution) {}
+    public function __construct(public Notebook $notebook) {}
 
-    public static function slot(Solution $solution): array
+    public static function slot(Notebook $notebook): array
     {
-        return (new static($solution))->toSlot(self::DOM_ID);
+        return (new static($notebook))->toSlot(self::DOM_ID);
     }
 
     public function render(): View
     {
         return view('components.documentation.context-documents', [
             'domId'     => self::DOM_ID,
-            'solution'  => $this->solution,
-            'documents' => $this->solution->getMedia(Solution::CONTEXT_COLLECTION),
+            'notebook'  => $this->notebook,
+            'documents' => $this->notebook->getMedia(Notebook::CONTEXT_COLLECTION),
         ]);
     }
 }

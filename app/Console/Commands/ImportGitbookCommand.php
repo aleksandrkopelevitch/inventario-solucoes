@@ -28,11 +28,12 @@ class ImportGitbookCommand extends Command
         {--space=* : Space id to import (repeatable)}
         {--all : Import every space of the organization}
         {--org= : Organization id, when the token can read more than one}
-        {--group= : Name for the DocumentationGroup (defaults to the space title; single space only)}
+        {--notebook= : Name for the Notebook (defaults to the space title; single space only)}
+        {--group= : Deprecated alias for --notebook, kept so existing invocations keep working}
         {--flat : Import every page as a top-level one carrying its GitBook ancestry in the title, instead of reproducing the nesting}
         {--dry-run : Fetch and report what would be imported, without writing anything}';
 
-    protected $description = 'Import GitBook spaces into standalone documentation groups';
+    protected $description = 'Import GitBook spaces into cadernos (notebooks)';
 
     public function handle(GitbookClient $client, ImportGitbookSpace $import): int
     {
@@ -55,8 +56,12 @@ class ImportGitbookCommand extends Command
                 return self::FAILURE;
             }
 
-            if ($this->option('group') && count($spaces) > 1) {
-                $this->components->error('--group names a single group; use it with exactly one --space.');
+            // `--group` is the pre-Notebook spelling, kept working rather than
+            // broken: the command is run by hand from notes people already have.
+            $notebookName = $this->option('notebook') ?: $this->option('group');
+
+            if ($notebookName && count($spaces) > 1) {
+                $this->components->error('--notebook names a single caderno; use it with exactly one --space.');
 
                 return self::FAILURE;
             }
@@ -64,7 +69,7 @@ class ImportGitbookCommand extends Command
             foreach ($spaces as $spaceId) {
                 $this->report($import->handle(
                     spaceId: $spaceId,
-                    groupName: $this->option('group'),
+                    notebookName: $notebookName,
                     nest: ! $this->option('flat'),
                     dryRun: (bool) $this->option('dry-run'),
                 ));
@@ -160,7 +165,7 @@ class ImportGitbookCommand extends Command
     {
         $this->newLine();
 
-        if (! $report->group) {
+        if (! $report->notebook) {
             $this->components->info(
                 'Dry run · ' . $report->spaceTitle . ' · ' . $report->pageCount() . ' page(s) would be imported'
             );
@@ -171,7 +176,7 @@ class ImportGitbookCommand extends Command
                 $this->line('  <fg=gray>·</> ' . $title);
             }
         } else {
-            $this->components->info($report->spaceTitle . ' → group "' . $report->group->name . '"');
+            $this->components->info($report->spaceTitle . ' → caderno "' . $report->notebook->name . '"');
             $this->components->twoColumnDetail('Pages created', (string) $report->created);
             $this->components->twoColumnDetail('Pages updated', (string) $report->updated);
             $this->components->twoColumnDetail('Assets re-hosted', (string) $report->assets);
@@ -179,7 +184,7 @@ class ImportGitbookCommand extends Command
             if ($report->sections > 0) {
                 $this->components->twoColumnDetail('Sections (empty pages)', (string) $report->sections);
             }
-            $this->line('  <fg=gray>' . route('documentation.groups.show', $report->group) . '</>');
+            $this->line('  <fg=gray>' . route('notebooks.show', $report->notebook) . '</>');
         }
 
         // Not a failure, but the one thing about a nested import an operator

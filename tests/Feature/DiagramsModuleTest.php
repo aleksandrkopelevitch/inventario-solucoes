@@ -1,9 +1,8 @@
 <?php
 
+use App\Actions\SyncDiagramFromChain;
 use App\Enums\UserRole;
 use App\Models\Diagram;
-use App\Models\DocumentationGroup;
-use App\Models\DocumentationPage;
 use App\Models\Solution;
 use App\Models\User;
 use App\Services\DiagramCatalogService;
@@ -50,27 +49,6 @@ it('renders the diagrams index for any authenticated user', function () {
     expect($response->getContent())->not->toContain('@json(');
 });
 
-it('tells a diagram nobody documented from one that has a page', function () {
-    $explained = drawnDiagram(['name' => 'Explicado']);
-    drawnDiagram(['name' => 'Órfão']);
-
-    $solution = Solution::factory()->create(['name' => 'SVL']);
-    $page = DocumentationPage::factory()->for($solution, 'container')->create(['title' => 'Visão geral']);
-    $page->diagram()->associate($explained)->save();
-
-    $content = $this->actingAs(diagramsAdmin())->get(route('diagrams.index'))->assertOk()->getContent();
-
-    expect($content)
-        // The page that explains it, named and linked.
-        ->toContain('Visão geral')
-        ->toContain(route('solutions.docs.page.edit', [$solution, $page]))
-        // …and the gap, said out loud rather than left as absence. This is the
-        // thing the old model could not show at all: an integration's
-        // documentation was a column on the integration itself, so an empty one
-        // looked exactly like any other.
-        ->toContain('Nenhuma página de documentação aponta para este diagrama.');
-});
-
 it('says so when a diagram has never been drawn on', function () {
     // One root block is what `store()` creates. It is an empty canvas, and
     // printing its single node name as a "summary" would read as content.
@@ -85,32 +63,50 @@ it('says so when a diagram has never been drawn on', function () {
         ->assertSee('Canvas ainda em branco');
 });
 
-it('counts drawn and explained separately, because they go missing separately', function () {
-    $drawn = drawnDiagram();
+it('counts drawn and placed separately, because they go missing separately', function () {
+    // Drawn = more than a root block. Placed = names a catalog Solution among
+    // its blocks, which is what lets the ecosystem map reach it. A drawing can
+    // be one without the other: free text is a real drawing that the catalog
+    // cannot place.
+    drawnDiagram();
     Diagram::factory()->create(['chain' => ['nodes' => [['solution_id' => null, 'label' => 'só a raiz']], 'edges' => []]]);
-
-    $solution = Solution::factory()->create();
-    DocumentationPage::factory()->for($solution, 'container')->create()->diagram()->associate($drawn)->save();
 
     $counters = app(DiagramCatalogService::class)->counters();
 
     expect($counters['drawn'])->toBe(['value' => 1, 'total' => 2, 'percent' => 50.0])
-        ->and($counters['explained'])->toBe(['value' => 1, 'total' => 2, 'percent' => 50.0]);
+        ->and($counters['placed']['total'])->toBe(2);
 });
 
-it('filters the index by name, status and whether a page points at it', function () {
-    $documented = drawnDiagram(['name' => 'Alfa', 'status' => 'active']);
-    drawnDiagram(['name' => 'Beta', 'status' => 'deprecated']);
-
+it('filters the index by name, status and whether it reaches the catalog', function () {
+    // `drawnDiagram()` names no Solution, so it is drawn but NOT placed —
+    // this one has to reference a real record to be the placed half.
     $solution = Solution::factory()->create();
-    DocumentationPage::factory()->for($solution, 'container')->create()->diagram()->associate($documented)->save();
+    $placed = Diagram::factory()->create([
+        'name'   => 'Alfa',
+        'status' => 'active',
+        'chain'  => ['nodes' => [
+            ['solution_id' => $solution->id, 'label' => null, 'kind' => 'system'],
+            ['solution_id' => null, 'label' => 'B', 'kind' => 'system'],
+        ], 'edges' => [['from' => 0, 'to' => 1, 'arrow' => '->', 'protocol' => null]]],
+    ]);
+    app(SyncDiagramFromChain::class)->handle($placed);
+    $loose = Diagram::factory()->create([
+        'name'   => 'Beta',
+        'status' => 'deprecated',
+        // Free text only: a real drawing the catalog cannot place.
+        'chain' => ['nodes' => [
+            ['solution_id' => null, 'label' => 'ERP externo'],
+            ['solution_id' => null, 'label' => 'Parceiro'],
+        ], 'edges' => [['from' => 0, 'to' => 1, 'arrow' => '->', 'protocol' => null]]],
+    ]);
+    app(SyncDiagramFromChain::class)->handle($loose);
 
     $names = fn (array $filters) => app(DiagramCatalogService::class)->list($filters)->pluck('name')->all();
 
     expect($names(['search' => 'alf']))->toBe(['Alfa'])
         ->and($names(['status' => 'deprecated']))->toBe(['Beta'])
-        ->and($names(['documented' => 'yes']))->toBe(['Alfa'])
-        ->and($names(['documented' => 'no']))->toBe(['Beta']);
+        ->and($names(['placed' => 'yes']))->toBe(['Alfa'])
+        ->and($names(['placed' => 'no']))->toBe(['Beta']);
 });
 
 it('returns the index slot as JSON when filtering', function () {
@@ -147,26 +143,6 @@ it('mounts the canvas on a diagram\'s own page, with its own endpoints in the pa
         ->toContain($escaped(route('diagrams.picture.store', $diagram)))
         // The name/status pair, edited in place right there.
         ->toContain('id="diagram-meta-slot"');
-});
-
-it('names every page that explains a diagram on its own page, or says there are none', function () {
-    $diagram = drawnDiagram();
-    $group = DocumentationGroup::factory()->create(['name' => 'Integrações Digibee']);
-    $page = DocumentationPage::factory()->for($group, 'container')->create(['title' => 'Fluxo de admissão']);
-
-    $this->actingAs(diagramsAdmin())
-        ->get(route('diagrams.show', $diagram))
-        ->assertOk()
-        ->assertSee('Sem página vinculada');
-
-    $page->diagram()->associate($diagram)->save();
-
-    $this->actingAs(diagramsAdmin())
-        ->get(route('diagrams.show', $diagram))
-        ->assertOk()
-        ->assertSee('Fluxo de admissão')
-        ->assertSee(route('documentation.groups.pages.edit', [$group, $page]), false)
-        ->assertDontSee('Sem página vinculada');
 });
 
 /*

@@ -10,29 +10,15 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\MorphMany;
-use Spatie\MediaLibrary\HasMedia;
-use Spatie\MediaLibrary\InteractsWithMedia;
 
-class Solution extends Model implements HasMedia
+class Solution extends Model
 {
     /** @use HasFactory<SolutionFactory> */
-    use HasFactory, InteractsWithMedia;
-
-    /**
-     * Context documents (PDF/image/text) attached to the Solution and reused
-     * by the Documentation Assistant chat — they feed the LLM generation
-     * (App\Services\Documentation\ContextDocumentResolver). Separate from
-     * the `docs` collection (media embedded in the documentation): these
-     * files never appear in the Markdown, they only go into the model's
-     * prompt.
-     */
-    public const CONTEXT_COLLECTION = 'context_documents';
+    use HasFactory;
 
     protected $fillable = [
         'name',
         'slug',
-        'public_token',
         'description',
         'vendor_company_id',
         'category',
@@ -111,22 +97,6 @@ class Solution extends Model implements HasMedia
         return 'slug';
     }
 
-    public function registerMediaCollections(): void
-    {
-        // Context documents for "Assiste IA" — served by
-        // SolutionContextDocumentController (the `files.show`/MediaController
-        // route only serves the `docs` collection).
-        $this->addMediaCollection(self::CONTEXT_COLLECTION);
-    }
-
-    /** URL of the documentation's public link, or null if not shared. */
-    public function publicDocsUrl(): ?string
-    {
-        return $this->public_token
-            ? route('public.docs.solution', $this->public_token)
-            : null;
-    }
-
     public function vendor(): BelongsTo
     {
         return $this->belongsTo(Company::class, 'vendor_company_id');
@@ -171,16 +141,19 @@ class Solution extends Model implements HasMedia
             ->withTimestamps();
     }
 
-    /** This Solution's documentation page tree (flat, ordered list). */
-    public function pages(): MorphMany
+    /**
+     * The cadernos that document this solution.
+     *
+     * A Solution used to OWN a page tree of its own (`pages()`, a morphMany).
+     * It doesn't any more, and the difference is not cosmetic: documentation is
+     * written once, in a notebook, and read from every solution that notebook
+     * describes. Anything asking "is this solution documented?" goes through
+     * here — `whereHas('notebooks.documentedPages')` — never through a
+     * relation of its own.
+     */
+    public function notebooks(): BelongsToMany
     {
-        return $this->morphMany(DocumentationPage::class, 'container')->orderBy('position');
-    }
-
-    /** Only pages with actual content — used for coverage ("has_docs") and the "no documentation" filter. */
-    public function documentedPages(): MorphMany
-    {
-        return $this->pages()->whereNotNull('documentation')->where('documentation', '<>', '');
+        return $this->belongsToMany(Notebook::class)->orderBy('name');
     }
 
     public function scopeWithDiagramCounts(Builder $query): void
@@ -214,6 +187,9 @@ class Solution extends Model implements HasMedia
             ->when($filters['environment'] ?? null, fn (Builder $q, $v) => $q->where('environment', $v))
             ->when($filters['contract'] ?? null, fn (Builder $q, $v) => $q->where('contract_status', $v))
             ->when($filters['status'] ?? null, fn (Builder $q, $v) => $q->where('status', $v))
-            ->when($filters['undocumented'] ?? null, fn (Builder $q) => $q->whereDoesntHave('documentedPages'));
+            // Documented THROUGH a caderno — a solution owns no pages of its
+            // own since the container swap, so "sem documentação" means every
+            // notebook linked to it is empty (or there are none at all).
+            ->when($filters['undocumented'] ?? null, fn (Builder $q) => $q->whereDoesntHave('notebooks.documentedPages'));
     }
 }

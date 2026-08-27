@@ -2,14 +2,14 @@
 
 namespace App\Services\Documentation;
 
-use App\Models\Solution;
+use App\Models\Notebook;
 use Illuminate\Support\Collection;
 use Laravel\Ai\Files\LocalDocument;
 use Laravel\Ai\Files\LocalImage;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 /**
- * Resolves a Solution's selected context documents (`Solution::CONTEXT_COLLECTION`)
+ * Resolves a caderno's selected context documents (`Notebook::CONTEXT_COLLECTION`)
  * into what a generation prompt actually needs: text files inlined (respecting
  * a character budget), PDFs/images as native attachments (laravel/ai), and
  * everything left out flagged rather than silently dropped. Shared by every
@@ -24,14 +24,14 @@ class ContextDocumentResolver
     private const TEXT_EXTENSIONS = ['txt', 'md', 'csv', 'json', 'yaml', 'yml'];
 
     /** @param  list<int>  $mediaIds */
-    public function resolve(Solution $solution, array $mediaIds): ContextDocumentSet
+    public function resolve(Notebook $notebook, array $mediaIds): ContextDocumentSet
     {
         // Defensive cap (the request doesn't limit media_ids): keeps the first
         // N in collection order and flags the surplus in `omittedContext` —
         // the user selected them explicitly, so they shouldn't vanish without
         // a record (same treatment as `omittedAttachments`).
         $max = (int) config('services.documentation_ai.max_context_documents');
-        $selectedAll = $this->selectedMedia($solution, $mediaIds);
+        $selectedAll = $this->selectedMedia($notebook, $mediaIds);
         $selected = $selectedAll->take($max)->values();
         $omittedContext = $selectedAll->slice($max)->pluck('file_name')->values()->all();
 
@@ -48,11 +48,11 @@ class ContextDocumentResolver
      * @param  list<int>  $ids
      * @return Collection<int, Media>
      */
-    private function selectedMedia(Solution $solution, array $ids): Collection
+    private function selectedMedia(Notebook $notebook, array $ids): Collection
     {
         $ids = array_map(intval(...), $ids);
 
-        return $solution->getMedia(Solution::CONTEXT_COLLECTION)
+        return $notebook->getMedia(Notebook::CONTEXT_COLLECTION)
             ->whereIn('id', $ids)
             ->values();
     }

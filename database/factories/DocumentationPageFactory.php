@@ -3,7 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\DocumentationPage;
-use App\Models\Solution;
+use App\Models\Notebook;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -19,27 +19,24 @@ class DocumentationPageFactory extends Factory
         $title = fake()->unique()->sentence(3);
 
         return [
-            'container_type' => Solution::class,
-            'container_id'   => Solution::factory(),
-            'parent_id'      => null,
-            'title'          => rtrim($title, '.'),
-            'slug'           => Str::slug($title) . '-' . Str::lower(Str::random(4)),
-            'documentation'  => null,
-            'position'       => 0,
+            'notebook_id'   => Notebook::factory(),
+            'parent_id'     => null,
+            'title'         => rtrim($title, '.'),
+            'slug'          => Str::slug($title) . '-' . Str::lower(Str::random(4)),
+            'documentation' => null,
+            'position'      => 0,
         ];
     }
 
     /**
-     * A subpage of `$parent`, in the same container — the only legal nesting
-     * (see DocumentationPage: the tree is two levels deep, and a child always
-     * shares its parent's container).
+     * A subpage of `$parent`, in the same caderno — the only legal nesting (see
+     * DocumentationPage: a child always shares its parent's notebook).
      */
     public function childOf(DocumentationPage $parent): static
     {
         return $this->state(fn () => [
-            'container_type' => $parent->container_type,
-            'container_id'   => $parent->container_id,
-            'parent_id'      => $parent->id,
+            'notebook_id' => $parent->notebook_id,
+            'parent_id'   => $parent->id,
         ]);
     }
 }

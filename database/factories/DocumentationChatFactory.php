@@ -4,7 +4,7 @@ namespace Database\Factories;
 
 use App\Models\DocumentationChat;
 use App\Models\DocumentationPage;
-use App\Models\Solution;
+use App\Models\Notebook;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -20,17 +20,16 @@ class DocumentationChatFactory extends Factory
      */
     public function definition(): array
     {
-        // A page in a Solution is the only shape a chat has now (the Assistant
-        // isn't wired into the standalone-group controller), so it's also the
+        // A page in a caderno is the only shape a chat has, so it is the
         // default rather than something callers have to assemble.
-        $solution = Solution::factory()->create();
-        $page = DocumentationPage::factory()->for($solution, 'container')->create();
+        $notebook = Notebook::factory()->create();
+        $page = DocumentationPage::factory()->for($notebook)->create();
 
         return [
             'user_id'     => User::factory(),
             'target_type' => DocumentationPage::class,
             'target_id'   => $page->id,
-            'solution_id' => $solution->id,
+            'notebook_id' => $notebook->id,
         ];
     }
 }

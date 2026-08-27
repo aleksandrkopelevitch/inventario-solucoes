@@ -10,11 +10,14 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 
 /**
- * Logic shared by the block-based documentation editor (Editor.js) between the
- * two page controllers — a Solution's pages and a standalone group's. Each
- * resolves its own model + route context (save/upload URLs, breadcrumb) and
- * delegates saving the Markdown, uploading media, and assembling the screen to
- * this trait.
+ * Logic for the block-based documentation editor (Editor.js): saving the
+ * Markdown, uploading embedded media, and assembling the screen.
+ *
+ * It is a trait rather than controller methods because it was once shared by
+ * two page controllers, one per kind of container. There is one now
+ * (`NotebookPageController`) — the trait stays because the split it draws is
+ * still the right one: the controller resolves route context, this assembles
+ * the editor.
  */
 trait EditsDocumentation
 {
@@ -23,11 +26,11 @@ trait EditsDocumentation
      * Editor.js; other users see the read-only render (GitbookRenderer),
      * decided client-side via `canEdit`.
      *
-     * `$containerLabel`/`$containerUrl` are what the page BELONGS to — the
-     * Solution, or the standalone group. They title the pages rail and, once
-     * that rail is collapsed, become the "Solução › Página" crumb in the top
-     * bar; the ↗ beside them is the only way back to that record (there is no
-     * back arrow — it pointed at the same place without ever naming it).
+     * `$notebookLabel`/`$notebookUrl` are the caderno the page belongs to.
+     * They title the pages rail and, once that rail is collapsed, become the
+     * "Caderno › Página" crumb in the top bar; the ↗ beside them is the only
+     * way back to that record (there is no back arrow — it pointed at the same
+     * place without ever naming it).
      *
      * @param  array{save: string, upload: string}  $urls
      */
@@ -36,21 +39,21 @@ trait EditsDocumentation
         array $urls,
         string $eyebrow,
         string $pageLabel,
-        string $containerLabel,
-        string $containerUrl,
+        string $notebookLabel,
+        string $notebookUrl,
     ): View {
         $canEdit = request()->user()->can('update', $model);
 
         return view('documentation.edit', [
-            'title'          => $model->documentationTitle(),
-            'eyebrow'        => $eyebrow,
-            'pageLabel'      => $pageLabel,
-            'containerLabel' => $containerLabel,
-            'containerUrl'   => $containerUrl,
-            'saveUrl'        => $urls['save'],
-            'uploadUrl'      => $urls['upload'],
-            'documentation'  => $model->documentation,
-            'canEdit'        => $canEdit,
+            'title'         => $model->documentationTitle(),
+            'eyebrow'       => $eyebrow,
+            'pageLabel'     => $pageLabel,
+            'notebookLabel' => $notebookLabel,
+            'notebookUrl'   => $notebookUrl,
+            'saveUrl'       => $urls['save'],
+            'uploadUrl'     => $urls['upload'],
+            'documentation' => $model->documentation,
+            'canEdit'       => $canEdit,
             // Only users who can't edit receive the already-rendered HTML
             // (the editor builds its own from the raw Markdown client-side).
             'renderedHtml' => $canEdit ? '' : app(GitbookRenderer::class)->render($model->documentation),

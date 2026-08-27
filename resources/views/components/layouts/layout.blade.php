@@ -24,7 +24,8 @@
             ['route' => 'companies.index', 'label' => 'Empresas', 'icon' => 'building-office-2', 'active' => 'companies.*'],
         ],
         'Governança' => [
-            ['route' => 'documentation.index', 'label' => 'Documentação', 'icon' => 'book-open', 'active' => 'documentation.*'],
+            ['route' => 'notebooks.index', 'label' => 'Cadernos', 'icon' => 'book-open', 'active' => 'notebooks.*'],
+            ['route' => 'documentation.index', 'label' => 'Cobertura da documentação', 'icon' => 'chart-bar-square', 'active' => 'documentation.*'],
             ['route' => 'diagrams.index', 'label' => 'Diagramas', 'icon' => 'share', 'active' => 'diagrams.*'],
             ['route' => 'solutions.map', 'label' => 'Mapa do ecossistema', 'icon' => 'globe-alt', 'active' => 'solutions.map'],
             ['route' => 'flowspec.index', 'label' => 'Especialista em Integrações', 'icon' => 'cpu-chip', 'active' => 'flowspec.*'],

@@ -8,22 +8,26 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Spatie\MediaLibrary\InteractsWithMedia;
 
 /**
  * A documentation page (Markdown + GitBook notation), the atomic unit edited by
  * the Editor.js block editor — and, since diagrams stopped carrying prose of
- * their own, the ONLY kind of documentation in this app. A Solution (or a
- * standalone `DocumentationGroup`) has 1..N of them, in a tree up to
- * `MAX_DEPTH` levels deep (five) ordered by `position`. `container` is
- * polymorphic (`Solution` or `DocumentationGroup`).
+ * their own, the ONLY kind of documentation in this app. A `Notebook` has 1..N
+ * of them, in a tree up to `MAX_DEPTH` levels deep (five) ordered by
+ * `position`.
  *
- * A page at ANY level of that tree may point at a `Diagram` (`diagram_id`),
- * which is what replaced the old integration-documentation pairing: the drawing
- * and the text that explains it are separate things that reference each other,
- * so one drawing can be explained from several pages (and therefore from
- * several solutions) instead of being trapped inside one of them.
+ * The owner used to be a polymorphic `container` — a `Solution` or a standalone
+ * `DocumentationGroup` — and it is a plain `notebook_id` now. That collapse is
+ * what let the two duplicate controller families, the two route families and
+ * every `instanceof` branch that turned a page into a URL go away. A page
+ * reaches a Solution the long way round, through `Notebook::solutions()`, and
+ * therefore reaches as many of them as the notebook actually documents.
+ *
+ * A page CITES drawings rather than owning one. `diagram_id` is gone: a page
+ * carries `{% diagram %}` blocks in its text, as many as the prose needs, which
+ * is what a reference actually is. The FK modelled "this page is the page of
+ * that drawing", which was never true of more than a handful of them.
  *
  * The tree's shape is deliberately capped, and both halves of the cap matter:
  *
@@ -31,14 +35,14 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  *   enough to decide a nesting: what has to fit is the whole SUBTREE being
  *   moved, so both checks take the mover's height into account
  *   (`canReceiveChildren()` / `canBeNestedUnder()`).
- * - **A child lives in its parent's container.** Both halves of a nesting are
- *   re-checked on every move (`DocumentationPageService::moveToContainer()`
+ * - **A child lives in its parent's notebook.** Both halves of a nesting are
+ *   re-checked on every move (`DocumentationPageService::moveToNotebook()`
  *   carries the whole subtree along; a child moved on its own is promoted to
  *   a root at the destination), so a page can never be filed under a parent
- *   that belongs to somebody else's solution.
+ *   that belongs to somebody else's caderno.
  *
  * `position` orders a page among its SIBLINGS — the pages sharing its
- * `parent_id` — not among everything in the container, so reading order is a
+ * `parent_id` — not among everything in the notebook, so reading order is a
  * walk of the tree (`DocumentationPageService::tree()`) rather than a plain
  * `orderBy('position')`.
  */
@@ -63,11 +67,10 @@ class DocumentationPage extends Model implements Documentable
     public const MAX_DEPTH = 5;
 
     /**
-     * `parent_id` and `diagram_id` are deliberately absent — like
-     * `container_type`/`container_id` (§ Security: no `$guarded = []`), every
-     * relation this page holds is set through the relation itself
-     * (`parent()->associate()`, `diagram()->associate()`), never
-     * mass-assigned from a request payload.
+     * `parent_id` and `notebook_id` are deliberately absent (§ Security: no
+     * `$guarded = []`) — every relation this page holds is set through the
+     * relation itself (`parent()->associate()`, `notebook()->associate()`),
+     * never mass-assigned from a request payload.
      */
     protected $fillable = [
         'title',
@@ -93,9 +96,10 @@ class DocumentationPage extends Model implements Documentable
         return $this->title;
     }
 
-    public function container(): MorphTo
+    /** The caderno this page belongs to — its one and only owner. */
+    public function notebook(): BelongsTo
     {
-        return $this->morphTo();
+        return $this->belongsTo(Notebook::class);
     }
 
     public function parent(): BelongsTo
@@ -106,18 +110,6 @@ class DocumentationPage extends Model implements Documentable
     public function children(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id')->orderBy('position');
-    }
-
-    /**
-     * The drawing this page explains, if any.
-     *
-     * `belongsTo` and not the other way round: ONE diagram serves 1..N pages,
-     * so the FK lives here. Deleting the diagram leaves the page (and its
-     * text) alone — `nullOnDelete`.
-     */
-    public function diagram(): BelongsTo
-    {
-        return $this->belongsTo(Diagram::class);
     }
 
     /** A page at the top of the tree. */
@@ -173,14 +165,13 @@ class DocumentationPage extends Model implements Documentable
     /**
      * Children go through their own model so Spatie's `deleting` hook runs and
      * their embedded media is cleaned up — same reasoning as
-     * `DocumentationGroup::booted()`. The FK's `cascadeOnDelete` still guards
-     * the rows against a delete that bypasses Eloquent; it just can't delete
-     * files.
+     * `Notebook::booted()`. The FK's `cascadeOnDelete` still guards the rows
+     * against a delete that bypasses Eloquent; it just can't delete files.
      *
      * `children()->get()`, never the `children` property: deleting a whole
-     * container deletes its pages from a MULTI-ROW hydration
-     * (`DocumentationGroup::booted()` maps over `$group->pages`), which is
-     * exactly where strict mode arms — and a lazy load here would 500 the
+     * notebook deletes its pages from a MULTI-ROW hydration
+     * (`Notebook::booted()` maps over its pages), which is exactly where strict
+     * mode arms — and a lazy load here would 500 the
      * delete of any group holding more than one page. An explicit query can't
      * violate anything. A subpage already removed with its parent earlier in
      * that same loop deletes a second time as a no-op (0 rows).

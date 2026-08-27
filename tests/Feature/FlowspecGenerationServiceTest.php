@@ -5,6 +5,7 @@ use App\Models\FlowspecChat;
 use App\Models\FlowspecExample;
 use App\Models\FlowspecGuideline;
 use App\Models\FlowspecMessage;
+use App\Models\Notebook;
 use App\Models\Solution;
 use App\Services\Flowspec\CredentialScrubber;
 use App\Services\Flowspec\DigibeeFlowspecNormalizer;
@@ -169,7 +170,9 @@ it('suggests documentation for a solution the conversational answer names', func
     $this->seed(FlowspecExampleSeeder::class);
 
     $iam = Solution::factory()->create(['name' => 'IAM']);
-    $page = DocumentationPage::factory()->for($iam, 'container')->create(['title' => 'Autenticação', 'documentation' => 'x']);
+    $iamDocs = Notebook::factory()->create(['name' => 'IAM']);
+    $iamDocs->solutions()->attach($iam);
+    $page = DocumentationPage::factory()->for($iamDocs)->create(['title' => 'Autenticação', 'documentation' => 'x']);
 
     $chat = chatWithUserMessage('gera um flowspec de token');
 
@@ -185,7 +188,7 @@ it('does not suggest documents when the loop exhausts attempts on broken JSON', 
     $this->seed(FlowspecExampleSeeder::class);
 
     $iam = Solution::factory()->create(['name' => 'IAM']);
-    DocumentationPage::factory()->for($iam, 'container')->create(['title' => 'Autenticação', 'documentation' => 'x']);
+    DocumentationPage::factory()->for(notebookFor($iam))->create(['title' => 'Autenticação', 'documentation' => 'x']);
 
     // Fenced but invalid JSON across all 3 attempts (max_attempts): $document
     // ends up null WITHOUT being conversational — the text mentions IAM, but

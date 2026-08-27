@@ -1,13 +1,16 @@
 <?php
 
+use App\Actions\Flowspec\AttachFlowspecText;
+use App\Actions\Flowspec\NormalizeReferenceFlowspec;
 use App\Enums\ContextExtractionState;
 use App\Enums\FlowspecAttachmentKind;
 use App\Enums\UserRole;
 use App\Jobs\GenerateFlowspecReply;
+use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\FlowspecAttachment;
 use App\Models\FlowspecChat;
-use App\Models\Diagram;
+use App\Models\Notebook;
 use App\Models\Solution;
 use App\Models\User;
 use App\Services\Flowspec\FlowspecContextResolver;
@@ -16,6 +19,8 @@ use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Laravel\Ai\Files\LocalImage;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 uses(LazilyRefreshDatabase::class);
 
@@ -27,7 +32,7 @@ function attachmentUser(UserRole $role = UserRole::Viewer): User
 function documentedPage(string $title = 'Contrato', string $body = 'POST /colaboradores'): DocumentationPage
 {
     return DocumentationPage::factory()
-        ->for(Solution::factory()->create(['name' => 'SVL']), 'container')
+        ->for(notebookFor(Solution::factory()->create(['name' => 'SVL'])))
         ->create(['title' => $title, 'documentation' => $body]);
 }
 
@@ -196,7 +201,7 @@ it('sends an attached image to the model as an image', function () {
     $context = app(FlowspecContextResolver::class)->resolve($chat, 'gera o pipeline');
 
     expect($context->attachedMeta[0]['kind'])->toBe('image')
-        ->and($context->attachments[0])->toBeInstanceOf(Laravel\Ai\Files\LocalImage::class);
+        ->and($context->attachments[0])->toBeInstanceOf(LocalImage::class);
 });
 
 it('refuses a format it cannot use as context', function () {
@@ -265,7 +270,7 @@ it('removes an attachment and its file from the conversation', function () {
     // The file goes with it: a chat attachment has no audit value once taken
     // back out, and leaving it on disk would be a leak of exactly that.
     $this->assertModelMissing($attachment);
-    expect(Spatie\MediaLibrary\MediaCollections\Models\Media::query()->whereKey($mediaId)->exists())->toBeFalse();
+    expect(Media::query()->whereKey($mediaId)->exists())->toBeFalse();
 });
 
 it('refuses to remove an attachment through another conversation', function () {
@@ -327,13 +332,14 @@ it('ignores a chat parameter on the picker that is not the caller\'s', function 
 |--------------------------------------------------------------------------
 */
 
-it('renders the picker grouped by solution, marking what is already attached', function () {
+it('renders the picker grouped by caderno, marking what is already attached', function () {
     $user = attachmentUser();
     $chat = FlowspecChat::factory()->for($user)->create();
-    $solution = Solution::factory()->create(['name' => 'SVL']);
-    $attached = DocumentationPage::factory()->for($solution, 'container')->create(['title' => 'Contrato', 'documentation' => 'x']);
-    DocumentationPage::factory()->for($solution, 'container')->create(['title' => 'Payloads', 'documentation' => 'y']);
-    DocumentationPage::factory()->for($solution, 'container')->create(['title' => 'Sem conteúdo', 'documentation' => null]);
+    $notebook = Notebook::factory()->create(['name' => 'Integrações SVL']);
+    $notebook->solutions()->attach(Solution::factory()->create(['name' => 'SVL']));
+    $attached = DocumentationPage::factory()->for($notebook)->create(['title' => 'Contrato', 'documentation' => 'x']);
+    DocumentationPage::factory()->for($notebook)->create(['title' => 'Payloads', 'documentation' => 'y']);
+    DocumentationPage::factory()->for($notebook)->create(['title' => 'Sem conteúdo', 'documentation' => null]);
 
     attachPage($chat, $attached);
 
@@ -343,6 +349,9 @@ it('renders the picker grouped by solution, marking what is already attached', f
         ->json('content');
 
     expect($content)
+        ->toContain('Integrações SVL')
+        // The caderno's eyebrow names the systems it documents, which is what
+        // tells two similarly-named imported spaces apart when picking.
         ->toContain('SVL')
         ->toContain('Contrato')
         ->toContain('Payloads')
@@ -352,15 +361,19 @@ it('renders the picker grouped by solution, marking what is already attached', f
 });
 
 it('suggests documentation for a system named in the message being typed', function () {
+    // Matching is on the SOLUTION's name; the label is the CADERNO's, the same
+    // way the picker and the attached chips name it — one naming convention
+    // across all three, so a suggestion and the chip it becomes read alike.
     $user = attachmentUser();
-    $solution = Solution::factory()->create(['name' => 'SVL']);
-    $page = DocumentationPage::factory()->for($solution, 'container')->create(['title' => 'Contrato', 'documentation' => 'x']);
+    $notebook = Notebook::factory()->create(['name' => 'Integrações SVL']);
+    $notebook->solutions()->attach(Solution::factory()->create(['name' => 'SVL']));
+    $page = DocumentationPage::factory()->for($notebook)->create(['title' => 'Contrato', 'documentation' => 'x']);
 
     $this->actingAs($user)
         ->getJson(route('flowspec.documents.suggest', ['q' => 'preciso integrar com o SVL']))
         ->assertOk()
         ->assertJsonPath('suggestions.0.id', $page->id)
-        ->assertJsonPath('suggestions.0.label', 'SVL — Contrato');
+        ->assertJsonPath('suggestions.0.label', 'Integrações SVL — Contrato');
 });
 
 it('suggests nothing for a fragment too short to mean anything', function () {
@@ -374,12 +387,13 @@ it('suggests nothing for a fragment too short to mean anything', function () {
 
 it('offers documentation stored in standalone groups, not only a solution\'s own pages', function () {
     $user = attachmentUser();
-    $group = App\Models\DocumentationGroup::factory()->create(['name' => 'Integrações Digibee']);
-    DocumentationPage::factory()->for($group, 'container')->create(['title' => 'Padrões de retry', 'documentation' => 'x']);
+    $notebook = Notebook::factory()->create(['name' => 'Integrações Digibee']);
+    DocumentationPage::factory()->for($notebook)->create(['title' => 'Padrões de retry', 'documentation' => 'x']);
 
     // Almost every documented page in this inventory lives in an imported
-    // GitBook space (a DocumentationGroup), not under a Solution. A picker that
-    // listed only Solutions offered 4 of 617 pages.
+    // GitBook space, and those spaces link to no solution. A picker that listed
+    // documentation by SOLUTION offered 4 of 617 pages, which is the shape the
+    // container swap removed.
     $content = $this->actingAs($user)
         ->getJson(route('flowspec.attachments.picker'))
         ->assertOk()
@@ -388,11 +402,11 @@ it('offers documentation stored in standalone groups, not only a solution\'s own
     expect($content)->toContain('Integrações Digibee')->toContain('Padrões de retry');
 });
 
-it('attaches a page from a standalone documentation group', function () {
+it('attaches a page from a caderno linked to no solution', function () {
     $user = attachmentUser();
     $chat = FlowspecChat::factory()->for($user)->create();
-    $group = App\Models\DocumentationGroup::factory()->create(['name' => 'Integrações Digibee']);
-    $page = DocumentationPage::factory()->for($group, 'container')->create(['title' => 'Padrões de retry', 'documentation' => 'usar backoff']);
+    $notebook = Notebook::factory()->create(['name' => 'Integrações Digibee']);
+    $page = DocumentationPage::factory()->for($notebook)->create(['title' => 'Padrões de retry', 'documentation' => 'usar backoff']);
 
     $this->actingAs($user)
         ->postJson(route('flowspec.attachments.store', $chat), ['documents' => ["page:{$page->id}"]])
@@ -438,7 +452,7 @@ it('rolls back only the pipelines it backfilled, never a paste of the users', fu
     // …and a pipeline pasted AFTER the change, in a conversation the migration
     // never read. Same kind, same label, same flag — the only three columns the
     // blanket delete looked at.
-    $pasted = app(App\Actions\Flowspec\AttachFlowspecText::class)
+    $pasted = app(AttachFlowspecText::class)
         ->handle($untouched, '{"meta":{},"flowSpec":{"novo":true}}');
 
     expect($pasted->label)->toBe($backfilled->label)
@@ -459,7 +473,7 @@ it('leaves a later identical paste behind, dropping only the row it inserted', f
     $chat->messages()->create([
         'role'    => 'user',
         'content' => 'base',
-        'meta'    => ['reference_flowspec' => app(App\Actions\Flowspec\NormalizeReferenceFlowspec::class)->handle($reference)],
+        'meta'    => ['reference_flowspec' => app(NormalizeReferenceFlowspec::class)->handle($reference)],
     ]);
 
     $migration = require database_path('migrations/2026_08_21_110950_backfill_flowspec_reference_attachments.php');
@@ -469,7 +483,7 @@ it('leaves a later identical paste behind, dropping only the row it inserted', f
 
     // Byte-identical to the backfilled row: nothing distinguishes the two but
     // insertion order, and the older one is necessarily the migration's.
-    $pasted = app(App\Actions\Flowspec\AttachFlowspecText::class)->handle($chat, $reference);
+    $pasted = app(AttachFlowspecText::class)->handle($chat, $reference);
     expect($pasted->content)->toBe($backfilled->content);
 
     $migration->down();

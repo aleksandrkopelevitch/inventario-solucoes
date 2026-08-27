@@ -102,11 +102,11 @@ class FlowspecChatController extends Controller
     }
 
     /**
-     * Search behind the picker panel — documentation pages, from any Solution or
-     * DocumentationGroup. IDs come prefixed (`page:{id}`) because the reference
-     * is stored as a morph pair and `FlowspecDocumentReference` validates that
-     * shape; it used to also carry `diagram:{id}`, back when an integration held
-     * documentation of its own.
+     * Search behind the picker panel — documentation pages, from any caderno.
+     * IDs come prefixed (`page:{id}`) because the reference is stored as a morph
+     * pair and `FlowspecDocumentReference` validates that shape; it used to also
+     * carry `diagram:{id}`, back when an integration held documentation of its
+     * own.
      */
     public function searchDocuments(Request $request): JsonResponse
     {
@@ -122,12 +122,12 @@ class FlowspecChatController extends Controller
             ->whereNotNull('documentation')
             ->where('documentation', '<>', '')
             ->where('title', 'like', "%{$term}%")
-            ->with('container')
+            ->with('notebook:id,name')
             ->limit(8)
             ->get()
             ->map(fn (DocumentationPage $page) => [
                 'id'   => "page:{$page->id}",
-                'name' => "{$page->container->name} — {$page->title}",
+                'name' => "{$page->notebook?->name} — {$page->title}",
                 'meta' => 'Página de documentação',
             ]);
 

@@ -29,15 +29,14 @@
     @endforeach
 
     {{-- 3. What this solution HAS been documented with, in one card: the
-         diagrams it takes part in on the left, its documentation pages on
+         diagrams it takes part in on the left, the cadernos that document it on
          the right. They were two stacked cards until 2026-08-17 — the same
          kind of thing (a list of pages you open to read/edit, both living
          under the same consolidated docs screen), read one under the other as
          if they were unrelated sections.
 
-         Each column stays its OWN updatable slot (`Diagrams` /
-         `Documentation`): creating or deleting on one side must not re-render
-         the other. That's also why the card's chrome (border/shadow/radius)
+         Each column stays its OWN updatable slot (`Diagrams` / `Notebooks`):
+         creating or deleting on one side must not re-render the other. That's also why the card's chrome (border/shadow/radius)
          lives here and not in either component — a slot swap replaces the
          component's root node wholesale, so the frame has to be outside it.
          The divider between the columns is the one exception, carried by the
@@ -45,6 +44,6 @@
     <div class="animate-ak-rise mt-5 grid overflow-hidden rounded-card border border-line bg-surface shadow-card lg:grid-cols-2"
          style="animation-delay: 90ms">
         <x-solutions.diagrams :solution="$solution" />
-        <x-solutions.documentation :solution="$solution" />
+        <x-solutions.notebooks :solution="$solution" />
     </div>
 </x-layouts.layout>

@@ -19,7 +19,7 @@
     <div class="grid gap-3.5 sm:grid-cols-2">
         @foreach ([
             'Desenhados' => ['counter' => $counters['drawn'], 'hint' => 'com mais de um bloco no canvas'],
-            'Explicados' => ['counter' => $counters['explained'], 'hint' => 'com pelo menos uma página vinculada'],
+            'No catálogo' => ['counter' => $counters['placed'], 'hint' => 'que citam ao menos uma solução do catálogo'],
         ] as $label => $card)
             <div class="rounded-card border border-line bg-surface p-5 shadow-card">
                 <div class="flex items-baseline justify-between gap-2">
@@ -55,11 +55,11 @@
             @endforeach
         </x-forms.select>
 
-        <x-forms.select auto name="filter[documented]" data-ak-filters="{{ json_encode($filterBind) }}"
-            class="{{ filled($filters['documented'] ?? null) ? $activeClass : '' }}">
-            <option value="">Documentado ou não</option>
-            <option value="yes" @selected(($filters['documented'] ?? '') === 'yes')>Com página vinculada</option>
-            <option value="no" @selected(($filters['documented'] ?? '') === 'no')>Sem página vinculada</option>
+        <x-forms.select auto name="filter[placed]" data-ak-filters="{{ json_encode($filterBind) }}"
+            class="{{ filled($filters['placed'] ?? null) ? $activeClass : '' }}">
+            <option value="">No catálogo ou não</option>
+            <option value="yes" @selected(($filters['placed'] ?? '') === 'yes')>Com solução</option>
+            <option value="no" @selected(($filters['placed'] ?? '') === 'no')>Sem solução</option>
         </x-forms.select>
 
     </x-ui.filter-bar>

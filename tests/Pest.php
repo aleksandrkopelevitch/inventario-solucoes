@@ -1,9 +1,11 @@
 <?php
 
+use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\FlowspecAttachment;
 use App\Models\FlowspecChat;
-use App\Models\Diagram;
+use App\Models\Notebook;
+use App\Models\Solution;
 use App\Services\Flowspec\FlowspecContext;
 use Tests\TestCase;
 
@@ -80,4 +82,20 @@ function emptyFlowspecContext(): FlowspecContext
 function attachPage(FlowspecChat $chat, DocumentationPage $page): FlowspecAttachment
 {
     return FlowspecAttachment::factory()->for($chat, 'chat')->document($page)->create();
+}
+
+/**
+ * A caderno that documents `$solution` — the indirection every "documentation
+ * about system X" fixture needs now that a Solution owns no pages of its own.
+ *
+ * Pass the same solution twice to get two cadernos about it; pass several
+ * solutions to one call to get the shape the module exists for, one body of
+ * text describing all of them.
+ */
+function notebookFor(Solution ...$solutions): Notebook
+{
+    $notebook = Notebook::factory()->create();
+    $notebook->solutions()->attach(collect($solutions)->pluck('id')->all());
+
+    return $notebook;
 }

@@ -39,7 +39,7 @@
 
             <div class="flex flex-wrap items-center gap-1.5">
                 {{-- Updatable slot: refreshed by context.store/destroy. --}}
-                <x-documentation.context-documents :solution="$solution" />
+                <x-documentation.context-documents :notebook="$notebook" />
 
                 {{-- The file uploads automatically on selection (docs-chat.js) —
                      no separate "Anexar" click, which users kept skipping. The

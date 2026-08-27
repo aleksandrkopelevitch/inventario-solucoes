@@ -134,7 +134,7 @@ it('puts the approved drawing in the promoted documentation page, once', functio
     ])->assertOk();
 
     approve($submission->fresh());
-    $page = $submission->solution->pages()->first();
+    $page = $submission->solution->notebooks()->first()->pages()->first();
 
     expect($page->documentation)->toContain('/files/')
         ->toContain('Arquitetura aprovada (TO BE)')

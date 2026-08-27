@@ -238,9 +238,13 @@ class FlowspecPromptBuilder
         }
 
         $blocks = $context->pages->map(function (DocumentationPage $page) {
-            $solution = $page->container->name;
+            // The caderno names the block. It used to be the owning Solution's
+            // name, which a page no longer has one of — and the caderno is the
+            // more useful heading anyway: it is what the person picking the
+            // page in the attach panel actually saw.
+            $notebook = $page->notebook?->name ?? 'Documentação';
 
-            return "## {$solution} — {$page->title}\n\n{$page->documentation}";
+            return "## {$notebook} — {$page->title}\n\n{$page->documentation}";
         });
 
         // No "omitted by budget" note any more: nothing here was trimmed. The

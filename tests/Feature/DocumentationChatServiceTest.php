@@ -3,6 +3,7 @@
 use App\Models\DocumentationChat;
 use App\Models\DocumentationChatMessage;
 use App\Models\DocumentationPage;
+use App\Models\Notebook;
 use App\Models\Solution;
 use App\Models\User;
 use App\Services\Documentation\ContextDocumentResolver;
@@ -46,7 +47,7 @@ function chatMessageFor(DocumentationPage $page, array $overrides = []): Documen
         'user_id'     => User::factory()->create()->id,
         'target_type' => $page->getMorphClass(),
         'target_id'   => $page->getKey(),
-        'solution_id' => $page->container_id,
+        'notebook_id' => $page->notebook_id,
     ]);
 
     return $chat->messages()->create(array_merge([
@@ -58,8 +59,8 @@ function chatMessageFor(DocumentationPage $page, array $overrides = []): Documen
 }
 
 it('creates documentation from scratch when the page is empty', function () {
-    $solution = Solution::factory()->create();
-    $page = DocumentationPage::factory()->for($solution, 'container')->create(['documentation' => null]);
+    $notebook = Notebook::factory()->create();
+    $page = DocumentationPage::factory()->for($notebook)->create(['documentation' => null]);
 
     $service = fakeChatService("## Objetivo\n\nTexto gerado.\n");
     $reply = $service->generate(chatMessageFor($page));
@@ -72,8 +73,8 @@ it('creates documentation from scratch when the page is empty', function () {
 });
 
 it('extracts a 4-backtick draft block, keeping conversational text separate', function () {
-    $solution = Solution::factory()->create();
-    $page = DocumentationPage::factory()->for($solution, 'container')->create();
+    $notebook = Notebook::factory()->create();
+    $page = DocumentationPage::factory()->for($notebook)->create();
 
     $reply = "Aqui está a documentação revisada.\n\n````\n# Título\n\nTexto.\n````\n";
     $result = fakeChatService($reply)->generate(chatMessageFor($page));
@@ -84,8 +85,8 @@ it('extracts a 4-backtick draft block, keeping conversational text separate', fu
 });
 
 it('preserves a nested 3-backtick code block inside the draft', function () {
-    $solution = Solution::factory()->create();
-    $page = DocumentationPage::factory()->for($solution, 'container')->create();
+    $notebook = Notebook::factory()->create();
+    $page = DocumentationPage::factory()->for($notebook)->create();
 
     $reply = "Pronto.\n\n````\n# Título\n\n```php\necho 1;\n```\n\nmais texto\n````\n";
     $result = fakeChatService($reply)->generate(chatMessageFor($page));
@@ -97,8 +98,8 @@ it('preserves a nested 3-backtick code block inside the draft', function () {
 });
 
 it('leaves draft null for a purely conversational reply', function () {
-    $solution = Solution::factory()->create();
-    $page = DocumentationPage::factory()->for($solution, 'container')->create();
+    $notebook = Notebook::factory()->create();
+    $page = DocumentationPage::factory()->for($notebook)->create();
 
     $result = fakeChatService('Essa integração usa REST síncrono, conforme o protocolo cadastrado.')
         ->generate(chatMessageFor($page));
@@ -108,8 +109,9 @@ it('leaves draft null for a purely conversational reply', function () {
 });
 
 it('includes the requirements checklist in the prompt', function () {
-    $solution = Solution::factory()->create(['environment' => null]);
-    $page = DocumentationPage::factory()->for($solution, 'container')->create();
+    $notebook = Notebook::factory()->create();
+    $notebook->solutions()->attach(Solution::factory()->create(['environment' => null]));
+    $page = DocumentationPage::factory()->for($notebook)->create();
 
     $service = fakeChatService('# ok');
     $service->generate(chatMessageFor($page));
@@ -118,8 +120,8 @@ it('includes the requirements checklist in the prompt', function () {
 });
 
 it('includes the conversation history in the prompt', function () {
-    $solution = Solution::factory()->create();
-    $page = DocumentationPage::factory()->for($solution, 'container')->create();
+    $notebook = Notebook::factory()->create();
+    $page = DocumentationPage::factory()->for($notebook)->create();
     $first = chatMessageFor($page, ['content' => 'Descreva a integração.']);
     $first->chat->messages()->create(['role' => 'assistant', 'content' => 'Pronto, descrevi a integração.']);
     $second = $first->chat->messages()->create(['role' => 'user', 'content' => 'Agora adicione uma seção de erros.']);
@@ -137,8 +139,8 @@ it('sends the full existing content to the model without truncating', function (
     // The draft replaces the whole page in the editor, so the current content
     // can't be cut off — the model needs to see everything to rewrite without
     // losing the tail. A marker at the end proves nothing was discarded.
-    $solution = Solution::factory()->create();
-    $page = DocumentationPage::factory()->for($solution, 'container')->create();
+    $notebook = Notebook::factory()->create();
+    $page = DocumentationPage::factory()->for($notebook)->create();
 
     $existing = str_repeat('a', 500000) . 'MARCADOR_FINAL';
 
@@ -149,8 +151,8 @@ it('sends the full existing content to the model without truncating', function (
 });
 
 it('uses the existing content passed on the message', function () {
-    $solution = Solution::factory()->create();
-    $page = DocumentationPage::factory()->for($solution, 'container')->create([
+    $notebook = Notebook::factory()->create();
+    $page = DocumentationPage::factory()->for($notebook)->create([
         'documentation' => '# Conteúdo antigo (irrelevante — a mensagem carrega o snapshot)',
     ]);
 
@@ -165,14 +167,14 @@ it('uses the existing content passed on the message', function () {
 it('omits native attachments beyond the aggregate byte budget', function () {
     Storage::fake('public');
     config()->set('services.documentation_ai.max_attachment_bytes', 3000);
-    $solution = Solution::factory()->create();
-    $page = DocumentationPage::factory()->for($solution, 'container')->create();
+    $notebook = Notebook::factory()->create();
+    $page = DocumentationPage::factory()->for($notebook)->create();
 
     // Real PDFs (~2KB each, magic bytes so the mime sniffs as application/pdf,
     // not text/*): the first fits (2009 <= 3000), the second blows past the cap.
     $pdf = "%PDF-1.4\n" . str_repeat("\x00", 2000);
-    $first = $solution->addMediaFromString($pdf)->usingFileName('a.pdf')->toMediaCollection(Solution::CONTEXT_COLLECTION);
-    $second = $solution->addMediaFromString($pdf)->usingFileName('b.pdf')->toMediaCollection(Solution::CONTEXT_COLLECTION);
+    $first = $notebook->addMediaFromString($pdf)->usingFileName('a.pdf')->toMediaCollection(Notebook::CONTEXT_COLLECTION);
+    $second = $notebook->addMediaFromString($pdf)->usingFileName('b.pdf')->toMediaCollection(Notebook::CONTEXT_COLLECTION);
 
     $service = fakeChatService('# ok');
     $reply = $service->generate(chatMessageFor($page, ['context_media_ids' => [$first->id, $second->id]]));
@@ -186,12 +188,12 @@ it('sends no context documents when the user unchecked all of them', function ()
     // The panel's checkboxes come checked by default, so `[]` only happens
     // when the user unchecked all of them — it can't mean "all".
     Storage::fake('public');
-    $solution = Solution::factory()->create();
-    $page = DocumentationPage::factory()->for($solution, 'container')->create();
+    $notebook = Notebook::factory()->create();
+    $page = DocumentationPage::factory()->for($notebook)->create();
 
-    $solution->addMediaFromString('conteúdo que NÃO deve ir ao modelo')
+    $notebook->addMediaFromString('conteúdo que NÃO deve ir ao modelo')
         ->usingFileName('notas.txt')
-        ->toMediaCollection(Solution::CONTEXT_COLLECTION);
+        ->toMediaCollection(Notebook::CONTEXT_COLLECTION);
 
     $service = fakeChatService('# ok');
     $reply = $service->generate(chatMessageFor($page, ['context_media_ids' => []]));
@@ -203,13 +205,13 @@ it('sends no context documents when the user unchecked all of them', function ()
 
 it('inlines a selected text context document into the prompt', function () {
     Storage::fake('public');
-    $solution = Solution::factory()->create();
-    $page = DocumentationPage::factory()->for($solution, 'container')->create();
+    $notebook = Notebook::factory()->create();
+    $page = DocumentationPage::factory()->for($notebook)->create();
 
-    $media = $solution
+    $media = $notebook
         ->addMediaFromString('SEGREDO: a ordem importa, BP antes do SVL')
         ->usingFileName('notas.txt')
-        ->toMediaCollection(Solution::CONTEXT_COLLECTION);
+        ->toMediaCollection(Notebook::CONTEXT_COLLECTION);
 
     $service = fakeChatService('# ok');
     $service->generate(chatMessageFor($page, ['context_media_ids' => [$media->id]]));

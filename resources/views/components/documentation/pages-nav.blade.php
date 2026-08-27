@@ -10,17 +10,19 @@
      unique. Recursing instead would either duplicate those ids or need a
      counter threaded through the recursion. --}}
 <div id="{{ $domId }}" class="flex w-72 flex-1 flex-col overflow-hidden">
-    {{-- The rail is titled with what it documents — the solution (or group) —
-         not with the generic word "Páginas": inside a solution's docs, every
-         page in the list is already a page, and the one thing the screen never
-         said was WHOSE they are. The ↗ opens that record's own page, the same
-         split as everywhere else in the app (words read, icon travels). --}}
+    {{-- The rail is titled with the caderno it lists, and the title is where
+         that caderno gets RENAMED — no ↗ beside it. The icon used to link to
+         `notebooks.show`, which resolves to the first page of this very
+         caderno: from in here it pointed at the screen already on display. A
+         caderno is its own page, so the one useful gesture on its name is
+         editing it. --}}
     <div class="flex items-center justify-between gap-2 border-b border-line px-3 py-2.5">
-        <span class="flex min-w-0 items-center gap-1.5">
-            <span class="truncate text-[11px] font-bold uppercase tracking-[0.12em] text-faint">{{ $title }}</span>
-            @if ($titleUrl)
-                <x-ui.external-link :href="$titleUrl" :label="$title" class="text-faint" />
-            @endif
+        <span class="flex min-w-0 items-center gap-2">
+            <x-heroicon-o-book-open class="size-4 shrink-0 text-accent" />
+            <x-ui.inline-edit :action="$renameUrl" name="name" :value="$title"
+                              label="Nome do caderno" :editable="$canEdit" class="min-w-0 flex-1">
+                <span class="truncate text-[11px] font-bold uppercase tracking-[0.12em] text-ink">{{ $title }}</span>
+            </x-ui.inline-edit>
         </span>
         <x-forms.button type="button" variant="ghost" data-ak-toggle="doc-new-page-form" data-ak-toggle-classes="hidden"
             class="!h-7 !w-7 !p-0" aria-label="Nova página" title="Nova página">
@@ -28,7 +30,7 @@
         </x-forms.button>
     </div>
 
-    <div class="min-h-0 flex-1 overflow-y-auto p-2">
+    <div class="ak-sidebar-scroll min-h-0 flex-1 overflow-y-auto p-2">
         <form id="doc-new-page-form" class="hidden mb-2 flex gap-1.5">
             @csrf
             <x-forms.input name="title" placeholder="Título da página" class="!text-xs" autofocus />
@@ -37,7 +39,9 @@
             </x-forms.button>
         </form>
 
-        <ul class="flex flex-col gap-0.5">
+        {{-- `data-ak-docs-tree` is the container docs-tree.js resolves with
+             closest() — without it every toggle in here is a silent no-op. --}}
+        <ul data-ak-docs-tree class="flex flex-col gap-0.5">
             @foreach ($pages as $page)
                 @php ($i = $loop->index)
                 {{-- One indent step per level, each hanging off a guide line,
@@ -52,7 +56,15 @@
                      12px would eat a third of a 288px rail, and what has to
                      survive is the title, not the ceremony. --}}
                 @php ($depth = (int) ($page['depth'] ?? 0))
-                <li @class([
+                {{-- The row carries the tree state (docs-tree.js): a branch
+                     loads open only along the path to the page being read, so a
+                     133-page caderno opens as an index instead of a wall. --}}
+                <li data-ak-docs-tree-item
+                    data-page-id="{{ $page['id'] }}"
+                    data-parent-id="{{ $page['parentId'] ?? '' }}"
+                    data-expanded="{{ ($page['expanded'] ?? false) ? 'true' : 'false' }}"
+                    @class([
+                    'hidden' => ! ($page['visible'] ?? true),
                     'ml-3 border-l border-line pl-1.5' => $depth === 1,
                     'ml-6 border-l border-line pl-1.5' => $depth === 2,
                     'ml-8 border-l border-line pl-1.5' => $depth === 3,
@@ -63,6 +75,22 @@
                         'bg-accent-soft' => $page['active'],
                         'hover:bg-raised' => ! $page['active'],
                     ])>
+                        {{-- Chevron before the title, outside the link: opening
+                             a branch and opening a page are two gestures, and a
+                             single clickable row would have to guess. A leaf
+                             keeps the same indent via the spacer, so titles
+                             stay aligned down a level. --}}
+                        @if ($page['hasChildren'] ?? false)
+                            <button type="button" data-ak-docs-tree-toggle
+                                    aria-expanded="{{ ($page['expanded'] ?? false) ? 'true' : 'false' }}"
+                                    class="group/chev -ml-0.5 shrink-0 cursor-pointer rounded p-0.5 text-faint transition-colors hover:text-ink"
+                                    aria-label="Mostrar ou ocultar sub-páginas de {{ $page['title'] }}">
+                                <x-heroicon-o-chevron-right class="size-3.5 transition-transform duration-150 group-aria-expanded/chev:rotate-90" />
+                            </button>
+                        @else
+                            <span class="w-3.5 shrink-0" aria-hidden="true"></span>
+                        @endif
+
                         <a href="{{ $page['editUrl'] }}" @class([
                             'min-w-0 flex-1 truncate transition-colors',
                             'text-sm' => $depth === 0,
@@ -73,19 +101,6 @@
                         ])>
                             {{ $page['title'] }}
                         </a>
-
-                        {{-- A page that also carries a drawing says so right
-                             here, at whatever level it sits: the link is the
-                             module's whole point, and the rail is the only
-                             place the tree is visible as a tree. Hidden on
-                             hover, where the row's action buttons take over the
-                             same strip. --}}
-                        @if ($page['hasDiagram'] ?? false)
-                            <span title="Tem diagrama vinculado" aria-label="Tem diagrama vinculado"
-                                class="shrink-0 text-accent transition-opacity group-hover:opacity-0">
-                                <x-heroicon-o-share class="size-3.5" />
-                            </span>
-                        @endif
 
                         <div class="flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100">
                             <x-forms.button type="button" variant="ghost" data-ak-ajax="doc-page-move-up-{{ $i }}" data-ak-action="{{ $page['moveUrl'] }}"
@@ -156,7 +171,7 @@
                         @endif
 
                         @if (! empty($page['destinations'] ?? []))
-                            <x-forms.button type="button" variant="ghost" data-ak-toggle="doc-page-container-{{ $i }}" data-ak-toggle-classes="hidden"
+                            <x-forms.button type="button" variant="ghost" data-ak-toggle="doc-page-notebook-{{ $i }}" data-ak-toggle-classes="hidden"
                                 class="!justify-start !px-2 !py-1 !text-xs">
                                 <x-heroicon-o-arrow-right-circle class="size-3.5" /> Mover para…
                             </x-forms.button>
@@ -211,26 +226,26 @@
                         </form>
                     @endif
 
-                    {{-- Re-file the page under another solution or group. The
-                         current container is already absent from the options
-                         (destinationsFor()), so every choice here is a real
-                         move; confirming navigates to the page's new url. A
-                         parent takes its subpages along; a subpage moved on its
-                         own lands as a top-level page at the destination. --}}
+                    {{-- Re-file the page under another caderno. The current one
+                         is already absent from the options (destinationsFor()),
+                         so every choice here is a real move; confirming
+                         navigates to the page's new url. A parent takes its
+                         subpages along; a subpage moved on its own lands as a
+                         top-level page at the destination.
+
+                         A flat list since cadernos became the one container —
+                         it was two `<optgroup>`s while a destination could be
+                         either a solution or a standalone group. --}}
                     @if (! empty($page['destinations'] ?? []))
-                        <form id="doc-page-container-{{ $i }}" class="hidden ml-2 mt-1 flex gap-1.5">
+                        <form id="doc-page-notebook-{{ $i }}" class="hidden ml-2 mt-1 flex gap-1.5">
                             @csrf
                             @method('PATCH')
-                            <x-forms.select name="container" class="!text-xs" aria-label="Mover a página para">
-                                @foreach ($page['destinations'] as $optgroup => $options)
-                                    <optgroup label="{{ $optgroup }}">
-                                        @foreach ($options as $option)
-                                            <option value="{{ $option['value'] }}">{{ $option['label'] }}</option>
-                                        @endforeach
-                                    </optgroup>
+                            <x-forms.select name="notebook" class="!text-xs" aria-label="Mover a página para">
+                                @foreach ($page['destinations'] as $option)
+                                    <option value="{{ $option['value'] }}">{{ $option['label'] }}</option>
                                 @endforeach
                             </x-forms.select>
-                            <x-forms.button data-ak-ajax="doc-page-container-{{ $i }}" data-ak-action="{{ $page['containerUrl'] }}" class="!h-8 !shrink-0 !px-2.5 !text-xs">
+                            <x-forms.button data-ak-ajax="doc-page-notebook-{{ $i }}" data-ak-action="{{ $page['notebookUrl'] }}" class="!h-8 !shrink-0 !px-2.5 !text-xs">
                                 Mover
                             </x-forms.button>
                         </form>

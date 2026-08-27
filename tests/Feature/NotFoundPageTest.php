@@ -20,7 +20,7 @@ it('serves a branded, self-contained 404 to an unauthenticated visitor with a de
     // The one unauthenticated surface in the app: a partner opening an
     // expired/revoked/mistyped magic link used to get Laravel's generic
     // unbranded 404 with no idea how to get a working one.
-    $content = $this->get(route('public.docs.solution', ['token' => 'nao-existe']))
+    $content = $this->get(route('public.docs.notebook', ['token' => 'nao-existe']))
         ->assertNotFound()
         ->getContent();
 

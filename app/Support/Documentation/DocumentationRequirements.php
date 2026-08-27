@@ -14,22 +14,29 @@ use Illuminate\Support\Str;
  * chat AND fed into its prompt, so it never needs to ask about something it can
  * already tell. Never blocks Salvar; purely informational.
  *
- * Only one shape now: a `DocumentationPage` whose `container` is a `Solution`.
  * The "hosting model / criticality / directorate" items are `source:
- * attribute` — already known from the Solution's record, so they're reported as
+ * attribute` — already known from a Solution's record, so they're reported as
  * facts, never as gaps the user should fill in the chat — plus a few
  * best-effort content checks (keyword presence in the Markdown: honest, not a
- * quality judgment), plus the drawing when the page points at one.
+ * quality judgment).
+ *
+ * There used to be a "drawing is actually drawn" item, read off the page's
+ * `diagram_id`. A page cites drawings in its text now, so there is no one
+ * drawing to check — and checking every cited one would put the checklist in
+ * the business of auditing other records.
+ *
+ * Those attribute facts reach a Solution THROUGH the caderno
+ * (`Notebook::solutions()`), which changes the shape in two ways worth knowing:
+ * a caderno may describe SEVERAL solutions, in which case every one of them is
+ * reported and each label says whose fact it is ("Hospedagem · GCP") — a fact
+ * printed without its owner is worse than no fact; and a caderno may describe
+ * NONE, in which case only the content checks are reported, which is the same
+ * "quando for o caso" rule a standalone group always had.
  *
  * There used to be a second shape for an `Integration`, checking its
  * protocol/sync mode/participants and whether its chain had anything drawn on
  * it. Those are a diagram's properties, and a diagram no longer carries
- * documentation for a checklist to sit beside — what survives of it is the one
- * item below that reads the LINKED diagram.
- *
- * Returns `[]` for anything else (a page under a standalone
- * DocumentationGroup has no Solution to pull attributes from) — this is the
- * "quando for o caso" (when applicable) rule.
+ * documentation for a checklist to sit beside.
  */
 class DocumentationRequirements
 {
@@ -38,66 +45,56 @@ class DocumentationRequirements
     {
         $content = (string) ($content ?? ($target->documentation ?? ''));
 
-        return $target instanceof DocumentationPage && $target->container instanceof Solution
-            ? self::forSolutionPage($target, $content)
+        return $target instanceof DocumentationPage
+            ? self::forPage($target, $content)
             : [];
+    }
+
+    /**
+     * Attribute facts for every solution the page's caderno documents, then the
+     * drawing, then the content checks.
+     *
+     * @return list<array{key: string, label: string, satisfied: bool, source: string, value?: string}>
+     */
+    private static function forPage(DocumentationPage $page, string $content): array
+    {
+        $solutions = $page->notebook?->solutions ?? collect();
+        $items = [];
+
+        // Suffixed with the solution's name only when there is more than one to
+        // tell apart — "Hospedagem · GCP" is clarifying when three systems are
+        // listed and noise when one is.
+        $qualify = $solutions->count() > 1;
+
+        foreach ($solutions as $solution) {
+            foreach (self::attributesOf($solution) as $attr) {
+                $items[] = [
+                    'key'       => $qualify ? "{$attr['key']}:{$solution->id}" : $attr['key'],
+                    'label'     => $qualify ? "{$attr['label']} · {$solution->name}" : $attr['label'],
+                    'satisfied' => $attr['value'] !== null,
+                    'source'    => 'attribute',
+                    'value'     => AttributeOption::labelFor($attr['group'], $attr['value']),
+                ];
+            }
+        }
+
+        return [...$items, ...self::contentItems($content)];
     }
 
     /**
      * `category`/`status`/`support_type` are NOT NULL columns on `solutions`
      * (always set), so they'd never actually flag a gap — only the genuinely
-     * optional attributes are worth checking here (`environment` is the exact
-     * "SaaS / on-premises / SaaS interno" example this checklist exists for).
+     * optional attributes are worth checking here.
      *
-     * @return list<array{key: string, label: string, satisfied: bool, source: string, value?: string}>
+     * @return list<array{key: string, label: string, group: string, value: string|null}>
      */
-    private static function forSolutionPage(DocumentationPage $page, string $content): array
+    private static function attributesOf(Solution $solution): array
     {
-        $solution = $page->container;
-
-        $attributes = [
+        return [
             ['key' => 'environment', 'label' => 'Hospedagem', 'group' => 'environment', 'value' => $solution->environment],
             ['key' => 'criticality', 'label' => 'Criticidade', 'group' => 'criticality', 'value' => $solution->criticality],
             ['key' => 'directorate', 'label' => 'Diretoria responsável', 'group' => 'directorate', 'value' => $solution->directorate],
         ];
-
-        $items = array_map(fn (array $attr) => [
-            'key'       => $attr['key'],
-            'label'     => $attr['label'],
-            'satisfied' => $attr['value'] !== null,
-            'source'    => 'attribute',
-            'value'     => AttributeOption::labelFor($attr['group'], $attr['value']),
-        ], $attributes);
-
-        return [...$items, ...self::diagramItems($page), ...self::contentItems($content)];
-    }
-
-    /**
-     * The linked drawing, and ONLY when there is one.
-     *
-     * Not every page documents a flow, so an always-present "tem diagrama" row
-     * would report a gap on most pages that have none to have. A page that DOES
-     * point at a diagram and finds it still holding only its root block is a
-     * real gap, and the one this reports.
-     *
-     * @return list<array{key: string, label: string, satisfied: bool, source: string}>
-     */
-    private static function diagramItems(DocumentationPage $page): array
-    {
-        if ($page->diagram_id === null) {
-            return [];
-        }
-
-        // `diagram_id` is checked first so this only ever loads the relation for
-        // a page that actually has one.
-        $nodes = $page->diagram?->chain['nodes'] ?? [];
-
-        return [[
-            'key'       => 'diagram',
-            'label'     => 'Diagrama vinculado desenhado',
-            'satisfied' => count($nodes) > 1,
-            'source'    => 'structural',
-        ]];
     }
 
     /** Best-effort, keyword-based content checks. */

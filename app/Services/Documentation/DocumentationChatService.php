@@ -3,7 +3,7 @@
 namespace App\Services\Documentation;
 
 use App\Models\DocumentationChatMessage;
-use App\Models\Solution;
+use App\Models\Notebook;
 use App\Support\Documentation\DocumentationRequirements;
 use Laravel\Ai\Responses\AgentResponse;
 
@@ -32,22 +32,22 @@ class DocumentationChatService
         // The job dispatches a freshly deserialized model (SerializesModels)
         // with no relations loaded — strict mode doesn't arm the guard on a
         // single fetch, so the eager load is explicit (see AGENTS.md).
-        $userMessage->loadMissing(['chat.target', 'chat.solution']);
+        $userMessage->loadMissing(['chat.target', 'chat.notebook.solutions']);
 
         $chat = $userMessage->chat;
         $target = $chat->target;
-        /** @var Solution $solution */
-        $solution = $chat->solution;
+        /** @var Notebook $notebook */
+        $notebook = $chat->notebook;
 
         $history = $chat->messages()->where('id', '<', $userMessage->id)->get();
 
         $requirements = DocumentationRequirements::for($target, $userMessage->existing_content);
 
-        $contextDocs = $this->contextDocs->resolve($solution, $userMessage->context_media_ids ?? []);
+        $contextDocs = $this->contextDocs->resolve($notebook, $userMessage->context_media_ids ?? []);
 
         $userPrompt = $this->prompts->userPrompt(
             $target,
-            $solution,
+            $notebook,
             $userMessage->existing_content,
             $history,
             $userMessage->content,

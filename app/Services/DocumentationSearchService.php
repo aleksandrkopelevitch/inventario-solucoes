@@ -3,17 +3,16 @@
 namespace App\Services;
 
 use App\Models\DocumentationPage;
+use App\Models\Notebook;
 use App\Support\GitbookRenderer;
 use DOMDocument;
 use DOMElement;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * Turns a documentation container (a `Solution`, or a standalone
- * `DocumentationGroup`) into a searchable, faceted DATASET — the corpus behind
- * the command palette on the public "magic link" documentation.
+ * Turns a `Notebook` into a searchable, faceted DATASET — the corpus behind the
+ * search panel on the public "magic link" documentation.
  *
  * ## Sub-page granularity, with no overlap
  *
@@ -40,8 +39,8 @@ use Illuminate\Support\Facades\Cache;
  * 132 pages / 2 MB), so it never happens on a visitor's request twice:
  *
  * - **per page**, keyed by a hash of that page's own content — editing one
- *   page re-renders that one page, not the container;
- * - **per container**, keyed by the sequence of those page keys, in tree
+ *   page re-renders that one page, not the whole caderno;
+ * - **per notebook**, keyed by the sequence of those page keys, in tree
  *   order — so an added, edited, renamed, moved or deleted page produces a new
  *   key on its own. Nothing has to remember to flush anything.
  *
@@ -68,6 +67,22 @@ class DocumentationSearchService
      */
     public const TAGS = ['table', 'code', 'image', 'callout', 'file', 'diagram'];
 
+    /**
+     * WHERE a query looks, as opposed to what it narrows to.
+     *
+     * `TAGS` above answers "show me results that CONTAIN a table". These answer
+     * "search INSIDE tables and nowhere else" — a different question, and the
+     * one that turns the corpus into something you can interrogate: a column
+     * name lives in tables, an env var lives in code blocks, and a policy lives
+     * in prose. Searching all three at once buries whichever you meant.
+     *
+     * Every entry's text is bucketed into exactly these three at index time, so
+     * a scope costs nothing at query time beyond concatenating the buckets that
+     * are on. `prose` is the catch-all: anything that is not a table or a code
+     * block, headings included.
+     */
+    public const SCOPES = ['prose', 'table', 'code'];
+
     /** Characters of context kept on each side of the first hit in a snippet. */
     private const SNIPPET_RADIUS = 80;
 
@@ -75,7 +90,16 @@ class DocumentationSearchService
     private const SNIPPET_LENGTH = 240;
 
     /** Bumped whenever the entry shape changes — old cache entries then simply miss. */
-    private const VERSION = 'v2';
+    // v3 was the container swap (the key hashed the container's CLASS, so a
+    // notebook could collide with whatever id its old container had). v4 is the
+    // `diagram` facet moving from a per-page column to a per-section needle in
+    // the rendered HTML — same key inputs would otherwise return entries tagged
+    // by a column that no longer exists. Old entries expire on their own TTL;
+    // nothing reads them again.
+    // v5: entries gained their per-scope text buckets (`scopes`/`foldScopes`).
+    // A cached v4 entry has none, and `inScope()` would narrow every search to
+    // an empty haystack — silently, since an empty bucket is a legal state.
+    private const VERSION = 'v5';
 
     /**
      * Accent folding, one character in for one character out, so a character
@@ -101,13 +125,13 @@ class DocumentationSearchService
     }
 
     /**
-     * The container's whole corpus, in reading order.
+     * The notebook's whole corpus, in reading order.
      *
      * @return array<int, array<string, mixed>>
      */
-    public function index(Model $container): array
+    public function index(Notebook $notebook): array
     {
-        [$key, $tree] = $this->indexKey($container);
+        [$key, $tree] = $this->indexKey($notebook);
 
         return Cache::remember($key, now()->addDays(7), fn (): array => $this->build($tree));
     }
@@ -123,13 +147,13 @@ class DocumentationSearchService
      * that cost in the background instead of in time-to-first-paint, and every
      * visit after it renders the chips inline.
      */
-    public function isWarm(Model $container): bool
+    public function isWarm(Notebook $notebook): bool
     {
-        return Cache::has($this->indexKey($container)[0]);
+        return Cache::has($this->indexKey($notebook)[0]);
     }
 
     /**
-     * The cache key for a container's index, plus the tree it was derived from
+     * The cache key for a notebook's index, plus the tree it was derived from
      * (so a caller that goes on to build doesn't query for it twice).
      *
      * One query for the tree, and the fingerprint is read straight off the
@@ -139,16 +163,16 @@ class DocumentationSearchService
      *
      * @return array{0: string, 1: Collection<int, array<string, mixed>>}
      */
-    private function indexKey(Model $container): array
+    private function indexKey(Notebook $notebook): array
     {
-        $tree = $this->pages->tree($container);
+        $tree = $this->pages->tree($notebook);
 
         $fingerprint = md5($tree
             ->map(fn (array $row): string => $this->pageKey($row['page']))
             ->implode('|'));
 
         return [
-            self::VERSION . ':docs-search:index:' . md5($container::class . ':' . $container->getKey()) . ':' . $fingerprint,
+            self::VERSION . ':docs-search:index:' . $notebook->getKey() . ':' . $fingerprint,
             $tree,
         ];
     }
@@ -165,9 +189,10 @@ class DocumentationSearchService
      * @param  array<string, mixed>  $filters
      * @return array<string, mixed>
      */
-    public function search(Model $container, string $query, array $filters = []): array
+    public function search(Notebook $notebook, string $query, array $filters = []): array
     {
-        $entries = $this->index($container);
+        $scopes = $this->scopeSelection($filters);
+        $entries = array_map(fn (array $e): array => $this->inScope($e, $scopes), $this->index($notebook));
         $terms = $this->terms($query);
 
         $matched = $terms === []
@@ -205,7 +230,7 @@ class DocumentationSearchService
             'query' => $query,
             // Echoed back so the view can mark the active chip without the
             // caller having to thread the raw request through a second path.
-            'filters'  => ['section' => $section, 'tag' => $tag],
+            'filters'  => ['section' => $section, 'tag' => $tag, 'scopes' => $scopes],
             'total'    => $total,
             'shown'    => count($results),
             'results'  => $results,
@@ -261,8 +286,6 @@ class DocumentationSearchService
                 $misses[$keys[$page->id]] = $parsed;
             }
 
-            $pageTags = $page->diagram_id !== null ? ['diagram'] : [];
-
             $entries[] = $this->entry(
                 order: $order++,
                 kind: 'page',
@@ -273,7 +296,8 @@ class DocumentationSearchService
                 anchor: null,
                 level: 0,
                 text: $parsed['lead']['text'],
-                tags: array_values(array_unique([...$pageTags, ...$parsed['lead']['tags']])),
+                tags: $parsed['lead']['tags'],
+                scopes: $parsed['lead']['scopes'] ?? [],
             );
 
             foreach ($parsed['sections'] as $sectionData) {
@@ -288,6 +312,7 @@ class DocumentationSearchService
                     level: $sectionData['level'],
                     text: $sectionData['text'],
                     tags: $sectionData['tags'],
+                    scopes: $sectionData['scopes'] ?? [],
                 );
             }
         }
@@ -316,7 +341,10 @@ class DocumentationSearchService
         int $level,
         string $text,
         array $tags,
+        array $scopes = [],
     ): array {
+        $scopes = array_merge(array_fill_keys(self::SCOPES, ''), $scopes);
+
         return [
             'order'     => $order,
             'kind'      => $kind,
@@ -334,6 +362,13 @@ class DocumentationSearchService
             'foldTitle' => self::fold($title),
             'foldText'  => self::fold($text),
             'foldTrail' => self::fold(implode(' ', [...$trail, $page->title])),
+            // Both copies per bucket, for the same reason the whole-text pair
+            // exists: folding is one character in for one character out, so a
+            // character offset in the folded copy is the same offset in the
+            // original — and concatenating folded buckets with the SAME
+            // separator keeps that true across a scope selection.
+            'scopes'     => $scopes,
+            'foldScopes' => array_map(self::fold(...), $scopes),
         ];
     }
 
@@ -346,7 +381,6 @@ class DocumentationSearchService
         return self::VERSION . ':docs-search:page:' . $page->id . ':' . md5(implode("\0", [
             $page->title,
             $page->slug,
-            (string) $page->diagram_id,
             (string) $page->documentation,
         ]));
     }
@@ -358,8 +392,12 @@ class DocumentationSearchService
      */
     private function parse(DocumentationPage $page): array
     {
-        $html = (new GitbookRenderer)->render($page->documentation);
-        $empty = ['lead' => ['text' => '', 'tags' => []], 'sections' => []];
+        // `linkDiagrams: false` for two reasons: "Abrir diagrama" is chrome and
+        // has no business being searchable, and the index is CACHED — a render
+        // that varied by the viewer's auth state would bake one audience's
+        // chrome into everybody's results.
+        $html = (new GitbookRenderer)->render($page->documentation, linkDiagrams: false);
+        $empty = ['lead' => ['text' => '', 'tags' => [], 'scopes' => []], 'sections' => []];
 
         if (trim($html) === '') {
             return $empty;
@@ -422,11 +460,11 @@ class DocumentationSearchService
 
         if ($opensWithTitle) {
             $absorbed = array_shift($sections);
-            $leadBucket = ['text' => $absorbed['text'], 'tags' => $absorbed['tags']];
+            $leadBucket = ['text' => $absorbed['text'], 'tags' => $absorbed['tags'], 'scopes' => $absorbed['scopes']];
         }
 
         return [
-            'lead'     => ['text' => $leadBucket['text'], 'tags' => $leadBucket['tags']],
+            'lead'     => ['text' => $leadBucket['text'], 'tags' => $leadBucket['tags'], 'scopes' => $leadBucket['scopes'] ?? []],
             'sections' => $sections,
         ];
     }
@@ -440,16 +478,44 @@ class DocumentationSearchService
      * scans the title too.
      *
      * @param  array<int, \DOMNode>  $nodes
-     * @return array{text: string, tags: array<int, string>}
+     * @return array{text: string, tags: array<int, string>, scopes: array<string, string>}
      */
     private function readNodes(DOMDocument $dom, array $nodes): array
     {
         $text = '';
         $html = '';
+        $scopes = array_fill_keys(self::SCOPES, '');
 
         foreach ($nodes as $node) {
             $text .= $node->textContent . ' ';
             $html .= (string) $dom->saveHTML($node);
+
+            $name = $node instanceof DOMElement ? strtolower($node->nodeName) : '';
+
+            // A node that IS a table or a code block. `getElementsByTagName()`
+            // below never returns the element it is called on, so these two
+            // cases have to be caught before the descendant walk.
+            if ($name === 'table' || $name === 'pre') {
+                $scopes[$name === 'table' ? 'table' : 'code'] .= $node->textContent . ' ';
+
+                continue;
+            }
+
+            // Otherwise: lift any nested tables/code out into their buckets and
+            // let what remains be prose. On a CLONE — removing them from the
+            // live tree would mutate the document the caller is still walking.
+            $clone = $node->cloneNode(true);
+
+            if ($clone instanceof DOMElement) {
+                foreach (['table' => 'table', 'pre' => 'code'] as $tag => $scope) {
+                    foreach (iterator_to_array($clone->getElementsByTagName($tag)) as $element) {
+                        $scopes[$scope] .= $element->textContent . ' ';
+                        $element->parentNode?->removeChild($element);
+                    }
+                }
+            }
+
+            $scopes['prose'] .= $clone->textContent . ' ';
         }
 
         $tags = [];
@@ -459,13 +525,22 @@ class DocumentationSearchService
             'image'   => '<img',
             'callout' => 'data-callout',
             'file'    => 'ak-doc-file',
+            // A cited drawing. It used to be a per-PAGE flag read off
+            // `documentation_pages.diagram_id`; with the citation living in the
+            // text, the facet is per SECTION like every other one — "the
+            // section with the drawing" rather than "somewhere on this page".
+            'diagram' => 'ak-doc-diagram',
         ] as $tag => $needle) {
             if (str_contains($html, $needle)) {
                 $tags[] = $tag;
             }
         }
 
-        return ['text' => $this->collapse($text), 'tags' => $tags];
+        return [
+            'text'   => $this->collapse($text),
+            'tags'   => $tags,
+            'scopes' => array_map($this->collapse(...), $scopes),
+        ];
     }
 
     /** The heading's own words, without the `#` permalink commonmark appends. */
@@ -521,6 +596,53 @@ class DocumentationSearchService
      * @param  array<string, mixed>  $entry
      * @param  array<int, string>  $terms
      */
+    /**
+     * Which buckets this request searches. Absent means all of them: a visitor
+     * who has expressed no opinion wants the whole corpus, and a default of
+     * "nothing" would answer every query with silence.
+     *
+     * An explicit empty selection is treated the same way rather than as "search
+     * nowhere" — unticking the last box should not look like a broken index.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return array<int, string>
+     */
+    private function scopeSelection(array $filters): array
+    {
+        $raw = $filters['scopes'] ?? null;
+        $chosen = array_values(array_intersect(self::SCOPES, is_array($raw) ? $raw : []));
+
+        return $chosen === [] ? self::SCOPES : $chosen;
+    }
+
+    /**
+     * The entry as this request sees it: `text`/`foldText` narrowed to the
+     * chosen buckets, so matching, scoring and the snippet all read the same
+     * haystack without any of them knowing scopes exist.
+     *
+     * The whole selection short-circuits to the entry untouched — that keeps
+     * the default path byte-identical to what it was before scopes existed,
+     * snippets included, since the full text is in document order while the
+     * buckets are grouped by kind.
+     *
+     * @param  array<int, string>  $scopes
+     * @return array<string, mixed>
+     */
+    private function inScope(array $entry, array $scopes): array
+    {
+        if (count($scopes) === count(self::SCOPES)) {
+            return $entry;
+        }
+
+        // One separator, used for both copies: fold() is 1:1, so the offsets
+        // stay aligned only while the two concatenations agree character for
+        // character.
+        $entry['text'] = trim(implode(' ', array_map(fn (string $s): string => $entry['scopes'][$s] ?? '', $scopes)));
+        $entry['foldText'] = trim(implode(' ', array_map(fn (string $s): string => $entry['foldScopes'][$s] ?? '', $scopes)));
+
+        return $entry;
+    }
+
     private function matches(array $entry, array $terms): bool
     {
         $haystack = $entry['foldTitle'] . ' ' . $entry['foldTrail'] . ' ' . $entry['foldText'];
@@ -745,7 +867,7 @@ class DocumentationSearchService
 
     /**
      * @param  array<int, array<string, mixed>>  $universe  every entry — decides which chips exist
-     * @param  array<int, array<string, mixed>>  $matched   the current result set — decides the counts
+     * @param  array<int, array<string, mixed>>  $matched  the current result set — decides the counts
      * @return array<int, array{value: string, label: string, count: int}>
      */
     private function sectionFacets(array $universe, array $matched): array

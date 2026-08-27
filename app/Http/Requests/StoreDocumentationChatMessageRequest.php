@@ -9,9 +9,9 @@ class StoreDocumentationChatMessageRequest extends FormRequest
     /** Only someone who can edit the Solution can talk to the Documentation Assistant. */
     public function authorize(): bool
     {
-        $solution = $this->route('solution');
+        $notebook = $this->route('notebook');
 
-        return $solution !== null && $this->user()->can('update', $solution);
+        return $notebook !== null && $this->user()->can('update', $notebook);
     }
 
     /** @return array<string, array<int, string>> */

@@ -1,42 +1,39 @@
 @php
-    use App\Models\DocumentationGroup;
-    use App\Models\Solution;
+    use App\Models\Notebook;
 
-    // Every container that has documentation worth attaching, in one list.
+    // Every caderno with documentation worth attaching, in one list.
     //
-    // BOTH kinds are here on purpose. A Solution's own pages are the obvious
-    // ones, but almost all of this inventory's documentation lives in
-    // DocumentationGroups — the imported GitBook spaces ("Integrações Digibee",
-    // "Dados • BigQuery • GCP"…), which are exactly what a flowSpec needs to
-    // stand on. Listing only Solutions offered 4 of 617 documented pages, which
-    // reads as "there is nothing to attach".
+    // It used to be two lists — a Solution's own pages, and the standalone
+    // groups — because there were two kinds of container. There is one now, and
+    // the collapse fixed a real problem with the old shape: listing only
+    // Solutions offered 4 of 617 documented pages, because almost all of this
+    // inventory's documentation lives in the imported GitBook spaces. Those
+    // spaces are cadernos, and so is everything else.
     //
     // `documentedPages` is the existing scope for "pages with real content": a
     // page with an empty body would be a heading with nothing under it.
-    $documented = fn ($query) => $query->whereNotNull('documentation')->where('documentation', '<>', '');
-
-    $containers = collect()
-        ->concat(Solution::query()
-            ->whereHas('pages', $documented)
-            ->with(['documentedPages' => fn ($q) => $q->select('id', 'container_id', 'container_type', 'title', 'position')])
-            ->orderBy('name')
-            ->get(['id', 'name'])
-            ->map(fn (Solution $s) => ['key' => "solution-{$s->id}", 'name' => $s->name, 'kind' => 'Solução', 'pages' => $s->documentedPages]))
-        ->concat(DocumentationGroup::query()
-            ->whereHas('pages', $documented)
-            ->with(['documentedPages' => fn ($q) => $q->select('id', 'container_id', 'container_type', 'title', 'position')])
-            ->orderBy('name')
-            ->get(['id', 'name'])
-            ->map(fn (DocumentationGroup $g) => ['key' => "group-{$g->id}", 'name' => $g->name, 'kind' => 'Documentação', 'pages' => $g->documentedPages]))
-        ->reject(fn (array $container) => $container['pages']->isEmpty())
+    $notebooks = Notebook::query()
+        ->whereHas('documentedPages')
+        ->with([
+            'documentedPages' => fn ($q) => $q->select('id', 'notebook_id', 'title', 'position'),
+            'solutions:id,name',
+        ])
+        ->orderBy('name')
+        ->get(['id', 'name'])
+        ->map(fn (Notebook $notebook) => [
+            'key'   => "notebook-{$notebook->id}",
+            'name'  => $notebook->name,
+            // The eyebrow says which systems this caderno describes, which is
+            // what tells two similarly-named spaces apart when picking.
+            'kind'  => $notebook->solutions->isNotEmpty()
+                ? $notebook->solutions->pluck('name')->join(' · ')
+                : 'Caderno',
+            'pages' => $notebook->documentedPages,
+        ])
         ->values();
 
-    // There used to be a third section under these two, listing each
-    // integration's own documentation. Integrations no longer hold any — a
-    // drawing is a Diagram and carries no prose — so every attachable thing
-    // here is a page in one of the containers above.
     $isAttached = fn (string $ref) => in_array($ref, $attached, true);
-    $total = $containers->sum(fn (array $container) => $container['pages']->count());
+    $total = $notebooks->sum(fn (array $notebook) => $notebook['pages']->count());
 @endphp
 
 {{-- The picker, in the generic side panel. A browsable list rather than a
@@ -58,7 +55,7 @@
             <div>
                 <h2 class="font-display text-base font-semibold text-ink">Documentos do inventário</h2>
                 <p class="mt-0.5 text-xs text-muted">
-                    Escolha as páginas e integrações que o especialista deve ler nesta conversa.
+                    Escolha as páginas que o especialista deve ler nesta conversa.
                 </p>
             </div>
             <x-forms.button type="button" variant="ghost" data-ak-panel-close class="!px-2 !py-1" aria-label="Fechar">
@@ -68,7 +65,7 @@
 
         <div class="mt-3">
             <x-forms.input type="search" data-ak-fs-picker-search autofocus
-                placeholder="Filtrar por título, sistema ou integração…" />
+                placeholder="Filtrar por título, caderno ou sistema…" />
         </div>
     </div>
 
@@ -78,18 +75,25 @@
                 illustration="docs"
                 illustration-class="max-w-[180px]"
                 title="Nenhuma documentação para anexar"
-                description="Escreva documentação em alguma solução ou integração para poder anexá-la aqui." />
+                description="Escreva documentação em algum caderno para poder anexá-la aqui." />
         @else
             <div class="flex flex-col gap-2">
-                @foreach ($containers as $container)
-                    <x-flowspec.picker-group :title="$container['name']" :eyebrow="$container['kind']" :count="$container['pages']->count()">
-                        @foreach ($container['pages'] as $page)
+                @foreach ($notebooks as $notebook)
+                    <x-flowspec.picker-group :title="$notebook['name']" :eyebrow="$notebook['kind']" :count="$notebook['pages']->count()">
+                        {{-- `:search` carries the caderno's own name AND the
+                             solutions it documents, so a page is findable by the
+                             system it describes even when the caderno is named
+                             after a GitBook space nobody remembers. (The comment
+                             sits OUTSIDE the tag: ComponentTagCompiler runs
+                             before comments are stripped, so one in the
+                             attribute area is parsed as markup.) --}}
+                        @foreach ($notebook['pages'] as $page)
                             <x-flowspec.picker-row
                                 :ref="'page:' . $page->id"
                                 :title="$page->title"
-                                :search="$container['name'] . ' ' . $page->title"
+                                :search="$notebook['name'] . ' ' . $notebook['kind'] . ' ' . $page->title"
                                 :attached="$isAttached('page:' . $page->id)"
-                                :label="$container['name'] . ' — ' . $page->title" />
+                                :label="$notebook['name'] . ' — ' . $page->title" />
                         @endforeach
                     </x-flowspec.picker-group>
                 @endforeach

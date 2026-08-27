@@ -2,11 +2,11 @@
 
 namespace App\Support\Gitbook;
 
-use App\Models\DocumentationGroup;
+use App\Models\Notebook;
 
 /**
  * What one space's import did — the value the artisan command prints and the
- * one the tests assert against. `group` is null for a dry run (nothing was
+ * one the tests assert against. `notebook` is null for a dry run (nothing was
  * written), which is also what makes "did this write anything?" answerable.
  */
 class GitbookImportReport
@@ -21,7 +21,7 @@ class GitbookImportReport
     public function __construct(
         public readonly string $spaceId,
         public readonly string $spaceTitle,
-        public readonly ?DocumentationGroup $group = null,
+        public readonly ?Notebook $notebook = null,
         public readonly int $created = 0,
         public readonly int $updated = 0,
         public readonly int $assets = 0,
@@ -34,6 +34,6 @@ class GitbookImportReport
 
     public function pageCount(): int
     {
-        return $this->group ? $this->created + $this->updated : count($this->planned);
+        return $this->notebook ? $this->created + $this->updated : count($this->planned);
     }
 }

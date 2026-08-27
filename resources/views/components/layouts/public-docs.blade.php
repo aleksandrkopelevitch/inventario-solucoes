@@ -23,56 +23,98 @@
 </head>
 <body class="ak-docs-scroll min-h-screen bg-white text-body font-sans text-[14.5px] antialiased">
 
-    {{-- Top bar: Leo brand + solution name (stays white over the cream canvas) --}}
+    {{-- Top bar: Leo brand + caderno name (stays white over the cream canvas) --}}
     <header class="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-white px-4 py-3 sm:px-6">
         <span class="flex size-8 shrink-0 items-center justify-center rounded-field bg-sidebar font-display text-sm font-bold text-white">L</span>
+        {{-- The caderno's name, and nothing over it. The "DOCUMENTAÇÃO"
+             eyebrow that sat here said what the whole screen already is, and
+             the word that actually earns a label — CADERNO — belongs next to
+             the page title, where it distinguishes the two names on screen. --}}
         <div class="min-w-0">
-            <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-accent">Documentação</p>
             <p class="truncate font-display text-base font-semibold leading-tight text-ink">{{ $heading }}</p>
         </div>
 
+        {{-- The search trigger, and nothing else: a field-shaped button that
+             opens the palette. The facet rows that used to sit under it moved
+             INTO the palette, where they are visible exactly while a query is
+             being typed. --}}
+        @if ($searchUrl)
+            <button type="button" data-ak-docs-search-open
+                    class="ml-auto flex min-w-0 max-w-md flex-1 cursor-pointer items-center gap-2 rounded-field border border-line bg-canvas px-3 py-1.5 text-left text-sm text-faint transition-colors hover:border-accent-line hover:bg-surface">
+                <x-heroicon-o-magnifying-glass class="size-4 shrink-0" />
+                <span class="min-w-0 flex-1 truncate">Buscar na documentação…</span>
+                <span class="hidden shrink-0 rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-[10px] sm:block">⌘K</span>
+            </button>
+        @endif
     </header>
-
-    {{-- Search + filters over the whole shared corpus, deliberately ABOVE the
-         reading shell and never behind a shortcut: the facets are the point,
-         and a facet nobody can see is a facet nobody uses. --}}
-    @if ($searchUrl)
-        <x-documentation.search-panel :url="$searchUrl" :results="$searchResults" />
-    @endif
 
     {{-- Three-pane docs shell (GitBook/Substack/Medium): pages rail pinned to
          the left, a centered reading column, and an "on this page" headings
          navigator on the right. Full-bleed so the pages rail sits flush left.
-         Hidden by docs-search.js while a search is narrowing the corpus — the
-         results are the page then. --}}
+
+         It no longer hides itself during a search: the palette is a modal over
+         the top layer, so the shell being visible underneath is the point
+         rather than a conflict. The `data-ak-docs-search-active` marker the
+         server still emits is what the palette reads to know it is narrowing;
+         nothing toggles the shell any more. --}}
     <div data-ak-docs-shell class="flex w-full items-start gap-6 px-4 md:gap-8 md:px-6 lg:px-8">
 
-        {{-- Pages index: all documentation pages for this solution --}}
+        {{-- Pages index: this caderno's tree, collapsed to the path being read.
+
+             Flat rows with `data-parent-id`, not nested lists — see
+             docs-tree.js. The server ships the open/closed state
+             (DocumentationPageService::navRows()), so this is right before any
+             JavaScript runs; the module only handles clicks. --}}
         @if ($nav)
-            <aside class="hidden w-60 shrink-0 md:sticky md:top-14 md:block md:max-h-[calc(100vh_-_3.5rem)] md:overflow-y-auto md:py-10">
-                <p class="px-2 pb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-muted">Nesta solução</p>
-                <nav class="flex flex-col gap-0.5">
-                    {{-- Subpages are indented under their page, one step per
-                         level: a visitor reading top to bottom should see which
-                         pages belong to which. Steps are listed, not computed —
-                         Tailwind only ships classes it can see in the source. --}}
+            <aside class="ak-sidebar ak-sidebar-scroll hidden w-64 shrink-0 md:sticky md:top-14 md:block md:max-h-[calc(100vh_-_3.5rem)] md:overflow-y-auto md:py-10">
+                <p class="px-2 pb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-muted">Neste caderno</p>
+                <nav data-ak-docs-tree class="flex flex-col gap-px">
                     @foreach ($nav as $item)
-                        <a href="{{ $item['url'] }}"
-                           @class([
-                               'flex items-center justify-between gap-2 rounded-field py-2 text-sm no-underline transition-colors',
-                               'px-3' => ($item['depth'] ?? 0) === 0,
-                               'ml-3 border-l border-line px-2.5 text-[13px]' => ($item['depth'] ?? 0) === 1,
-                               'ml-6 border-l border-line px-2.5 text-[13px]' => ($item['depth'] ?? 0) === 2,
-                               'ml-8 border-l border-line px-2.5 text-[13px]' => ($item['depth'] ?? 0) === 3,
-                               'ml-10 border-l border-line px-2.5 text-[13px]' => ($item['depth'] ?? 0) >= 4,
-                               'bg-accent-soft font-semibold text-accent' => $item['active'],
-                               'text-body hover:bg-raised' => ! $item['active'],
-                           ])>
-                            <span class="truncate">{{ $item['label'] }}</span>
-                            @unless ($item['hasDocs'])
-                                <span class="shrink-0 text-[10px] font-medium uppercase tracking-wide text-faint">vazio</span>
-                            @endunless
-                        </a>
+                        @php ($depth = (int) ($item['depth'] ?? 0))
+                        {{-- One indent step per level, each hanging off a guide
+                             line. Steps are listed rather than computed:
+                             Tailwind only ships classes it can SEE in the
+                             source, so `ml-{{ $n }}` compiles to nothing. --}}
+                        <div data-ak-docs-tree-item
+                             data-page-id="{{ $item['id'] }}"
+                             data-parent-id="{{ $item['parentId'] ?? '' }}"
+                             data-expanded="{{ ($item['expanded'] ?? false) ? 'true' : 'false' }}"
+                             @class([
+                                 'flex items-center gap-0.5',
+                                 'hidden' => ! ($item['visible'] ?? true),
+                                 'ml-3 border-l border-line pl-1' => $depth === 1,
+                                 'ml-5 border-l border-line pl-1' => $depth === 2,
+                                 'ml-7 border-l border-line pl-1' => $depth === 3,
+                                 'ml-9 border-l border-line pl-1' => $depth >= 4,
+                             ])>
+                            <a href="{{ $item['url'] }}"
+                               @class([
+                                   'min-w-0 flex-1 truncate rounded-field px-2.5 py-1.5 text-[13.5px] no-underline transition-colors',
+                                   'bg-accent-soft font-semibold text-accent' => $item['active'],
+                                   'text-body hover:bg-raised hover:text-ink' => ! $item['active'],
+                               ])>{{ $item['label'] }}</a>
+
+                            {{-- The chevron lives OUTSIDE the link, so opening a
+                                 branch never competes with opening the page —
+                                 the two gestures that a single clickable row
+                                 would have had to guess between. --}}
+                            @if ($item['hasChildren'] ?? false)
+                                <button type="button" data-ak-docs-tree-toggle
+                                        aria-expanded="{{ ($item['expanded'] ?? false) ? 'true' : 'false' }}"
+                                        class="group shrink-0 cursor-pointer rounded p-1 text-faint transition-colors hover:bg-raised hover:text-ink"
+                                        aria-label="Mostrar ou ocultar sub-páginas de {{ $item['label'] }}">
+                                    {{-- Rotation keys off the button's OWN
+                                         `aria-expanded` via a first-class
+                                         Tailwind variant. An arbitrary variant
+                                         (`[[data-expanded=true]_&]`) reads the
+                                         row instead and is a silent no-op the
+                                         day its value grows an underscore —
+                                         Tailwind turns `_` into a space inside
+                                         arbitrary values. --}}
+                                    <x-heroicon-o-chevron-right class="size-3.5 transition-transform duration-150 group-aria-expanded:rotate-90" />
+                                </button>
+                            @endif
+                        </div>
                     @endforeach
                 </nav>
             </aside>
@@ -90,6 +132,14 @@
         <aside data-ak-docs-toc
                class="hidden w-56 shrink-0 lg:sticky lg:top-14 lg:block lg:max-h-[calc(100vh_-_3.5rem)] lg:overflow-y-auto lg:py-10"></aside>
     </div>
+
+    {{-- The search palette. Mounted at the end of the body, outside the
+         reading shell: a <dialog> in the top layer is not affected by any
+         ancestor's stacking or overflow, which is what the inline panel had to
+         fight when it sat inside the sticky header's flow. --}}
+    @if ($searchUrl)
+        <x-documentation.search-panel :url="$searchUrl" :results="$searchResults" />
+    @endif
 
     {{-- Toast — same shell as the main layout (Toast.show for "Copiar Markdown"). --}}
     <div id="toast-container" class="fixed right-4 top-4 z-50 flex w-80 flex-col gap-2">

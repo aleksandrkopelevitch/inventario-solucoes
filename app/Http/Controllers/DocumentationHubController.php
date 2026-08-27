@@ -10,9 +10,14 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Documentation Hub — cross-cutting management view of what is documented
- * and what's missing, for solutions and diagrams (coverage by actual
- * content). Thin: aggregation lives in DocumentationCoverageService. Same
+ * Documentation Hub — the cross-cutting view of what is documented and what is
+ * missing, by actual content. It reads cadernos now (one list, grouped by
+ * notebook) plus the solutions no caderno covers yet, which is the gap the
+ * screen exists to show.
+ *
+ * It is deliberately NOT the cadernos catalog: `/notebooks` is where you go to
+ * work on documentation, `/documentation` is where you go to see where it is
+ * missing. Thin — aggregation lives in DocumentationCoverageService. Same
  * HTML/JSON action — JSON returns the filtered list's slot (catalog pattern).
  */
 class DocumentationHubController extends Controller
@@ -32,6 +37,7 @@ class DocumentationHubController extends Controller
         return view('documentation.index', [
             'filters'  => $filters,
             'counters' => $coverage->counters(),
+            'gaps'     => $coverage->undocumentedSolutions(),
         ]);
     }
 }

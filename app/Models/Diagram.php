@@ -15,7 +15,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\MediaLibrary\InteractsWithMedia;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
@@ -25,23 +24,22 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  *
  * This used to be `Integration`: a diagram existed only as one integration's
  * picture, reachable only through a solution that took part in it, and it
- * carried a documentation column of its own — a second documentation model
- * beside `DocumentationPage`, single-page, container-less, with its own editor
- * route. Both of those are gone. A diagram is now drawn and named on its own
- * (`/diagrams`), and it reaches documentation — and through it, solutions —
- * the other way round: **pages point at it** (`documentation_pages.diagram_id`),
- * one diagram serving as many pages as it genuinely explains.
+ * carried a documentation column of its own. Both of those are gone — a diagram
+ * is drawn and named on its own (`/diagrams`).
  *
- * Two directions the solution link runs, and they answer different questions:
+ * **It has exactly ONE relation, and documentation is not it.** `participants`
+ * (the `diagram_solution` pivot, plus `source`/`target`) is DERIVED from the
+ * chain by `SyncDiagramFromChain` and answers "which systems does this drawing
+ * touch?". It is what the ecosystem map is built from, and nothing but that
+ * action may write it — which is what keeps the map a reading of the DRAWINGS
+ * rather than of somebody's filing.
  *
- * - `participants` (the `diagram_solution` pivot, plus `source`/`target`) is
- *   DERIVED from the chain by `SyncDiagramFromChain` and answers "which
- *   systems does this drawing touch?". It is what the ecosystem map is built
- *   from, and nothing but that action may write it.
- * - `pages` is AUTHORED and answers "where is this drawing explained?". A
- *   page's container is a Solution or a standalone `DocumentationGroup`, so
- *   this is also how a diagram belongs to a solution's documentation without
- *   appearing in its topology at all.
+ * Prose reaches a diagram by CITING it, as a `{% diagram %}` block in a page's
+ * text (see `GitbookRenderer`). There was briefly a `documentation_pages.diagram_id`
+ * FK for this; it modelled "this page is the page of that drawing", which is
+ * narrower than what people write — a page cites several drawings, beside the
+ * paragraphs that need them — and it made the diagram catalog answer a question
+ * it had no business answering ("which page explains me?").
  */
 class Diagram extends Model implements ChainCanvas
 {
@@ -198,11 +196,6 @@ class Diagram extends Model implements ChainCanvas
      * diagram legitimately explains several pages (often in several
      * solutions' trees), while a page never has two drawings to reconcile.
      */
-    public function pages(): HasMany
-    {
-        return $this->hasMany(DocumentationPage::class);
-    }
-
     public function source(): BelongsTo
     {
         return $this->belongsTo(Solution::class, 'source_solution_id');
@@ -244,13 +237,14 @@ class Diagram extends Model implements ChainCanvas
             $query->where('status', $filters['status']);
         }
 
-        // "Documentado" here means "explained somewhere", which for a diagram
-        // is a page pointing at it — never a column of its own. That is the
-        // whole shape of the change: a drawing doesn't carry prose, a page does.
-        if (($filters['documented'] ?? null) === 'yes') {
-            $query->whereHas('pages');
-        } elseif (($filters['documented'] ?? null) === 'no') {
-            $query->whereDoesntHave('pages');
+        // Whether the drawing reaches the catalog at all: does it name a
+        // Solution among its blocks? It used to filter on "some page points at
+        // me", which stopped being a relation the database can answer — prose
+        // cites a diagram in its text now.
+        if (($filters['placed'] ?? null) === 'yes') {
+            $query->whereHas('participants');
+        } elseif (($filters['placed'] ?? null) === 'no') {
+            $query->whereDoesntHave('participants');
         }
     }
 }

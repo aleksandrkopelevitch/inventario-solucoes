@@ -3,8 +3,8 @@
 use App\Actions\Documentation\ImportGitbookSpace;
 use App\Contracts\Documentable;
 use App\Exceptions\GitbookApiException;
-use App\Models\DocumentationGroup;
 use App\Models\DocumentationPage;
+use App\Models\Notebook;
 use App\Services\DocumentationPageService;
 use App\Support\Gitbook\GitbookMarkdownNormalizer;
 use App\Support\Gitbook\GitbookPageTree;
@@ -303,7 +303,7 @@ it('imports a space into a standalone group, keeping its shape and reading order
     expect($report->updated)->toBe(0);
     expect($report->sections)->toBe(1);
 
-    $group = DocumentationGroup::sole();
+    $group = Notebook::sole();
     expect($group->name)->toBe('Manual de Integrações');
     expect($group->slug)->toBe('manual-de-integracoes');
 
@@ -342,7 +342,7 @@ it('re-shapes a space that was imported flat, instead of importing it twice', fu
 
     // The old behaviour: one root page carrying its ancestry in the title.
     app(ImportGitbookSpace::class)->handle('space-1', nest: false);
-    $flat = DocumentationGroup::sole()->pages()->sole();
+    $flat = Notebook::sole()->pages()->sole();
     expect($flat->title)->toBe('Começando › Instalação');
 
     // Re-running with nesting has to recognise that page by its legacy title
@@ -351,11 +351,11 @@ it('re-shapes a space that was imported flat, instead of importing it twice', fu
 
     expect($report->created)->toBe(1);   // the section page
     expect($report->updated)->toBe(1);   // the page that already existed
-    expect(DocumentationGroup::sole()->pages()->count())->toBe(2);
+    expect(Notebook::sole()->pages()->count())->toBe(2);
 
     $moved = $flat->fresh();
     expect($moved->title)->toBe('Instalação');
-    expect($moved->parent_id)->toBe(DocumentationGroup::sole()->pages()->where('title', 'Começando')->sole()->id);
+    expect($moved->parent_id)->toBe(Notebook::sole()->pages()->where('title', 'Começando')->sole()->id);
     // The URL does not move with the rename — same rule as any other rename.
     expect($moved->slug)->toBe($flat->slug);
 });
@@ -368,7 +368,7 @@ it('re-hosts embedded images into the page docs collection and repoints the mark
     Http::fake(['files.gitbook.com/*' => Http::response('binary-png', 200, ['Content-Type' => 'image/png'])]);
 
     $report = app(ImportGitbookSpace::class)->handle('space-1');
-    $page = DocumentationGroup::sole()->pages()->sole();
+    $page = Notebook::sole()->pages()->sole();
     $media = $page->getMedia(Documentable::DOCS_COLLECTION)->sole();
 
     expect($report->assets)->toBe(1);
@@ -390,7 +390,7 @@ it('fetches an asset used twice only once', function () {
     $report = app(ImportGitbookSpace::class)->handle('space-1');
 
     expect($report->assets)->toBe(1);
-    expect(DocumentationGroup::sole()->pages()->sole()->getMedia(Documentable::DOCS_COLLECTION))->toHaveCount(1);
+    expect(Notebook::sole()->pages()->sole()->getMedia(Documentable::DOCS_COLLECTION))->toHaveCount(1);
 });
 
 it('leaves an asset that will not download in place, and names it', function () {
@@ -405,7 +405,7 @@ it('leaves an asset that will not download in place, and names it', function () 
     expect($report->assets)->toBe(0);
     expect($report->failures)->toHaveCount(1);
     expect($report->failures[0])->toContain('gone.png');
-    expect(DocumentationGroup::sole()->pages()->sole()->documentation)
+    expect(Notebook::sole()->pages()->sole()->documentation)
         ->toContain('https://files.gitbook.com/gone.png');
 });
 
@@ -439,8 +439,8 @@ it('is re-runnable: a second import updates the same pages instead of duplicatin
 
     expect($report->created)->toBe(0);
     expect($report->updated)->toBe(1);
-    expect(DocumentationGroup::count())->toBe(1);
-    expect(DocumentationGroup::sole()->pages()->sole()->documentation)->toBe('# Segunda versão');
+    expect(Notebook::count())->toBe(1);
+    expect(Notebook::sole()->pages()->sole()->documentation)->toBe('# Segunda versão');
 });
 
 it('does not accumulate media across re-imports of the same page', function () {
@@ -453,7 +453,7 @@ it('does not accumulate media across re-imports of the same page', function () {
     app(ImportGitbookSpace::class)->handle('space-1');
     app(ImportGitbookSpace::class)->handle('space-1');
 
-    expect(DocumentationGroup::sole()->pages()->sole()->getMedia(Documentable::DOCS_COLLECTION))->toHaveCount(1);
+    expect(Notebook::sole()->pages()->sole()->getMedia(Documentable::DOCS_COLLECTION))->toHaveCount(1);
 });
 
 it('keeps two identically titled GitBook pages as two pages', function () {
@@ -469,7 +469,7 @@ it('keeps two identically titled GitBook pages as two pages', function () {
 
     // Two sections, both named "A", each with its own "Notas" underneath.
     expect($report->created)->toBe(4);
-    expect(DocumentationGroup::sole()->pages()->whereNotNull('parent_id')->get()->pluck('documentation')->all())
+    expect(Notebook::sole()->pages()->whereNotNull('parent_id')->get()->pluck('documentation')->all())
         ->toBe(['um', 'dois']);
 
     // And a re-run must keep them apart rather than collapsing the second into
@@ -477,16 +477,16 @@ it('keeps two identically titled GitBook pages as two pages', function () {
     $again = app(ImportGitbookSpace::class)->handle('space-1');
     expect($again->created)->toBe(0);
     expect($again->updated)->toBe(4);
-    expect(DocumentationGroup::sole()->pages()->whereNotNull('parent_id')->get()->pluck('documentation')->all())
+    expect(Notebook::sole()->pages()->whereNotNull('parent_id')->get()->pluck('documentation')->all())
         ->toBe(['um', 'dois']);
 });
 
-it('accepts an explicit group name', function () {
+it('accepts an explicit caderno name', function () {
     fakeGitbook([['id' => 'p1', 'type' => 'document', 'title' => 'X']], ['p1' => 'y']);
 
-    app(ImportGitbookSpace::class)->handle('space-1', groupName: 'Legado GitBook');
+    app(ImportGitbookSpace::class)->handle('space-1', notebookName: 'Legado GitBook');
 
-    expect(DocumentationGroup::sole()->name)->toBe('Legado GitBook');
+    expect(Notebook::sole()->name)->toBe('Legado GitBook');
 });
 
 it('writes nothing on a dry run', function () {
@@ -500,10 +500,10 @@ it('writes nothing on a dry run', function () {
 
     $report = app(ImportGitbookSpace::class)->handle('space-1', dryRun: true);
 
-    expect($report->group)->toBeNull();
+    expect($report->notebook)->toBeNull();
     expect($report->planned)->toBe(['Visão geral']);
     expect($report->skipped['link'])->toBe(1);
-    expect(DocumentationGroup::count())->toBe(0);
+    expect(Notebook::count())->toBe(0);
 });
 
 /*
@@ -526,7 +526,7 @@ it('imports every space of the only organization with --all', function () {
 
     $this->artisan('gitbook:import --all')->assertSuccessful();
 
-    expect(DocumentationGroup::sole()->pages()->sole()->documentation)->toBe('y');
+    expect(Notebook::sole()->pages()->sole()->documentation)->toBe('y');
 });
 
 it('fails clearly when no token is configured', function () {
@@ -561,12 +561,22 @@ it('reports a GitBook API error as a readable line, not a stack trace', function
         ->assertFailed();
 });
 
-it('refuses to point several spaces at one group name', function () {
+it('refuses to point several spaces at one caderno name', function () {
     fakeGitbook([], []);
 
-    $this->artisan('gitbook:import --space=a --space=b --group=Um')
-        ->expectsOutputToContain('single group')
+    $this->artisan('gitbook:import --space=a --space=b --notebook=Um')
+        ->expectsOutputToContain('single caderno')
         ->assertFailed();
+});
+
+it('still accepts the pre-Notebook --group spelling', function () {
+    // The command is run by hand from notes people already have, so the old
+    // flag keeps working rather than failing with "option does not exist".
+    fakeGitbook([['id' => 'p1', 'type' => 'document', 'title' => 'X']], ['p1' => 'y']);
+
+    $this->artisan('gitbook:import --space=space-1 --group=Legado')->assertSuccessful();
+
+    expect(Notebook::sole()->name)->toBe('Legado');
 });
 
 it('fails when given nothing to import', function () {
@@ -622,7 +632,7 @@ it('produces markdown the read-only renderer turns into real blocks, with no not
     Http::fake(['files.gitbook.com/*' => Http::response('png', 200, ['Content-Type' => 'image/png'])]);
 
     app(ImportGitbookSpace::class)->handle('space-1');
-    $page = DocumentationGroup::sole()->pages()->sole();
+    $page = Notebook::sole()->pages()->sole();
     $html = app(GitbookRenderer::class)->render($page->documentation);
 
     expect($html)->toContain('data-callout="danger"')      // hint survived
@@ -665,7 +675,7 @@ it('retries a request that never landed and carries on', function () {
 
     expect($attempts)->toBe(2);
     expect($report->created)->toBe(1);
-    expect(DocumentationGroup::sole()->pages()->sole()->documentation)->toBe('conteúdo');
+    expect(Notebook::sole()->pages()->sole()->documentation)->toBe('conteúdo');
 });
 
 it('retries a 429 but never a 404', function () {
@@ -822,7 +832,7 @@ it('resolves a GitBook /files/{id} reference into our own media', function () {
     Http::fake(['files.gitbook.com/*' => Http::response('png', 200, ['Content-Type' => 'image/png'])]);
 
     $report = app(ImportGitbookSpace::class)->handle('space-1');
-    $page = DocumentationGroup::sole()->pages()->sole();
+    $page = Notebook::sole()->pages()->sole();
     $media = $page->getMedia(Documentable::DOCS_COLLECTION)->sole();
 
     expect($report->assets)->toBe(1);
@@ -857,7 +867,7 @@ it('leaves a numeric /files/{id} alone — that one is already ours', function (
 
     expect($report->assets)->toBe(0);
     expect($report->failures)->toBe([]);
-    expect(DocumentationGroup::sole()->pages()->sole()->documentation)->toContain('/files/4242');
+    expect(Notebook::sole()->pages()->sole()->documentation)->toContain('/files/4242');
 });
 
 /*
@@ -881,7 +891,7 @@ it('resolves a document linked with a plain <a href="/files/{id}">, not just ima
     Http::fake(['files.gitbook.com/*' => Http::response('png', 200, ['Content-Type' => 'image/png'])]);
 
     $report = app(ImportGitbookSpace::class)->handle('space-1');
-    $page = DocumentationGroup::sole()->pages()->sole();
+    $page = Notebook::sole()->pages()->sole();
     $mediaId = $page->getMedia(Documentable::DOCS_COLLECTION)->sole()->id;
 
     expect($report->assets)->toBe(1);
@@ -903,7 +913,7 @@ it('leaves an ordinary outbound <a href="https://…"> link untouched', function
     $report = app(ImportGitbookSpace::class)->handle('space-1');
 
     expect($report->assets)->toBe(0);
-    expect(DocumentationGroup::sole()->pages()->sole()->documentation)->toContain('drive.google.com');
+    expect(Notebook::sole()->pages()->sole()->documentation)->toContain('drive.google.com');
 });
 
 /*
@@ -966,9 +976,9 @@ it('also updates a link text that mirrors the raw GitBook path, not just its hre
     Http::fake(['files.gitbook.com/*' => Http::response('png', 200, ['Content-Type' => 'image/png'])]);
 
     $report = app(ImportGitbookSpace::class)->handle('space-1');
-    $mediaId = DocumentationGroup::sole()->pages()->sole()->getMedia(Documentable::DOCS_COLLECTION)->sole()->id;
+    $mediaId = Notebook::sole()->pages()->sole()->getMedia(Documentable::DOCS_COLLECTION)->sole()->id;
 
-    expect(DocumentationGroup::sole()->pages()->sole()->documentation)
+    expect(Notebook::sole()->pages()->sole()->documentation)
         ->toBe('<a href="/files/' . $mediaId . '">/files/' . $mediaId . '</a>');
 });
 
@@ -981,7 +991,7 @@ it('leaves a real display name alone even though the href next to it changes', f
 
     app(ImportGitbookSpace::class)->handle('space-1');
 
-    expect(DocumentationGroup::sole()->pages()->sole()->documentation)->toContain('>Checklist Leo Tech.pdf</a>');
+    expect(Notebook::sole()->pages()->sole()->documentation)->toContain('>Checklist Leo Tech.pdf</a>');
 });
 
 /*
@@ -1053,7 +1063,7 @@ it('resolves an asset that lives in a DIFFERENT space, by fetching that space ow
     ]);
 
     $report = app(ImportGitbookSpace::class)->handle('space-1');
-    $page = DocumentationGroup::sole()->pages()->sole();
+    $page = Notebook::sole()->pages()->sole();
     $media = $page->getMedia(Documentable::DOCS_COLLECTION)->sole();
 
     expect($report->assets)->toBe(1);
@@ -1114,4 +1124,22 @@ it('does not abort the whole import when the foreign space itself is inaccessibl
     expect($report->created)->toBe(1);
     expect($report->assets)->toBe(0);
     expect($report->failures)->toHaveCount(1);
+});
+
+it('prints the dry-run plan through the command, page count included', function () {
+    // Regression: `GitbookImportReport::pageCount()` branches on whether a
+    // notebook was written, and the property was renamed out from under it —
+    // which no test caught, because every other assertion calls the ACTION
+    // directly and only the command ever asks for the count.
+    fakeGitbook(
+        [['id' => 'p1', 'type' => 'document', 'title' => 'Visão geral']],
+        ['p1' => '# Visão geral'],
+    );
+
+    $this->artisan('gitbook:import --space=space-1 --dry-run')
+        ->expectsOutputToContain('1 page(s) would be imported')
+        ->expectsOutputToContain('Visão geral')
+        ->assertSuccessful();
+
+    expect(Notebook::count())->toBe(0);
 });

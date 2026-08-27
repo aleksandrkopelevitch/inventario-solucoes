@@ -27,7 +27,7 @@
                         @else
                             <x-forms.button type="button" variant="glass" class="!px-3 !py-1.5 !text-xs"
                                 data-ak-docs-chat-view-draft="{{ $message->id }}"
-                                data-apply-url="{{ route('solutions.docs.chat.messages.apply', [$chat->solution, $message]) }}">
+                                data-apply-url="{{ route('notebooks.chat.messages.apply', [$chat->notebook, $message]) }}">
                                 <x-heroicon-o-arrows-right-left class="size-3.5" /> Ver alterações
                             </x-forms.button>
                         @endif

@@ -118,8 +118,6 @@ class DiagramController extends Controller
     {
         $this->authorize('view', $diagram);
 
-        $diagram->load(['pages.container']);
-
         return view('diagrams.show', [
             'diagram' => $diagram,
             'title'   => $diagram->name,
@@ -154,13 +152,73 @@ class DiagramController extends Controller
      * waiting to happen. Missing on both counts (the diagrams index) is the
      * plain case — the index slot alone covers it.
      */
+    /**
+     * The diagram catalog as a tree, for the documentation editor's `diagram`
+     * block: solutions on top, their drawings underneath.
+     *
+     * Grouped by SOLUTION because that is the only relation a diagram has, and
+     * because it is how someone writing a page thinks — "the drawing about
+     * SAP". `participants` is derived from each chain, so a drawing appears
+     * under every system it actually touches, which is the same answer the
+     * ecosystem map gives.
+     *
+     * A drawing that names no catalog solution is not hidden: it lands in a
+     * trailing group of its own. The picker's job is to let a citation be
+     * written, and a diagram nobody could reach from here would simply be
+     * uncitable.
+     */
+    public function catalog(): JsonResponse
+    {
+        $this->authorize('viewAny', Diagram::class);
+
+        $diagrams = Diagram::query()
+            ->with('participants:id,name')
+            ->orderBy('name')
+            ->get(['id', 'name', 'slug']);
+
+        $groups = [];
+
+        foreach ($diagrams as $diagram) {
+            $entry = ['slug' => $diagram->slug, 'name' => $diagram->name];
+
+            if ($diagram->participants->isEmpty()) {
+                $groups['__loose']['diagrams'][] = $entry;
+
+                continue;
+            }
+
+            foreach ($diagram->participants as $solution) {
+                $groups[$solution->name]['diagrams'][] = $entry;
+            }
+        }
+
+        ksort($groups);
+
+        // The catch-all goes last whatever it sorts as.
+        $loose = $groups['__loose'] ?? null;
+        unset($groups['__loose']);
+
+        $tree = collect($groups)
+            ->map(fn (array $group, string $name) => ['solution' => $name, 'diagrams' => $group['diagrams']])
+            ->values()
+            ->all();
+
+        if ($loose) {
+            $tree[] = ['solution' => 'Sem solução no catálogo', 'diagrams' => $loose['diagrams']];
+        }
+
+        return response()->json(['groups' => $tree]);
+    }
+
     public function destroy(Request $request, Diagram $diagram): JsonResponse
     {
         $this->authorize('delete', $diagram);
 
-        // The `diagram_solution` pivot cascades on delete, and
-        // `documentation_pages.diagram_id` is `nullOnDelete`: removing a
-        // drawing must never take the text explaining it with it.
+        // The `diagram_solution` pivot cascades on delete. Nothing in
+        // documentation does: a page CITES a drawing in its text, so deleting
+        // one leaves a citation pointing at a diagram that is gone — rendered
+        // as a plain "diagrama removido" card rather than taking the prose with
+        // it (see GitbookRenderer::renderDiagram).
         $diagram->delete();
 
         $slots = [Index::slot()];
