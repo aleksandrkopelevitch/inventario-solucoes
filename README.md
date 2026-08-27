@@ -510,11 +510,10 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   **direto** ao registro criado; um lado vazio mostra uma ilustração dizendo o
   que falta, não uma linha de texto cinza.
 
-  "Aparece" é a união dos dois caminhos, e os dois estão ali de propósito
-  porque quem lê não se importa com qual se aplica: a solução é um **bloco**
-  do desenho (pivot derivado da chain) **ou** uma página dela aponta para o
-  desenho (`documentation_pages.diagram_id`) — um diagrama pode explicar uma
-  solução sem que ela seja uma caixa dentro dele.
+  "Aparece" quer dizer uma coisa só: a solução é um **bloco** do desenho (pivot
+  derivado da chain). Havia um segundo caminho — uma página dela apontava para o
+  desenho via `documentation_pages.diagram_id` — e ele saiu junto com a FK: prosa
+  **cita** um diagrama hoje, e uma citação vive no texto, não numa coluna.
 
   A topologia vive só na `chain`, e tudo o mais é derivado dela:
 
@@ -630,24 +629,38 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
       que está escrito e, principalmente, quais soluções ainda não têm nenhum
       caderno com conteúdo.
 
-  **Qualquer página, em qualquer nível, pode apontar para um diagrama.** Aí ela
-  ganha as abas **Documentação** e **Diagrama** (o canvas da chain) e o desenho
-  é editado dali — nos mesmos endpoints do canvas dele, porque o cliente pega
-  toda URL do payload do grafo. O vínculo é um `<x-ui.inline-edit>` na barra de
-  cima (`documentation_pages.diagram_id`, um select cuja opção em branco é o
-  "desvincular"), e salvar **navega** em vez de trocar um slot: vincular muda o
-  formato da tela. A FK vive na **página**, então um diagrama serve 1..N páginas
-  — o mesmo desenho explica várias páginas, muitas vezes de cadernos
-  diferentes, enquanto uma página nunca tem dois desenhos para conciliar.
-  Excluir o diagrama não leva a página (`nullOnDelete`): o texto é o que deu
-  trabalho.
+  **Uma página CITA diagramas, não possui um.** O bloco `Diagrama` do editor
+  insere `{% diagram slug="…" %}` no Markdown — quinto construto do dialeto,
+  auto-fechado com um atributo, mesma forma dos quatro do GitBook. Ele renderiza
+  a imagem atual do desenho mais um link que abre o canvas **em nova aba**, e o
+  seletor é uma árvore colapsável **por solução** (`diagrams.catalog`), com um
+  grupo final para desenhos que não citam solução nenhuma — senão ficariam
+  incitáveis.
 
-  A navegação é um **rail colapsável à esquerda** com as páginas do caderno (um
-  passo de indentação por nível, com linha-guia) e um marcador nas linhas que
-  carregam um diagrama. Ele tinha uma segunda lista embaixo, "Integrações", com
-  a documentação de página única de cada uma — essa segunda documentação não
-  existe mais. O rail é titulado com o nome do caderno, com um ↗ para o
-  registro; colapsado, a barra de cima passa a mostrar `Caderno ↗ › Página`, que
+  Havia uma FK (`documentation_pages.diagram_id`) e, com ela, um par de abas
+  **Documentação**/**Diagrama** na página. As duas saíram: a FK modelava "esta
+  página é *a* página daquele desenho", mais estreito do que as pessoas
+  escrevem — uma página cita vários desenhos, ao lado dos parágrafos que
+  precisam deles. Endereçado por **slug**, não por id: é o que o autor escolheu
+  e o que a URL mostra, sobrevive a uma troca de base entre ambientes, e uma
+  citação órfã ainda diz alguma coisa.
+
+  O bloco degrada de propósito. Sem snapshot ainda (o PNG é gerado pelo
+  **navegador** ao salvar o layout, então um desenho que ninguém abriu não tem
+  nenhum) ele diz isso em vez de sumir; com o diagrama apagado, vira um card
+  "removido" em vez de estragar a prosa em volta.
+
+  A navegação é um **rail à esquerda** com as páginas do caderno, um passo de
+  indentação por nível com linha-guia. Ele **abre só o galho que leva à página
+  aberta** (`DocumentationPageService::navRows()` decide isso no servidor, então
+  o rail já vem certo antes de qualquer JS): num caderno de 133 páginas são 38
+  linhas visíveis, não 133. Cada galho tem um chevron, e a barra de rolagem só
+  aparece com o mouse sobre a sidebar.
+
+  O título do rail é o nome do caderno, **editável inline** ao lado de um ícone
+  de caderno — sem ↗: um caderno é a própria página, então o ícone apontava para
+  a tela já aberta. O título da página é editável inline também, na barra de
+  cima. Colapsado, o rail dá lugar a `Caderno › Página`, que
   é o que impede de perder o contexto. No
   menu de cada linha estão as mudanças de nível — "Nova subpágina" e
   "Aninhar na página acima" / "Promover um nível" —, oferecidas só quando são
@@ -659,18 +672,24 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   subpáginas dela (em cascata, em qualquer profundidade); movê-la para outro
   caderno leva a subárvore toda — e uma subpágina movida sozinha chega como
   página de primeiro nível, já que a mãe ficou para trás.
-  Um **link público** ("magic link", só para Solução) expõe as páginas dela sem
-  exigir login. Renderização read-only via `App\Support\GitbookRenderer`. Só
-  páginas: um diagrama não carrega texto, e chega ao visitante como imagem
-  embutida numa página, como qualquer outra.
+  Um **link público** ("magic link", por **caderno**) expõe as páginas dele sem
+  exigir login. Renderização read-only via `App\Support\GitbookRenderer`.
+
+  O que um visitante **não** ganha: o link "Abrir diagrama" de uma citação. O
+  canvas fica atrás de login, então o botão seria um beco sem saída — e uma
+  divulgação, já que nomearia um desenho fora do alcance dele e entregaria o
+  slug. O card em si continua (imagem e nome são documentação; o link é uma
+  affordance de edição), e a imagem é servida por uma rota própria com escopo de
+  token, **autorizada por citação**: o token dá um caderno, o caderno dá o que
+  as páginas dele citam, e um desenho não citado dá 404 mesmo com token válido.
 - **Assiste IA (rascunho por LLM, em formato de chat)**: em qualquer página de
-  doc de Solução, um painel lateral é uma
+  documentação, um painel lateral é uma
   **conversa** — espelhando o composer do Especialista em Integrações — e não
   um formulário de um tiro só. Cada turno recebe o histórico, o Markdown atual
   do editor e os **documentos de contexto** marcados (coleção
-  `context_documents` por Solução — PDF/imagem/texto, compartilhados por todas
-  as páginas dela; o upload persiste no `change`,
-  sem botão "anexar" à parte). Textos entram embutidos no prompt (com orçamento
+  `context_documents` por **caderno** — PDF/imagem/texto, compartilhados por
+  todas as páginas dele; o upload persiste no `change`, sem botão "anexar" à
+  parte). Textos entram embutidos no prompt (com orçamento
   de caracteres); PDFs/imagens vão como anexos nativos ao modelo (`laravel/ai`).
   A resposta vem de um job assíncrono (`GenerateDocumentationChatReply`, uma
   geração por alvo de cada vez via `WithoutOverlapping`) com polling.
@@ -710,6 +729,24 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   faz "onde está a doc do SVL?" ter resposta sem saber como o caderno se chama.
   Criar/renomear e vincular soluções vivem num painel lateral; o vínculo também
   é editável de dentro do editor, na barra de cima.
+- **Busca da documentação pública** (`⌘K`): o gatilho fica na barra de cima e é
+  só o campo; abrir leva a uma **paleta de comandos** (`<dialog>`) com a busca,
+  os controles e os resultados.
+
+  O que a torna mais que um localizador são os **escopos** — três interruptores
+  que dizem *onde* a consulta procura: `Texto e títulos`, `Tabelas`, `Código`. O
+  texto de cada entrada é separado nesses três baldes na indexação, então
+  restringir não custa nada em tempo de busca. No caderno "Dados • BigQuery •
+  GCP", *"dataset"* dá **72 no total, 70 dentro de tabelas, 4 em prosa e 2 em
+  código** — é a diferença entre dar grep num corpus e interrogá-lo.
+
+  A unidade de um resultado é a **seção**, não a página: cada H1–H3 abre uma
+  entrada com o corpo daquele heading, e a página carrega só o que vem antes do
+  primeiro — então nenhum trecho volta duas vezes. O índice é cacheado por
+  **conteúdo** (nunca por `updated_at`, que tem resolução de segundo), e os
+  resultados chegam como um slot renderizado pelo Blade, de modo que o texto de
+  quem escreveu é escapado no caminho e nunca vira markup.
+
 - **Hub de Documentação** (`/documentation`): visão gerencial transversal do
   que está documentado e do que falta. Lista **por caderno** — cada um com as
   soluções que descreve e suas páginas, com um selo por **conteúdo real** (não
@@ -846,20 +883,20 @@ Cobertura relevante: `DiagramChain*Test` (edição de nó/ligação/protocolo/
 adicionar/remover/colar imagem na chain), `SyncDiagramFromChainTest`
 (rederivação das colunas), `DiagramLayoutSaveTest` (persistência de
 `viz_layout` sem tocar topologia), `DiagramsModuleTest` (o módulo: índice,
-contadores separados de desenhado/explicado, filtros, canvas, delete e a
+contadores separados de desenhado/no-catálogo, filtros, canvas, delete e a
 entrada no menu), `SolutionAttributeInlineUpdateTest` (edição
 inline dos 8 atributos), `{Solution,Person,Company}InlineFieldUpdateTest` e
 `{Solution,Person,Company}InlineRelationsTest` (edição in place das páginas de
 detalhe — campos, upload, e criar/trocar/remover relação), `DetailHeaderSlotTest`
 (a mutação devolve o slot da página de detalhe, não só o do índice),
-`SolutionWorkspaceCardTest` (o card de diagramas + documentação: dois slots,
-os dois formulários de criação, estados vazios ilustrados e o status editável
+`SolutionWorkspaceCardTest` (o card de diagramas + cadernos: dois slots,
+as duas afordâncias de criação, estados vazios ilustrados e o status editável
 na barra do canvas), `DiagramCrudTest` (criar redireciona para o canvas, com ou
 sem solução no bloco raiz; edição parcial de nome/status),
 `PersonContactsSyncTest` (sincronização de contatos adicionais),
-`DocumentationTest` (editor de blocos, e o vínculo página↔diagrama: abas,
-picker, um diagrama servindo páginas de dois cadernos, e a página sobrevivendo
-ao delete do diagrama),
+`DocumentationTest` (editor de blocos; a citação de diagrama nos seus três
+estados — com imagem, sem snapshot ainda, e apontando para um desenho apagado;
+os cards de sub-páginas; e o rail colapsado no galho em edição),
 `NotebookTest` (CRUD do caderno e o vínculo com soluções),
 `DocumentationPageMoveTest` (mover página entre cadernos, com a subárvore),
 `PublicDocumentationTest` (magic link do caderno),
