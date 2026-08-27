@@ -31,20 +31,29 @@
             <p class="truncate font-display text-base font-semibold leading-tight text-ink">{{ $heading }}</p>
         </div>
 
+        {{-- The search trigger, and nothing else: a field-shaped button that
+             opens the palette. The facet rows that used to sit under it moved
+             INTO the palette, where they are visible exactly while a query is
+             being typed. --}}
+        @if ($searchUrl)
+            <button type="button" data-ak-docs-search-open
+                    class="ml-auto flex min-w-0 max-w-md flex-1 cursor-pointer items-center gap-2 rounded-field border border-line bg-canvas px-3 py-1.5 text-left text-sm text-faint transition-colors hover:border-accent-line hover:bg-surface">
+                <x-heroicon-o-magnifying-glass class="size-4 shrink-0" />
+                <span class="min-w-0 flex-1 truncate">Buscar na documentação…</span>
+                <span class="hidden shrink-0 rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-[10px] sm:block">⌘K</span>
+            </button>
+        @endif
     </header>
-
-    {{-- Search + filters over the whole shared corpus, deliberately ABOVE the
-         reading shell and never behind a shortcut: the facets are the point,
-         and a facet nobody can see is a facet nobody uses. --}}
-    @if ($searchUrl)
-        <x-documentation.search-panel :url="$searchUrl" :results="$searchResults" />
-    @endif
 
     {{-- Three-pane docs shell (GitBook/Substack/Medium): pages rail pinned to
          the left, a centered reading column, and an "on this page" headings
          navigator on the right. Full-bleed so the pages rail sits flush left.
-         Hidden by docs-search.js while a search is narrowing the corpus — the
-         results are the page then. --}}
+
+         It no longer hides itself during a search: the palette is a modal over
+         the top layer, so the shell being visible underneath is the point
+         rather than a conflict. The `data-ak-docs-search-active` marker the
+         server still emits is what the palette reads to know it is narrowing;
+         nothing toggles the shell any more. --}}
     <div data-ak-docs-shell class="flex w-full items-start gap-6 px-4 md:gap-8 md:px-6 lg:px-8">
 
         {{-- Pages index: this caderno's tree, collapsed to the path being read.
@@ -120,6 +129,14 @@
         <aside data-ak-docs-toc
                class="hidden w-56 shrink-0 lg:sticky lg:top-14 lg:block lg:max-h-[calc(100vh_-_3.5rem)] lg:overflow-y-auto lg:py-10"></aside>
     </div>
+
+    {{-- The search palette. Mounted at the end of the body, outside the
+         reading shell: a <dialog> in the top layer is not affected by any
+         ancestor's stacking or overflow, which is what the inline panel had to
+         fight when it sat inside the sticky header's flow. --}}
+    @if ($searchUrl)
+        <x-documentation.search-panel :url="$searchUrl" :results="$searchResults" />
+    @endif
 
     {{-- Toast — same shell as the main layout (Toast.show for "Copiar Markdown"). --}}
     <div id="toast-container" class="fixed right-4 top-4 z-50 flex w-80 flex-col gap-2">

@@ -5,9 +5,12 @@
 // and totals arrive as HTML rendered by Blade, so this module builds no markup
 // at all — it owns the debounce, the keyboard and what the panel hides.
 //
-// It was a ⌘K modal first. The filters are why it isn't one any more: a facet
-// nobody can see is a facet nobody uses. ⌘K survives as a shortcut TO the
-// field, not as a way to summon it.
+// It is a ⌘K palette (`<dialog>`), was one, then wasn't, and is again. What
+// changed is what the controls MEAN: the inline version existed because its
+// facets ("results that CONTAIN a table") were the feature and had to be
+// visible. The palette's scope switches answer "search INSIDE tables / code /
+// prose" and live beside the field, on screen the whole time a query is — so
+// the objection that took it out of a modal doesn't apply to them.
 //
 // Three details worth keeping:
 //
@@ -27,7 +30,9 @@ import { updateSlots } from './ajax-slot'
 
 const DEBOUNCE_MS = 140
 
-const state = { q: '', section: '', tag: '' }
+// `scopes` is a Set the CLIENT owns: the switches sit outside the swapped slot
+// (like the query field), so nothing server-rendered can contradict them.
+const state = { q: '', section: '', tag: '', scopes: new Set(['prose', 'table', 'code']) }
 
 let sequence = 0
 let debounce = null
@@ -55,15 +60,27 @@ function spinner(visible) {
     panel()?.querySelector('[data-ak-docs-search-spinner]')?.classList.toggle('hidden', !visible)
 }
 
-// While a search is narrowing the corpus, the results ARE the page — the three
-// pane reading shell would otherwise sit under a screen of hits with nothing
-// to do. The server decides (`data-ak-docs-search-active` on the slot), so the
-// panel and the shell can never disagree about whether a search is running.
-function syncShell() {
-    const shell = document.querySelector('[data-ak-docs-shell]')
-    if (!shell) return
+/*------------------------------------------------
+    Opening and closing
+--------------------------------------------------*/
 
-    shell.classList.toggle('hidden', !!panel()?.querySelector('[data-ak-docs-search-active]'))
+// The index is built on FIRST OPEN, never on page render: a visitor who never
+// searches never pays the cost of parsing the corpus (six seconds on the
+// largest one measured). `data-ak-docs-search-pending` is the server saying it
+// shipped a placeholder because the index was cold.
+function open() {
+    const dialog = panel()
+    if (!dialog || dialog.open) return
+
+    dialog.showModal()
+    input()?.focus()
+    input()?.select()
+
+    if (dialog.querySelector('[data-ak-docs-search-pending]')) request()
+}
+
+function close() {
+    panel()?.close()
 }
 
 function request() {
@@ -74,6 +91,13 @@ function request() {
     if (state.q) url.searchParams.set('q', state.q)
     if (state.section) url.searchParams.set('filter[section]', state.section)
     if (state.tag) url.searchParams.set('filter[tag]', state.tag)
+
+    // Sent only when it is a real narrowing. All three on is the default, and
+    // the server reads an absent selection as "everywhere" — so the common
+    // case keeps the URL (and the response) exactly what it was.
+    if (state.scopes.size < 3) {
+        [...state.scopes].forEach((scope) => url.searchParams.append('filter[scopes][]', scope))
+    }
 
     const ticket = ++sequence
     spinner(true)
@@ -88,7 +112,6 @@ function request() {
             updateSlots(data)
             activeIndex = 0
             highlightActive({ scroll: false })
-            syncShell()
         })
         .catch(() => {
             if (ticket !== sequence) return
@@ -109,6 +132,9 @@ function clearSearch() {
     state.q = ''
     state.section = ''
     state.tag = ''
+    // The scopes are deliberately NOT reset: they are how this person searches,
+    // not what they searched for. Clearing them with the query would undo the
+    // setup on every new question.
     clearTimeout(debounce)
     request()
     field?.focus()
@@ -163,10 +189,58 @@ document.addEventListener('click', (event) => {
         return
     }
 
+    if (event.target.closest('[data-ak-docs-search-open]')) {
+        event.preventDefault()
+        open()
+
+        return
+    }
+
+    if (event.target.closest('[data-ak-docs-search-close]')) {
+        event.preventDefault()
+        close()
+
+        return
+    }
+
     if (event.target.closest('[data-ak-docs-search-clear]')) {
         event.preventDefault()
         clearSearch()
     }
+})
+
+// The scope switches. `change`, not `click`: a checkbox is also toggled by the
+// keyboard, and binding the click would leave those two out of step.
+document.addEventListener('change', (event) => {
+    const box = event.target.closest?.('[data-ak-docs-search-scope]')
+    if (!box) return
+
+    const scope = box.dataset.akDocsSearchScope
+    box.checked ? state.scopes.add(scope) : state.scopes.delete(scope)
+
+    // Unticking the last one reads as "search nowhere", which would answer
+    // every query with silence. The server treats an empty selection as all
+    // three; the boxes are put back so the screen says the same thing.
+    if (state.scopes.size === 0) {
+        state.scopes = new Set(['prose', 'table', 'code'])
+        panel()?.querySelectorAll('[data-ak-docs-search-scope]').forEach((other) => { other.checked = true })
+    }
+
+    request()
+    input()?.focus()
+})
+
+// Clicking the backdrop closes it — a <dialog> reports that as a click on the
+// dialog element itself, outside its own content box.
+document.addEventListener('click', (event) => {
+    const dialog = panel()
+    if (!dialog?.open || event.target !== dialog) return
+
+    const box = dialog.getBoundingClientRect()
+    const outside = event.clientX < box.left || event.clientX > box.right
+        || event.clientY < box.top || event.clientY > box.bottom
+
+    if (outside) close()
 })
 
 document.addEventListener('keydown', (event) => {
@@ -174,13 +248,11 @@ document.addEventListener('keydown', (event) => {
     if (!field) return
 
     // ⌘K / Ctrl+K anywhere, or "/" when the visitor isn't already typing,
-    // jumps to the field wherever the page has been scrolled to.
+    // OPENS the palette — it used to scroll to a field sitting in the page.
     const typing = event.target.matches?.('input, textarea, select, [contenteditable="true"]')
     if (((event.key === 'k' || event.key === 'K') && (event.metaKey || event.ctrlKey)) || (event.key === '/' && !typing)) {
         event.preventDefault()
-        field.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-        field.focus()
-        field.select()
+        open()
 
         return
     }
@@ -201,7 +273,10 @@ document.addEventListener('keydown', (event) => {
             event.preventDefault()
             window.location.href = target.href
         }
-    } else if (event.key === 'Escape') {
+    } else if (event.key === 'Escape' && field.value !== '') {
+        // First Escape clears a typed query, second one closes the palette —
+        // the <dialog>'s own close watcher handles that second press, so this
+        // deliberately does NOT preventDefault on an empty field.
         event.preventDefault()
         clearSearch()
     }

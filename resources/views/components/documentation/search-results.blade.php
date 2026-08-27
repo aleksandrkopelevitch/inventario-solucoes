@@ -36,49 +36,31 @@
      is being narrowed, and deciding it twice is how the two drift apart. --}}
 <div id="{{ $domId }}" @if ($narrowed) data-ak-docs-search-active @endif>
 
-    {{-- Facet rows. Both are hidden when the corpus has nothing to narrow by,
-         so a one-page link doesn't grow two rows of dead chrome. --}}
-    @if (filled($facets['tags']) || count($facets['sections']) > 1)
-        <div class="space-y-1.5 pt-3">
-            @if (filled($facets['tags']))
-                <div class="flex items-center gap-2">
-                    <span class="w-16 shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] text-faint">Conteúdo</span>
-                    <div class="ak-docs-scroll flex min-w-0 flex-1 gap-1.5 overflow-x-auto">
-                        <x-forms.button type="button" variant="ghost" data-ak-docs-search-facet="tag" data-ak-docs-search-value=""
-                            class="{{ $chipBase }} {{ $filters['tag'] === null ? $chipOn : $chipOff }}">Tudo</x-forms.button>
-                        @foreach ($facets['tags'] as $facet)
-                            <x-forms.button type="button" variant="ghost" data-ak-docs-search-facet="tag" data-ak-docs-search-value="{{ $facet['value'] }}"
-                                class="{{ $chipBase }} {{ $filters['tag'] === $facet['value'] ? $chipOn : $chipOff }} {{ $facet['count'] === 0 ? $chipEmpty : '' }}">
-                                {{ $tagLabels[$facet['value']] ?? $facet['value'] }}
-                                <span class="opacity-60">{{ $facet['count'] }}</span>
-                            </x-forms.button>
-                        @endforeach
-                    </div>
-                </div>
-            @endif
+    {{-- Section chips, unlabelled.
 
-            @if (count($facets['sections']) > 1)
-                <div class="flex items-center gap-2">
-                    <span class="w-16 shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] text-faint">Seção</span>
-                    <div class="ak-docs-scroll flex min-w-0 flex-1 gap-1.5 overflow-x-auto">
-                        <x-forms.button type="button" variant="ghost" data-ak-docs-search-facet="section" data-ak-docs-search-value=""
-                            class="{{ $chipBase }} {{ $filters['section'] === null ? $chipOn : $chipOff }}">Todas</x-forms.button>
-                        @foreach ($facets['sections'] as $facet)
-                            {{-- The label is shortened in PHP, not with `truncate`:
-                                 x-forms.button wraps the slot in its own flex
-                                 `[data-label]` span, which has no `min-w-0`, so a
-                                 truncating child never shrinks and a long page
-                                 title overflows the pill onto its neighbour. --}}
-                            <x-forms.button type="button" variant="ghost" data-ak-docs-search-facet="section" data-ak-docs-search-value="{{ $facet['value'] }}"
-                                title="{{ $facet['label'] }}"
-                                class="{{ $chipBase }} {{ $filters['section'] === $facet['value'] ? $chipOn : $chipOff }} {{ $facet['count'] === 0 ? $chipEmpty : '' }}">
-                                {{ Str::limit($facet['label'], 26) }}
-                                <span class="opacity-60">{{ $facet['count'] }}</span>
-                            </x-forms.button>
-                        @endforeach
-                    </div>
-                </div>
-            @endif
+         The "Conteúdo" row that sat above these is gone: it answered "show me
+         results that CONTAIN a table", which the palette's scope toggles now
+         answer better as "search INSIDE tables". Two rows of table/code
+         vocabulary asking subtly different questions was the confusing part.
+         Sections stay because they narrow a different axis — WHERE in the
+         corpus — and nothing else offers it. --}}
+    @if (count($facets['sections']) > 1)
+        <div class="ak-docs-scroll flex min-w-0 gap-1.5 overflow-x-auto pt-3">
+            <x-forms.button type="button" variant="ghost" data-ak-docs-search-facet="section" data-ak-docs-search-value=""
+                class="{{ $chipBase }} {{ $filters['section'] === null ? $chipOn : $chipOff }}">Todas</x-forms.button>
+            @foreach ($facets['sections'] as $facet)
+                {{-- The label is shortened in PHP, not with `truncate`:
+                     x-forms.button wraps the slot in its own flex
+                     `[data-label]` span, which has no `min-w-0`, so a
+                     truncating child never shrinks and a long page
+                     title overflows the pill onto its neighbour. --}}
+                <x-forms.button type="button" variant="ghost" data-ak-docs-search-facet="section" data-ak-docs-search-value="{{ $facet['value'] }}"
+                    title="{{ $facet['label'] }}"
+                    class="{{ $chipBase }} {{ $filters['section'] === $facet['value'] ? $chipOn : $chipOff }} {{ $facet['count'] === 0 ? $chipEmpty : '' }}">
+                    {{ Str::limit($facet['label'], 26) }}
+                    <span class="opacity-60">{{ $facet['count'] }}</span>
+                </x-forms.button>
+            @endforeach
         </div>
     @endif
 

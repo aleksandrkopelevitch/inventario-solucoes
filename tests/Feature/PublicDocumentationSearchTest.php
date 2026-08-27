@@ -2,6 +2,7 @@
 
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
+use App\Services\DocumentationSearchService;
 use App\View\Components\Documentation\SearchResults;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 
@@ -47,32 +48,54 @@ it('renders the search panel above the documentation, not behind a shortcut', fu
         // search, or ajax-slot.js has nothing to swap.
         ->assertSee('id="' . SearchResults::DOM_ID . '"', false)
         ->assertSee(route('public.docs.search', $notebook->public_token), false)
-        // …and the reading shell must be addressable, or the results have
-        // nowhere to take over from.
+        // The trigger lives in the topbar and opens the palette; the palette
+        // itself is a <dialog> mounted at the end of the body.
+        ->assertSee('data-ak-docs-search-open', false)
         ->assertSee('data-ak-docs-shell', false);
 
-    // The panel comes BEFORE the documentation it searches.
     $html = $response->getContent();
-    expect(strpos($html, 'data-ak-docs-search-input'))->toBeLessThan(strpos($html, 'data-ak-docs-shell'));
+
+    // The TRIGGER comes before the documentation, the palette after it: a
+    // <dialog> lives in the top layer, so where it sits in the flow is exactly
+    // what stops it fighting the sticky header's stacking context.
+    expect(strpos($html, 'data-ak-docs-search-open'))->toBeLessThan(strpos($html, 'data-ak-docs-shell'))
+        ->and(strpos($html, 'data-ak-docs-search-input'))->toBeGreaterThan(strpos($html, 'data-ak-docs-shell'));
 });
 
-it('renders the filter chips with the page once the corpus is indexed', function () {
+it('ships the palette warm once the corpus is indexed', function () {
     $notebook = sharedNotebook('tok-warm', "# Visão geral\n\n## Contrato\n\n| a | b |\n| --- | --- |\n| 1 | 2 |");
+    DocumentationPage::factory()->for($notebook)->create(['title' => 'Outra', 'documentation' => '# Outra']);
 
-    // Cold: the panel must not drag the index build into the page render.
+    // Cold: the palette must not drag the index build into the page render.
     $this->get(route('public.docs.notebook', $notebook->public_token))
         ->assertOk()
         ->assertSee('data-ak-docs-search-pending', false)
         ->assertDontSee('data-ak-docs-search-facet', false);
 
-    // Warm (the client's first search built it): chips ship with the HTML.
+    // Warm (the client's first search built it): the results slot ships with
+    // the HTML, section chips included.
     $this->getJson(route('public.docs.search', $notebook->public_token))->assertOk();
 
     $this->get(route('public.docs.notebook', $notebook->public_token))
         ->assertOk()
         ->assertDontSee('data-ak-docs-search-pending', false)
-        ->assertSee('data-ak-docs-search-facet="tag"', false)
-        ->assertSee('Tabelas');
+        ->assertSee('data-ak-docs-search-facet="section"', false);
+});
+
+it('offers the three search scopes, all on by default', function () {
+    $notebook = sharedNotebook('tok-scopes', '# Visão geral');
+
+    $content = $this->get(route('public.docs.notebook', $notebook->public_token))
+        ->assertOk()
+        ->getContent();
+
+    foreach (['prose', 'table', 'code'] as $scope) {
+        expect($content)->toMatch('/data-ak-docs-search-scope="' . $scope . '"[^>]*checked/');
+    }
+
+    // The content-tag row the palette replaced is gone: "results that CONTAIN a
+    // table" and "search INSIDE tables" side by side was the confusing part.
+    expect($content)->not->toContain('data-ak-docs-search-facet="tag"');
 });
 
 it('marks the slot as active only while the corpus is being narrowed', function () {
@@ -274,4 +297,64 @@ it('escapes page text instead of letting it reach the palette as markup', functi
 
     expect($html)->not->toContain('<script>')
         ->and($html)->toContain('&lt;script&gt;');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Search scope — WHERE the query looks
+|--------------------------------------------------------------------------
+*/
+
+it('searches only inside the buckets the query asked for', function () {
+    // The same word in three different kinds of element. Narrowing the scope
+    // has to change WHICH of them can be found — that is the whole point of
+    // the switches, and what turns the corpus into something you can
+    // interrogate rather than just grep.
+    $notebook = sharedNotebook('tok-scope', implode("\n\n", [
+        '# Página',
+        'Um parágrafo que menciona sentinela em prosa.',
+        "| Coluna | Valor |\n| --- | --- |\n| sentinela | 1 |",
+        "```\nconst sentinela = 1\n```",
+    ]));
+
+    $svc = app(DocumentationSearchService::class);
+
+    // Everything on: the word is found.
+    expect($svc->search($notebook, 'sentinela')['total'])->toBeGreaterThan(0);
+
+    foreach (['prose', 'table', 'code'] as $only) {
+        expect($svc->search($notebook, 'sentinela', ['scopes' => [$only]])['total'])
+            ->toBeGreaterThan(0, "esperava achar 'sentinela' no escopo {$only}");
+    }
+
+    // A word that lives ONLY in prose disappears when prose is off.
+    expect($svc->search($notebook, 'parágrafo', ['scopes' => ['prose']])['total'])->toBeGreaterThan(0)
+        ->and($svc->search($notebook, 'parágrafo', ['scopes' => ['table', 'code']])['total'])->toBe(0);
+});
+
+it('treats an empty scope selection as everywhere, not nowhere', function () {
+    // Unticking the last switch must not answer every query with silence.
+    $notebook = sharedNotebook('tok-empty-scope', "# Página\n\nTexto com sentinela.");
+    $svc = app(DocumentationSearchService::class);
+
+    expect($svc->search($notebook, 'sentinela', ['scopes' => []])['total'])
+        ->toBe($svc->search($notebook, 'sentinela')['total']);
+});
+
+it('refuses an unknown scope instead of quietly widening the search', function () {
+    $notebook = sharedNotebook('tok-bad-scope', '# Página');
+
+    $this->getJson(route('public.docs.search', [$notebook->public_token, 'q' => 'x', 'filter' => ['scopes' => ['tudo']]]))
+        ->assertStatus(422)
+        ->assertJson(['type' => 'warning']);
+});
+
+it('keeps the scope selection out of the url when nothing is narrowed', function () {
+    // All three on is the default the server already assumes, so the common
+    // request stays byte-identical to what it was before scopes existed.
+    $notebook = sharedNotebook('tok-default-scope', "# Página\n\nTexto.");
+
+    $payload = app(DocumentationSearchService::class)->search($notebook, 'texto');
+
+    expect($payload['filters']['scopes'])->toBe(DocumentationSearchService::SCOPES);
 });

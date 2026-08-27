@@ -298,22 +298,46 @@ pages. The token resolves a `Notebook` — what gets shared is ONE caderno,
 whatever it happens to be linked to, so linking a notebook to a solution
 publishes nothing.
 
-**The panel sits above the reading shell, in the page — it is deliberately not
-a ⌘K modal.** It was one for about an hour, and the FILTERS are why it stopped
-being one: the facets are the feature, and a facet nobody can see is a facet
-nobody uses. ⌘K survives as a shortcut TO the field. Two consequences worth
-keeping in mind before moving it back:
+**It is a ⌘K palette (`<dialog>`), triggered from the topbar.** It was a
+palette, then an inline panel, and is a palette again — and the round trip is
+not indecision, it is the controls changing meaning. The inline version existed
+because its facets ("results that CONTAIN a table") were the feature and had to
+be visible. The palette's controls answer a different question:
+
+**`SCOPES` (`prose` / `table` / `code`) say WHERE a query looks, not what it
+narrows to.** Every entry's text is bucketed into exactly those three at index
+time, so a scope costs nothing at query time beyond concatenating the buckets
+that are on. That is what makes the corpus interrogable: a column name lives in
+tables, an env var in code, a policy in prose, and searching all three at once
+buries whichever you meant. The switches live in the palette beside the field —
+visible the whole time a query is — which is why the old objection doesn't apply
+to them. The content-tag facet row was removed with the move: two rows of
+table/code vocabulary asking subtly different questions was the confusing part.
+
+Three rules the scopes carry:
+
+- **An empty selection means everywhere, not nowhere.** Unticking the last box
+  must not answer every query with silence.
+- **The default is not sent.** All three on is what the server already assumes,
+  so the common request stays byte-identical to the pre-scope one — and
+  `inScope()` short-circuits, keeping snippets in document order.
+- **`filter.scopes` has to be DECLARED in the Form Request.** `validated()`
+  returns only what the rules name, so an undeclared key is dropped in silence
+  and every scoped search answers as if unscoped. That is exactly how it broke
+  first time round.
+
+Two consequences of the palette worth keeping in mind:
 
 - The idle panel renders its chips server-side, so the page render would
   inherit the index build — which is why `DocumentationSearchService::isWarm()`
   exists. A cold index makes the panel ship a placeholder and lets
   `docs-search.js` fetch it, so a big corpus is indexed in the background on
   the first visit instead of inside time-to-first-paint.
-- While a search is narrowing the corpus the three-pane reading shell
-  (`[data-ak-docs-shell]`) is hidden — the results ARE the page then. The
-  SERVER decides that, via `data-ak-docs-search-active` on the slot, and the
-  client only mirrors it; deciding it in both places is how the two drift into
-  a blank page on load.
+- The reading shell is no longer hidden during a search: a `<dialog>` renders
+  in the top layer, so the documentation staying visible underneath is the
+  point rather than a conflict. `data-ak-docs-search-active` survives on the
+  slot as the server's statement that a query is narrowing; nothing toggles the
+  shell any more.
 
 Four things about `App\Services\DocumentationSearchService` are easy to undo by
 accident:
