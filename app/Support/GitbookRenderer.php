@@ -33,13 +33,36 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  */
 class GitbookRenderer
 {
+    /** Set by `render()` on every call — see the note there. */
+    private bool $linkDiagrams = true;
+
     private ?MarkdownConverter $converter = null;
 
     /** Counter for unique tab-block ids within the same render. */
     private int $uid = 0;
 
-    public function render(?string $markdown): string
+    /**
+     * @param  bool  $linkDiagrams  Whether a cited drawing gets a link to its
+     *                              canvas. FALSE for anything a guest can read:
+     *                              `/diagrams/{slug}` is behind auth, so the
+     *                              link is both a dead end (it lands on the
+     *                              login screen) and a disclosure — it tells an
+     *                              anonymous reader the drawing exists and what
+     *                              its slug is. The card itself still renders:
+     *                              the picture and the name are documentation,
+     *                              the link is an editing affordance.
+     */
+    public function render(?string $markdown, bool $linkDiagrams = true): string
     {
+        // A property rather than a parameter threaded through `renderLines()`:
+        // that walk recurses (tabs and hints nest), so the flag would have to
+        // ride every recursive call and every helper between here and the one
+        // place that reads it. Nothing binds this class as a singleton and a
+        // render is not re-entrant, so the value cannot be observed by another
+        // call — but it is set on EVERY entry, never only when false, so a
+        // previous call can't leave it behind either.
+        $this->linkDiagrams = $linkDiagrams;
+
         if (blank($markdown)) {
             return '';
         }
@@ -310,7 +333,6 @@ class GitbookRenderer
                 . '</div>';
         }
 
-        $url = route('diagrams.show', $diagram);
         $picture = $diagram->picture();
 
         $figure = $picture
@@ -328,11 +350,13 @@ class GitbookRenderer
             // New tab, and `rel` with it: the canvas is a full-screen editor,
             // and losing the page you were reading to reach it is the one thing
             // a citation must not do.
-            . '<a href="' . e($url) . '" target="_blank" rel="noopener"'
-            . ' class="inline-flex shrink-0 items-center gap-1.5 rounded-field border border-line bg-surface px-2.5 py-1 text-xs font-medium text-ink no-underline transition-colors hover:border-accent-line hover:bg-accent-soft/40">'
-            . 'Abrir diagrama'
-            . '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>'
-            . '</a>'
+            . ($this->linkDiagrams
+                ? '<a href="' . e(route('diagrams.show', $diagram)) . '" target="_blank" rel="noopener"'
+                    . ' class="inline-flex shrink-0 items-center gap-1.5 rounded-field border border-line bg-surface px-2.5 py-1 text-xs font-medium text-ink no-underline transition-colors hover:border-accent-line hover:bg-accent-soft/40">'
+                    . 'Abrir diagrama'
+                    . '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>'
+                    . '</a>'
+                : '')
             . '</figcaption>'
             . '</figure>';
     }

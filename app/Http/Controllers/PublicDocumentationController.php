@@ -203,7 +203,14 @@ class PublicDocumentationController extends Controller
     /** Renders the Markdown and rewrites `/files/{id}` to the public route. */
     private function renderMarkdown(?string $markdown, string $token): string
     {
-        return $this->rewriteFileUrls(app(GitbookRenderer::class)->render($markdown), $token);
+        // `linkDiagrams: false` — see GitbookRenderer::render(). A visitor on a
+        // magic link has no account: the canvas is behind auth, so the link
+        // would land them on the login screen while telling them the drawing's
+        // slug on the way.
+        return $this->rewriteFileUrls(
+            app(GitbookRenderer::class)->render($markdown, linkDiagrams: false),
+            $token,
+        );
     }
 
     /** Rewrites every `src|href="/files/{id}"` to the public `public.docs.file` route. */

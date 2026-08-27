@@ -392,7 +392,11 @@ class DocumentationSearchService
      */
     private function parse(DocumentationPage $page): array
     {
-        $html = (new GitbookRenderer)->render($page->documentation);
+        // `linkDiagrams: false` for two reasons: "Abrir diagrama" is chrome and
+        // has no business being searchable, and the index is CACHED — a render
+        // that varied by the viewer's auth state would bake one audience's
+        // chrome into everybody's results.
+        $html = (new GitbookRenderer)->render($page->documentation, linkDiagrams: false);
         $empty = ['lead' => ['text' => '', 'tags' => [], 'scopes' => []], 'sections' => []];
 
         if (trim($html) === '') {

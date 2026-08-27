@@ -222,7 +222,18 @@ four GitBook ones, so both parsers (`GitbookRenderer` and `docs-markdown.js`)
 take it the way they take `file`.
 
 It renders as the drawing's current picture plus a link that opens the canvas in
-a **new tab**, and it degrades on purpose: a diagram with no snapshot yet says so
+a **new tab — and only for someone signed in.**
+`GitbookRenderer::render(..., linkDiagrams: false)` withholds that link from the
+public magic link and from the search index. `/diagrams/{slug}` is behind auth,
+so for a visitor the button is both a dead end onto the login screen and a
+disclosure: it names a drawing they cannot reach and hands over its slug. The
+card itself renders either way — the picture and the name are documentation, the
+link is an editing affordance. The index passes `false` for a second reason: it
+is CACHED, so a render that varied by the viewer's auth state would bake one
+audience's chrome into everybody's results, and "Abrir diagrama" is a button
+nobody should be able to search for.
+
+It degrades on purpose: a diagram with no snapshot yet says so
 (the PNG is posted by the BROWSER after a layout save, so a diagram nobody has
 opened since that feature landed has none), and a deleted diagram becomes a
 "removido" card rather than damaging the prose around it.

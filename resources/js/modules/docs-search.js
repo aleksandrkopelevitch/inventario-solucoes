@@ -189,6 +189,18 @@ document.addEventListener('click', (event) => {
         return
     }
 
+    // Choosing a result closes the palette, and it has to be done HERE rather
+    // than left to the navigation. A hit on the page already open is an
+    // anchor-only URL: the browser changes the hash and never reloads, so the
+    // dialog would sit over the very heading it just jumped to. (That is why it
+    // looked like it "worked the first time" — the first hit usually goes to
+    // another page, and the reload took the dialog with it.)
+    if (event.target.closest('[data-ak-docs-search-item]')) {
+        close()
+
+        return
+    }
+
     if (event.target.closest('[data-ak-docs-search-open]')) {
         event.preventDefault()
         open()
@@ -271,6 +283,8 @@ document.addEventListener('keydown', (event) => {
         const target = items()[activeIndex]
         if (target) {
             event.preventDefault()
+            // Same reason as the click path: an anchor-only jump never reloads.
+            close()
             window.location.href = target.href
         }
     } else if (event.key === 'Escape' && field.value !== '') {

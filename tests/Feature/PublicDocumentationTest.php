@@ -5,6 +5,7 @@ use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Models\User;
+use App\Services\DocumentationSearchService;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -255,4 +256,70 @@ it('sees through GitBook front matter when deciding the title is a duplicate', f
         ->getContent();
 
     expect(substr_count($content, '<h1'))->toBe(1);
+});
+
+it('never hands a visitor the link to open a cited diagram', function () {
+    // The canvas is behind auth. Showing the link to someone reading a magic
+    // link is both a dead end — it lands them on the login screen — and a
+    // disclosure: it tells them the drawing exists and what its slug is.
+    $diagram = Diagram::factory()->create(['name' => 'SAP ↔ SVL']);
+    $notebook = Notebook::factory()->create(['public_token' => 'tok-diag-guest']);
+    $page = publicPage($notebook, "# Fluxo\n\n{% diagram slug=\"{$diagram->slug}\" %}");
+    $page->update(['slug' => 'fluxo']);
+
+    $content = $this->get(route('public.docs.page', ['tok-diag-guest', 'fluxo']))
+        ->assertOk()
+        ->getContent();
+
+    // The card itself stays — the picture and the name are documentation.
+    expect($content)
+        ->toContain('ak-doc-diagram')
+        ->toContain('SAP ↔ SVL')
+        // …the editing affordance does not.
+        ->not->toContain(route('diagrams.show', $diagram))
+        ->not->toContain('Abrir diagrama');
+});
+
+it('still gives an authenticated reader the link to the canvas', function () {
+    // The other half of the rule: withholding it from guests must not withhold
+    // it from the people the citation exists for.
+    $diagram = Diagram::factory()->create(['name' => 'SAP ↔ SVL']);
+    $notebook = Notebook::factory()->create();
+    $page = publicPage($notebook, "# Fluxo\n\n{% diagram slug=\"{$diagram->slug}\" %}");
+
+    $this->actingAs(User::factory()->create()) // a viewer, not an admin
+        ->get(route('notebooks.pages.edit', [$notebook, $page]))
+        ->assertOk()
+        ->assertSee(route('diagrams.show', $diagram), false)
+        ->assertSee('Abrir diagrama');
+});
+
+it('keeps chrome out of the search index', function () {
+    // The index is CACHED, so a render that varied by the viewer's auth state
+    // would bake one audience's chrome into everybody's results — and "Abrir
+    // diagrama" is a button, not something anyone should be able to search for.
+    $diagram = Diagram::factory()->create(['name' => 'SAP ↔ SVL']);
+    $notebook = Notebook::factory()->create();
+    publicPage($notebook, "# Fluxo\n\n{% diagram slug=\"{$diagram->slug}\" %}");
+
+    expect(app(DocumentationSearchService::class)->search($notebook, 'Abrir diagrama')['total'])
+        ->toBe(0);
+});
+
+it('names the caderno above the page title, and only there', function () {
+    // The topbar's "Documentação" eyebrow said what the whole screen already
+    // is. The label that earns its place is CADERNO, next to the page title —
+    // that is where two names sit side by side and need telling apart.
+    $notebook = Notebook::factory()->create(['name' => 'Dados • BigQuery', 'public_token' => 'tok-labels']);
+    $page = publicPage($notebook, "# Material\n\nTexto.");
+    $page->update(['title' => 'Material', 'slug' => 'material']);
+
+    $content = $this->get(route('public.docs.page', ['tok-labels', 'material']))
+        ->assertOk()
+        ->getContent();
+
+    expect($content)
+        ->toContain('Caderno')
+        ->toContain('Dados • BigQuery')
+        ->not->toContain('>Documentação</p>');
 });
