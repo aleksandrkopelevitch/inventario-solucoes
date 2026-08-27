@@ -271,6 +271,80 @@ class DocumentationPageService
     }
 
     /**
+     * The tree as NAVIGATION rows: reading order, plus what a collapsible rail
+     * needs to draw itself without a second query.
+     *
+     * Two flags carry the whole behaviour, and they are not the same thing:
+     *
+     * - **`expanded`** — this row's own children are shown. True for the
+     *   ancestors of the active page and for the active page itself, so opening
+     *   a page reveals the path that leads to it and nothing else. This is what
+     *   GitBook does, and the reason it matters here is scale: the imported
+     *   "Dados • BigQuery • GCP" is 133 pages, and a flat rail lists all of them
+     *   at once.
+     * - **`visible`** — this row is rendered at all. A root always is; anything
+     *   else is only when its PARENT is expanded. Note it reads the parent's
+     *   flag rather than walking up: rows arrive in reading order, so a parent
+     *   is always decided before its children, and a collapsed branch therefore
+     *   hides its whole subtree without any recursion here.
+     *
+     * The client can flip both afterwards (`docs-tree.js`); the server decides
+     * the state a page LOADS in, which is what makes the rail correct with
+     * JavaScript still parsing.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function navRows(Notebook $notebook, ?DocumentationPage $active): Collection
+    {
+        $open = $this->ancestorIds($active);
+
+        if ($active) {
+            // The active page opens too — landing on a section should show what
+            // is inside it, not just that it has something.
+            $open[$active->id] = true;
+        }
+
+        $expandedByPage = [];
+
+        return $this->tree($notebook)->map(function (array $row) use ($open, &$expandedByPage) {
+            /** @var DocumentationPage $page */
+            $page = $row['page'];
+            $expanded = isset($open[$page->id]);
+            $expandedByPage[$page->id] = $expanded;
+
+            return $row + [
+                'id'       => $page->id,
+                'parentId' => $page->parent_id,
+                'expanded' => $expanded,
+                'visible'  => $page->parent_id === null || ($expandedByPage[$page->parent_id] ?? false),
+            ];
+        });
+    }
+
+    /**
+     * The ids on the path from `$page` up to a root, as a set — `$page` itself
+     * excluded.
+     *
+     * `parent()->first()`, never the `parent` property: the caller may hand us a
+     * page from a multi-row hydration, where strict mode turns a lazy load into
+     * a 500 (§ Strict mode).
+     *
+     * @return array<int, true>
+     */
+    private function ancestorIds(?DocumentationPage $page): array
+    {
+        $ids = [];
+        $ancestor = $page?->parent()->first();
+
+        while ($ancestor) {
+            $ids[$ancestor->id] = true;
+            $ancestor = $ancestor->parent()->first();
+        }
+
+        return $ids;
+    }
+
+    /**
      * Whether a structural move is available for this page — answered from the
      * same tree the rail renders, so the UI and the validation can never
      * disagree about which arrows a page has. `up`/`down` are always allowed:

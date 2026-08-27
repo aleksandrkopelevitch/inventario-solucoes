@@ -679,3 +679,21 @@ it('still says a page is undocumented when it has neither text nor sub-pages', f
         ->assertOk()
         ->assertSee('Nenhuma documentação cadastrada');
 });
+
+it('collapses the authenticated rail to the branch being edited', function () {
+    $notebook = Notebook::factory()->create();
+    $open = notebookPage($notebook, '# A');
+    $open->update(['title' => 'Aberta']);
+    $child = DocumentationPage::factory()->childOf($open)->create(['title' => 'Filha visível']);
+    $shut = notebookPage($notebook, '# B');
+    $shut->update(['title' => 'Fechada']);
+    $hidden = DocumentationPage::factory()->childOf($shut)->create(['title' => 'Filha escondida']);
+
+    $content = $this->actingAs(docsAdmin())
+        ->get(route('notebooks.pages.edit', [$notebook, $open]))
+        ->assertOk()
+        ->getContent();
+
+    expect($content)->toMatch('/data-page-id="' . $child->id . '"(?![^>]*\\bhidden\\b)/')
+        ->and($content)->toMatch('/data-page-id="' . $hidden->id . '"[^>]*\\bhidden\\b/');
+});

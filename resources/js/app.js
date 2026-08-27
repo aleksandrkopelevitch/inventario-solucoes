@@ -24,6 +24,7 @@ import * as docsShare from './modules/docs-share.js'
 import * as docsCopy from './modules/docs-copy.js'
 import * as docsCode from './modules/docs-code.js'
 import * as docsToc from './modules/docs-toc.js'
+import * as docsTree from './modules/docs-tree.js'
 import * as docsChat from './modules/docs-chat.js'
 import * as docsSearch from './modules/docs-search.js'
 import * as flowspecChat from './modules/flowspec-chat.js'
@@ -58,6 +59,7 @@ window.globalModules = {
     "docsCopy"          : docsCopy,
     "docsCode"          : docsCode,
     "docsToc"           : docsToc,
+    "docsTree"          : docsTree,
     "docsChat"          : docsChat,
     "docsSearch"        : docsSearch,
     "flowspecChat"      : flowspecChat,

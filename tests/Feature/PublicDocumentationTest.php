@@ -209,3 +209,50 @@ it('lists sub-pages as navigation cards on the public documentation too', functi
         ->toContain(route('public.docs.page', ['tok-children', $child->slug]))
         ->not->toContain('Nenhuma documentação cadastrada');
 });
+
+it('prints the page title once when the text already opens with it', function () {
+    // Every one of the 133 imported "Dados • BigQuery • GCP" pages starts with
+    // `# <título>` — GitBook writes the title into the body — and the shell
+    // printed its own above it, so each page said its name twice.
+    $notebook = Notebook::factory()->create(['public_token' => 'tok-dedup']);
+    $page = publicPage($notebook, "# Material\n\nCorpo.");
+    $page->update(['title' => 'Material', 'slug' => 'material']);
+
+    $content = $this->get(route('public.docs.page', ['tok-dedup', 'material']))
+        ->assertOk()
+        ->getContent();
+
+    // Exactly one <h1> on the page. Counting the TAG, not the text: the
+    // rendered heading also carries its `heading-permalink` anchor inside it.
+    expect(substr_count($content, '<h1'))->toBe(1)
+        ->and($content)->toContain('Material');
+});
+
+it('still prints the title when the text does not open with it', function () {
+    $notebook = Notebook::factory()->create(['public_token' => 'tok-nodedup']);
+    $page = publicPage($notebook, 'Só um parágrafo, sem heading.');
+    $page->update(['title' => 'Material', 'slug' => 'material']);
+
+    $content = $this->get(route('public.docs.page', ['tok-nodedup', 'material']))
+        ->assertOk()
+        ->getContent();
+
+    // The shell supplies the only <h1> here — a page whose text has no heading
+    // must still say what it is.
+    expect(substr_count($content, '<h1'))->toBe(1)
+        ->and($content)->toContain('Material');
+});
+
+it('sees through GitBook front matter when deciding the title is a duplicate', function () {
+    // Plenty of imported pages carry a `---description---` block ahead of the
+    // heading; a naive "starts with #" check would miss it and print both.
+    $notebook = Notebook::factory()->create(['public_token' => 'tok-front']);
+    $page = publicPage($notebook, "---\ndescription: Uma descrição\n---\n\n# Material\n\nCorpo.");
+    $page->update(['title' => 'Material', 'slug' => 'material']);
+
+    $content = $this->get(route('public.docs.page', ['tok-front', 'material']))
+        ->assertOk()
+        ->getContent();
+
+    expect(substr_count($content, '<h1'))->toBe(1);
+});

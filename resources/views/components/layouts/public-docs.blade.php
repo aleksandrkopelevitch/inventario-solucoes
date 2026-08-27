@@ -47,32 +47,62 @@
          results are the page then. --}}
     <div data-ak-docs-shell class="flex w-full items-start gap-6 px-4 md:gap-8 md:px-6 lg:px-8">
 
-        {{-- Pages index: every page in this caderno --}}
+        {{-- Pages index: this caderno's tree, collapsed to the path being read.
+
+             Flat rows with `data-parent-id`, not nested lists — see
+             docs-tree.js. The server ships the open/closed state
+             (DocumentationPageService::navRows()), so this is right before any
+             JavaScript runs; the module only handles clicks. --}}
         @if ($nav)
-            <aside class="hidden w-60 shrink-0 md:sticky md:top-14 md:block md:max-h-[calc(100vh_-_3.5rem)] md:overflow-y-auto md:py-10">
-                <p class="px-2 pb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-muted">Nesta solução</p>
-                <nav class="flex flex-col gap-0.5">
-                    {{-- Subpages are indented under their page, one step per
-                         level: a visitor reading top to bottom should see which
-                         pages belong to which. Steps are listed, not computed —
-                         Tailwind only ships classes it can see in the source. --}}
+            <aside class="hidden w-64 shrink-0 md:sticky md:top-14 md:block md:max-h-[calc(100vh_-_3.5rem)] md:overflow-y-auto md:py-10">
+                <p class="px-2 pb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-muted">Neste caderno</p>
+                <nav data-ak-docs-tree class="flex flex-col gap-px">
                     @foreach ($nav as $item)
-                        <a href="{{ $item['url'] }}"
-                           @class([
-                               'flex items-center justify-between gap-2 rounded-field py-2 text-sm no-underline transition-colors',
-                               'px-3' => ($item['depth'] ?? 0) === 0,
-                               'ml-3 border-l border-line px-2.5 text-[13px]' => ($item['depth'] ?? 0) === 1,
-                               'ml-6 border-l border-line px-2.5 text-[13px]' => ($item['depth'] ?? 0) === 2,
-                               'ml-8 border-l border-line px-2.5 text-[13px]' => ($item['depth'] ?? 0) === 3,
-                               'ml-10 border-l border-line px-2.5 text-[13px]' => ($item['depth'] ?? 0) >= 4,
-                               'bg-accent-soft font-semibold text-accent' => $item['active'],
-                               'text-body hover:bg-raised' => ! $item['active'],
-                           ])>
-                            <span class="truncate">{{ $item['label'] }}</span>
-                            @unless ($item['hasDocs'])
-                                <span class="shrink-0 text-[10px] font-medium uppercase tracking-wide text-faint">vazio</span>
-                            @endunless
-                        </a>
+                        @php ($depth = (int) ($item['depth'] ?? 0))
+                        {{-- One indent step per level, each hanging off a guide
+                             line. Steps are listed rather than computed:
+                             Tailwind only ships classes it can SEE in the
+                             source, so `ml-{{ $n }}` compiles to nothing. --}}
+                        <div data-ak-docs-tree-item
+                             data-page-id="{{ $item['id'] }}"
+                             data-parent-id="{{ $item['parentId'] ?? '' }}"
+                             data-expanded="{{ ($item['expanded'] ?? false) ? 'true' : 'false' }}"
+                             @class([
+                                 'flex items-center gap-0.5',
+                                 'hidden' => ! ($item['visible'] ?? true),
+                                 'ml-3 border-l border-line pl-1' => $depth === 1,
+                                 'ml-5 border-l border-line pl-1' => $depth === 2,
+                                 'ml-7 border-l border-line pl-1' => $depth === 3,
+                                 'ml-9 border-l border-line pl-1' => $depth >= 4,
+                             ])>
+                            <a href="{{ $item['url'] }}"
+                               @class([
+                                   'min-w-0 flex-1 truncate rounded-field px-2.5 py-1.5 text-[13.5px] no-underline transition-colors',
+                                   'bg-accent-soft font-semibold text-accent' => $item['active'],
+                                   'text-body hover:bg-raised hover:text-ink' => ! $item['active'],
+                               ])>{{ $item['label'] }}</a>
+
+                            {{-- The chevron lives OUTSIDE the link, so opening a
+                                 branch never competes with opening the page —
+                                 the two gestures that a single clickable row
+                                 would have had to guess between. --}}
+                            @if ($item['hasChildren'] ?? false)
+                                <button type="button" data-ak-docs-tree-toggle
+                                        aria-expanded="{{ ($item['expanded'] ?? false) ? 'true' : 'false' }}"
+                                        class="group shrink-0 cursor-pointer rounded p-1 text-faint transition-colors hover:bg-raised hover:text-ink"
+                                        aria-label="Mostrar ou ocultar sub-páginas de {{ $item['label'] }}">
+                                    {{-- Rotation keys off the button's OWN
+                                         `aria-expanded` via a first-class
+                                         Tailwind variant. An arbitrary variant
+                                         (`[[data-expanded=true]_&]`) reads the
+                                         row instead and is a silent no-op the
+                                         day its value grows an underscore —
+                                         Tailwind turns `_` into a space inside
+                                         arbitrary values. --}}
+                                    <x-heroicon-o-chevron-right class="size-3.5 transition-transform duration-150 group-aria-expanded:rotate-90" />
+                                </button>
+                            @endif
+                        </div>
                     @endforeach
                 </nav>
             </aside>

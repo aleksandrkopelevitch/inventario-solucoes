@@ -37,7 +37,9 @@
             </x-forms.button>
         </form>
 
-        <ul class="flex flex-col gap-0.5">
+        {{-- `data-ak-docs-tree` is the container docs-tree.js resolves with
+             closest() — without it every toggle in here is a silent no-op. --}}
+        <ul data-ak-docs-tree class="flex flex-col gap-0.5">
             @foreach ($pages as $page)
                 @php ($i = $loop->index)
                 {{-- One indent step per level, each hanging off a guide line,
@@ -52,7 +54,15 @@
                      12px would eat a third of a 288px rail, and what has to
                      survive is the title, not the ceremony. --}}
                 @php ($depth = (int) ($page['depth'] ?? 0))
-                <li @class([
+                {{-- The row carries the tree state (docs-tree.js): a branch
+                     loads open only along the path to the page being read, so a
+                     133-page caderno opens as an index instead of a wall. --}}
+                <li data-ak-docs-tree-item
+                    data-page-id="{{ $page['id'] }}"
+                    data-parent-id="{{ $page['parentId'] ?? '' }}"
+                    data-expanded="{{ ($page['expanded'] ?? false) ? 'true' : 'false' }}"
+                    @class([
+                    'hidden' => ! ($page['visible'] ?? true),
                     'ml-3 border-l border-line pl-1.5' => $depth === 1,
                     'ml-6 border-l border-line pl-1.5' => $depth === 2,
                     'ml-8 border-l border-line pl-1.5' => $depth === 3,
@@ -63,6 +73,22 @@
                         'bg-accent-soft' => $page['active'],
                         'hover:bg-raised' => ! $page['active'],
                     ])>
+                        {{-- Chevron before the title, outside the link: opening
+                             a branch and opening a page are two gestures, and a
+                             single clickable row would have to guess. A leaf
+                             keeps the same indent via the spacer, so titles
+                             stay aligned down a level. --}}
+                        @if ($page['hasChildren'] ?? false)
+                            <button type="button" data-ak-docs-tree-toggle
+                                    aria-expanded="{{ ($page['expanded'] ?? false) ? 'true' : 'false' }}"
+                                    class="group/chev -ml-0.5 shrink-0 cursor-pointer rounded p-0.5 text-faint transition-colors hover:text-ink"
+                                    aria-label="Mostrar ou ocultar sub-páginas de {{ $page['title'] }}">
+                                <x-heroicon-o-chevron-right class="size-3.5 transition-transform duration-150 group-aria-expanded/chev:rotate-90" />
+                            </button>
+                        @else
+                            <span class="w-3.5 shrink-0" aria-hidden="true"></span>
+                        @endif
+
                         <a href="{{ $page['editUrl'] }}" @class([
                             'min-w-0 flex-1 truncate transition-colors',
                             'text-sm' => $depth === 0,

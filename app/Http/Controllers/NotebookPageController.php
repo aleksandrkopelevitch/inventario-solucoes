@@ -248,10 +248,11 @@ class NotebookPageController extends Controller
     }
 
     /**
-     * Rows in reading order, each carrying its `depth` (0..MAX_DEPTH-1) and
-     * which structural gestures it can offer. Both come straight off
-     * `DocumentationPageService::tree()`, which is also what validates an
-     * incoming move: the rail and the endpoint read one source.
+     * Rows in reading order, each carrying its `depth` (0..MAX_DEPTH-1), which
+     * structural gestures it can offer, and whether its branch loads open. All
+     * three come straight off `DocumentationPageService::navRows()`, which
+     * wraps the same `tree()` that validates an incoming move: the rail and the
+     * endpoint read one source.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -261,11 +262,15 @@ class NotebookPageController extends Controller
         // DocumentationPageService::destinationsFor().
         $destinations = $this->pages->destinationsFor($notebook);
 
-        return $this->pages->tree($notebook)->map(fn (array $row) => [
-            'id'           => $row['page']->id,
-            'title'        => $row['page']->title,
-            'depth'        => $row['depth'],
-            'hasChildren'  => $row['hasChildren'],
+        return $this->pages->navRows($notebook, $active)->map(fn (array $row) => [
+            'id'          => $row['page']->id,
+            'title'       => $row['page']->title,
+            'depth'       => $row['depth'],
+            'hasChildren' => $row['hasChildren'],
+            // Tree state for the collapsible rail — see navRows().
+            'parentId'     => $row['parentId'],
+            'expanded'     => $row['expanded'],
+            'visible'      => $row['visible'],
             'canNest'      => $row['canNest'],
             'canPromote'   => $row['canPromote'],
             'canAddChild'  => $row['canAddChild'],

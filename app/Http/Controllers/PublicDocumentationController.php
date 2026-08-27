@@ -128,9 +128,13 @@ class PublicDocumentationController extends Controller
         $markdown = $current?->documentation;
 
         return view('public.docs', [
-            'notebook'     => $notebook,
-            'title'        => $current?->documentationTitle() ?? $notebook->name,
-            'eyebrow'      => 'Caderno',
+            'notebook' => $notebook,
+            'title'    => $current?->documentationTitle() ?? $notebook->name,
+            'eyebrow'  => 'Caderno',
+            // Whether the shell should print the title itself. See
+            // `titleIsInContent()`: nearly every imported page opens with an H1
+            // repeating its own title, and printing both says it twice.
+            'showTitle'    => ! $this->titleIsInContent($current),
             'renderedHtml' => $this->renderMarkdown($markdown, $token),
             // Raw Markdown for the "Copiar Markdown" button, with media already
             // rewritten to the public routes (the internal /files/{id} does
@@ -167,6 +171,35 @@ class PublicDocumentationController extends Controller
         ])->all();
     }
 
+    /**
+     * Whether the page's own text already opens with its title as an H1.
+     *
+     * It nearly always does: GitBook writes the title into the body, so all 133
+     * pages of the imported "Dados • BigQuery • GCP" start with `# <título>`.
+     * The shell printed its own title above that, and every page said its name
+     * twice.
+     *
+     * The H1 stays in the CONTENT rather than being stripped from it, because
+     * three things downstream read the rendered HTML and would quietly change
+     * if it went: the heading anchors (`heading-permalink`), the "Nesta página"
+     * navigator built from them, and the search index — which already treats an
+     * H1 repeating the page title as being the page itself
+     * (DocumentationSearchService). Dropping the shell's copy touches none of
+     * them.
+     */
+    private function titleIsInContent(?DocumentationPage $page): bool
+    {
+        if (! $page) {
+            return false;
+        }
+
+        // Front matter first — GitBook emits a `---description---` block ahead
+        // of the heading on plenty of pages.
+        $markdown = preg_replace('/\A---\R.*?\R---\R/s', '', (string) $page->documentation);
+
+        return str_starts_with(ltrim((string) $markdown), '# ' . trim($page->title));
+    }
+
     /** Renders the Markdown and rewrites `/files/{id}` to the public route. */
     private function renderMarkdown(?string $markdown, string $token): string
     {
@@ -199,20 +232,29 @@ class PublicDocumentationController extends Controller
     }
 
     /**
-     * Side index: every page in the caderno's tree.
+     * Side index: the caderno's tree, collapsed to the path being read.
      *
-     * @return Collection<int, array{label: string, depth: int, url: string, active: bool, hasDocs: bool}>
+     * `navRows()` rather than `tree()`: it carries the open/closed state, which
+     * the rail needs server-side. A 133-page caderno listed flat is not an index
+     * — it is the reason this changed.
+     *
+     * @return Collection<int, array<string, mixed>>
      */
     private function nav(Notebook $notebook, ?DocumentationPage $current, string $token): Collection
     {
-        return app(DocumentationPageService::class)->tree($notebook)->map(fn (array $row) => [
+        return app(DocumentationPageService::class)->navRows($notebook, $current)->map(fn (array $row) => [
             'label' => $row['page']->title,
             // Depth so the index indents a subpage instead of listing it as a
             // peer of the page it belongs to (see the layout).
-            'depth'   => $row['depth'],
-            'url'     => route('public.docs.page', [$token, $row['page']]),
-            'active'  => $current?->is($row['page']) ?? false,
-            'hasDocs' => trim((string) $row['page']->documentation) !== '',
+            'depth'       => $row['depth'],
+            'url'         => route('public.docs.page', [$token, $row['page']]),
+            'active'      => $current?->is($row['page']) ?? false,
+            'hasDocs'     => trim((string) $row['page']->documentation) !== '',
+            'id'          => $row['id'],
+            'parentId'    => $row['parentId'],
+            'hasChildren' => $row['hasChildren'],
+            'expanded'    => $row['expanded'],
+            'visible'     => $row['visible'],
         ]);
     }
 }

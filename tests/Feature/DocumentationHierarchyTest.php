@@ -499,7 +499,51 @@ it('indents a subpage in the public documentation index', function () {
 
     expect($content)
         ->toContain('Rotina de backup')
-        ->toContain('ml-3 border-l border-line px-2.5');
+        // Indented one step, hanging off a guide line. Asserted as "indented at
+        // all" rather than on the exact utility string: the previous version
+        // pinned `px-2.5`, which broke the day the rail's padding changed
+        // without anything about the tree being wrong.
+        ->toMatch('/ml-3[^"]*border-l/');
+});
+
+it('opens only the branch leading to the page being read', function () {
+    // The reason this exists: the imported "Dados • BigQuery • GCP" is 133
+    // pages, and a rail that lists all of them at once is not an index.
+    $notebook = Notebook::factory()->create(['public_token' => 'tok-collapse']);
+    $open = rootPage($notebook, 'Catálogo', 1);
+    $openChild = DocumentationPage::factory()->childOf($open)->create(['title' => 'Camada Raw', 'documentation' => '# Raw']);
+    $shut = rootPage($notebook, 'Outra seção', 2);
+    DocumentationPage::factory()->childOf($shut)->create(['title' => 'Filha escondida', 'documentation' => '# X']);
+
+    $content = $this->get(route('public.docs.page', ['tok-collapse', $openChild->slug]))
+        ->assertOk()
+        ->getContent();
+
+    // Both roots are always listed…
+    expect($content)->toContain('Catálogo')->toContain('Outra seção');
+
+    // …the child on the active path is rendered visible…
+    expect($content)->toMatch('/data-page-id="' . $openChild->id . '"(?![^>]*\bhidden\b)/');
+
+    // …and the one under the collapsed branch ships hidden.
+    $other = DocumentationPage::where('title', 'Filha escondida')->sole();
+    expect($content)->toMatch('/data-page-id="' . $other->id . '"[^>]*\bhidden\b/');
+});
+
+it('gives a branch a toggle and a leaf none', function () {
+    $notebook = Notebook::factory()->create(['public_token' => 'tok-toggle']);
+    $branch = rootPage($notebook, 'Com filhas', 1);
+    DocumentationPage::factory()->childOf($branch)->create(['title' => 'Filha']);
+    $leaf = rootPage($notebook, 'Sem filhas', 2);
+
+    $content = $this->get(route('public.docs.page', ['tok-toggle', $branch->slug]))
+        ->assertOk()
+        ->getContent();
+
+    // The branch carries a chevron, open because it is the page being read.
+    expect($content)->toMatch('/data-page-id="' . $branch->id . '"[^>]*data-expanded="true"/');
+    expect(substr_count($content, 'data-ak-docs-tree-toggle'))->toBe(1);
+    expect($content)->not->toMatch('/data-page-id="' . $leaf->id . '"[^>]*data-expanded="true"/');
 });
 
 /*
