@@ -3,9 +3,7 @@
 namespace App\View\Components\Diagrams;
 
 use App\Models\Diagram;
-use App\Models\DocumentationGroup;
 use App\Models\DocumentationPage;
-use App\Models\Solution;
 use App\Services\DiagramCatalogService;
 use App\Support\ChainLabeler;
 use App\View\Components\Concerns\Renderable;
@@ -51,28 +49,14 @@ class Index extends Component
                 'blocks'  => count($diagram->chain['nodes'] ?? []),
                 'url'     => route('diagrams.show', $diagram),
                 // Where this drawing is explained. Eager-loaded with its
-                // container by the service, so naming the solution/group a
-                // page belongs to costs no query per row.
+                // notebook by the service, so naming the caderno a page belongs
+                // to costs no query per row.
                 'pages' => $diagram->pages->map(fn (DocumentationPage $page) => [
-                    'title'     => $page->title,
-                    'container' => $page->container?->name,
-                    'url'       => $this->pageUrl($page),
+                    'title'    => $page->title,
+                    'notebook' => $page->notebook?->name,
+                    'url'      => route('notebooks.pages.edit', [$page->notebook, $page]),
                 ]),
             ]),
         ]);
-    }
-
-    /**
-     * A page's editor URL, which depends on what contains it — the two
-     * containers have separate route groups (a Solution's pages live under
-     * that solution, a standalone group's under the group).
-     */
-    private function pageUrl(DocumentationPage $page): ?string
-    {
-        return match (true) {
-            $page->container instanceof Solution           => route('solutions.docs.page.edit', [$page->container, $page]),
-            $page->container instanceof DocumentationGroup => route('documentation.groups.pages.edit', [$page->container, $page]),
-            default                                        => null,
-        };
     }
 }

@@ -39,7 +39,7 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  *   systems does this drawing touch?". It is what the ecosystem map is built
  *   from, and nothing but that action may write it.
  * - `pages` is AUTHORED and answers "where is this drawing explained?". A
- *   page's container is a Solution or a standalone `DocumentationGroup`, so
+ *   page belongs to a `Notebook`, which may document several solutions, so
  *   this is also how a diagram belongs to a solution's documentation without
  *   appearing in its topology at all.
  */

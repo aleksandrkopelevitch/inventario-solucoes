@@ -8,9 +8,9 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * Reordering/renesting a page WITHIN its container (`…pages.move`) — not to be
- * confused with MoveDocumentationPageToContainerRequest, which re-files it
- * under another Solution or group.
+ * Reordering/renesting a page WITHIN its notebook (`…pages.move`) — not to be
+ * confused with MoveDocumentationPageToNotebookRequest, which re-files it under
+ * a different caderno.
  *
  * `up`/`down` walk the page's sibling list and have always been silent no-ops
  * at its ends. `in`/`out` — the two gestures that change the page's LEVEL, one
@@ -23,7 +23,7 @@ class MoveDocumentationPageRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        $model = $this->route('solution') ?? $this->route('group');
+        $model = $this->route('notebook');
 
         return $model !== null && $this->user()->can('update', $model);
     }

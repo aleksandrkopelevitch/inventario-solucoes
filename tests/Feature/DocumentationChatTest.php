@@ -4,7 +4,7 @@ use App\Enums\UserRole;
 use App\Jobs\GenerateDocumentationChatReply;
 use App\Models\DocumentationChat;
 use App\Models\DocumentationPage;
-use App\Models\Solution;
+use App\Models\Notebook;
 use App\Models\User;
 use App\Services\Documentation\DocumentationChatService;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -20,17 +20,17 @@ function chatAdmin(): User
     return User::factory()->create(['role' => UserRole::Admin->value]);
 }
 
-function chatPage(Solution $solution): DocumentationPage
+function chatPage(Notebook $notebook): DocumentationPage
 {
-    return DocumentationPage::factory()->for($solution, 'container')->create();
+    return DocumentationPage::factory()->for($notebook)->create();
 }
 
 it('renders the chat panel with the context document list', function () {
-    $solution = Solution::factory()->create();
-    $page = chatPage($solution);
+    $notebook = Notebook::factory()->create();
+    $page = chatPage($notebook);
 
     $response = $this->actingAs(chatAdmin())
-        ->getJson(route('solutions.docs.chat.panel', [$solution, $page]))
+        ->getJson(route('notebooks.chat.panel', [$notebook, $page]))
         ->assertOk();
 
     expect($response->json('content'))
@@ -40,27 +40,27 @@ it('renders the chat panel with the context document list', function () {
         // The context document uploads automatically on selection (no separate
         // "Anexar" click), pointed at the store endpoint.
         ->toContain('data-ak-context-upload')
-        ->toContain(route('solutions.docs.context.store', $solution));
+        ->toContain(route('notebooks.context.store', $notebook));
 });
 
 it('opening the panel resumes the same conversation instead of starting a new one', function () {
-    $solution = Solution::factory()->create();
-    $page = chatPage($solution);
+    $notebook = Notebook::factory()->create();
+    $page = chatPage($notebook);
     $admin = chatAdmin();
 
-    $this->actingAs($admin)->getJson(route('solutions.docs.chat.panel', [$solution, $page]))->assertOk();
-    $this->actingAs($admin)->getJson(route('solutions.docs.chat.panel', [$solution, $page]))->assertOk();
+    $this->actingAs($admin)->getJson(route('notebooks.chat.panel', [$notebook, $page]))->assertOk();
+    $this->actingAs($admin)->getJson(route('notebooks.chat.panel', [$notebook, $page]))->assertOk();
 
     expect(DocumentationChat::where('user_id', $admin->id)->count())->toBe(1);
 });
 
 it('sends a message and dispatches the reply job', function () {
     Queue::fake();
-    $solution = Solution::factory()->create();
-    $page = chatPage($solution);
+    $notebook = Notebook::factory()->create();
+    $page = chatPage($notebook);
 
     $response = $this->actingAs(chatAdmin())
-        ->postJson(route('solutions.docs.chat.messages.store', [$solution, $page]), [
+        ->postJson(route('notebooks.chat.messages.store', [$notebook, $page]), [
             'message'          => 'documente o fluxo',
             'media_ids'        => [],
             'existing_content' => '# atual',
@@ -77,25 +77,25 @@ it('sends a message and dispatches the reply job', function () {
 });
 
 it('reports pending while awaiting a reply, then the rendered thread once it arrives', function () {
-    $solution = Solution::factory()->create();
-    $page = chatPage($solution);
+    $notebook = Notebook::factory()->create();
+    $page = chatPage($notebook);
     $admin = chatAdmin();
     $chat = DocumentationChat::create([
         'user_id'     => $admin->id,
         'target_type' => $page->getMorphClass(),
         'target_id'   => $page->getKey(),
-        'solution_id' => $solution->id,
+        'notebook_id' => $notebook->id,
     ]);
     $chat->messages()->create(['role' => 'user', 'content' => 'oi']);
 
     $this->actingAs($admin)
-        ->getJson(route('solutions.docs.chat.status', [$solution, $chat]))
+        ->getJson(route('notebooks.chat.status', [$notebook, $chat]))
         ->assertOk()->assertJson(['pending' => true, 'updatableSlots' => []]);
 
     $chat->messages()->create(['role' => 'assistant', 'content' => 'Pronto.']);
 
     $response = $this->actingAs($admin)
-        ->getJson(route('solutions.docs.chat.status', [$solution, $chat]))
+        ->getJson(route('notebooks.chat.status', [$notebook, $chat]))
         ->assertOk()->assertJson(['pending' => false]);
 
     expect($response->json('updatableSlots.0.content'))->toContain('Pronto.');
@@ -103,16 +103,16 @@ it('reports pending while awaiting a reply, then the rendered thread once it arr
 
 it('rejects a second message while one is still awaiting a reply', function () {
     Queue::fake();
-    $solution = Solution::factory()->create();
-    $page = chatPage($solution);
+    $notebook = Notebook::factory()->create();
+    $page = chatPage($notebook);
     $admin = chatAdmin();
 
     $this->actingAs($admin)
-        ->postJson(route('solutions.docs.chat.messages.store', [$solution, $page]), ['message' => 'primeira'])
+        ->postJson(route('notebooks.chat.messages.store', [$notebook, $page]), ['message' => 'primeira'])
         ->assertOk();
 
     $response = $this->actingAs($admin)
-        ->postJson(route('solutions.docs.chat.messages.store', [$solution, $page]), ['message' => 'segunda'])
+        ->postJson(route('notebooks.chat.messages.store', [$notebook, $page]), ['message' => 'segunda'])
         ->assertStatus(422)->assertJson(['type' => 'warning']);
 
     expect($response->json('message'))->toContain('Aguarde a resposta');
@@ -120,49 +120,49 @@ it('rejects a second message while one is still awaiting a reply', function () {
 });
 
 it('marks a message applied and 404s a cross-solution mismatch', function () {
-    $solution = Solution::factory()->create();
-    $other = Solution::factory()->create();
-    $page = chatPage($solution);
+    $notebook = Notebook::factory()->create();
+    $other = Notebook::factory()->create();
+    $page = chatPage($notebook);
     $admin = chatAdmin();
 
-    $makeFor = function (Solution $s, DocumentationPage $p) use ($admin) {
+    $makeFor = function (Notebook $s, DocumentationPage $p) use ($admin) {
         $chat = DocumentationChat::create([
             'user_id'     => $admin->id,
             'target_type' => $p->getMorphClass(),
             'target_id'   => $p->getKey(),
-            'solution_id' => $s->id,
+            'notebook_id' => $s->id,
         ]);
 
         return $chat->messages()->create(['role' => 'assistant', 'content' => 'x', 'draft' => '# rascunho']);
     };
 
-    $message = $makeFor($solution, $page);
+    $message = $makeFor($notebook, $page);
     $this->actingAs($admin)
-        ->postJson(route('solutions.docs.chat.messages.apply', [$solution, $message]))
+        ->postJson(route('notebooks.chat.messages.apply', [$notebook, $message]))
         ->assertOk()->assertJson(['ok' => true]);
     expect($message->fresh()->applied_at)->not->toBeNull();
 
-    // A message belonging to a genuinely different target/solution — querying
-    // it under $solution's URL must 404, not leak across solutions.
+    // A message belonging to a genuinely different target/caderno — querying
+    // it under $notebook's URL must 404, not leak across cadernos.
     $mismatch = $makeFor($other, chatPage($other));
     $this->actingAs($admin)
-        ->postJson(route('solutions.docs.chat.messages.apply', [$solution, $mismatch]))
+        ->postJson(route('notebooks.chat.messages.apply', [$notebook, $mismatch]))
         ->assertNotFound();
 
     $viewer = User::factory()->create(['role' => UserRole::Viewer->value]);
     $this->actingAs($viewer)
-        ->postJson(route('solutions.docs.chat.messages.apply', [$solution, $message]))
+        ->postJson(route('notebooks.chat.messages.apply', [$notebook, $message]))
         ->assertForbidden();
 });
 
 it('renders a resume marker on the editor while a reply is still generating', function () {
-    $solution = Solution::factory()->create();
-    $page = chatPage($solution);
+    $notebook = Notebook::factory()->create();
+    $page = chatPage($notebook);
     $admin = chatAdmin();
 
     // No chat yet → no marker.
     $this->actingAs($admin)
-        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->get(route('notebooks.pages.edit', [$notebook, $page]))
         ->assertOk()
         ->assertDontSee('data-ak-docs-chat-resume', false);
 
@@ -170,120 +170,120 @@ it('renders a resume marker on the editor while a reply is still generating', fu
         'user_id'     => $admin->id,
         'target_type' => $page->getMorphClass(),
         'target_id'   => $page->getKey(),
-        'solution_id' => $solution->id,
+        'notebook_id' => $notebook->id,
     ]);
     $chat->messages()->create(['role' => 'user', 'content' => 'oi']);
 
     // Awaiting a reply → marker present.
     $this->actingAs($admin)
-        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->get(route('notebooks.pages.edit', [$notebook, $page]))
         ->assertOk()
         ->assertSee('data-ak-docs-chat-resume', false);
 
     // Once the reply lands, the chat is no longer awaiting → no marker.
     $chat->messages()->create(['role' => 'assistant', 'content' => 'pronto']);
     $this->actingAs($admin)
-        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->get(route('notebooks.pages.edit', [$notebook, $page]))
         ->assertOk()
         ->assertDontSee('data-ak-docs-chat-resume', false);
 });
 
 it('does not resume another user\'s chat', function () {
-    $solution = Solution::factory()->create();
-    $page = chatPage($solution);
+    $notebook = Notebook::factory()->create();
+    $page = chatPage($notebook);
 
     $chat = DocumentationChat::create([
         'user_id'     => chatAdmin()->id, // a different admin
         'target_type' => $page->getMorphClass(),
         'target_id'   => $page->getKey(),
-        'solution_id' => $solution->id,
+        'notebook_id' => $notebook->id,
     ]);
     $chat->messages()->create(['role' => 'user', 'content' => 'oi']);
 
     $this->actingAs(chatAdmin())
-        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->get(route('notebooks.pages.edit', [$notebook, $page]))
         ->assertOk()
         ->assertDontSee('data-ak-docs-chat-resume', false);
 });
 
 it('404s a status request for a chat belonging to another solution', function () {
-    $solution = Solution::factory()->create();
-    $other = Solution::factory()->create();
-    $page = chatPage($solution);
+    $notebook = Notebook::factory()->create();
+    $other = Notebook::factory()->create();
+    $page = chatPage($notebook);
     $chat = DocumentationChat::create([
         'user_id'     => chatAdmin()->id,
         'target_type' => $page->getMorphClass(),
         'target_id'   => $page->getKey(),
-        'solution_id' => $other->id, // belongs to another solution
+        'notebook_id' => $other->id, // belongs to another caderno
     ]);
 
     $this->actingAs(chatAdmin())
-        ->getJson(route('solutions.docs.chat.status', [$solution, $chat]))
+        ->getJson(route('notebooks.chat.status', [$notebook, $chat]))
         ->assertNotFound();
 });
 
 it('rejects an empty message with a warning', function () {
-    $solution = Solution::factory()->create();
-    $page = chatPage($solution);
+    $notebook = Notebook::factory()->create();
+    $page = chatPage($notebook);
 
     $response = $this->actingAs(chatAdmin())
-        ->postJson(route('solutions.docs.chat.messages.store', [$solution, $page]), ['message' => ''])
+        ->postJson(route('notebooks.chat.messages.store', [$notebook, $page]), ['message' => ''])
         ->assertStatus(422)->assertJson(['type' => 'warning']);
 
     expect($response->json('message'))->not->toBeEmpty();
 });
 
 it('forbids a non-admin from sending a message', function () {
-    $solution = Solution::factory()->create();
-    $page = chatPage($solution);
+    $notebook = Notebook::factory()->create();
+    $page = chatPage($notebook);
     $viewer = User::factory()->create(['role' => UserRole::Viewer->value]);
 
     $this->actingAs($viewer)
-        ->postJson(route('solutions.docs.chat.messages.store', [$solution, $page]), ['message' => 'oi'])
+        ->postJson(route('notebooks.chat.messages.store', [$notebook, $page]), ['message' => 'oi'])
         ->assertForbidden();
 });
 
 it('stores a context document on the solution and returns the list slot', function () {
     Storage::fake('public');
-    $solution = Solution::factory()->create();
+    $notebook = Notebook::factory()->create();
 
     $response = $this->actingAs(chatAdmin())
-        ->post(route('solutions.docs.context.store', $solution), [
+        ->post(route('notebooks.context.store', $notebook), [
             'file' => UploadedFile::fake()->create('contrato.pdf', 100, 'application/pdf'),
         ])->assertOk();
 
-    expect($solution->fresh()->getMedia(Solution::CONTEXT_COLLECTION))->toHaveCount(1)
+    expect($notebook->fresh()->getMedia(Notebook::CONTEXT_COLLECTION))->toHaveCount(1)
         ->and($response->json('updatableSlots.0.id'))->toBe('context-documents-slot');
 });
 
 it('removes a context document from the solution', function () {
     Storage::fake('public');
-    $solution = Solution::factory()->create();
-    $media = $solution->addMediaFromString('x')->usingFileName('a.txt')->toMediaCollection(Solution::CONTEXT_COLLECTION);
+    $notebook = Notebook::factory()->create();
+    $media = $notebook->addMediaFromString('x')->usingFileName('a.txt')->toMediaCollection(Notebook::CONTEXT_COLLECTION);
 
     $this->actingAs(chatAdmin())
-        ->deleteJson(route('solutions.docs.context.destroy', [$solution, $media->id]))
+        ->deleteJson(route('notebooks.context.destroy', [$notebook, $media->id]))
         ->assertOk();
 
-    expect($solution->fresh()->getMedia(Solution::CONTEXT_COLLECTION))->toHaveCount(0);
+    expect($notebook->fresh()->getMedia(Notebook::CONTEXT_COLLECTION))->toHaveCount(0);
 });
 
 it('forbids a non-admin from storing or removing a context document', function () {
     Storage::fake('public');
-    $solution = Solution::factory()->create();
-    $media = $solution->addMediaFromString('x')->usingFileName('a.txt')->toMediaCollection(Solution::CONTEXT_COLLECTION);
+    $notebook = Notebook::factory()->create();
+    $media = $notebook->addMediaFromString('x')->usingFileName('a.txt')->toMediaCollection(Notebook::CONTEXT_COLLECTION);
     $viewer = User::factory()->create(['role' => UserRole::Viewer->value]);
 
     $this->actingAs($viewer)
-        ->post(route('solutions.docs.context.store', $solution), [
+        ->post(route('notebooks.context.store', $notebook), [
             'file' => UploadedFile::fake()->create('contrato.pdf', 100, 'application/pdf'),
         ])->assertForbidden();
 
     $this->actingAs($viewer)
-        ->deleteJson(route('solutions.docs.context.destroy', [$solution, $media->id]))
+        ->deleteJson(route('notebooks.context.destroy', [$notebook, $media->id]))
         ->assertForbidden();
 
-    expect($solution->fresh()->getMedia(Solution::CONTEXT_COLLECTION))->toHaveCount(1);
+    expect($notebook->fresh()->getMedia(Notebook::CONTEXT_COLLECTION))->toHaveCount(1);
 });
 
 it('reopens the composer after the stall window, treating a dead job as resolved', function () {
@@ -292,21 +292,21 @@ it('reopens the composer after the stall window, treating a dead job as resolved
     // REPLY_STALL_SECONDS the generation is treated as dead — the composer
     // must recover instead of locking the chat out forever.
     Queue::fake();
-    $solution = Solution::factory()->create();
-    $page = chatPage($solution);
+    $notebook = Notebook::factory()->create();
+    $page = chatPage($notebook);
     $admin = chatAdmin();
     $chat = DocumentationChat::create([
         'user_id'     => $admin->id,
         'target_type' => $page->getMorphClass(),
         'target_id'   => $page->getKey(),
-        'solution_id' => $solution->id,
+        'notebook_id' => $notebook->id,
     ]);
     $chat->messages()->create(['role' => 'user', 'content' => 'gera aí']);
 
     $this->travel(DocumentationChat::REPLY_STALL_SECONDS + 60)->seconds();
 
     $this->actingAs($admin)
-        ->postJson(route('solutions.docs.chat.messages.store', [$solution, $page]), ['message' => 'mais uma'])
+        ->postJson(route('notebooks.chat.messages.store', [$notebook, $page]), ['message' => 'mais uma'])
         ->assertOk();
 
     expect($chat->messages()->count())->toBe(2);
@@ -317,13 +317,13 @@ it('writes no reply for a turn a later message has superseded', function () {
     // Covers both a job the queue resurrects after a hard worker kill (once
     // the stall guard reopened the composer and the user sent again) and a
     // double-submit race that slipped two messages past the controller guard.
-    $solution = Solution::factory()->create();
-    $page = chatPage($solution);
+    $notebook = Notebook::factory()->create();
+    $page = chatPage($notebook);
     $chat = DocumentationChat::create([
         'user_id'     => chatAdmin()->id,
         'target_type' => $page->getMorphClass(),
         'target_id'   => $page->getKey(),
-        'solution_id' => $solution->id,
+        'notebook_id' => $notebook->id,
     ]);
     $stale = $chat->messages()->create(['role' => 'user', 'content' => 'primeira']);
     $chat->messages()->create(['role' => 'user', 'content' => 'segunda — supersede']);
@@ -339,13 +339,13 @@ it('writes no reply for a turn a later message has superseded', function () {
 });
 
 it('writes no failure reply for a superseded turn', function () {
-    $solution = Solution::factory()->create();
-    $page = chatPage($solution);
+    $notebook = Notebook::factory()->create();
+    $page = chatPage($notebook);
     $chat = DocumentationChat::create([
         'user_id'     => chatAdmin()->id,
         'target_type' => $page->getMorphClass(),
         'target_id'   => $page->getKey(),
-        'solution_id' => $solution->id,
+        'notebook_id' => $notebook->id,
     ]);
     $stale = $chat->messages()->create(['role' => 'user', 'content' => 'primeira']);
     $chat->messages()->create(['role' => 'assistant', 'content' => 'resposta do turno atual']);
@@ -357,13 +357,13 @@ it('writes no failure reply for a superseded turn', function () {
 });
 
 it('persists only the exception type on failure, never the raw provider message', function () {
-    $solution = Solution::factory()->create();
-    $page = chatPage($solution);
+    $notebook = Notebook::factory()->create();
+    $page = chatPage($notebook);
     $chat = DocumentationChat::create([
         'user_id'     => chatAdmin()->id,
         'target_type' => $page->getMorphClass(),
         'target_id'   => $page->getKey(),
-        'solution_id' => $solution->id,
+        'notebook_id' => $notebook->id,
     ]);
     $stale = $chat->messages()->create(['role' => 'user', 'content' => 'gera aí']);
 
@@ -377,13 +377,13 @@ it('persists only the exception type on failure, never the raw provider message'
 });
 
 it('declares WithoutOverlapping middleware keyed by the chat, so concurrent messages serialize', function () {
-    $solution = Solution::factory()->create();
-    $page = chatPage($solution);
+    $notebook = Notebook::factory()->create();
+    $page = chatPage($notebook);
     $chat = DocumentationChat::create([
         'user_id'     => chatAdmin()->id,
         'target_type' => $page->getMorphClass(),
         'target_id'   => $page->getKey(),
-        'solution_id' => $solution->id,
+        'notebook_id' => $notebook->id,
     ]);
     $message = $chat->messages()->create(['role' => 'user', 'content' => 'gera aí']);
 

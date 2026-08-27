@@ -13,7 +13,7 @@
             </form>
             <x-forms.button type="button" variant="ghost" class="!size-5 !rounded-full !p-0 shrink-0 text-muted hover:!bg-crit-soft hover:!text-crit"
                 data-ak-ajax="ctx-remove-{{ $media->id }}"
-                data-ak-action="{{ route('solutions.docs.context.destroy', [$solution, $media->id]) }}"
+                data-ak-action="{{ route('notebooks.context.destroy', [$notebook, $media->id]) }}"
                 data-ak-confirm="Remover este documento de contexto?"
                 aria-label="Remover documento" title="Remover">
                 <x-heroicon-o-x-mark class="size-3" />

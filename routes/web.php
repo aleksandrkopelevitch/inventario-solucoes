@@ -5,8 +5,8 @@ use App\Http\Controllers\AttributeOptionController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\ResetPasswordController;
-use App\Http\Controllers\DocumentationGroupController;
-use App\Http\Controllers\DocumentationGroupPageController;
+use App\Http\Controllers\DiagramController;
+use App\Http\Controllers\DiagramPictureController;
 use App\Http\Controllers\DocumentationHubController;
 use App\Http\Controllers\FlowspecAttachmentController;
 use App\Http\Controllers\FlowspecChatController;
@@ -14,16 +14,15 @@ use App\Http\Controllers\FlowspecExampleController;
 use App\Http\Controllers\FlowspecGuidelineController;
 use App\Http\Controllers\FlowspecMessageController;
 use App\Http\Controllers\HeroiconController;
-use App\Http\Controllers\DiagramPictureController;
 use App\Http\Controllers\Inventory\CompanyController;
 use App\Http\Controllers\Inventory\PersonController;
 use App\Http\Controllers\Inventory\SolutionController;
 use App\Http\Controllers\MediaController;
+use App\Http\Controllers\NotebookContextDocumentController;
+use App\Http\Controllers\NotebookController;
+use App\Http\Controllers\NotebookPageController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicDocumentationController;
-use App\Http\Controllers\SolutionContextDocumentController;
-use App\Http\Controllers\SolutionDocumentationController;
-use App\Http\Controllers\DiagramController;
 use App\Http\Controllers\SolutionMapController;
 use App\Http\Controllers\SubmissionChatController;
 use App\Http\Controllers\SubmissionController;
@@ -33,6 +32,7 @@ use App\Http\Controllers\SubmissionExportController;
 use App\Http\Controllers\SubmissionSectionController;
 use App\Http\Controllers\SubmissionSourceController;
 use App\Http\Controllers\UserController;
+use App\Models\Solution;
 use Illuminate\Support\Facades\Route;
 
 // Guest routes
@@ -98,54 +98,17 @@ Route::middleware('auth')->group(function () {
         ->name('solutions.people.update');
     Route::delete('solutions/{solution}/people/{person}', [SolutionController::class, 'detachPerson'])->name('solutions.people.destroy');
 
-    // Rich solution documentation — a tree of 1..N pages (Editor.js block
-    // editor per page). `solutions.docs.edit` is the "index": it resolves (or
-    // creates) the first page and redirects to it, so the few places that
-    // already link to this route (Solutions\Documentation, coverage) don't
-    // need to know which page is current.
-    Route::get('solutions/{solution}/documentation', [SolutionDocumentationController::class, 'index'])->name('solutions.docs.edit');
-    Route::post('solutions/{solution}/documentation/pages', [SolutionDocumentationController::class, 'store'])->name('solutions.docs.pages.store');
-    // Public documentation link ("magic link"): generate/revoke (admin).
-    // Static routes ("share"), registered before the scopeBindings below so
-    // they don't collide with the {page} wildcard (same segment shape).
-    Route::post('solutions/{solution}/documentation/share', [SolutionDocumentationController::class, 'share'])->name('solutions.docs.share');
-    Route::delete('solutions/{solution}/documentation/share', [SolutionDocumentationController::class, 'unshare'])->name('solutions.docs.unshare');
+    // A solution's documentation is no longer ITS OWN: it lives in cadernos
+    // (see `notebooks.*` below), and a solution links to as many as describe
+    // it. This shim keeps old bookmarks working — it lands on the first caderno
+    // linked to the solution, or on the solution itself when none is.
+    Route::get('solutions/{solution}/documentation', function (Solution $solution) {
+        $notebook = $solution->notebooks()->first();
 
-    // "AI Assist" context documents (`context_documents` collection), per
-    // Solution — shared by every page in its tree. {media} is a global binding
-    // of the Spatie model (checked against the Solution in the controller), so
-    // it stays outside the {page} scopeBindings.
-    Route::post('solutions/{solution}/documentation/context', [SolutionContextDocumentController::class, 'store'])->name('solutions.docs.context.store');
-    Route::get('solutions/{solution}/documentation/context/{media}', [SolutionContextDocumentController::class, 'show'])->name('solutions.docs.context.show');
-    Route::delete('solutions/{solution}/documentation/context/{media}', [SolutionContextDocumentController::class, 'destroy'])->name('solutions.docs.context.destroy');
-
-    // Documentation Assistant polling — the chat carries its own
-    // target/solution, so it doesn't need {page} in the URL (and avoids
-    // scopeBindings' auto-scope trying to resolve {chat} as a page's child).
-    Route::get('solutions/{solution}/documentation/chat/{chat}/status', [SolutionDocumentationController::class, 'chatStatus'])->name('solutions.docs.chat.status');
-    // Marks a message's draft as applied.
-    Route::post('solutions/{solution}/documentation/chat/messages/{message}/apply', [SolutionDocumentationController::class, 'applyChatMessage'])->name('solutions.docs.chat.messages.apply');
-
-    // {page} resolves via Solution::pages(), so a page belonging to another
-    // solution 404s instead of being edited through the wrong owner.
-    Route::scopeBindings()->group(function () {
-        Route::get('solutions/{solution}/documentation/{page}', [SolutionDocumentationController::class, 'edit'])->name('solutions.docs.page.edit');
-        Route::patch('solutions/{solution}/documentation/{page}', [SolutionDocumentationController::class, 'update'])->name('solutions.docs.update');
-        Route::patch('solutions/{solution}/documentation/{page}/title', [SolutionDocumentationController::class, 'rename'])->name('solutions.docs.pages.rename');
-        Route::delete('solutions/{solution}/documentation/{page}', [SolutionDocumentationController::class, 'destroy'])->name('solutions.docs.pages.destroy');
-        Route::patch('solutions/{solution}/documentation/{page}/move', [SolutionDocumentationController::class, 'move'])->name('solutions.docs.pages.move');
-        // Re-files the page under ANOTHER container (a different solution, or a
-        // standalone group) — `/move` above only reorders it within this one.
-        Route::patch('solutions/{solution}/documentation/{page}/container', [SolutionDocumentationController::class, 'moveToContainer'])->name('solutions.docs.pages.container');
-        Route::post('solutions/{solution}/documentation/{page}/media', [SolutionDocumentationController::class, 'media'])->name('solutions.docs.media');
-        // Points the page at a Diagram, or clears the link (blank value). This
-        // is the ONE place the page↔diagram relation is written — a diagram
-        // never claims a page from its own side.
-        Route::patch('solutions/{solution}/documentation/{page}/diagram', [SolutionDocumentationController::class, 'diagram'])->name('solutions.docs.pages.diagram');
-        // Documentation Assistant — a chat that helps write the page (job + polling per turn).
-        Route::get('solutions/{solution}/documentation/{page}/chat', [SolutionDocumentationController::class, 'chatPanel'])->name('solutions.docs.chat.panel');
-        Route::post('solutions/{solution}/documentation/{page}/chat/messages', [SolutionDocumentationController::class, 'sendMessage'])->name('solutions.docs.chat.messages.store');
-    });
+        return $notebook
+            ? redirect()->route('notebooks.show', $notebook)
+            : redirect()->route('solutions.show', $solution);
+    })->name('solutions.docs.legacy');
 
     // F5 — people and companies (Stage 2).
     Route::get('people', [PersonController::class, 'index'])->name('people.index');
@@ -438,34 +401,85 @@ Route::middleware('auth')->group(function () {
             ->whereNumber('edge')->name('chain.edge.remove');
     });
 
-    // Documentation Hub — cross-cutting view of what's documented across
-    // solutions and standalone groups, and what's missing. Replaces the old
-    // coverage panel.
+    // Documentation Hub — the cross-cutting view of what's documented and
+    // what's missing. Reads cadernos; `/notebooks` is where they're edited.
     Route::get('documentation', [DocumentationHubController::class, 'index'])->name('documentation.index');
+    // Bookmarks from when a standalone group had its own URL.
+    Route::get('documentation/groups/{group}', fn (string $group) => redirect()->route('notebooks.show', $group));
 
-    // Groups ("Nestings") — a tree of standalone pages, outside any Solution.
-    // Same pattern as solutions.docs.* above: `show` is the index (resolves/
-    // creates the 1st page), static routes before the scopeBindings that
-    // resolves {page} via DocumentationGroup::pages().
-    Route::post('documentation/groups', [DocumentationGroupController::class, 'store'])->name('documentation.groups.store');
-    Route::get('documentation/groups/{group}', [DocumentationGroupController::class, 'show'])->name('documentation.groups.show');
-    Route::patch('documentation/groups/{group}', [DocumentationGroupController::class, 'update'])->name('documentation.groups.update');
-    Route::delete('documentation/groups/{group}', [DocumentationGroupController::class, 'destroy'])->name('documentation.groups.destroy');
-    Route::post('documentation/groups/{group}/pages', [DocumentationGroupPageController::class, 'store'])->name('documentation.groups.pages.store');
+    /*
+     |--------------------------------------------------------------------------
+     | Cadernos (Notebooks) — the one container of documentation
+     |--------------------------------------------------------------------------
+     |
+     | Flat, like `diagrams/{diagram}`, and for the same reason: a caderno is
+     | addressed by ITSELF. It used to be reached through the solution that
+     | owned it, which meant every URL carried a `{solution}` the endpoint
+     | didn't need — and, worse, made it impossible to express the thing this
+     | module exists for, one body of documentation describing several systems.
+     | A caderno reaches a solution the other way round now, through the
+     | `notebooks.solutions` pivot.
+     |
+     | Static segments come BEFORE the scopeBindings group, or they'd collide
+     | with the `{page}` wildcard (same segment shape). Every one of them is
+     | also in `DocumentationPageService::RESERVED_SLUGS`, which is what stops a
+     | page ever being slugged into that collision.
+     */
+    Route::get('notebooks', [NotebookController::class, 'index'])->name('notebooks.index');
+    Route::post('notebooks', [NotebookController::class, 'store'])->name('notebooks.store');
+    // Create/edit side panel. Two routes rather than one optional {notebook},
+    // so the create one can't be reached by inventing a slug. `panel` is a
+    // reserved word on BOTH levels — see NotebookController::uniqueSlug() for
+    // the caderno's slug and DocumentationPageService::RESERVED_SLUGS for the
+    // page's; without that a caderno named "Panel" would be unreachable.
+    Route::get('notebooks/panel', [NotebookController::class, 'panel'])->name('notebooks.panel.create');
+    Route::get('notebooks/{notebook}/panel', [NotebookController::class, 'panel'])->name('notebooks.panel.edit');
+    Route::get('notebooks/{notebook}', [NotebookController::class, 'show'])->name('notebooks.show');
+    Route::patch('notebooks/{notebook}', [NotebookController::class, 'update'])->name('notebooks.update');
+    Route::delete('notebooks/{notebook}', [NotebookController::class, 'destroy'])->name('notebooks.destroy');
+    // Which solutions this caderno documents — a full sync, never a toggle.
+    Route::patch('notebooks/{notebook}/solutions', [NotebookController::class, 'syncSolutions'])->name('notebooks.solutions');
+    // Public documentation link ("magic link"): generate/revoke (admin).
+    Route::post('notebooks/{notebook}/share', [NotebookController::class, 'share'])->name('notebooks.share');
+    Route::delete('notebooks/{notebook}/share', [NotebookController::class, 'unshare'])->name('notebooks.unshare');
 
+    // "Assiste IA" context documents (`context_documents` collection), per
+    // caderno — shared by every page in its tree. {media} is a global binding
+    // of the Spatie model (checked against the notebook in the controller), so
+    // it stays outside the {page} scopeBindings.
+    Route::post('notebooks/{notebook}/context', [NotebookContextDocumentController::class, 'store'])->name('notebooks.context.store');
+    Route::get('notebooks/{notebook}/context/{media}', [NotebookContextDocumentController::class, 'show'])->name('notebooks.context.show');
+    Route::delete('notebooks/{notebook}/context/{media}', [NotebookContextDocumentController::class, 'destroy'])->name('notebooks.context.destroy');
+
+    Route::post('notebooks/{notebook}/pages', [NotebookPageController::class, 'store'])->name('notebooks.pages.store');
+
+    // Documentation Assistant polling — the chat carries its own target, so it
+    // doesn't need {page} in the URL (and avoids scopeBindings' auto-scope
+    // trying to resolve {chat} as a page's child).
+    Route::get('notebooks/{notebook}/chat/{chat}/status', [NotebookPageController::class, 'chatStatus'])->name('notebooks.chat.status');
+    // Marks a message's draft as applied.
+    Route::post('notebooks/{notebook}/chat/messages/{message}/apply', [NotebookPageController::class, 'applyChatMessage'])->name('notebooks.chat.messages.apply');
+
+    // {page} resolves via Notebook::pages(), so a page belonging to another
+    // caderno 404s instead of being edited through the wrong owner.
     Route::scopeBindings()->group(function () {
-        Route::get('documentation/groups/{group}/{page}', [DocumentationGroupPageController::class, 'edit'])->name('documentation.groups.pages.edit');
-        Route::patch('documentation/groups/{group}/{page}', [DocumentationGroupPageController::class, 'update'])->name('documentation.groups.pages.update');
-        Route::patch('documentation/groups/{group}/{page}/title', [DocumentationGroupPageController::class, 'rename'])->name('documentation.groups.pages.rename');
-        Route::delete('documentation/groups/{group}/{page}', [DocumentationGroupPageController::class, 'destroy'])->name('documentation.groups.pages.destroy');
-        Route::patch('documentation/groups/{group}/{page}/move', [DocumentationGroupPageController::class, 'move'])->name('documentation.groups.pages.move');
-        // Mirror of solutions.docs.pages.container — moving a page OUT of a
-        // group is the whole point of the GitBook import's landing zone.
-        Route::patch('documentation/groups/{group}/{page}/container', [DocumentationGroupPageController::class, 'moveToContainer'])->name('documentation.groups.pages.container');
-        Route::post('documentation/groups/{group}/{page}/media', [DocumentationGroupPageController::class, 'media'])->name('documentation.groups.pages.media');
-        // Same page↔diagram link as solutions.docs.pages.diagram, for a page
-        // that lives in a standalone group instead of a solution.
-        Route::patch('documentation/groups/{group}/{page}/diagram', [DocumentationGroupPageController::class, 'diagram'])->name('documentation.groups.pages.diagram');
+        Route::get('notebooks/{notebook}/{page}', [NotebookPageController::class, 'edit'])->name('notebooks.pages.edit');
+        Route::patch('notebooks/{notebook}/{page}', [NotebookPageController::class, 'update'])->name('notebooks.pages.update');
+        Route::patch('notebooks/{notebook}/{page}/title', [NotebookPageController::class, 'rename'])->name('notebooks.pages.rename');
+        Route::delete('notebooks/{notebook}/{page}', [NotebookPageController::class, 'destroy'])->name('notebooks.pages.destroy');
+        Route::patch('notebooks/{notebook}/{page}/move', [NotebookPageController::class, 'move'])->name('notebooks.pages.move');
+        // Re-files the page under ANOTHER caderno — `/move` above only reorders
+        // it within this one. This is what empties the GitBook import's landing
+        // zone.
+        Route::patch('notebooks/{notebook}/{page}/notebook', [NotebookPageController::class, 'moveToNotebook'])->name('notebooks.pages.notebook');
+        Route::post('notebooks/{notebook}/{page}/media', [NotebookPageController::class, 'media'])->name('notebooks.pages.media');
+        // Points the page at a Diagram, or clears the link (blank value). This
+        // is the ONE place the page↔diagram relation is written — a diagram
+        // never claims a page from its own side.
+        Route::patch('notebooks/{notebook}/{page}/diagram', [NotebookPageController::class, 'diagram'])->name('notebooks.pages.diagram');
+        // Documentation Assistant — a chat that helps write the page (job + polling per turn).
+        Route::get('notebooks/{notebook}/{page}/chat', [NotebookPageController::class, 'chatPanel'])->name('notebooks.chat.panel');
+        Route::post('notebooks/{notebook}/{page}/chat/messages', [NotebookPageController::class, 'sendMessage'])->name('notebooks.chat.messages.store');
     });
 
     // Media embedded in documentation (images/files from the `docs`
@@ -481,14 +495,16 @@ Route::middleware('auth')->group(function () {
 });
 
 // Public documentation ("magic link") — NO auth. Access via an opaque token in
-// the URL (Solution::public_token); embedded media is served by a dedicated
-// route validated against the solution's own pages (PublicDocumentationController).
-Route::get('public-docs/{token}', [PublicDocumentationController::class, 'solution'])->name('public.docs.solution');
+// the URL (Notebook::public_token); embedded media is served by a dedicated
+// route validated against the caderno's own pages (PublicDocumentationController).
+// The path stays `public-docs/{token}` — the token is the only meaningful part
+// of it, so every link handed out before the container swap keeps resolving.
+Route::get('public-docs/{token}', [PublicDocumentationController::class, 'notebook'])->name('public.docs.notebook');
 // {slug} is not model-bound: a page's slug is only unique within its
-// container, never globally (see PublicDocumentationController::page()).
+// notebook, never globally (see PublicDocumentationController::page()).
 Route::get('public-docs/{token}/page/{slug}', [PublicDocumentationController::class, 'page'])->name('public.docs.page');
 Route::get('public-docs/{token}/file/{media}', [PublicDocumentationController::class, 'file'])->name('public.docs.file');
-// Command palette over the shared solution's own corpus (docs-search.js). JSON
+// Search over the shared caderno's own corpus (docs-search.js). JSON
 // only, and on its own path — it never shares a URL with a document response,
 // so the Back-button collision PreventJsonResponseCaching guards against
 // cannot arise here (see § Caching in AGENTS.md).

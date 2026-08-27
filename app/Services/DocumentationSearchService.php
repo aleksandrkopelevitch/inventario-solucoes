@@ -3,17 +3,16 @@
 namespace App\Services;
 
 use App\Models\DocumentationPage;
+use App\Models\Notebook;
 use App\Support\GitbookRenderer;
 use DOMDocument;
 use DOMElement;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * Turns a documentation container (a `Solution`, or a standalone
- * `DocumentationGroup`) into a searchable, faceted DATASET — the corpus behind
- * the command palette on the public "magic link" documentation.
+ * Turns a `Notebook` into a searchable, faceted DATASET — the corpus behind the
+ * search panel on the public "magic link" documentation.
  *
  * ## Sub-page granularity, with no overlap
  *
@@ -40,8 +39,8 @@ use Illuminate\Support\Facades\Cache;
  * 132 pages / 2 MB), so it never happens on a visitor's request twice:
  *
  * - **per page**, keyed by a hash of that page's own content — editing one
- *   page re-renders that one page, not the container;
- * - **per container**, keyed by the sequence of those page keys, in tree
+ *   page re-renders that one page, not the whole caderno;
+ * - **per notebook**, keyed by the sequence of those page keys, in tree
  *   order — so an added, edited, renamed, moved or deleted page produces a new
  *   key on its own. Nothing has to remember to flush anything.
  *
@@ -75,7 +74,12 @@ class DocumentationSearchService
     private const SNIPPET_LENGTH = 240;
 
     /** Bumped whenever the entry shape changes — old cache entries then simply miss. */
-    private const VERSION = 'v2';
+    // Bumped to v3 with the container swap: the index key hashed the
+    // container's CLASS alongside its id, so every key a `Solution`-owned
+    // corpus wrote is unreachable — and, worse, a notebook could collide with
+    // whatever id its old container happened to have. Old entries expire on
+    // their own TTL; nothing reads them again.
+    private const VERSION = 'v3';
 
     /**
      * Accent folding, one character in for one character out, so a character
@@ -101,13 +105,13 @@ class DocumentationSearchService
     }
 
     /**
-     * The container's whole corpus, in reading order.
+     * The notebook's whole corpus, in reading order.
      *
      * @return array<int, array<string, mixed>>
      */
-    public function index(Model $container): array
+    public function index(Notebook $notebook): array
     {
-        [$key, $tree] = $this->indexKey($container);
+        [$key, $tree] = $this->indexKey($notebook);
 
         return Cache::remember($key, now()->addDays(7), fn (): array => $this->build($tree));
     }
@@ -123,13 +127,13 @@ class DocumentationSearchService
      * that cost in the background instead of in time-to-first-paint, and every
      * visit after it renders the chips inline.
      */
-    public function isWarm(Model $container): bool
+    public function isWarm(Notebook $notebook): bool
     {
-        return Cache::has($this->indexKey($container)[0]);
+        return Cache::has($this->indexKey($notebook)[0]);
     }
 
     /**
-     * The cache key for a container's index, plus the tree it was derived from
+     * The cache key for a notebook's index, plus the tree it was derived from
      * (so a caller that goes on to build doesn't query for it twice).
      *
      * One query for the tree, and the fingerprint is read straight off the
@@ -139,16 +143,16 @@ class DocumentationSearchService
      *
      * @return array{0: string, 1: Collection<int, array<string, mixed>>}
      */
-    private function indexKey(Model $container): array
+    private function indexKey(Notebook $notebook): array
     {
-        $tree = $this->pages->tree($container);
+        $tree = $this->pages->tree($notebook);
 
         $fingerprint = md5($tree
             ->map(fn (array $row): string => $this->pageKey($row['page']))
             ->implode('|'));
 
         return [
-            self::VERSION . ':docs-search:index:' . md5($container::class . ':' . $container->getKey()) . ':' . $fingerprint,
+            self::VERSION . ':docs-search:index:' . $notebook->getKey() . ':' . $fingerprint,
             $tree,
         ];
     }
@@ -165,9 +169,9 @@ class DocumentationSearchService
      * @param  array<string, mixed>  $filters
      * @return array<string, mixed>
      */
-    public function search(Model $container, string $query, array $filters = []): array
+    public function search(Notebook $notebook, string $query, array $filters = []): array
     {
-        $entries = $this->index($container);
+        $entries = $this->index($notebook);
         $terms = $this->terms($query);
 
         $matched = $terms === []
@@ -745,7 +749,7 @@ class DocumentationSearchService
 
     /**
      * @param  array<int, array<string, mixed>>  $universe  every entry — decides which chips exist
-     * @param  array<int, array<string, mixed>>  $matched   the current result set — decides the counts
+     * @param  array<int, array<string, mixed>>  $matched  the current result set — decides the counts
      * @return array<int, array{value: string, label: string, count: int}>
      */
     private function sectionFacets(array $universe, array $matched): array

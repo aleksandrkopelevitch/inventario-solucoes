@@ -2,11 +2,11 @@
 
 use App\Enums\UserRole;
 use App\Jobs\GenerateFlowspecReply;
+use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\FlowspecChat;
 use App\Models\FlowspecExample;
 use App\Models\FlowspecGuideline;
-use App\Models\Diagram;
 use App\Models\Solution;
 use App\Models\User;
 use App\Services\Flowspec\FlowspecGenerationService;
@@ -78,8 +78,8 @@ it('rejects a malformed document reference', function () {
 it('searches documentation pages for the picker', function () {
     $user = flowspecUser();
     $solution = Solution::factory()->create(['name' => 'SVL']);
-    $page = DocumentationPage::factory()->for($solution, 'container')->create(['title' => 'Autenticação', 'documentation' => 'x']);
-    DocumentationPage::factory()->for($solution, 'container')->create(['title' => 'Sem relação', 'documentation' => 'z']);
+    $page = DocumentationPage::factory()->for(notebookFor($solution))->create(['title' => 'Autenticação', 'documentation' => 'x']);
+    DocumentationPage::factory()->for(notebookFor($solution))->create(['title' => 'Sem relação', 'documentation' => 'z']);
 
     $response = $this->actingAs($user)
         ->getJson(route('flowspec.documents.search', ['q' => 'Autenticação']))
@@ -202,7 +202,7 @@ it('refuses more context items than the per-conversation maximum', function () {
     $user = flowspecUser();
 
     $solution = Solution::factory()->create();
-    $pages = DocumentationPage::factory()->count(4)->for($solution, 'container')
+    $pages = DocumentationPage::factory()->count(4)->for(notebookFor($solution))
         ->create(['documentation' => 'conteudo'])
         ->map(fn (DocumentationPage $page) => "page:{$page->id}")
         ->all();

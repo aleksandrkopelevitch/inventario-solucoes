@@ -15,12 +15,17 @@ paths:
 ## GitBook import — and the three "firsts" it introduced
 
 `php artisan gitbook:import` pulls existing GitBook content into the
-documentation hub: one space becomes one standalone `DocumentationGroup`, each
-of its pages a `DocumentationPage`. A group and not a Solution on purpose — a
-space rarely maps 1:1 onto one solution in this inventory, so the group is a
-landing zone the pages are re-filed FROM (see "Re-filing a page" below), not
-their final home. `--list` discovers space ids, `--dry-run` writes nothing,
-`--space=`/`--all` do the work. Strictly read-only against GitBook.
+documentation module: one space becomes one `Notebook` ("Caderno"), each of its
+pages a `DocumentationPage`. A space IS a caderno — that is what the container
+swap made true, and this import is where the two models line up exactly. It used
+to land in a standalone `DocumentationGroup` as a temporary holding pen, and the
+reasoning behind that still holds (a space rarely maps 1:1 onto one solution, so
+guessing scatters pages) — it just costs nothing now: the caderno is a
+first-class home, and saying which solutions it documents is a LINK, not a move.
+Pages can still be re-filed into another caderno (see "Re-filing a page" below).
+`--list` discovers space ids, `--dry-run` writes nothing, `--space=`/`--all` do
+the work, `--notebook=` names the caderno (`--group=` still works). Strictly
+read-only against GitBook.
 
 ### The space's shape comes across, clamped at `MAX_DEPTH`
 
@@ -49,7 +54,7 @@ three decisions in there are worth knowing before touching it:
 
 ### A re-run is also the migration
 
-A page is matched inside the group by title, and one of the titles tried is
+A page is matched inside the caderno by title, and one of the titles tried is
 `GitbookPage::origin()` — the legacy flattened string ("Começando › Instalação")
 that the pre-nesting import wrote. So re-importing a space that came in flat
 **renames its pages down to their bare titles and hangs them off each other in
@@ -59,15 +64,14 @@ separate data migration for the 613 pages already imported; the re-run is it.
 Three details that make that work, each easy to break:
 
 - **Match order is specific → legacy → loose**: (title AND parent), then the
-  legacy flattened title, then the title anywhere in the group. Matched rows are
+  legacy flattened title, then the title anywhere in the caderno. Matched rows are
   claimed and leave the working set, which is what keeps two identically-named
   GitBook pages (or two sections named the same) from collapsing into one.
 - **Slugs deliberately don't follow the rename.** A page's URL stays stable —
   the same rule the rest of the module keeps — so a re-shaped page keeps the
   slug built from its old prefixed title. That is intentional, not an oversight.
 - **`position` is per sibling list**, one counter per parent, because that is
-  what `position` means since the tree gained depth (§ Documentation page tree
-  in AGENTS.md). One counter for the whole space would scramble every level.
+  what `position` means since the tree gained depth (§ Cadernos in AGENTS.md). One counter for the whole space would scramble every level.
 
 It is worth knowing this module exists for three reasons beyond GitBook:
 
@@ -108,7 +112,7 @@ up as literal `{% … %}` text on screen, or quietly disappears from the editor.
   the page's own `docs` collection, referenced as `/files/{id}` — otherwise the
   content is made of hotlinks that break when the source goes away.
   `MediaController::show()` authorizes on the media's COLLECTION only, so media
-  keeps working when its page moves container.
+  keeps working when its page moves caderno.
 - **`/files/{id}` is also GitBook's own path shape, and that collision is the
   nastiest thing in this whole import.** GitBook writes an embedded asset as
   `/files/{gitbookFileId}` (`/files/A4QijPsDvYEfSb14PQso`), which is byte-for-byte
@@ -179,45 +183,45 @@ When you need a GitBook API fact, read `https://api.gitbook.com/openapi.json`
 (fetches fine, ~1.6MB). Their documentation site 404s or returns "query us with
 `?ask=`" stubs, and search summaries about it were wrong in both directions.
 
-### Re-filing a page: moving a DocumentationPage to another container
+### Re-filing a page: moving a DocumentationPage to another caderno
 
-`{solutions.docs,documentation.groups}.pages.container` (PATCH) moves a page
-under a different Solution or standalone group — the other half of the import,
-and the only way content leaves its landing zone. Not to be confused with
-`…pages.move`, which moves a page WITHIN its container — `up`/`down` among its
-siblings, `in`/`out` one level at a time; they are two different
-endpoints with two different requests
-(`MoveDocumentationPageToContainerRequest` vs `MoveDocumentationPageRequest`).
+`notebooks.pages.notebook` (PATCH) moves a page under a different `Notebook` —
+the other half of the import, and the only way content leaves the caderno a
+space landed in. Not to be confused with `notebooks.pages.move`, which moves a
+page WITHIN its caderno — `up`/`down` among its siblings, `in`/`out` one level
+at a time; they are two different endpoints with two different requests
+(`MoveDocumentationPageToNotebookRequest` vs `MoveDocumentationPageRequest`).
 
 Six things about it that are easy to get wrong:
 
 - **It answers with `redirect`, not an updatable slot.** Every other rail action
-  either stays put (reorder → `PagesNav::slot()`) or renames in place; a
-  container move changes the page's URL, so swapping the rail would leave the
-  browser on a URL where that page no longer exists.
+  either stays put (reorder → `PagesNav::slot()`) or renames in place; a caderno
+  move changes the page's URL, so swapping the rail would leave the browser on a
+  URL where that page no longer exists.
 - **Two authorizations, and only one of them is the request's.** The FormRequest
   authorizes the SOURCE (the route model). The destination is a different record
   with its own policy, and a failure there must be a **403, not a 422** — so the
   controller resolves `$request->destination()` and calls
   `authorize('update', …)` on it. Don't fold that into a validation rule.
-- **`container_type`/`container_id` are not in `$fillable`** (§ Security), so
-  `DocumentationPageService::moveToContainer()` uses
-  `$page->container()->associate($destination)` — never `update()`, which would
+- **`notebook_id` is not in `$fillable`** (§ Security), so
+  `DocumentationPageService::moveToNotebook()` uses
+  `$page->notebook()->associate($destination)` — never `update()`, which would
   either be silently discarded or force widening mass assignment.
 - **The slug is re-checked against the destination**, because it is unique per
-  container, not globally (`unique(container_type, container_id, slug)`). It is
-  kept when free there and suffixed when not; `position` always goes to the end
-  of the destination.
-- **A nesting is never left straddling two containers.** A move has to resolve
+  caderno, not globally (`unique(notebook_id, slug)`). It is kept when free
+  there and suffixed when not; `position` always goes to the end of the
+  destination.
+- **A nesting is never left straddling two cadernos.** A move has to resolve
   the other half of it: a page with subpages takes its WHOLE subtree along
   (grandchildren included — moving one level would leave the rest filed under a
-  container they were never in), and a SUBPAGE moved on its own lands as a
+  caderno they were never in), and a SUBPAGE moved on its own lands as a
   top-level page, since its parent stayed behind. Slugs are re-checked against
   the destination depth-first, parents before children.
 - **`destinationsFor()` is called ONCE per rail, not per row.** It queries every
-  Solution and group; per-row would be two queries per page in the sidebar. The
-  current container is excluded from the options, which is also what makes the
-  rail hide the "Mover para…" entry when there is nowhere to go.
+  caderno; per-row would be a query per page in the sidebar. It returns a FLAT
+  list — it was two `<optgroup>`s ("Soluções"/"Grupos") while a destination
+  could be either kind of container. The current caderno is excluded, which is
+  what makes the rail hide the "Mover para…" entry when there is nowhere to go.
 
 Embedded media needs nothing: it belongs to the page and `MediaController` gates
 on the collection name, so `/files/{id}` keeps resolving after the move.

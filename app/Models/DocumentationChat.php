@@ -27,7 +27,7 @@ class DocumentationChat extends Model
         'user_id',
         'target_type',
         'target_id',
-        'solution_id',
+        'notebook_id',
     ];
 
     public function user(): BelongsTo
@@ -41,9 +41,17 @@ class DocumentationChat extends Model
         return $this->morphTo();
     }
 
-    public function solution(): BelongsTo
+    /**
+     * The caderno the conversation is scoped to — what owns the context
+     * documents the assistant reads, and what every 404 guard on this chat
+     * compares against. It was a `solution_id` until the container swap, kept
+     * in sync on every request precisely because a page could be re-filed
+     * under another owner while a chat about it was open; the notebook is now
+     * simply the page's own container, so it can be read off the page.
+     */
+    public function notebook(): BelongsTo
     {
-        return $this->belongsTo(Solution::class);
+        return $this->belongsTo(Notebook::class);
     }
 
     public function messages(): HasMany

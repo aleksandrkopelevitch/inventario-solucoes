@@ -7,6 +7,7 @@ use App\Enums\SubmissionDiagramKind;
 use App\Enums\SubmissionSectionKey;
 use App\Models\ApprovedTopology;
 use App\Models\DocumentationPage;
+use App\Models\Notebook;
 use App\Models\Solution;
 use App\Models\Submission;
 use App\Models\SubmissionDiagram;
@@ -40,7 +41,7 @@ use Illuminate\Support\Str;
 class PromoteApprovedSubmission
 {
     /**
-     * Sections whose prose belongs in the Solution's documentation. The
+     * Sections whose prose belongs in the solution's documentation. The
      * committee-process sections (costs, alternatives, the plan) stay on the
      * submission: they describe a DECISION, not how the system works, and a
      * documentation page that carries them ages badly.
@@ -56,6 +57,48 @@ class PromoteApprovedSubmission
 
     public function __construct(private readonly RenderSubmissionMarkdown $renderer) {}
 
+    /**
+     * Where an approved submission's prose lands: a caderno the solution is
+     * already documented by, or a new one named after it.
+     *
+     * A solution owns no pages of its own since the container swap, so
+     * promotion needs a caderno to write into — and picking the first linked
+     * one means an approval joins the documentation somebody is already
+     * reading, instead of starting a second body of text beside it. Creating
+     * one named after the solution when there is none is the same rule the
+     * container migration used, so the two produce the same shape.
+     */
+    private function notebookFor(Solution $solution): Notebook
+    {
+        $existing = $solution->notebooks()->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
+        $notebook = Notebook::create([
+            'name' => $solution->name,
+            'slug' => $this->uniqueSlug($solution->slug ?: Str::slug($solution->name)),
+        ]);
+
+        $solution->notebooks()->attach($notebook);
+
+        return $notebook;
+    }
+
+    private function uniqueSlug(string $base): string
+    {
+        $base = $base ?: 'caderno';
+        $slug = $base;
+        $suffix = 1;
+
+        while (Notebook::where('slug', $slug)->exists()) {
+            $slug = $base . '-' . (++$suffix);
+        }
+
+        return $slug;
+    }
+
     /** @return DocumentationPage|null the page written, or null when there was nothing to promote */
     public function handle(Submission $submission): ?DocumentationPage
     {
@@ -69,20 +112,21 @@ class PromoteApprovedSubmission
             return null;
         }
 
+        $notebook = $this->notebookFor($solution);
         $title = "CATI — {$submission->name}";
 
-        $page = $solution->pages()->firstOrNew(['slug' => Str::slug($title)]);
+        $page = $notebook->pages()->firstOrNew(['slug' => Str::slug($title)]);
 
         // The page has to exist before the drawing can be copied into its own
         // `docs` collection, and the Markdown has to name the media id the copy
         // produced — so the picture is settled first and the body built around
         // whatever it returns.
         if (! $page->exists) {
-            // End of the solution's TOP-LEVEL pages: `position` orders a page
+            // End of the caderno's TOP-LEVEL pages: `position` orders a page
             // among its siblings, so the promoted page joins the root list
             // rather than counting subpage positions it will never share.
-            $page->fill(['title' => $title, 'documentation' => '', 'position' => $solution->pages()->whereNull('parent_id')->max('position') + 1]);
-            $solution->pages()->save($page);
+            $page->fill(['title' => $title, 'documentation' => '', 'position' => $notebook->pages()->whereNull('parent_id')->max('position') + 1]);
+            $notebook->pages()->save($page);
         }
 
         $body = $this->body($submission, $this->promotedImage($submission, $page));
@@ -92,7 +136,7 @@ class PromoteApprovedSubmission
         }
 
         $page->fill(['title' => $title, 'documentation' => $body]);
-        $solution->pages()->save($page);
+        $notebook->pages()->save($page);
 
         $this->recordApprovedTopology($submission, $solution);
 

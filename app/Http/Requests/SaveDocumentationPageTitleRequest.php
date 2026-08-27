@@ -15,7 +15,7 @@ class SaveDocumentationPageTitleRequest extends FormRequest
     /** Same rule as SaveDocumentationRequest: only whoever edits the container (Solution/Group). */
     public function authorize(): bool
     {
-        $model = $this->route('solution') ?? $this->route('group');
+        $model = $this->route('notebook');
 
         return $model !== null && $this->user()->can('update', $model);
     }

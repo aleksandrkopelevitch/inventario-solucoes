@@ -1,7 +1,8 @@
 # Inventário de Soluções — Claude Guidelines
 
 Catalog of Leo Madeiras' solutions/integrations: solution, people and company
-records, a documentation module (a page tree per solution or standalone group),
+records, a documentation module (**cadernos** — a page tree per `Notebook`,
+each linked to 0..N solutions),
 a **diagrams** module (the graphical topology editor, one drawing at a time),
 and a read-only map of the ecosystem derived from those drawings. Fork of the
 generic infra from the
@@ -96,7 +97,7 @@ A `Diagram` is a drawing of a flow, and a first-class record: `/diagrams` is its
 module, `/diagrams/{diagram}` is the canvas that authors it. It used to be an
 `Integration` — reachable only through a solution that took part in it, carrying
 a `documentation` column of its own — and both halves of that are gone (see
-§ Documentation page tree for what replaced the second one).
+§ Cadernos for what replaced the second one).
 
 Its topology lives in the `chain` json — a genuinely free
 graph: `{nodes: [{solution_id, label, kind}], edges: [{from, to, arrow, protocol}]}`,
@@ -189,7 +190,29 @@ editing, because every endpoint it calls arrives inside the graph payload
 (`ChainCanvas::chainUrls()`) — which is why `chain-viz.js` contains no route of
 its own and must keep containing none.
 
-### Documentation page tree — `position` orders SIBLINGS, not the container
+### Cadernos — a Notebook is the one container, and it documents 0..N Solutions
+
+**A body of documentation is a `Notebook` ("Caderno"), modelled on a GitBook
+Space.** It is the ONE container of `DocumentationPage`s, and it relates to
+**0..N Solutions** through the `notebook_solution` pivot.
+
+Both halves of that matter:
+
+- **A page has one owner, `notebook_id`** — a plain FK, not the polymorphic
+  `container` (`Solution` | `DocumentationGroup`) it replaced. That collapse is
+  what removed two near-duplicate controller families, two route families and
+  every `instanceof` branch that turned a page into a URL.
+- **A caderno describes as many systems as it actually describes.** An
+  integration's documentation is one text read from both ends of it; the old
+  container could only ever name one owner, so the same text had to be written
+  twice or filed under one side arbitrarily. **Zero is a normal state too** —
+  a cross-cutting process, or a freshly imported GitBook space nobody has filed.
+
+A Solution therefore **owns no pages** (`Solution::pages()` does not exist).
+Anything asking "is this solution documented?" goes through
+`whereHas('notebooks.documentedPages')`. Two things moved onto the notebook with
+the container: the public magic link (`notebooks.public_token`) and the Assiste
+IA context documents (`Notebook::CONTEXT_COLLECTION`).
 
 **There is exactly ONE kind of documentation: the page.** There used to be two —
 a page tree, and an integration's own single-page `documentation` column with
@@ -198,30 +221,29 @@ percentage. The second one is gone. What it was really for (text beside a
 drawing) is now a page pointing at a `Diagram`
 (`documentation_pages.diagram_id`, nullable, written only by
 `Concerns\LinksPageDiagram` through `diagram()->associate()` — it is NOT in
-`$fillable`, like `parent_id` and `container_*`). The FK lives on the PAGE, so
+`$fillable`, like `parent_id` and `notebook_id`). The FK lives on the PAGE, so
 one diagram serves 1..N pages: the same drawing legitimately explains several
-pages, often in several solutions' trees, while a page never has two drawings to
+pages, often in several cadernos, while a page never has two drawings to
 reconcile. A page that has one grows a Documentação/Diagrama tab pair and mounts
 the canvas; linking answers with a `redirect`, not a slot, because the shape of
 the screen changes with it. `nullOnDelete`: deleting a drawing must never take
 the text explaining it.
 
-A Solution's (or standalone `DocumentationGroup`'s) documentation is a tree of
-`DocumentationPage`s up to `DocumentationPage::MAX_DEPTH` levels deep (5 today,
-which is the depth the imported GitBook corpus actually uses), via a
-self-referencing `parent_id`. The cap is that constant and nothing else, so
-changing the depth is one edit there plus one literal indent step per level in
-the three views that draw the tree — and `parent_id` is deliberately absent from
-`$fillable`, like `container_type`/`container_id`: the tree is written through
-`parent()->associate()`, never mass-assigned.
+A caderno's documentation is a tree of `DocumentationPage`s up to
+`DocumentationPage::MAX_DEPTH` levels deep (5 today, which is the depth the
+imported GitBook corpus actually uses), via a self-referencing `parent_id`. The
+cap is that constant and nothing else, so changing the depth is one edit there
+plus one literal indent step per level in the three views that draw the tree —
+and `parent_id` is deliberately absent from `$fillable`, like `notebook_id`: the
+tree is written through `parent()->associate()`, never mass-assigned.
 
 The trap is `position`: it orders a page among its **siblings**, so
-`$container->pages()` — a flat `orderBy('position')` over every page at every
-depth — is **not reading order**, and `pages()->first()` is not the container's
+`$notebook->pages()` — a flat `orderBy('position')` over every page at every
+depth — is **not reading order**, and `pages()->first()` is not the caderno's
 first page. Anything that shows the tree to a human walks
 `DocumentationPageService::tree()` (one query, recursion in memory, each row
 carrying its `depth` and which gestures it can perform); anything that opens a
-container uses `firstPage()`. What only asks "is there content in here?"
+caderno uses `firstPage()`. What only asks "is there content in here?"
 (coverage, the flowSpec picker, slug uniqueness) can keep using the flat
 relation, because depth doesn't change that answer.
 
@@ -231,12 +253,13 @@ Three more rules that are easy to half-implement:
   page one level down drags its own subpages with it, so what has to fit under
   the cap is `parent depth + subtree height` (`canBeNestedUnder()`). A page with
   subpages may be nested; a page with grandchildren may not.
-- **Moving a page to another container carries its whole subtree**, depth-first
-  (slugs re-checked against the destination, parents before children). Moving
-  one level would leave deeper pages filed under a container they were never in.
-  A page moved *without* its parent lands as a root there instead.
+- **Moving a page to another caderno carries its whole subtree**
+  (`moveToNotebook()`), depth-first — slugs re-checked against the destination,
+  parents before children. Moving one level would leave deeper pages filed under
+  a caderno they were never in. A page moved *without* its parent lands as a
+  root there instead.
 - **Deleting goes through the models, recursively** — `children()->get()`, never
-  the `children` property, since a container delete hydrates its pages in bulk
+  the `children` property, since a caderno delete hydrates its pages in bulk
   and strict mode then turns a lazy load into a 500 (§ Strict mode). The FK's
   `cascadeOnDelete` is the safety net; the model hook is what lets Spatie clean
   each page's embedded media.
@@ -252,7 +275,9 @@ are literal classes, because Tailwind only ships what it can see in the source
 `/public-docs/{token}/search` backs the search panel on the magic-link
 documentation (`docs-search.js` + `x-documentation.search-panel`). It is the
 one place the documentation is treated as a queryable dataset rather than as
-pages.
+pages. The token resolves a `Notebook` — what gets shared is ONE caderno,
+whatever it happens to be linked to, so linking a notebook to a solution
+publishes nothing.
 
 **The panel sits above the reading shell, in the page — it is deliberately not
 a ⌘K modal.** It was one for about an hour, and the FILTERS are why it stopped
@@ -399,24 +424,37 @@ Route::get('/proposals/{proposal}/analyses/{analysis}', ...)
 ```
 
 **URL paths in this app are in English** (`/solutions`, `/companies`,
-`/people`, `/documentation`, `/map`, `/flowspec`) even though every label the
-user reads is PT-BR. Keep new paths English too, and always build URLs with
-`route()` rather than a literal. When you need a path, `php artisan route:list
---path=<fragment>` is the only reliable source — this file has already drifted
-from reality once by citing Portuguese paths that 404.
+`/people`, `/notebooks`, `/documentation`, `/map`, `/flowspec`) even though every
+label the user reads is PT-BR — `/notebooks` is where a **caderno** lives. Keep
+new paths English too, and always build URLs with `route()` rather than a
+literal. When you need a path, `php artisan route:list --path=<fragment>` is the
+only reliable source — this file has already drifted from reality once by citing
+Portuguese paths that 404.
 
 Reference implementation in this app: `routes/web.php`'s
 `Route::scopeBindings()->group(...)` around the
-`solutions/{solution}/documentation/{page}/...` routes. `{page}` 404s unless it
-belongs to the `{solution}` in the URL (resolved via `Solution::pages()`), so a
-page can never be edited through the wrong owner.
+`notebooks/{notebook}/{page}/...` routes. `{page}` 404s unless it belongs to the
+`{notebook}` in the URL (resolved via `Notebook::pages()`), so a page can never
+be edited through the wrong owner.
 
-The **diagrams** routes are the counter-example, and the contrast is the point:
-`diagrams/{diagram}/...` is flat, because a diagram is addressed by itself.
-They used to be nested under a participating solution, which meant every URL
-carried a `{solution}` the endpoint didn't need plus a scope check to keep the
-two in agreement; a diagram reaches a solution the other way round now (a page
-points at it). Its chain-editing routes (`chain/nodes/{node}`,
+Two rules that go together in that family, because `notebooks/{notebook}/{page}`
+puts a wildcard where static segments also live:
+
+- **Static segments come BEFORE the `scopeBindings()` group**, or they collide
+  with `{page}` (same segment shape).
+- **Every one of them is reserved as a slug.** `DocumentationPageService::RESERVED_SLUGS`
+  refuses `pages`/`share`/`context`/`chat`/`solutions`/`panel` for a page, and
+  `NotebookController::RESERVED_SLUGS` refuses `panel` for a caderno (there is a
+  real `notebooks/panel` route). That list was PT-BR and stale for months —
+  reserving five words no route used while leaving the five that mattered free
+  to collide — so check it against `route:list` when adding a segment.
+
+The **diagrams** routes are flat for the same reason `/notebooks` is:
+`diagrams/{diagram}/...` — a diagram is addressed by itself. Both used to be
+nested under a participating solution, which meant every URL carried a
+`{solution}` the endpoint didn't need plus a scope check to keep the two in
+agreement; a diagram reaches a solution the other way round now (a page points
+at it), and a caderno through the `notebook_solution` pivot. Its chain-editing routes (`chain/nodes/{node}`,
 `chain/protocol/{edge}`, `chain/edge/{edge}`) take a plain integer INDEX into
 `chain.nodes`/`chain.edges` (`whereNumber(...)`), not a model — those aren't
 bindings at all, just route params validated as numeric and range-checked
@@ -936,13 +974,13 @@ happens between requests, not inside a burst.
 Only 6 models use `HasMedia`/`InteractsWithMedia`, each with its own single collection and its own purpose — there is no generic shared collection/conversion pair to reuse:
 
 - `User` — `avatar` (single-file), with one registered conversion, `thumb` (120×120, `nonQueued()` since the source is tiny). `User::avatarUrl()` falls back to `ui-avatars.com` (an external, third-party image, requested client-side from the `<img src>`) when no avatar was uploaded — a deliberate, low-risk default, not an oversight.
-- `Solution` — `context_documents` (`Solution::CONTEXT_COLLECTION`), the "Assiste IA" context documents (PDF/image/text), served by `SolutionContextDocumentController` — never through `MediaController`/`files.show`.
-- `DocumentationPage` — the `docs` collection (`Documentable::DOCS_COLLECTION = 'docs'`): images/files embedded in Markdown documentation, referenced as `/files/{id}` and served by `MediaController`/`files.show` (authenticated) or `PublicDocumentationController::file()` (magic-link, token-scoped). It is the only `Documentable`; `Diagram` and `SubmissionDiagram` also register a collection named `docs`, but for a different reason — an image PASTED onto the canvas has to be servable at `/files/{id}`, and `MediaController::show()` authorizes by collection name alone, so nothing outside that name can be served at all.
+- `Notebook` — `context_documents` (`Notebook::CONTEXT_COLLECTION`), the "Assiste IA" context documents (PDF/image/text), served by `NotebookContextDocumentController` — never through `MediaController`/`files.show`. It lived on `Solution` until cadernos became the container: the chat is about a page, a page always has a notebook, and may have no solution at all.
+- `DocumentationPage` — the `docs` collection (`Documentable::DOCS_COLLECTION = 'docs'`): images/files embedded in Markdown documentation, referenced as `/files/{id}` and served by `MediaController`/`files.show` (authenticated) or `PublicDocumentationController::file()` (magic-link, token-scoped, checked against the notebook's own pages). It is the only `Documentable`; `Diagram` and `SubmissionDiagram` also register a collection named `docs`, but for a different reason — an image PASTED onto the canvas has to be servable at `/files/{id}`, and `MediaController::show()` authorizes by collection name alone, so nothing outside that name can be served at all.
 - `Diagram` — `docs` (pasted image nodes, above) plus `diagram` (`Diagram::DIAGRAM_COLLECTION`, `singleFile()`): the canvas rendered to a PNG by the client on every layout save, so the CATI deck can show an architecture without a browser in the loop. Derived, never an input.
 - `Submission` — `submission_sources` (`Submission::SOURCES_COLLECTION`), the gathered material behind a CATI submission, served by `SubmissionSourceController::show()`.
 - `FlowspecChat` — `flowspec_attachments` (`FlowspecChat::ATTACHMENTS_COLLECTION`), files a person attached as context to an Especialista em Integrações conversation. Never served back to a browser at all: these are read for text or handed to the model as native attachments, and are deleted with the attachment row.
 
-No model has more than one conversion, and nothing uses a `->image()` accessor. **`Solution` and `Company` logos are NOT MediaLibrary** — `logo_path` is a plain string column, uploaded via `$request->file('logo')->store('{solution,company}-logos', 'public')` directly in `SolutionController`/`CompanyController`, a deliberately simpler mechanism since a logo needs no conversions/metadata.
+No model has more than one conversion, and nothing uses a `->image()` accessor. **`Solution` holds no media at all any more, and `Solution`/`Company` logos are NOT MediaLibrary** — `logo_path` is a plain string column, uploaded via `$request->file('logo')->store('{solution,company}-logos', 'public')` directly in `SolutionController`/`CompanyController`, a deliberately simpler mechanism since a logo needs no conversions/metadata.
 
 Avatar/logo uploads (the six Person/Solution/Company Store+Update requests) all share `['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048']`, and `avatar-upload.js` mirrors that list client-side so a doomed file never gets an encouraging preview — **keep the two in step**. `accept="image/*"` on the input is only a picker hint and enforces nothing. SVG is intentionally absent: Laravel 13's bare `image` rule rejects it unless written `image:allow_svg` (so it never actually worked, even while `mimes:` still listed it), and an SVG served from the public disk executes its own scripts when opened directly by URL. Documentation media is a different rule (`file`, not `image`) and **does** accept SVG.
 
@@ -956,7 +994,7 @@ Never register a new collection/conversion without checking the 6 above first �
 
 ### SSRF surface — documentation editor's "paste image URL"
 
-`EditsDocumentation::storeDocumentationMedia()` (shared by `SolutionDocumentationController`/`DocumentationGroupPageController`) has two upload paths: a multipart `file`, or a `url` the SERVER downloads via Spatie's `addMediaFromUrl()` (Editor.js's Image plugin "paste a URL" flow). `UploadDocumentationMediaRequest` only validates `starts_with:http://,https://` — same as Spatie's own internal check — with **no private/loopback/link-local guard**, so without `App\Rules\PublicUrl` (validates the resolved IP via `FILTER_FLAG_NO_PRIV_RANGE|FILTER_FLAG_NO_RES_RANGE`) an admin could make the server fetch an internal-only URL (cloud metadata endpoint, internal admin panel, etc.) — exploitability is admin-scoped (only `update` on a page's container reaches this), but still real. The guard resolves DNS at validation time, so it does **not** close a DNS-rebinding race (attacker's DNS answers public at validation, private moments later at fetch time) — accepted as a documented residual risk, not something this rule claims to solve.
+`EditsDocumentation::storeDocumentationMedia()` (used by `NotebookPageController`) has two upload paths: a multipart `file`, or a `url` the SERVER downloads via Spatie's `addMediaFromUrl()` (Editor.js's Image plugin "paste a URL" flow). `UploadDocumentationMediaRequest` only validates `starts_with:http://,https://` — same as Spatie's own internal check — with **no private/loopback/link-local guard**, so without `App\Rules\PublicUrl` (validates the resolved IP via `FILTER_FLAG_NO_PRIV_RANGE|FILTER_FLAG_NO_RES_RANGE`) an admin could make the server fetch an internal-only URL (cloud metadata endpoint, internal admin panel, etc.) — exploitability is admin-scoped (only `update` on a page's caderno reaches this), but still real. The guard resolves DNS at validation time, so it does **not** close a DNS-rebinding race (attacker's DNS answers public at validation, private moments later at fetch time) — accepted as a documented residual risk, not something this rule claims to solve.
 
 ## Style
 

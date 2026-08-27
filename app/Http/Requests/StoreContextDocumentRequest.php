@@ -9,9 +9,9 @@ class StoreContextDocumentRequest extends FormRequest
     /** Only whoever edits the Solution manages its context documents. */
     public function authorize(): bool
     {
-        $solution = $this->route('solution');
+        $notebook = $this->route('notebook');
 
-        return $solution !== null && $this->user()->can('update', $solution);
+        return $notebook !== null && $this->user()->can('update', $notebook);
     }
 
     /** @return array<string, array<int, string>> */

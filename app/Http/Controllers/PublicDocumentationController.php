@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Contracts\Documentable;
-use App\Models\DocumentationPage;
-use App\Models\Solution;
 use App\Http\Requests\SearchPublicDocumentationRequest;
+use App\Models\DocumentationPage;
+use App\Models\Notebook;
 use App\Services\DocumentationPageService;
 use App\Services\DocumentationSearchService;
 use App\Support\GitbookRenderer;
@@ -17,56 +17,57 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
- * PUBLIC documentation for a solution ("magic link"), no auth. Access is via
- * an opaque token in the URL (`Solution::public_token`); from it, shows the
- * solution's own page tree (1..N, GitBook-style) in a dedicated `public-docs`
- * layout (top bar + side index). Standalone Groups ("Nestings") are never
- * exposed here — only the Solution's own tree.
+ * PUBLIC documentation for a caderno ("magic link"), no auth. Access is via an
+ * opaque token in the URL (`Notebook::public_token`); from it, shows that
+ * notebook's page tree (1..N, GitBook-style) in a dedicated `public-docs`
+ * layout (top bar + side index).
  *
- * Pages, and only pages. There used to be a second half to this — one entry
- * per integration the solution took part in, each rendering that integration's
- * own `documentation` column — and it went away with the entity: a diagram
- * carries no prose, so there is nothing here for it to render. A drawing
- * embedded in a page's Markdown reaches a visitor the same way any other image
- * does, through `public.docs.file`.
+ * What is shared is ONE notebook, never a solution's whole documentation. The
+ * token used to hang off `Solution`, and moving it here is what keeps the
+ * shared surface a thing somebody chose to share: a caderno linked to three
+ * solutions is still one link to one body of text, and linking a notebook to a
+ * solution never publishes anything.
  *
- * Embedded media (`/files/{id}` in the Markdown) is rewritten to that
- * dedicated public route, validated against the solution's own pages — the
+ * Tokens generated before the swap were carried across verbatim by the
+ * migration, so links already in the wild keep resolving.
+ *
+ * Embedded media (`/files/{id}` in the Markdown) is rewritten to a dedicated
+ * public route, validated against this notebook's own pages — the
  * authenticated `files.show` route doesn't serve visitors.
  */
 class PublicDocumentationController extends Controller
 {
-    /** First page of the tree (or none, if the solution has no page yet). */
-    public function solution(string $token): View
+    /** First page of the tree (or none, if the caderno has no page yet). */
+    public function notebook(string $token): View
     {
-        $solution = $this->resolve($token);
+        $notebook = $this->resolve($token);
 
-        return $this->render($solution, app(DocumentationPageService::class)->firstPage($solution));
+        return $this->render($notebook, app(DocumentationPageService::class)->firstPage($notebook));
     }
 
     /**
      * `$slug` is NOT resolved via route-model-binding — a DocumentationPage's
-     * slug is only unique WITHIN its container (see the composite unique on
-     * `documentation_pages`), never globally. Two solutions can each have a
-     * page called "test"; a global `{page:slug}` binding would grab the
-     * lowest id (belonging to another solution) and 404 for the wrong owner.
-     * Scoping the query by the Solution resolved from the token avoids the
-     * ambiguity entirely.
+     * slug is only unique WITHIN its notebook (see the composite unique on
+     * `documentation_pages`), never globally. Two cadernos can each have a page
+     * called "test"; a global `{page:slug}` binding would grab the lowest id
+     * (belonging to another caderno) and 404 for the wrong owner. Scoping the
+     * query by the Notebook resolved from the token avoids the ambiguity
+     * entirely.
      */
     public function page(string $token, string $slug): View
     {
-        $solution = $this->resolve($token);
-        $page = $solution->pages()->where('slug', $slug)->firstOrFail();
+        $notebook = $this->resolve($token);
+        $page = $notebook->pages()->where('slug', $slug)->firstOrFail();
 
-        return $this->render($solution, $page);
+        return $this->render($notebook, $page);
     }
 
     /**
      * The command palette's backing endpoint (`docs-search.js`).
      *
-     * Scoped to the token's own solution and nothing else: the service is
-     * handed THIS solution, so a visitor can never reach another solution's
-     * pages or a standalone group through it, however the query is shaped.
+     * Scoped to the token's own caderno and nothing else: the service is handed
+     * THIS notebook, so a visitor can never reach another caderno's pages
+     * through it, however the query is shaped.
      *
      * The service deals in `slug` + `anchor` and knows no route — turning
      * those into public URLs is this controller's job, which is what keeps the
@@ -74,10 +75,10 @@ class PublicDocumentationController extends Controller
      */
     public function search(SearchPublicDocumentationRequest $request, string $token, DocumentationSearchService $search): JsonResponse
     {
-        $solution = $this->resolve($token);
+        $notebook = $this->resolve($token);
 
         $payload = $search->search(
-            $solution,
+            $notebook,
             (string) ($request->validated('q') ?? ''),
             (array) ($request->validated('filter') ?? []),
         );
@@ -101,12 +102,12 @@ class PublicDocumentationController extends Controller
 
     public function file(string $token, Media $media): BinaryFileResponse
     {
-        $solution = $this->resolve($token);
+        $notebook = $this->resolve($token);
         $owner = $media->model;
 
         $allowed = $media->collection_name === Documentable::DOCS_COLLECTION
             && $owner instanceof DocumentationPage
-            && $this->belongsToSolutionPages($solution, $owner);
+            && (int) $owner->notebook_id === $notebook->id;
 
         abort_unless($allowed, 404);
 
@@ -116,31 +117,26 @@ class PublicDocumentationController extends Controller
         ]);
     }
 
-    private function resolve(string $token): Solution
+    private function resolve(string $token): Notebook
     {
-        return Solution::where('public_token', $token)->firstOrFail();
+        return Notebook::where('public_token', $token)->firstOrFail();
     }
 
-    private function belongsToSolutionPages(Solution $solution, DocumentationPage $page): bool
+    private function render(Notebook $notebook, ?DocumentationPage $current): View
     {
-        return $page->container_type === Solution::class && (int) $page->container_id === $solution->id;
-    }
-
-    private function render(Solution $solution, ?DocumentationPage $current): View
-    {
-        $token = $solution->public_token;
+        $token = $notebook->public_token;
         $markdown = $current?->documentation;
 
         return view('public.docs', [
-            'solution'     => $solution,
-            'title'        => $current?->documentationTitle() ?? $solution->name,
-            'eyebrow'      => 'Solução',
+            'notebook'     => $notebook,
+            'title'        => $current?->documentationTitle() ?? $notebook->name,
+            'eyebrow'      => 'Caderno',
             'renderedHtml' => $this->renderMarkdown($markdown, $token),
             // Raw Markdown for the "Copiar Markdown" button, with media already
             // rewritten to the public routes (the internal /files/{id} does
             // not resolve for visitors accessing only via the public link).
             'markdown' => $this->rewriteFileUrls((string) $markdown, $token),
-            'nav'      => $this->nav($solution, $current, $token),
+            'nav'      => $this->nav($notebook, $current, $token),
             // Endpoint behind the search panel above the documentation.
             'searchUrl' => route('public.docs.search', $token),
             // Its chips, rendered with the page — but ONLY when the corpus is
@@ -148,7 +144,7 @@ class PublicDocumentationController extends Controller
             // seconds, on the largest corpus measured) inside time-to-first-
             // paint of a page nobody has searched yet; the panel ships a
             // placeholder instead and docs-search.js fills it in.
-            'searchResults' => $this->warmSearchPanel($solution),
+            'searchResults' => $this->warmSearchPanel($notebook),
         ]);
     }
 
@@ -172,25 +168,25 @@ class PublicDocumentationController extends Controller
      * The search panel's slot HTML for an idle (unfiltered) panel, or null when
      * building it would mean indexing the corpus during a page render.
      */
-    private function warmSearchPanel(Solution $solution): ?string
+    private function warmSearchPanel(Notebook $notebook): ?string
     {
         $search = app(DocumentationSearchService::class);
 
-        if (! $search->isWarm($solution)) {
+        if (! $search->isWarm($notebook)) {
             return null;
         }
 
-        return SearchResults::slot($search->search($solution, ''))['content'];
+        return SearchResults::slot($search->search($notebook, ''))['content'];
     }
 
     /**
-     * Side index: every page in the solution's tree.
+     * Side index: every page in the caderno's tree.
      *
      * @return Collection<int, array{label: string, depth: int, url: string, active: bool, hasDocs: bool}>
      */
-    private function nav(Solution $solution, ?DocumentationPage $current, string $token): Collection
+    private function nav(Notebook $notebook, ?DocumentationPage $current, string $token): Collection
     {
-        return app(DocumentationPageService::class)->tree($solution)->map(fn (array $row) => [
+        return app(DocumentationPageService::class)->tree($notebook)->map(fn (array $row) => [
             'label' => $row['page']->title,
             // Depth so the index indents a subpage instead of listing it as a
             // peer of the page it belongs to (see the layout).

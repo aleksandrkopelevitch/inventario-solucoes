@@ -23,7 +23,7 @@
 </head>
 <body class="ak-docs-scroll min-h-screen bg-white text-body font-sans text-[14.5px] antialiased">
 
-    {{-- Top bar: Leo brand + solution name (stays white over the cream canvas) --}}
+    {{-- Top bar: Leo brand + caderno name (stays white over the cream canvas) --}}
     <header class="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-white px-4 py-3 sm:px-6">
         <span class="flex size-8 shrink-0 items-center justify-center rounded-field bg-sidebar font-display text-sm font-bold text-white">L</span>
         <div class="min-w-0">
@@ -47,7 +47,7 @@
          results are the page then. --}}
     <div data-ak-docs-shell class="flex w-full items-start gap-6 px-4 md:gap-8 md:px-6 lg:px-8">
 
-        {{-- Pages index: all documentation pages for this solution --}}
+        {{-- Pages index: every page in this caderno --}}
         @if ($nav)
             <aside class="hidden w-60 shrink-0 md:sticky md:top-14 md:block md:max-h-[calc(100vh_-_3.5rem)] md:overflow-y-auto md:py-10">
                 <p class="px-2 pb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-muted">Nesta solução</p>

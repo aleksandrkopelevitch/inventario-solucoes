@@ -31,7 +31,7 @@ class ChatThread extends Component
         // Explicit eager load: this component is often built from a freshly
         // fetched/deserialized chat with no relations loaded (strict mode only
         // arms on multi-row hydration — see AGENTS.md).
-        $this->chat->loadMissing('solution');
+        $this->chat->loadMissing('notebook');
         $messages = $this->chat->messages()->get();
 
         return view('components.documentation.chat-thread', [
@@ -41,7 +41,7 @@ class ChatThread extends Component
             // Derives from the collection already fetched — avoids the extra
             // query from isAwaitingReply() while applying the same stall bound.
             'awaiting'  => $this->chat->awaitsReplyFor($messages->last()),
-            'statusUrl' => route('solutions.docs.chat.status', [$this->chat->solution, $this->chat]),
+            'statusUrl' => route('notebooks.chat.status', [$this->chat->notebook, $this->chat]),
         ]);
     }
 }

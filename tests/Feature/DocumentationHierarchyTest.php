@@ -1,9 +1,8 @@
 <?php
 
 use App\Enums\UserRole;
-use App\Models\DocumentationGroup;
 use App\Models\DocumentationPage;
-use App\Models\Solution;
+use App\Models\Notebook;
 use App\Models\User;
 use App\Services\DocumentationPageService;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -16,10 +15,10 @@ function treeAdmin(): User
     return User::factory()->create(['role' => UserRole::Admin->value]);
 }
 
-/** A root page of `$solution`, at the given position in the root list. */
-function rootPage(Solution $solution, string $title, int $position = 1): DocumentationPage
+/** A root page of `$notebook`, at the given position in the root list. */
+function rootPage(Notebook $notebook, string $title, int $position = 1): DocumentationPage
 {
-    return DocumentationPage::factory()->for($solution, 'container')->create([
+    return DocumentationPage::factory()->for($notebook)->create([
         'title'    => $title,
         'slug'     => Str::slug($title),
         'position' => $position,
@@ -33,11 +32,11 @@ function rootPage(Solution $solution, string $title, int $position = 1): Documen
 */
 
 it('creates a subpage under an existing page', function () {
-    $solution = Solution::factory()->create();
-    $parent = rootPage($solution, 'Operação');
+    $notebook = Notebook::factory()->create();
+    $parent = rootPage($notebook, 'Operação');
 
     $response = $this->actingAs(treeAdmin())
-        ->postJson(route('solutions.docs.pages.store', $solution), [
+        ->postJson(route('notebooks.pages.store', $notebook), [
             'title'  => 'Rotina de backup',
             'parent' => $parent->id,
         ])
@@ -47,20 +46,20 @@ it('creates a subpage under an existing page', function () {
     $child = DocumentationPage::where('title', 'Rotina de backup')->firstOrFail();
 
     expect($child->parent_id)->toBe($parent->id)
-        ->and($child->container_id)->toBe($solution->id)
+        ->and($child->notebook_id)->toBe($notebook->id)
         // First of its own sibling list, not "after everything in the solution".
         ->and($child->position)->toBe(1);
 
-    expect($response->json('redirect'))->toBe(route('solutions.docs.page.edit', [$solution, $child]));
+    expect($response->json('redirect'))->toBe(route('notebooks.pages.edit', [$notebook, $child]));
 });
 
 it('creates a sub-subpage — three levels are allowed', function () {
-    $solution = Solution::factory()->create();
-    $parent = rootPage($solution, 'Operação');
+    $notebook = Notebook::factory()->create();
+    $parent = rootPage($notebook, 'Operação');
     $child = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Backup', 'position' => 1]);
 
     $this->actingAs(treeAdmin())
-        ->postJson(route('solutions.docs.pages.store', $solution), [
+        ->postJson(route('notebooks.pages.store', $notebook), [
             'title'  => 'Retenção',
             'parent' => $child->id,
         ])
@@ -74,8 +73,8 @@ it('creates a sub-subpage — three levels are allowed', function () {
 });
 
 it('stops at the last level, refusing one past MAX_DEPTH', function () {
-    $solution = Solution::factory()->create();
-    $deepest = rootPage($solution, 'Nível 1');
+    $notebook = Notebook::factory()->create();
+    $deepest = rootPage($notebook, 'Nível 1');
 
     // Build a chain exactly as deep as the cap allows, whatever the cap is.
     foreach (range(2, DocumentationPage::MAX_DEPTH) as $level) {
@@ -88,7 +87,7 @@ it('stops at the last level, refusing one past MAX_DEPTH', function () {
     expect($deepest->depth())->toBe(DocumentationPage::MAX_DEPTH - 1);
 
     $response = $this->actingAs(treeAdmin())
-        ->postJson(route('solutions.docs.pages.store', $solution), [
+        ->postJson(route('notebooks.pages.store', $notebook), [
             'title'  => 'Um nível a mais',
             'parent' => $deepest->id,
         ])
@@ -101,13 +100,13 @@ it('stops at the last level, refusing one past MAX_DEPTH', function () {
 });
 
 it('nests a subpage under the subpage above it, reaching the third level', function () {
-    $solution = Solution::factory()->create();
-    $parent = rootPage($solution, 'Operação');
+    $notebook = Notebook::factory()->create();
+    $parent = rootPage($notebook, 'Operação');
     $first = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Backup', 'position' => 1]);
     $second = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Retenção', 'position' => 2]);
 
     $this->actingAs(treeAdmin())
-        ->patchJson(route('solutions.docs.pages.move', [$solution, $second]), ['direction' => 'in'])
+        ->patchJson(route('notebooks.pages.move', [$notebook, $second]), ['direction' => 'in'])
         ->assertOk()
         ->assertJson(['message' => 'Página aninhada.']);
 
@@ -117,8 +116,8 @@ it('nests a subpage under the subpage above it, reaching the third level', funct
 });
 
 it('refuses to nest a page whose own subpages would pass the last level', function () {
-    $solution = Solution::factory()->create();
-    $parent = rootPage($solution, 'Operação');
+    $notebook = Notebook::factory()->create();
+    $parent = rootPage($notebook, 'Operação');
     DocumentationPage::factory()->childOf($parent)->create(['title' => 'Backup', 'position' => 1]);
     $second = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Retenção', 'position' => 2]);
 
@@ -136,7 +135,7 @@ it('refuses to nest a page whose own subpages would pass the last level', functi
     expect($deepest->depth())->toBe(DocumentationPage::MAX_DEPTH - 1);
 
     $response = $this->actingAs(treeAdmin())
-        ->patchJson(route('solutions.docs.pages.move', [$solution, $second]), ['direction' => 'in'])
+        ->patchJson(route('notebooks.pages.move', [$notebook, $second]), ['direction' => 'in'])
         ->assertStatus(422);
 
     expect($response->json('message'))->toContain('passariam do último nível');
@@ -144,8 +143,8 @@ it('refuses to nest a page whose own subpages would pass the last level', functi
 });
 
 it('refuses to nest a page that is already at the last level', function () {
-    $solution = Solution::factory()->create();
-    $page = rootPage($solution, 'Nível 1');
+    $notebook = Notebook::factory()->create();
+    $page = rootPage($notebook, 'Nível 1');
 
     // A chain down to the cap, then two siblings on that last level: nesting one
     // under the other would need a level that doesn't exist.
@@ -158,7 +157,7 @@ it('refuses to nest a page that is already at the last level', function () {
     ]);
 
     $response = $this->actingAs(treeAdmin())
-        ->patchJson(route('solutions.docs.pages.move', [$solution, $sibling]), ['direction' => 'in'])
+        ->patchJson(route('notebooks.pages.move', [$notebook, $sibling]), ['direction' => 'in'])
         ->assertStatus(422);
 
     expect($response->json('message'))->toContain('último nível');
@@ -166,14 +165,14 @@ it('refuses to nest a page that is already at the last level', function () {
 });
 
 it('promotes a sub-subpage one level, into its grandparent instead of the root list', function () {
-    $solution = Solution::factory()->create();
-    $parent = rootPage($solution, 'Operação');
+    $notebook = Notebook::factory()->create();
+    $parent = rootPage($notebook, 'Operação');
     $child = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Backup', 'position' => 1]);
     $childSibling = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Suporte', 'position' => 2]);
     $grandchild = DocumentationPage::factory()->childOf($child)->create(['title' => 'Retenção', 'position' => 1]);
 
     $this->actingAs(treeAdmin())
-        ->patchJson(route('solutions.docs.pages.move', [$solution, $grandchild]), ['direction' => 'out'])
+        ->patchJson(route('notebooks.pages.move', [$notebook, $grandchild]), ['direction' => 'out'])
         ->assertOk()
         ->assertJson(['message' => 'Página promovida.']);
 
@@ -183,17 +182,17 @@ it('promotes a sub-subpage one level, into its grandparent instead of the root l
         ->and($grandchild->fresh()->depth())->toBe(1);
 
     // …and it lands right after the page it left, pushing that page's siblings down.
-    expect(app(DocumentationPageService::class)->tree($solution)->pluck('page.title')->all())
+    expect(app(DocumentationPageService::class)->tree($notebook)->pluck('page.title')->all())
         ->toBe(['Operação', 'Backup', 'Retenção', 'Suporte']);
     expect($childSibling->fresh()->position)->toBe(3);
 });
 
-it('refuses a parent that belongs to another container', function () {
-    $solution = Solution::factory()->create();
-    $foreign = rootPage(Solution::factory()->create(), 'Página de outra solução');
+it('refuses a parent that belongs to another caderno', function () {
+    $notebook = Notebook::factory()->create();
+    $foreign = rootPage(Notebook::factory()->create(), 'Página de outro caderno');
 
     $this->actingAs(treeAdmin())
-        ->postJson(route('solutions.docs.pages.store', $solution), [
+        ->postJson(route('notebooks.pages.store', $notebook), [
             'title'  => 'Tentativa',
             'parent' => $foreign->id,
         ])
@@ -203,11 +202,11 @@ it('refuses a parent that belongs to another container', function () {
 });
 
 it('creates a root page when no parent is given', function () {
-    $solution = Solution::factory()->create();
-    rootPage($solution, 'Visão geral');
+    $notebook = Notebook::factory()->create();
+    rootPage($notebook, 'Visão geral');
 
     $this->actingAs(treeAdmin())
-        ->postJson(route('solutions.docs.pages.store', $solution), ['title' => 'Operação'])
+        ->postJson(route('notebooks.pages.store', $notebook), ['title' => 'Operação'])
         ->assertOk();
 
     $page = DocumentationPage::where('title', 'Operação')->firstOrFail();
@@ -223,12 +222,12 @@ it('creates a root page when no parent is given', function () {
 */
 
 it('nests a page under the one above it', function () {
-    $solution = Solution::factory()->create();
-    $first = rootPage($solution, 'Operação', 1);
-    $second = rootPage($solution, 'Backup', 2);
+    $notebook = Notebook::factory()->create();
+    $first = rootPage($notebook, 'Operação', 1);
+    $second = rootPage($notebook, 'Backup', 2);
 
     $this->actingAs(treeAdmin())
-        ->patchJson(route('solutions.docs.pages.move', [$solution, $second]), ['direction' => 'in'])
+        ->patchJson(route('notebooks.pages.move', [$notebook, $second]), ['direction' => 'in'])
         ->assertOk()
         ->assertJson(['message' => 'Página aninhada.']);
 
@@ -236,13 +235,13 @@ it('nests a page under the one above it', function () {
 });
 
 it('promotes a subpage back to the root list, right after the page it left', function () {
-    $solution = Solution::factory()->create();
-    $first = rootPage($solution, 'Operação', 1);
-    $last = rootPage($solution, 'Suporte', 2);
+    $notebook = Notebook::factory()->create();
+    $first = rootPage($notebook, 'Operação', 1);
+    $last = rootPage($notebook, 'Suporte', 2);
     $child = DocumentationPage::factory()->childOf($first)->create(['title' => 'Backup', 'position' => 1]);
 
     $this->actingAs(treeAdmin())
-        ->patchJson(route('solutions.docs.pages.move', [$solution, $child]), ['direction' => 'out'])
+        ->patchJson(route('notebooks.pages.move', [$notebook, $child]), ['direction' => 'out'])
         ->assertOk()
         ->assertJson(['message' => 'Página promovida.']);
 
@@ -250,18 +249,18 @@ it('promotes a subpage back to the root list, right after the page it left', fun
 
     // Right after its former parent — not at the bottom of the rail, where a
     // promoted page reads as lost.
-    expect(app(DocumentationPageService::class)->tree($solution)->pluck('page.title')->all())
+    expect(app(DocumentationPageService::class)->tree($notebook)->pluck('page.title')->all())
         ->toBe(['Operação', 'Backup', 'Suporte']);
     expect($last->fresh()->position)->toBe(3);
 });
 
 it('refuses to nest the first page of the list, which has nothing above it', function () {
-    $solution = Solution::factory()->create();
-    $first = rootPage($solution, 'Operação', 1);
-    rootPage($solution, 'Backup', 2);
+    $notebook = Notebook::factory()->create();
+    $first = rootPage($notebook, 'Operação', 1);
+    rootPage($notebook, 'Backup', 2);
 
     $response = $this->actingAs(treeAdmin())
-        ->patchJson(route('solutions.docs.pages.move', [$solution, $first]), ['direction' => 'in'])
+        ->patchJson(route('notebooks.pages.move', [$notebook, $first]), ['direction' => 'in'])
         ->assertStatus(422);
 
     expect($response->json('message'))->toContain('Não há página acima');
@@ -269,13 +268,13 @@ it('refuses to nest the first page of the list, which has nothing above it', fun
 });
 
 it('nests a root page that already has subpages, carrying them one level down', function () {
-    $solution = Solution::factory()->create();
-    $first = rootPage($solution, 'Operação', 1);
-    $second = rootPage($solution, 'Backup', 2);
+    $notebook = Notebook::factory()->create();
+    $first = rootPage($notebook, 'Operação', 1);
+    $second = rootPage($notebook, 'Backup', 2);
     $child = DocumentationPage::factory()->childOf($second)->create(['title' => 'Retenção', 'position' => 1]);
 
     $this->actingAs(treeAdmin())
-        ->patchJson(route('solutions.docs.pages.move', [$solution, $second]), ['direction' => 'in'])
+        ->patchJson(route('notebooks.pages.move', [$notebook, $second]), ['direction' => 'in'])
         ->assertOk();
 
     expect($second->fresh()->parent_id)->toBe($first->id);
@@ -285,39 +284,39 @@ it('nests a root page that already has subpages, carrying them one level down', 
 });
 
 it('refuses to promote a page that is already at the first level', function () {
-    $solution = Solution::factory()->create();
-    $page = rootPage($solution, 'Operação');
+    $notebook = Notebook::factory()->create();
+    $page = rootPage($notebook, 'Operação');
 
     $response = $this->actingAs(treeAdmin())
-        ->patchJson(route('solutions.docs.pages.move', [$solution, $page]), ['direction' => 'out'])
+        ->patchJson(route('notebooks.pages.move', [$notebook, $page]), ['direction' => 'out'])
         ->assertStatus(422);
 
     expect($response->json('message'))->toContain('já está no primeiro nível');
 });
 
 it('reorders a subpage among its siblings without touching the root list', function () {
-    $solution = Solution::factory()->create();
-    $parent = rootPage($solution, 'Operação', 1);
-    $other = rootPage($solution, 'Suporte', 2);
+    $notebook = Notebook::factory()->create();
+    $parent = rootPage($notebook, 'Operação', 1);
+    $other = rootPage($notebook, 'Suporte', 2);
     $backup = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Backup', 'position' => 1]);
     $retention = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Retenção', 'position' => 2]);
 
     $this->actingAs(treeAdmin())
-        ->patchJson(route('solutions.docs.pages.move', [$solution, $retention]), ['direction' => 'up'])
+        ->patchJson(route('notebooks.pages.move', [$notebook, $retention]), ['direction' => 'up'])
         ->assertOk();
 
-    expect(app(DocumentationPageService::class)->tree($solution)->pluck('page.title')->all())
+    expect(app(DocumentationPageService::class)->tree($notebook)->pluck('page.title')->all())
         ->toBe(['Operação', 'Retenção', 'Backup', 'Suporte']);
     expect($other->fresh()->position)->toBe(2);
 });
 
 it('leaves a first subpage where it is instead of promoting it out of its parent', function () {
-    $solution = Solution::factory()->create();
-    $parent = rootPage($solution, 'Operação');
+    $notebook = Notebook::factory()->create();
+    $parent = rootPage($notebook, 'Operação');
     $child = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Backup', 'position' => 1]);
 
     $this->actingAs(treeAdmin())
-        ->patchJson(route('solutions.docs.pages.move', [$solution, $child]), ['direction' => 'up'])
+        ->patchJson(route('notebooks.pages.move', [$notebook, $child]), ['direction' => 'up'])
         ->assertOk();
 
     expect($child->fresh())
@@ -332,109 +331,108 @@ it('leaves a first subpage where it is instead of promoting it out of its parent
 */
 
 it('deletes a page together with its subpages', function () {
-    $solution = Solution::factory()->create();
-    $survivor = rootPage($solution, 'Visão geral', 1);
-    $parent = rootPage($solution, 'Operação', 2);
+    $notebook = Notebook::factory()->create();
+    $survivor = rootPage($notebook, 'Visão geral', 1);
+    $parent = rootPage($notebook, 'Operação', 2);
     $child = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Backup', 'position' => 1]);
 
     $response = $this->actingAs(treeAdmin())
-        ->deleteJson(route('solutions.docs.pages.destroy', [$solution, $parent]))
+        ->deleteJson(route('notebooks.pages.destroy', [$notebook, $parent]))
         ->assertOk();
 
     $this->assertModelMissing($parent);
     $this->assertModelMissing($child);
     $this->assertModelExists($survivor);
 
-    expect($response->json('redirect'))->toBe(route('solutions.docs.page.edit', [$solution, $survivor]));
+    expect($response->json('redirect'))->toBe(route('notebooks.pages.edit', [$notebook, $survivor]));
 });
 
 it('sends the reader to the parent after deleting one of its subpages', function () {
-    $solution = Solution::factory()->create();
-    rootPage($solution, 'Visão geral', 1);
-    $parent = rootPage($solution, 'Operação', 2);
+    $notebook = Notebook::factory()->create();
+    rootPage($notebook, 'Visão geral', 1);
+    $parent = rootPage($notebook, 'Operação', 2);
     $child = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Backup', 'position' => 1]);
 
     $response = $this->actingAs(treeAdmin())
-        ->deleteJson(route('solutions.docs.pages.destroy', [$solution, $child]))
+        ->deleteJson(route('notebooks.pages.destroy', [$notebook, $child]))
         ->assertOk();
 
-    expect($response->json('redirect'))->toBe(route('solutions.docs.page.edit', [$solution, $parent]));
+    expect($response->json('redirect'))->toBe(route('notebooks.pages.edit', [$notebook, $parent]));
 });
 
 /*
 |--------------------------------------------------------------------------
-| Where a container opens
+| Where a caderno opens
 |--------------------------------------------------------------------------
 */
 
 it('opens the docs on the first root page, never on a subpage', function () {
-    $solution = Solution::factory()->create();
-    $root = rootPage($solution, 'Visão geral', 2);
+    $notebook = Notebook::factory()->create();
+    $root = rootPage($notebook, 'Visão geral', 2);
     // A subpage's position only orders it among its siblings, so this 1 would
     // win a flat `orderBy('position')` — and land the reader inside a subtree.
     $child = DocumentationPage::factory()->childOf($root)->create(['title' => 'Backup', 'position' => 1]);
 
     $this->actingAs(treeAdmin())
-        ->get(route('solutions.docs.edit', $solution))
-        ->assertRedirect(route('solutions.docs.page.edit', [$solution, $root]));
+        ->get(route('notebooks.show', $notebook))
+        ->assertRedirect(route('notebooks.pages.edit', [$notebook, $root]));
 
     expect($child->fresh()->parent_id)->toBe($root->id);
 });
 
 /*
 |--------------------------------------------------------------------------
-| Re-filing a nested page under another container
+| Re-filing a nested page under another caderno
 |--------------------------------------------------------------------------
 */
 
-it('carries the whole subtree along when a parent moves to another container', function () {
-    $group = DocumentationGroup::factory()->create();
-    $parent = DocumentationPage::factory()->for($group, 'container')->create(['title' => 'Espaço importado', 'position' => 1]);
+it('carries the whole subtree along when a parent moves to another caderno', function () {
+    $source = Notebook::factory()->create();
+    $parent = DocumentationPage::factory()->for($source)->create(['title' => 'Espaço importado', 'position' => 1]);
     $child = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Detalhe', 'position' => 1]);
     // A third level: moving only the first one would leave this row filed under
-    // a container it was never in.
+    // a caderno it was never in.
     $grandchild = DocumentationPage::factory()->childOf($child)->create(['title' => 'Detalhe do detalhe', 'position' => 1]);
-    $solution = Solution::factory()->create();
+    $destination = Notebook::factory()->create();
 
     $this->actingAs(treeAdmin())
-        ->patchJson(route('documentation.groups.pages.container', [$group, $parent]), [
-            'container' => 'solution:' . $solution->id,
+        ->patchJson(route('notebooks.pages.notebook', [$source, $parent]), [
+            'notebook' => $destination->id,
         ])
         ->assertOk();
 
     expect($child->fresh())
-        ->container_type->toBe(Solution::class)
-        ->container_id->toBe($solution->id)
+        ->notebook_id->toBe($destination->id)
         // Still its parent's subpage — the nesting survives the move.
         ->parent_id->toBe($parent->id);
 
     expect($grandchild->fresh())
-        ->container_id->toBe($solution->id)
+        ->notebook_id->toBe($destination->id)
         ->parent_id->toBe($child->id);
 
-    expect($group->pages()->count())->toBe(0);
+    expect($source->pages()->count())->toBe(0);
 });
 
 it('promotes a subpage moved on its own, since its parent stays behind', function () {
-    $group = DocumentationGroup::factory()->create();
-    $parent = DocumentationPage::factory()->for($group, 'container')->create(['title' => 'Espaço importado', 'position' => 1]);
+    $source = Notebook::factory()->create();
+    $parent = DocumentationPage::factory()->for($source)->create(['title' => 'Espaço importado', 'position' => 1]);
     $child = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Detalhe', 'position' => 1]);
-    $solution = Solution::factory()->create();
-    rootPage($solution, 'Visão geral', 1);
+    $destination = Notebook::factory()->create();
+    rootPage($destination, 'Visão geral', 1);
 
     $this->actingAs(treeAdmin())
-        ->patchJson(route('documentation.groups.pages.container', [$group, $child]), [
-            'container' => 'solution:' . $solution->id,
+        ->patchJson(route('notebooks.pages.notebook', [$source, $child]), [
+            'notebook' => $destination->id,
         ])
         ->assertOk();
 
     expect($child->fresh())
         ->parent_id->toBeNull()
-        ->container_id->toBe($solution->id)
+        ->notebook_id->toBe($destination->id)
         // End of the DESTINATION's root list, not of everything in it.
         ->position->toBe(2);
 
-    expect($parent->fresh()->container_type)->toBe(DocumentationGroup::class);
+    expect($parent->fresh()->notebook_id)->toBe($source->id);
 });
 
 /*
@@ -444,13 +442,13 @@ it('promotes a subpage moved on its own, since its parent stays behind', functio
 */
 
 it('renders the pages rail as a three-level tree, one indent step per level', function () {
-    $solution = Solution::factory()->create();
-    $parent = rootPage($solution, 'Operação');
+    $notebook = Notebook::factory()->create();
+    $parent = rootPage($notebook, 'Operação');
     $child = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Rotina de backup', 'position' => 1]);
     DocumentationPage::factory()->childOf($child)->create(['title' => 'Retenção de cópias', 'position' => 1]);
 
     $content = $this->actingAs(treeAdmin())
-        ->get(route('solutions.docs.page.edit', [$solution, $parent]))
+        ->get(route('notebooks.pages.edit', [$notebook, $parent]))
         ->assertOk()
         ->getContent();
 
@@ -468,15 +466,15 @@ it('renders the pages rail as a three-level tree, one indent step per level', fu
 });
 
 it('offers no subpage on a page already at the last level', function () {
-    $solution = Solution::factory()->create();
-    $page = rootPage($solution, 'Nível 1');
+    $notebook = Notebook::factory()->create();
+    $page = rootPage($notebook, 'Nível 1');
 
     foreach (range(2, DocumentationPage::MAX_DEPTH) as $level) {
         $page = DocumentationPage::factory()->childOf($page)->create(['title' => 'Nível ' . $level, 'position' => 1]);
     }
 
     $content = $this->actingAs(treeAdmin())
-        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->get(route('notebooks.pages.edit', [$notebook, $page]))
         ->assertOk()
         ->getContent();
 
@@ -487,15 +485,15 @@ it('offers no subpage on a page already at the last level', function () {
 });
 
 it('indents a subpage in the public documentation index', function () {
-    $solution = Solution::factory()->create(['public_token' => 'tok-' . uniqid()]);
-    $parent = rootPage($solution, 'Operação');
+    $notebook = Notebook::factory()->create(['public_token' => 'tok-' . uniqid()]);
+    $parent = rootPage($notebook, 'Operação');
     DocumentationPage::factory()->childOf($parent)->create([
         'title'         => 'Rotina de backup',
         'position'      => 1,
         'documentation' => '# Backup',
     ]);
 
-    $content = $this->get(route('public.docs.solution', $solution->public_token))
+    $content = $this->get(route('public.docs.notebook', $notebook->public_token))
         ->assertOk()
         ->getContent();
 
@@ -506,33 +504,34 @@ it('indents a subpage in the public documentation index', function () {
 
 /*
 |--------------------------------------------------------------------------
-| A standalone group nests the same way
+| Deleting and nesting inside a caderno
 |--------------------------------------------------------------------------
 */
 
-it('deletes a group holding a nested page, subpage included', function () {
-    // The group deletes its pages one by one through their models (for Spatie's
-    // media cleanup), and a parent already took its subpage with it — so the
-    // loop reaches a row that is gone. That has to stay a no-op, not a crash.
-    $group = DocumentationGroup::factory()->create();
-    $parent = DocumentationPage::factory()->for($group, 'container')->create(['title' => 'Processo', 'position' => 1]);
+it('deletes a caderno holding a nested page, subpage included', function () {
+    // The caderno deletes its pages one by one through their models (for
+    // Spatie's media cleanup), and a parent already took its subpage with it —
+    // so the loop reaches a row that is gone. That has to stay a no-op, not a
+    // crash.
+    $group = Notebook::factory()->create();
+    $parent = DocumentationPage::factory()->for($group)->create(['title' => 'Processo', 'position' => 1]);
     $child = DocumentationPage::factory()->childOf($parent)->create(['title' => 'Exceções', 'position' => 1]);
 
     $this->actingAs(treeAdmin())
-        ->deleteJson(route('documentation.groups.destroy', $group))
+        ->deleteJson(route('notebooks.destroy', $group))
         ->assertOk();
 
     $this->assertModelMissing($parent);
     $this->assertModelMissing($child);
 });
 
-it('nests pages inside a standalone documentation group too', function () {
-    $group = DocumentationGroup::factory()->create();
-    $first = DocumentationPage::factory()->for($group, 'container')->create(['title' => 'Processo', 'position' => 1]);
-    $second = DocumentationPage::factory()->for($group, 'container')->create(['title' => 'Exceções', 'position' => 2]);
+it('nests pages inside a caderno with no solution linked to it too', function () {
+    $group = Notebook::factory()->create();
+    $first = DocumentationPage::factory()->for($group)->create(['title' => 'Processo', 'position' => 1]);
+    $second = DocumentationPage::factory()->for($group)->create(['title' => 'Exceções', 'position' => 2]);
 
     $this->actingAs(treeAdmin())
-        ->patchJson(route('documentation.groups.pages.move', [$group, $second]), ['direction' => 'in'])
+        ->patchJson(route('notebooks.pages.move', [$group, $second]), ['direction' => 'in'])
         ->assertOk()
         ->assertJson(['message' => 'Página aninhada.']);
 
@@ -542,7 +541,7 @@ it('nests pages inside a standalone documentation group too', function () {
     $parent = $second;
     foreach (range(3, DocumentationPage::MAX_DEPTH) as $level) {
         $this->actingAs(treeAdmin())
-            ->postJson(route('documentation.groups.pages.store', $group), [
+            ->postJson(route('notebooks.pages.store', $group), [
                 'title'  => 'Nível ' . $level,
                 'parent' => $parent->id,
             ])
@@ -555,7 +554,7 @@ it('nests pages inside a standalone documentation group too', function () {
 
     // …and one past it is refused.
     $this->actingAs(treeAdmin())
-        ->postJson(route('documentation.groups.pages.store', $group), [
+        ->postJson(route('notebooks.pages.store', $group), [
             'title'  => 'Um nível a mais',
             'parent' => $parent->id,
         ])

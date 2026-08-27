@@ -156,7 +156,7 @@
                         @endif
 
                         @if (! empty($page['destinations'] ?? []))
-                            <x-forms.button type="button" variant="ghost" data-ak-toggle="doc-page-container-{{ $i }}" data-ak-toggle-classes="hidden"
+                            <x-forms.button type="button" variant="ghost" data-ak-toggle="doc-page-notebook-{{ $i }}" data-ak-toggle-classes="hidden"
                                 class="!justify-start !px-2 !py-1 !text-xs">
                                 <x-heroicon-o-arrow-right-circle class="size-3.5" /> Mover para…
                             </x-forms.button>
@@ -211,26 +211,26 @@
                         </form>
                     @endif
 
-                    {{-- Re-file the page under another solution or group. The
-                         current container is already absent from the options
-                         (destinationsFor()), so every choice here is a real
-                         move; confirming navigates to the page's new url. A
-                         parent takes its subpages along; a subpage moved on its
-                         own lands as a top-level page at the destination. --}}
+                    {{-- Re-file the page under another caderno. The current one
+                         is already absent from the options (destinationsFor()),
+                         so every choice here is a real move; confirming
+                         navigates to the page's new url. A parent takes its
+                         subpages along; a subpage moved on its own lands as a
+                         top-level page at the destination.
+
+                         A flat list since cadernos became the one container —
+                         it was two `<optgroup>`s while a destination could be
+                         either a solution or a standalone group. --}}
                     @if (! empty($page['destinations'] ?? []))
-                        <form id="doc-page-container-{{ $i }}" class="hidden ml-2 mt-1 flex gap-1.5">
+                        <form id="doc-page-notebook-{{ $i }}" class="hidden ml-2 mt-1 flex gap-1.5">
                             @csrf
                             @method('PATCH')
-                            <x-forms.select name="container" class="!text-xs" aria-label="Mover a página para">
-                                @foreach ($page['destinations'] as $optgroup => $options)
-                                    <optgroup label="{{ $optgroup }}">
-                                        @foreach ($options as $option)
-                                            <option value="{{ $option['value'] }}">{{ $option['label'] }}</option>
-                                        @endforeach
-                                    </optgroup>
+                            <x-forms.select name="notebook" class="!text-xs" aria-label="Mover a página para">
+                                @foreach ($page['destinations'] as $option)
+                                    <option value="{{ $option['value'] }}">{{ $option['label'] }}</option>
                                 @endforeach
                             </x-forms.select>
-                            <x-forms.button data-ak-ajax="doc-page-container-{{ $i }}" data-ak-action="{{ $page['containerUrl'] }}" class="!h-8 !shrink-0 !px-2.5 !text-xs">
+                            <x-forms.button data-ak-ajax="doc-page-notebook-{{ $i }}" data-ak-action="{{ $page['notebookUrl'] }}" class="!h-8 !shrink-0 !px-2.5 !text-xs">
                                 Mover
                             </x-forms.button>
                         </form>

@@ -76,8 +76,8 @@
                                             <x-heroicon-o-document-text class="size-3.5 shrink-0 text-faint" />
                                             <span class="truncate">{{ $page['title'] }}</span>
                                         </span>
-                                        @if ($page['container'])
-                                            <span class="shrink-0 truncate text-xs text-muted">{{ $page['container'] }}</span>
+                                        @if ($page['notebook'])
+                                            <span class="shrink-0 truncate text-xs text-muted">{{ $page['notebook'] }}</span>
                                         @endif
                                     </a>
                                 </li>

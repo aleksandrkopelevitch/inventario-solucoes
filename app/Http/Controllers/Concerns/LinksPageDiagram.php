@@ -8,14 +8,11 @@ use App\Services\DocumentationPageService;
 use Illuminate\Http\JsonResponse;
 
 /**
- * Points a page at a diagram, or clears the link. Shared by the two page
- * controllers (a Solution's pages and a standalone group's) for the same
- * reason every other page gesture is: the containers differ, what happens to
- * the page does not.
+ * Points a page at a diagram, or clears the link.
  *
  * Written through the relation, never `update()`: `diagram_id` is not in
  * `DocumentationPage::$fillable` (§ Security — same treatment as `parent_id`
- * and `container_*`).
+ * and `notebook_id`).
  *
  * Answers with a `redirect` to the page's own editor rather than an updatable
  * slot, and that is deliberate. Linking changes what the screen IS: a page
@@ -23,7 +20,7 @@ use Illuminate\Http\JsonResponse;
  * and the canvas is a single page-level mount (`chain-viz.js` reads its whole
  * payload off one hidden row on load). Swapping a slot would leave the tab bar
  * describing a canvas that isn't there — the same reasoning
- * `moveToContainer()` gives for redirecting instead of patching.
+ * `moveToNotebook()` gives for redirecting instead of patching.
  */
 trait LinksPageDiagram
 {

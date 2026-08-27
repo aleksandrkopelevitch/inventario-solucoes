@@ -14,6 +14,13 @@ soluções). Até 2026-08-26 existiam **duas** documentações — a árvore de 
 e uma coluna própria de cada integração — e a segunda deixou de existir junto
 com a entidade `Integration`, que virou `Diagram`.
 
+A documentação em si mora em **Cadernos** (`Notebook`, à la *Space* do GitBook),
+e cada caderno se relaciona com **0..N soluções**: uma solução não tem páginas
+próprias, ela é descrita pelos cadernos vinculados a ela. Antes disso o
+contêiner era polimórfico (uma Solução **ou** um grupo avulso), o que obrigava
+a documentação de uma integração a ser escrita duas vezes ou arquivada
+arbitrariamente de um dos lados.
+
 A base de infraestrutura genérica (form components, sistema de slots, módulos
 JS, shells de layout, autenticação) foi portada do projeto de referência
 **akop-pro**. O domínio legado daquele projeto (CRM Customer/Organization/
@@ -253,15 +260,13 @@ trait em um subdiretório `Concerns`. É o mesmo raciocínio do
   updatable slot" (`toSlot()`). Aplicável a qualquer componente que apareça
   num slot; ver § acima.
 - **`App\Http\Controllers\Concerns\*`** (`EditsDocumentation`,
-  `AssistsDocumentation`, `NavigatesSolutionDocs`, `LinksPageDiagram`) — a
-  mesma tela de documentação serve páginas de uma **Solução** e de um **grupo
-  avulso**, mas cada controller resolve seu próprio container, rotas e
-  breadcrumb. A trait guarda o que é idêntico (montar a página do editor,
-  salvar o Markdown, subir mídia, vincular/desvincular o diagrama, o painel e
-  o polling do Assiste IA) e recebe do controller só o que difere. Assim
-  `SolutionDocumentationController` e `DocumentationGroupPageController`
-  renderizam a mesma coisa sem um herdar do outro nem uma classe-base
-  artificial.
+  `AssistsDocumentation`, `LinksPageDiagram`) — as traits guardam o que a tela
+  de documentação faz (montar a página do editor, salvar o Markdown, subir
+  mídia, vincular/desvincular o diagrama, o painel e o polling do Assiste IA) e
+  recebem do controller só o contexto de rota. Elas eram compartilhadas por
+  DOIS controllers, um por tipo de container; com o **Caderno** virando o único
+  container sobrou `NotebookPageController`, e a divisão continua valendo pela
+  mesma razão: o controller resolve rota, a trait monta o editor.
 - **`App\Http\Controllers\Concerns\EditsChain`** — as nove mutações do
   canvas contra qualquer `ChainCanvas`. Dois donos hoje (`Diagram` e
   `SubmissionDiagram`) e o cliente nunca sabe qual: toda URL que ele chama vem
@@ -498,8 +503,8 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   página de documentação que aponta para ele.
 
 - **Diagramas de uma solução**: no detalhe da solução, um card único reúne os
-  **diagramas** em que ela aparece (à esquerda) e as **páginas de
-  documentação** dela (à direita) — o mesmo tipo de coisa, uma lista que se
+  **diagramas** em que ela aparece (à esquerda) e os **cadernos que a
+  documentam** (à direita) — o mesmo tipo de coisa, uma lista que se
   abre para ler/editar, então uma moldura só. Cada lado cria o seu (o nome do
   diagrama é opcional, e o bloco raiz nasce com a própria solução) e leva
   **direto** ao registro criado; um lado vazio mostra uma ilustração dizendo o
@@ -589,13 +594,25 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   Markdown + notação estendida GitBook (`hint`, `tabs`, `embed`, imagens com
   preset de largura) numa coluna `documentation` só de texto — sem tabela de
   blocos separada. Suporta upload/colar/arrastar imagem e arquivo, âncoras de
-  heading e atalhos de Markdown (`## `, `- `, `> `, ` ``` `). Três contêineres:
-    - **Solução** (`/solutions/{slug}/documentation`): árvore de 1..N páginas
-      (`DocumentationPage`) com **até 5 níveis** — criar/renomear/mover/
-      aninhar/excluir; a rota-índice
+  heading e atalhos de Markdown (`## `, `- `, `> `, ` ``` `).
+
+  **O contêiner é o Caderno** (`Notebook`, `/notebooks/{slug}`) — um corpo de
+  documentação, modelado no *Space* do GitBook —, e ele se relaciona com
+  **0..N soluções** (pivô `notebook_solution`). Isso é o ponto do módulo: a
+  documentação de uma integração é UM texto lido dos dois lados dela, e o
+  contêiner antigo (polimórfico: uma Solução **ou** um grupo avulso) só sabia
+  nomear um dono. Zero também é um estado normal — um processo transversal, ou
+  um espaço do GitBook recém-importado que ninguém arquivou ainda.
+
+  Uma Solução, portanto, **não tem páginas próprias**: o card "Cadernos" do
+  detalhe dela lista os cadernos que a documentam, e o mesmo caderno aparece em
+  todas as soluções que ele descreve. Quem pergunta "essa solução está
+  documentada?" pergunta `whereHas('notebooks.documentedPages')`.
+
+    - Cada caderno tem uma árvore de 1..N páginas (`DocumentationPage`) com
+      **até 5 níveis** — criar/renomear/mover/aninhar/excluir; a rota-índice
       resolve (ou cria) a **primeira página de primeiro nível** e redireciona
-      pra ela. Criar uma página também é possível do detalhe da solução, e leva
-      direto ao editor dela.
+      pra ela.
 
       O limite é a constante `DocumentationPage::MAX_DEPTH`, e é ela que todo
       mundo que barra profundidade lê (`canReceiveChildren()`,
@@ -608,8 +625,10 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
       gera nada. O 5 não é arbitrário: é a profundidade do corpus do GitBook
       que o `gitbook:import` traz (dois espaços chegam a cinco níveis), então
       qualquer coisa menor achata a cauda deles em títulos com breadcrumb.
-    - **Grupos** (`/documentation/groups/{group}`): árvores de páginas
-      *standalone*, fora de qualquer solução.
+    - `/notebooks` é o catálogo (busca por caderno, página **ou** solução
+      vinculada); `/documentation` continua sendo o hub de **cobertura** — o
+      que está escrito e, principalmente, quais soluções ainda não têm nenhum
+      caderno com conteúdo.
 
   **Qualquer página, em qualquer nível, pode apontar para um diagrama.** Aí ela
   ganha as abas **Documentação** e **Diagrama** (o canvas da chain) e o desenho
@@ -618,18 +637,18 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   cima (`documentation_pages.diagram_id`, um select cuja opção em branco é o
   "desvincular"), e salvar **navega** em vez de trocar um slot: vincular muda o
   formato da tela. A FK vive na **página**, então um diagrama serve 1..N páginas
-  — o mesmo desenho explica várias páginas, muitas vezes de soluções
+  — o mesmo desenho explica várias páginas, muitas vezes de cadernos
   diferentes, enquanto uma página nunca tem dois desenhos para conciliar.
   Excluir o diagrama não leva a página (`nullOnDelete`): o texto é o que deu
   trabalho.
 
-  A tela é a mesma para os dois, e a navegação é um **rail colapsável à
-  esquerda** com as páginas do container (um passo de indentação por nível, com
-  linha-guia) e um marcador nas linhas que carregam um diagrama. Ele tinha uma
-  segunda lista embaixo, "Integrações", com a documentação de página única de
-  cada uma — essa segunda documentação não existe mais. O rail é titulado com o nome da solução
-  (ou do grupo), com um ↗ para o registro; colapsado, a barra de cima passa a
-  mostrar `Solução ↗ › Página`, que é o que impede de perder o contexto. No
+  A navegação é um **rail colapsável à esquerda** com as páginas do caderno (um
+  passo de indentação por nível, com linha-guia) e um marcador nas linhas que
+  carregam um diagrama. Ele tinha uma segunda lista embaixo, "Integrações", com
+  a documentação de página única de cada uma — essa segunda documentação não
+  existe mais. O rail é titulado com o nome do caderno, com um ↗ para o
+  registro; colapsado, a barra de cima passa a mostrar `Caderno ↗ › Página`, que
+  é o que impede de perder o contexto. No
   menu de cada linha estão as mudanças de nível — "Nova subpágina" e
   "Aninhar na página acima" / "Promover um nível" —, oferecidas só quando são
   possíveis (o servidor recusa as outras, e o que ele checa é a **subárvore
@@ -637,9 +656,9 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   couberem no limite). "Promover" sobe **um** nível: uma sub-subpágina vira
   subpágina da avó, não página de primeiro nível. ↑/↓ reordenam a página
   **entre os seus irmãos**, nunca para fora da mãe. Excluir uma página leva as
-  subpáginas dela (em cascata, em qualquer profundidade); movê-la para outra
-  solução/grupo leva a subárvore toda — e uma subpágina movida sozinha chega
-  como página de primeiro nível, já que a mãe ficou para trás.
+  subpáginas dela (em cascata, em qualquer profundidade); movê-la para outro
+  caderno leva a subárvore toda — e uma subpágina movida sozinha chega como
+  página de primeiro nível, já que a mãe ficou para trás.
   Um **link público** ("magic link", só para Solução) expõe as páginas dela sem
   exigir login. Renderização read-only via `App\Support\GitbookRenderer`. Só
   páginas: um diagrama não carrega texto, e chega ao visitante como imagem
@@ -685,12 +704,21 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   validado por `DigibeeFlowspecValidator`) é curado à mão a partir do que é
   usado de verdade nos pipelines Digibee da Leo Madeiras — ver "Notas
   técnicas" para a ferramenta que audita esse catálogo contra produção.
+- **Cadernos** (`/notebooks`): o catálogo. Um card por caderno com quanto dele
+  está escrito e as soluções que ele documenta (chips clicáveis); busca por
+  caderno, por título de página **ou** por nome de solução vinculada — é o que
+  faz "onde está a doc do SVL?" ter resposta sem saber como o caderno se chama.
+  Criar/renomear e vincular soluções vivem num painel lateral; o vínculo também
+  é editável de dentro do editor, na barra de cima.
 - **Hub de Documentação** (`/documentation`): visão gerencial transversal do
-  que está documentado e do que falta — soluções **e** as páginas de cada uma
-  com um selo por **conteúdo real** (não um flag manual), agrupadas por
-  solução, com busca e filtro por tipo/status. Contadores agregados calculados
-  em `DocumentationCoverageService`. Substitui o antigo painel de cobertura
-  por 3 toggles booleanos (`has_macro_architecture` e afins — aposentados).
+  que está documentado e do que falta. Lista **por caderno** — cada um com as
+  soluções que descreve e suas páginas, com um selo por **conteúdo real** (não
+  um flag manual), com busca e filtro por status — mais a metade que uma
+  listagem por caderno estruturalmente não mostra: **as soluções que nenhum
+  caderno cobre ainda**, distinguindo "nada vinculado" de "caderno vinculado,
+  mas vazio". Contadores agregados em `DocumentationCoverageService`. Substitui
+  o antigo painel de cobertura por 3 toggles booleanos
+  (`has_macro_architecture` e afins — aposentados).
 
 ## Notas técnicas não óbvias
 
@@ -830,10 +858,13 @@ na barra do canvas), `DiagramCrudTest` (criar redireciona para o canvas, com ou
 sem solução no bloco raiz; edição parcial de nome/status),
 `PersonContactsSyncTest` (sincronização de contatos adicionais),
 `DocumentationTest` (editor de blocos, e o vínculo página↔diagrama: abas,
-picker, um diagrama servindo páginas de duas soluções, e a página sobrevivendo
+picker, um diagrama servindo páginas de dois cadernos, e a página sobrevivendo
 ao delete do diagrama),
-`DocumentationGroupTest` (grupos standalone), `PublicDocumentationTest` (magic
-link), `DocumentationCoverageTest` (hub de documentação, content-based),
+`NotebookTest` (CRUD do caderno e o vínculo com soluções),
+`DocumentationPageMoveTest` (mover página entre cadernos, com a subárvore),
+`PublicDocumentationTest` (magic link do caderno),
+`DocumentationCoverageTest` (hub de documentação, content-based — solução
+coberta *através* de um caderno),
 `DocumentationChatTest`/`DocumentationChatServiceTest` (Assiste IA — chat, job,
 polling e montagem do prompt), `DocumentationRequirementsTest` (checklist de
 requisitos), `FlowspecChatTest`/`FlowspecContextResolverTest`/

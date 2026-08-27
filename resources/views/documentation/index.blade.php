@@ -10,14 +10,15 @@
             Governança
         </span>
         <h1 class="mt-2 font-display text-[34px] font-bold leading-tight tracking-tight text-[color:var(--color-glow-ink)]">Documentação</h1>
-        <p class="mt-1 text-sm text-[color:var(--color-glow-ink)]/70">O que está documentado e o que ainda precisa — soluções, páginas e grupos do inventário.</p>
+        <p class="mt-1 text-sm text-[color:var(--color-glow-ink)]/70">O que está documentado e o que ainda falta. Os cadernos são escritos em <a href="{{ route('notebooks.index') }}" class="font-medium underline">Cadernos</a>.</p>
     </x-ui.hero-panel>
 
     {{-- Global coverage counters (whole inventory; don't change with the
          filter on the list below). --}}
-    <div class="grid gap-3.5 sm:grid-cols-2">
+    <div class="grid gap-3.5 sm:grid-cols-3">
         @foreach ([
             'Soluções' => $counters['solutions'],
+            'Cadernos' => $counters['notebooks'],
             'Páginas' => $counters['pages'],
         ] as $label => $counter)
             <div class="rounded-card border border-line bg-surface p-5 shadow-card">
@@ -42,7 +43,7 @@
     <x-ui.filter-bar form-id="documentation-filter-form" class="mt-6">
         <x-slot:search>
             <x-ui.filter-search id="documentation-search" :url="route('documentation.index')"
-                placeholder="Buscar por solução ou página"
+                placeholder="Buscar por caderno, página ou solução"
                 :value="$filters['search'] ?? null" />
         </x-slot:search>
 
@@ -58,7 +59,31 @@
         <x-documentation.hub :filters="$filters" />
     </div>
 
-    <div class="mt-6">
-        <x-documentation.groups-list />
-    </div>
+    {{-- The gap the hub exists to show, and the half the caderno listing above
+         structurally cannot: a solution nobody has documented has no caderno to
+         appear under. `notebookCount` distinguishes the two jobs — nothing
+         linked at all, versus a caderno linked but still empty. --}}
+    @if ($gaps->isNotEmpty())
+        <div class="mt-6 rounded-card border border-line bg-surface p-5 shadow-card">
+            <h2 class="font-display text-lg font-semibold text-ink">Soluções sem documentação</h2>
+            <p class="mt-0.5 text-sm text-muted">
+                {{ $gaps->count() }} {{ $gaps->count() === 1 ? 'solução ainda não tem' : 'soluções ainda não têm' }}
+                nenhum caderno com conteúdo.
+            </p>
+
+            <div class="mt-4 flex flex-wrap gap-1.5">
+                @foreach ($gaps as $gap)
+                    <a href="{{ $gap['url'] }}"
+                        class="inline-flex max-w-full items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-xs font-medium text-ink no-underline transition-colors hover:border-accent-line hover:bg-accent-soft/40">
+                        <span class="truncate">{{ $gap['name'] }}</span>
+                        @if ($gap['notebookCount'] > 0)
+                            <span class="shrink-0 text-faint" title="Tem caderno vinculado, mas sem conteúdo">
+                                <x-heroicon-o-book-open class="size-3.5" />
+                            </span>
+                        @endif
+                    </a>
+                @endforeach
+            </div>
+        </div>
+    @endif
 </x-layouts.layout>

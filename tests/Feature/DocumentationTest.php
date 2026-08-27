@@ -1,8 +1,9 @@
 <?php
 
 use App\Enums\UserRole;
-use App\Models\DocumentationPage;
 use App\Models\Diagram;
+use App\Models\DocumentationPage;
+use App\Models\Notebook;
 use App\Models\Solution;
 use App\Models\User;
 use App\Support\GitbookRenderer;
@@ -17,84 +18,84 @@ function docsAdmin(): User
     return User::factory()->create(['role' => UserRole::Admin->value]);
 }
 
-/** Creates a documentation page already hanging off a Solution. */
-function solutionPage(Solution $solution, ?string $documentation = null): DocumentationPage
+/** Creates a documentation page already hanging off a caderno. */
+function notebookPage(Notebook $notebook, ?string $documentation = null): DocumentationPage
 {
-    return DocumentationPage::factory()->for($solution, 'container')->create(['documentation' => $documentation]);
+    return DocumentationPage::factory()->for($notebook)->create(['documentation' => $documentation]);
 }
 
 /*
 |--------------------------------------------------------------------------
-| Solution — page tree: create / rename / move / delete
+| Caderno — page tree: create / rename / move / delete
 |--------------------------------------------------------------------------
 */
 
-it('opens the first page automatically from the docs index, creating one if none exists', function () {
-    $solution = Solution::factory()->create();
+it('opens the first page automatically from the caderno, creating one if none exists', function () {
+    $notebook = Notebook::factory()->create();
 
     $response = $this->actingAs(docsAdmin())
-        ->get(route('solutions.docs.edit', $solution))
+        ->get(route('notebooks.show', $notebook))
         ->assertRedirect();
 
-    $page = $solution->pages()->sole();
-    expect($page->title)->toBe('Visão geral')
-        ->and($response->headers->get('Location'))->toBe(route('solutions.docs.page.edit', [$solution, $page]));
+    $page = $notebook->pages()->sole();
+    expect($page->title)->toBe('Página inicial')
+        ->and($response->headers->get('Location'))->toBe(route('notebooks.pages.edit', [$notebook, $page]));
 });
 
-it('never creates a page for a viewer browsing an undocumented solution, sending them to its empty state', function () {
-    // A GET must not write. The documentation hub links here for solutions
-    // with zero pages too, so a viewer following that link used to silently
-    // trigger the placeholder-page creation.
-    $solution = Solution::factory()->create();
+it('never creates a page for a viewer browsing an empty caderno, sending them back to the catalog', function () {
+    // A GET must not write. The catalog links here for empty cadernos too, so a
+    // viewer following that link used to silently trigger the placeholder-page
+    // creation.
+    $notebook = Notebook::factory()->create();
 
     $this->actingAs(User::factory()->create()) // viewer
-        ->get(route('solutions.docs.edit', $solution))
-        ->assertRedirect(route('solutions.show', $solution));
+        ->get(route('notebooks.show', $notebook))
+        ->assertRedirect(route('notebooks.index'));
 
-    expect($solution->pages()->count())->toBe(0);
+    expect($notebook->pages()->count())->toBe(0);
 });
 
 it('reuses the existing first page instead of creating another one', function () {
-    $solution = Solution::factory()->create();
-    $page = solutionPage($solution, '# Oi');
+    $notebook = Notebook::factory()->create();
+    $page = notebookPage($notebook, '# Oi');
 
-    $this->actingAs(docsAdmin())->get(route('solutions.docs.edit', $solution));
+    $this->actingAs(docsAdmin())->get(route('notebooks.show', $notebook));
 
-    expect($solution->pages()->count())->toBe(1)
-        ->and($solution->pages()->first()->is($page))->toBeTrue();
+    expect($notebook->pages()->count())->toBe(1)
+        ->and($notebook->pages()->first()->is($page))->toBeTrue();
 });
 
-it('lets an admin create a second page for a solution', function () {
-    $solution = Solution::factory()->create();
-    solutionPage($solution);
+it('lets an admin create a second page in a caderno', function () {
+    $notebook = Notebook::factory()->create();
+    notebookPage($notebook);
 
     $response = $this->actingAs(docsAdmin())
-        ->postJson(route('solutions.docs.pages.store', $solution), ['title' => 'Guia de troubleshooting'])
+        ->postJson(route('notebooks.pages.store', $notebook), ['title' => 'Guia de troubleshooting'])
         ->assertOk()
         ->assertJson(['type' => 'success']);
 
-    expect($solution->pages()->count())->toBe(2);
-    $newPage = $solution->pages()->where('title', 'Guia de troubleshooting')->sole();
-    expect($response->json('redirect'))->toBe(route('solutions.docs.page.edit', [$solution, $newPage]));
+    expect($notebook->pages()->count())->toBe(2);
+    $newPage = $notebook->pages()->where('title', 'Guia de troubleshooting')->sole();
+    expect($response->json('redirect'))->toBe(route('notebooks.pages.edit', [$notebook, $newPage]));
 });
 
 it('forbids a viewer from creating a page', function () {
-    $solution = Solution::factory()->create();
+    $notebook = Notebook::factory()->create();
 
     $this->actingAs(User::factory()->create())
-        ->postJson(route('solutions.docs.pages.store', $solution), ['title' => 'X'])
+        ->postJson(route('notebooks.pages.store', $notebook), ['title' => 'X'])
         ->assertForbidden();
 
-    expect($solution->pages()->count())->toBe(0);
+    expect($notebook->pages()->count())->toBe(0);
 });
 
 it('renames a page without changing its slug', function () {
-    $solution = Solution::factory()->create();
-    $page = solutionPage($solution);
+    $notebook = Notebook::factory()->create();
+    $page = notebookPage($notebook);
     $originalSlug = $page->slug;
 
     $this->actingAs(docsAdmin())
-        ->patchJson(route('solutions.docs.pages.rename', [$solution, $page]), ['title' => 'Novo título'])
+        ->patchJson(route('notebooks.pages.rename', [$notebook, $page]), ['title' => 'Novo título'])
         ->assertOk()
         ->assertJson(['type' => 'success']);
 
@@ -104,14 +105,14 @@ it('renames a page without changing its slug', function () {
 });
 
 it('moves a page up and down among its siblings', function () {
-    $solution = Solution::factory()->create();
-    $first = solutionPage($solution);
-    $second = solutionPage($solution);
+    $notebook = Notebook::factory()->create();
+    $first = notebookPage($notebook);
+    $second = notebookPage($notebook);
     $first->update(['position' => 0]);
     $second->update(['position' => 1]);
 
     $this->actingAs(docsAdmin())
-        ->patchJson(route('solutions.docs.pages.move', [$solution, $second]), ['direction' => 'up'])
+        ->patchJson(route('notebooks.pages.move', [$notebook, $second]), ['direction' => 'up'])
         ->assertOk();
 
     expect($second->fresh()->position)->toBe(0)
@@ -119,29 +120,29 @@ it('moves a page up and down among its siblings', function () {
 });
 
 it('deletes a page and redirects to the next remaining one', function () {
-    $solution = Solution::factory()->create();
-    $first = solutionPage($solution);
-    $second = solutionPage($solution);
+    $notebook = Notebook::factory()->create();
+    $first = notebookPage($notebook);
+    $second = notebookPage($notebook);
     $first->update(['position' => 0]);
     $second->update(['position' => 1]);
 
     $response = $this->actingAs(docsAdmin())
-        ->deleteJson(route('solutions.docs.pages.destroy', [$solution, $first]))
+        ->deleteJson(route('notebooks.pages.destroy', [$notebook, $first]))
         ->assertOk();
 
     $this->assertModelMissing($first);
-    expect($response->json('redirect'))->toBe(route('solutions.docs.page.edit', [$solution, $second]));
+    expect($response->json('redirect'))->toBe(route('notebooks.pages.edit', [$notebook, $second]));
 });
 
-it('deletes the last page and redirects back to the docs index', function () {
-    $solution = Solution::factory()->create();
-    $page = solutionPage($solution);
+it('deletes the last page and redirects back to the caderno', function () {
+    $notebook = Notebook::factory()->create();
+    $page = notebookPage($notebook);
 
     $response = $this->actingAs(docsAdmin())
-        ->deleteJson(route('solutions.docs.pages.destroy', [$solution, $page]))
+        ->deleteJson(route('notebooks.pages.destroy', [$notebook, $page]))
         ->assertOk();
 
-    expect($response->json('redirect'))->toBe(route('solutions.docs.edit', $solution));
+    expect($response->json('redirect'))->toBe(route('notebooks.show', $notebook));
 });
 
 /*
@@ -150,56 +151,61 @@ it('deletes the last page and redirects back to the docs index', function () {
 |--------------------------------------------------------------------------
 */
 
-it('lets an admin save a solution page documentation', function () {
-    $solution = Solution::factory()->create();
-    $page = solutionPage($solution);
+it('lets an admin save a page documentation', function () {
+    $notebook = Notebook::factory()->create();
+    $page = notebookPage($notebook);
 
     $this->actingAs(docsAdmin())
-        ->patchJson(route('solutions.docs.update', [$solution, $page]), ['documentation' => "# Título\n\nCorpo."])
+        ->patchJson(route('notebooks.pages.update', [$notebook, $page]), ['documentation' => "# Título\n\nCorpo."])
         ->assertOk()
         ->assertJson(['type' => 'success']);
 
     expect($page->fresh()->documentation)->toBe("# Título\n\nCorpo.");
 });
 
-it('returns the solution documentation slot after saving', function () {
-    $solution = Solution::factory()->create();
-    $page = solutionPage($solution);
+it('returns a cadernos slot for every solution the caderno documents, after saving', function () {
+    // One save, N slots — a caderno describing three systems changes what all
+    // three detail cards should say about coverage, and there is no other
+    // moment at which they would learn.
+    $notebook = Notebook::factory()->create();
+    $page = notebookPage($notebook);
+    $notebook->solutions()->attach(Solution::factory()->count(2)->create());
 
     $response = $this->actingAs(docsAdmin())
-        ->patchJson(route('solutions.docs.update', [$solution, $page]), ['documentation' => 'Oi'])
+        ->patchJson(route('notebooks.pages.update', [$notebook, $page]), ['documentation' => 'Oi'])
         ->assertOk();
 
-    expect($response->json('updatableSlots.0.id'))->toBe('solution-documentation-slot');
+    expect($response->json('updatableSlots'))->toHaveCount(2)
+        ->and($response->json('updatableSlots.0.id'))->toBe('solution-notebooks-slot');
 });
 
-it('forbids a viewer from saving solution page documentation', function () {
-    $solution = Solution::factory()->create();
-    $page = solutionPage($solution);
+it('forbids a viewer from saving page documentation', function () {
+    $notebook = Notebook::factory()->create();
+    $page = notebookPage($notebook);
 
     $this->actingAs(User::factory()->create()) // viewer
-        ->patchJson(route('solutions.docs.update', [$solution, $page]), ['documentation' => 'x'])
+        ->patchJson(route('notebooks.pages.update', [$notebook, $page]), ['documentation' => 'x'])
         ->assertForbidden();
 
     expect($page->fresh()->documentation)->toBeNull();
 });
 
-it('shows the block editor to an admin on the solution page docs screen', function () {
-    $solution = Solution::factory()->create();
-    $page = solutionPage($solution, '# Oi');
+it('shows the block editor to an admin on the page docs screen', function () {
+    $notebook = Notebook::factory()->create();
+    $page = notebookPage($notebook, '# Oi');
 
     $this->actingAs(docsAdmin())
-        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->get(route('notebooks.pages.edit', [$notebook, $page]))
         ->assertOk()
         ->assertSee('data-ak-docs-editor', false);
 });
 
-it('shows read-only rendered html to a viewer on the solution page docs screen', function () {
-    $solution = Solution::factory()->create();
-    $page = solutionPage($solution, '# Olá mundo');
+it('shows read-only rendered html to a viewer on the page docs screen', function () {
+    $notebook = Notebook::factory()->create();
+    $page = notebookPage($notebook, '# Olá mundo');
 
     $response = $this->actingAs(User::factory()->create())
-        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->get(route('notebooks.pages.edit', [$notebook, $page]))
         ->assertOk();
 
     expect($response->getContent())
@@ -209,13 +215,13 @@ it('shows read-only rendered html to a viewer on the solution page docs screen',
         ->not->toContain('data-ak-docs-editor');
 });
 
-it('404s a page that does not belong to the solution in the url', function () {
-    $solution = Solution::factory()->create();
-    $other = Solution::factory()->create();
-    $page = solutionPage($other, '# Doc');
+it('404s a page that does not belong to the caderno in the url', function () {
+    $notebook = Notebook::factory()->create();
+    $other = Notebook::factory()->create();
+    $page = notebookPage($other, '# Doc');
 
     $this->actingAs(docsAdmin())
-        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->get(route('notebooks.pages.edit', [$notebook, $page]))
         ->assertNotFound();
 });
 
@@ -225,19 +231,19 @@ it('404s a page that does not belong to the solution in the url', function () {
 |--------------------------------------------------------------------------
 */
 
-it('links a solution doc page back to the solution and lists it in the pages rail', function () {
-    $solution = Solution::factory()->create(['name' => 'AllStrategy']);
-    $page = solutionPage($solution, '# Doc');
+it('links a page back to its caderno and lists it in the pages rail', function () {
+    $notebook = Notebook::factory()->create(['name' => 'AllStrategy']);
+    $page = notebookPage($notebook, '# Doc');
     $page->update(['title' => 'Visão geral']);
 
     $response = $this->actingAs(docsAdmin())
-        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->get(route('notebooks.pages.edit', [$notebook, $page]))
         ->assertOk();
 
     expect($response->getContent())
-        // The ↗ beside the solution's name (rail title + collapsed crumb) is
+        // The ↗ beside the caderno's name (rail title + collapsed crumb) is
         // what replaced the old back arrow.
-        ->toContain('href="' . route('solutions.show', $solution) . '"')
+        ->toContain('href="' . route('notebooks.show', $notebook) . '"')
         // The current page is listed (and linked) in the collapsible pages rail.
         ->toMatch('/>\s*Visão geral\s*<\/a>/')
         // Collapsible pages rail (mirrors flowSpec): the aside + its toggle.
@@ -250,13 +256,13 @@ it('links a solution doc page back to the solution and lists it in the pages rai
         ->toContain('data-ak-toggle-classes="md:!w-0 md:!border-r-0 max-md:!translate-x-0"');
 });
 
-it('titles the pages rail with the solution, not the generic word "Páginas"', function () {
-    $solution = Solution::factory()->create(['name' => 'Active Directory / Entra ID']);
-    $page = solutionPage($solution, '# Doc');
+it('titles the pages rail with the caderno, not the generic word "Páginas"', function () {
+    $notebook = Notebook::factory()->create(['name' => 'Active Directory / Entra ID']);
+    $page = notebookPage($notebook, '# Doc');
     $page->update(['title' => 'Visão geral']);
 
     $content = $this->actingAs(docsAdmin())
-        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->get(route('notebooks.pages.edit', [$notebook, $page]))
         ->assertOk()
         ->getContent();
 
@@ -276,11 +282,11 @@ it('gives the pages rail a working mobile affordance instead of hiding it outrig
     // never reveal anything — leaving no way to switch pages from inside
     // the editor. It's now an off-canvas overlay, which needs BOTH a
     // trigger and its own dismiss (the overlay covers the top bar).
-    $solution = Solution::factory()->create();
-    $page = solutionPage($solution, '# Doc');
+    $notebook = Notebook::factory()->create();
+    $page = notebookPage($notebook, '# Doc');
 
     $content = $this->actingAs(docsAdmin())
-        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->get(route('notebooks.pages.edit', [$notebook, $page]))
         ->assertOk()
         ->getContent();
 
@@ -298,12 +304,12 @@ it('gives the pages rail a working mobile affordance instead of hiding it outrig
 });
 
 it('offers the diagram picker on a page that has no diagram, and no canvas with it', function () {
-    $solution = Solution::factory()->create();
-    $page = solutionPage($solution, '# Visão geral');
+    $notebook = Notebook::factory()->create();
+    $page = notebookPage($notebook, '# Visão geral');
     Diagram::factory()->create(['name' => 'SAP -> AllStrategy']);
 
     $content = $this->actingAs(docsAdmin())
-        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->get(route('notebooks.pages.edit', [$notebook, $page]))
         ->assertOk()
         ->getContent();
 
@@ -312,7 +318,7 @@ it('offers the diagram picker on a page that has no diagram, and no canvas with 
         // information, and the gesture that fixes it has to be reachable.
         // `x-ui.inline-edit` json_encodes its config, which escapes every
         // slash in the URL — assert the shape that actually reaches the page.
-        ->toContain(str_replace('/', '\\/', route('solutions.docs.pages.diagram', [$solution, $page])))
+        ->toContain(str_replace('/', '\\/', route('notebooks.pages.diagram', [$notebook, $page])))
         ->toContain('Sem diagrama')
         // Every diagram is a candidate, whether or not this solution is in it.
         ->toContain('SAP -&gt; AllStrategy')
@@ -322,16 +328,16 @@ it('offers the diagram picker on a page that has no diagram, and no canvas with 
 });
 
 it('renders the Documentação/Diagrama tabs and mounts the canvas once a page has a diagram', function () {
-    $solution = Solution::factory()->create();
-    $page = solutionPage($solution, '# Visão geral');
+    $notebook = Notebook::factory()->create();
+    $page = notebookPage($notebook, '# Visão geral');
     $diagram = Diagram::factory()->create([
         'name'  => 'SAP -> AllStrategy',
-        'chain' => ['nodes' => [['solution_id' => $solution->id, 'label' => null]], 'edges' => []],
+        'chain' => ['nodes' => [['solution_id' => $notebook->id, 'label' => null]], 'edges' => []],
     ]);
     $page->diagram()->associate($diagram)->save();
 
     $content = $this->actingAs(docsAdmin())
-        ->get(route('solutions.docs.page.edit', [$solution, $page]))
+        ->get(route('notebooks.pages.edit', [$notebook, $page]))
         ->assertOk()
         ->getContent();
 
@@ -351,13 +357,13 @@ it('renders the Documentação/Diagrama tabs and mounts the canvas once a page h
 });
 
 it('marks a page that carries a diagram in the pages rail', function () {
-    $solution = Solution::factory()->create();
-    $plain = solutionPage($solution, '# Sem desenho');
-    $withDiagram = solutionPage($solution, '# Com desenho');
+    $notebook = Notebook::factory()->create();
+    $plain = notebookPage($notebook, '# Sem desenho');
+    $withDiagram = notebookPage($notebook, '# Com desenho');
     $withDiagram->diagram()->associate(Diagram::factory()->create())->save();
 
     $content = $this->actingAs(docsAdmin())
-        ->get(route('solutions.docs.page.edit', [$solution, $plain]))
+        ->get(route('notebooks.pages.edit', [$notebook, $plain]))
         ->assertOk()
         ->getContent();
 
@@ -367,42 +373,42 @@ it('marks a page that carries a diagram in the pages rail', function () {
 });
 
 it('lets an admin point a page at a diagram and clear it again', function () {
-    $solution = Solution::factory()->create();
-    $page = solutionPage($solution, '# Visão geral');
+    $notebook = Notebook::factory()->create();
+    $page = notebookPage($notebook, '# Visão geral');
     $diagram = Diagram::factory()->create();
 
     $this->actingAs(docsAdmin())
-        ->patchJson(route('solutions.docs.pages.diagram', [$solution, $page]), ['diagram_id' => $diagram->id])
+        ->patchJson(route('notebooks.pages.diagram', [$notebook, $page]), ['diagram_id' => $diagram->id])
         ->assertOk()
-        ->assertJson(['type' => 'success', 'redirect' => route('solutions.docs.page.edit', [$solution, $page])]);
+        ->assertJson(['type' => 'success', 'redirect' => route('notebooks.pages.edit', [$notebook, $page])]);
 
     expect($page->fresh()->diagram_id)->toBe($diagram->id);
 
     $this->actingAs(docsAdmin())
-        ->patchJson(route('solutions.docs.pages.diagram', [$solution, $page]), ['diagram_id' => null])
+        ->patchJson(route('notebooks.pages.diagram', [$notebook, $page]), ['diagram_id' => null])
         ->assertOk();
 
     expect($page->fresh()->diagram_id)->toBeNull();
 });
 
 it('forbids a viewer from pointing a page at a diagram', function () {
-    $solution = Solution::factory()->create();
-    $page = solutionPage($solution, '# Visão geral');
+    $notebook = Notebook::factory()->create();
+    $page = notebookPage($notebook, '# Visão geral');
     $diagram = Diagram::factory()->create();
 
     $this->actingAs(User::factory()->create(['role' => UserRole::Viewer->value]))
-        ->patchJson(route('solutions.docs.pages.diagram', [$solution, $page]), ['diagram_id' => $diagram->id])
+        ->patchJson(route('notebooks.pages.diagram', [$notebook, $page]), ['diagram_id' => $diagram->id])
         ->assertStatus(403);
 
     expect($page->fresh()->diagram_id)->toBeNull();
 });
 
-it('lets one diagram serve pages of more than one solution', function () {
+it('lets one diagram serve pages of more than one caderno', function () {
     $diagram = Diagram::factory()->create(['name' => 'SAP -> AllStrategy']);
-    $first = Solution::factory()->create(['name' => 'SAP']);
-    $second = Solution::factory()->create(['name' => 'AllStrategy']);
-    $firstPage = solutionPage($first, '# Lado SAP');
-    $secondPage = solutionPage($second, '# Lado AllStrategy');
+    $first = Notebook::factory()->create(['name' => 'SAP']);
+    $second = Notebook::factory()->create(['name' => 'AllStrategy']);
+    $firstPage = notebookPage($first, '# Lado SAP');
+    $secondPage = notebookPage($second, '# Lado AllStrategy');
 
     $firstPage->diagram()->associate($diagram)->save();
     $secondPage->diagram()->associate($diagram)->save();
@@ -414,13 +420,13 @@ it('lets one diagram serve pages of more than one solution', function () {
     $content = $this->actingAs(docsAdmin())->get(route('diagrams.show', $diagram))->assertOk()->getContent();
 
     expect($content)
-        ->toContain(route('solutions.docs.page.edit', [$first, $firstPage]))
-        ->toContain(route('solutions.docs.page.edit', [$second, $secondPage]));
+        ->toContain(route('notebooks.pages.edit', [$first, $firstPage]))
+        ->toContain(route('notebooks.pages.edit', [$second, $secondPage]));
 });
 
 it('keeps a page and its text when the diagram it points at is deleted', function () {
-    $solution = Solution::factory()->create();
-    $page = solutionPage($solution, '# Conteúdo que deu trabalho');
+    $notebook = Notebook::factory()->create();
+    $page = notebookPage($notebook, '# Conteúdo que deu trabalho');
     $diagram = Diagram::factory()->create();
     $page->diagram()->associate($diagram)->save();
 
@@ -457,11 +463,11 @@ it('lists the solution diagrams as plain links, without the F3 canvas, on the so
 
 it('uploads documentation media and serves it via /files/{id}', function () {
     Storage::fake('public');
-    $solution = Solution::factory()->create();
-    $page = solutionPage($solution);
+    $notebook = Notebook::factory()->create();
+    $page = notebookPage($notebook);
 
     $response = $this->actingAs(docsAdmin())
-        ->post(route('solutions.docs.media', [$solution, $page]), [
+        ->post(route('notebooks.pages.media', [$notebook, $page]), [
             'file' => UploadedFile::fake()->image('diagrama.png', 200, 120),
         ])
         ->assertOk()
@@ -482,11 +488,11 @@ it('uploads documentation media and serves it via /files/{id}', function () {
 
 it('forbids a viewer from uploading documentation media', function () {
     Storage::fake('public');
-    $solution = Solution::factory()->create();
-    $page = solutionPage($solution);
+    $notebook = Notebook::factory()->create();
+    $page = notebookPage($notebook);
 
     $this->actingAs(User::factory()->create())
-        ->post(route('solutions.docs.media', [$solution, $page]), [
+        ->post(route('notebooks.pages.media', [$notebook, $page]), [
             'file' => UploadedFile::fake()->image('x.png'),
         ])
         ->assertForbidden();
@@ -495,21 +501,21 @@ it('forbids a viewer from uploading documentation media', function () {
 it('rejects a media upload with neither file nor url', function () {
     // Pasting an image from an external site sends `url`; upload sends `file`.
     // With neither, the reciprocal `required_without` rule blocks with a 422.
-    $solution = Solution::factory()->create();
-    $page = solutionPage($solution);
+    $notebook = Notebook::factory()->create();
+    $page = notebookPage($notebook);
 
     $this->actingAs(docsAdmin())
-        ->postJson(route('solutions.docs.media', [$solution, $page]), [])
+        ->postJson(route('notebooks.pages.media', [$notebook, $page]), [])
         ->assertStatus(422)
         ->assertJson(['type' => 'warning']);
 });
 
 it('rejects an external image url that is not http(s)', function () {
-    $solution = Solution::factory()->create();
-    $page = solutionPage($solution);
+    $notebook = Notebook::factory()->create();
+    $page = notebookPage($notebook);
 
     $this->actingAs(docsAdmin())
-        ->postJson(route('solutions.docs.media', [$solution, $page]), [
+        ->postJson(route('notebooks.pages.media', [$notebook, $page]), [
             'url' => 'ftp://example.com/x.png',
         ])
         ->assertStatus(422)
@@ -519,11 +525,11 @@ it('rejects an external image url that is not http(s)', function () {
 it('rejects a paste-image-url pointing at a private/loopback/link-local address', function (string $url) {
     // Blocked by App\Rules\PublicUrl before the controller ever calls
     // addMediaFromUrl() — no outbound request happens for any of these.
-    $solution = Solution::factory()->create();
-    $page = solutionPage($solution);
+    $notebook = Notebook::factory()->create();
+    $page = notebookPage($notebook);
 
     $this->actingAs(docsAdmin())
-        ->postJson(route('solutions.docs.media', [$solution, $page]), ['url' => $url])
+        ->postJson(route('notebooks.pages.media', [$notebook, $page]), ['url' => $url])
         ->assertStatus(422)
         ->assertJson(['type' => 'warning']);
 

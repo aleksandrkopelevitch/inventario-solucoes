@@ -21,9 +21,8 @@ paths:
 The Especialista em Integrações (F8) accepts context in exactly **two** shapes,
 and the composer's 📎 menu has exactly two items to match:
 
-1. **Documents from the inventory** — a `DocumentationPage` (from a Solution
-   *or* a standalone `DocumentationGroup`) or an `Integration`'s own
-   documentation, chosen in the picker panel.
+1. **Documents from the inventory** — a `DocumentationPage`, from whichever
+   `Notebook` ("Caderno") holds it, chosen in the picker panel.
 2. **Material the user brings** — a file from disk, or a long paste that becomes
    a text attachment on its own.
 
@@ -148,15 +147,18 @@ PT-BR and minified JSON, both of which tokenize worse than the familiar English
   production. `FlowspecContextBudget::worstCaseCorpusTokens()` measures in PHP
   for exactly this reason. `documentation` is `longText`, so `LENGTH()` on *it*
   is portable.
-- **The picker must list `DocumentationGroup` pages, not only a Solution's.**
-  Almost all of this inventory's documentation lives in imported GitBook spaces
-  (38 groups, 613 of 617 documented pages). Listing only Solutions offered 4 of
-  them, which reads as "there is nothing to attach".
+- **The picker lists pages by CADERNO, never by solution.** Almost all of this
+  inventory's documentation lives in imported GitBook spaces (38 cadernos, 613
+  of 617 documented pages), and those link to no solution at all. Listing
+  documentation by Solution offered 4 of them, which reads as "there is nothing
+  to attach" — the mistake the container swap made structurally impossible. A
+  caderno's row carries the solutions it documents as its eyebrow, and they are
+  searchable, so a page is still findable by the system it describes.
 - **The picker renders every row and filters in the browser** (~1MB of HTML,
-  ~200ms server, ~430ms to open, measured 2026-08-21 against 618 rows). Groups
+  ~200ms server, ~430ms to open, measured 2026-08-21 against 618 rows). Cadernos
   start collapsed and the filter opens what matches. A debounced round trip per
   keystroke is the one thing that would take instant narrowing away; if the
-  corpus grows enough to make this hurt, paginate the *groups*, not the filter.
+  corpus grows enough to make this hurt, paginate the *cadernos*, not the filter.
 - **Staged files reach the server through a `DataTransfer`.** `input.files` is a
   read-only `FileList`, and rebuilding it from the staged array is what lets a
   plain `new FormData(form)` in `ajax-post.js` carry them with the first message

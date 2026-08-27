@@ -145,7 +145,7 @@ it('publishes an approved submission into the solution documentation', function 
         'decision' => 'Aprovada sem ressalvas.',
     ])->assertOk();
 
-    $page = $solution->pages()->first();
+    $page = $solution->notebooks()->first()->pages()->first();
 
     expect($page)->not->toBeNull()
         ->and($page->title)->toBe('CATI — SKBridge')
@@ -173,7 +173,7 @@ it('updates the page it created instead of stacking duplicates', function () {
     $this->postJson(route('submissions.decision.store', $submission), ['status' => 'approved', 'decision' => 'ok'])->assertOk();
 
     expect(DocumentationPage::count())->toBe(1)
-        ->and($solution->pages()->first()->documentation)->toContain('Versão revisada.');
+        ->and($solution->notebooks()->first()->pages()->first()->documentation)->toContain('Versão revisada.');
 });
 
 it('does not promote a rejected submission, or one with no solution', function () {

@@ -3,8 +3,8 @@
 namespace App\Actions\Documentation;
 
 use App\Contracts\Documentable;
-use App\Models\DocumentationGroup;
 use App\Models\DocumentationPage;
+use App\Models\Notebook;
 use App\Services\DocumentationPageService;
 use App\Support\Gitbook\GitbookAssetImporter;
 use App\Support\Gitbook\GitbookClient;
@@ -16,15 +16,15 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 /**
- * Pulls one GitBook space into a standalone DocumentationGroup — the landing
- * zone the content is then re-filed from by hand, into the Solution (or group)
- * it really belongs to.
+ * Pulls one GitBook space into a Notebook of its own.
  *
- * A group rather than a Solution on purpose: a space rarely maps 1:1 onto one
- * solution in this inventory, and guessing wrong scatters pages across records
- * that then have to be un-scattered. Importing into a group named after the
- * space keeps the whole thing in one legible place, editable and copyable,
- * until someone decides where each page goes.
+ * A space IS a caderno — that is what the container swap made true, and this
+ * import is where the two models line up exactly. It used to land in a
+ * standalone `DocumentationGroup` as a temporary holding pen, because the
+ * alternative was scattering a space's pages across the solutions it mentions
+ * and then having to un-scatter them. That reasoning still holds and now costs
+ * nothing: the caderno is a first-class home, and saying which solutions it
+ * documents is a link, not a move.
  *
  * **The space's SHAPE comes across too** (`GitbookPageTree` resolves it): a
  * page keeps its parent, a `group` becomes an empty section page above its
@@ -32,7 +32,7 @@ use Illuminate\Support\Str;
  * collapsed into a title prefix. `--flat` brings back the old behaviour where
  * every page was a root carrying its full ancestry in its title.
  *
- * **Re-runnable, and a re-run MIGRATES.** A page is matched inside the group by
+ * **Re-runnable, and a re-run MIGRATES.** A page is matched inside the caderno by
  * title, and the legacy flattened title (`GitbookPage::origin()` — exactly what
  * the old import wrote) is one of the things matched: so re-importing a space
  * that came in flat renames its pages down to their bare titles and hangs them
@@ -56,7 +56,7 @@ class ImportGitbookSpace
 
     public function handle(
         string $spaceId,
-        ?string $groupName = null,
+        ?string $notebookName = null,
         bool $nest = true,
         bool $dryRun = false,
     ): GitbookImportReport {
@@ -82,7 +82,7 @@ class ImportGitbookSpace
             );
         }
 
-        $group = $this->group($groupName ?: $title);
+        $notebook = $this->notebook($notebookName ?: $title);
 
         // Fetched once for the whole space: it is the only place an embedded
         // asset's real download URL exists (its Markdown reference is a GitBook
@@ -93,11 +93,11 @@ class ImportGitbookSpace
         $updated = 0;
         $assets = 0;
         $failures = [];
-        // The group's pages, held in memory for the whole run: matching walks
+        // The caderno's pages, held in memory for the whole run: matching walks
         // this set instead of querying per page (the biggest imported space has
         // 133 of them), and a matched row leaves it — which is what keeps two
         // identically-named GitBook pages from collapsing into one.
-        $unclaimed = $group->pages()->get();
+        $unclaimed = $notebook->pages()->get();
         // GitBook node id => the page it became, so a child can find its parent.
         // Reading order guarantees the parent was handled first.
         $models = [];
@@ -109,14 +109,14 @@ class ImportGitbookSpace
             $parent = $source->parentId === null ? null : ($models[$source->parentId] ?? null);
             $existing = $this->match($unclaimed, $source, $parent);
 
-            $page = $existing ?? $this->pages->create($group, $source->title, $parent);
+            $page = $existing ?? $this->pages->create($notebook, $source->title, $parent);
             $existing ? $updated++ : $created++;
             $unclaimed = $unclaimed->reject(fn (DocumentationPage $candidate) => $candidate->is($page))->values();
             $models[$source->id] = $page;
 
             // Needed by nothing here, but a page fetched fresh would lazy-load
             // its container the moment anything downstream touches it.
-            $page->setRelation('container', $group);
+            $page->setRelation('notebook', $notebook);
 
             $key = $parent?->id ?? 'root';
             $positions[$key] = ($positions[$key] ?? 0) + 1;
@@ -160,7 +160,7 @@ class ImportGitbookSpace
         return new GitbookImportReport(
             spaceId: $spaceId,
             spaceTitle: $title,
-            group: $group,
+            notebook: $notebook,
             created: $created,
             updated: $updated,
             assets: $assets,
@@ -172,14 +172,14 @@ class ImportGitbookSpace
     }
 
     /**
-     * The row this GitBook node already has in the group, if any — tried three
+     * The row this GitBook node already has in the caderno, if any — tried three
      * ways, most specific first:
      *
      * 1. Same title AND already under the right parent: a plain re-import.
      * 2. The LEGACY flattened title ("Começando › Instalação"), which is what
      *    the old import wrote. Matching it is what makes a re-run re-shape the
      *    space in place instead of importing a second copy beside it.
-     * 3. Same title anywhere in the group — a page whose parent moved in
+     * 3. Same title anywhere in the caderno — a page whose parent moved in
      *    GitBook, or one imported at a different depth before.
      *
      * @param  Collection<int, DocumentationPage>  $unclaimed
@@ -192,12 +192,12 @@ class ImportGitbookSpace
     }
 
     /**
-     * The group for this space — reused when it's already there, which is what
+     * The caderno for this space — reused when it's already there, which is what
      * makes a second run an update rather than a duplicate.
      */
-    private function group(string $name): DocumentationGroup
+    private function notebook(string $name): Notebook
     {
-        $existing = DocumentationGroup::where('name', $name)->first();
+        $existing = Notebook::where('name', $name)->first();
 
         if ($existing) {
             return $existing;
@@ -207,10 +207,10 @@ class ImportGitbookSpace
         $slug = $base;
         $suffix = 1;
 
-        while (DocumentationGroup::where('slug', $slug)->exists()) {
+        while (Notebook::where('slug', $slug)->exists()) {
             $slug = $base . '-' . (++$suffix);
         }
 
-        return DocumentationGroup::create(['name' => $name, 'slug' => $slug]);
+        return Notebook::create(['name' => $name, 'slug' => $slug]);
     }
 }

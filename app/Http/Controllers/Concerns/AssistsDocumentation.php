@@ -7,7 +7,7 @@ use App\Http\Requests\StoreDocumentationChatMessageRequest;
 use App\Jobs\GenerateDocumentationChatReply;
 use App\Models\DocumentationChat;
 use App\Models\DocumentationChatMessage;
-use App\Models\Solution;
+use App\Models\Notebook;
 use App\Support\Documentation\DocumentationRequirements;
 use App\View\Components\Documentation\ChatThread;
 use Illuminate\Http\JsonResponse;
@@ -16,10 +16,17 @@ use Illuminate\Validation\ValidationException;
 /**
  * Documentation Assistant ("Assiste IA") for a documentation page. A
  * conversation (DocumentationChat), one per (user, page) — reopening the panel
- * resumes the same thread. `SolutionDocumentationController` resolves the page
- * and the Solution that owns the context documents, and delegates to this trait
- * the side panel, sending a message (async job + polling) and applying a
- * proposed draft. Nothing is persisted to the page itself until the user saves.
+ * resumes the same thread. `NotebookPageController` resolves the page and its
+ * caderno (which owns the context documents), and delegates to this trait the
+ * side panel, sending a message (async job + polling) and applying a proposed
+ * draft. Nothing is persisted to the page itself until the user saves.
+ *
+ * The chat is scoped to the NOTEBOOK, not to a solution. It was the other way
+ * round until the container swap, and the difference shows in two places worth
+ * knowing: the context documents are the notebook's, and the requirements
+ * checklist reaches THROUGH the notebook to whatever solutions it documents
+ * (`DocumentationRequirements`), so a caderno describing three systems reports
+ * facts about all three, and one describing none still works.
  *
  * The target is typed as `Documentable` rather than `DocumentationPage`
  * because it used to be either that or an `Integration` — the second kind of
@@ -28,19 +35,19 @@ use Illuminate\Validation\ValidationException;
 trait AssistsDocumentation
 {
     /** Side panel: the requirements checklist, the thread so far, and the composer. */
-    protected function chatPanelResponse(Solution $solution, Documentable $target, string $sendUrl): JsonResponse
+    protected function chatPanelResponse(Notebook $notebook, Documentable $target, string $sendUrl): JsonResponse
     {
-        $this->authorize('update', $solution);
+        $this->authorize('update', $notebook);
 
-        $chat = $this->resolveChat($solution, $target);
+        $chat = $this->resolveChat($notebook, $target);
 
         return response()->json([
             'content' => view('documentation.panels.chat', [
-                'solution'        => $solution,
+                'notebook'        => $notebook,
                 'targetLabel'     => $target->documentationTitle(),
                 'chat'            => $chat,
                 'sendUrl'         => $sendUrl,
-                'contextStoreUrl' => route('solutions.docs.context.store', $solution),
+                'contextStoreUrl' => route('notebooks.context.store', $notebook),
                 'requirements'    => DocumentationRequirements::for($target),
             ])->render(),
         ]);
@@ -54,9 +61,9 @@ trait AssistsDocumentation
      * concurrent job that WithoutOverlapping would just queue, generated
      * against a history that ignores the new message.
      */
-    protected function sendChatMessage(StoreDocumentationChatMessageRequest $request, Solution $solution, Documentable $target): JsonResponse
+    protected function sendChatMessage(StoreDocumentationChatMessageRequest $request, Notebook $notebook, Documentable $target): JsonResponse
     {
-        $chat = $this->resolveChat($solution, $target);
+        $chat = $this->resolveChat($notebook, $target);
 
         if ($chat->isAwaitingReply()) {
             throw ValidationException::withMessages([
@@ -88,10 +95,10 @@ trait AssistsDocumentation
     }
 
     /** Polling while the reply job runs (docs-chat.js). */
-    protected function chatStatusResponse(Solution $solution, DocumentationChat $chat): JsonResponse
+    protected function chatStatusResponse(Notebook $notebook, DocumentationChat $chat): JsonResponse
     {
-        $this->authorize('update', $solution);
-        abort_unless($chat->solution_id === $solution->id, 404);
+        $this->authorize('update', $notebook);
+        abort_unless($chat->notebook_id === $notebook->id, 404);
 
         $pending = $chat->isAwaitingReply();
 
@@ -106,11 +113,11 @@ trait AssistsDocumentation
      * Markdown push into the editor happens client-side via
      * `__akDocsSetMarkdown`, same as the old flow's "Aplicar"). Idempotent.
      */
-    protected function applyChatMessageResponse(Solution $solution, DocumentationChatMessage $message): JsonResponse
+    protected function applyChatMessageResponse(Notebook $notebook, DocumentationChatMessage $message): JsonResponse
     {
-        $this->authorize('update', $solution);
+        $this->authorize('update', $notebook);
         $message->loadMissing('chat');
-        abort_unless($message->chat->solution_id === $solution->id, 404);
+        abort_unless($message->chat->notebook_id === $notebook->id, 404);
 
         if ($message->applied_at === null) {
             $message->update(['applied_at' => now()]);
@@ -120,23 +127,23 @@ trait AssistsDocumentation
     }
 
     /**
-     * `solution_id` is kept synced to whichever Solution the current request is
+     * `notebook_id` is kept synced to whichever caderno the current request is
      * scoped to, rather than trusted from creation time: it is what the context
      * documents (and the 404 guards) key off, and a page can be re-filed under
-     * another container while a chat about it is still open.
+     * another caderno while a chat about it is still open.
      */
-    private function resolveChat(Solution $solution, Documentable $target): DocumentationChat
+    private function resolveChat(Notebook $notebook, Documentable $target): DocumentationChat
     {
         $chat = DocumentationChat::firstOrCreate([
             'user_id'     => request()->user()->id,
             'target_type' => $target->getMorphClass(),
             'target_id'   => $target->getKey(),
         ], [
-            'solution_id' => $solution->id,
+            'notebook_id' => $notebook->id,
         ]);
 
-        if ($chat->solution_id !== $solution->id) {
-            $chat->update(['solution_id' => $solution->id]);
+        if ($chat->notebook_id !== $notebook->id) {
+            $chat->update(['notebook_id' => $notebook->id]);
         }
 
         return $chat;
@@ -150,11 +157,11 @@ trait AssistsDocumentation
      * creating one just to check would be a write on every view. Null when
      * there's no chat yet, or it exists but isn't awaiting a reply.
      */
-    protected function chatResumeFor(Solution $solution, Documentable $target): ?array
+    protected function chatResumeFor(Notebook $notebook, Documentable $target): ?array
     {
         $user = request()->user();
 
-        if (! $user?->can('update', $solution)) {
+        if (! $user?->can('update', $notebook)) {
             return null;
         }
 
@@ -169,7 +176,7 @@ trait AssistsDocumentation
         }
 
         return [
-            'statusUrl' => route('solutions.docs.chat.status', [$solution, $chat]),
+            'statusUrl' => route('notebooks.chat.status', [$notebook, $chat]),
         ];
     }
 }

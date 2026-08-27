@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\GenerateFlowspecReply;
 use App\Models\DocumentationPage;
 use App\Models\FlowspecAttachment;
 use App\Models\FlowspecChat;
@@ -9,8 +10,10 @@ use App\Models\User;
 use App\Services\Flowspec\FlowspecContextBudget;
 use App\Services\Flowspec\FlowspecContextResolver;
 use App\Services\Flowspec\FlowspecPromptBuilder;
+use App\Support\Context\DocxTextExtractor;
 use App\Support\Context\TokenEstimator;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 
 uses(LazilyRefreshDatabase::class);
@@ -29,7 +32,7 @@ uses(LazilyRefreshDatabase::class);
 
 it('measures an attached document live, so editing it moves the meter', function () {
     $chat = FlowspecChat::factory()->create();
-    $page = DocumentationPage::factory()->for(Solution::factory()->create(), 'container')
+    $page = DocumentationPage::factory()->for(notebookFor(Solution::factory()->create()))
         ->create(['documentation' => str_repeat('a', 3500)]);
 
     attachPage($chat, $page);
@@ -125,7 +128,7 @@ it('refuses a document that would not fit, without creating anything', function 
 
     $user = User::factory()->create();
     $chat = FlowspecChat::factory()->for($user)->create();
-    $huge = DocumentationPage::factory()->for(Solution::factory()->create(), 'container')
+    $huge = DocumentationPage::factory()->for(notebookFor(Solution::factory()->create()))
         ->create(['title' => 'Manual inteiro', 'documentation' => str_repeat('x', 200000)]);
 
     $response = $this->actingAs($user)
@@ -150,7 +153,7 @@ it('refuses a new conversation whose staged context would not fit', function () 
     ])->assertStatus(422);
 
     expect(FlowspecChat::query()->count())->toBe(0);
-    Queue::assertNotPushed(App\Jobs\GenerateFlowspecReply::class);
+    Queue::assertNotPushed(GenerateFlowspecReply::class);
 });
 
 it('still accepts an attachment that fits in what is left', function () {
@@ -158,7 +161,7 @@ it('still accepts an attachment that fits in what is left', function () {
 
     $user = User::factory()->create();
     $chat = FlowspecChat::factory()->for($user)->create();
-    $page = DocumentationPage::factory()->for(Solution::factory()->create(), 'container')
+    $page = DocumentationPage::factory()->for(notebookFor(Solution::factory()->create()))
         ->create(['documentation' => str_repeat('x', 5000)]);
 
     $this->actingAs($user)
@@ -232,7 +235,7 @@ it('trims nothing when no allowance is given', function () {
 it('renders the meter and the attached items in the composer', function () {
     $user = User::factory()->create();
     $chat = FlowspecChat::factory()->for($user)->create();
-    $page = DocumentationPage::factory()->for(Solution::factory()->create(['name' => 'SVL']), 'container')
+    $page = DocumentationPage::factory()->for(notebookFor(Solution::factory()->create(['name' => 'SVL'])))
         ->create(['title' => 'Contrato', 'documentation' => str_repeat('x', 3500)]);
 
     attachPage($chat, $page);
@@ -258,7 +261,7 @@ it('tells the user the context is full, on the screen', function () {
 
 it('reports the estimated context and any trim in the message meta', function () {
     $chat = FlowspecChat::factory()->create();
-    $page = DocumentationPage::factory()->for(Solution::factory()->create(), 'container')
+    $page = DocumentationPage::factory()->for(notebookFor(Solution::factory()->create()))
         ->create(['documentation' => str_repeat('x', 3500)]);
     attachPage($chat, $page);
 
@@ -304,7 +307,7 @@ it('does the same on the endpoint that opens a conversation', function () {
         ->assertStatus(422);
 
     expect(FlowspecChat::query()->count())->toBe(0);
-    Queue::assertNotPushed(App\Jobs\GenerateFlowspecReply::class);
+    Queue::assertNotPushed(GenerateFlowspecReply::class);
 });
 
 it('still counts both shapes of the same input against the attachment cap', function () {
@@ -339,7 +342,7 @@ it('still counts both shapes of the same input against the attachment cap', func
 */
 
 /** A real .docx — a zip of WordprocessingML, the shape DocxTextExtractor reads. */
-function wordFileOf(string $text, int $paragraphs): Illuminate\Http\UploadedFile
+function wordFileOf(string $text, int $paragraphs): UploadedFile
 {
     $path = tempnam(sys_get_temp_dir(), 'flowspec') . '.docx';
     $namespace = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
@@ -354,7 +357,7 @@ function wordFileOf(string $text, int $paragraphs): Illuminate\Http\UploadedFile
     $zip->addFromString('word/document.xml', '<?xml version="1.0"?><w:document xmlns:w="' . $namespace . '"><w:body>' . $body . '</w:body></w:document>');
     $zip->close();
 
-    return new Illuminate\Http\UploadedFile($path, 'contrato.docx', null, null, true);
+    return new UploadedFile($path, 'contrato.docx', null, null, true);
 }
 
 it('sizes a zipped document by what it holds, not by what it weighs', function () {
@@ -362,7 +365,7 @@ it('sizes a zipped document by what it holds, not by what it weighs', function (
 
     $compressed = TokenEstimator::forChars((int) $file->getSize());
     $estimated = TokenEstimator::forUploadedBytes($file->getMimeType(), 'docx', (int) $file->getSize(), $file->getRealPath());
-    $real = TokenEstimator::forText((new App\Support\Context\DocxTextExtractor)->extract($file->getRealPath()));
+    $real = TokenEstimator::forText((new DocxTextExtractor)->extract($file->getRealPath()));
 
     // The compressed size reads as a small fraction of the truth; the estimate
     // has to land at or above it, the way this class errs everywhere else.
@@ -407,7 +410,7 @@ it('does not charge for a document the conversation already has', function () {
     // a stale suggestion button is exactly this request.
     $user = User::factory()->create();
     $chat = FlowspecChat::factory()->for($user)->create();
-    $page = DocumentationPage::factory()->for(Solution::factory()->create(), 'container')
+    $page = DocumentationPage::factory()->for(notebookFor(Solution::factory()->create()))
         ->create(['documentation' => str_repeat('x', 40000)]);
 
     $this->actingAs($user)
@@ -430,7 +433,7 @@ it('does not charge for a document the conversation already has', function () {
 it('does not charge an already-attached document against the count cap either', function () {
     $user = User::factory()->create();
     $chat = FlowspecChat::factory()->for($user)->create();
-    $page = DocumentationPage::factory()->for(Solution::factory()->create(), 'container')
+    $page = DocumentationPage::factory()->for(notebookFor(Solution::factory()->create()))
         ->create(['documentation' => 'contrato']);
 
     $this->actingAs($user)

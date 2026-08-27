@@ -45,7 +45,7 @@ class DiagramCatalogService
     /**
      * The index's rows, filtered. Each carries what the list shows and nothing
      * more — no chain json beyond what the summary label needs, and the pages
-     * eager-loaded with their container so a row can name where it is
+     * eager-loaded with their notebook so a row can name where it is
      * explained without a query per row.
      *
      * @param  array<string, mixed>  $filters
@@ -55,7 +55,7 @@ class DiagramCatalogService
     {
         return Diagram::query()
             ->filter($filters)
-            ->with(['pages:id,diagram_id,container_type,container_id,title,slug', 'pages.container:id,name,slug'])
+            ->with(['pages:id,diagram_id,notebook_id,title,slug', 'pages.notebook:id,name,slug'])
             ->orderBy('name')
             ->get(['id', 'name', 'slug', 'status', 'chain']);
     }

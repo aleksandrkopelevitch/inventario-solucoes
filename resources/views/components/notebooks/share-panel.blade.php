@@ -1,12 +1,12 @@
 <div id="{{ $domId }}" data-ak-share-panel
-    data-share-url="{{ route('solutions.docs.share', $solution) }}"
-    data-unshare-url="{{ route('solutions.docs.unshare', $solution) }}">
+    data-share-url="{{ route('notebooks.share', $notebook) }}"
+    data-unshare-url="{{ route('notebooks.unshare', $notebook) }}">
 
-    <h3 class="font-display text-base font-semibold text-ink">Compartilhar documentação</h3>
+    <h3 class="font-display text-base font-semibold text-ink">Compartilhar caderno</h3>
 
     @if ($publicUrl)
         <p class="mt-1 text-sm text-muted">
-            Qualquer pessoa com este link vê a documentação, sem precisar de login.
+            Qualquer pessoa com este link vê as páginas deste caderno, sem precisar de login.
         </p>
 
         <div class="mt-3 flex items-center gap-2">
@@ -16,7 +16,7 @@
                 data-ak-share-url-field
                 value="{{ $publicUrl }}"
                 class="!h-9 flex-1 !text-xs"
-                aria-label="Link público da documentação" />
+                aria-label="Link público do caderno" />
             <x-forms.button type="button" variant="ghost" data-ak-share-copy
                 class="!h-9 !w-9 shrink-0 !p-0" aria-label="Copiar link">
                 <x-heroicon-o-clipboard-document class="size-5" />
@@ -35,8 +35,8 @@
         </div>
     @else
         <p class="mt-1 text-sm text-muted">
-            Gere um link público para compartilhar esta documentação com pessoas
-            de fora (sem login).
+            Gere um link público para compartilhar este caderno com pessoas de fora
+            (sem login).
         </p>
 
         <x-forms.button type="button" data-ak-share-generate class="mt-3 !h-9 w-full !text-sm">

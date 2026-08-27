@@ -2,26 +2,26 @@
 
 use App\Models\Diagram;
 use App\Models\DocumentationPage;
-use App\Models\Solution;
+use App\Models\Notebook;
 use App\Services\DocumentationSearchService;
 use App\View\Components\Documentation\SearchResults;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 
 uses(LazilyRefreshDatabase::class);
 
-/** A shared solution with one page of documentation. */
-function sharedSolution(string $token, ?string $documentation = null, string $title = 'Visão geral'): Solution
+/** A shared caderno with one page of documentation. */
+function sharedNotebook(string $token, ?string $documentation = null, string $title = 'Visão geral'): Notebook
 {
-    $solution = Solution::factory()->create(['public_token' => $token]);
+    $notebook = Notebook::factory()->create(['public_token' => $token]);
 
     if ($documentation !== null) {
-        DocumentationPage::factory()->for($solution, 'container')->create([
+        DocumentationPage::factory()->for($notebook)->create([
             'title'         => $title,
             'documentation' => $documentation,
         ]);
     }
 
-    return $solution;
+    return $notebook;
 }
 
 /** The rendered slot HTML from a search response. */
@@ -39,16 +39,16 @@ function searchHtml(string $token, array $query = []): string
 */
 
 it('renders the search panel above the documentation, not behind a shortcut', function () {
-    $solution = sharedSolution('tok-panel', '# Visão geral');
+    $notebook = sharedNotebook('tok-panel', '# Visão geral');
 
-    $response = $this->get(route('public.docs.solution', $solution->public_token))
+    $response = $this->get(route('public.docs.notebook', $notebook->public_token))
         ->assertOk()
         ->assertSee('data-ak-docs-search', false)
         ->assertSee('data-ak-docs-search-input', false)
         // The slot the search response replaces must exist before the first
         // search, or ajax-slot.js has nothing to swap.
         ->assertSee('id="' . SearchResults::DOM_ID . '"', false)
-        ->assertSee(route('public.docs.search', $solution->public_token), false)
+        ->assertSee(route('public.docs.search', $notebook->public_token), false)
         // …and the reading shell must be addressable, or the results have
         // nowhere to take over from.
         ->assertSee('data-ak-docs-shell', false);
@@ -59,18 +59,18 @@ it('renders the search panel above the documentation, not behind a shortcut', fu
 });
 
 it('renders the filter chips with the page once the corpus is indexed', function () {
-    $solution = sharedSolution('tok-warm', "# Visão geral\n\n## Contrato\n\n| a | b |\n| --- | --- |\n| 1 | 2 |");
+    $notebook = sharedNotebook('tok-warm', "# Visão geral\n\n## Contrato\n\n| a | b |\n| --- | --- |\n| 1 | 2 |");
 
     // Cold: the panel must not drag the index build into the page render.
-    $this->get(route('public.docs.solution', $solution->public_token))
+    $this->get(route('public.docs.notebook', $notebook->public_token))
         ->assertOk()
         ->assertSee('data-ak-docs-search-pending', false)
         ->assertDontSee('data-ak-docs-search-facet', false);
 
     // Warm (the client's first search built it): chips ship with the HTML.
-    $this->getJson(route('public.docs.search', $solution->public_token))->assertOk();
+    $this->getJson(route('public.docs.search', $notebook->public_token))->assertOk();
 
-    $this->get(route('public.docs.solution', $solution->public_token))
+    $this->get(route('public.docs.notebook', $notebook->public_token))
         ->assertOk()
         ->assertDontSee('data-ak-docs-search-pending', false)
         ->assertSee('data-ak-docs-search-facet="tag"', false)
@@ -80,10 +80,10 @@ it('renders the filter chips with the page once the corpus is indexed', function
 it('marks the slot as active only while the corpus is being narrowed', function () {
     // docs-search.js hides the reading shell off this marker, so an idle panel
     // carrying it would blank the documentation on load.
-    $solution = sharedSolution('tok-active', "# Visão geral\n\nTexto.");
+    $notebook = sharedNotebook('tok-active', "# Visão geral\n\nTexto.");
 
-    $idle = searchHtml($solution->public_token);
-    $searching = searchHtml($solution->public_token, ['q' => 'texto']);
+    $idle = searchHtml($notebook->public_token);
+    $searching = searchHtml($notebook->public_token, ['q' => 'texto']);
 
     expect($idle)->not->toContain('data-ak-docs-search-active')
         ->and($searching)->toContain('data-ak-docs-search-active');
@@ -96,9 +96,9 @@ it('marks the slot as active only while the corpus is being narrowed', function 
 */
 
 it('answers a search with the results slot and a total', function () {
-    $solution = sharedSolution('tok-search', "# Faturamento\n\nO fluxo de faturas segue o pedido.");
+    $notebook = sharedNotebook('tok-search', "# Faturamento\n\nO fluxo de faturas segue o pedido.");
 
-    $response = $this->getJson(route('public.docs.search', [$solution->public_token, 'q' => 'faturas']))
+    $response = $this->getJson(route('public.docs.search', [$notebook->public_token, 'q' => 'faturas']))
         ->assertOk();
 
     expect($response->json('total'))->toBe(1)
@@ -107,73 +107,73 @@ it('answers a search with the results slot and a total', function () {
 });
 
 it('returns the whole corpus in reading order when the query is empty', function () {
-    $solution = sharedSolution('tok-empty', "# Primeira\n\nAlgum texto.\n\n## Segunda\n\nMais texto.", 'Primeira');
+    $notebook = sharedNotebook('tok-empty', "# Primeira\n\nAlgum texto.\n\n## Segunda\n\nMais texto.", 'Primeira');
 
     // The opening H1 repeats the page title, so it IS the page entry — plus
     // one entry per heading below it.
-    $this->getJson(route('public.docs.search', $solution->public_token))
+    $this->getJson(route('public.docs.search', $notebook->public_token))
         ->assertOk()
         ->assertJson(['total' => 2]);
 });
 
 it('does not list a page and its opening H1 as two results for the same place', function () {
-    $solution = sharedSolution('tok-h1', "# Faturamento\n\nTexto.", 'Faturamento');
+    $notebook = sharedNotebook('tok-h1', "# Faturamento\n\nTexto.", 'Faturamento');
 
-    $this->getJson(route('public.docs.search', [$solution->public_token, 'q' => 'faturamento']))
+    $this->getJson(route('public.docs.search', [$notebook->public_token, 'q' => 'faturamento']))
         ->assertOk()
         ->assertJson(['total' => 1]);
 
     // …but an H1 that says something else is still its own hit.
-    $solution->pages()->first()->update(['documentation' => "# Faturamento\n\nTexto.\n\n# Cobrança\n\nOutro texto."]);
+    $notebook->pages()->first()->update(['documentation' => "# Faturamento\n\nTexto.\n\n# Cobrança\n\nOutro texto."]);
 
-    $this->getJson(route('public.docs.search', $solution->public_token))
+    $this->getJson(route('public.docs.search', $notebook->public_token))
         ->assertOk()
         ->assertJson(['total' => 2]);
 });
 
 it('finds a heading and links to its own anchor inside the page', function () {
-    $solution = sharedSolution('tok-anchor', "# Visão geral\n\nIntro.\n\n## Contrato de mensagens\n\nCada evento carrega um id.");
+    $notebook = sharedNotebook('tok-anchor', "# Visão geral\n\nIntro.\n\n## Contrato de mensagens\n\nCada evento carrega um id.");
 
-    $html = searchHtml($solution->public_token, ['q' => 'contrato']);
-    $page = $solution->pages()->first();
+    $html = searchHtml($notebook->public_token, ['q' => 'contrato']);
+    $page = $notebook->pages()->first();
 
-    expect($html)->toContain(route('public.docs.page', [$solution->public_token, $page->slug]) . '#contrato-de-mensagens');
+    expect($html)->toContain(route('public.docs.page', [$notebook->public_token, $page->slug]) . '#contrato-de-mensagens');
 });
 
 it('never returns the same passage as both a page and a section', function () {
     // "carveout" appears once, under a heading. The page entry only owns the
     // text BEFORE the first heading, so exactly one result may match it.
-    $solution = sharedSolution('tok-overlap', "# Visão geral\n\nIntro sem o termo.\n\n## Detalhes\n\nO carveout roda à noite.");
+    $notebook = sharedNotebook('tok-overlap', "# Visão geral\n\nIntro sem o termo.\n\n## Detalhes\n\nO carveout roda à noite.");
 
-    $this->getJson(route('public.docs.search', [$solution->public_token, 'q' => 'carveout']))
+    $this->getJson(route('public.docs.search', [$notebook->public_token, 'q' => 'carveout']))
         ->assertOk()
         ->assertJson(['total' => 1]);
 });
 
 it('matches regardless of accents', function () {
-    $solution = sharedSolution('tok-accents', "# Integração de crédito\n\nRotina noturna.");
+    $notebook = sharedNotebook('tok-accents', "# Integração de crédito\n\nRotina noturna.");
 
-    $this->getJson(route('public.docs.search', [$solution->public_token, 'q' => 'integracao credito']))
+    $this->getJson(route('public.docs.search', [$notebook->public_token, 'q' => 'integracao credito']))
         ->assertOk()
         ->assertJson(['total' => 1]);
 
     // …and the other way round: an accented query against unaccented text.
     // Folding is applied to BOTH sides, so neither direction depends on the
     // visitor spelling the accent the way the author did.
-    $this->getJson(route('public.docs.search', [$solution->public_token, 'q' => 'rotína']))
+    $this->getJson(route('public.docs.search', [$notebook->public_token, 'q' => 'rotína']))
         ->assertOk()
         ->assertJson(['total' => 1]);
 });
 
 it('narrows with every extra word instead of widening', function () {
-    $solution = Solution::factory()->create(['public_token' => 'tok-and']);
-    DocumentationPage::factory()->for($solution, 'container')->create(['title' => 'Pedidos', 'documentation' => '# Pedidos']);
-    DocumentationPage::factory()->for($solution, 'container')->create(['title' => 'Pedidos cancelados', 'documentation' => '# Pedidos cancelados']);
+    $notebook = Notebook::factory()->create(['public_token' => 'tok-and']);
+    DocumentationPage::factory()->for($notebook)->create(['title' => 'Pedidos', 'documentation' => '# Pedidos']);
+    DocumentationPage::factory()->for($notebook)->create(['title' => 'Pedidos cancelados', 'documentation' => '# Pedidos cancelados']);
 
-    $this->getJson(route('public.docs.search', [$solution->public_token, 'q' => 'pedidos']))
+    $this->getJson(route('public.docs.search', [$notebook->public_token, 'q' => 'pedidos']))
         ->assertOk()->assertJson(['total' => 2]);
 
-    $this->getJson(route('public.docs.search', [$solution->public_token, 'q' => 'pedidos cancelados']))
+    $this->getJson(route('public.docs.search', [$notebook->public_token, 'q' => 'pedidos cancelados']))
         ->assertOk()->assertJson(['total' => 1]);
 });
 
@@ -184,39 +184,39 @@ it('narrows with every extra word instead of widening', function () {
 */
 
 it('filters by a content facet', function () {
-    $solution = sharedSolution(
+    $notebook = sharedNotebook(
         'tok-facet-tag',
         "# Visão geral\n\nIntro.\n\n## Com tabela\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n## Sem tabela\n\nSó texto.",
     );
 
-    $this->getJson(route('public.docs.search', [$solution->public_token, 'filter' => ['tag' => 'table']]))
+    $this->getJson(route('public.docs.search', [$notebook->public_token, 'filter' => ['tag' => 'table']]))
         ->assertOk()
         ->assertJson(['total' => 1]);
 });
 
 it('filters by the top-level section a hit belongs to', function () {
-    $solution = Solution::factory()->create(['public_token' => 'tok-facet-section']);
-    $first = DocumentationPage::factory()->for($solution, 'container')
+    $notebook = Notebook::factory()->create(['public_token' => 'tok-facet-section']);
+    $first = DocumentationPage::factory()->for($notebook)
         ->create(['title' => 'Arquitetura', 'slug' => 'arquitetura', 'documentation' => "# Arquitetura\n\n## Fluxo\n\nTexto."]);
-    DocumentationPage::factory()->for($solution, 'container')
+    DocumentationPage::factory()->for($notebook)
         ->create(['title' => 'Operação', 'slug' => 'operacao', 'documentation' => "# Operação\n\nTexto."]);
 
     // A subpage's hits are filed under its ROOT, not under itself.
-    $child = DocumentationPage::factory()->for($solution, 'container')
+    $child = DocumentationPage::factory()->for($notebook)
         ->create(['title' => 'Detalhes', 'slug' => 'detalhes', 'documentation' => "# Detalhes\n\nTexto."]);
     $child->parent()->associate($first);
     $child->save();
 
-    $this->getJson(route('public.docs.search', [$solution->public_token, 'filter' => ['section' => 'arquitetura']]))
+    $this->getJson(route('public.docs.search', [$notebook->public_token, 'filter' => ['section' => 'arquitetura']]))
         ->assertOk()
         // Arquitetura's own page + its "Fluxo" heading + the Detalhes subpage.
         ->assertJson(['total' => 3]);
 });
 
 it('rejects an unknown content facet with the app json error shape', function () {
-    $solution = sharedSolution('tok-bad-facet', '# Visão geral');
+    $notebook = sharedNotebook('tok-bad-facet', '# Visão geral');
 
-    $response = $this->getJson(route('public.docs.search', [$solution->public_token, 'filter' => ['tag' => 'inventado']]))
+    $response = $this->getJson(route('public.docs.search', [$notebook->public_token, 'filter' => ['tag' => 'inventado']]))
         ->assertStatus(422)
         ->assertJson(['type' => 'warning']);
 
@@ -230,8 +230,8 @@ it('rejects an unknown content facet with the app json error shape', function ()
 */
 
 it('never reaches another solution documentation through the search', function () {
-    $shared = sharedSolution('tok-mine', "# Minha página\n\nTermo compartilhado.");
-    sharedSolution('tok-theirs', "# Página alheia\n\nTermo compartilhado.");
+    $shared = sharedNotebook('tok-mine', "# Minha página\n\nTermo compartilhado.");
+    sharedNotebook('tok-theirs', "# Página alheia\n\nTermo compartilhado.");
 
     $response = $this->getJson(route('public.docs.search', [$shared->public_token, 'q' => 'termo compartilhado']))->assertOk();
 
@@ -255,35 +255,35 @@ it('picks up an edit even when it lands in the same second as the last search', 
     // The cache keys hash CONTENT, not `updated_at`: timestamps are stored at
     // second resolution, so a clock-keyed index would answer with the old text
     // here — and keep doing it until the TTL expired.
-    $solution = sharedSolution('tok-invalidate', "# Visão geral\n\nTexto antigo.");
+    $notebook = sharedNotebook('tok-invalidate', "# Visão geral\n\nTexto antigo.");
 
-    $this->getJson(route('public.docs.search', [$solution->public_token, 'q' => 'antigo']))
+    $this->getJson(route('public.docs.search', [$notebook->public_token, 'q' => 'antigo']))
         ->assertOk()->assertJson(['total' => 1]);
 
-    $solution->pages()->first()->update(['documentation' => "# Visão geral\n\nTexto novo."]);
+    $notebook->pages()->first()->update(['documentation' => "# Visão geral\n\nTexto novo."]);
 
-    $this->getJson(route('public.docs.search', [$solution->public_token, 'q' => 'antigo']))
+    $this->getJson(route('public.docs.search', [$notebook->public_token, 'q' => 'antigo']))
         ->assertOk()->assertJson(['total' => 0]);
 
-    $this->getJson(route('public.docs.search', [$solution->public_token, 'q' => 'novo']))
+    $this->getJson(route('public.docs.search', [$notebook->public_token, 'q' => 'novo']))
         ->assertOk()->assertJson(['total' => 1]);
 });
 
 it('tags a page that points at a diagram', function () {
-    $solution = sharedSolution('tok-diagram', "# Visão geral\n\nTexto.");
-    $page = $solution->pages()->first();
+    $notebook = sharedNotebook('tok-diagram', "# Visão geral\n\nTexto.");
+    $page = $notebook->pages()->first();
     $page->diagram()->associate(Diagram::factory()->create());
     $page->save();
 
-    $entries = app(DocumentationSearchService::class)->index($solution);
+    $entries = app(DocumentationSearchService::class)->index($notebook);
 
     expect($entries[0]['tags'])->toContain('diagram');
 });
 
 it('escapes page text instead of letting it reach the palette as markup', function () {
-    $solution = sharedSolution('tok-escape', "# Visão geral\n\nUm <script>alert(1)</script> no meio do texto.");
+    $notebook = sharedNotebook('tok-escape', "# Visão geral\n\nUm <script>alert(1)</script> no meio do texto.");
 
-    $html = searchHtml($solution->public_token, ['q' => 'meio']);
+    $html = searchHtml($notebook->public_token, ['q' => 'meio']);
 
     expect($html)->not->toContain('<script>')
         ->and($html)->toContain('&lt;script&gt;');

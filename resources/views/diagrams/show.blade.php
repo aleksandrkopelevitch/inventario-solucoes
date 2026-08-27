@@ -21,9 +21,7 @@
                      is nothing to edit here — only somewhere to go. --}}
                 @if ($diagram->pages->isNotEmpty())
                     @foreach ($diagram->pages as $page)
-                        <a href="{{ $page->container instanceof App\Models\Solution
-                            ? route('solutions.docs.page.edit', [$page->container, $page])
-                            : route('documentation.groups.pages.edit', [$page->container, $page]) }}"
+                        <a href="{{ route('notebooks.pages.edit', [$page->notebook, $page]) }}"
                             class="inline-flex max-w-52 items-center gap-1.5 rounded-field border border-line bg-surface px-2.5 py-1.5 text-xs font-medium text-ink no-underline transition-colors hover:border-accent-line hover:bg-accent-soft/40">
                             <x-heroicon-o-document-text class="size-3.5 shrink-0 text-faint" />
                             <span class="truncate">{{ $page->title }}</span>

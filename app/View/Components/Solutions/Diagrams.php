@@ -79,10 +79,13 @@ class Diagrams extends Component
 
         $participating = $this->solution->diagrams()->get($columns);
 
+        // Drawings explained by a page in any caderno linked to this solution.
+        // The reach is one relation longer than it used to be, and that is the
+        // point: a diagram documented in a shared caderno now shows up on every
+        // solution that caderno describes, instead of only on the one that
+        // happened to own the page.
         $documented = Diagram::query()
-            ->whereHas('pages', fn ($query) => $query
-                ->where('container_type', $this->solution->getMorphClass())
-                ->where('container_id', $this->solution->id))
+            ->whereHas('pages.notebook.solutions', fn ($query) => $query->whereKey($this->solution->id))
             ->get($columns);
 
         return $participating

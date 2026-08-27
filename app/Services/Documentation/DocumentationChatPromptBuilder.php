@@ -4,6 +4,7 @@ namespace App\Services\Documentation;
 
 use App\Contracts\Documentable;
 use App\Models\DocumentationChatMessage;
+use App\Models\Notebook;
 use App\Models\Solution;
 use Illuminate\Support\Collection;
 
@@ -91,7 +92,7 @@ class DocumentationChatPromptBuilder
      */
     public function userPrompt(
         Documentable $target,
-        Solution $solution,
+        Notebook $notebook,
         ?string $existing,
         Collection $history,
         string $message,
@@ -100,8 +101,18 @@ class DocumentationChatPromptBuilder
     ): string {
         $parts = [];
 
-        $parts[] = "Solução: {$solution->name}"
-            . ($solution->description ? "\nDescrição da solução: {$solution->description}" : '');
+        // The caderno, then the systems it documents — zero, one or several.
+        // Naming them all is what lets the model write about an integration
+        // between two of them without being told twice.
+        $parts[] = "Caderno: {$notebook->name}";
+
+        if ($notebook->solutions->isNotEmpty()) {
+            $parts[] = "SOLUÇÕES DOCUMENTADAS POR ESTE CADERNO:\n\n" . $notebook->solutions
+                ->map(fn (Solution $solution) => "- {$solution->name}"
+                    . ($solution->description ? ": {$solution->description}" : ''))
+                ->implode("\n");
+        }
+
         $parts[] = "Página/documento: {$target->documentationTitle()}";
 
         $existing = trim((string) $existing);

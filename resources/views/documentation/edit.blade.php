@@ -51,7 +51,7 @@
                 </div>
                 <x-documentation.pages-nav :pages="$pagesNav"
                                            :create-page-url="$createPageUrl"
-                                           :title="$containerLabel" :title-url="$containerUrl" />
+                                           :title="$notebookLabel" :title-url="$notebookUrl" />
             </aside>
         @endisset
 
@@ -88,10 +88,10 @@
                            `docs-sidebar-closed-state` along with the rail. Both
                            of its classes are `display:none`, so the `hidden` it
                            toggles can't lose a specificity race below md. --}}
-                    <x-documentation.crumb :label="$containerLabel" :url="$containerUrl"
+                    <x-documentation.crumb :label="$notebookLabel" :url="$notebookUrl"
                                            class="{{ isset($pagesNav) ? 'max-sm:hidden md:hidden' : '' }}" />
                     @isset($pagesNav)
-                        <x-documentation.crumb :label="$containerLabel" :url="$containerUrl"
+                        <x-documentation.crumb :label="$notebookLabel" :url="$notebookUrl"
                                                id="docs-sidebar-closed-state" class="hidden max-md:hidden" />
                     @endisset
 

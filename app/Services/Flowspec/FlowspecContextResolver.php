@@ -79,16 +79,16 @@ class FlowspecContextResolver
             ->whereKey($pageIds)
             ->whereNotNull('documentation')
             ->where('documentation', '<>', '')
-            ->with('container')
+            ->with('notebook')
             ->get()
-            ->sortBy(fn (DocumentationPage $page) => [$page->container_id, $page->position])
+            ->sortBy(fn (DocumentationPage $page) => [$page->notebook_id, $page->position])
             ->values();
     }
 
     /**
      * Splits the material the user brought into text that gets inlined and
      * files the model reads natively (PDF/image) — the same partitioning
-     * App\Services\Documentation\ContextDocumentResolver does for a Solution's
+     * App\Services\Documentation\ContextDocumentResolver does for a caderno's
      * context documents.
      *
      * There is no character budget here, deliberately: the attach endpoints
@@ -199,15 +199,16 @@ class FlowspecContextResolver
         // Only the columns used in the labels — never the longText
         // `documentation` (it's only used in the WHERE), since this runs on
         // every conversational reply and on composer keystrokes.
+        // Through the caderno, not off the page: a page reaches a Solution via
+        // `notebook.solutions` now, and the same page legitimately answers for
+        // several of the mentioned systems at once.
         $pages = DocumentationPage::query()
-            ->where('container_type', Solution::class)
-            ->whereIn('container_id', $mentioned->modelKeys())
+            ->whereHas('notebook.solutions', fn ($q) => $q->whereKey($mentioned->modelKeys()))
             ->whereNotNull('documentation')
             ->where('documentation', '<>', '')
+            ->with('notebook:id,name')
             ->orderBy('position')
-            ->get(['id', 'container_id', 'title']);
-
-        $solutionsById = $mentioned->keyBy->getKey();
+            ->get(['id', 'notebook_id', 'title']);
 
         // collect($model->all()) before ->map(): mapping an empty
         // Eloquent\Collection doesn't downgrade it to a Support\Collection.
@@ -215,7 +216,7 @@ class FlowspecContextResolver
             ->map(fn (DocumentationPage $page) => [
                 'type'  => 'page',
                 'id'    => $page->id,
-                'label' => "{$solutionsById[$page->container_id]->name} — {$page->title}",
+                'label' => "{$page->notebook?->name} — {$page->title}",
             ])
             ->reject(fn (array $ref) => in_array($this->morphKey($ref), $attachedKeys, true))
             ->take((int) config('services.flowspec.max_suggested_documents'))

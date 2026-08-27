@@ -4,7 +4,7 @@
      Documentação tab instead of the persistent top bar — it has nothing to
      do with the Diagrama tab, which has its own Salvar (chain layout) inside
      the canvas itself. Inherits the parent view's scope as-is (canEdit,
-     renderedHtml, chatPanelUrl, saveUrl, coverageSolution, …). --}}
+     renderedHtml, chatPanelUrl, saveUrl, notebook, …). --}}
 @if ($canEdit || trim($renderedHtml) !== '')
     <x-forms.button type="button" variant="ghost" data-ak-docs-copy
         class="!h-9 !w-9 !p-0" aria-label="Copiar Markdown" title="Copiar Markdown">
@@ -37,18 +37,31 @@
     </x-forms.button>
 @endif
 
-{{-- Share (public link) — only on the Solution's own doc
-     ($coverageSolution only comes from SolutionDocumentationController)
-     and only for whoever can edit it. --}}
-@isset($coverageSolution)
-    @can('update', $coverageSolution)
+{{-- The two things that belong to the CADERNO rather than to this page: which
+     solutions it documents, and its public link. Both are dropdowns off the
+     toolbar because they are the same for every page of the tree — editing them
+     from whichever page you happen to be reading is the point. `$notebook` is
+     always set here (it comes from NotebookPageController); `@isset` guards the
+     diagram page, which renders this same cluster without one. --}}
+@isset($notebook)
+    @can('update', $notebook)
+        <div class="relative">
+            <x-forms.button type="button" variant="ghost" data-ak-toggle="docs-solutions-dropdown" data-ak-toggle-classes="hidden" data-ak-toggle-blur="true"
+                class="!h-9 !w-9 !p-0" aria-label="Soluções documentadas" title="Soluções documentadas">
+                <x-heroicon-o-squares-2x2 class="size-5" />
+            </x-forms.button>
+            <div id="docs-solutions-dropdown" class="hidden absolute right-0 top-full z-20 mt-1.5 w-96 rounded-field border border-line bg-surface p-4 shadow-xl">
+                <x-notebooks.linked-solutions :notebook="$notebook" />
+            </div>
+        </div>
+
         <div class="relative">
             <x-forms.button type="button" variant="ghost" data-ak-toggle="docs-share-dropdown" data-ak-toggle-classes="hidden" data-ak-toggle-blur="true"
-                class="!h-9 !w-9 !p-0" aria-label="Compartilhar documentação">
+                class="!h-9 !w-9 !p-0" aria-label="Compartilhar caderno" title="Compartilhar caderno">
                 <x-heroicon-o-share class="size-5" />
             </x-forms.button>
             <div id="docs-share-dropdown" class="hidden absolute right-0 top-full z-20 mt-1.5 w-80 rounded-field border border-line bg-surface p-4 shadow-xl">
-                <x-solutions.share-panel :solution="$coverageSolution" />
+                <x-notebooks.share-panel :notebook="$notebook" />
             </div>
         </div>
     @endcan

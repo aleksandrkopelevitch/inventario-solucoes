@@ -17,7 +17,7 @@ use Illuminate\View\Component;
  * at one, so what remains of it here is a marker on the rows that do.
  *
  * Purely presentational — the URLs already come ready-made from the controller
- * (`SolutionDocumentationController`/`DocumentationGroupPageController`), which
+ * (`NotebookPageController`), which
  * are the ones that know the route names for each context.
  *
  * Updatable slot: used after REORDERING or RENESTING a page (the only actions
@@ -35,7 +35,7 @@ class PagesNav extends Component
      * `depth` (0..MAX_DEPTH-1) — see the view for why the tree isn't rendered
      * recursively.
      *
-     * @param  array<int, array{id: int, title: string, depth: int, hasChildren: bool, canNest: bool, canPromote: bool, canAddChild: bool, editUrl: string, renameUrl: string, destroyUrl: string, moveUrl: string, containerUrl: string, destinations: array<string, array<int, array{value: string, label: string}>>, active: bool, hasContent: bool, hasDiagram: bool}>  $pages
+     * @param  array<int, array{id: int, title: string, depth: int, hasChildren: bool, canNest: bool, canPromote: bool, canAddChild: bool, editUrl: string, renameUrl: string, destroyUrl: string, moveUrl: string, notebookUrl: string, destinations: array<string, array<int, array{value: string, label: string}>>, active: bool, hasContent: bool, hasDiagram: bool}>  $pages
      */
     public function __construct(
         public array $pages,

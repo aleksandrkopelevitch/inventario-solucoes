@@ -2,8 +2,8 @@
 
 use App\Enums\UserRole;
 use App\Models\Diagram;
-use App\Models\DocumentationGroup;
 use App\Models\DocumentationPage;
+use App\Models\Notebook;
 use App\Models\Solution;
 use App\Models\User;
 use App\Services\DiagramCatalogService;
@@ -54,8 +54,8 @@ it('tells a diagram nobody documented from one that has a page', function () {
     $explained = drawnDiagram(['name' => 'Explicado']);
     drawnDiagram(['name' => 'Órfão']);
 
-    $solution = Solution::factory()->create(['name' => 'SVL']);
-    $page = DocumentationPage::factory()->for($solution, 'container')->create(['title' => 'Visão geral']);
+    $notebook = notebookFor(Solution::factory()->create(['name' => 'SVL']));
+    $page = DocumentationPage::factory()->for($notebook)->create(['title' => 'Visão geral']);
     $page->diagram()->associate($explained)->save();
 
     $content = $this->actingAs(diagramsAdmin())->get(route('diagrams.index'))->assertOk()->getContent();
@@ -63,7 +63,7 @@ it('tells a diagram nobody documented from one that has a page', function () {
     expect($content)
         // The page that explains it, named and linked.
         ->toContain('Visão geral')
-        ->toContain(route('solutions.docs.page.edit', [$solution, $page]))
+        ->toContain(route('notebooks.pages.edit', [$notebook, $page]))
         // …and the gap, said out loud rather than left as absence. This is the
         // thing the old model could not show at all: an integration's
         // documentation was a column on the integration itself, so an empty one
@@ -90,7 +90,7 @@ it('counts drawn and explained separately, because they go missing separately', 
     Diagram::factory()->create(['chain' => ['nodes' => [['solution_id' => null, 'label' => 'só a raiz']], 'edges' => []]]);
 
     $solution = Solution::factory()->create();
-    DocumentationPage::factory()->for($solution, 'container')->create()->diagram()->associate($drawn)->save();
+    DocumentationPage::factory()->for(notebookFor($solution))->create()->diagram()->associate($drawn)->save();
 
     $counters = app(DiagramCatalogService::class)->counters();
 
@@ -103,7 +103,7 @@ it('filters the index by name, status and whether a page points at it', function
     drawnDiagram(['name' => 'Beta', 'status' => 'deprecated']);
 
     $solution = Solution::factory()->create();
-    DocumentationPage::factory()->for($solution, 'container')->create()->diagram()->associate($documented)->save();
+    DocumentationPage::factory()->for(notebookFor($solution))->create()->diagram()->associate($documented)->save();
 
     $names = fn (array $filters) => app(DiagramCatalogService::class)->list($filters)->pluck('name')->all();
 
@@ -151,8 +151,8 @@ it('mounts the canvas on a diagram\'s own page, with its own endpoints in the pa
 
 it('names every page that explains a diagram on its own page, or says there are none', function () {
     $diagram = drawnDiagram();
-    $group = DocumentationGroup::factory()->create(['name' => 'Integrações Digibee']);
-    $page = DocumentationPage::factory()->for($group, 'container')->create(['title' => 'Fluxo de admissão']);
+    $group = Notebook::factory()->create(['name' => 'Integrações Digibee']);
+    $page = DocumentationPage::factory()->for($group)->create(['title' => 'Fluxo de admissão']);
 
     $this->actingAs(diagramsAdmin())
         ->get(route('diagrams.show', $diagram))
@@ -165,7 +165,7 @@ it('names every page that explains a diagram on its own page, or says there are 
         ->get(route('diagrams.show', $diagram))
         ->assertOk()
         ->assertSee('Fluxo de admissão')
-        ->assertSee(route('documentation.groups.pages.edit', [$group, $page]), false)
+        ->assertSee(route('notebooks.pages.edit', [$group, $page]), false)
         ->assertDontSee('Sem página vinculada');
 });
 

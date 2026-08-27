@@ -118,7 +118,7 @@ class DiagramController extends Controller
     {
         $this->authorize('view', $diagram);
 
-        $diagram->load(['pages.container']);
+        $diagram->load(['pages.notebook']);
 
         return view('diagrams.show', [
             'diagram' => $diagram,
