@@ -5,9 +5,13 @@ namespace App\Http\Controllers;
 use App\Contracts\Documentable;
 use App\Models\DocumentationPage;
 use App\Models\Solution;
+use App\Http\Requests\SearchPublicDocumentationRequest;
 use App\Services\DocumentationPageService;
+use App\Services\DocumentationSearchService;
 use App\Support\GitbookRenderer;
+use App\View\Components\Documentation\SearchResults;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Collection;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -57,6 +61,44 @@ class PublicDocumentationController extends Controller
         return $this->render($solution, $page);
     }
 
+    /**
+     * The command palette's backing endpoint (`docs-search.js`).
+     *
+     * Scoped to the token's own solution and nothing else: the service is
+     * handed THIS solution, so a visitor can never reach another solution's
+     * pages or a standalone group through it, however the query is shaped.
+     *
+     * The service deals in `slug` + `anchor` and knows no route — turning
+     * those into public URLs is this controller's job, which is what keeps the
+     * same index usable from an authenticated surface later.
+     */
+    public function search(SearchPublicDocumentationRequest $request, string $token, DocumentationSearchService $search): JsonResponse
+    {
+        $solution = $this->resolve($token);
+
+        $payload = $search->search(
+            $solution,
+            (string) ($request->validated('q') ?? ''),
+            (array) ($request->validated('filter') ?? []),
+        );
+
+        $payload['results'] = array_map(function (array $result) use ($token): array {
+            $result['url'] = route('public.docs.page', [$token, $result['slug']])
+                . ($result['anchor'] !== null ? '#' . $result['anchor'] : '');
+
+            return $result;
+        }, $payload['results']);
+
+        // One slot, not a JSON list the browser turns into HTML: the hits are
+        // page text somebody authored, and rendering them through Blade is
+        // what escapes it (see the SearchResults docblock). `total` rides
+        // along for tests and for anything that only wants the count.
+        return response()->json([
+            'total'          => $payload['total'],
+            'updatableSlots' => [SearchResults::slot($payload)],
+        ]);
+    }
+
     public function file(string $token, Media $media): BinaryFileResponse
     {
         $solution = $this->resolve($token);
@@ -99,6 +141,14 @@ class PublicDocumentationController extends Controller
             // not resolve for visitors accessing only via the public link).
             'markdown' => $this->rewriteFileUrls((string) $markdown, $token),
             'nav'      => $this->nav($solution, $current, $token),
+            // Endpoint behind the search panel above the documentation.
+            'searchUrl' => route('public.docs.search', $token),
+            // Its chips, rendered with the page — but ONLY when the corpus is
+            // already indexed. A cold index would put the whole build (six
+            // seconds, on the largest corpus measured) inside time-to-first-
+            // paint of a page nobody has searched yet; the panel ships a
+            // placeholder instead and docs-search.js fills it in.
+            'searchResults' => $this->warmSearchPanel($solution),
         ]);
     }
 
@@ -116,6 +166,21 @@ class PublicDocumentationController extends Controller
             fn (array $m) => $m[1] . '="' . route('public.docs.file', [$token, $m[2]]) . '"',
             $content,
         );
+    }
+
+    /**
+     * The search panel's slot HTML for an idle (unfiltered) panel, or null when
+     * building it would mean indexing the corpus during a page render.
+     */
+    private function warmSearchPanel(Solution $solution): ?string
+    {
+        $search = app(DocumentationSearchService::class);
+
+        if (! $search->isWarm($solution)) {
+            return null;
+        }
+
+        return SearchResults::slot($search->search($solution, ''))['content'];
     }
 
     /**

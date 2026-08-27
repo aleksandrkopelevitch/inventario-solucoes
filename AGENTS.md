@@ -247,6 +247,67 @@ row keeps a unique `$loop->index` for its hidden forms — and the indent steps
 are literal classes, because Tailwind only ships what it can see in the source
 (`ml-{{ $n }}` compiles to nothing).
 
+### Public documentation search — the corpus is an INDEX, not a query
+
+`/public-docs/{token}/search` backs the search panel on the magic-link
+documentation (`docs-search.js` + `x-documentation.search-panel`). It is the
+one place the documentation is treated as a queryable dataset rather than as
+pages.
+
+**The panel sits above the reading shell, in the page — it is deliberately not
+a ⌘K modal.** It was one for about an hour, and the FILTERS are why it stopped
+being one: the facets are the feature, and a facet nobody can see is a facet
+nobody uses. ⌘K survives as a shortcut TO the field. Two consequences worth
+keeping in mind before moving it back:
+
+- The idle panel renders its chips server-side, so the page render would
+  inherit the index build — which is why `DocumentationSearchService::isWarm()`
+  exists. A cold index makes the panel ship a placeholder and lets
+  `docs-search.js` fetch it, so a big corpus is indexed in the background on
+  the first visit instead of inside time-to-first-paint.
+- While a search is narrowing the corpus the three-pane reading shell
+  (`[data-ak-docs-shell]`) is hidden — the results ARE the page then. The
+  SERVER decides that, via `data-ak-docs-search-active` on the slot, and the
+  client only mirrors it; deciding it in both places is how the two drift into
+  a blank page on load.
+
+Four things about `App\Services\DocumentationSearchService` are easy to undo by
+accident:
+
+- **The unit of a result is the SECTION, not the page.** Every H1–H3 opens an
+  entry carrying that heading's own body; the page's own entry carries only the
+  "lead" — whatever sits BEFORE the first heading. Every character of the corpus
+  therefore belongs to exactly one entry, which is what stops a single passage
+  coming back twice, once as a page and once as a heading inside it. (One
+  deliberate merge: a page opening with an H1 that repeats its own title has no
+  lead of its own, and that H1 *is* the page — otherwise every GitBook-imported
+  page would produce two results pointing at the same place.)
+- **Anchors are read out of the RENDERED HTML, never re-derived.**
+  `GitbookRenderer` emits `<a class="heading-permalink" id="{slug}">`; the index
+  parses those ids back out with `DOMDocument`. Re-implementing commonmark's
+  slug normalizer drifts the moment two headings collide and it starts
+  suffixing `-1`, and a drifted anchor fails silently — right page, wrong place.
+- **Both cache layers hash CONTENT, deliberately not `updated_at`.** Timestamps
+  are stored at second resolution, so a search landing in the same second as an
+  edit would cache an index the edit can no longer invalidate — and with a
+  multi-day TTL that staleness outlives the day it started in. The per-page key
+  hashes the page's own fields; the per-container key hashes the sequence of
+  page keys in tree order (so a MOVE invalidates too — it changes the
+  breadcrumb of everything under it). Nothing has to remember to flush anything.
+  Bump `VERSION` when the entry shape changes, or old parses survive the deploy.
+- **The client receives highlight RANGES, never markup.** Results carry
+  `{text, match}` segments and are rendered server-side into one updatable slot
+  (`SearchResults::DOM_ID`), so a page's own text is escaped by Blade on the way
+  out and there is no path from authored content to `innerHTML`. The query input
+  lives OUTSIDE that slot — swapping it per keystroke would drop the caret.
+
+Cost, measured 2026-08-26 on the largest corpus in the dev DB (132 pages /
+2 MB / 111k words): ~6 s to build cold, ~50–65 ms per warm search. The cold
+cost is paid once per page CONTENT, not per index rebuild, so editing one page
+of a large corpus re-renders that page alone. The index is fetched on the
+palette's first open, never on page render, so a visitor who does not search
+never pays for it.
+
 ## Eloquent
 
 - Always define return types on relationships:
@@ -625,6 +686,37 @@ invocation, dumped in the middle of the PHP it was sitting in:
 
 Hit on 2026-08-14 while building `x-ui.inline-edit`. Refer to components in
 comments as `x-ui.thing` (or by view path), never `<x-ui.thing>`.
+
+### Two directives written adjacently — `@endif@endforeach` — do not compile
+
+Blade matches a directive with `\B@`, so an `@` preceded by a **word
+character** is not seen as one. Write the closing directives of a nested
+loop-plus-conditional back to back — which is exactly what you must do when the
+output may contain no whitespace between the pieces (highlighted search
+segments, inline badges) — and the second one is never compiled: it lands in
+the rendered PHP verbatim, the loop is never closed, and the view dies with
+`syntax error, unexpected end of file` naming a file with nothing visibly wrong
+in it.
+
+```blade
+{{-- ❌ `@endforeach` reaches the output as literal text --}}
+@foreach ($segments as $s)@if ($s['match'])<mark>{{ $s['text'] }}</mark>@else{{ $s['text'] }}@endif@endforeach
+```
+
+There is no separator that fixes it: anything that renders (a space, a newline)
+puts real whitespace inside the sentence, and a Blade **comment** between them
+does not work either — comments are stripped BEFORE statements are compiled, so
+the two directives are adjacent again by the time it matters. (Note the
+ordering, because it is the opposite of the component-tag rule below:
+`ComponentTagCompiler` runs BEFORE comments are stripped, which is why a
+`<x-...>` tag inside a comment DOES compile. Statements run after. Neither
+pass knows what a comment is, they just disagree about when.)
+
+**Build the string in PHP instead** — a View Component with `e()` per piece,
+echoed through a one-line view. `App\View\Components\Documentation\SearchHighlight`
+is the reference implementation (and `x-ui.highlight` is the older, single-term
+version of the same idea). Hit on 2026-08-26 building the documentation search
+palette.
 
 ### Never use `@json()` for a `data-ak-*` (or any) HTML attribute value
 

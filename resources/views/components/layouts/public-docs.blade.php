@@ -2,6 +2,8 @@
     'title' => null,
     'heading' => '',
     'nav' => null,
+    'searchUrl' => null,
+    'searchResults' => null,
 ])
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -28,12 +30,22 @@
             <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-accent">Documentação</p>
             <p class="truncate font-display text-base font-semibold leading-tight text-ink">{{ $heading }}</p>
         </div>
+
     </header>
+
+    {{-- Search + filters over the whole shared corpus, deliberately ABOVE the
+         reading shell and never behind a shortcut: the facets are the point,
+         and a facet nobody can see is a facet nobody uses. --}}
+    @if ($searchUrl)
+        <x-documentation.search-panel :url="$searchUrl" :results="$searchResults" />
+    @endif
 
     {{-- Three-pane docs shell (GitBook/Substack/Medium): pages rail pinned to
          the left, a centered reading column, and an "on this page" headings
-         navigator on the right. Full-bleed so the pages rail sits flush left. --}}
-    <div class="flex w-full items-start gap-6 px-4 md:gap-8 md:px-6 lg:px-8">
+         navigator on the right. Full-bleed so the pages rail sits flush left.
+         Hidden by docs-search.js while a search is narrowing the corpus — the
+         results are the page then. --}}
+    <div data-ak-docs-shell class="flex w-full items-start gap-6 px-4 md:gap-8 md:px-6 lg:px-8">
 
         {{-- Pages index: all documentation pages for this solution --}}
         @if ($nav)
