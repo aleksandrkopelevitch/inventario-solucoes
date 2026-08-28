@@ -1,12 +1,24 @@
 @servers(['web' => 'akop'])
 
 {{--
-    Adapted from akop.pro's Envoy.blade.php for this repo (leomadeiras/inventario-solucoes):
+    THE deploy path for this project (`envoy run deploy`). The live app is a
+    DigitalOcean VM, reached through the `akop` alias in ~/.ssh/config.
+
+    A parallel `deploy.sh` used to sit beside this file and was deleted on
+    2026-08-28 as an older version of the same thing — it deployed to
+    /var/www/isol rather than the real /var/www/isol/public_html, so the two
+    disagreed about where the app even lives. Two things it carried are now
+    here: `storage:link --force` (with its reasoning, below) and the note that
+    it named the supervisor program `laravel-worker`, NOT the `isol:` group the
+    'supervisor' task below assumes.
+
+    Notes inherited from akop.pro's version of this file:
     - No dedicated migration DB connection exists in config/database.php here
       (unlike akop.pro's 'pgsql_migrations'), so `migrate` runs against the
       default connection.
     - The 'supervisor' task assumes deploy/supervisor/isol-queue.conf, which
-      does not exist in this repo yet — create it before running that task.
+      does not exist in this repo yet — create it before running that task,
+      and settle the program-name disagreement above while you are there.
 --}}
 
 @setup
@@ -55,6 +67,45 @@
 
     echo "==> Running migrations"
     php artisan migrate --force
+
+    {{--
+        ONLY the flowSpec example corpus, and deliberately not `db:seed`.
+
+        That corpus is derived data: database/data/digibee_flowspec_examples/
+        plus its manifest are the truth, FlowspecExampleSeeder upserts them by
+        slug, and no in-app editor touches a manifest-seeded example — so the
+        git tree and the table can only agree if this runs every deploy. It is
+        also where drift bites hardest: a connector in the catalog whose
+        example is missing tells the model the name is legal while leaving it
+        free to invent params, which then pass validation.
+
+        `--force` is required, not stylistic — SeedCommand calls
+        confirmToProceed(), which aborts in production, and there is no TTY
+        here to answer it.
+
+        Do NOT widen this to `php artisan db:seed --force`, and do NOT add the
+        other three seeders:
+          - DatabaseSeeder creates admin@leomadeiras.com.br with the literal
+            password `password` (the model's `hashed` cast makes it a working
+            login).
+          - SolutionSeeder/DiagramSeeder/AttributeOptionSeeder were the INITIAL
+            import from inventory_seed.json. The app owns those records now —
+            upsertSolution() overwrites 11 columns by slug, including every
+            field behind the solution header's inline-edit badges — so
+            re-running them reverts real edits on every deploy.
+    --}}
+    echo "==> Re-seeding the flowSpec example corpus"
+    php artisan db:seed --force --class=FlowspecExampleSeeder
+
+    {{--
+        --force recreates the symlink instead of printing a misleading
+        "ERROR ... already exists" on every deploy. It only removes the path
+        when it is already a symlink, so a real public/storage directory is
+        never touched. Solution and company logos are plain files on the public
+        disk (logo_path, not MediaLibrary), so without this link they 404.
+    --}}
+    echo "==> Linking public storage"
+    php artisan storage:link --force
 
     echo "==> Clearing and rebuilding caches"
     php artisan config:cache
