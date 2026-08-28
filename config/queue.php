@@ -40,7 +40,8 @@ return [
             'connection' => env('DB_QUEUE_CONNECTION'),
             'table'      => env('DB_QUEUE_TABLE', 'jobs'),
             'queue'      => env('DB_QUEUE', 'default'),
-            // > que o maior $timeout de job (GenerateFlowspecReply: 600s) — ver AGENTS.md.
+            // Greater than the longest job $timeout (600s: GenerateFlowspecReply,
+            // CondenseSubmissionForSlides) — see AGENTS.md § Queue & Jobs.
             'retry_after'  => (int) env('DB_QUEUE_RETRY_AFTER', 900),
             'after_commit' => false,
         ],
@@ -66,10 +67,16 @@ return [
         ],
 
         'redis' => [
-            'driver'       => 'redis',
-            'connection'   => env('REDIS_QUEUE_CONNECTION', 'default'),
-            'queue'        => env('REDIS_QUEUE', 'default'),
-            'retry_after'  => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
+            'driver'     => 'redis',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'queue'      => env('REDIS_QUEUE', 'default'),
+            // Same 900 as the database connection above, and for the same
+            // reason: Laravel's stock 90 is below the longest job $timeout
+            // (600s), so redis would hand a still-running job back out after
+            // 90s. The duplicate then hits WithoutOverlapping, gets released
+            // every 30s, and burns ~20 of the job's 25 $tries while the
+            // original is still working — a job that failed without erroring.
+            'retry_after'  => (int) env('REDIS_QUEUE_RETRY_AFTER', 900),
             'block_for'    => null,
             'after_commit' => false,
         ],
