@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Http\Controllers\NotebookController;
 use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
@@ -39,6 +40,20 @@ it('lets an admin generate a public documentation link', function () {
 
     expect($notebook->fresh()->public_token)->not->toBeNull()
         ->and($response->json('updatableSlots.0.id'))->toBe('docs-share-slot');
+});
+
+// The token is the ONLY authorization on public-docs/{token} (no auth
+// middleware, no throttle), so its length is a security property rather than a
+// style choice. Pinned at a floor, not at NotebookController::TOKEN_LENGTH
+// itself, so making links longer stays free and making them guessable does not.
+it('generates a public link token long enough to be unguessable', function () {
+    $notebook = Notebook::factory()->create(['public_token' => null]);
+
+    $this->actingAs(shareAdmin())->postJson(route('notebooks.share', $notebook))->assertOk();
+
+    expect(NotebookController::TOKEN_LENGTH)->toBeGreaterThanOrEqual(12)
+        ->and($notebook->fresh()->public_token)
+        ->toMatch('/^[A-Za-z0-9]{12,}$/');
 });
 
 it('keeps the same token when sharing is generated twice', function () {
