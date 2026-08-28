@@ -181,6 +181,50 @@ it('rejects a choice pointing to a branch that does not exist', function () {
     expect(implode(' ', $errors))->toContain('target')->toContain('otherwise');
 });
 
+// A choice condition routes by EITHER a JSONPath or a Simple expression. Both
+// are real: 18 of the 612 conditions across the 182 deployed Leo Madeiras
+// pipelines use `simple`, and demanding `jsonPath` flagged every one of them as
+// malformed — sending the generator off to "correct" a choice that was right.
+it('accepts a choice condition routing by a simple expression', function () {
+    $document = validFlowspecDocument();
+    $rootKey = array_key_first($document['flowSpec']);
+    $choiceId = (string) Str::uuid();
+
+    $document['flowSpec'][$rootKey][] = [
+        'id'        => $choiceId,
+        'type'      => 'choice',
+        'name'      => '',
+        'stepName'  => 'Choice Retorno Funcional',
+        'when'      => [['target' => 'sucesso', 'simple' => "#{body.RETURNING.STATUS} != '200'"]],
+        'otherwise' => 'sucesso',
+    ];
+    $document['meta'][$choiceId] = ['position' => ['x' => 400, 'y' => 0]];
+    $document['flowSpec']['sucesso'] = [];
+
+    expect(flowspecValidator()->validate($document)->passes())->toBeTrue();
+});
+
+it('rejects a choice condition carrying neither jsonPath nor simple', function () {
+    $document = validFlowspecDocument();
+    $rootKey = array_key_first($document['flowSpec']);
+    $choiceId = (string) Str::uuid();
+
+    $document['flowSpec'][$rootKey][] = [
+        'id'        => $choiceId,
+        'type'      => 'choice',
+        'name'      => '',
+        'stepName'  => 'Choice sem condicao',
+        'when'      => [['target' => 'sucesso']],
+        'otherwise' => 'sucesso',
+    ];
+    $document['meta'][$choiceId] = ['position' => ['x' => 400, 'y' => 0]];
+    $document['flowSpec']['sucesso'] = [];
+
+    expect(implode(' ', flowspecValidator()->validate($document)->errors))
+        ->toContain('jsonPath')
+        ->toContain('simple');
+});
+
 it('rejects a raw alias reference without the step. prefix', function () {
     $document = validFlowspecDocument();
     $rootKey = array_key_first($document['flowSpec']);

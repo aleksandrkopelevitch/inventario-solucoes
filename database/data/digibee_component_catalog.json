@@ -44,6 +44,7 @@
     "json-transformer-connector",
     "sftp-connector",
     "digibee-storage-connector",
+    "google-storage-connector",
     "jwt-connector",
     "google-bigquery-sql-connector",
     "wget-connector",

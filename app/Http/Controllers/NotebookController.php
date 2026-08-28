@@ -40,6 +40,9 @@ class NotebookController extends Controller
      */
     private const RESERVED_SLUGS = ['panel'];
 
+    /** Characters in a freshly generated public link token — see share(). */
+    public const TOKEN_LENGTH = 12;
+
     public function __construct(private readonly DocumentationPageService $pages) {}
 
     /** Catalog of cadernos. Same action serves HTML and the filtered JSON slot. */
@@ -189,13 +192,23 @@ class NotebookController extends Controller
         ]);
     }
 
-    /** Generates (if it doesn't exist yet) the public link token and returns the panel. */
+    /**
+     * Generates (if it doesn't exist yet) the public link token and returns the panel.
+     *
+     * `TOKEN_LENGTH` is load-bearing, not cosmetic: the token IS the entire
+     * authorization on `public-docs/{token}` — those routes carry no auth
+     * middleware and no `throttle`, so guessing one is the whole attack. 12
+     * alphanumeric characters is ~71 bits, which needs neither a rate limit nor
+     * a retry loop for the unique index. Anything short enough to read out loud
+     * (a GitBook-style 4 characters is ~24 bits, findable in minutes) needs both
+     * and is still guessable — shorten this only together with them.
+     */
     public function share(Notebook $notebook): JsonResponse
     {
         $this->authorize('update', $notebook);
 
         if (! $notebook->public_token) {
-            $notebook->update(['public_token' => Str::random(40)]);
+            $notebook->update(['public_token' => Str::random(self::TOKEN_LENGTH)]);
         }
 
         return response()->json([

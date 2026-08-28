@@ -1,0 +1,128 @@
+{
+  "meta": {
+    "9c000000-0000-4000-9000-000000000001": {
+      "position": {
+        "x": 200,
+        "y": 0
+      }
+    },
+    "9c000000-0000-4000-9000-000000000002": {
+      "position": {
+        "x": 400,
+        "y": 0
+      }
+    },
+    "9c000000-0000-4000-9000-000000000003": {
+      "position": {
+        "x": 650,
+        "y": 0
+      }
+    },
+    "9c000000-0000-4000-9000-000000000004": {
+      "position": {
+        "x": 850,
+        "y": 0
+      }
+    },
+    "9c000000-0000-4000-9000-000000000005": {
+      "position": {
+        "x": 650,
+        "y": 150
+      }
+    },
+    "9c000000-0000-4000-9000-000000000006": {
+      "position": {
+        "x": 850,
+        "y": 150
+      }
+    }
+  },
+  "flowSpec": {
+    "disconnected-root:9c000000-1111-4111-9111-111111111111": [
+      {
+        "id": "9c000000-0000-4000-9000-000000000001",
+        "type": "connector",
+        "name": "google-storage-connector",
+        "stepName": "Upload do arquivo no Google Cloud Storage",
+        "doubleBracesAlias": "google-storage-1",
+        "accountLabel": "conta-service-account-gcs",
+        "params": {
+          "operation": "upload",
+          "projectId": "{{ global.gcp-project-id }}",
+          "bucketName": "{{ global.gcp-bucket-arquivos }}",
+          "fileName": "{{ message.fileName }}",
+          "remoteFileName": "{{ message.fileName }}",
+          "remoteDirectory": "documentos",
+          "pageSize": "",
+          "pageToken": "",
+          "showFileLink": true,
+          "expirationMillis": "900000",
+          "failOnError": false
+        }
+      },
+      {
+        "id": "9c000000-0000-4000-9000-000000000002",
+        "type": "choice",
+        "name": "",
+        "stepName": "Choice Upload",
+        "when": [
+          {
+            "target": "erro-upload",
+            "jsonPath": "$.error"
+          },
+          {
+            "target": "erro-upload",
+            "simple": "#{success} == false"
+          }
+        ],
+        "otherwise": "sucesso-upload"
+      }
+    ],
+    "sucesso-upload": [
+      {
+        "id": "9c000000-0000-4000-9000-000000000003",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Upload concluido",
+        "params": {
+          "logLevel": "INFO",
+          "message": "Upload concluido no GCS - objeto {{ message.fileName }}"
+        }
+      },
+      {
+        "id": "9c000000-0000-4000-9000-000000000004",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "Response com link assinado",
+        "doubleBracesAlias": "json-sucesso-upload-1",
+        "params": {
+          "json": "{\"sucesso\": true, \"url\": {{ step.google-storage-1.urlGenerated }}, \"validadeMinutos\": 15}",
+          "failOnError": false
+        }
+      }
+    ],
+    "erro-upload": [
+      {
+        "id": "9c000000-0000-4000-9000-000000000005",
+        "type": "connector",
+        "name": "log-connector",
+        "stepName": "Erro no upload GCS",
+        "params": {
+          "logLevel": "ERROR",
+          "message": "Erro no upload GCS - {{ message.$ }}"
+        }
+      },
+      {
+        "id": "9c000000-0000-4000-9000-000000000006",
+        "type": "connector",
+        "name": "json-generator-connector",
+        "stepName": "Response erro upload",
+        "doubleBracesAlias": "json-erro-upload-1",
+        "params": {
+          "json": "{\"sucesso\": false, \"mensagem\": \"Nao foi possivel disponibilizar o link do arquivo.\"}",
+          "failOnError": false
+        }
+      }
+    ]
+  }
+}
