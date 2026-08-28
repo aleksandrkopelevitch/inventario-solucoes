@@ -41,6 +41,58 @@ it('seeds no example containing a literal credential', function () {
     });
 });
 
+/*
+|--------------------------------------------------------------------------
+| Retiring examples that leave the manifest
+|--------------------------------------------------------------------------
+|
+| `updateOrCreate` only ever adds and updates, so before `seeded_at` existed a
+| deleted manifest entry survived in every environment it had been seeded into
+| — active, and eligible for selection into a prompt. Ownership is tracked by
+| `seeded_at` rather than by `source`, because `source` cannot answer the
+| question: manifest entries carry `source: 'chat'` and the app's own
+| SaveFlowspecExample writes `source: 'manual'`.
+|
+*/
+
+it('deactivates a seeded example that left the manifest', function () {
+    $orphan = FlowspecExample::factory()->create(['slug' => 'saiu-do-manifesto']);
+    $orphan->forceFill(['seeded_at' => now()])->save();
+
+    $this->seed(FlowspecExampleSeeder::class);
+
+    expect($orphan->fresh()->is_active)->toBeFalse();
+});
+
+it('leaves an example created in the app alone, manifest or not', function () {
+    // No `seeded_at` — this is what SaveFlowspecExample produces, and its slug
+    // is deliberately absent from the manifest.
+    $curated = FlowspecExample::factory()->create([
+        'slug'   => 'promovido-de-uma-conversa',
+        'source' => 'manual',
+    ]);
+
+    $this->seed(FlowspecExampleSeeder::class);
+
+    expect($curated->fresh()->is_active)->toBeTrue()
+        ->and($curated->fresh()->seeded_at)->toBeNull();
+});
+
+it('revives an example whose slug returns to the manifest', function () {
+    $returning = FlowspecExample::factory()->inactive()->create(['slug' => 'digibee-storage-upload']);
+    $returning->forceFill(['seeded_at' => now()])->save();
+
+    $this->seed(FlowspecExampleSeeder::class);
+
+    expect($returning->fresh()->is_active)->toBeTrue();
+});
+
+it('stamps every manifest example as seeder-owned', function () {
+    $this->seed(FlowspecExampleSeeder::class);
+
+    expect(FlowspecExample::whereNull('seeded_at')->count())->toBe(0);
+});
+
 it('is idempotent — reseeding does not duplicate examples', function () {
     $this->seed(FlowspecExampleSeeder::class);
     $count = FlowspecExample::count();

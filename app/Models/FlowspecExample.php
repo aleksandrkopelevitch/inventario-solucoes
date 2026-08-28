@@ -36,6 +36,7 @@ class FlowspecExample extends Model
             'flow_spec'  => 'array',
             'connectors' => 'array',
             'is_active'  => 'boolean',
+            'seeded_at'  => 'datetime',
         ];
     }
 
