@@ -17,6 +17,12 @@ use RuntimeException;
  * carries name/description/tags — the corpus grows by adding a file + manifest
  * entry, without touching code. `connectors` is derived from the flowSpec, and
  * CredentialScrubber blocks any example with a literal secret.
+ *
+ * It also SHRINKS by removing one: an example this seeder owns (`seeded_at`)
+ * whose slug the manifest no longer names is deactivated — see
+ * deactivateExamplesDroppedFromManifest(). Runs on every deploy
+ * (Envoy.blade.php's `artisan` task), so the table follows the git tree in
+ * both directions.
  */
 class FlowspecExampleSeeder extends Seeder
 {
@@ -55,7 +61,7 @@ class FlowspecExampleSeeder extends Seeder
                 "Literal credential in {$entry['file']}: " . implode(' | ', $violations),
             ));
 
-            FlowspecExample::updateOrCreate(
+            $example = FlowspecExample::updateOrCreate(
                 ['slug' => $entry['slug']],
                 [
                     'name'        => $entry['name'],
@@ -67,6 +73,43 @@ class FlowspecExampleSeeder extends Seeder
                     'is_active'   => true,
                 ],
             );
+
+            // force-filled because `seeded_at` is deliberately not fillable —
+            // it is this seeder's claim of ownership, not anybody's input.
+            $example->forceFill(['seeded_at' => now()])->save();
+        }
+
+        $this->deactivateExamplesDroppedFromManifest(array_column($manifest, 'slug'));
+    }
+
+    /**
+     * Retires the examples this seeder used to own and no longer does.
+     *
+     * `updateOrCreate` alone only ever adds and updates, so an example deleted
+     * from the manifest survived in every environment it had ever been seeded
+     * into — still `is_active`, still eligible for selection into a prompt.
+     * That mattered more once the deploy started seeding on every run: nothing
+     * would ever contradict the stale row again.
+     *
+     * Scoped by `seeded_at`, so only rows this seeder created are ever touched;
+     * an example an admin wrote in the app has no marker and is left alone even
+     * though its slug is not in the manifest either. Deactivated rather than
+     * deleted — a curated flowSpec is worth keeping, and returning a slug to
+     * the manifest revives it, since the upsert above always writes
+     * `is_active => true`.
+     *
+     * @param  list<string>  $manifestSlugs
+     */
+    private function deactivateExamplesDroppedFromManifest(array $manifestSlugs): void
+    {
+        $retired = FlowspecExample::query()
+            ->whereNotNull('seeded_at')
+            ->whereNotIn('slug', $manifestSlugs)
+            ->where('is_active', true)
+            ->update(['is_active' => false]);
+
+        if ($retired > 0) {
+            $this->command?->warn("Deactivated {$retired} example(s) no longer in the manifest.");
         }
     }
 }
