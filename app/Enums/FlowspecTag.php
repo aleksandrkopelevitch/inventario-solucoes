@@ -35,6 +35,7 @@ enum FlowspecTag: string
     case Sftp = 'sftp';
     case Script = 'script';
     case FileStorage = 'file-storage';
+    case GoogleStorage = 'google-storage';
     case DigibeeJwt = 'digibee-jwt';
     case Bigquery = 'bigquery';
 
@@ -72,8 +73,18 @@ enum FlowspecTag: string
             self::Sftp              => ['sftp', 'ftp', 'arquivo remoto', 'transferencia de arquivo'],
             self::Script            => ['script', 'javascript', 'codigo customizado', 'js'],
             self::FileStorage       => ['storage', 'armazenar arquivo', 'upload de arquivo', 'digibee storage'],
-            self::DigibeeJwt        => ['gerar jwt', 'assinar jwt', 'proteger rest trigger', 'autenticar pipeline'],
-            self::Bigquery          => ['bigquery', 'big query', 'google cloud', 'gcp'],
+            // Narrower than FileStorage on purpose, and the GCS example carries
+            // BOTH: `storage` alone leaves it tied with digibee-storage-upload
+            // (identical tags), so a GCS-specific word is what ranks it first.
+            // `gcs` and `bucket` previously matched no tag at all, so "grava no
+            // bucket GCS" derived zero tags and fell through to the generic
+            // fallback example — with the Google Storage example absent from the
+            // prompt entirely. Note `gcp`/`google cloud` belong to Bigquery and
+            // are deliberately left there, so a BigQuery request does not drag
+            // storage examples in.
+            self::GoogleStorage => ['gcs', 'bucket', 'google storage', 'cloud storage'],
+            self::DigibeeJwt    => ['gerar jwt', 'assinar jwt', 'proteger rest trigger', 'autenticar pipeline'],
+            self::Bigquery      => ['bigquery', 'big query', 'google cloud', 'gcp'],
         };
     }
 

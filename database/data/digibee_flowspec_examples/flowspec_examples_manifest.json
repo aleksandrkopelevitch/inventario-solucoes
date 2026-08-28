@@ -224,6 +224,7 @@
     "description": "Envia um arquivo para um bucket do Google Cloud Storage (google-storage-connector, operation upload) — a conta de servico entra por accountLabel no step, projectId/bucketName por global, e showFileLink com expirationMillis devolve um link assinado temporario. Roteia por choice combinando as duas formas de condicao: jsonPath $.error para falha tecnica e a expressao simple #{success} == false para falha do proprio upload; o sucesso le a URL via {{ step.google-storage-1.urlGenerated }}. Use este connector para bucket GCS; para o storage interno da Digibee use digibee-storage-connector.",
     "tags": [
       "file-storage",
+      "google-storage",
       "choice"
     ]
   },
