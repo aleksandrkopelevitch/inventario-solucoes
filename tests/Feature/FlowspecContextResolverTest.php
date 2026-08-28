@@ -36,6 +36,40 @@ it('selects the AD example for an ldap unlock request', function () {
     expect($context->examples->pluck('slug')->all())->toContain('ad-unlock-ldap');
 });
 
+// `gcs` and `bucket` matched no tag at all before the google-storage tag
+// existed, so the most natural way to ask for this derived ZERO tags and fell
+// through to the generic fallback — with the Google Storage example absent from
+// the prompt, which is precisely when the model substitutes
+// digibee-storage-connector and explains it as a platform rule.
+it('selects the Google Storage example for a GCS request that never says "storage"', function () {
+    $this->seed(FlowspecExampleSeeder::class);
+
+    $context = (new FlowspecContextResolver)->resolve(
+        FlowspecChat::factory()->create(),
+        'gere um pipeline que grava o PDF no bucket GCS'
+    );
+
+    expect($context->examples->pluck('slug')->all())->toContain('google-storage-upload')
+        ->and($context->examples->pluck('slug')->all())->not->toContain(config('services.flowspec.fallback_example'));
+});
+
+// The two storage examples carry identical tags apart from this one, so without
+// a GCS-specific tag they tie and the ranking is left to sort stability.
+it('ranks the Google Storage example above the Digibee Storage one for a GCS request', function () {
+    $this->seed(FlowspecExampleSeeder::class);
+
+    $context = (new FlowspecContextResolver)->resolve(
+        FlowspecChat::factory()->create(),
+        'faz upload de arquivo para o google cloud storage'
+    );
+
+    $slugs = $context->examples->pluck('slug')->all();
+
+    expect($slugs)->toContain('google-storage-upload')
+        ->and(array_search('google-storage-upload', $slugs, true))
+        ->toBeLessThan(array_search('digibee-storage-upload', $slugs, true) ?: PHP_INT_MAX);
+});
+
 it('falls back to the generic anchor when no tag matches', function () {
     $this->seed(FlowspecExampleSeeder::class);
 
