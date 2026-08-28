@@ -44,7 +44,7 @@ class FlowspecPromptBuilder
 
         1. `flowSpec` é um mapa branch -> lista ordenada de steps. A branch de entrada chama-se exatamente `disconnected-root:<uuid v4>` e deve ser única.
         2. Todo step tem `id` UUID v4 NOVO (gere UUIDs novos, nunca copie dos exemplos) e todo `id` fora de tracks de for-each tem entrada em `meta` com `position: {x, y}` numéricos (colunas de ~200px, linhas de ~150px por branch).
-        3. Steps `choice` roteiam por `when: [{target, jsonPath}]` e `otherwise`; `target`/`otherwise` referenciam NOMES de branch que PRECISAM existir como chave do `flowSpec`. Para status HTTP use faixa: `$.[?(@.status >= 200 && @.status <= 299)]`.
+        3. Steps `choice` roteiam por `when` e `otherwise`; cada condição tem `target` mais UM de `jsonPath` (`{target, jsonPath}`) OU `simple`, uma expressão Simple (`{target, simple}`, ex.: `#{body.RETURNING.STATUS} != '200'`) — use `jsonPath` por padrão e `simple` quando a condição comparar valores. `target`/`otherwise` referenciam NOMES de branch que PRECISAM existir como chave do `flowSpec`. Para status HTTP use faixa: `$.[?(@.status >= 200 && @.status <= 299)]`.
         4. `for-each-connector` aponta `params.onProcess`/`params.onException` para branches `<id-do-step>-onProcessTrack`/`<id-do-step>-onExceptionTrack`, que também precisam existir como chave do `flowSpec`. Steps dentro desses tracks NÃO entram no `meta`.
         5. Referência ao resultado de um step anterior usa SEMPRE o prefixo `step.`: `{{ step.<doubleBracesAlias>.campo }}`. NUNCA `{{ <alias>.campo }}` cru — isso quebra o pipeline com `mismatched input`.
         6. Escopos Double Braces válidos: message, global, account, step, metadata, trigger, session. Funções como UUID(), NOW(), CONCAT() são permitidas.

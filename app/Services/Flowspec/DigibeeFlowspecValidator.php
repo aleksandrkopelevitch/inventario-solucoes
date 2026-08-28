@@ -141,8 +141,17 @@ class DigibeeFlowspecValidator
                 }
 
                 foreach ($when as $condition) {
-                    if (! is_string($condition['jsonPath'] ?? null) || $condition['jsonPath'] === '') {
-                        $errors[] = "Choice \"{$label}\": condição sem `jsonPath`.";
+                    // A condition routes by EITHER a JSONPath or a Simple
+                    // expression (`#{body.STATUS} != '200'`) — Digibee's canvas
+                    // offers both, and 18 of the 612 conditions across the 182
+                    // deployed Leo Madeiras pipelines use `simple`. Demanding
+                    // `jsonPath` rejected those as malformed and sent the model
+                    // off to "fix" a choice that was already correct.
+                    $hasJsonPath = is_string($condition['jsonPath'] ?? null) && $condition['jsonPath'] !== '';
+                    $hasSimple = is_string($condition['simple'] ?? null) && $condition['simple'] !== '';
+
+                    if (! $hasJsonPath && ! $hasSimple) {
+                        $errors[] = "Choice \"{$label}\": condição sem `jsonPath` nem `simple`.";
                     }
 
                     $target = $condition['target'] ?? null;
