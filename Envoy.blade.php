@@ -7,18 +7,22 @@
     A parallel `deploy.sh` used to sit beside this file and was deleted on
     2026-08-28 as an older version of the same thing — it deployed to
     /var/www/isol rather than the real /var/www/isol/public_html, so the two
-    disagreed about where the app even lives. Two things it carried are now
-    here: `storage:link --force` (with its reasoning, below) and the note that
-    it named the supervisor program `laravel-worker`, NOT the `isol:` group the
-    'supervisor' task below assumes.
+    disagreed about where the app even lives. `storage:link --force` came over
+    from it (with its reasoning, below).
 
-    Notes inherited from akop.pro's version of this file:
-    - No dedicated migration DB connection exists in config/database.php here
-      (unlike akop.pro's 'pgsql_migrations'), so `migrate` runs against the
-      default connection.
-    - The 'supervisor' task assumes deploy/supervisor/isol-queue.conf, which
-      does not exist in this repo yet — create it before running that task,
-      and settle the program-name disagreement above while you are there.
+    That file also named the supervisor program `laravel-worker` while this one
+    restarts the `isol:` group. `supervisorctl status` on the droplet settled it
+    on 2026-08-28: NEITHER existed — the box ran akop-pro's two programs,
+    laravel-horizon and laravel-newsletter, and nothing whatsoever for isol, so
+    this app had no queue worker in production. deploy/supervisor/isol-queue.conf
+    now exists and defines group `isol` + program `isol-queue`, which is what
+    makes the 'supervisor' task below correct as written. Run it once
+    (`envoy run supervisor`) to publish that program; it is not part of the
+    deploy story, so a normal deploy leaves it alone.
+
+    Note inherited from akop.pro's version of this file: no dedicated migration
+    DB connection exists in config/database.php here (unlike akop.pro's
+    'pgsql_migrations'), so `migrate` runs against the default connection.
 --}}
 
 @setup
@@ -187,10 +191,14 @@
 @endtask
 
 {{--
-    Outside the 'deploy' story: run manually (envoy run supervisor) only when
-    the .conf changes. Requires deploy/supervisor/isol-queue.conf to exist —
-    it doesn't yet in this repo, so this task will fail until that file (and
-    a matching [group:isol] section) is created.
+    Outside the 'deploy' story: run manually (envoy run supervisor) when the
+    .conf changes — and ONCE up front, since this app had no worker on the
+    droplet at all until deploy/supervisor/isol-queue.conf was added. That file
+    defines [group:isol] + [program:isol-queue], matching the names below.
+
+    Read its header before the first run: two fields (the php binary path and
+    `user`) are written from the standard Laravel pattern rather than from this
+    host, and want checking against akop-pro.conf, which is known to work here.
 --}}
 @task('supervisor', ['on' => 'web'])
     echo "==> Publishing supervisor configuration"
