@@ -7,6 +7,7 @@ use App\Actions\Flowspec\AttachFlowspecFile;
 use App\Actions\Flowspec\AttachFlowspecText;
 use App\Enums\FlowspecDocumentType;
 use App\Http\Requests\StoreFlowspecAttachmentRequest;
+use App\Http\Requests\UpdateFlowspecAttachmentRequest;
 use App\Models\FlowspecAttachment;
 use App\Models\FlowspecChat;
 use App\View\Components\Flowspec\ContextPanel;
@@ -39,6 +40,23 @@ class FlowspecAttachmentController extends Controller
             'type'           => 'success',
             'message'        => $this->message($created),
             'updatableSlots' => [ContextPanel::slot($chat)],
+        ]);
+    }
+
+    /**
+     * Renames one attachment. The label is what the prompt heads that
+     * attachment's section with (FlowspecPromptBuilder), so this is how a
+     * conversation carrying three pasted pipelines stops calling all three
+     * "flowSpec de referência" and the request can name the one it means.
+     */
+    public function update(UpdateFlowspecAttachmentRequest $request, FlowspecChat $chat, FlowspecAttachment $attachment): JsonResponse
+    {
+        $attachment->update(['label' => trim($request->validated('label'))]);
+
+        return response()->json([
+            'type'           => 'success',
+            'message'        => 'Anexo renomeado.',
+            'updatableSlots' => [ContextPanel::slot($chat->refresh())],
         ]);
     }
 

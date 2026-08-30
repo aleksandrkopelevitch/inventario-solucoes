@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Documentation\AttachContextText;
 use App\Http\Requests\StoreContextDocumentRequest;
 use App\Models\Notebook;
 use App\View\Components\Documentation\ContextDocuments;
@@ -21,10 +22,18 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  */
 class NotebookContextDocumentController extends Controller
 {
+    public function __construct(private readonly AttachContextText $texts) {}
+
+    /**
+     * A picked file, or a long paste from the composer. Both end up as one
+     * context document of this caderno — see AttachContextText for why a paste
+     * lands here rather than on the conversation.
+     */
     public function store(StoreContextDocumentRequest $request, Notebook $notebook): JsonResponse
     {
-        $media = $notebook->addMediaFromRequest('file')
-            ->toMediaCollection(Notebook::CONTEXT_COLLECTION);
+        $media = $request->filled('text')
+            ? $this->texts->handle($notebook, $request->validated('text'))
+            : $notebook->addMediaFromRequest('file')->toMediaCollection(Notebook::CONTEXT_COLLECTION);
 
         return response()->json([
             'type'           => 'success',

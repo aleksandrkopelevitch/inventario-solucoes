@@ -394,3 +394,114 @@ it('declares WithoutOverlapping middleware keyed by the chat, so concurrent mess
         ->and($middleware[0])->toBeInstanceOf(WithoutOverlapping::class)
         ->and((int) $middleware[0]->key)->toBe($chat->id);
 });
+
+/*
+|--------------------------------------------------------------------------
+| A long paste becomes a context document
+|--------------------------------------------------------------------------
+|
+| The same gesture the Especialista em Integrações composer has, arriving here
+| because the material is the same. Where it LANDS differs on purpose: F8's
+| context is chat-scoped, a caderno's context documents belong to the notebook
+| and are shared by every page in it — so this paste is still there while
+| documenting the next page.
+|
+*/
+
+it('turns a long paste into a context document of the caderno', function () {
+    Storage::fake('public');
+    $notebook = Notebook::factory()->create();
+
+    $response = $this->actingAs(chatAdmin())
+        ->postJson(route('notebooks.context.store', $notebook), [
+            'text' => "Contrato de integração ERP\n" . str_repeat('detalhe do contrato. ', 200),
+        ])->assertOk();
+
+    $media = $notebook->fresh()->getMedia(Notebook::CONTEXT_COLLECTION);
+
+    expect($media)->toHaveCount(1)
+        // Named after its own first line, which is what a person recognizes it
+        // by in a column of checkboxes.
+        ->and($media->first()->file_name)->toBe('contrato-de-integracao-erp.txt')
+        ->and($response->json('updatableSlots.0.id'))->toBe('context-documents-slot');
+});
+
+it('minifies a pasted pipeline and stores it as json', function () {
+    Storage::fake('public');
+    $notebook = Notebook::factory()->create();
+
+    $raw = json_encode([
+        'meta'     => ['abc' => ['position' => ['x' => 200, 'y' => 0]]],
+        'flowSpec' => ['root' => [['id' => 'abc', 'name' => 'log-connector']]],
+    ], JSON_PRETTY_PRINT);
+
+    $this->actingAs(chatAdmin())
+        ->postJson(route('notebooks.context.store', $notebook), ['text' => $raw])
+        ->assertOk();
+
+    $media = $notebook->fresh()->getMedia(Notebook::CONTEXT_COLLECTION)->first();
+    $stored = file_get_contents($media->getPath());
+
+    // The canvas position map is dropped and the whitespace with it. This is
+    // not cosmetic: ContextDocumentResolver TRUNCATES a text document past
+    // doc_budget_chars, and a JSON cut mid-object is unreadable to the model.
+    expect($media->file_name)->toBe('flowspec-colado.json')
+        ->and($stored)->not->toContain('position')
+        ->and($stored)->not->toContain("\n")
+        ->and(json_decode($stored, true))->toBe([
+            'flowSpec' => ['root' => [['id' => 'abc', 'name' => 'log-connector']]],
+        ]);
+});
+
+it('numbers a repeated paste name so the checkbox list has no two identical rows', function () {
+    Storage::fake('public');
+    $notebook = Notebook::factory()->create();
+    $raw = '{"flowSpec":{"a":[]}}';
+
+    $this->actingAs(chatAdmin())->postJson(route('notebooks.context.store', $notebook), ['text' => $raw])->assertOk();
+    $this->actingAs(chatAdmin())->postJson(route('notebooks.context.store', $notebook), ['text' => $raw])->assertOk();
+
+    expect($notebook->fresh()->getMedia(Notebook::CONTEXT_COLLECTION)->pluck('file_name')->all())
+        ->toBe(['flowspec-colado.json', 'flowspec-colado-2.json']);
+});
+
+it('still accepts a picked file, and refuses a request carrying neither', function () {
+    Storage::fake('public');
+    $notebook = Notebook::factory()->create();
+
+    $this->actingAs(chatAdmin())
+        ->post(route('notebooks.context.store', $notebook), [
+            'file' => UploadedFile::fake()->create('contrato.pdf', 100, 'application/pdf'),
+        ])->assertOk();
+
+    $this->actingAs(chatAdmin())
+        ->postJson(route('notebooks.context.store', $notebook), [])
+        ->assertStatus(422);
+
+    expect($notebook->fresh()->getMedia(Notebook::CONTEXT_COLLECTION))->toHaveCount(1);
+});
+
+it('forbids a viewer from pasting context, like any other attach', function () {
+    Storage::fake('public');
+    $notebook = Notebook::factory()->create();
+    $viewer = User::factory()->create(['role' => UserRole::Viewer->value]);
+
+    $this->actingAs($viewer)
+        ->postJson(route('notebooks.context.store', $notebook), ['text' => str_repeat('a', 3000)])
+        ->assertForbidden();
+
+    expect($notebook->fresh()->getMedia(Notebook::CONTEXT_COLLECTION))->toHaveCount(0);
+});
+
+// The threshold is served to the client from config, so the composer and
+// StoreContextDocumentRequest cannot drift on where "long" starts.
+it('serves the paste threshold to the composer', function () {
+    $notebook = Notebook::factory()->create();
+    $page = DocumentationPage::factory()->for($notebook)->create();
+
+    $this->actingAs(chatAdmin())
+        ->getJson(route('notebooks.chat.panel', [$notebook, $page]))
+        ->assertOk()
+        ->assertSee('data-ak-docs-chat-composer', escape: false)
+        ->assertSee('pasteThreshold', escape: false);
+});

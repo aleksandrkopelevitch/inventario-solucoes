@@ -14,6 +14,31 @@ namespace App\Actions\Flowspec;
  */
 class NormalizeReferenceFlowspec
 {
+    /**
+     * A Digibee pipeline document, as opposed to any other pasted JSON — the
+     * same shape test FlowspecGenerationService applies to the model's own
+     * output: a `meta` or `flowSpec` key at the top level.
+     *
+     * Lives here rather than on either caller because both of them need it and
+     * this is the class that already knows the document's shape. The two are in
+     * different modules (the F8 composer and the documentation assistant), and a
+     * second copy that drifted would mean the same paste is minified on one
+     * screen and stored pretty-printed on the other.
+     */
+    public static function looksLike(string $text): bool
+    {
+        $text = trim($text);
+
+        if ($text === '' || ! in_array($text[0], ['{', '['], true)) {
+            return false;
+        }
+
+        $decoded = json_decode($text, true);
+
+        return is_array($decoded)
+            && (array_key_exists('meta', $decoded) || array_key_exists('flowSpec', $decoded));
+    }
+
     public function handle(string $raw): string
     {
         $decoded = json_decode($raw, true);

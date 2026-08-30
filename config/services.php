@@ -202,6 +202,16 @@ return [
         // (PDF/image go as attachments, outside this limit).
         'doc_budget_chars'      => env('DOCS_AI_DOC_BUDGET_CHARS', 60000),
         'max_context_documents' => env('DOCS_AI_MAX_CONTEXT_DOCUMENTS', 10),
+        // Pasting more than this many characters into the Assiste IA composer
+        // turns the paste into a context document instead of stuffing the
+        // textarea — the same gesture the F8 composer has, and the same number.
+        // Mirrored client-side (docs-chat.js reads it off the composer's config
+        // attribute, so the two cannot drift).
+        'paste_threshold_chars' => env('DOCS_AI_PASTE_THRESHOLD_CHARS', 2000),
+        // Ceiling for ONE pasted context document. Sized for a whole pipeline
+        // JSON, which is minified on the way in (AttachContextText); what
+        // actually reaches the prompt is bounded again by doc_budget_chars.
+        'max_pasted_chars' => env('DOCS_AI_MAX_PASTED_CHARS', 200000),
         // Aggregate byte ceiling for native attachments (PDF/image) in one
         // generation — below the Gemini API's ~20MB inline-request limit; once
         // exceeded, further attachments are omitted (flagged in meta.omitted_attachments).

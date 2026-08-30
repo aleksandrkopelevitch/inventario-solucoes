@@ -165,14 +165,21 @@ class FlowspecContextResolver
      * material — see AttachFlowspecText for why this is a flag on a text
      * attachment rather than a third kind of attachment.
      *
+     * Each one carries its LABEL, which is the name the person gave it in the
+     * context panel. That name is the heading it gets in the prompt, so
+     * "estenda o flowSpec Pedidos B2B" resolves to a section the model can
+     * actually find. Dropping the label here (which this did) left the prompt
+     * numbering them `Pipeline 1..N` instead — a name nobody could see, and so
+     * a name nobody could cite.
+     *
      * @param  Collection<int, FlowspecAttachment>  $attachments
-     * @return Collection<int, string>
+     * @return Collection<int, array{label: string, content: string}>
      */
     private function referenceFlowspecs(Collection $attachments): Collection
     {
         return $attachments
             ->filter(fn (FlowspecAttachment $a) => $a->is_flowspec_reference && filled($a->content))
-            ->map(fn (FlowspecAttachment $a) => (string) $a->content)
+            ->map(fn (FlowspecAttachment $a) => ['label' => (string) $a->label, 'content' => (string) $a->content])
             ->values();
     }
 
