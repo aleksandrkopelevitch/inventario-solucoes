@@ -13,9 +13,10 @@ See `README.md` for an overview and feature list.
 ## Language
 
 All code and everything the end user never sees — comments, docblocks,
-commit messages, this file, internal error/log messages, seeder/migration
-comments — must be written in English, regardless of the surrounding code's
-language. The one deliberate exception is **user-facing text**: Toast/flash
+commit messages, **pull request titles and descriptions**, this file,
+internal error/log messages, seeder/migration comments — must be written in
+English, regardless of the surrounding code's language. The one deliberate
+exception is **user-facing text**: Toast/flash
 messages, validation error strings, Blade view content, UI labels/
 placeholders, and any string a Brazilian end user actually reads on screen —
 those stay in Portuguese, since this app's real UI is PT-BR for Leo Madeiras
@@ -24,6 +25,14 @@ strings while translating a comment near them, and don't translate a
 comment's quoted reference to an actual on-screen label/button name (e.g. a
 comment that says `the "Adicionar bloco" button` keeps that name verbatim —
 it's what's really printed on the button).
+
+The PR is named explicitly because it is the surface that drifted. Commit
+subjects have held the line on their own; PR descriptions had been written in
+both languages, which is the worse half to lose — a body is read by the same
+people, about the same code, as the commits it collects, so a reviewer ends up
+switching languages between two halves of one change. The same exception
+applies there: a PT-BR string the user actually sees on screen is quoted
+verbatim in the description, not translated.
 
 ## Conventions
 
