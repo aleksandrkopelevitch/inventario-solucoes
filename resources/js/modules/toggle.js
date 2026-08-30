@@ -44,10 +44,25 @@ function handleToggleEvent(e) {
         // Also avoids stacking a new listener on every open/close.
         if (targetElement && !targetElement.classList.contains('hidden')) {
             const handleClickOutside = (ev) => {
+                // The event's PATH, not just its target. `composedPath()` is
+                // built when the event is dispatched, so it still names the
+                // popover (and the trigger) even when a handler that ran
+                // earlier in the same click DETACHED the node that was
+                // clicked — `contains()` on a node the DOM no longer holds is
+                // false, which reads as "outside" and closes a popover the
+                // user is in the middle of filling in. That is exactly what
+                // the ✕ on a chip does (chips.js removes the chip on click),
+                // so removing one solution from "Soluções documentadas" shut
+                // the panel before it could be saved. `contains()` stays as
+                // the fallback for anything that dispatches an event without
+                // a composed path.
+                const path = typeof ev.composedPath === 'function' ? ev.composedPath() : []
+                const hit = (el) => path.includes(el) || el.contains(ev.target)
+
                 // Click on the trigger itself: handleToggleEvent already
                 // handles opening/closing. Removes this listener (reopening
                 // registers a new one) to avoid accumulating orphan listeners.
-                if (trigger.contains(ev.target)) {
+                if (hit(trigger)) {
                     document.removeEventListener('click', handleClickOutside)
                     return
                 }
@@ -57,7 +72,7 @@ function handleToggleEvent(e) {
                 // (e.g. generate/copy link, toggle coverage), which replaces
                 // only the content, not the container captured in
                 // `targetElement`.
-                if (targetElement.contains(ev.target)) return
+                if (hit(targetElement)) return
 
                 // Click outside: closes EXPLICITLY (never flips) and only if
                 // still open, so stacked listeners can't reopen it.

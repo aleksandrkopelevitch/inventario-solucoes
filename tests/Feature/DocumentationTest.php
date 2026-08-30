@@ -449,6 +449,44 @@ it('renders gitbook notation to html-content markup', function () {
         ->toContain('<hr />');
 });
 
+it('gives every table its own horizontal scroller', function () {
+    // A table is the one block whose min-content width can exceed the width it
+    // was given — `width: 100%` does not bind it — so without this a wide one
+    // painted over the "Nesta página" rail beside it instead of clipping.
+    $html = app(GitbookRenderer::class)->render("| A | B |\n| - | - |\n| 1 | 2 |");
+
+    expect($html)
+        ->toContain('<div class="ak-table-scroll" tabindex="0"><table>')
+        ->toContain('</table></div>');
+});
+
+it('leaves no line between an active tab and its panel', function () {
+    $html = app(GitbookRenderer::class)->render(<<<'MD'
+    {% tabs %}
+    {% tab title="Um" %}
+    Conteudo um.
+    {% endtab %}
+    {% tab title="Dois" %}
+    Conteudo dois.
+    {% endtab %}
+    {% endtabs %}
+    MD);
+
+    // The three pieces that make an open tab read as open. Drop any one and the
+    // active tab keeps a closed tab's underline: the panel's own top border is
+    // a SECOND line, below the tablist's rail, which the tab's one pixel of
+    // negative margin can never reach.
+    expect($html)
+        ->toContain('role="tablist" class="flex flex-wrap gap-1 border-b border-line"')   // the rail
+        ->toContain('relative -mb-px')                                                     // the tab covers it
+        ->toContain('rounded-b-md border border-t-0 border-line')                          // the panel doesn't redraw it
+        ->not->toContain('border-b-surface');                                              // a border the tab doesn't have
+
+    // And the state the client swaps to on a click has to agree with the state
+    // the server rendered — they are the same two lists (TAB_*_CLASSES).
+    expect($html)->toContain('&quot;activeClasses&quot;:[&quot;bg-surface&quot;,&quot;text-ink&quot;,&quot;border-line&quot;]');
+});
+
 it('renders an outline heroicon badge in hints, with a per-style default and an author override', function () {
     $default = app(GitbookRenderer::class)->render("{% hint style=\"info\" %}\nOi\n{% endhint %}");
     $override = app(GitbookRenderer::class)->render("{% hint style=\"info\" icon=\"fire\" %}\nOi\n{% endhint %}");
@@ -607,6 +645,28 @@ it('degrades a citation of a deleted diagram instead of breaking the page', func
         ->toContain('<p>Depois.</p>');
 });
 
+it('hands the editor a picture URL only for a drawing that has one', function () {
+    // What makes the editor's diagram block a PREVIEW rather than a label. The
+    // null is as load-bearing as the URL: it is what tells the block to draw
+    // "sem imagem ainda" instead of an <img> that would 404.
+    \Illuminate\Support\Facades\Storage::fake('public');
+
+    $drawn = Diagram::factory()->create(['name' => 'Com imagem']);
+    $drawn->addMedia(\Illuminate\Http\UploadedFile::fake()->image('canvas.png', 800, 600))
+        ->toMediaCollection(Diagram::DIAGRAM_COLLECTION);
+    Diagram::factory()->create(['name' => 'Sem imagem']);
+
+    $entries = collect($this->actingAs(docsAdmin())
+        ->getJson(route('diagrams.catalog'))
+        ->assertOk()
+        ->json('groups'))
+        ->flatMap(fn (array $group) => $group['diagrams'])
+        ->keyBy('name');
+
+    expect($entries['Com imagem']['pictureUrl'])->toBe(route('diagrams.picture.show', $drawn))
+        ->and($entries['Sem imagem']['pictureUrl'])->toBeNull();
+});
+
 it('groups the diagram catalog by solution, loose drawings last', function () {
     $solution = Solution::factory()->create(['name' => 'SAP']);
     $placed = Diagram::factory()->create([
@@ -625,8 +685,17 @@ it('groups the diagram catalog by solution, loose drawings last', function () {
         ->assertOk()
         ->json('groups');
 
+    // Each entry carries what the editor's block needs to PREVIEW the citation
+    // — the drawing's name, its picture (null until the canvas has been saved
+    // with one) and its canvas URL, all built with `route()` here so the tool
+    // never assembles a path of its own.
     expect(collect($groups)->firstWhere('solution', 'SAP')['diagrams'])
-        ->toContain(['slug' => $placed->slug, 'name' => 'Desenho do SAP']);
+        ->toContain([
+            'slug'       => $placed->slug,
+            'name'       => 'Desenho do SAP',
+            'pictureUrl' => null,
+            'url'        => route('diagrams.show', $placed),
+        ]);
 
     // A drawing that names no catalog solution is still citable — it lands in
     // a trailing group of its own rather than being hidden from the picker.

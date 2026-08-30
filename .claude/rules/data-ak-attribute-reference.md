@@ -17,13 +17,15 @@ All JS hooks use the `data-ak-*` prefix. Internal slots (`data-spinner`, `data-l
 | `data-ak-toggle-classes="cls"` | `toggle.js` | Space-separated classes to toggle on the target. A class may be deferred with `class:<ms>` (`hidden:300`) — only an **all-digits** suffix counts, so Tailwind variants (`md:!w-0`, `max-md:!translate-x-0`) pass through untouched. Splitting on the first `:` instead is what silently broke the documentation editor's pages rail until 2026-08-15: it toggled a class literally named `md` |
 | `data-ak-toggle-event="click"` | `toggle.js` | Trigger event (default: `click`) |
 | `data-ak-toggle-once` | `toggle.js` | Fire only once |
-| `data-ak-toggle-blur="true"` | `toggle.js` | Close on outside click |
+| `data-ak-toggle-blur="true"` | `toggle.js` | Close on outside click. "Outside" is judged from the click's `composedPath()`, not from `contains(target)` alone — a handler that runs earlier in the same click and DETACHES what was clicked (chips.js's ✕ on a chip) would otherwise read as an outside click and close a popover mid-edit |
 | `data-ak-toggle-mouseout` | `toggle.js` | Also toggle on mouseout |
 | `data-ak-panel-open` | `side-panel.js` | Opens `#side-panel` |
 | `data-ak-panel-url="url"` | `side-panel.js` | URL to fetch content from |
 | `data-ak-panel-close` | `side-panel.js` | Closes `#side-panel` and clears content |
 | `data-ak-panel-overlay="false"` | `side-panel.js` | Open without overlay |
-| `data-ak-panel-size="small\|medium\|large"` | `side-panel.js` | Panel width — 1/4 (`w-96`, default), 1/2, or 3/4 of the viewport |
+| `data-ak-panel-size="small\|medium\|large"` | `side-panel.js` | Panel width — 1/4 (`w-96`, default), 1/2, or 3/4 of the viewport. Still read on a DOCKED trigger: it's what applies below 1024px, where the dock is refused |
+| `data-ak-panel-dock="host-element-id"` | `side-panel.js` | Opens the same shell as an in-flow right COLUMN of that element (which must be a flex row) instead of a floating overlay — the panel is moved into it and the page shrinks beside it rather than disappearing under it. Reference implementation: the documentation reader's "Abrir especialista" (`documentation/partials/_actions.blade.php` → `#docs-shell`) |
+| `data-ak-panel-dock-grip` | `side-panel.js` | The docked column's drag handle, created by the module on its left edge (`role="separator"`, so Arrow keys resize it too). The width is remembered in `localStorage` under `ak-panel-dock-width` |
 | `data-ak-tabs='{"targetId":"…"}'` | `tabs.js` | JSON config for tab switching |
 | `data-ak-filters='{"formId":"…"}'` | `execute-filters.js` | JSON config for filter execution |
 | `data-ak-filters-clear='{"formId":"…","field":"filter[x]","url":"…"}'` | `execute-filters.js` | Clears one filter field (active-filter chip ✕) and resubmits via AJAX |

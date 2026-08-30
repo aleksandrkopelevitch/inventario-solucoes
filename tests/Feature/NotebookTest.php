@@ -217,16 +217,56 @@ it('refreshes the card of every solution a link touched, including the ones remo
         ])
         ->assertOk();
 
-    // The chips' own slot, plus one card per solution touched — dropped, kept
-    // and added alike.
-    expect($response->json('updatableSlots'))->toHaveCount(4)
-        ->and($response->json('updatableSlots.0.id'))->toBe('notebook-solutions-slot');
+    // The chips' own slot, the rail's "Esse caderno contempla…" sentence, and
+    // one card per solution touched — dropped, kept and added alike. The
+    // sentence is the reader's only statement of the link now that the top
+    // bar's icon is gone, so leaving it out would show yesterday's systems
+    // beside today's pages until the next full page load.
+    expect($response->json('updatableSlots'))->toHaveCount(5)
+        ->and(collect($response->json('updatableSlots'))->pluck('id')->take(2)->all())
+        ->toBe(['notebook-solutions-slot', 'notebook-documented-systems-slot']);
 
     // …and the dropped one's card no longer names the caderno.
     $this->actingAs(notebookAdmin())
         ->get(route('solutions.show', $dropped))
         ->assertOk()
         ->assertDontSee($notebook->name);
+});
+
+it('states the systems a caderno documents in the reading rail, not in the toolbar', function () {
+    // The link moved out of the top bar: what a caderno documents is a FACT
+    // about the page being read, so the rail says it in words and the sentence
+    // is what opens the editor for it. The icon that used to open that popover
+    // is gone — and it is the aria-label, not the popover, that has to be
+    // absent: the popover itself simply moved.
+    $notebook = Notebook::factory()->create(['name' => 'Provisionamento']);
+    $page = DocumentationPage::factory()->for($notebook)->create();
+    $notebook->solutions()->attach([
+        Solution::factory()->create(['name' => 'Alfa'])->id,
+        Solution::factory()->create(['name' => 'Beta'])->id,
+    ]);
+
+    $this->actingAs(notebookAdmin())
+        ->get(route('notebooks.pages.edit', [$notebook, $page]))
+        ->assertOk()
+        ->assertSee('Esse caderno contempla o(s) sistema(s):')
+        ->assertSee('Alfa, Beta')
+        ->assertSee('notebook-documented-systems-slot')
+        ->assertSee('docs-solutions-dropdown')          // the popover came along
+        ->assertDontSee('Soluções documentadas"');      // …its top-bar icon did not
+});
+
+it('says so plainly when a caderno documents no system at all', function () {
+    // Zero is a normal state for a caderno (a cross-cutting process, a freshly
+    // imported space nobody has filed), so the rail states it rather than
+    // rendering an empty sentence with a dangling colon.
+    $notebook = Notebook::factory()->create();
+    $page = DocumentationPage::factory()->for($notebook)->create();
+
+    $this->actingAs(notebookAdmin())
+        ->get(route('notebooks.pages.edit', [$notebook, $page]))
+        ->assertOk()
+        ->assertSee('Esse caderno ainda não contempla nenhum sistema.', false);
 });
 
 it('unlinks every solution when the chips field is cleared', function () {

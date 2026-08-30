@@ -139,7 +139,7 @@ async function loadTools(uploadUrl, catalogUrl) {
         import('@editorjs/header'),
         import('@editorjs/list'),
         import('@editorjs/quote'),
-        import('@editorjs/code'),
+        import('./docs-tools/code'),
         import('@editorjs/delimiter'),
         import('@editorjs/table'),
         import('@editorjs/image'),

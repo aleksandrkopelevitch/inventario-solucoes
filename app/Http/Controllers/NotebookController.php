@@ -8,6 +8,7 @@ use App\Http\Requests\SyncNotebookSolutionsRequest;
 use App\Models\Notebook;
 use App\Models\Solution;
 use App\Services\DocumentationPageService;
+use App\View\Components\Notebooks\DocumentedSystems;
 use App\View\Components\Notebooks\Index;
 use App\View\Components\Notebooks\LinkedSolutions;
 use App\View\Components\Notebooks\SharePanel;
@@ -173,7 +174,14 @@ class NotebookController extends Controller
             'type'           => 'success',
             'message'        => 'Soluções vinculadas.',
             'updatableSlots' => [
+                // Both, because the link is stated in two places on the reader:
+                // the popover's own chips (LinkedSolutions, also the caderno
+                // panel's) and the right rail's "Esse caderno contempla…"
+                // sentence. The second WRAPS the first there, so swapping both
+                // just rewrites the same subtree twice — cheaper than making
+                // this endpoint guess which screen asked.
                 LinkedSolutions::slot($notebook),
+                DocumentedSystems::slot($notebook),
                 ...Solution::whereKey($affected)->get()->map(fn (Solution $solution) => Notebooks::slot($solution)),
             ],
         ]);
