@@ -127,8 +127,11 @@
             </div>
         </main>
 
-        {{-- "Nesta página" headings navigator (H1/H2), built by docs-toc.js.
-             Collapses itself when the content has no headings. --}}
+        {{-- "Nesta página" headings navigator (H1–H3, one indent step per
+             level), built by docs-toc.js. Collapses itself when the content has
+             no headings. The `max-h` + `overflow-y-auto` here are what keep a
+             long page's list reachable — 25 entries is taller than the viewport
+             the sticky rail lives in. --}}
         <aside data-ak-docs-toc
                class="hidden w-56 shrink-0 lg:sticky lg:top-14 lg:block lg:max-h-[calc(100vh_-_3.5rem)] lg:overflow-y-auto lg:py-10"></aside>
     </div>
