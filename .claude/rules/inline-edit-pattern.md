@@ -94,10 +94,18 @@ Four things carry that, and each is easy to undo by accident:
   attribute where CSS order, not authoring order, decides. (Leading-`!` still
   compiles in Tailwind 4.3, including inside a variant — `focus:!shadow-[…]`
   emits correctly; confirmed against the built stylesheet.)
-- **Geometry.** Confirm/cancel (`x-ui.inline-edit-actions`) sit *beside* a
-  one-line field so the block keeps its height and the page below it doesn't
-  jump; they only move under the field when it's a textarea, an image, or a
-  multi-field creator, which are already changing the height. The editor row's
+- **Geometry.** Confirm/cancel (`x-ui.inline-edit-actions`) are two BARE glyphs
+  (`size-3.5`, no fill, no ring, no border) absolutely positioned in the editor
+  row's bottom-right corner, so they are not flex items and cost the field no
+  gap. The row reserves `pr-9` for them — enough that a long value can never run
+  underneath one, and still a third of what the pair used to take as two 28px
+  pills with an accent fill. They had ONE job and were sized for a form: this is
+  a punctual edit, and Enter/Esc (Ctrl+Enter in a textarea) is the first way to
+  finish it, which is what the tooltips say. A real target comes back under
+  `pointer-coarse`, where no hover exists — the same deal read mode's pencil
+  makes. There is one placement now, not two: a corner is a corner whether the
+  editor is one line or four, so the pair can no longer drift between layouts.
+  The editor row's
   `-ml-1.5` cancels the input's own padding so the text doesn't slide sideways
   as it opens — that number, the editor's `!px-1.5` and read mode's
   `-mx-1.5 px-1.5` are **one measurement in three places**, and the alignment
