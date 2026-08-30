@@ -50,9 +50,9 @@ class Index extends Component
             ])
             ->with('solutions:id,name,slug')
             ->when($search !== '', fn (Builder $q) => $q->where(fn (Builder $w) => $w
-                ->where('name', 'like', "%{$search}%")
-                ->orWhereHas('pages', fn (Builder $p) => $p->where('title', 'like', "%{$search}%"))
-                ->orWhereHas('solutions', fn (Builder $s) => $s->where('name', 'like', "%{$search}%"))))
+                ->whereFolded('name', $search)
+                ->orWhereHas('pages', fn (Builder $p) => $p->whereFolded('title', $search))
+                ->orWhereHas('solutions', fn (Builder $s) => $s->whereFolded('name', $search))))
             ->when($status === 'documented', fn (Builder $q) => $q->whereHas('documentedPages'))
             ->when($status === 'empty', fn (Builder $q) => $q->whereDoesntHave('documentedPages'))
             ->when($status === 'shared', fn (Builder $q) => $q->whereNotNull('public_token'))

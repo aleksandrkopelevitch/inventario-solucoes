@@ -32,6 +32,8 @@
 // Pan/zoom/fit/fullscreen follow the same pattern as chain-viz.js
 // (view.x/y/scale on a single #world transform, real Fullscreen API).
 
+import {fold} from './fold.js'
+
 const SVG_NS = 'http://www.w3.org/2000/svg'
 const MIN_SCALE = 0.15
 const MAX_SCALE = 2.5
@@ -325,8 +327,8 @@ function mount(root) {
     // cards (which are just the same solution redrawn inside another hub's
     // ring, not a separate focus target).
     function renderSearchResults(query) {
-        const q = query.trim().toLowerCase()
-        searchMatches = !q ? hubs : hubs.filter((h) => (h.label ?? '').toLowerCase().includes(q))
+        const q = fold(query.trim())
+        searchMatches = !q ? hubs : hubs.filter((h) => fold(h.label).includes(q))
         searchMatches = searchMatches.slice(0, 30)
         searchResultsEl.innerHTML = ''
         searchEmptyEl.classList.toggle('hidden', searchMatches.length > 0)

@@ -55,7 +55,7 @@ class Company extends Model
     public function scopeFilter(Builder $query, array $filters): void
     {
         $query
-            ->when($filters['search'] ?? null, fn (Builder $q, $search) => $q->where('name', 'like', "%{$search}%"))
+            ->when($filters['search'] ?? null, fn (Builder $q, $search) => $q->whereFolded('name', $search))
             ->when($filters['kind'] ?? null, fn (Builder $q, $v) => $q->where('kind', $v));
     }
 }

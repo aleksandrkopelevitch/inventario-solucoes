@@ -121,7 +121,7 @@ class FlowspecChatController extends Controller
         $pages = DocumentationPage::query()
             ->whereNotNull('documentation')
             ->where('documentation', '<>', '')
-            ->where('title', 'like', "%{$term}%")
+            ->whereFolded('title', $term)
             ->with('notebook:id,name')
             ->limit(8)
             ->get()

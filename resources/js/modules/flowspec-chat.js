@@ -1,5 +1,6 @@
 import * as ajaxModule from './ajax.js'
 import { updateSlots } from './ajax-slot.js'
+import {fold} from './fold.js'
 
 /**
  * Especialista em Integrações chat (F8) — generates Digibee flowSpec JSON.
@@ -545,7 +546,7 @@ function renderSuggestions(form, suggestions) {
 function filterPicker(panel, term) {
     if (!panel) return
 
-    const needle = term.trim().toLowerCase()
+    const needle = fold(term.trim())
     let anyVisible = false
 
     panel.querySelectorAll('[data-ak-fs-picker-group]').forEach((group) => {

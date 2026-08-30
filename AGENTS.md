@@ -459,6 +459,52 @@ Both page controllers do exactly that before rendering the editor, and for a
 sharper reason than performance: `DocumentationPagePolicy` delegates every
 answer to `$page->container`, so without it the policy is what lazy-loads.
 
+### Searching — `whereFolded()`, never `like`
+
+**Every "does this column contain what the person typed" goes through
+`whereFolded()` / `orWhereFolded()`** (macros on the query builder, registered
+in `AppServiceProvider`). They fold BOTH sides — the column and the term — to
+lowercase ASCII via `App\Support\Fold`, so `big` finds "Google BigQuery" and
+`solucao` finds "Solução", as does `solução` against a name written without
+accents. Half this catalog is named with accents and half without; matching
+only one direction leaves the other half unreachable.
+
+Do not reach for a bare `where(..., 'like', "%$term%")` again, and do not reach
+for Laravel's own `whereLike($column, $value, caseSensitive: false)` either: it
+answers the case half (it emits `ILIKE` on Postgres) and nothing about accents.
+A macro cannot shadow a real method, so a macro named `whereLike` would be dead
+code — that is why the name is `whereFolded`.
+
+Three things this depends on:
+
+- **The folding is a real SQLite function, not a fallback.** Postgres gets
+  `translate(lower(col), …)` built from the same PHP map; SQLite (`lower()` is
+  ASCII-only there, and it has no `translate()`) gets the PHP folding
+  registered on the connection. One map, so the two can never drift, and a
+  test on SQLite says something true about Postgres.
+- **The escape character is `!`, not `\`.** The term is data — searching for
+  "100%" means the character — so wildcards are escaped, and SQLite has no
+  default escape character, so the clause has to be spelled out. A backslash
+  inside `escape '\'` leaves PDO's own placeholder scanner believing the
+  string literal is still open: it then reports "Invalid parameter number" on a
+  statement whose placeholders and bindings match perfectly.
+- **Client-side filters fold too** (`resources/js/modules/fold.js` — the
+  flowSpec document picker, the diagram picker, the ecosystem map). A list
+  narrowed in the browser must answer a query the same way the database does,
+  or the same word finds different things on two screens.
+
+The one deliberate exception is `PublicDocumentationController::diagramPicture()`,
+which asks whether a caderno cites an exact slug. That is authorisation, not
+search: folding it would let `SLUG-A` stand in for `slug-a`.
+
+**This is also the shape of a bug the test suite cannot see.** All of these were
+case-INsensitive while the app ran on SQLite and turned case-sensitive the day
+it moved to Postgres, with the suite still green — it runs SQLite
+(`phpunit.xml`), whose `LIKE` is case-insensitive for ASCII. Anything whose
+behaviour depends on the DRIVER needs a test written to fail on SQLite too
+(accented capitals do it: `ORAMA SERVICOS` against `Órama Serviços` needs both
+halves of the folding on either driver).
+
 ## DB Performance
 
 - Eager load relationships — never lazy load in loops

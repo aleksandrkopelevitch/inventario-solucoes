@@ -90,9 +90,9 @@ class DocumentationCoverageService
             // documents these systems), so a search over them is a search over
             // the row the user is reading.
             ->when($search !== '', fn (Builder $q) => $q->where(fn (Builder $w) => $w
-                ->where('name', 'like', "%{$search}%")
-                ->orWhereHas('pages', fn (Builder $p) => $p->where('title', 'like', "%{$search}%"))
-                ->orWhereHas('solutions', fn (Builder $sol) => $sol->where('name', 'like', "%{$search}%"))))
+                ->whereFolded('name', $search)
+                ->orWhereHas('pages', fn (Builder $p) => $p->whereFolded('title', $search))
+                ->orWhereHas('solutions', fn (Builder $sol) => $sol->whereFolded('name', $search))))
             ->with([
                 'solutions:id,name,slug',
                 'pages' => fn ($rel) => $rel

@@ -304,9 +304,9 @@ class Submission extends Model implements HasMedia
     {
         $query
             ->when($filters['search'] ?? null, fn (Builder $q, $search) => $q->where(fn (Builder $w) => $w
-                ->where('submissions.name', 'like', "%{$search}%")
-                ->orWhereHas('solution', fn (Builder $s) => $s->where('name', 'like', "%{$search}%"))
-                ->orWhere('submissions.ticket_reference', 'like', "%{$search}%")))
+                ->whereFolded('submissions.name', $search)
+                ->orWhereHas('solution', fn (Builder $s) => $s->whereFolded('name', $search))
+                ->orWhereFolded('submissions.ticket_reference', $search)))
             ->when($filters['status'] ?? null, fn (Builder $q, $v) => $q->where('status', $v))
             ->when($filters['solution'] ?? null, fn (Builder $q, $v) => $q->whereHas('solution', fn (Builder $s) => $s->where('slug', $v)));
     }

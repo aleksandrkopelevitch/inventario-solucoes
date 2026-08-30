@@ -92,7 +92,7 @@ class SolutionController extends Controller
         }
 
         $results = Solution::query()
-            ->where('name', 'like', '%' . $term . '%')
+            ->whereFolded('name', $term)
             ->orderBy('name')
             ->limit(10)
             ->get(['id', 'name', 'category'])

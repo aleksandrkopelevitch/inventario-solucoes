@@ -2,6 +2,7 @@ import { toCanvas, getFontEmbedCSS } from 'html-to-image'
 import GIF from 'gif.js'
 import gifWorkerUrl from 'gif.js/dist/gif.worker.js?url'
 import { setButtonLoading } from './button-loading'
+import { fold } from './fold.js'
 
 // `gifWorkerUrl` (Vite's `?url` import) resolves to a URL on the DEV SERVER's
 // own origin (e.g. `https://host:5174/...`) whenever Vite is running in dev
@@ -3061,8 +3062,8 @@ function mount(root) {
 
         function renderMatches() {
             if (!suggestBox) return
-            const term = input.value.trim().toLowerCase()
-            matches = term ? getSolutionsList().filter((s) => s.name.toLowerCase().includes(term)).slice(0, 8) : []
+            const term = fold(input.value.trim())
+            matches = term ? getSolutionsList().filter((s) => fold(s.name).includes(term)).slice(0, 8) : []
             // A primeira sugestão já nasce em destaque: é ela que o Enter
             // aplica, e o destaque é o que AVISA isso antes de teclar. Sem
             // isso, Enter caía no caminho de texto livre e trocava a Solução
@@ -3104,8 +3105,11 @@ function mount(root) {
         function resolve(solution) {
             cleanup()
             if (!solution && isSystem) {
-                const typed = input.value.trim().toLowerCase()
-                solution = getSolutionsList().find((s) => s.name.toLowerCase() === typed) || null
+                // Folded on both sides, like the dropdown above it: somebody
+                // who typed "sap cpi (integracao)" and pressed Enter meant the
+                // Solution, not a free-text label that happens to read like one.
+                const typed = fold(input.value.trim())
+                solution = getSolutionsList().find((s) => fold(s.name) === typed) || null
             }
             if (solution) {
                 if (isSystem && n.solutionId === solution.id) { paintNode(n.el, n); applyNodeStyle(n); return }
@@ -3633,9 +3637,9 @@ function mount(root) {
         }
 
         function renderMatches() {
-            const term = input.value.trim().toLowerCase()
+            const term = fold(input.value.trim())
             const all = getProtocolsList()
-            matches = (term ? all.filter((p) => p.label.toLowerCase().includes(term)) : all).slice(0, 8)
+            matches = (term ? all.filter((p) => fold(p.label).includes(term)) : all).slice(0, 8)
             // Destaca a primeira só quando há algo DIGITADO: com o campo
             // vazio a lista mostra o enum inteiro, e aí um destaque faria o
             // Enter aplicar o primeiro protocolo da lista em vez de limpar o
