@@ -6,6 +6,7 @@ use App\Contracts\Documentable;
 use App\Models\DocumentationChatMessage;
 use App\Models\Notebook;
 use App\Models\Solution;
+use App\Support\Documentation\LiteralVault;
 use Illuminate\Support\Collection;
 
 /**
@@ -37,6 +38,18 @@ class DocumentationChatPromptBuilder
         - Não invente fatos: baseie-se no pedido, no histórico da conversa, no
           conteúdo atual e nos documentos de contexto fornecidos. Quando algo
           não estiver disponível, diga isso em vez de supor.
+
+        VALORES LITERAIS PROTEGIDOS:
+        - Tokens, chaves, hashes e outros valores opacos longos chegam até você
+          como marcadores no formato [[LIT-1]], descritos na seção "VALORES
+          LITERAIS PROTEGIDOS" do prompt do usuário.
+        - Trate cada marcador como se fosse o valor real: copie-o inalterado
+          para onde o valor deve aparecer. O sistema troca o marcador pelo valor
+          verdadeiro depois da sua resposta.
+        - NUNCA escreva um valor literal no lugar de um marcador, nem tente
+          adivinhar, completar ou "corrigir" o conteúdo por trás dele — isso
+          corrompe o dado. Se o usuário mandar um valor novo, ele também virá
+          como marcador; use o marcador que ele enviou.
 
         BLOCO DE RASCUNHO (somente quando propuser uma mudança de conteúdo):
         Ao final da sua resposta, inclua um bloco cercado por EXATAMENTE 4
@@ -98,6 +111,7 @@ class DocumentationChatPromptBuilder
         string $message,
         Collection $textDocs,
         array $requirements,
+        LiteralVault $vault,
     ): string {
         $parts = [];
 
@@ -115,7 +129,13 @@ class DocumentationChatPromptBuilder
 
         $parts[] = "Página/documento: {$target->documentationTitle()}";
 
-        $existing = trim((string) $existing);
+        // Everything below is masked: the legend comes first so the model
+        // reads what a marker means before meeting one (see LiteralVault).
+        if (! $vault->isEmpty()) {
+            $parts[] = "VALORES LITERAIS PROTEGIDOS:\n\n" . $vault->legend();
+        }
+
+        $existing = trim((string) $vault->mask($existing));
         $parts[] = $existing !== ''
             ? "CONTEÚDO ATUAL DA PÁGINA:\n\n{$existing}"
             : 'A página está vazia até agora.';
@@ -126,16 +146,16 @@ class DocumentationChatPromptBuilder
 
         if ($textDocs->isNotEmpty()) {
             $docs = $textDocs
-                ->map(fn (array $d) => "### Documento: {$d['name']}\n{$d['content']}")
+                ->map(fn (array $d) => "### Documento: {$d['name']}\n" . $vault->mask($d['content']))
                 ->implode("\n\n");
             $parts[] = "DOCUMENTOS DE CONTEXTO (texto):\n\n{$docs}";
         }
 
         if ($history->isNotEmpty()) {
-            $parts[] = "HISTÓRICO DA CONVERSA:\n\n" . $this->formatHistory($history);
+            $parts[] = "HISTÓRICO DA CONVERSA:\n\n" . $this->formatHistory($history, $vault);
         }
 
-        $parts[] = "MENSAGEM DO USUÁRIO:\n{$message}";
+        $parts[] = "MENSAGEM DO USUÁRIO:\n" . $vault->mask($message);
 
         return implode("\n\n---\n\n", $parts);
     }
@@ -159,10 +179,11 @@ class DocumentationChatPromptBuilder
     }
 
     /** @param  Collection<int, DocumentationChatMessage>  $history */
-    private function formatHistory(Collection $history): string
+    private function formatHistory(Collection $history, LiteralVault $vault): string
     {
         return $history
-            ->map(fn (DocumentationChatMessage $m) => ($m->role === 'user' ? 'Usuário' : 'Especialista') . ": {$m->content}")
+            ->map(fn (DocumentationChatMessage $m) => ($m->role === 'user' ? 'Usuário' : 'Especialista')
+                . ': ' . $vault->mask($m->content))
             ->implode("\n\n");
     }
 }

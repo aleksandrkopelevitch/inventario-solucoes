@@ -5,6 +5,7 @@ namespace App\Services\Documentation;
 use App\Models\DocumentationChatMessage;
 use App\Models\Notebook;
 use App\Support\Documentation\DocumentationRequirements;
+use App\Support\Documentation\LiteralVault;
 use Laravel\Ai\Responses\AgentResponse;
 
 use function Laravel\Ai\agent;
@@ -45,6 +46,17 @@ class DocumentationChatService
 
         $contextDocs = $this->contextDocs->resolve($notebook, $userMessage->context_media_ids ?? []);
 
+        // Opaque literals never reach the model — a reply rewrites the whole
+        // page, and a token copied by hand comes back subtly wrong. Everything
+        // the prompt will show is harvested first so one value gets one marker
+        // wherever it appears (see LiteralVault).
+        $vault = LiteralVault::from([
+            $userMessage->existing_content,
+            $userMessage->content,
+            ...$history->pluck('content')->all(),
+            ...$contextDocs->textDocs->pluck('content')->all(),
+        ]);
+
         $userPrompt = $this->prompts->userPrompt(
             $target,
             $notebook,
@@ -53,11 +65,15 @@ class DocumentationChatService
             $userMessage->content,
             $contextDocs->textDocs,
             $requirements,
+            $vault,
         );
 
         $response = $this->prompt($userPrompt, $contextDocs->attachments);
 
-        [$content, $draft] = $this->extractDraft($response->text);
+        // Restore before splitting: the markers are put back in the
+        // conversational half too, so a reply that quotes a value still reads
+        // correctly, and the draft is persisted with the real values.
+        [$content, $draft] = $this->extractDraft($vault->restore($response->text));
 
         return new DocumentationChatReply(
             content: $content,
@@ -76,6 +92,7 @@ class DocumentationChatService
                 'omitted_attachments' => $contextDocs->omittedAttachments,
                 'omitted_context'     => [...$contextDocs->omittedContext, ...$contextDocs->omittedTexts],
                 'requirements'        => $requirements,
+                'literals'            => $vault->stats(),
             ],
         );
     }

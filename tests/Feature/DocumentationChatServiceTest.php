@@ -221,3 +221,58 @@ it('inlines a selected text context document into the prompt', function () {
         ->toContain('SEGREDO: a ordem importa')
         ->and($service->capturedAttachments)->toBe([]); // text goes into the prompt, not as an attachment
 });
+
+it('hides an opaque literal behind a marker instead of asking the model to copy it', function () {
+    $notebook = Notebook::factory()->create();
+    $page = DocumentationPage::factory()->for($notebook)->create();
+
+    // Same shape as the SAP CPI Authorization header that exposed the bug —
+    // synthetic, never a real credential.
+    $token = base64_encode('sb-04938d98-2ea2-4495-835c-b8e028f11818!b38080|it-rt-btpprod-exemplo'
+        . '!b106:aa793318-afe5-4231-825d-ddb5a3894178$oOOeDJVf3UKpiGNl2yfgZpl1b3ee4kKU9ozu3aqMU6s=');
+
+    $service = fakeChatService('ok');
+    $service->generate(chatMessageFor($page, [
+        'content'          => 'Confira a autenticação de PRD.',
+        'existing_content' => "## Auth\n\nAuthorization: Basic {$token}\n",
+    ]));
+
+    expect($service->capturedPrompt)->not->toContain($token)
+        ->and($service->capturedPrompt)->toContain('[[LIT-1]]')
+        ->and($service->capturedPrompt)->toContain('VALORES LITERAIS PROTEGIDOS')
+        ->and($service->capturedPrompt)->toContain('começa com "' . substr($token, 0, 8) . '"');
+});
+
+it('restores the real value into the draft and the reply text', function () {
+    $notebook = Notebook::factory()->create();
+    $page = DocumentationPage::factory()->for($notebook)->create();
+
+    $token = base64_encode('sb-04938d98-2ea2-4495-835c-b8e028f11818!b38080|it-rt-btpprod-exemplo'
+        . '!b106:aa793318-afe5-4231-825d-ddb5a3894178$oOOeDJVf3UKpiGNl2yfgZpl1b3ee4kKU9ozu3aqMU6s=');
+
+    $reply = "Mantive o token [[LIT-1]].\n\n````\n## Auth\n\n`Basic [[LIT-1]]`\n````\n";
+    $result = fakeChatService($reply)->generate(chatMessageFor($page, [
+        'existing_content' => "Authorization: Basic {$token}\n",
+    ]));
+
+    expect($result->draft)->toContain("`Basic {$token}`")
+        ->and($result->draft)->not->toContain('[[LIT-')
+        ->and($result->content)->toBe("Mantive o token {$token}.")
+        ->and($result->meta['literals'])->toBe(['frozen' => 1, 'repaired' => 0, 'unresolved' => 0]);
+});
+
+it('repairs a token the model retyped from an unmasked source', function () {
+    $notebook = Notebook::factory()->create();
+    $page = DocumentationPage::factory()->for($notebook)->create();
+
+    $token = base64_encode('sb-04938d98-2ea2-4495-835c-b8e028f11818!b38080|it-rt-btpprod-exemplo'
+        . '!b106:aa793318-afe5-4231-825d-ddb5a3894178$oOOeDJVf3UKpiGNl2yfgZpl1b3ee4kKU9ozu3aqMU6s=');
+    $mangled = substr($token, 0, -6) . 'N=';
+
+    $result = fakeChatService("Pronto.\n\n````\n`Basic {$mangled}`\n````\n")
+        ->generate(chatMessageFor($page, ['existing_content' => "Basic {$token}\n"]));
+
+    expect($result->draft)->toContain($token)
+        ->and($result->draft)->not->toContain($mangled)
+        ->and($result->meta['literals']['repaired'])->toBe(1);
+});
