@@ -7,7 +7,10 @@ use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
 use League\CommonMark\Extension\GithubFlavoredMarkdownExtension;
 use League\CommonMark\Extension\HeadingPermalink\HeadingPermalinkExtension;
+use League\CommonMark\Extension\Table\Table;
+use League\CommonMark\Extension\Table\TableRenderer;
 use League\CommonMark\MarkdownConverter;
+use League\CommonMark\Renderer\HtmlDecorator;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 /**
@@ -37,6 +40,27 @@ class GitbookRenderer
     private bool $linkDiagrams = true;
 
     private ?MarkdownConverter $converter = null;
+
+    /**
+     * An active tab must READ as the open mouth of the panel below it, which
+     * means exactly one thing structurally: no line of any kind between the
+     * two. Getting there takes three cooperating pieces, and it broke because
+     * only two of them were in place —
+     *
+     *  - the tablist draws the rail (`border-b`), so inactive tabs sit ON a line;
+     *  - the active tab has `-mb-px` (plus `relative`, to pin the paint order)
+     *    so its own background covers that rail underneath it;
+     *  - the panel has `border-t-0`, because its top border is that same rail.
+     *
+     * Without the third, the panel drew a SECOND 1px line right under the
+     * rail — one the active tab's single pixel of overlap could never reach —
+     * and every open tab kept a closed tab's underline. `border-b-surface` in
+     * the old active set was trying to paint a border the tab does not have
+     * (`border-b-0`); it is gone.
+     */
+    private const TAB_ACTIVE_CLASSES = ['bg-surface', 'text-ink', 'border-line'];
+
+    private const TAB_INACTIVE_CLASSES = ['text-muted', 'border-transparent', 'hover:text-ink', 'hover:bg-canvas'];
 
     /** Counter for unique tab-block ids within the same render. */
     private int $uid = 0;
@@ -275,22 +299,24 @@ class GitbookRenderer
             $config = json_encode([
                 'targetId'          => $targetId,
                 'targetContainerId' => $containerId,
-                'activeClasses'     => ['bg-surface', 'text-ink', 'border-line', 'border-b-surface'],
-                'inactiveClasses'   => ['text-muted', 'border-transparent', 'hover:text-ink'],
+                'activeClasses'     => self::TAB_ACTIVE_CLASSES,
+                'inactiveClasses'   => self::TAB_INACTIVE_CLASSES,
                 'selectedOnInit'    => $selected,
             ]);
+
+            $state = implode(' ', $selected ? self::TAB_ACTIVE_CLASSES : self::TAB_INACTIVE_CLASSES);
 
             $tablist .= '<button type="button" role="tab"'
                 . ' data-ak-tabs="' . htmlspecialchars($config, ENT_QUOTES) . '"'
                 . ' aria-selected="' . ($selected ? 'true' : 'false') . '"'
                 . ' tabindex="' . ($selected ? '0' : '-1') . '"'
-                . ' class="-mb-px shrink-0 rounded-t-md border border-b-0 px-3.5 py-1.5 text-sm font-medium transition-colors ' . ($selected ? 'bg-surface text-ink border-line border-b-surface' : 'text-muted border-transparent hover:text-ink') . '">'
+                . ' class="relative -mb-px shrink-0 rounded-t-md border border-b-0 px-3.5 py-1.5 text-sm font-medium transition-colors ' . $state . '">'
                 . e($tab['title'])
                 . '</button>';
 
             $panels .= '<div id="' . $targetId . '"'
                 . ' role="tabpanel"'
-                . ' class="' . ($selected ? '' : 'hidden ') . 'rounded-b-md rounded-tr-md border border-line bg-surface px-4 py-3">'
+                . ' class="' . ($selected ? '' : 'hidden ') . 'rounded-b-md border border-t-0 border-line bg-surface px-4 py-3">'
                 . $this->renderLines($tab['lines'])
                 . '</div>';
         }
@@ -440,6 +466,31 @@ class GitbookRenderer
             $environment->addExtension(new CommonMarkCoreExtension);
             $environment->addExtension(new GithubFlavoredMarkdownExtension);
             $environment->addExtension(new HeadingPermalinkExtension);
+
+            // Every table goes out inside its own horizontal scroller. A table
+            // is the one block whose MIN-content width can exceed the width it
+            // was given — `width: 100%` does not bind it, because a cell that
+            // won't wrap sets a floor the table has to honour — so a wide one
+            // painted straight over the "Nesta página" navigator beside it
+            // (measured on the SVL/SAP page: 917px of table in a 768px column,
+            // 87px of it on top of the rail). `<pre>` never did this: it has
+            // carried `overflow-x: auto` all along, and this gives a table the
+            // same treatment.
+            //
+            // Registered at a HIGHER priority than the one
+            // GithubFlavoredMarkdownExtension just added (default 0), which is
+            // how commonmark is meant to be overridden — decorating the
+            // upstream renderer rather than reimplementing table HTML.
+            //
+            // `tabindex` because a scrollable box that only answers to a mouse
+            // is unreachable for anyone who navigates by keyboard, and Chrome
+            // (unlike Firefox) does not make one focusable on its own.
+            $environment->addRenderer(
+                Table::class,
+                new HtmlDecorator(new TableRenderer, 'div', ['class' => 'ak-table-scroll', 'tabindex' => '0']),
+                10,
+            );
+
             $this->converter = new MarkdownConverter($environment);
         }
 

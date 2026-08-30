@@ -14,6 +14,22 @@
 
 import {DEFAULT_HINT_ICON} from './docs-tools/hint-icons'
 
+/**
+ * A fence's language token (```json, ```c#, ```objective-c), reduced to what
+ * can go back into Markdown without breaking it: one lowercase word, no
+ * spaces. Anything else becomes the empty string — a fence with no language is
+ * a normal state, and a better one than a fence with junk stuck to it.
+ *
+ * It lives here rather than in the editor's tool because both ends of the
+ * round trip have to agree: the one that reads a fence (parse) and the one
+ * that writes it (serialize).
+ */
+export function normalizeLanguage(value) {
+    const token = String(value ?? '').trim().toLowerCase()
+
+    return /^[a-z0-9][a-z0-9+#._-]*$/.test(token) ? token : ''
+}
+
 /* ============================ inline ============================ */
 
 // HTML inline (como o Editor.js guarda o texto rico) -> Markdown inline.
@@ -116,7 +132,7 @@ function serializeBlock(block) {
                 .map((l) => `> ${l}`)
                 .join('\n')
         case 'code':
-            return '```\n' + (d.code || '') + '\n```'
+            return '```' + normalizeLanguage(d.language) + '\n' + (d.code || '') + '\n```'
         case 'delimiter':
             return '***'
         case 'list':
@@ -268,7 +284,15 @@ function parseLines(lines) {
             i++
             while (i < n && !lines[i].trim().startsWith(fence)) { code.push(lines[i]); i++ }
             if (i < n) i++
-            blocks.push({type: 'code', data: {code: code.join('\n')}})
+            // The fence's language token is CARRIED, not dropped. It used to be
+            // matched and thrown away here while the serializer below always
+            // wrote a bare ```, so every save quietly rewrote ```xml as ``` —
+            // opening a page in the editor and pressing nothing but Salvar was
+            // enough to strip the language off every block in it. Harmless
+            // while nothing read it; since the reader highlights syntax
+            // (docs-highlight.js) it is the difference between a colored block
+            // and a grey one, and the label the panel header shows.
+            blocks.push({type: 'code', data: {code: code.join('\n'), language: normalizeLanguage(m[2])}})
             continue
         }
 

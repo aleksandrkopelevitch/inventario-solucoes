@@ -106,15 +106,52 @@
 }
 .ak-docs-editor .cdx-quote-icon { display: none; }
 
-/* ── Código (Editor.js Code tool) — mesmo tema escuro de .html-content pre
-   (redesign 2026-08-05: era um monokai `#272822` à parte, agora o mesmo
-   `--color-ink` quase-preto usado no resultado final e na sidebar). */
+/* ── Code (Editor.js Code tool) — the same light paper as .html-content pre
+   (2026-08-29: it was the near-black `--color-ink`, it is the reader's
+   "Monokai Light" now). There is no syntax highlighting here and there should
+   be none: the tool is a raw `<textarea>`, so what you type is exactly what
+   gets saved — the colors show up on the way out of the editor. The literals
+   below repeat app.css's `--mk-bg` / `--mk-line` / `--mk-fg` on purpose: those
+   are scoped to `.html-content`, which does not wrap the editor. */
 .ak-docs-editor .ce-code__textarea {
-    background: var(--color-ink);
-    color: rgba(255, 255, 255, 0.92);
-    border: none;
-    border-radius: var(--radius-card);
+    background: #fbfbf9;
+    color: #37393d;
+    border: 1px solid #e8e6e1;
+    border-top: none;
+    border-radius: 0 0 var(--radius-card) var(--radius-card);
     padding: 1rem;
+}
+
+/* The language bar DocsCodeTool (docs-tools/code.js) puts above the textarea
+   — the same header strip the reader sees on `.ak-code-panel`, except here it
+   is editable. It stays quiet until focused: the field is optional, and a text
+   box lit up on top of every code block would compete with the code itself. */
+.ak-docs-editor .ak-code-block__bar {
+    display: flex;
+    align-items: center;
+    padding: 0.35rem 0.6rem;
+    background: color-mix(in srgb, #37393d 4%, #fbfbf9);
+    border: 1px solid #e8e6e1;
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
+}
+.ak-docs-editor .ak-code-block__lang {
+    width: 12rem;
+    max-width: 100%;
+    border: none;
+    background: transparent;
+    outline: none;
+    font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: color-mix(in srgb, #37393d 75%, transparent);
+}
+.ak-docs-editor .ak-code-block__lang::placeholder {
+    font-weight: 500;
+    color: var(--color-faint);
+}
+.ak-docs-editor .ak-code-block__lang:focus {
+    color: #37393d;
 }
 
 /* ── Tabela (Editor.js Table tool) — sem linhas verticais, cabeçalho gerado

@@ -544,20 +544,39 @@ dialog[open]::backdrop {
 .html-content code {
     @apply text-sm px-1.5 py-0.5 rounded-md bg-canvas text-ink;
 }
-/* Bloco de código — reconstruído 2026-08-05 pra bater exatamente com a área
-   de documentação do modelo aprovado (artifact 895f7854): painel escuro
-   com cabeçalho FIXO (rótulo + botão "Copiar" sempre visível — não é
-   hover-reveal) em vez do `<pre>` nu de antes. `--color-ink` (quase-preto
-   da marca) no lugar do `#101215` literal do modelo — visualmente idêntico,
-   mas preso ao token. `.ak-code-panel` é o wrapper que docs-code.js insere
-   ao redor de cada `<pre>` (`[data-ak-docs-content] pre`) — sem JS, o
-   `<pre>` nu abaixo ainda fica apresentável (specificity: `.ak-code-panel
-   pre` some com o próprio estilo do `<pre>` solto). */
+/* Code block — a LIGHT, "Monokai Light"-flavoured theme (2026-08-29). It was
+   a near-black panel (`--color-ink`) with white text end to end; it is paper
+   with real syntax highlighting now (highlight.js, pulled in on demand by
+   docs-code.js and only when the page has a `<pre>` at all).
+   `.ak-code-panel` is the wrapper docs-code.js inserts around each `<pre>`
+   (`[data-ak-docs-content] pre`) — with no JS the bare `<pre>` below is still
+   presentable (specificity: `.ak-code-panel pre` beats the loose `<pre>`),
+   just with no color on the tokens.
+
+   The `--mk-*` colors are a deliberate EXCEPTION to the brand tokens, for the
+   same reason the F3 canvas has its own: a syntax theme is a CLOSED palette (a
+   family of hues that has to stay distinguishable from itself at a glance),
+   not a composition of brand tones — and nothing colored here ever passes
+   through Blade, it comes out of highlight.js. They stay scoped to
+   `.html-content` and nowhere else. All of them clear 4.5:1 on `--mk-bg`
+   except the comment (~4:1), which is secondary by definition. */
+.html-content {
+    --mk-bg:       #fbfbf9;   /* paper — a faintly warm white          */
+    --mk-line:     #e8e6e1;   /* the panel's and header's frame         */
+    --mk-fg:       #37393d;   /* identifiers and punctuation            */
+    --mk-comment:  #7b8288;   /* comment — italic                       */
+    --mk-keyword:  #1a6f8b;   /* const/function/if — blue, italic       */
+    --mk-entity:   #16795a;   /* function/method name, tag, class       */
+    --mk-string:   #a8621a;   /* string, regex, literal text            */
+    --mk-number:   #7c4dc9;   /* number, boolean, null, symbol          */
+    --mk-attr:     #8a6d0b;   /* XML attribute, JSON key, variable      */
+    --mk-meta:     #cf2e6a;   /* meta/preprocessor, a diff's removal    */
+}
 .html-content pre {
     @apply relative rounded-card p-4 overflow-x-auto my-6;
-    background: var(--color-ink);
-    color: rgba(255, 255, 255, 0.88);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--mk-bg);
+    color: var(--mk-fg);
+    border: 1px solid var(--mk-line);
 }
 .html-content pre code {
     @apply bg-transparent p-0 text-inherit leading-relaxed;
@@ -569,8 +588,8 @@ dialog[open]::backdrop {
     margin: 1.5rem 0;
     border-radius: var(--radius-card);
     overflow: hidden;
-    background: var(--color-ink);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--mk-bg);
+    border: 1px solid var(--mk-line);
 }
 .html-content .ak-code-panel pre {
     margin: 0;
@@ -584,49 +603,103 @@ dialog[open]::backdrop {
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 0.75rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    background: color-mix(in srgb, var(--mk-fg) 4%, var(--mk-bg));
+    border-bottom: 1px solid var(--mk-line);
 }
 .html-content .ak-code-panel .ak-code-label {
     font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
     font-size: 0.6875rem;
-    font-weight: 500;
+    font-weight: 600;
+    letter-spacing: 0.04em;
     padding: 0.2rem 0.55rem;
     border-radius: 0.4rem;
-    background: rgba(255, 255, 255, 0.08);
-    color: #f3f4f6;
+    background: color-mix(in srgb, var(--mk-fg) 7%, transparent);
+    color: color-mix(in srgb, var(--mk-fg) 75%, transparent);
 }
-/* Botão "Copiar" — SEMPRE visível (não é hover-reveal), igual ao modelo. */
+/* "Copiar" button — ALWAYS visible (not hover-reveal), as in the model. */
 .html-content .ak-code-panel .ak-code-copy {
     margin-left: auto;
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--mk-line);
     border-radius: 999px;
     padding: 0.25rem 0.6rem;
     font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
     font-size: 0.65625rem;
     font-weight: 500;
     line-height: 1;
-    color: rgba(255, 255, 255, 0.55);
-    background: rgba(255, 255, 255, 0.05);
+    color: color-mix(in srgb, var(--mk-fg) 65%, transparent);
+    background: var(--mk-bg);
     cursor: pointer;
-    transition: background-color 0.15s ease, color 0.15s ease;
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 .html-content .ak-code-panel .ak-code-copy:hover,
 .html-content .ak-code-panel .ak-code-copy:focus-visible {
-    background: rgba(255, 255, 255, 0.12);
-    color: #fff;
+    background: var(--color-accent-soft);
+    border-color: var(--color-accent-line);
+    color: var(--color-accent);
 }
 .html-content .ak-code-panel .ak-code-copy.is-copied {
-    background: color-mix(in srgb, var(--color-lime) 25%, transparent);
-    border-color: color-mix(in srgb, var(--color-lime) 40%, transparent);
-    color: var(--color-lime);
+    background: color-mix(in srgb, var(--color-lime) 22%, transparent);
+    border-color: color-mix(in srgb, var(--color-lime) 55%, transparent);
+    color: var(--color-lime-ink);
 }
 .html-content .ak-code-panel .ak-code-copy svg {
     width: 0.7rem;
     height: 0.7rem;
 }
+
+/* ── Syntax highlighting (highlight.js 11) ─────────────────────────────
+   Only the token names highlight.js actually emits. This app's corpus is, in
+   practice, XML (219 blocks), JSON (113) and SQL — hence the attention to the
+   three families they use: `name`/`attr`/`string` (XML), `attr`/`string`/
+   `number`/`literal` (JSON) and `keyword`/`type` (SQL). */
+.html-content .hljs-comment,
+.html-content .hljs-quote               { color: var(--mk-comment); font-style: italic; }
+
+.html-content .hljs-keyword,
+.html-content .hljs-selector-tag,
+.html-content .hljs-subst               { color: var(--mk-keyword); font-style: italic; }
+
+.html-content .hljs-type,
+.html-content .hljs-built_in            { color: var(--mk-keyword); }
+
+.html-content .hljs-literal,
+.html-content .hljs-number,
+.html-content .hljs-symbol,
+.html-content .hljs-bullet              { color: var(--mk-number); }
+
+.html-content .hljs-string,
+.html-content .hljs-doctag,
+.html-content .hljs-regexp,
+.html-content .hljs-addition            { color: var(--mk-string); }
+
+.html-content .hljs-title,
+.html-content .hljs-title.class_,
+.html-content .hljs-title.function_,
+.html-content .hljs-section,
+.html-content .hljs-name,
+.html-content .hljs-selector-id         { color: var(--mk-entity); }
+
+.html-content .hljs-attr,
+.html-content .hljs-attribute,
+.html-content .hljs-variable,
+.html-content .hljs-template-variable,
+.html-content .hljs-selector-attr,
+.html-content .hljs-selector-class      { color: var(--mk-attr); }
+
+.html-content .hljs-meta,
+.html-content .hljs-meta .hljs-keyword,
+.html-content .hljs-deletion            { color: var(--mk-meta); }
+
+/* XML's `<`, `>`, `/` — the `hljs-tag` wrapper goes pale and the `hljs-name`
+   inside it takes its color back from the rule above. */
+.html-content .hljs-tag                 { color: color-mix(in srgb, var(--mk-fg) 55%, transparent); }
+
+.html-content .hljs-link                { text-decoration: underline; }
+.html-content .hljs-emphasis            { font-style: italic; }
+.html-content .hljs-strong              { font-weight: 700; }
 
 .html-content img { @apply my-4 rounded-lg shadow-sm; }
 .html-content figure { @apply my-6; margin-inline: auto; }
@@ -658,6 +731,32 @@ dialog[open]::backdrop {
     overflow: hidden;
     background: var(--color-surface);
 }
+/* The horizontal scroller GitbookRenderer wraps every Markdown table in. The
+   FRAME moves here — a rounded border painted on the table itself would scroll
+   away with it, leaving the reading column with a box that has no right edge.
+   The table inside keeps `min-width: 100%` so a narrow one still fills the
+   column, and drops `width` so a wide one is free to be as wide as it needs.
+
+   A table pasted as RAW HTML (`html_input=allow`) never reaches the renderer's
+   Table node and so is never wrapped — which is why the rule above still
+   carries the whole frame on its own, and why this one only overrides. */
+.html-content .ak-table-scroll {
+    @apply my-6 overflow-x-auto;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+}
+.html-content .ak-table-scroll:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
+.html-content .ak-table-scroll > table {
+    @apply my-0 w-auto;
+    min-width: 100%;
+    border: none;
+    border-radius: 0;
+}
+
 /* Cabeçalho: lavagem suave da cor de marca, pra diferenciar do corpo sem
    virar uma faixa sólida. */
 .html-content th { @apply text-left font-semibold text-ink; background: var(--color-accent-soft); }

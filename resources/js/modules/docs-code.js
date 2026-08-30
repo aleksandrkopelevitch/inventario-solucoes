@@ -1,7 +1,7 @@
 // docs-code.js — wraps read-only documentation code blocks (`.html-content
 // pre`, rendered by GitbookRenderer from fenced ``` blocks) in a permanent
-// dark panel with a header bar (label + an ALWAYS-VISIBLE "Copiar" button —
-// not hover-reveal), matching the approved documentation model exactly.
+// panel with a header bar (label + an ALWAYS-VISIBLE "Copiar" button — not
+// hover-reveal), and paints the code with highlight.js.
 // Scoped to [data-ak-docs-content] so it never touches the other
 // `.html-content` consumers (F3 canvas node comments, flowSpec chat replies).
 //
@@ -12,6 +12,18 @@
 const enhanced = new WeakSet()
 
 const COPY_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>'
+
+// The grammars are a chunk of their own (see docs-highlight.js) and this is
+// where it gets fetched — once per page load, and only from a page that has
+// at least one code block. Held as the PROMISE, not the module, so several
+// init() passes (a slot swap mid-flight) share one request.
+let highlighter = null
+
+function loadHighlighter() {
+    if (!highlighter) highlighter = import('./docs-highlight.js')
+
+    return highlighter
+}
 
 function buildPanel(pre) {
     const panel = document.createElement('div')
@@ -56,13 +68,34 @@ document.addEventListener('click', async (e) => {
 })
 
 export function init() {
-    document.querySelectorAll('[data-ak-docs-content] pre').forEach((pre) => {
-        if (enhanced.has(pre)) return
+    const blocks = Array.from(document.querySelectorAll('[data-ak-docs-content] pre'))
+        .filter((pre) => !enhanced.has(pre))
+
+    if (blocks.length === 0) return
+
+    blocks.forEach((pre) => {
         enhanced.add(pre)
 
         // Captured before the panel/button markup is built — otherwise the
-        // button's own label would leak into the copied text.
+        // button's own label would leak into the copied text. It is also what
+        // makes "Copiar" immune to the highlighting below, which replaces the
+        // <code> element's children with a tree of colored spans.
         pre.dataset.akCode = pre.textContent
         buildPanel(pre)
     })
+
+    loadHighlighter()
+        .then(({highlightBlock}) => {
+            blocks.forEach((pre) => {
+                const language = highlightBlock(pre)
+                if (!language) return
+
+                const label = pre.closest('.ak-code-panel')?.querySelector('.ak-code-label')
+                if (label) label.textContent = language
+            })
+        })
+        .catch(() => {
+            // Highlighting is decoration: the panel, its "Código" label and
+            // the copy button are already in place and stay working.
+        })
 }

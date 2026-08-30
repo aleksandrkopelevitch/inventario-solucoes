@@ -166,20 +166,34 @@ class DiagramController extends Controller
      * trailing group of its own. The picker's job is to let a citation be
      * written, and a diagram nobody could reach from here would simply be
      * uncitable.
+     *
+     * Each entry carries its `pictureUrl` (null when the canvas has never been
+     * saved with one) and its `url`, because the editor's block PREVIEWS the
+     * citation — it draws the same card the reader will get, and this is the
+     * one payload it already fetches. Both are built with `route()` here rather
+     * than assembled in JS, which is what keeps `docs-tools/diagram.js` free of
+     * a path of its own. The media is eager-loaded: `picture()` is a
+     * `getFirstMedia()` per diagram, which would be a query per row on a
+     * catalog meant to be one.
      */
     public function catalog(): JsonResponse
     {
         $this->authorize('viewAny', Diagram::class);
 
         $diagrams = Diagram::query()
-            ->with('participants:id,name')
+            ->with(['participants:id,name', 'media'])
             ->orderBy('name')
             ->get(['id', 'name', 'slug']);
 
         $groups = [];
 
         foreach ($diagrams as $diagram) {
-            $entry = ['slug' => $diagram->slug, 'name' => $diagram->name];
+            $entry = [
+                'slug'       => $diagram->slug,
+                'name'       => $diagram->name,
+                'pictureUrl' => $diagram->picture() ? route('diagrams.picture.show', $diagram) : null,
+                'url'        => route('diagrams.show', $diagram),
+            ];
 
             if ($diagram->participants->isEmpty()) {
                 $groups['__loose']['diagrams'][] = $entry;
