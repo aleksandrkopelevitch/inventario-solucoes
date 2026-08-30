@@ -125,3 +125,18 @@ it('gives the same generic response for a forgot-password request whether or not
 
     expect($known->json())->toBe($unknown->json());
 });
+
+// The renderer this covers is easy to write and easy to have never fire — the
+// file it lives in carries two documented cases of exactly that. It also has
+// two halves that must not collapse into one: JSON answers, HTML redirects.
+it('answers a guest AJAX request with a PT-BR expired-session Toast, not a bare English 401', function () {
+    $response = $this->getJson(route('solutions.index'))->assertStatus(401);
+
+    expect($response->json('message'))->toContain('sessão expirou');
+    expect($response->json('message'))->toContain('login novamente');
+    $response->assertJson(['title' => 'Sessão encerrada', 'type' => 'warning']);
+});
+
+it('still redirects a guest browser request to the login screen', function () {
+    $this->get(route('solutions.index'))->assertRedirect(route('login.create'));
+});

@@ -63,9 +63,28 @@ return Application::configure(basePath: dirname(__DIR__))
         // had, making it dead too. Same trap as the 419/CSRF case.
 
         // Authentication (not logged in) => 401 or redirect to login
+        //
+        // Unlike the AuthorizationException note directly above, this renderer
+        // really does fire. `AuthenticationException` is absent from
+        // `prepareException()`'s match, so it reaches the callbacks as itself,
+        // and `renderViaCallbacks()` runs BEFORE the `AuthenticationException`
+        // branch of `Handler::render()`. Don't "fix" it by folding it into the
+        // generic HttpExceptionInterface renderer below — it never becomes an
+        // HttpException, so it would never arrive there.
+        //
+        // The JSON body follows the Toast convention (`{message, title, type}`)
+        // because of WHEN it is read: a session that lapsed while the page sat
+        // open, and an AJAX mutation that is now the first thing to find out.
+        // The answer is the only notice the person gets that their edit did not
+        // land, so it has to name the cause and the way out. It used to be a
+        // bare English `Unauthenticated`, which `ajax-post.js` showed verbatim.
         $exceptions->render(function (AuthenticationException $e, Request $request) {
             if ($request->expectsJson()) {
-                return response()->json(['message' => 'Unauthenticated'], 401);
+                return response()->json([
+                    'message' => 'Sua sessão expirou. Faça login novamente para continuar.',
+                    'title'   => 'Sessão encerrada',
+                    'type'    => 'warning',
+                ], 401);
             }
 
             return redirect()->guest(route('login.create'));
