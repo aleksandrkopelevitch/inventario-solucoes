@@ -157,6 +157,64 @@ async function uploadContextDoc(input) {
     const formData = new FormData()
     formData.append('file', input.files[0])
 
+    try {
+        await postContextDoc(action, formData)
+    } finally {
+        input.value = '' // let the same file be re-selected (e.g. after a failure)
+    }
+}
+
+/**
+ * A long paste becomes a context document instead of a wall of text in the
+ * composer — the same gesture the Especialista em Integrações composer has
+ * (flowspec-chat.js), and the reason it is here: the material people bring to a
+ * documentation conversation is the same material, a pipeline JSON or a spec
+ * that has no business being a message body.
+ *
+ * Where it lands differs, and deliberately: F8 attaches to the CONVERSATION,
+ * while a caderno's context documents belong to the NOTEBOOK and are shared by
+ * every page in it. So this paste outlives the conversation and is there while
+ * documenting the next page — see App\Actions\Documentation\AttachContextText.
+ *
+ * The text is posted RAW rather than as a synthesized file: the server is what
+ * recognizes a pipeline and minifies it, and it names the document.
+ */
+document.addEventListener('paste', (e) => {
+    const input = e.target.closest('[data-ak-docs-chat-input]')
+    if (!input) return
+
+    const config = composerConfig(input)
+    if (!config.contextStoreUrl) return
+
+    const text = e.clipboardData?.getData('text/plain') ?? ''
+    if (text.length <= (config.pasteThreshold || 2000)) return
+
+    e.preventDefault()
+
+    const formData = new FormData()
+    formData.append('text', text)
+
+    postContextDoc(config.contextStoreUrl, formData)
+})
+
+/** The composer form's own config, parsed once per call — it is a tiny object. */
+function composerConfig(input) {
+    const form = input.closest('form')
+    try {
+        return JSON.parse(form?.dataset.akDocsChatComposer ?? '{}')
+    } catch (_) {
+        return {}
+    }
+}
+
+/**
+ * One POST for both ways a context document arrives (a picked file, a long
+ * paste), so the uploading indicator, the slot swap and the error handling
+ * cannot drift between them.
+ */
+async function postContextDoc(action, formData) {
+    if (!action) return
+
     setContextUploading(true)
     try {
         const response = await ajaxModule.init('POST', action, formData)
@@ -175,7 +233,6 @@ async function uploadContextDoc(input) {
         Toast.open({content: message, title: 'Atenção', type: 'warning'})
     } finally {
         setContextUploading(false)
-        input.value = '' // let the same file be re-selected (e.g. after a failure)
     }
 }
 

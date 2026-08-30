@@ -178,7 +178,17 @@ class FlowspecPromptBuilder
      * chat now (see AttachFlowspecText), and a conversation can legitimately
      * carry two pipelines — "junte esses dois fluxos" is a normal request.
      *
-     * @param  Collection<int, string>  $referenceFlowspecs
+     * Each block is headed by the attachment's own LABEL — the name shown on
+     * its pill in the context panel, which the user can rename. That shared
+     * name is the whole point: it is how someone writes "estenda o flowSpec
+     * Pedidos B2B" and the model knows which of three pipelines they mean.
+     * These used to be numbered `Pipeline 1..N` (and a lone one got no heading
+     * at all), a name the user never saw and therefore could never use.
+     *
+     * A single pipeline is headed too, for the same reason: the request may
+     * name it, and a section the request names has to exist.
+     *
+     * @param  Collection<int, array{label: string, content: string}>  $referenceFlowspecs
      */
     private function referenceFlowspecSection(Collection $referenceFlowspecs): string
     {
@@ -186,14 +196,12 @@ class FlowspecPromptBuilder
             return '';
         }
 
-        $blocks = $referenceFlowspecs->values()->map(function (string $json, int $index) use ($referenceFlowspecs) {
-            $heading = $referenceFlowspecs->count() === 1 ? '' : '## Pipeline ' . ($index + 1) . "\n\n";
-
-            return $heading . $json;
-        });
+        $blocks = $referenceFlowspecs->values()->map(
+            fn (array $spec) => "## {$spec['label']}\n\n{$spec['content']}"
+        );
 
         return "# FLOWSPEC DE REFERÊNCIA\n\n"
-            . "(pipeline(s) anexado(s) pelo usuário como base do pedido — ajuste/estenda sobre eles; gere UUIDs novos, não reaproveite os destes anexos)\n\n"
+            . "(pipeline(s) anexado(s) pelo usuário como base do pedido, cada um sob o NOME que o usuário deu a ele — é por esse nome que o pedido vai se referir a eles; ajuste/estenda sobre eles; gere UUIDs novos, não reaproveite os destes anexos)\n\n"
             . $blocks->implode("\n\n");
     }
 

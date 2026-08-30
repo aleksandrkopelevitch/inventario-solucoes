@@ -338,6 +338,7 @@ Route::middleware('auth')->group(function () {
     // detach context belonging to conversation {b} — including another user's,
     // since the policy is checked against {a}.
     Route::scopeBindings()->group(function () {
+        Route::patch('flowspec/{chat}/attachments/{attachment}', [FlowspecAttachmentController::class, 'update'])->name('flowspec.attachments.update');
         Route::delete('flowspec/{chat}/attachments/{attachment}', [FlowspecAttachmentController::class, 'destroy'])->name('flowspec.attachments.destroy');
     });
 

@@ -59,7 +59,16 @@
             </span>
         </div>
 
-        <form id="docs-chat-message-form">
+        {{-- The composer's config, on the form. `attr="{{ json_encode(...) }}"`
+             and never `@json()`: the latter silently fails to compile inside a
+             component tag's attributes, and this form may yet become one.
+             `pasteThreshold` is served from config so docs-chat.js and
+             StoreContextDocumentRequest cannot drift on where "long" starts. --}}
+        <form id="docs-chat-message-form"
+              data-ak-docs-chat-composer="{{ json_encode([
+                  'contextStoreUrl' => $contextStoreUrl,
+                  'pasteThreshold'  => (int) config('services.documentation_ai.paste_threshold_chars'),
+              ]) }}">
             <div class="flex items-end gap-2">
                 <x-forms.textarea data-ak-docs-chat-input rows="1"
                     class="max-h-40 min-h-[2.5rem] flex-1 resize-none !py-2.5"

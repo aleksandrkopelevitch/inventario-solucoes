@@ -24,7 +24,7 @@ final class FlowspecContext
     /**
      * @param  Collection<int, DocumentationPage>  $pages
      * @param  Collection<int, array{label: string, content: string}>  $textDocs  uploads read as text + pasted text
-     * @param  Collection<int, string>  $referenceFlowspecs  pasted `{meta, flowSpec}` documents, already minified
+     * @param  Collection<int, array{label: string, content: string}>  $referenceFlowspecs  pasted `{meta, flowSpec}` documents, already minified, under the name the user gave each
      * @param  list<object>  $attachments  Laravel\Ai LocalImage/LocalDocument handed to the model
      * @param  list<array{id: int, name: string, kind: string}>  $attachedMeta
      * @param  list<string>  $omittedAttachments  dropped by the aggregate byte ceiling, never silently

@@ -206,7 +206,10 @@ it('inlines pasted text and keeps a pasted pipeline in its own section', functio
     $context = (new FlowspecContextResolver)->resolve($chat, 'ajuste o pipeline');
 
     expect($context->textDocs->pluck('label')->all())->toBe(['Contrato colado'])
-        ->and($context->referenceFlowspecs->all())->toBe(['{"flowSpec":{"disconnected-root:x":[]}}']);
+        ->and($context->referenceFlowspecs->all())->toBe([[
+            'label'   => 'flowSpec de referência',
+            'content' => '{"flowSpec":{"disconnected-root:x":[]}}',
+        ]]);
 
     $prompt = app(FlowspecPromptBuilder::class)->userPrompt($context, 'ajuste o pipeline', collect())->text;
 
@@ -217,16 +220,37 @@ it('inlines pasted text and keeps a pasted pipeline in its own section', functio
         ->not->toContain('Array');
 });
 
-it('names both pipelines when two are pasted into one conversation', function () {
+// The heading is the attachment's own label, which is what the person reads on
+// its pill and can rename — that shared name is the only way a request like
+// "junte o Pedidos B2B com o Estoque SAP" can land on the right two sections.
+// These used to be numbered `Pipeline 1..N`, a name the UI never showed.
+it('heads each pasted pipeline with the name shown on its pill', function () {
     $chat = FlowspecChat::factory()->create();
 
-    FlowspecAttachment::factory()->for($chat, 'chat')->flowspecReference('{"flowSpec":{"a":[]}}')->create();
-    FlowspecAttachment::factory()->for($chat, 'chat')->flowspecReference('{"flowSpec":{"b":[]}}')->create();
+    FlowspecAttachment::factory()->for($chat, 'chat')->flowspecReference('{"flowSpec":{"a":[]}}')->create(['label' => 'Pedidos B2B']);
+    FlowspecAttachment::factory()->for($chat, 'chat')->flowspecReference('{"flowSpec":{"b":[]}}')->create(['label' => 'Estoque SAP']);
 
     $context = (new FlowspecContextResolver)->resolve($chat, 'junte os dois fluxos');
     $prompt = app(FlowspecPromptBuilder::class)->userPrompt($context, 'junte os dois fluxos', collect())->text;
 
-    expect($prompt)->toContain('## Pipeline 1')->toContain('## Pipeline 2');
+    expect($prompt)
+        ->toContain('## Pedidos B2B')
+        ->toContain('## Estoque SAP')
+        ->not->toContain('## Pipeline 1');
+});
+
+// A lone pipeline used to get NO heading at all, on the theory that there was
+// nothing to disambiguate. But the request can still name it, and a name that
+// points at no section is worse than no name.
+it('heads a lone pasted pipeline too', function () {
+    $chat = FlowspecChat::factory()->create();
+
+    FlowspecAttachment::factory()->for($chat, 'chat')->flowspecReference('{"flowSpec":{"a":[]}}')->create(['label' => 'Pedidos B2B']);
+
+    $context = (new FlowspecContextResolver)->resolve($chat, 'estenda o Pedidos B2B');
+    $prompt = app(FlowspecPromptBuilder::class)->userPrompt($context, 'estenda o Pedidos B2B', collect())->text;
+
+    expect($prompt)->toContain('## Pedidos B2B');
 });
 
 it('leaves a file it could not read out of the prompt entirely', function () {

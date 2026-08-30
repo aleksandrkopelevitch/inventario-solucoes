@@ -24,6 +24,9 @@ use Illuminate\Support\Str;
  */
 class AttachFlowspecText
 {
+    /** Default name for a pasted pipeline — see disambiguate() for the rest of it. */
+    public const FLOWSPEC_LABEL = 'flowSpec de referência';
+
     public function __construct(
         private readonly NormalizeReferenceFlowspec $normalize,
         private readonly SensitiveTextScanner $scanner,
@@ -32,12 +35,12 @@ class AttachFlowspecText
     public function handle(FlowspecChat $chat, string $text, ?string $label = null): FlowspecAttachment
     {
         $text = trim($text);
-        $isFlowspec = $this->looksLikeFlowspec($text);
+        $isFlowspec = NormalizeReferenceFlowspec::looksLike($text);
         $content = $isFlowspec ? $this->normalize->handle($text) : $text;
 
         return $chat->attachments()->create([
             'kind'                  => FlowspecAttachmentKind::Text,
-            'label'                 => $isFlowspec ? 'flowSpec de referência' : $this->label($label, $text),
+            'label'                 => $this->disambiguate($chat, $isFlowspec ? self::FLOWSPEC_LABEL : $this->label($label, $text)),
             'content'               => $content,
             'extraction_state'      => ContextExtractionState::Done,
             'is_flowspec_reference' => $isFlowspec,
@@ -48,6 +51,38 @@ class AttachFlowspecText
             'sensitive_findings' => $isFlowspec ? null : ($this->scanner->scan($content) ?: null),
             'token_estimate'     => TokenEstimator::forText($content),
         ]);
+    }
+
+    /**
+     * Keeps a name unique WITHIN the conversation by appending an ordinal.
+     *
+     * A pasted pipeline has no name to read: the document is `{meta, flowSpec}`
+     * and neither half carries one (`meta` is the canvas position map, which
+     * NormalizeReferenceFlowspec strips anyway), so every one of them defaulted
+     * to the same constant and a chat with three of them showed three identical
+     * pills — and, since the label is now the prompt heading, three identical
+     * headings. Rather than invent a name out of a branch key, they are made
+     * merely TELLABLE APART here and named properly by the person, who is the
+     * only one who knows which is which (flowspec.attachments.update).
+     *
+     * The first keeps the bare name, so nothing is numbered until there is
+     * something to distinguish it from.
+     */
+    private function disambiguate(FlowspecChat $chat, string $base): string
+    {
+        $taken = $chat->attachments()->pluck('label')->all();
+
+        if (! in_array($base, $taken, true)) {
+            return $base;
+        }
+
+        $ordinal = 2;
+
+        while (in_array("{$base} {$ordinal}", $taken, true)) {
+            $ordinal++;
+        }
+
+        return "{$base} {$ordinal}";
     }
 
     /**
@@ -64,22 +99,5 @@ class AttachFlowspecText
         $firstLine = trim((string) Str::before($text, "\n"));
 
         return $firstLine === '' ? 'Texto colado' : Str::limit($firstLine, 60);
-    }
-
-    /**
-     * A Digibee pipeline document, as opposed to any other pasted JSON. Same
-     * shape test FlowspecGenerationService uses on the model's own output: a
-     * `meta` or `flowSpec` key at the top level.
-     */
-    private function looksLikeFlowspec(string $text): bool
-    {
-        if ($text === '' || ! in_array($text[0], ['{', '['], true)) {
-            return false;
-        }
-
-        $decoded = json_decode($text, true);
-
-        return is_array($decoded)
-            && (array_key_exists('meta', $decoded) || array_key_exists('flowSpec', $decoded));
     }
 }
