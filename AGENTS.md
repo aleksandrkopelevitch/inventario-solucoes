@@ -402,6 +402,57 @@ of a large corpus re-renders that page alone. The index is fetched on the
 palette's first open, never on page render, so a visitor who does not search
 never pays for it.
 
+### The Documentation Assistant never sees an opaque literal
+
+A reply from the Especialista em Documentação rewrites the WHOLE page (the
+4-backtick draft block), so every literal on it has to survive being copied
+character by character by a language model — and long high-entropy strings are
+exactly what that copying gets wrong, silently. A 212-character SAP CPI
+`Authorization` header came back with its tail rewritten (`…VU2s9` → `…VU2n=`);
+asked to fix it, the assistant produced a third variant and stated it had
+restored the original. Nothing in the pipeline could tell: to every layer
+below, one base64 blob looks exactly like another.
+
+So the model is never given the chance. `App\Support\Documentation\LiteralVault`
+replaces each opaque literal with a marker (`[[LIT-1]]`) in everything the
+prompt shows — current content, this turn's message, history, inlined context
+documents — and puts the real bytes back in the reply, in the conversational
+half as well as in the draft. The model can still MOVE a value (that is
+copying a nine-character marker) and can still be told which is which (the
+legend names each marker's kind, length and first 8 characters — the same
+disclosure `SensitiveTextScanner` already makes), but it cannot retype one.
+
+Four things that are easy to undo:
+
+- **The thresholds are measured, not guessed.** A literal is a run of
+  `[A-Za-z0-9+/=_.~-]` that is a JWT, 32+ hex characters, or 40+ characters
+  with Shannon entropy ≥ 4.5 bits/char AND a longest single-class run ≤ 8.
+  Measured 2026-08-30 over the whole dev corpus (207 pages): those rules flag 9
+  strings, all genuinely opaque, and none of the ~570 long identifiers the same
+  corpus contains — `additionalData_payload_transaction_authorizationCode`
+  (H=3.8), `S4hana/depara_fornecedor_QAS500/…` (H=4.1), a table's `-----` rule
+  (H=0). The run cap is what does most of the work: a word IS a run of one
+  class, so identifiers sit at 8–13 and random tokens at 3–6. Loosen either and
+  field names start disappearing behind markers.
+- **Mask before the prompt, restore before `extractDraft()`.** One restore over
+  the raw reply text covers both halves; the markers contain no backticks, so
+  the fence regex is unaffected.
+- **The repair pass only fires on a UNIQUE prefix owner.** The model can still
+  retype a value it read from a native attachment (a PDF is handed over as-is
+  and never passes through `mask()`), so a candidate sharing a vaulted
+  literal's first 24 characters at ≥ 90% similarity is replaced by the vaulted
+  one. Two tokens for the same service in different environments are base64 of
+  nearly the same plaintext and share a long prefix — "closest match" would
+  swap PRD for QAS, which is why an ambiguous prefix is left alone rather than
+  guessed.
+- **Test fixtures are synthetic.** Same shape as the header that exposed this
+  (`sb-<uuid>!b<n>|<subaccount>:<uuid>$<secret>`, base64), never a real
+  credential — a test suite is not a place to keep one.
+
+`meta.literals` (`frozen`/`repaired`/`unresolved`) audits each turn;
+`unresolved` counts markers the model invented, which is the shape of a
+prompt regression.
+
 ## Eloquent
 
 - Always define return types on relationships:
