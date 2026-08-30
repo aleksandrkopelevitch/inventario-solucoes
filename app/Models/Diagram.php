@@ -230,7 +230,7 @@ class Diagram extends Model implements ChainCanvas
     {
         $search = trim((string) ($filters['search'] ?? ''));
         if ($search !== '') {
-            $query->where('name', 'like', '%' . $search . '%');
+            $query->whereFolded('name', $search);
         }
 
         if (filled($filters['status'] ?? null)) {

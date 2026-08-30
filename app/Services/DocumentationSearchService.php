@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
+use App\Support\Fold;
 use App\Support\GitbookRenderer;
 use DOMDocument;
 use DOMElement;
@@ -101,27 +102,21 @@ class DocumentationSearchService
     // an empty haystack — silently, since an empty bucket is a legal state.
     private const VERSION = 'v5';
 
-    /**
-     * Accent folding, one character in for one character out, so a character
-     * offset in the folded copy is the same offset in the original. A
-     * transliteration that expands (æ → ae) would shift every highlight after
-     * it by one.
-     */
-    private const ACCENT_MAP = [
-        'á' => 'a', 'à' => 'a', 'â' => 'a', 'ã' => 'a', 'ä' => 'a', 'å' => 'a',
-        'é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e',
-        'í' => 'i', 'ì' => 'i', 'î' => 'i', 'ï' => 'i',
-        'ó' => 'o', 'ò' => 'o', 'ô' => 'o', 'õ' => 'o', 'ö' => 'o',
-        'ú' => 'u', 'ù' => 'u', 'û' => 'u', 'ü' => 'u',
-        'ç' => 'c', 'ñ' => 'n', 'ý' => 'y', 'ÿ' => 'y',
-    ];
-
     public function __construct(private readonly DocumentationPageService $pages) {}
 
-    /** Lowercased and accent-folded, preserving character count (see ACCENT_MAP). */
+    /**
+     * Lowercased and accent-folded, preserving character count.
+     *
+     * The map moved to App\Support\Fold when every SQL search in the app
+     * started folding the same way — one table, so a search box and this index
+     * can never disagree about whether "solucao" is "solução". The character
+     * count is what this caller in particular depends on: it highlights a match
+     * by RANGE, and a folding that expanded (æ → ae) would shift every
+     * highlight after it by one.
+     */
     public static function fold(string $value): string
     {
-        return strtr(mb_strtolower($value), self::ACCENT_MAP);
+        return Fold::text($value);
     }
 
     /**

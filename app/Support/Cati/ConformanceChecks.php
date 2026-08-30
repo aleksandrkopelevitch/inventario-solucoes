@@ -5,7 +5,7 @@ namespace App\Support\Cati;
 use App\Enums\ConformanceVerdict;
 use App\Enums\SubmissionSectionKey;
 use App\Models\Submission;
-use Illuminate\Support\Str;
+use App\Support\Fold;
 
 /**
  * Grades a submission against the corporate standards the CATI form asks about
@@ -39,9 +39,14 @@ class ConformanceChecks
 
     private const PLATFORM_TERMS = ['digibee', 'barramento', 'ipaas', 'api gateway', 'mensageria', 'kafka'];
 
+    // One spelling each. The haystack and these are both folded before they
+    // meet (see `mentions()`), so an accent is not a second entry to remember
+    // — which is what the list used to be, half-heartedly: "contingência" was
+    // listed twice and "dados sensíveis" once, so a submission that wrote
+    // "dados sensiveis" read as one that never mentioned them at all.
     private const SENSITIVE_DATA_TERMS = ['dado sensível', 'dados sensíveis', 'dado pessoal', 'dados pessoais', 'lgpd', 'pii', 'anonimiz'];
 
-    private const CONTINGENCY_TERMS = ['rollback', 'contingência', 'contingencia', 'reversão', 'reversao', 'retry', 'recuperação', 'recuperacao', 'backup'];
+    private const CONTINGENCY_TERMS = ['rollback', 'contingência', 'reversão', 'retry', 'recuperação', 'backup'];
 
     private const HIGH_CRITICALITY = ['critical', 'high'];
 
@@ -138,9 +143,9 @@ class ConformanceChecks
         // (`Diagram.protocol` is the transport — rest, sftp — not the
         // platform), so this can only ever be a content check.
         $verdict = match (true) {
-            ! $hasDiagrams                                               => ConformanceVerdict::Ok,
-            Str::contains($haystack, self::PLATFORM_TERMS, ignoreCase: true) => ConformanceVerdict::Ok,
-            default                                                          => ConformanceVerdict::Attention,
+            ! $hasDiagrams                                  => ConformanceVerdict::Ok,
+            self::mentions($haystack, self::PLATFORM_TERMS) => ConformanceVerdict::Ok,
+            default                                         => ConformanceVerdict::Attention,
         };
 
         return [
@@ -148,7 +153,7 @@ class ConformanceChecks
             'label'   => 'Padrão de integração',
             'verdict' => $verdict,
             'detail'  => match (true) {
-                ! $hasDiagrams                  => 'Sem diagramas catalogados.',
+                ! $hasDiagrams                      => 'Sem diagramas catalogados.',
                 $verdict === ConformanceVerdict::Ok => 'Plataforma de integração citada.',
                 default                             => 'Integrações existentes, sem plataforma citada.',
             },
@@ -159,7 +164,7 @@ class ConformanceChecks
     /** @return array{key: string, label: string, verdict: ConformanceVerdict, detail: string, question: string} */
     private static function sensitiveData(?string $environment, string $haystack): array
     {
-        $stated = Str::contains($haystack, self::SENSITIVE_DATA_TERMS, ignoreCase: true);
+        $stated = self::mentions($haystack, self::SENSITIVE_DATA_TERMS);
 
         // Only pressed for a SaaS solution: that is where data leaves the Leo
         // environment, which is the question the committee actually asks.
@@ -182,7 +187,7 @@ class ConformanceChecks
     /** @return array{key: string, label: string, verdict: ConformanceVerdict, detail: string, question: string} */
     private static function contingency(?string $criticality, string $haystack): array
     {
-        $stated = Str::contains($haystack, self::CONTINGENCY_TERMS, ignoreCase: true);
+        $stated = self::mentions($haystack, self::CONTINGENCY_TERMS);
         $critical = in_array($criticality, self::HIGH_CRITICALITY, true);
 
         $verdict = match (true) {
@@ -208,7 +213,7 @@ class ConformanceChecks
     {
         // A blank section is "not stated", never a violation: the committee
         // treats silence as a question, not as a breach.
-        $found = Str::contains($haystack, $terms, ignoreCase: true);
+        $found = self::mentions($haystack, $terms);
 
         return [
             'key'      => $key,
@@ -217,5 +222,27 @@ class ConformanceChecks
             'detail'   => $found ? $stated : 'Não mencionado em "Padrões Adotados".',
             'question' => $question,
         ];
+    }
+
+    /**
+     * Whether the text says any of these words, ignoring capitals AND accents.
+     *
+     * `Str::contains(..., ignoreCase: true)` answers only the first half, which
+     * is why the term lists had started growing a second entry per accented
+     * word — and why they had stopped: some words got both spellings, some got
+     * one, and nothing said which. Folding both sides makes the question
+     * unanswerable-by-omission.
+     */
+    private static function mentions(string $haystack, array $terms): bool
+    {
+        $folded = Fold::text($haystack);
+
+        foreach ($terms as $term) {
+            if (str_contains($folded, Fold::text($term))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

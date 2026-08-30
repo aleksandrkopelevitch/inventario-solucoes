@@ -61,9 +61,9 @@ class Person extends Model
     {
         $query
             ->when($filters['search'] ?? null, fn (Builder $q, $search) => $q->where(fn (Builder $w) => $w
-                ->where('name', 'like', "%{$search}%")
-                ->orWhereHas('company', fn (Builder $c) => $c->where('name', 'like', "%{$search}%"))
-                ->orWhereHas('solutions', fn (Builder $s) => $s->where('name', 'like', "%{$search}%"))))
+                ->whereFolded('name', $search)
+                ->orWhereHas('company', fn (Builder $c) => $c->whereFolded('name', $search))
+                ->orWhereHas('solutions', fn (Builder $s) => $s->whereFolded('name', $search))))
             ->when($filters['company'] ?? null, fn (Builder $q, $v) => $q->where('company_id', $v))
             // `wherePivot()` only exists on the BelongsToMany relation itself, not on
             // the plain Builder a whereHas() closure receives — calling it here silently

@@ -6,7 +6,7 @@ use App\Contracts\Documentable;
 use App\Models\AttributeOption;
 use App\Models\DocumentationPage;
 use App\Models\Solution;
-use Illuminate\Support\Str;
+use App\Support\Fold;
 
 /**
  * Deterministic, non-AI "minimum requirements" checklist for a documentation
@@ -110,15 +110,37 @@ class DocumentationRequirements
             [
                 'key'       => 'error_handling',
                 'label'     => 'Tratamento de erros / contingência descrito',
-                'satisfied' => Str::contains($content, ['erro', 'falha', 'contingência', 'contingencia', 'retry', 'reprocess'], ignoreCase: true),
+                'satisfied' => self::mentions($content, ['erro', 'falha', 'contingência', 'retry', 'reprocess']),
                 'source'    => 'content',
             ],
             [
                 'key'       => 'contact',
                 'label'     => 'Contato ou responsável indicado',
-                'satisfied' => Str::contains($content, ['contato', 'responsável', 'responsavel', 'suporte'], ignoreCase: true),
+                'satisfied' => self::mentions($content, ['contato', 'responsável', 'suporte']),
                 'source'    => 'content',
             ],
         ];
+    }
+
+    /**
+     * Whether the page says any of these words, ignoring capitals AND accents.
+     *
+     * One spelling per word in the lists above: folding both sides is what
+     * removed the second entry each accented one used to carry
+     * ("contingência"/"contingencia"), and with it the chance of forgetting
+     * one — which is exactly how the CATI conformance checks had ended up
+     * detecting "contingencia" but not "dados sensiveis".
+     */
+    private static function mentions(string $content, array $terms): bool
+    {
+        $folded = Fold::text($content);
+
+        foreach ($terms as $term) {
+            if (str_contains($folded, Fold::text($term))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

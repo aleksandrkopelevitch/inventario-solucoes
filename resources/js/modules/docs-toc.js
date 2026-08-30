@@ -10,10 +10,23 @@
 // permalinks and its headings change as you type, so there we scroll to the
 // element directly and rebuild the list on a debounced MutationObserver.
 //
-// H2 is indented under H1 (hierarchy by indentation). A scroll-spy highlights
-// the section currently in view. Per-container init (WeakSet).
+// H1–H3, each level indented under the one above it (hierarchy by indentation,
+// and by weight: the deeper it goes the quieter it reads). H3 used to be left
+// out entirely, which made the rail lie about pages that use it — the imported
+// GitBook corpus is full of them, and the documentation SEARCH already treats
+// an H3 as a section of its own. A scroll-spy highlights the section currently
+// in view. Per-container init (WeakSet).
 
 const initialized = new WeakSet()
+
+// One step of indent per level, and one step quieter with it. Listed rather
+// than computed because Tailwind only ships classes it can SEE in the source —
+// a `pl-${n}` built at runtime compiles to nothing at all.
+const LEVELS = {
+    H1: 'px-2 font-medium text-body',
+    H2: 'pl-5 pr-2 text-muted',
+    H3: 'pl-8 pr-2 text-faint',
+}
 
 function debounce(fn, ms) {
     let t
@@ -67,7 +80,7 @@ export function init() {
         let spy = null
 
         const render = () => {
-            const headings = Array.from(content.querySelectorAll('h1, h2')).filter((h) => headingText(h))
+            const headings = Array.from(content.querySelectorAll('h1, h2, h3')).filter((h) => headingText(h))
 
             spy?.disconnect()
             toc.replaceChildren()
@@ -101,7 +114,7 @@ export function init() {
                 a.textContent = headingText(h)
                 a.className = [
                     'block truncate rounded-field py-1 text-[13px] no-underline transition-colors hover:text-accent',
-                    h.tagName === 'H2' ? 'pl-5 pr-2 text-muted' : 'px-2 font-medium text-body',
+                    LEVELS[h.tagName] ?? LEVELS.H1,
                 ].join(' ')
 
                 a.addEventListener('click', (e) => {

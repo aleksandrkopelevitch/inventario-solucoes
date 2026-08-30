@@ -179,9 +179,9 @@ class Solution extends Model
                 // Qualified with the table name: `Solutions\Index` conditionally
                 // left-joins `companies as vendor` (sort by vendor column), and an
                 // unqualified `name` would become ambiguous between the two tables.
-                ->where('solutions.name', 'like', "%{$search}%")
-                ->orWhereHas('vendor', fn (Builder $v) => $v->where('name', 'like', "%{$search}%"))
-                ->orWhereHas('people', fn (Builder $p) => $p->where('name', 'like', "%{$search}%"))))
+                ->whereFolded('solutions.name', $search)
+                ->orWhereHas('vendor', fn (Builder $v) => $v->whereFolded('name', $search))
+                ->orWhereHas('people', fn (Builder $p) => $p->whereFolded('name', $search))))
             ->when($filters['category'] ?? null, fn (Builder $q, $v) => $q->where('category', $v))
             ->when($filters['directorate'] ?? null, fn (Builder $q, $v) => $q->where('directorate', $v))
             ->when($filters['environment'] ?? null, fn (Builder $q, $v) => $q->where('environment', $v))

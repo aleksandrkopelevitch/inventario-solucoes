@@ -161,18 +161,29 @@
                          relative; z-index: 1`), which otherwise swallowed every
                          click meant for "Salvar vínculos"; below the top bar
                          (`z-30`), whose own popovers open over this column. --}}
-                    <aside class="hidden w-52 shrink-0 self-start @3xl:sticky @3xl:top-4 @3xl:z-10 @3xl:block">
+                    <aside class="hidden w-52 shrink-0 self-start @3xl:sticky @3xl:top-4 @3xl:z-10 @3xl:flex
+                                  @3xl:max-h-[calc(100vh-7rem)] @3xl:flex-col">
                         @isset($notebook)
                             <x-notebooks.documented-systems :notebook="$notebook" />
                         @endisset
 
-                        {{-- "Nesta página" headings navigator (H1/H2). Reads the
+                        {{-- "Nesta página" headings navigator (H1–H3). Reads the
                              live Editor.js headings while editing, and the
                              .html-content permalinks when read-only. Built by
                              docs-toc.js — which HIDES this element outright when
                              the page has no headings, which is why the sentence
-                             above is its sibling and not its first child. --}}
-                        <div data-ak-docs-toc></div>
+                             above is its sibling and not its first child.
+
+                             It scrolls on its own (`flex-1 min-h-0` inside the
+                             capped column above), and it has to: a page of the
+                             imported corpus reaches 25 headings once H3 counts,
+                             which is taller than the viewport the sticky rail
+                             lives in — the tail was simply unreachable. Letting
+                             the COLUMN divide the space, rather than capping
+                             this box at a guessed number, is what keeps the
+                             sentence above it pinned at whatever height it
+                             happens to have. --}}
+                        <div data-ak-docs-toc class="min-h-0 flex-1 overflow-y-auto"></div>
                     </aside>
                 </div>
             </div>

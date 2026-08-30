@@ -140,6 +140,12 @@ class PublicDocumentationController extends Controller
         // `\` and `%`/`_` escaped: a slug never contains them today (Str::slug
         // emits neither), but a LIKE pattern built from data is not the place to
         // rely on that staying true.
+        //
+        // Deliberately NOT `whereFolded()`, which every search in the app uses:
+        // this is not a search. It asks whether this caderno cites this exact
+        // slug, and it is the whole authorisation for serving the picture — a
+        // comparison that ignores case and accents would let `SLUG-A` stand in
+        // for `slug-a` and widen what one token reaches.
         $needle = addcslashes('diagram slug="' . $diagram->slug . '"', '\\%_');
 
         abort_unless(

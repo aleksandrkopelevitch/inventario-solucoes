@@ -3,8 +3,13 @@
 {{-- One attachable document. `data-search` carries the container name too, so
      filtering by system finds its pages even when the words aren't in the
      title. `label` is what the composer's pill will read — the container plus
-     the page, since "Visão geral" on its own says nothing. --}}
-<li data-ak-fs-picker-row data-search="{{ Str::lower($search) }}">
+     the page, since "Visão geral" on its own says nothing.
+
+     FOLDED, not merely lowercased: the filter that reads this attribute folds
+     the term the same way (resources/js/modules/fold.js), so "integracao"
+     finds "Integração" here exactly as it does in every search that goes to
+     the database. Both sides of a comparison or neither. --}}
+<li data-ak-fs-picker-row data-search="{{ \App\Support\Fold::text($search) }}">
     <x-forms.label @class([
         '!flex cursor-pointer items-start gap-2.5 rounded-field border border-line-2 px-3 py-2 !text-sm !font-normal !leading-5 !text-body transition-colors',
         'has-checked:border-accent has-checked:bg-accent-soft has-checked:!text-ink' => ! $attached,

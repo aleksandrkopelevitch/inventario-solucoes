@@ -67,6 +67,27 @@ it('presses on sensitive data only where data leaves the building', function () 
         ->and(checkFor($onPremise, 'sensitive_data')['verdict'])->toBe(ConformanceVerdict::Ok);
 });
 
+it('hears a keyword whether or not it was typed with its accents', function () {
+    // The lists these check against are Portuguese, and half the submissions
+    // are typed without accents. "dados sensiveis" used to read as a
+    // submission that never mentioned sensitive data at all, because
+    // SENSITIVE_DATA_TERMS carried only the accented spelling — while
+    // CONTINGENCY_TERMS happened to carry both. Folding both sides is what
+    // makes that impossible to get half-right.
+    $bare = submissionFor(['environment' => 'saas'], ['domains_data' => 'Trafega dados sensiveis do cliente.']);
+    $accented = submissionFor(['environment' => 'saas'], ['domains_data' => 'Trafega dados sensíveis do cliente.']);
+    $shouting = submissionFor(['environment' => 'saas'], ['domains_data' => 'TRAFEGA DADOS SENSIVEIS DO CLIENTE.']);
+
+    foreach ([$bare, $accented, $shouting] as $submission) {
+        expect(checkFor($submission, 'sensitive_data')['verdict'])->toBe(ConformanceVerdict::Ok);
+    }
+
+    // And the same for the plan the committee asks about, which reads a
+    // different list through the same folding.
+    $rollback = submissionFor(['criticality' => 'high'], ['plan_costs' => 'Plano de contingencia com reversao em uma hora.']);
+    expect(checkFor($rollback, 'contingency')['verdict'])->toBe(ConformanceVerdict::Ok);
+});
+
 it('reports only what needs an argument', function () {
     $submission = submissionFor(['cloud' => 'aws'], [
         'standards' => 'Esteira de CI/CD com code review. Logs e tracing. IAM e mTLS.',

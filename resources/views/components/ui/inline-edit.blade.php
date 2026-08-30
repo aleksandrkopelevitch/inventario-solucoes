@@ -235,7 +235,14 @@
              landed. Neutralised by the reduced-motion guard in app.css. --}}
         <div data-ak-inline-edit-form class="hidden {{ $editClass }} max-w-full animate-[ak-fade_140ms_ease-out]">
             <div @class([
-                     'flex max-w-full flex-wrap gap-1.5',
+                     // `relative` + `pr-9`: the confirm/cancel pair is absolutely
+                     // positioned in this box's bottom-right corner
+                     // (x-ui.inline-edit-actions), so it is not a flex item and
+                     // costs no gap — and the right padding is what keeps a long
+                     // value from running underneath it. Reserving ~36px beats
+                     // the ~60px the pair used to take as two pilled buttons,
+                     // and nothing can end up half-hidden behind a glyph.
+                     'relative flex max-w-full flex-wrap gap-1.5 pr-9',
                      'items-center' => ! $stacked,
                      'items-start' => $stacked,
                      // Pulls the input's own left padding back out, so the value
@@ -268,14 +275,11 @@
                     </div>
                 @endforeach
 
-                @unless ($stacked)
-                    <x-ui.inline-edit-actions />
-                @endunless
+                {{-- One placement now, for both layouts: a corner is a corner
+                     whether the editor is one line or four, so the pair no
+                     longer has two positions that could drift apart. --}}
+                <x-ui.inline-edit-actions />
             </div>
-
-            @if ($stacked)
-                <x-ui.inline-edit-actions stacked />
-            @endif
         </div>
     </div>
 @endif
