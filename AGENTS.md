@@ -472,6 +472,22 @@ different screen:
   DOM — a field injected beside it reads as an edit and autosave writes the page
   seconds later (the trap `docs-tools/diagram.js` needs `data-mutation-free`
   for).
+- **A protected value lives inside `<code>` more often than not, and that is
+  where the round trip broke.** `nodeToMd`'s `CODE` branch serialized with
+  `textContent`, which flattened `<code><span class="ak-secret-mark">` into
+  `` `[[SECRET-n]]` `` — the construct gone, the marker bare — and a plain
+  restore then wrote the real value into the page in the clear, with the editor
+  showing a lock chip right up until the save. Both nestings now serialize to
+  ONE shape, backticks outside and the construct inside (the only order the
+  renderer paints as a lock inside `<code>`), and `codeToHtml()` turns it back
+  into a chip on the way in so it is clickable rather than raw text.
+- **`restore()` RE-WRAPS a marker that lost its construct** rather than
+  resolving it into naked plaintext. That is what makes the protection the
+  server's and not the client's: no serializer bug of the shape above can
+  unprotect a value again, whatever the client posts. Nobody types
+  `[[SECRET-2]]` by hand, so a bare marker can only mean "the protected value
+  that was here"; deleting the marker is still how a value is unprotected, and
+  that stays unambiguous.
 
 Sharing and the code are `NotebookPolicy::administer` (admin), NOT `update`:
 both reach beyond the page an editor is writing, and an editor who could read

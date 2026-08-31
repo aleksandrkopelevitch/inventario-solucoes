@@ -81,6 +81,51 @@ it('leaves an invented marker alone instead of guessing a value for it', functio
         ->toBe('x {% secret %}[[SECRET-7]]{% endsecret %}');
 });
 
+it('re-wraps a marker that lost its construct instead of exposing the value', function () {
+    // The shape that got here: a protected value inside inline code came back
+    // from the editor as `` `[[SECRET-1]]` ``, the `{% secret %}` flattened
+    // away by the serializer's <code> branch. Resolving that would have written
+    // the real value into the page in the clear.
+    $stored = 'x `{% secret %}Bearer 9f1c{% endsecret %}`';
+
+    expect(SecretText::restore('x `[[SECRET-1]]`', $stored))
+        ->toBe('x `{% secret %}Bearer 9f1c{% endsecret %}`');
+});
+
+it('does not double-wrap a marker that still has its construct', function () {
+    $stored = 'x {% secret %}um{% endsecret %}';
+
+    expect(SecretText::restore('x {% secret %}[[SECRET-1]]{% endsecret %}', $stored))
+        ->toBe('x {% secret %}um{% endsecret %}');
+});
+
+it('keeps a protected value protected across a save from inside inline code', function () {
+    $notebook = Notebook::factory()->create(['secret_code' => 'X6h2dG']);
+    $page = DocumentationPage::factory()->for($notebook)->create([
+        'documentation' => "Header: <code>{% secret %}Bearer 9f1c{% endsecret %}</code>\n",
+    ]);
+
+    // Exactly what the editor posted before the serializer was fixed.
+    $this->actingAs(secretUser(UserRole::Admin))
+        ->patchJson(route('notebooks.pages.update', [$notebook, $page]), [
+            'documentation' => "Header: `[[SECRET-1]]`\n",
+        ])
+        ->assertOk();
+
+    $fresh = $page->fresh();
+
+    expect($fresh->documentation)->toContain('{% secret %}Bearer 9f1c{% endsecret %}');
+
+    // And the page still renders a lock rather than the value.
+    $html = $this->actingAs(secretUser())
+        ->get(route('notebooks.pages.edit', [$notebook, $page]))
+        ->assertOk()
+        ->getContent();
+
+    expect($html)->not->toContain('Bearer 9f1c')
+        ->and($html)->toContain('data-ak-secret="1"');
+});
+
 it('treats a deleted marker as a deleted value', function () {
     $stored = 'x {% secret %}um{% endsecret %}';
 
