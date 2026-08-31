@@ -64,9 +64,18 @@ function nodeToMd(node) {
             case 'EM':
                 out += `*${inner}*`
                 break
-            case 'CODE':
-                out += '`' + child.textContent + '`'
+            case 'CODE': {
+                // Um valor protegido pode estar DENTRO do code inline, e o
+                // construto tem que sair junto: `textContent` achatava
+                // `<code><span class="ak-secret-mark">` em `` `[[SECRET-n]]` ``,
+                // o marcador voltava pro servidor sem o `{% secret %}` em volta
+                // e o valor real era gravado em texto puro — a proteção sumia
+                // no save, sem erro nenhum e com o chip aparecendo direitinho
+                // no editor até a hora de salvar.
+                const marked = child.querySelector(`.${SECRET_CLASS}`)
+                out += '`' + (marked ? wrapSecret(marked.textContent) : child.textContent) + '`'
                 break
+            }
             case 'A':
                 out += `[${inner}](${child.getAttribute('href') || ''})`
                 break
@@ -76,15 +85,27 @@ function nodeToMd(node) {
             case 'MARK':
                 out += `<mark>${inner}</mark>`
                 break
-            case 'SPAN':
+            case 'SPAN': {
                 // O valor protegido (SecretInlineTool). textContent, não
                 // `inner`: o corpo é um valor literal — ou o marcador
                 // [[SECRET-n]] que o servidor devolve pra quem não pode ler o
                 // valor —, e formatação dentro dele não significaria nada.
-                out += child.classList.contains(SECRET_CLASS)
-                    ? `{% secret %}${child.textContent}{% endsecret %}`
-                    : inner
+                if (! child.classList.contains(SECRET_CLASS)) {
+                    out += inner
+                    break
+                }
+
+                // As duas aninhagens possíveis (code dentro do secret, secret
+                // dentro do code) são gravadas do MESMO jeito: os backticks
+                // por fora, o construto por dentro. É a única ordem que o
+                // GitbookRenderer pinta como cadeado dentro do <code> — e
+                // deixa o valor limpo, sem os backticks virarem parte dele.
+                const code = child.querySelector('code')
+                out += code
+                    ? '`' + wrapSecret(code.textContent) + '`'
+                    : wrapSecret(child.textContent)
                 break
+            }
             case 'U':
                 out += `<u>${inner}</u>`
                 break
@@ -128,7 +149,28 @@ export function inlineToHtml(md) {
         (_, i) => `<span class="${SECRET_CLASS}">${escapeHtml(secrets[i])}</span>`,
     )
 
-    return text.replace(/\x00(\d+)\x00/g, (_, i) => `<code>${escapeHtml(codes[i])}</code>`)
+    return text.replace(/\x00(\d+)\x00/g, (_, i) => `<code>${codeToHtml(codes[i])}</code>`)
+}
+
+/** O construto, escrito num só lugar — os dois lados do round trip usam este. */
+function wrapSecret(value) {
+    return `{% secret %}${value}{% endsecret %}`
+}
+
+/**
+ * O conteúdo de um code inline, virando HTML do editor.
+ *
+ * Um `{% secret %}` dentro de backticks precisa virar CHIP, não texto cru: sem
+ * isso o autor vê `{% secret %}[[SECRET-1]]{% endsecret %}` no meio do código,
+ * não tem onde clicar pra revelar, e qualquer retoque no meio daquilo quebra o
+ * construto na mão.
+ */
+function codeToHtml(code) {
+    const match = code.match(/^\s*\{%\s*secret\s*%\}([\s\S]*?)\{%\s*endsecret\s*%\}\s*$/)
+
+    return match
+        ? `<span class="${SECRET_CLASS}">${escapeHtml(match[1])}</span>`
+        : escapeHtml(code)
 }
 
 function escapeHtml(s) {

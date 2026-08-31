@@ -142,6 +142,18 @@ final class SecretText
      * Deleting the marker deletes the value, on purpose: removing a protected
      * value from a page has to be possible for whoever is writing the page, and
      * the marker is the only thing standing where it used to be.
+     *
+     * **A marker that lost its construct is RE-WRAPPED, never resolved into
+     * naked plaintext.** That is the guard that makes this feature's protection
+     * the server's rather than the client's, and it is not hypothetical: a
+     * protected value inside inline code round-tripped through the editor as
+     * `` `[[SECRET-2]]` `` — the wrapper flattened away by the serializer — and
+     * a plain resolve would have written the real value into the page in the
+     * clear, with the editor showing a lock chip right up until the save. No
+     * author ever types `[[SECRET-2]]` by hand, so a bare marker can only mean
+     * "the protected value that was here", and the construct is part of what it
+     * means. Unprotecting a value is done by deleting the marker, which is
+     * unambiguous and stays supported above.
      */
     public static function restore(?string $incoming, ?string $stored): string
     {
@@ -152,10 +164,36 @@ final class SecretText
             return $incoming;
         }
 
+        // Pass 1: markers still inside their construct — the ordinary case.
+        // The body is walked rather than matched whole, so a value the author
+        // typed something next to still resolves.
+        $incoming = (string) preg_replace_callback(
+            self::CONSTRUCT_PATTERN,
+            fn (array $m): string => '{% secret %}' . self::resolveMarkers($m[1], $values) . '{% endsecret %}',
+            $incoming,
+        );
+
+        // Pass 2: whatever is left is a marker whose construct went missing.
+        // Pass 1 consumed every wrapped one, so nothing here can be
+        // double-wrapped.
+        return (string) preg_replace_callback(
+            self::MARKER_PATTERN,
+            fn (array $m): string => array_key_exists((int) $m[1], $values)
+                ? '{% secret %}' . $values[(int) $m[1]] . '{% endsecret %}'
+                : $m[0],
+            $incoming,
+        );
+    }
+
+    /**
+     * @param  array<int, string>  $values
+     */
+    private static function resolveMarkers(string $body, array $values): string
+    {
         return (string) preg_replace_callback(
             self::MARKER_PATTERN,
             fn (array $m): string => $values[(int) $m[1]] ?? $m[0],
-            $incoming,
+            $body,
         );
     }
 
