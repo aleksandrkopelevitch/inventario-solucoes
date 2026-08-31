@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\InviteUserRequest;
+use App\Http\Requests\UpdateUserRoleRequest;
 use App\Mail\UserInvitationMail;
 use App\Models\User;
 use App\View\Components\Users\UserList;
@@ -27,6 +28,25 @@ class UserController extends Controller
 
         return response()->json([
             'content' => view('users.manage')->render(),
+        ]);
+    }
+
+    /**
+     * Changes an account's role in place.
+     *
+     * The role used to be settable only at invite time, which left promoting a
+     * viewer to editor — and taking the admin off someone who left — as a
+     * database edit. Both refusals (your own account, the last admin) are in
+     * `UpdateUserRoleRequest::after()`, so this stays a save and a slot.
+     */
+    public function update(UpdateUserRoleRequest $request, User $user): JsonResponse
+    {
+        $user->update(['role' => $request->validated('role')]);
+
+        return response()->json([
+            'type'           => 'success',
+            'message'        => "\"{$user->name}\" agora é {$user->fresh()->role->label()}.",
+            'updatableSlots' => [UserList::slot()],
         ]);
     }
 

@@ -6,14 +6,35 @@
                     <p class="truncate text-sm font-medium text-ink">{{ $user->name }}</p>
                     <p class="truncate text-xs text-muted">{{ $user->email }}</p>
                 </div>
-                <span @class([
-                    'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold',
-                    'bg-accent-soft text-accent' => $user->role->isAdmin(),
-                    'bg-lime-soft text-lime-ink' => $user->role === \App\Enums\UserRole::Writer,
-                    'bg-raised text-muted' => ! $user->role->canWrite(),
-                ])>
-                    {{ $user->role->label() }}
-                </span>
+                {{-- The badge IS the control (x-ui.inline-edit, the pattern the
+                     solution header's attribute badges use): it reads as text
+                     and opens a select on the pencil or a double click. A row
+                     that may not be changed — your own, and the last remaining
+                     admin — renders the same badge with no affordance, because
+                     `editable` false is exactly what the component draws then.
+                     `$changeable` mirrors the two refusals in
+                     UpdateUserRoleRequest::after(); the request stays the
+                     authority. --}}
+                <x-ui.inline-edit
+                    name="role"
+                    type="select"
+                    :options="$roleOptions"
+                    :value="$user->role->value"
+                    :nullable="false"
+                    :action="route('users.update', $user)"
+                    :editable="$changeable[$user->id] ?? false"
+                    label="Perfil"
+                    edit-class="min-w-44"
+                    class="shrink-0">
+                    <span @class([
+                        'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold',
+                        'bg-accent-soft text-accent' => $user->role->isAdmin(),
+                        'bg-lime-soft text-lime-ink' => $user->role === \App\Enums\UserRole::Writer,
+                        'bg-raised text-muted' => ! $user->role->canWrite(),
+                    ])>
+                        {{ $user->role->label() }}
+                    </span>
+                </x-ui.inline-edit>
             </div>
         @empty
             <p class="text-sm text-muted">Nenhum usuário cadastrado ainda.</p>

@@ -788,6 +788,28 @@ Where the line falls, and why:
 - **`SubmissionPolicy` is untouched** and stays owner-based (admin OR the person
   who created it): a CATI submission is authored, not curated.
 
+**A role is changed on the Usuários panel** (`PATCH users/{user}`, the badge is
+an `x-ui.inline-edit` select). Before that it could only be chosen at INVITE
+time, which left promoting a viewer to editor — and taking the admin off
+somebody who left — as an `UPDATE` against the production database: the one
+administrative act in the app with no screen at all.
+
+One refusal guards it, and the important part is the guard that is NOT there:
+
+- **Nobody changes their own role.** A dropdown that can take away the panel you
+  are standing in is a foot-gun with no upside; another admin can always do it.
+- **There is deliberately no "last admin" guard**, because it would be dead
+  code. Removing an admin's role requires an admin asking (the policy) about
+  somebody else (the rule above), which means two admins exist — so one always
+  survives. Nothing else in the app writes `role`, and an invite only ever ADDS
+  an admin. The reachable half of "who protects the last admin" is that the last
+  one cannot be demoted because the only account allowed to try is their own.
+
+`UserList` withholds the select on your own row for the same reason, so the
+refusal is a missing affordance rather than an error you discover by pressing it
+— the request stays the authority. What is still database-only is DELETING an
+account: that means sessions, plus the submissions and chats it owns.
+
 Two things that broke when the role landed and would break again:
 
 - **`InviteUserRequest` listed its roles by hand** (`Rule::in([Viewer, Admin])`,

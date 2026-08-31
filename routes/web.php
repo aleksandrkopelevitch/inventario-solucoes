@@ -183,6 +183,11 @@ Route::middleware('auth')->group(function () {
     // existing password-reset flow (UserController::store).
     Route::get('users', [UserController::class, 'index'])->name('users.index');
     Route::post('users', [UserController::class, 'store'])->name('users.store');
+    // The role, changed in place on that same panel. It is the only
+    // administrative act in the app that used to have no screen at all: a
+    // promotion to editor, or taking the admin off someone who left, meant an
+    // UPDATE against the production database.
+    Route::patch('users/{user}', [UserController::class, 'update'])->name('users.update');
 
     Route::get('map', [SolutionMapController::class, 'index'])->name('solutions.map');
     Route::get('map/data', [SolutionMapController::class, 'data'])->name('solutions.map.data');
