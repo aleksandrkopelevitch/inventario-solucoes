@@ -82,7 +82,7 @@ class NotebookController extends Controller
      * Opens the caderno on its first page, creating one if it is empty.
      *
      * Creating that first page is a WRITE, gated on `NotebookPolicy::update`
-     * (admin-only): the catalog links here for empty cadernos too, so a viewer
+     * (admin or editor): the catalog links here for empty cadernos too, so a viewer
      * following that link used to silently create a page just by browsing.
      * They go back to the catalog instead, which lists this caderno with its
      * (zero) page count.
@@ -213,7 +213,9 @@ class NotebookController extends Controller
      */
     public function share(Notebook $notebook): JsonResponse
     {
-        $this->authorize('update', $notebook);
+        // `administer`, not `update`: an editor writes the pages, an admin
+        // decides whether the caderno is published (see NotebookPolicy).
+        $this->authorize('administer', $notebook);
 
         if (! $notebook->public_token) {
             $notebook->update(['public_token' => Str::random(self::TOKEN_LENGTH)]);
@@ -229,13 +231,35 @@ class NotebookController extends Controller
     /** Revokes the public link (clears the token — the old link stops working). */
     public function unshare(Notebook $notebook): JsonResponse
     {
-        $this->authorize('update', $notebook);
+        $this->authorize('administer', $notebook);
 
         $notebook->update(['public_token' => null]);
 
         return response()->json([
             'type'           => 'success',
             'message'        => 'Acesso público revogado.',
+            'updatableSlots' => [SharePanel::slot($notebook->fresh())],
+        ]);
+    }
+
+    /**
+     * Generates a new secret code, invalidating the one people were given.
+     *
+     * `administer`, like sharing: an editor writes the pages, and the code is
+     * what lets somebody read the values the editor cannot (NotebookPolicy).
+     * There is no "revoke" twin — a caderno always has a code, because a page
+     * can grow a protected value at any moment and a null code would answer
+     * every attempt as a wrong guess.
+     */
+    public function rotateSecretCode(Notebook $notebook): JsonResponse
+    {
+        $this->authorize('administer', $notebook);
+
+        $notebook->rotateSecretCode();
+
+        return response()->json([
+            'type'           => 'success',
+            'message'        => 'Novo código gerado. O código anterior deixou de funcionar.',
             'updatableSlots' => [SharePanel::slot($notebook->fresh())],
         ]);
     }

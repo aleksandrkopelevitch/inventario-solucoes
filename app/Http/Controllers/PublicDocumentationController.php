@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Documentation\RevealPageSecret;
 use App\Contracts\Documentable;
+use App\Http\Requests\RevealPageSecretRequest;
 use App\Http\Requests\SearchPublicDocumentationRequest;
 use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Services\DocumentationPageService;
 use App\Services\DocumentationSearchService;
+use App\Support\Documentation\SecretText;
 use App\Support\GitbookRenderer;
 use App\View\Components\Documentation\SearchResults;
 use Illuminate\Contracts\View\View;
@@ -102,6 +105,44 @@ class PublicDocumentationController extends Controller
         ]);
     }
 
+    /**
+     * Reveals ONE protected value of a page in the shared caderno.
+     *
+     * The token is not the authorization here, and that is the whole point of
+     * the feature: it resolves WHICH caderno may be asked about, and the
+     * caderno's secret code is what unlocks a value inside it. A visitor is
+     * counted by IP (there is no identity on this surface) and gets the same
+     * five attempts per twelve hours as a signed-in reader.
+     *
+     * `$slug` is scoped to this notebook for the same reason `page()` does it:
+     * a page slug is unique per caderno, never globally.
+     */
+    public function revealSecret(
+        RevealPageSecretRequest $request,
+        string $token,
+        string $slug,
+        int $index,
+        RevealPageSecret $reveal,
+    ): JsonResponse {
+        $notebook = $this->resolve($token);
+        $page = $notebook->pages()->where('slug', $slug)->firstOrFail();
+
+        return response()->json([
+            'value' => $reveal->handle(
+                $notebook,
+                $page,
+                $index,
+                $request->validated()['code'] ?? null,
+                // No user, ever — a signed-in admin who happens to be reading a
+                // public link is a visitor here. Recognising them would make
+                // the shared page's behaviour depend on who is looking at it,
+                // which is exactly what `linkDiagrams: false` avoids upstream.
+                null,
+                'ip' . $request->ip(),
+            ),
+        ]);
+    }
+
     public function file(string $token, Media $media): BinaryFileResponse
     {
         $notebook = $this->resolve($token);
@@ -181,12 +222,25 @@ class PublicDocumentationController extends Controller
             // Whether the shell should print the title itself. See
             // `titleIsInContent()`: nearly every imported page opens with an H1
             // repeating its own title, and printing both says it twice.
-            'showTitle'    => ! $this->titleIsInContent($current),
+            'showTitle' => ! $this->titleIsInContent($current),
+            // Where a lock posts its code, `__INDEX__` standing in for the
+            // ordinal (see NotebookPageController::edit()). Null when the
+            // caderno has no page to ask about.
+            'secretRevealUrl' => $current
+                ? route('public.docs.secrets', [$token, $current->slug, 'index' => '__INDEX__'])
+                : null,
+            'secretScope'  => $notebook->slug,
             'renderedHtml' => $this->renderMarkdown($markdown, $token),
             // Raw Markdown for the "Copiar Markdown" button, with media already
             // rewritten to the public routes (the internal /files/{id} does
             // not resolve for visitors accessing only via the public link).
-            'markdown' => $this->rewriteFileUrls((string) $markdown, $token),
+            //
+            // MASKED, and this is the one place the protection is easiest to
+            // lose: the rendered HTML painted its locks, and this textarea
+            // would have handed the same visitor every plaintext value beside
+            // it, in the page source, for a button labelled "copy". A visitor
+            // copies `{% secret %}[[SECRET-1]]{% endsecret %}` instead.
+            'markdown' => $this->rewriteFileUrls(SecretText::mask((string) $markdown), $token),
             'nav'      => $this->nav($notebook, $current, $token),
             // Endpoint behind the search panel above the documentation.
             'searchUrl' => route('public.docs.search', $token),

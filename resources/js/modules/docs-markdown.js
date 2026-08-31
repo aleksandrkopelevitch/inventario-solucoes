@@ -9,10 +9,15 @@
 // notação GitBook: hint ({% hint %}), tabs ({% tabs %}), file ({% file %})
 // e diagram ({% diagram %} — citação de um desenho do catálogo, nossa).
 //
+// secret ({% secret %}…{% endsecret %}) é o único construto INLINE: vive dentro
+// do texto de um bloco, não como bloco próprio, então é tratado em
+// inlineToMd()/inlineToHtml() e não em serializeBlock()/parseLines().
+//
 // A mídia é referenciada por /files/{id} (rota files.show); os blocos image/
 // attaches guardam `mediaId` para reconstruir esse caminho no Markdown.
 
 import {DEFAULT_HINT_ICON} from './docs-tools/hint-icons'
+import {SECRET_CLASS} from './docs-tools/secret-class'
 
 /**
  * A fence's language token (```json, ```c#, ```objective-c), reduced to what
@@ -71,6 +76,15 @@ function nodeToMd(node) {
             case 'MARK':
                 out += `<mark>${inner}</mark>`
                 break
+            case 'SPAN':
+                // O valor protegido (SecretInlineTool). textContent, não
+                // `inner`: o corpo é um valor literal — ou o marcador
+                // [[SECRET-n]] que o servidor devolve pra quem não pode ler o
+                // valor —, e formatação dentro dele não significaria nada.
+                out += child.classList.contains(SECRET_CLASS)
+                    ? `{% secret %}${child.textContent}{% endsecret %}`
+                    : inner
+                break
             case 'U':
                 out += `<u>${inner}</u>`
                 break
@@ -93,11 +107,26 @@ export function inlineToHtml(md) {
         return `\x00${codes.length - 1}\x00`
     })
 
+    // Valores protegidos saem de cena antes das regras inline, pelo mesmo
+    // motivo que o código: o corpo é um literal. Uma senha com `*` ou `_` viraria
+    // itálico no editor e voltaria pro Markdown sem aqueles caracteres — o valor
+    // seria corrompido silenciosamente, no editor de quem PODE vê-lo.
+    const secrets = []
+    text = text.replace(/\{%\s*secret\s*%\}([\s\S]*?)\{%\s*endsecret\s*%\}/g, (_, value) => {
+        secrets.push(value)
+        return `\x01${secrets.length - 1}\x01`
+    })
+
     text = text
         .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
         .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<i>$2</i>')
         .replace(/(^|[^_])_([^_\n]+)_/g, '$1<i>$2</i>')
         .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+
+    text = text.replace(
+        /\x01(\d+)\x01/g,
+        (_, i) => `<span class="${SECRET_CLASS}">${escapeHtml(secrets[i])}</span>`,
+    )
 
     return text.replace(/\x00(\d+)\x00/g, (_, i) => `<code>${escapeHtml(codes[i])}</code>`)
 }

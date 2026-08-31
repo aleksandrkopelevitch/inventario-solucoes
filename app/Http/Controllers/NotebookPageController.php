@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Documentation\RevealPageSecret;
 use App\Http\Controllers\Concerns\AssistsDocumentation;
 use App\Http\Controllers\Concerns\BuildsPagesNav;
 use App\Http\Controllers\Concerns\EditsDocumentation;
 use App\Http\Requests\MoveDocumentationPageRequest;
 use App\Http\Requests\MoveDocumentationPageToNotebookRequest;
+use App\Http\Requests\RevealPageSecretRequest;
 use App\Http\Requests\SaveDocumentationPageTitleRequest;
 use App\Http\Requests\SaveDocumentationRequest;
 use App\Http\Requests\StoreDocumentationChatMessageRequest;
@@ -77,7 +79,20 @@ class NotebookPageController extends Controller
             'notebookEditable'  => auth()->user()?->can('update', $notebook) ?? false,
             'createPageUrl'     => route('notebooks.pages.store', $notebook),
             'chatPanelUrl'      => route('notebooks.chat.panel', [$notebook, $page]),
-            'chatResume'        => $this->chatResumeFor($notebook, $page),
+            // Where a lock posts its code. A TEMPLATE, with the ordinal as a
+            // placeholder `docs-secret.js` substitutes: the reader holds many
+            // locks and the module must not build a path of its own (same rule
+            // that keeps `chain-viz.js` free of routes) — so the one route()
+            // call happens here.
+            'secretRevealUrl' => route('notebooks.pages.secrets', [$notebook, $page, 'index' => '__INDEX__']),
+            // Failed attempts are remembered per CADERNO, since that is what a
+            // code unlocks.
+            'secretScope' => $notebook->slug,
+            // Whether this reader is asked for a code at all. A UX hint and
+            // nothing more: `RevealPageSecret` decides for itself, so forging
+            // the attribute buys a request that is refused for want of a code.
+            'secretsUnlocked' => auth()->user()?->role->isAdmin() ?? false,
+            'chatResume'      => $this->chatResumeFor($notebook, $page),
             // Navigation cards for this page's own sub-pages — see
             // x-documentation.child-pages for why an imported corpus needs them.
             'childPages' => $this->childPages($notebook, $page),
@@ -192,6 +207,35 @@ class NotebookPageController extends Controller
     public function media(UploadDocumentationMediaRequest $request, Notebook $notebook, DocumentationPage $page): JsonResponse
     {
         return $this->storeDocumentationMedia($request, $page);
+    }
+
+    /**
+     * Reveals ONE protected value of this page (`{% secret %}`), for one reader,
+     * once — see App\Actions\Documentation\RevealPageSecret for the rules and
+     * App\Support\Documentation\SecretText for what an ordinal is.
+     *
+     * Open to every signed-in account on purpose, viewers included: what gates
+     * a value is the caderno's secret code, not a role. A role gate here would
+     * make the code pointless for exactly the people it is meant for — someone
+     * who was told a value and needs to read it once.
+     */
+    public function revealSecret(
+        RevealPageSecretRequest $request,
+        Notebook $notebook,
+        DocumentationPage $page,
+        int $index,
+        RevealPageSecret $reveal,
+    ): JsonResponse {
+        return response()->json([
+            'value' => $reveal->handle(
+                $notebook,
+                $page,
+                $index,
+                $request->validated()['code'] ?? null,
+                $request->user(),
+                'u' . $request->user()->id,
+            ),
+        ]);
     }
 
     /* --- Documentation Assistant (chat that helps write the page's content) --- */

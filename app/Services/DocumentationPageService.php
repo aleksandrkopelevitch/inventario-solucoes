@@ -38,7 +38,7 @@ class DocumentationPageService
      * paths were anglicised — it reserved five words no route used while
      * leaving the five that mattered free to collide.
      */
-    private const RESERVED_SLUGS = ['pages', 'share', 'context', 'chat', 'solutions', 'panel'];
+    private const RESERVED_SLUGS = ['pages', 'share', 'context', 'chat', 'solutions', 'panel', 'secret-code'];
 
     /**
      * A new page, at the end of its sibling list — a root by default, or a

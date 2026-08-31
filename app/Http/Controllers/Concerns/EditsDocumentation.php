@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Concerns;
 use App\Contracts\Documentable;
 use App\Http\Requests\SaveDocumentationRequest;
 use App\Http\Requests\UploadDocumentationMediaRequest;
+use App\Support\Documentation\SecretText;
 use App\Support\GitbookRenderer;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -22,9 +23,10 @@ use Illuminate\Http\JsonResponse;
 trait EditsDocumentation
 {
     /**
-     * Assembles the editor page (same view for every resource). Admins see
-     * Editor.js; other users see the read-only render (GitbookRenderer),
-     * decided client-side via `canEdit`.
+     * Assembles the editor page (same view for every resource). Whoever can
+     * WRITE (admin or editor) sees Editor.js; everyone else sees the read-only
+     * render (GitbookRenderer), decided client-side via `canEdit`. Neither of
+     * them receives the page's PROTECTED VALUES — see `documentation` below.
      *
      * `$notebookLabel`/`$notebookUrl` are the caderno the page belongs to.
      * They title the pages rail and, once that rail is collapsed, become the
@@ -52,7 +54,22 @@ trait EditsDocumentation
             'notebookUrl'   => $notebookUrl,
             'saveUrl'       => $urls['save'],
             'uploadUrl'     => $urls['upload'],
-            'documentation' => $model->documentation,
+            // The EDITOR's source, and the protected values are MASKED in it
+            // for everybody — an admin included.
+            //
+            // The raw Markdown is what the editor round-trips, so an unmasked
+            // copy would put every protected value on screen (and into the
+            // chat's `existing_content`, and into "Copiar Markdown") the moment
+            // someone opened the page. Masking only the people who may not read
+            // them would have worked too, and this is stricter on purpose: the
+            // plaintext then leaves the server through exactly one door
+            // (App\Actions\Documentation\RevealPageSecret), one value per
+            // request, for every audience there is. An admin unlocks a value by
+            // clicking its lock and typing nothing; nobody reads a page's worth
+            // of credentials by opening a screen.
+            //
+            // `persistDocumentation()` puts the real bytes back on save.
+            'documentation' => SecretText::mask($model->documentation),
             'canEdit'       => $canEdit,
             // Only users who can't edit receive the already-rendered HTML
             // (the editor builds its own from the raw Markdown client-side).
@@ -60,10 +77,24 @@ trait EditsDocumentation
         ]);
     }
 
-    /** Saves the Markdown (+ GitBook notation) serialized by the editor. */
+    /**
+     * Saves the Markdown (+ GitBook notation) serialized by the editor.
+     *
+     * Protected values are restored from what is still in the database, ALWAYS
+     * — not only when the person editing was shown markers. An admin edits the
+     * real values, but the Documentation Assistant is fed masked content in
+     * every case, so an admin applying its draft is saving markers too. Getting
+     * this conditional wrong writes `[[SECRET-1]]` into the page as literal
+     * text, and the value it stood for is gone.
+     */
     protected function persistDocumentation(SaveDocumentationRequest $request, Documentable $model): JsonResponse
     {
-        $model->update(['documentation' => $request->validated()['documentation'] ?? null]);
+        $model->update([
+            'documentation' => SecretText::restore(
+                $request->validated()['documentation'] ?? null,
+                $model->documentation,
+            ),
+        ]);
 
         return response()->json([
             'type'    => 'success',

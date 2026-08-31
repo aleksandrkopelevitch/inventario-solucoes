@@ -1,5 +1,7 @@
 // docs-share.js — generates/revokes/copies the documentation's public
-// ("magic link") link, from the Solutions\SharePanel panel in the toolbar.
+// ("magic link") link AND rotates the caderno's secret code, from the
+// Notebooks\SharePanel panel in the toolbar. Both live here because both are
+// the same panel and the same question: who can read what of this caderno.
 // Delegation on `document` (not per-element) because `ajax-slot.js` swaps
 // the whole container (`docs-share-slot`) on every mutation. Follows the
 // same pattern as the other auto-persistence modules (fetch + updateSlots + Toast).
@@ -40,16 +42,36 @@ document.addEventListener('click', (e) => {
         return
     }
 
+    if (e.target.closest('[data-ak-secret-code-rotate]')) {
+        // A confirm, like revoking: the previous code is what people were
+        // already given, and rotating it is what breaks their access.
+        if (!window.confirm('Gerar um novo código? O código atual deixará de funcionar para quem já o recebeu.')) return
+        mutate(panel.dataset.secretCodeUrl, 'POST')
+        return
+    }
+
+    if (e.target.closest('[data-ak-secret-code-copy]')) {
+        copyField(panel.querySelector('[data-ak-secret-code-field]'), 'Código copiado.')
+        return
+    }
+
     if (e.target.closest('[data-ak-share-copy]')) {
-        const field = panel.querySelector('[data-ak-share-url-field]')
-        if (!field) return
-        navigator.clipboard.writeText(field.value)
-            .then(() => Toast.show('Link copiado.'))
-            .catch(() => {
-                field.select()
-                Toast.show('Selecione e copie o link.', 'warning')
-            })
+        copyField(panel.querySelector('[data-ak-share-url-field]'), 'Link copiado.')
     }
 })
+
+// Both fields in this panel are read-only inputs somebody has to pass on, and
+// both fall back the same way: the clipboard API is refused in plenty of
+// contexts, and selecting the text is the only useful thing left to offer.
+function copyField(field, message) {
+    if (!field) return
+
+    navigator.clipboard.writeText(field.value)
+        .then(() => Toast.show(message))
+        .catch(() => {
+            field.select()
+            Toast.show('Selecione e copie manualmente.', 'warning')
+        })
+}
 
 export function init() {}

@@ -443,6 +443,13 @@ Route::middleware('auth')->group(function () {
     // Public documentation link ("magic link"): generate/revoke (admin).
     Route::post('notebooks/{notebook}/share', [NotebookController::class, 'share'])->name('notebooks.share');
     Route::delete('notebooks/{notebook}/share', [NotebookController::class, 'unshare'])->name('notebooks.unshare');
+    // Rotates the caderno's secret code — the string that unlocks the protected
+    // values in its pages (admin only, NotebookPolicy::administer). A STATIC
+    // segment in the same position as `{page}` below, so it must stay ahead of
+    // the scopeBindings group AND be reserved in
+    // DocumentationPageService::RESERVED_SLUGS, or a page slugged `secret-code`
+    // would shadow it.
+    Route::post('notebooks/{notebook}/secret-code', [NotebookController::class, 'rotateSecretCode'])->name('notebooks.secret-code');
 
     // "Assiste IA" context documents (`context_documents` collection), per
     // caderno — shared by every page in its tree. {media} is a global binding
@@ -474,6 +481,14 @@ Route::middleware('auth')->group(function () {
         // zone.
         Route::patch('notebooks/{notebook}/{page}/notebook', [NotebookPageController::class, 'moveToNotebook'])->name('notebooks.pages.notebook');
         Route::post('notebooks/{notebook}/{page}/media', [NotebookPageController::class, 'media'])->name('notebooks.pages.media');
+        // One protected value of this page, by its ORDINAL in the text — an
+        // index into the `{% secret %}` constructs, validated as numeric and
+        // range-checked by the action, exactly like the chain routes' node/edge
+        // indices. POST rather than GET: it carries the code, and a URL that
+        // ends in the code would be in every history and every access log.
+        Route::post('notebooks/{notebook}/{page}/secrets/{index}', [NotebookPageController::class, 'revealSecret'])
+            ->whereNumber('index')
+            ->name('notebooks.pages.secrets');
         // Documentation Assistant — a chat that helps write the page (job + polling per turn).
         Route::get('notebooks/{notebook}/{page}/chat', [NotebookPageController::class, 'chatPanel'])->name('notebooks.chat.panel');
         Route::post('notebooks/{notebook}/{page}/chat/messages', [NotebookPageController::class, 'sendMessage'])->name('notebooks.chat.messages.store');
@@ -509,6 +524,13 @@ Route::get('public-docs/{token}/file/{media}', [PublicDocumentationController::c
 // canvas itself stays behind auth — this serves the image and nothing else, the
 // same split `public.docs.file` makes for embedded media.
 Route::get('public-docs/{token}/diagram/{diagram}', [PublicDocumentationController::class, 'diagramPicture'])->name('public.docs.diagram');
+// One protected value of a page in the shared caderno. The magic link does NOT
+// carry the right to read it: the token grants the prose, the caderno's secret
+// code grants a value inside it, and the same five-per-twelve-hours limit
+// applies here as on the authenticated surface (App\Actions\Documentation\RevealPageSecret).
+Route::post('public-docs/{token}/secrets/{slug}/{index}', [PublicDocumentationController::class, 'revealSecret'])
+    ->whereNumber('index')
+    ->name('public.docs.secrets');
 // Search over the shared caderno's own corpus (docs-search.js). JSON
 // only, and on its own path — it never shares a URL with a document response,
 // so the Back-button collision PreventJsonResponseCaching guards against

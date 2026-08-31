@@ -139,10 +139,11 @@ it('refuses an editor the attribute vocabulary', function () {
         ->assertForbidden();
 });
 
-it('refuses an editor the public link', function () {
+it('refuses an editor the public link and the secret code', function () {
     $notebook = Notebook::factory()->create();
 
     $this->actingAs(writer())->postJson(route('notebooks.share', $notebook))->assertForbidden();
+    $this->actingAs(writer())->postJson(route('notebooks.secret-code', $notebook))->assertForbidden();
 
     expect($notebook->fresh()->public_token)->toBeNull();
 });

@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Diagram;
+use App\Support\Documentation\SecretText;
 use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
 use League\CommonMark\Extension\GithubFlavoredMarkdownExtension;
@@ -29,6 +30,8 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  *       → tabs using the data-ak-tabs contract (resources/js/modules/tabs.js)
  *   {% file src="/files/{id}" %}
  *       → download card pointing to the authenticated files.show route
+ *   {% secret %} … {% endsecret %}   (inline, ours)
+ *       → a lock the value is NOT inside — see App\Support\Documentation\SecretText
  *
  * Images come as plain HTML (<figure><img src="/files/{id}">…), which
  * commonmark passes through (html_input=allow) — /files/{id} resolves via
@@ -91,10 +94,70 @@ class GitbookRenderer
             return '';
         }
 
+        // Protected values leave the text BEFORE a single line of it is parsed
+        // and come back as a LOCK after all of it is — never as Markdown, and
+        // never as the value itself. There is no flag for "show them anyway":
+        // the plaintext leaves the server through
+        // App\Actions\Documentation\RevealPageSecret and nowhere else, one
+        // value per request, so this renderer has one behaviour to audit
+        // instead of an audience to reason about. An admin sees no more here
+        // than a visitor does; they just never have to type a code to unlock
+        // one.
+        //
+        // The two-step (token now, markup later) is what makes a protected
+        // value work inside a CODE FENCE — an `Authorization:` header in a
+        // request sample is the whole use case. `renderLines()` consumes a
+        // fence verbatim and commonmark escapes everything in it, so markup
+        // substituted before the parse would arrive as `&lt;button`; a plain
+        // token painted afterwards is the only order that works in prose and in
+        // code at once.
+        $markdown = SecretText::replace($markdown, fn (int $ordinal): string => self::secretToken($ordinal));
+
         $lines = preg_split('/\r\n|\r|\n/', $markdown);
 
-        return $this->renderLines($lines);
+        return $this->paintSecrets($this->renderLines($lines));
     }
+
+    /**
+     * The stand-in a protected value leaves behind while the Markdown is
+     * parsed.
+     *
+     * `\x1F` (unit separator) on both ends: it survives commonmark untouched in
+     * prose AND inside a code fence — where every character that means anything
+     * in HTML is escaped — cannot occur in authored text, and is stripped
+     * rather than kept by the heading-anchor slugger. An alphanumeric sentinel
+     * would satisfy the first half and collide with real content; markup would
+     * satisfy neither.
+     */
+    private static function secretToken(int $ordinal): string
+    {
+        return "\x1Fak-secret:{$ordinal}\x1F";
+    }
+
+    /** Turns every token into the lock that stands in for its value. */
+    private function paintSecrets(string $html): string
+    {
+        return (string) preg_replace_callback(
+            '/\x1Fak-secret:(\d+)\x1F/',
+            fn (array $m): string => $this->renderLockedSecret((int) $m[1]),
+            $html,
+        );
+    }
+
+    private function renderLockedSecret(int $ordinal): string
+    {
+        return '<button type="button" data-ak-secret="' . $ordinal . '"'
+            . ' aria-label="Valor protegido — clique para informar o código e ver o valor"'
+            . ' class="ak-secret inline-flex max-w-full items-center gap-1 rounded-field border border-dashed border-line'
+            . ' bg-raised px-1.5 py-0.5 align-middle font-mono text-[0.85em] font-medium text-muted'
+            . ' transition-colors hover:border-accent-line hover:bg-accent-soft/40 hover:text-accent">'
+            . self::LOCK_ICON
+            . '<span>valor protegido</span>'
+            . '</button>';
+    }
+
+    /** Heroicons outline `lock-closed`, sized to the surrounding text. */
+    private const LOCK_ICON = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-[1em] shrink-0" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>';
 
     /**
      * @param  array<int, string>  $lines

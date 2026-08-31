@@ -7,6 +7,7 @@ use App\Models\FlowspecExample;
 use App\Models\FlowspecGuideline;
 use App\Models\FlowspecMessage;
 use App\Support\Context\TokenEstimator;
+use App\Support\Documentation\SecretText;
 use Illuminate\Support\Collection;
 
 /**
@@ -252,7 +253,11 @@ class FlowspecPromptBuilder
             // page in the attach panel actually saw.
             $notebook = $page->notebook?->name ?? 'Documentação';
 
-            return "## {$notebook} — {$page->title}\n\n{$page->documentation}";
+            // MASKED, like the documentation assistant's own prompt: a page's
+            // protected values are not context, and this model rewrites nothing
+            // — so a marker is all it could ever have needed
+            // (App\Support\Documentation\SecretText).
+            return "## {$notebook} — {$page->title}\n\n" . SecretText::mask($page->documentation);
         });
 
         // No "omitted by budget" note any more: nothing here was trimmed. The

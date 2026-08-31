@@ -6,6 +6,7 @@ use App\Models\DocumentationChatMessage;
 use App\Models\Notebook;
 use App\Support\Documentation\DocumentationRequirements;
 use App\Support\Documentation\LiteralVault;
+use App\Support\Documentation\SecretText;
 use Laravel\Ai\Responses\AgentResponse;
 
 use function Laravel\Ai\agent;
@@ -42,7 +43,21 @@ class DocumentationChatService
 
         $history = $chat->messages()->where('id', '<', $userMessage->id)->get();
 
-        $requirements = DocumentationRequirements::for($target, $userMessage->existing_content);
+        // The page's PROTECTED values (`{% secret %}`) never reach the model
+        // either, and for a second reason on top of LiteralVault's: whoever
+        // asked may be an editor who is not allowed to read them, and a reply
+        // quotes what it was given. It arrives already masked when an editor
+        // asked (their editor holds markers), so this is what covers the ADMIN
+        // case — and it is unconditional, because a rule that depends on who
+        // asked is a rule with a hole in it.
+        //
+        // Nothing restores them on the way back: the draft keeps the markers,
+        // and `EditsDocumentation::persistDocumentation()` puts the real bytes
+        // back when the page is saved. That is why the restore there is
+        // unconditional too.
+        $existingContent = SecretText::mask($userMessage->existing_content);
+
+        $requirements = DocumentationRequirements::for($target, $existingContent);
 
         $contextDocs = $this->contextDocs->resolve($notebook, $userMessage->context_media_ids ?? []);
 
@@ -51,7 +66,7 @@ class DocumentationChatService
         // the prompt will show is harvested first so one value gets one marker
         // wherever it appears (see LiteralVault).
         $vault = LiteralVault::from([
-            $userMessage->existing_content,
+            $existingContent,
             $userMessage->content,
             ...$history->pluck('content')->all(),
             ...$contextDocs->textDocs->pluck('content')->all(),
@@ -60,7 +75,7 @@ class DocumentationChatService
         $userPrompt = $this->prompts->userPrompt(
             $target,
             $notebook,
-            $userMessage->existing_content,
+            $existingContent,
             $history,
             $userMessage->content,
             $contextDocs->textDocs,
