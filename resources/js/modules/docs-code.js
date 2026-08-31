@@ -87,6 +87,16 @@ export function init() {
     loadHighlighter()
         .then(({highlightBlock}) => {
             blocks.forEach((pre) => {
+                // A code block holding a protected value is left UNPAINTED.
+                // highlight.js rebuilds the block from its textContent, so the
+                // lock's <button> would come back as the plain text "valor
+                // protegido" — no click target, no way to reveal the value, and
+                // nothing anywhere to say why. An `Authorization:` header in a
+                // request sample is the main reason `{% secret %}` exists, so
+                // this is a real case and not a corner one; monochrome code is
+                // the cheaper half to give up.
+                if (pre.querySelector('[data-ak-secret]')) return
+
                 const language = highlightBlock(pre)
                 if (!language) return
 

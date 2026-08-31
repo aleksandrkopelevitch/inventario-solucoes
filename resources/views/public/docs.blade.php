@@ -31,7 +31,12 @@
         {{-- When the content supplies the title, its own H1 already carries
              `mt-8` — adding a second top margin would push the page's name a
              paragraph below the toolbar it belongs beside. --}}
-        <div @class(['html-content', 'mt-6' => $showTitle]) data-ak-docs-content>
+        {{-- See the authenticated reader partial: these two are what let
+             docs-secret.js unlock a protected value. The magic link does not
+             grant one — the caderno's secret code does. --}}
+        <div @class(['html-content', 'mt-6' => $showTitle]) data-ak-docs-content
+            @isset($secretRevealUrl) data-ak-secret-url="{{ $secretRevealUrl }}" @endisset
+            data-ak-secret-scope="{{ $secretScope }}">
             {!! $renderedHtml !!}
         </div>
     @elseif (empty($childPages))

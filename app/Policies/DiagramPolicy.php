@@ -2,7 +2,6 @@
 
 namespace App\Policies;
 
-use App\Enums\UserRole;
 use App\Models\Diagram;
 use App\Models\User;
 
@@ -19,19 +18,20 @@ class DiagramPolicy
         return true;
     }
 
-    /** Creation and editing restricted to administrators. */
+    /** Creation and editing need write access; DELETING a drawing does not
+     *  — prose elsewhere cites it and survives it, so that stays with the admin. */
     public function create(User $user): bool
     {
-        return $user->role === UserRole::Admin;
+        return $user->role->canWrite();
     }
 
     public function update(User $user, Diagram $diagram): bool
     {
-        return $user->role === UserRole::Admin;
+        return $user->role->canWrite();
     }
 
     public function delete(User $user, Diagram $diagram): bool
     {
-        return $user->role === UserRole::Admin;
+        return $user->role->canDelete();
     }
 }

@@ -2,7 +2,6 @@
 
 namespace App\Policies;
 
-use App\Enums\UserRole;
 use App\Models\Solution;
 use App\Models\User;
 
@@ -18,14 +17,14 @@ class SolutionPolicy
         return true;
     }
 
-    /** Creation and editing restricted to administrators. */
+    /** Creation and editing need write access (admin or editor). */
     public function create(User $user): bool
     {
-        return $user->role === UserRole::Admin;
+        return $user->role->canWrite();
     }
 
     public function update(User $user, Solution $solution): bool
     {
-        return $user->role === UserRole::Admin;
+        return $user->role->canWrite();
     }
 }

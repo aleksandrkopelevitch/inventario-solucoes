@@ -10,7 +10,7 @@ use Illuminate\Foundation\Http\FormRequest;
  * from the other side; this attaches one from here.
  *
  * Authorised by `update` on the COMPANY: the person's own record is what
- * changes, but both policies are admin-only, so there's no gap between the two
+ * changes, but both policies need the same write access, so there's no gap between the two
  * (`PersonPolicy::update` === `CompanyPolicy::update`). Revisit this if either
  * ever grows a narrower rule.
  */

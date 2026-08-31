@@ -135,6 +135,17 @@ class DocumentationChatPromptBuilder
             $parts[] = "VALORES LITERAIS PROTEGIDOS:\n\n" . $vault->legend();
         }
 
+        // The page's protected values arrive as `[[SECRET-n]]` markers
+        // (App\Support\Documentation\SecretText). Saying so is what stops the
+        // model "tidying" them away or inventing a plausible value in their
+        // place: it can MOVE one, and it cannot know or write one.
+        if (str_contains((string) $existing, '[[SECRET-')) {
+            $parts[] = "VALORES OCULTOS DA PÁGINA:\n\n"
+                . 'Trechos escritos como {% secret %}[[SECRET-n]]{% endsecret %} são valores sensíveis '
+                . 'que você NÃO pode ver. Mantenha cada marcador exatamente como está, dentro do seu '
+                . '{% secret %}…{% endsecret %}, e nunca invente um valor no lugar dele.';
+        }
+
         $existing = trim((string) $vault->mask($existing));
         $parts[] = $existing !== ''
             ? "CONTEÚDO ATUAL DA PÁGINA:\n\n{$existing}"

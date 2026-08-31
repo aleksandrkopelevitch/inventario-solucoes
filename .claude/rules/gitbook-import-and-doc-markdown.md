@@ -119,10 +119,14 @@ do): the `documentation` column's dialect is narrower than it looks, and every
 way of missing it **fails silently** — the page saves, and the construct shows
 up as literal `{% … %}` text on screen, or quietly disappears from the editor.
 
-- **Only four `{% %}` constructs exist here** — `hint`, `tabs`/`tab`, `file`,
-  `embed`. They are parsed TWICE, by `App\Support\GitbookRenderer` (read-only
-  render) and by `resources/js/modules/docs-markdown.js` (the editor), with
-  near-duplicate regexes that must stay in step.
+- **Only four of these `{% %}` constructs come from GitBook** — `hint`,
+  `tabs`/`tab`, `file`, `embed` — and two more are ours: `diagram` (a citation
+  of a drawing in the catalog, self-closing with a `slug`) and `secret` (a
+  protected value, the only INLINE one — see § Cadernos in AGENTS.md). They are
+  parsed TWICE, by `App\Support\GitbookRenderer` (read-only render) and by
+  `resources/js/modules/docs-markdown.js` (the editor), with near-duplicate
+  regexes that must stay in step — `secret` in the INLINE halves of both
+  (`renderLockedSecret`/`inlineToMd`), never in the line-anchored ones.
 - **Those regexes accept ONE attribute and nothing more.** The editor matches
   `^\{%\s*embed\s+url="([^"]*)"\s*%\}$`, so GitBook's perfectly valid
   `{% embed url="…" fullWidth="false" %}` matches neither parser. Strip extras.

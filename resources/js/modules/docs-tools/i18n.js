@@ -62,6 +62,10 @@ export const EDITOR_I18N = {
             InlineCode: 'Código em linha',
             Tabs: 'Abas',
             Hint: 'Aviso',
+            // Already PT-BR in the tool itself (SecretInlineTool::title), so
+            // this entry is here only to keep the list complete: Editor.js
+            // looks every inline tool's name up by its own string.
+            'Valor protegido': 'Valor protegido',
         },
         // Internal messages for each tool. The outer key is the tool's NAME as
         // registered in the `tools` map (docs-editor.js): image, table, list…

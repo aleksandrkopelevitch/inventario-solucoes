@@ -132,6 +132,7 @@ async function loadTools(uploadUrl, catalogUrl) {
         {default: Embed},
         {default: HintTool},
         {default: DiagramTool},
+        {default: SecretInlineTool},
         {default: TabsTool},
         {default: DragDropTune},
     ] = await Promise.all([
@@ -149,6 +150,7 @@ async function loadTools(uploadUrl, catalogUrl) {
         import('@editorjs/embed'),
         import('./docs-tools/hint'),
         import('./docs-tools/diagram'),
+        import('./docs-tools/secret'),
         import('./docs-tools/tabs'),
         import('editorjs-drag-drop'),
     ])
@@ -223,6 +225,10 @@ async function loadTools(uploadUrl, catalogUrl) {
         tabs: {class: TabsTool, config: {EditorJS, getTools: buildTools, wire, onChange: markDirty, uploadUrl, i18n: EDITOR_I18N}},
         inlineCode: {class: InlineCode},
         marker: {class: Marker},
+        // The only inline tool we write. Available in every block whose
+        // `inlineToolbar` is on — which is what makes a protected value
+        // expressible in a paragraph, a heading, a list item or a table cell.
+        secret: {class: SecretInlineTool},
     })
 
     return {EditorJS, tools: buildTools()}

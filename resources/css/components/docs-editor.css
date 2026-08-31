@@ -567,3 +567,47 @@
 @media (prefers-reduced-motion: reduce) {
     [data-ak-docs-status].is-saved-blink { animation: none; }
 }
+
+/* ── Valor protegido dentro do editor ──────────────────────────────────
+   O construto {% secret %} vira <span class="ak-secret-mark"> no editor
+   (docs-tools/secret.js), e o que ele contém é um marcador [[SECRET-n]]:
+   o valor real nunca é entregue ao navegador, nem para admin
+   (App\Support\Documentation\SecretText). Este estilo é o que faz o
+   marcador LER como um cadeado em vez de parecer texto quebrado — quem
+   clica nele abre o popover de docs-secret.js e vê o valor por 30s.
+
+   CSS custom, não utilitário: o span é criado por JS dentro de um
+   contenteditable, não existe elemento em Blade onde prender classes. O
+   cadeado é um ::before em SVG data-uri (currentColor não vale em
+   background-image, então a cor está embutida em --color-muted). */
+.ak-docs-editor .ak-secret-mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25em;
+    padding: 0.05em 0.4em;
+    border: 1px dashed var(--color-line);
+    border-radius: var(--radius-field, 6px);
+    background-color: var(--color-raised);
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    cursor: pointer;
+}
+.ak-docs-editor .ak-secret-mark::before {
+    content: '';
+    width: 1em;
+    height: 1em;
+    flex: none;
+    background-color: currentColor;
+    /* heroicon outline lock-closed, como máscara: assim segue o currentColor
+       do chip (inclusive no hover) sem uma segunda cópia do SVG por cor. */
+    -webkit-mask: var(--ak-secret-lock) center / contain no-repeat;
+    mask: var(--ak-secret-lock) center / contain no-repeat;
+}
+.ak-docs-editor .ak-secret-mark:hover {
+    border-color: var(--color-accent-line);
+    color: var(--color-accent);
+}
+.ak-docs-editor {
+    --ak-secret-lock: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='black'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z'/%3E%3C/svg%3E");
+}

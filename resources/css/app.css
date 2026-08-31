@@ -13,6 +13,11 @@
    only ever named as literals inside CategoryPalette — scan it so the JIT
    emits them (a concatenated "bg-cat-{family}" elsewhere would never be seen). */
 @source "../../app/Support/CategoryPalette.php";
+/* O lock e o valor revelado de um `{% secret %}` são pintados em PHP
+   (GitbookRenderer::renderLockedSecret/renderRevealedSecret), fora do
+   alcance do @source de resources/ — sem esta linha as utilities deles
+   simplesmente não entram no bundle e o lock sai sem estilo nenhum. */
+@source "../../app/Support/GitbookRenderer.php";
 
 /* Same deal for the diagram status badge/dot tones, named as literals
    inside the enum so the two places that draw a status can't drift apart. */

@@ -3,7 +3,18 @@
      unchanged inside the Documentação tab (see documentation/edit.blade.php).
      Inherits the parent view's scope (canEdit, documentation, uploadUrl,
      renderedHtml, childPages). --}}
-<div class="min-w-0 max-w-3xl flex-1">
+{{-- `data-ak-secret-*` sits on the COLUMN rather than on the rendered HTML
+     because a protected value has two homes on this screen: a lock in the
+     read-only render, and a `[[SECRET-n]]` marker inside Editor.js. docs-secret.js
+     finds whichever was clicked with `closest('[data-ak-secret-url]')`, so both
+     branches below are covered by one declaration.
+
+     `__INDEX__` in the URL is the lock's ordinal, substituted client-side.
+     Absent (with the whole feature inert) on a screen with no page behind it. --}}
+<div class="min-w-0 max-w-3xl flex-1"
+    @isset($secretRevealUrl) data-ak-secret-url="{{ $secretRevealUrl }}" @endisset
+    @isset($secretScope) data-ak-secret-scope="{{ $secretScope }}" @endisset
+    @if ($secretsUnlocked ?? false) data-ak-secret-unlocked="1" @endif>
     @if ($canEdit)
         {{-- Raw source Markdown; the editor builds the blocks from here.
              The <textarea> preserves the content with safe escaping. --}}

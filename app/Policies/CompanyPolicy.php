@@ -2,7 +2,6 @@
 
 namespace App\Policies;
 
-use App\Enums\UserRole;
 use App\Models\Company;
 use App\Models\User;
 
@@ -20,11 +19,11 @@ class CompanyPolicy
 
     public function create(User $user): bool
     {
-        return $user->role === UserRole::Admin;
+        return $user->role->canWrite();
     }
 
     public function update(User $user, Company $company): bool
     {
-        return $user->role === UserRole::Admin;
+        return $user->role->canWrite();
     }
 }

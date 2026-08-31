@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 
@@ -52,6 +53,21 @@ class Notebook extends Model implements HasMedia
      * including for the 38 imported spaces that link to no solution at all.
      */
     public const CONTEXT_COLLECTION = 'context_documents';
+
+    /**
+     * Characters in the secret code — the string a reader types to reveal one
+     * protected value in this caderno's pages
+     * (App\Support\Documentation\SecretText).
+     *
+     * Six, deliberately short, and it is short because a person is meant to
+     * receive it over Teams and type it — the same reason `TOKEN_LENGTH` is 12
+     * and this is not. Six alphanumerics is ~36 bits, far too little on its own,
+     * so it is NOT the whole authorization the way the public token is: every
+     * attempt goes through App\Actions\Documentation\RevealPageSecret, which
+     * allows five per reader per twelve hours. Lengthen this and the throttle
+     * still matters; drop the throttle and this length is the attack.
+     */
+    public const SECRET_CODE_LENGTH = 6;
 
     protected $fillable = [
         'name',
@@ -109,6 +125,35 @@ class Notebook extends Model implements HasMedia
     }
 
     /**
+     * Generates a fresh secret code and saves it. Every previously shared code
+     * stops working, which is the point — it is the only answer to one having
+     * been passed on to somebody it wasn't meant for.
+     *
+     * `Str::random()` (CSPRNG) rather than a friendlier alphabet: a code read
+     * as `X6h2dG` is mixed case on purpose, and comparison is exact
+     * (`hash_equals`), never folded — see the note in
+     * `PublicDocumentationController::diagramPicture()` on why authorisation
+     * is the one place this app does not fold case.
+     */
+    public function rotateSecretCode(): string
+    {
+        // Not in `$fillable`, like `parent_id` on a page: the code is written
+        // here and by the migration that backfilled it, never from a payload.
+        $this->secret_code = Str::random(self::SECRET_CODE_LENGTH);
+        $this->save();
+
+        return $this->secret_code;
+    }
+
+    /** Whether `$code` is this caderno's secret code. Exact match, timing-safe. */
+    public function secretCodeMatches(?string $code): bool
+    {
+        return filled($this->secret_code)
+            && filled($code)
+            && hash_equals((string) $this->secret_code, (string) $code);
+    }
+
+    /**
      * No FK to cascade from the page side would clean up FILES — deletes each
      * page through its own model so Spatie's `deleting` hook runs and the
      * embedded media goes with it. The `cascadeOnDelete` on
@@ -117,6 +162,14 @@ class Notebook extends Model implements HasMedia
      */
     protected static function booted(): void
     {
+        // Every caderno has a secret code from the moment it exists. Generating
+        // it lazily, the first time a page grows a `{% secret %}`, would mean
+        // the admin panel has nothing to show until then — and the code is
+        // something you hand out BEFORE it is needed, not after.
+        static::creating(function (self $notebook) {
+            $notebook->secret_code ??= Str::random(self::SECRET_CODE_LENGTH);
+        });
+
         static::deleting(fn (self $notebook) => $notebook->pages()->get()->each->delete());
     }
 }
