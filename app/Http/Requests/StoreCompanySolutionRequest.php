@@ -10,7 +10,7 @@ use Illuminate\Foundation\Http\FormRequest;
  * own header does it from the other side (its vendor chip).
  *
  * Authorised by `update` on the COMPANY: the solution's record is what changes,
- * but both policies are admin-only, so there's no gap between the two
+ * but both policies need the same write access, so there's no gap between the two
  * (`SolutionPolicy::update` === `CompanyPolicy::update`). Revisit this if
  * either ever grows a narrower rule.
  */

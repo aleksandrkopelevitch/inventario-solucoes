@@ -2,7 +2,6 @@
 
 namespace App\Policies;
 
-use App\Enums\UserRole;
 use App\Models\Submission;
 use App\Models\User;
 
@@ -35,7 +34,7 @@ class SubmissionPolicy
 
     public function update(User $user, Submission $submission): bool
     {
-        return $user->role === UserRole::Admin || $submission->created_by_id === $user->id;
+        return $user->role->isAdmin() || $submission->created_by_id === $user->id;
     }
 
     public function delete(User $user, Submission $submission): bool

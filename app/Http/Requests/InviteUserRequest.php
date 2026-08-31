@@ -20,7 +20,10 @@ class InviteUserRequest extends FormRequest
         return [
             'name'  => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'unique:users,email'],
-            'role'  => ['required', Rule::in([UserRole::Viewer->value, UserRole::Admin->value])],
+            // Every case the enum knows: the explicit two-value list this
+            // replaces was left over from the removed `agent` role, and it is
+            // what silently refused `writer` the day it was added.
+            'role' => ['required', Rule::enum(UserRole::class)],
         ];
     }
 }

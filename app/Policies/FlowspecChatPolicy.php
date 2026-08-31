@@ -2,7 +2,6 @@
 
 namespace App\Policies;
 
-use App\Enums\UserRole;
 use App\Models\FlowspecChat;
 use App\Models\User;
 
@@ -16,7 +15,7 @@ class FlowspecChatPolicy
 
     public function view(User $user, FlowspecChat $chat): bool
     {
-        return $user->id === $chat->user_id || $user->role === UserRole::Admin;
+        return $user->id === $chat->user_id || $user->role->isAdmin();
     }
 
     public function create(User $user): bool
@@ -26,6 +25,6 @@ class FlowspecChatPolicy
 
     public function update(User $user, FlowspecChat $chat): bool
     {
-        return $user->id === $chat->user_id || $user->role === UserRole::Admin;
+        return $user->id === $chat->user_id || $user->role->isAdmin();
     }
 }

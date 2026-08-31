@@ -8,8 +8,9 @@
                 </div>
                 <span @class([
                     'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold',
-                    'bg-accent-soft text-accent' => $user->role === \App\Enums\UserRole::Admin,
-                    'bg-raised text-muted' => $user->role !== \App\Enums\UserRole::Admin,
+                    'bg-accent-soft text-accent' => $user->role->isAdmin(),
+                    'bg-lime-soft text-lime-ink' => $user->role === \App\Enums\UserRole::Writer,
+                    'bg-raised text-muted' => ! $user->role->canWrite(),
                 ])>
                     {{ $user->role->label() }}
                 </span>

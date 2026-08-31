@@ -60,7 +60,11 @@
          to be reading. `@isset` guards a caller that renders this cluster
          without one. --}}
     @isset($notebook)
-        @can('update', $notebook)
+        {{-- `administer`, not `update`: this dropdown publishes the caderno AND
+             shows its secret code, and an EDITOR can write every page in it
+             without being allowed to do either (see NotebookPolicy). It read
+             `update` while that ability meant "admin". --}}
+        @can('administer', $notebook)
             <div class="relative">
                 <x-forms.button type="button" variant="ghost" data-ak-toggle="docs-share-dropdown" data-ak-toggle-classes="hidden" data-ak-toggle-blur="true"
                     class="!h-9 !w-9 !p-0" aria-label="Compartilhar caderno" title="Compartilhar caderno">
