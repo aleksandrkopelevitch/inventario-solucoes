@@ -4,6 +4,7 @@ namespace App\Services\Documentation;
 
 use App\Models\DocumentationChatMessage;
 use App\Models\Notebook;
+use App\Support\Documentation\BlockVault;
 use App\Support\Documentation\DocumentationRequirements;
 use App\Support\Documentation\LiteralVault;
 use App\Support\Documentation\SecretText;
@@ -65,6 +66,13 @@ class DocumentationChatService
         // page, and a token copied by hand comes back subtly wrong. Everything
         // the prompt will show is harvested first so one value gets one marker
         // wherever it appears (see LiteralVault).
+        // The page's images, file cards, embeds and diagram citations. They are
+        // frozen for the opposite reason to the literals: not because the model
+        // copies them wrong, but because it was TOLD not to write them — and,
+        // asked for the whole page back, obeyed by deleting the ones already
+        // there (see BlockVault).
+        $blocks = BlockVault::from([$existingContent]);
+
         $vault = LiteralVault::from([
             $existingContent,
             $userMessage->content,
@@ -81,6 +89,7 @@ class DocumentationChatService
             $contextDocs->textDocs,
             $requirements,
             $vault,
+            $blocks,
         );
 
         $response = $this->prompt($userPrompt, $contextDocs->attachments);
@@ -88,7 +97,21 @@ class DocumentationChatService
         // Restore before splitting: the markers are put back in the
         // conversational half too, so a reply that quotes a value still reads
         // correctly, and the draft is persisted with the real values.
-        [$content, $draft] = $this->extractDraft($vault->restore($response->text));
+        // Counted on the RAW draft, before any restore: a marker is only a
+        // marker until then, and it has to be the draft rather than the whole
+        // reply — a model that says "removi o [[BLOCK-2]]" in prose would
+        // otherwise be counted as having kept it.
+        $blocks->audit($this->extractDraft($response->text)[1]);
+
+        [$content, $draft] = $this->extractDraft($vault->restore($blocks->restore($response->text)));
+
+        // A dropped block is said out loud rather than left for the person to
+        // spot in the diff. It is not necessarily wrong — removing an image is
+        // legitimate when it was asked for — so the notice states what is
+        // missing and leaves the judgement to whoever presses "Aplicar".
+        if ($notice = $blocks->droppedNotice()) {
+            $content = trim($content . "\n\n" . $notice);
+        }
 
         return new DocumentationChatReply(
             content: $content,
@@ -108,6 +131,7 @@ class DocumentationChatService
                 'omitted_context'     => [...$contextDocs->omittedContext, ...$contextDocs->omittedTexts],
                 'requirements'        => $requirements,
                 'literals'            => $vault->stats(),
+                'blocks'              => $blocks->stats(),
             ],
         );
     }

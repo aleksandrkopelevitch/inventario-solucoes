@@ -6,6 +6,7 @@ use App\Contracts\Documentable;
 use App\Models\DocumentationChatMessage;
 use App\Models\Notebook;
 use App\Models\Solution;
+use App\Support\Documentation\BlockVault;
 use App\Support\Documentation\LiteralVault;
 use Illuminate\Support\Collection;
 
@@ -91,10 +92,29 @@ class DocumentationChatPromptBuilder
           {% endtabs %}
         - Formatação inline: `**negrito**`, `*itálico*`, `` `código` ``,
           `[texto](https://url)`, `<mark>destaque</mark>`, `<u>sublinhado</u>`.
+        - Blocos preservados: marcadores no formato [[BLOCK-1]], descritos na
+          seção "BLOCOS PRESERVADOS" do prompt do usuário.
+
+        BLOCOS PRESERVADOS:
+        - Imagens, arquivos, vídeos e citações de diagrama que JÁ ESTÃO na
+          página chegam até você como marcadores [[BLOCK-n]]. Copie cada um
+          inalterado, na mesma posição em que aparece no conteúdo atual. O
+          sistema troca o marcador pelo bloco verdadeiro depois da sua resposta.
+        - O rascunho SUBSTITUI a página inteira: todo marcador que você não
+          copiar é uma imagem (ou arquivo, ou diagrama) apagada da documentação.
+          Mantenha os que não têm relação com o pedido — eles não precisam ter
+          relação nenhuma para continuarem lá.
+        - Só remova um [[BLOCK-n]] se o usuário pedir explicitamente. Se remover,
+          diga qual removeu na resposta conversacional.
 
         PROIBIDO no bloco de rascunho:
-        - Não use imagens, `<figure>`, `<img>`, `{% file %}` nem `{% embed %}`.
-        - Não invente caminhos `/files/{id}` nem links para arquivos.
+        - Não CRIE imagens, `<figure>`, `<img>`, `{% file %}`, `{% embed %}` nem
+          `{% diagram %}`, e não invente caminhos `/files/{id}`: esses blocos
+          dependem de um id de arquivo ou de um slug de diagrama que só o
+          aplicativo conhece. Se o usuário pedir uma imagem nova, explique na
+          resposta conversacional que ela é inserida pelo editor — não escreva
+          um bloco novo no rascunho.
+        - Não escreva um [[BLOCK-n]] que não esteja na lista que você recebeu.
         PROMPT;
     }
 
@@ -112,6 +132,7 @@ class DocumentationChatPromptBuilder
         Collection $textDocs,
         array $requirements,
         LiteralVault $vault,
+        BlockVault $blocks,
     ): string {
         $parts = [];
 
@@ -135,6 +156,14 @@ class DocumentationChatPromptBuilder
             $parts[] = "VALORES LITERAIS PROTEGIDOS:\n\n" . $vault->legend();
         }
 
+        // The page's images, files, embeds and diagram citations, as markers
+        // (see BlockVault). Naming each one is what lets the model put it back
+        // where it belongs — and what lets the person say "tira a imagem do
+        // meio" without the model having to invent the block to remove it.
+        if (! $blocks->isEmpty()) {
+            $parts[] = "BLOCOS PRESERVADOS:\n\n" . $blocks->legend();
+        }
+
         // The page's protected values arrive as `[[SECRET-n]]` markers
         // (App\Support\Documentation\SecretText). Saying so is what stops the
         // model "tidying" them away or inventing a plausible value in their
@@ -146,7 +175,7 @@ class DocumentationChatPromptBuilder
                 . '{% secret %}…{% endsecret %}, e nunca invente um valor no lugar dele.';
         }
 
-        $existing = trim((string) $vault->mask($existing));
+        $existing = trim((string) $vault->mask($blocks->mask($existing)));
         $parts[] = $existing !== ''
             ? "CONTEÚDO ATUAL DA PÁGINA:\n\n{$existing}"
             : 'A página está vazia até agora.';
@@ -157,16 +186,16 @@ class DocumentationChatPromptBuilder
 
         if ($textDocs->isNotEmpty()) {
             $docs = $textDocs
-                ->map(fn (array $d) => "### Documento: {$d['name']}\n" . $vault->mask($d['content']))
+                ->map(fn (array $d) => "### Documento: {$d['name']}\n" . $vault->mask($blocks->mask($d['content'])))
                 ->implode("\n\n");
             $parts[] = "DOCUMENTOS DE CONTEXTO (texto):\n\n{$docs}";
         }
 
         if ($history->isNotEmpty()) {
-            $parts[] = "HISTÓRICO DA CONVERSA:\n\n" . $this->formatHistory($history, $vault);
+            $parts[] = "HISTÓRICO DA CONVERSA:\n\n" . $this->formatHistory($history, $vault, $blocks);
         }
 
-        $parts[] = "MENSAGEM DO USUÁRIO:\n" . $vault->mask($message);
+        $parts[] = "MENSAGEM DO USUÁRIO:\n" . $vault->mask($blocks->mask($message));
 
         return implode("\n\n---\n\n", $parts);
     }
@@ -190,11 +219,11 @@ class DocumentationChatPromptBuilder
     }
 
     /** @param  Collection<int, DocumentationChatMessage>  $history */
-    private function formatHistory(Collection $history, LiteralVault $vault): string
+    private function formatHistory(Collection $history, LiteralVault $vault, BlockVault $blocks): string
     {
         return $history
             ->map(fn (DocumentationChatMessage $m) => ($m->role === 'user' ? 'Usuário' : 'Especialista')
-                . ': ' . $vault->mask($m->content))
+                . ': ' . $vault->mask($blocks->mask($m->content)))
             ->implode("\n\n");
     }
 }
