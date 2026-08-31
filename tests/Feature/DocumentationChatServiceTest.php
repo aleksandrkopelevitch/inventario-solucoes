@@ -276,3 +276,109 @@ it('repairs a token the model retyped from an unmasked source', function () {
         ->and($result->draft)->not->toContain($mangled)
         ->and($result->meta['literals']['repaired'])->toBe(1);
 });
+
+/*
+|--------------------------------------------------------------------------
+| Preserved blocks — images, files, embeds, diagram citations
+|--------------------------------------------------------------------------
+|
+| The system prompt used to FORBID `<figure>`/`<img>`/`{% file %}`/`{% embed %}`
+| outright while also demanding the complete page back, and the model resolved
+| that contradiction by deleting the image already on the page — reported from
+| the app while answering a request that had nothing to do with it. The model
+| never sees these blocks now (BlockVault).
+|
+*/
+
+/** A page whose text carries one of each block the model must not author. */
+function pageWithBlocks(): DocumentationPage
+{
+    return DocumentationPage::factory()->for(Notebook::factory())->create([
+        'documentation' => "# Fluxo\n\n"
+            . "<figure><img src=\"/files/12\" alt=\"Topologia\"><figcaption>Topologia atual</figcaption></figure>\n\n"
+            . "Texto que o usuário quer mudar.\n\n"
+            . "{% file src=\"/files/13\" %}\n\n"
+            . "{% diagram slug=\"zfl-bloqueio\" %}\n",
+    ]);
+}
+
+it('never shows the model an image, a file card or a diagram citation', function () {
+    $page = pageWithBlocks();
+    $service = fakeChatService('Ok.');
+
+    $service->generate(chatMessageFor($page, ['existing_content' => $page->documentation]));
+
+    expect($service->capturedPrompt)
+        ->not->toContain('<figure>')
+        ->not->toContain('/files/12')
+        ->not->toContain('zfl-bloqueio')
+        ->toContain('[[BLOCK-1]]')
+        ->toContain('[[BLOCK-3]]')
+        // …and it is told what each marker stands for, and to keep it.
+        ->toContain('BLOCOS PRESERVADOS')
+        ->toContain('= imagem')
+        ->toContain('= diagrama');
+});
+
+it('puts every block back into a draft that kept its markers', function () {
+    $page = pageWithBlocks();
+
+    $reply = "Reescrevi o texto.\n\n````\n# Fluxo\n\n[[BLOCK-1]]\n\nTexto novo.\n\n[[BLOCK-2]]\n\n[[BLOCK-3]]\n````\n";
+    $result = fakeChatService($reply)->generate(chatMessageFor($page, ['existing_content' => $page->documentation]));
+
+    expect($result->draft)
+        ->toContain('<figure><img src="/files/12" alt="Topologia"><figcaption>Topologia atual</figcaption></figure>')
+        ->toContain('{% file src="/files/13" %}')
+        ->toContain('{% diagram slug="zfl-bloqueio" %}')
+        ->not->toContain('[[BLOCK-')
+        ->and($result->meta['blocks'])->toBe(['frozen' => 3, 'dropped' => 0]);
+});
+
+it('warns the person when a draft came back without a block, instead of letting them find out in the diff', function () {
+    $page = pageWithBlocks();
+
+    // The reported turn: the text changes and the image quietly does not come back.
+    $reply = "Reescrevi o texto.\n\n````\n# Fluxo\n\nTexto novo.\n\n[[BLOCK-2]]\n\n[[BLOCK-3]]\n````\n";
+    $result = fakeChatService($reply)->generate(chatMessageFor($page, ['existing_content' => $page->documentation]));
+
+    expect($result->meta['blocks'])->toBe(['frozen' => 3, 'dropped' => 1])
+        ->and($result->content)->toContain('não inclui 1 bloco')
+        ->and($result->content)->toContain('revise o rascunho antes de aplicar')
+        // The rest of the draft is still delivered — the person decides.
+        ->and($result->draft)->toContain('{% file src="/files/13" %}')
+        ->and($result->draft)->not->toContain('<figure>');
+});
+
+it('counts a marker the model only mentioned in prose as dropped', function () {
+    $page = pageWithBlocks();
+
+    // The audit runs on the DRAFT, not on the whole reply, precisely for this.
+    $reply = "Removi o [[BLOCK-1]] porque não parecia relacionado.\n\n````\n# Fluxo\n\nTexto novo.\n\n[[BLOCK-2]]\n\n[[BLOCK-3]]\n````\n";
+    $result = fakeChatService($reply)->generate(chatMessageFor($page, ['existing_content' => $page->documentation]));
+
+    expect($result->meta['blocks']['dropped'])->toBe(1);
+});
+
+it('says nothing about blocks when the page has none', function () {
+    $page = DocumentationPage::factory()->for(Notebook::factory())->create(['documentation' => "# Só texto\n"]);
+
+    $result = fakeChatService("Ok.\n\n````\n# Só texto\n\nMais texto.\n````\n")
+        ->generate(chatMessageFor($page, ['existing_content' => $page->documentation]));
+
+    expect($result->meta['blocks'])->toBe(['frozen' => 0, 'dropped' => 0])
+        ->and($result->content)->not->toContain('Atenção');
+});
+
+it('keeps an image frozen even when it sits inside a figure with an id-bearing src', function () {
+    // The <img> inside a <figure> must not be frozen twice: the figure is
+    // captured first and the image pattern can no longer see inside it.
+    $page = DocumentationPage::factory()->for(Notebook::factory())->create([
+        'documentation' => "<figure><img src=\"/files/99\"></figure>\n\nTexto.\n",
+    ]);
+
+    $result = fakeChatService("Ok.\n\n````\n[[BLOCK-1]]\n\nTexto novo.\n````\n")
+        ->generate(chatMessageFor($page, ['existing_content' => $page->documentation]));
+
+    expect($result->meta['blocks'])->toBe(['frozen' => 1, 'dropped' => 0])
+        ->and($result->draft)->toContain('<figure><img src="/files/99"></figure>');
+});

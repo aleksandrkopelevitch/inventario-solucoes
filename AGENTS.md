@@ -494,6 +494,48 @@ both reach beyond the page an editor is writing, and an editor who could read
 the code off the share panel would be able to unlock exactly what this exists to
 keep from them.
 
+### The assistant is never asked to obey a rule it cannot keep
+
+Two vaults sit in front of the Documentation Assistant, for two different
+reasons, and the second one exists because of a rule that read as sensible and
+deleted people's work.
+
+`App\Support\Documentation\BlockVault` freezes the blocks the model may
+neither write nor lose — `<figure>`/`<img>`, `{% file %}`, `{% embed %}`,
+`{% diagram %}` — as `[[BLOCK-n]]` markers. The system prompt used to ban that
+syntax outright ("não use imagens, `<figure>`, `<img>`, `{% file %}` nem
+`{% embed %}`") while also demanding the COMPLETE page back in the draft. On any
+page with an image those two rules contradict each other, and the model resolved
+it the only way it could: by deleting the figure that was already there, while
+answering a request about something else. Reported from the app 2026-08-31.
+
+The ban's intent was right and its wording was not. The model cannot author one
+of these blocks — a `/files/{id}` needs a media id only the upload knows, a
+`{% diagram %}` a slug from the catalog — but that is an argument for never
+showing it the syntax, not for telling it to leave the syntax out of a document
+that already contains it.
+
+Four things to keep:
+
+- **PATTERNS order is load-bearing.** A `<figure>` contains an `<img>`, so the
+  figure is captured first, and `capture()` walks a copy in which every
+  captured block is already a marker — that is what stops the image inside a
+  figure being frozen on its own.
+- **A dropped block is COUNTED, never re-inserted.** A marker the model deleted
+  has no position left to restore it to, and guessing one would rewrite
+  somebody's page. `droppedNotice()` appends a PT-BR warning to the
+  conversational half instead, and `meta.blocks` audits the turn — removing an
+  image is legitimate when it was asked for, so the notice states what is
+  missing and leaves the judgement to whoever presses "Aplicar".
+- **The audit runs on the RAW DRAFT, before any restore.** A marker is only a
+  marker until then; and it must be the draft rather than the whole reply,
+  because a model that explains itself ("removi o [[BLOCK-2]]") would otherwise
+  be counted as having kept it — which is precisely the turn this guard is for.
+- **Three vocabularies, deliberately separate**: `[[LIT-n]]` (LiteralVault,
+  opaque literals), `[[SECRET-n]]` (SecretText, protected values) and
+  `[[BLOCK-n]]` (here). A shared prefix would let one restore resolve another's
+  markers.
+
 ### The Documentation Assistant never sees an opaque literal
 
 A reply from the Especialista em Documentação rewrites the WHOLE page (the
