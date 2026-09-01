@@ -200,7 +200,7 @@ it('accepts writer as an invitable role', function () {
 
 it('offers all three roles on the invitation form', function () {
     $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]))
-        ->get(route('users.index'))
+        ->get(route('people.accounts'))
         ->assertOk()
         ->assertSee('Visualizador')
         ->assertSee('Editor')

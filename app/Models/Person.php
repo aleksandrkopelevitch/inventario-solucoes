@@ -33,6 +33,21 @@ class Person extends Model
         return 'slug';
     }
 
+    /**
+     * The account this person logs in with, if they have one.
+     *
+     * `user_id` is deliberately absent from `$fillable` — like `parent_id` on a
+     * documentation page, the link is written through the relation
+     * (`user()->associate()`) by `GrantPersonAccess`/`LinkPersonAccount` and
+     * never mass-assigned from a form. Granting access creates an ACCOUNT; that
+     * must not be reachable by posting a `user_id` to the person's edit panel,
+     * which an editor can do and an editor may not hand out access.
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);

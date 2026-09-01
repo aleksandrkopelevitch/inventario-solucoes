@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ApprovedTopologyController;
 use App\Http\Controllers\AttributeOptionController;
+use App\Http\Controllers\Auth\AccessLinkController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\ResetPasswordController;
@@ -15,6 +16,7 @@ use App\Http\Controllers\FlowspecGuidelineController;
 use App\Http\Controllers\FlowspecMessageController;
 use App\Http\Controllers\HeroiconController;
 use App\Http\Controllers\Inventory\CompanyController;
+use App\Http\Controllers\Inventory\PersonAccessController;
 use App\Http\Controllers\Inventory\PersonController;
 use App\Http\Controllers\Inventory\SolutionController;
 use App\Http\Controllers\MediaController;
@@ -47,6 +49,10 @@ Route::middleware('guest')->group(function () {
         ->middleware('throttle:6,1')
         ->name('password.email');
 
+    // An access link handed to somebody by an admin (People > Acesso). It leads to
+    // the password screen and NEVER to a session — see AccessLinkController for why
+    // that distinction is the whole design.
+    Route::get('access/{token}', [AccessLinkController::class, 'show'])->name('access.show');
     Route::get('reset-password/{token}', [ResetPasswordController::class, 'create'])->name('password.reset');
     Route::post('reset-password', [ResetPasswordController::class, 'store'])
         ->middleware('throttle:6,1')
@@ -113,6 +119,10 @@ Route::middleware('auth')->group(function () {
     // F5 — people and companies (Stage 2).
     Route::get('people', [PersonController::class, 'index'])->name('people.index');
     Route::get('people/new', [PersonController::class, 'create'])->name('people.create');
+    // "Quem tem acesso" — a VIEW of the Pessoas module, not a modal in the
+    // sidebar menu. A static segment, so it has to stay ahead of
+    // `people/{person}` or it resolves as a person's slug.
+    Route::get('people/accounts', [PersonController::class, 'accounts'])->name('people.accounts');
     Route::post('people', [PersonController::class, 'store'])->name('people.store');
     Route::get('people/{person}/edit', [PersonController::class, 'edit'])->name('people.edit');
     Route::get('people/{person}', [PersonController::class, 'show'])->name('people.show');
@@ -123,6 +133,24 @@ Route::middleware('auth')->group(function () {
     // `_method=PATCH` (PHP only fills $_FILES on POST); the router resolves
     // that to this PATCH route.
     Route::patch('people/{person}/field', [PersonController::class, 'updateField'])->name('people.field.update');
+    /*
+     |------------------------------------------------------------------
+     | A person's ACCESS — the account they log in with
+     |------------------------------------------------------------------
+     |
+     | All of it is `UserPolicy::manage` (admin), never `PersonPolicy::update`
+     | (admin OR editor): an editor curates this person and must not be able to
+     | hand out an account. `{user}` is the account behind the person, and the
+     | controller reaches it through the route so a mismatched pair cannot be
+     | posted — see PersonAccessController.
+     */
+    Route::post('people/{person}/access', [PersonAccessController::class, 'store'])->name('people.access.store');
+    Route::patch('people/{person}/access', [PersonAccessController::class, 'link'])->name('people.access.link');
+    Route::delete('people/{person}/access', [PersonAccessController::class, 'destroy'])->name('people.access.destroy');
+    Route::patch('people/{person}/access/{user}/role', [PersonAccessController::class, 'updateRole'])->name('people.access.role');
+    Route::post('people/{person}/access/{user}/link', [PersonAccessController::class, 'refreshLink'])->name('people.access.link.refresh');
+    Route::delete('people/{person}/access/{user}/link', [PersonAccessController::class, 'destroyLink'])->name('people.access.link.destroy');
+
     Route::post('people/{person}/contacts', [PersonController::class, 'storeContact'])->name('people.contacts.store');
     // Scoped: a contact id belonging to someone else 404s instead of being
     // retargeted onto (or deleted from) this person.
@@ -177,11 +205,11 @@ Route::middleware('auth')->group(function () {
     Route::patch('attributes/{option}', [AttributeOptionController::class, 'update'])->name('attribute-options.update');
     Route::delete('attributes/{option}', [AttributeOptionController::class, 'destroy'])->name('attribute-options.destroy');
 
-    // "Usuários" area (admin-only) — only exists inside #main-modal (see
-    // user-menu.blade.php). Accounts are admin-created by invite, never
-    // self-registered; the invited user sets their own password through the
-    // existing password-reset flow (UserController::store).
-    Route::get('users', [UserController::class, 'index'])->name('users.index');
+    // Accounts as accounts, admin-only. The SCREEN moved into the Pessoas
+    // module (`people/accounts` reads the roster, a person's own page grants and
+    // revokes), so what is left here are the two endpoints that are about the
+    // account rather than about whose it is: inviting somebody who is not in the
+    // catalog, and the role — which both screens change through this one route.
     Route::post('users', [UserController::class, 'store'])->name('users.store');
     // The role, changed in place on that same panel. It is the only
     // administrative act in the app that used to have no screen at all: a

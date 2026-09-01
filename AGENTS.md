@@ -763,6 +763,72 @@ one.
 
 ## Security
 
+### Access is an attribute of a PERSON, and an account can still have none
+
+`people.user_id` (nullable, unique) links a `Person` to the account they log in
+with. Both directions stay optional, and that is the whole shape of this:
+
+- **Most people never log in.** They are vendor contacts — 106 of the 108 rows
+  in dev have no email at all — so a person without an account is the ordinary
+  state, said plainly on the card rather than hidden.
+- **An account without a Person is normal too**, which is why the roster at
+  `/people/accounts` still exists after access management moved onto each
+  person's page. `admin@leomadeiras.com.br` comes from `DatabaseSeeder` and never
+  will have a catalog row; a screen listing only "people who have accounts"
+  would leave the one account that cannot be locked out with no screen at all.
+  It is also the only place an ORPHAN account's ROLE can be changed.
+
+The "Usuários" modal this replaced was about an email rather than about a human,
+because the two tables had no relation: the app could list who was able to log in
+and could not say who any of them were. `UserController` kept the two endpoints
+that really are about the account (`store` = invite somebody NOT in the catalog,
+`update` = the role, shared by both screens); its screen is gone.
+
+**`UserPolicy::manage`, never `PersonPolicy::update`.** This is the trap the
+whole feature turns on: an EDITOR may rewrite a person's job title, company and
+system links, and must not be able to hand out an account — least of all an admin
+one. The two live on the same page and answer to different rules, which is why
+`GrantPersonAccessRequest`/`LinkPersonAccountRequest` exist instead of reusing the
+person's own authorization. `user_id` is deliberately absent from `Person`'s
+`$fillable` for the same reason: granting access must not be reachable by posting
+a field to the edit panel an editor CAN reach.
+
+**The access link leads to the password screen and never to a session.** The
+obvious implementation authenticates the holder and drops them inside the app,
+and that is exactly what `AccessLinkController` must not do — a URL forwarded in
+a Teams thread would then BE the account. Its whole privilege is "you may set
+this account's password"; the person then logs in like anybody else, one screen
+further, and ends up with a credential of their own instead of a link they have
+to keep.
+
+Four things that make the link's generosity safe:
+
+- **It is spent the moment the password is set.** `ClearAccessTokenAfterPasswordReset`
+  listens to `PasswordReset` (auto-discovered, and already fired by
+  `ResetPasswordController`), so the real lifetime is "until it works, and at
+  most `User::ACCESS_TOKEN_DAYS`". Left alive it would be a seven-day
+  password-reset link for a live account. The ordinary "esqueci minha senha"
+  flow fires the same event, so a person who resets by email also invalidates a
+  link they were sent — neither path has to remember to.
+- **Each open mints a FRESH Laravel reset token.** That is what lets the access
+  link be reusable for days while the thing it hands over stays short-lived
+  (`config('auth.passwords.users.expire')`, 60 minutes).
+- **Generating a new link replaces the old one** — `unique` on the column would
+  refuse a duplicate anyway, and it is the only way to kill a link that went to
+  the wrong person.
+- **A dead link answers with ONE message** for "never existed", "already used"
+  and "expired". Telling them apart tells a stranger holding a dead URL whether
+  the account behind it is real.
+
+**Revoking soft-deletes the account and unlinks it.** That stops the person
+logging in (Laravel's user provider applies the default scope, so an existing
+session stops resolving) while their submissions and chats keep pointing at a row
+that exists. Granting again RESTORES the same row rather than creating a second
+account beside it — `GrantPersonAccess::grant()` looks with `withTrashed()`,
+which is also what keeps the unique index on `email` from refusing the insert.
+Erasing an account for real is still database-only.
+
+
 ### Three roles, and two predicates instead of thirteen comparisons
 
 `App\Enums\UserRole`: `Viewer` (Visualizador) reads, `Writer` (Editor) writes

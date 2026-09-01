@@ -6,31 +6,36 @@ use App\Http\Requests\InviteUserRequest;
 use App\Http\Requests\UpdateUserRoleRequest;
 use App\Mail\UserInvitationMail;
 use App\Models\User;
-use App\View\Components\Users\UserList;
+use App\View\Components\People\Accounts;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 
 /**
- * "Usuários" area — admin-only. There is no self-registration in this app:
- * every account is created here, by an admin, and the invited person sets
- * their own password through the existing password-reset flow (reusing
- * `Password::createToken()`/`ResetPasswordController` rather than building a
- * separate invite-token system). Only exists inside `#main-modal` (never its
- * own page), opened from the sidebar user menu — see `user-menu.blade.php`.
+ * Accounts as accounts: inviting one, and changing its role.
+ *
+ * There is no self-registration in this app — every account is created by an
+ * admin, and the invited person sets their own password through the existing
+ * password-reset flow (reusing `Password::createToken()`/`ResetPasswordController`
+ * rather than a separate invite-token system).
+ *
+ * The SCREEN this used to own is gone. "Usuários" was a modal in the sidebar
+ * menu, about an e-mail rather than about a person, because `people` and `users`
+ * were unrelated tables. Access is now an attribute of a Person
+ * (`PersonAccessController`, on their own page) and the roster lives at
+ * `/people/accounts`, so what is left here are the two endpoints that are about
+ * the ACCOUNT and not about whose it is:
+ *
+ * - `store()` — invite somebody who is NOT in the catalog. Still needed, and the
+ *   seeded `admin@leomadeiras.com.br` is the proof: an account does not require
+ *   a Person. This is the e-mail delivery; a person's page hands over a link.
+ * - `update()` — the role, reachable from the accounts list and from the
+ *   person's own Acesso card, which is why the refusals live in
+ *   `UpdateUserRoleRequest` rather than in either screen.
  */
 class UserController extends Controller
 {
-    public function index(): JsonResponse
-    {
-        $this->authorize('manage', User::class);
-
-        return response()->json([
-            'content' => view('users.manage')->render(),
-        ]);
-    }
-
     /**
      * Changes an account's role in place.
      *
@@ -46,7 +51,7 @@ class UserController extends Controller
         return response()->json([
             'type'           => 'success',
             'message'        => "\"{$user->name}\" agora é {$user->fresh()->role->label()}.",
-            'updatableSlots' => [UserList::slot()],
+            'updatableSlots' => [Accounts::slot()],
         ]);
     }
 
@@ -72,7 +77,7 @@ class UserController extends Controller
         return response()->json([
             'type'           => 'success',
             'message'        => "Convite enviado para \"{$user->email}\".",
-            'updatableSlots' => [UserList::slot()],
+            'updatableSlots' => [Accounts::slot()],
         ]);
     }
 }

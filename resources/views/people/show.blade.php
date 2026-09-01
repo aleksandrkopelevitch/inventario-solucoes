@@ -14,5 +14,10 @@
          form, so both responses have to be able to refresh them. --}}
     <x-people.systems :person="$person" />
 
+    {{-- Access sits with the other facts about this person. It is `manage`-gated
+         inside the component, not here: an editor SEES whether this person can
+         log in (a fact about the catalog) and cannot change it. --}}
+    <x-people.access :person="$person" />
+
     <x-people.notes :person="$person" />
 </x-layouts.layout>

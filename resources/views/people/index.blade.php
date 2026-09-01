@@ -17,12 +17,21 @@
                 </h1>
                 <p class="mt-1 text-sm text-[color:var(--color-glow-ink)]/70">Responsáveis internos e contatos de fornecedores.</p>
             </div>
+            <div class="flex items-center gap-2">
+            @can('manage', \App\Models\User::class)
+                {{-- The roster is a view of THIS module, so it is reachable from
+                     the module rather than only from the user menu. --}}
+                <x-forms.button href="{{ route('people.accounts') }}" variant="ghost" class="!rounded-full">
+                    <x-heroicon-o-key class="size-4" /> Quem tem acesso
+                </x-forms.button>
+            @endcan
             @can('create', \App\Models\Person::class)
                 <x-forms.button href="#" data-ak-panel-open data-ak-panel-url="{{ route('people.create', ['filter' => $filters]) }}"
                     class="!rounded-full">
                     <x-heroicon-o-plus class="size-4" /> Nova pessoa
                 </x-forms.button>
             @endcan
+            </div>
         </div>
     </x-ui.hero-panel>
 

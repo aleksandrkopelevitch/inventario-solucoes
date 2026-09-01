@@ -90,6 +90,22 @@ fluxo de reset de senha já existente
 separado. O primeiro admin vem do `DatabaseSeeder`
 (`admin@leomadeiras.com.br`).
 
+**O acesso é gerenciado em `/people`, não numa tela de usuários.** Conceder,
+trocar o perfil, gerar o link de senha e remover acesso ficam no card **Acesso**
+da página da pessoa, ao lado dos sistemas que ela responde — porque acesso é um
+fato sobre uma pessoa, e a tela antiga era sobre um e-mail (as tabelas `people` e
+`users` não tinham relação nenhuma: o app listava quem entrava e não sabia dizer
+quem era). `people.user_id` liga as duas, **opcional nos dois sentidos**: a
+maioria das pessoas do catálogo nunca vai logar, e uma conta sem pessoa também é
+normal — o `admin@leomadeiras.com.br` do seeder é exatamente isso, e é por ele
+que a lista `/people/accounts` continua existindo (é também o único lugar onde se
+troca o perfil de uma conta órfã).
+
+Um detalhe que é a feature inteira: tudo isso é `UserPolicy::manage`, **nunca**
+`PersonPolicy::update`. Um **Editor** reescreve o cargo, a empresa e os sistemas
+daquela pessoa e não pode conceder acesso — os dois moram na mesma página e
+obedecem a regras diferentes.
+
 **O papel também é trocado ali** (`PATCH users/{user}`: o selo de cada linha é
 um `x-ui.inline-edit`). Até isso existir o papel só podia ser escolhido no
 convite, e qualquer mudança depois era um `UPDATE` no banco de produção — o
@@ -512,6 +528,20 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   admin em "Gerenciar atributos" (`/attributes`, sempre dentro da `#main-modal`,
   acionado a partir do form de Solução) — criar/renomear/remover um valor sem
   precisar de migration. Os grupos em si (quais 8 existem) são fixos em código.
+- **Link de acesso** (`/access/{token}`): o admin concede acesso na página da
+  pessoa e copia um link para mandar por Teams. Ele **abre a tela de definir
+  senha e nunca cria sessão** — a implementação óbvia autentica quem abre, e é
+  justamente isso que não pode acontecer: um link repassado numa conversa SERIA
+  a conta. O privilégio dele é só "você pode definir a senha desta conta"; a
+  pessoa entra depois, como qualquer um, e fica com uma credencial própria em vez
+  de um link para guardar. Vale 7 dias, é reutilizável dentro deles (é entregue
+  na mão — link de uso único aberto no dispositivo errado é chamado de suporte)
+  e **morre no instante em que a senha é definida**, senão seria um link de reset
+  de senha de sete dias para uma conta viva. Cada abertura gera um token de reset
+  novo e curto (60 min), que é o que permite as duas coisas ao mesmo tempo.
+  Remover acesso faz *soft delete* da conta: a pessoa deixa de entrar, o que ela
+  escreveu continua apontando para uma linha que existe, e conceder de novo
+  restaura a MESMA conta.
 - **Pessoas e empresas** (`/people`, `/companies`): listagem, CRUD via side
   panel, vínculo pessoa↔solução por papel via `x-forms.chips`. Pessoa tem um
   par `email`/`phone` simples (colunas em `people`) **e** uma lista separada
