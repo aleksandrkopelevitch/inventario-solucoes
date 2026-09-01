@@ -220,7 +220,15 @@ async function loadTools(uploadUrl, catalogUrl) {
                 },
             },
         },
-        hint: {class: HintTool},
+        // `inlineToolbar` is what makes the hint's text actually RICH. The tool
+        // has always rendered a contenteditable and always declared
+        // `sanitize.text` with `a: {href: true}`, and both ends of the Markdown
+        // round trip carry a link — so a link inside a hint stored, rendered and
+        // reloaded correctly all along. There was simply no way to CREATE one:
+        // without this flag Editor.js never opens the inline toolbar inside the
+        // block, so Link (and bold, italic, código, Valor protegido) were
+        // unreachable in the one place a callout most needs them.
+        hint: {class: HintTool, inlineToolbar: true},
         diagram: {class: DiagramTool, config: {catalogUrl}},
         tabs: {class: TabsTool, config: {EditorJS, getTools: buildTools, wire, onChange: markDirty, uploadUrl, i18n: EDITOR_I18N}},
         inlineCode: {class: InlineCode},

@@ -702,3 +702,26 @@ it('groups the diagram catalog by solution, loose drawings last', function () {
     expect(end($groups)['solution'])->toBe('Sem solução no catálogo');
     expect(collect(end($groups)['diagrams'])->pluck('name'))->toContain('Só texto livre');
 });
+
+it('renders a link inside a hint, and keeps it through a save', function () {
+    // The chain was always able to STORE and RENDER a link in a callout — both
+    // ends of the Markdown round trip carry one, and the tool's `sanitize`
+    // allows `a: {href: true}`. What was missing was the inline toolbar inside
+    // the block, so nobody could create one; this is the half a test can hold.
+    $page = DocumentationPage::factory()->for(Notebook::factory())->create();
+    $markdown = "{% hint style=\"warning\" %}\n"
+        . "Veja o [runbook](https://x.leomadeiras.com.br/r) antes de **reprocessar**.\n"
+        . "{% endhint %}\n";
+
+    $this->actingAs(docsAdmin())
+        ->patchJson(route('notebooks.pages.update', [$page->notebook, $page]), ['documentation' => $markdown])
+        ->assertOk();
+
+    expect($page->fresh()->documentation)->toContain('[runbook](https://x.leomadeiras.com.br/r)');
+
+    $html = (new GitbookRenderer)->render($page->fresh()->documentation);
+
+    expect($html)->toContain('<a href="https://x.leomadeiras.com.br/r">runbook</a>')
+        // …and it is INSIDE the callout, not floated out of it.
+        ->and($html)->toMatch('#callout-body.*<a href="https://x\.leomadeiras\.com\.br/r"#s');
+});
