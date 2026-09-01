@@ -76,13 +76,7 @@ final class GrantPersonAccess
         $this->attach($person, $user);
     }
 
-    /**
-     * Ends this person's access: the account is soft-deleted and unlinked.
-     *
-     * The token is cleared too — a revoked account whose link still opened the
-     * password screen would be a door left ajar, and the screen itself would
-     * then be setting a password on a row the auth provider refuses to load.
-     */
+    /** Ends this person's access. Delegates, so both entry points behave alike. */
     public function revoke(Person $person): void
     {
         $user = $person->user;
@@ -91,9 +85,38 @@ final class GrantPersonAccess
         $person->save();
 
         if ($user) {
-            $user->forceFill(['access_token' => null, 'access_token_expires_at' => null])->save();
-            $user->delete();
+            $this->revokeAccount($user);
         }
+    }
+
+    /**
+     * Ends an ACCOUNT's access, whether or not a person is attached.
+     *
+     * The second entry point exists because an account does not need a Person,
+     * and the orphans are exactly the ones that had nowhere to be revoked from:
+     * revoking used to live only on a person's card, so `admin@leomadeiras.com.br`
+     * could have its role changed on the roster and could not be switched off
+     * anywhere. Same soft delete, same cleared token, one behaviour.
+     *
+     * The token is cleared for a reason of its own: a revoked account whose link
+     * still opened the password screen would be a door left ajar, and that
+     * screen would then be setting a password on a row the auth provider
+     * refuses to load.
+     */
+    public function revokeAccount(User $user): void
+    {
+        // A person can be attached even when the caller reached the account
+        // directly (the roster), and leaving a dangling `user_id` would point
+        // the catalog at a soft-deleted row.
+        $user->loadMissing('person');
+
+        if ($user->person) {
+            $user->person->user()->disassociate();
+            $user->person->save();
+        }
+
+        $user->forceFill(['access_token' => null, 'access_token_expires_at' => null])->save();
+        $user->delete();
     }
 
     /**

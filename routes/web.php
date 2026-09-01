@@ -216,6 +216,10 @@ Route::middleware('auth')->group(function () {
     // promotion to editor, or taking the admin off someone who left, meant an
     // UPDATE against the production database.
     Route::patch('users/{user}', [UserController::class, 'update'])->name('users.update');
+    // Switches an account off, from the roster. It has to live here rather than
+    // only on a person's Acesso card: an account does not need a Person, so an
+    // orphan had its role changeable and no way to be switched off at all.
+    Route::delete('users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
 
     Route::get('map', [SolutionMapController::class, 'index'])->name('solutions.map');
     Route::get('map/data', [SolutionMapController::class, 'data'])->name('solutions.map.data');
