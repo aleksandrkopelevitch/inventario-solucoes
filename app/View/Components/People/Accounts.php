@@ -55,7 +55,16 @@ class Accounts extends Component
             // Withheld on your own row, mirroring `UpdateUserRoleRequest`: a
             // select that can take away the panel you are standing in is a
             // missing affordance, not an error to discover by pressing it.
-            'changeable' => $accounts
+            // ONE map, because both levers on a row obey the same rule: you do
+            // not change your own role and you do not switch off your own
+            // account. Two names for the same boolean is how they drift.
+            //
+            // Both live here rather than only on a person's Acesso card because
+            // an account does not need a Person — an orphan's role and an
+            // orphan's access have nowhere else to be reached. The refusals in
+            // `UpdateUserRoleRequest`/`RevokeUserAccessRequest` stay the
+            // authority; this is the affordance.
+            'editableRows' => $accounts
                 ->mapWithKeys(fn (User $user) => [$user->id => ! $user->is(auth()->user())])
                 ->all(),
             // `with('person')`, not a lazy walk: this is a multi-row hydration,

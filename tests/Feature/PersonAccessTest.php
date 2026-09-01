@@ -349,3 +349,128 @@ it('404s when the person and the account in the URL are not linked', function ()
 
     expect($otherAccount->fresh()->role)->toBe(UserRole::Viewer);
 });
+
+/*
+|--------------------------------------------------------------------------
+| Revoking from the roster — the orphans' only door
+|--------------------------------------------------------------------------
+*/
+
+it('revokes an ORPHAN account from the roster, which is its only door', function () {
+    // The gap this closes: revoking lived only on a person's Acesso card, so an
+    // account with no Person had its role changeable there and no way to be
+    // switched off anywhere at all.
+    $orphan = User::factory()->create(['role' => UserRole::Viewer->value]);
+
+    expect($orphan->person)->toBeNull();
+
+    $this->actingAs(accessAdmin())
+        ->deleteJson(route('users.destroy', $orphan))
+        ->assertOk()
+        ->assertJson(['type' => 'success']);
+
+    expect(User::find($orphan->id))->toBeNull()
+        ->and(User::withTrashed()->find($orphan->id))->not->toBeNull();
+});
+
+it('unlinks the person and refreshes their card when revoking from the roster', function () {
+    $person = personWithEmail();
+    $admin = accessAdmin();
+    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'writer'])->assertOk();
+    $account = $person->fresh()->user;
+
+    $response = $this->actingAs($admin)->deleteJson(route('users.destroy', $account))->assertOk();
+
+    // Reached by the account, so the PERSON's card is on another screen — it has
+    // to be in the response or it keeps showing access that is gone.
+    $slotIds = collect($response->json('updatableSlots'))->pluck('id');
+
+    expect($slotIds)->toContain('people-accounts-slot')
+        ->and($slotIds)->toContain('person-access-slot')
+        ->and($person->fresh()->user_id)->toBeNull()
+        ->and($person->fresh()->exists)->toBeTrue();
+});
+
+it('clears the access link when an account is revoked from the roster', function () {
+    $person = personWithEmail();
+    $admin = accessAdmin();
+    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'viewer'])->assertOk();
+    $account = $person->fresh()->user;
+    $token = $account->access_token;
+
+    $this->actingAs($admin)->deleteJson(route('users.destroy', $account))->assertOk();
+
+    // A revoked account whose link still opened the password screen would be a
+    // door left ajar.
+    expect(User::withTrashed()->find($account->id)->access_token)->toBeNull();
+
+    auth()->logout();
+    $this->get(route('access.show', $token))->assertRedirect(route('login.create'));
+});
+
+it('refuses to revoke your own account, which is what keeps an admin able to log in', function () {
+    $admin = accessAdmin();
+    User::factory()->create(['role' => UserRole::Admin->value]);
+
+    $response = $this->actingAs($admin)
+        ->deleteJson(route('users.destroy', $admin))
+        ->assertStatus(422);
+
+    expect($response->json('message'))->toContain('seu próprio acesso')
+        ->and(User::find($admin->id))->not->toBeNull();
+});
+
+it('leaves the last account with the panel able to log in', function () {
+    // Same invariant as the role: revoking needs an admin asking about SOMEBODY
+    // ELSE, so two panel-holders exist and one always survives. Down to one,
+    // both doors are shut — 422 on their own row, 403 for anybody else.
+    $admin = accessAdmin();
+    $second = accessAdmin();
+
+    $this->actingAs($admin)->deleteJson(route('users.destroy', $second))->assertOk();
+
+    expect(User::where('role', UserRole::Admin->value)->count())->toBe(1);
+
+    $this->actingAs($admin)->deleteJson(route('users.destroy', $admin))->assertStatus(422);
+    $this->actingAs(User::factory()->create(['role' => UserRole::Writer->value]))
+        ->deleteJson(route('users.destroy', $admin))
+        ->assertForbidden();
+
+    expect(User::find($admin->id))->not->toBeNull();
+});
+
+it('offers the trash on other rows of the roster and withholds it on your own', function () {
+    $admin = accessAdmin();
+    $other = User::factory()->create(['role' => UserRole::Viewer->value]);
+
+    $content = $this->actingAs($admin)->get(route('people.accounts'))->assertOk()->getContent();
+
+    expect($content)->toContain('account-revoke-' . $other->id)
+        ->and($content)->not->toContain('account-revoke-' . $admin->id);
+});
+
+it('reaches the revoke endpoint the way the button actually calls it', function () {
+    // Every other test here calls `deleteJson`, which proves the endpoint and
+    // NOT the path the UI takes: `ajax-post.js` always POSTs and the verb is
+    // spoofed by `@method('DELETE')` in the hidden form. If Laravel's method
+    // override were ever off, those tests would stay green while the button 405s.
+    $orphan = User::factory()->create(['role' => UserRole::Viewer->value]);
+
+    $this->actingAs(accessAdmin())
+        ->postJson(route('users.destroy', $orphan), ['_method' => 'DELETE'])
+        ->assertOk();
+
+    expect(User::find($orphan->id))->toBeNull();
+});
+
+it('reaches the person-card revoke the same way', function () {
+    $person = personWithEmail();
+    $admin = accessAdmin();
+    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'viewer'])->assertOk();
+
+    $this->actingAs($admin)
+        ->postJson(route('people.access.destroy', $person), ['_method' => 'DELETE'])
+        ->assertOk();
+
+    expect($person->fresh()->user_id)->toBeNull();
+});
