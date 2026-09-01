@@ -9,11 +9,23 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Person extends Model
 {
     /** @use HasFactory<PersonFactory> */
     use HasFactory;
+
+    /**
+     * Static segments that sit where `people/{person}` does, so a person slugged
+     * with one would be permanently unreachable at their own URL.
+     *
+     * `new` was already exposed before `accounts` joined it — a person actually
+     * named "New" would have taken the create route's place — which is why this
+     * list exists now rather than one segment later. Check it against
+     * `php artisan route:list --path=people` when adding a segment.
+     */
+    public const RESERVED_SLUGS = ['new', 'accounts'];
 
     protected $table = 'people';
 
@@ -31,6 +43,55 @@ class Person extends Model
     public function getRouteKeyName(): string
     {
         return 'slug';
+    }
+
+    /**
+     * A URL-safe slug for `$name` that no other person holds.
+     *
+     * On the model rather than in `PersonController` because there are two
+     * places a person is born now: the catalog form, and an INVITE — inviting
+     * somebody creates their catalog row, so the slug rules (and the reserved
+     * segments above) have to be the same from both doors.
+     */
+    public static function uniqueSlug(string $name, ?self $except = null): string
+    {
+        $base = Str::slug($name) ?: 'pessoa';
+        $slug = $base;
+        $suffix = 1;
+
+        while (in_array($slug, self::RESERVED_SLUGS, true) || self::where('slug', $slug)
+            ->when($except, fn ($q) => $q->whereKeyNot($except->getKey()))
+            ->exists()) {
+            $slug = $base . '-' . (++$suffix);
+        }
+
+        return $slug;
+    }
+
+    /**
+     * The person whose e-mail IS this one, however it was capitalised.
+     *
+     * Folded EQUALITY (`whereFoldedIs`), never the containment `whereFolded`
+     * every search uses: this answers "which human is this", so matching
+     * `admin@leo…` inside `outro-admin@leo…` would be the wrong person, not a
+     * generous result.
+     *
+     * And it fails CLOSED on a blank e-mail. The folding macros treat an empty
+     * value as "no constraint", which is right for a search box and dangerous
+     * here: `withEmail(null)->first()` would otherwise hand back an arbitrary
+     * person for an invite to attach an account to. 105 of 108 catalog rows have
+     * no e-mail, so "nobody" is the only honest answer to "who is filed under
+     * none".
+     */
+    public function scopeWithEmail(Builder $query, ?string $email): void
+    {
+        if (blank($email)) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        $query->whereFoldedIs('email', $email);
     }
 
     /**

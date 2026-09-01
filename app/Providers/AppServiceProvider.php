@@ -78,7 +78,8 @@ class AppServiceProvider extends ServiceProvider
      * Everything that makes a search box forgiving about case and accents.
      *
      * `whereFolded` / `orWhereFolded` are the ONE way this app asks "does this
-     * column contain what the person typed". They fold both sides to lowercase
+     * column contain what the person typed" (and `whereFoldedIs` the one way it
+     * asks "is it exactly this"). They fold both sides to lowercase
      * ASCII (see App\Support\Fold) rather than leaning on the database's
      * collation, because the answer differed by driver: the same
      * `where(..., 'like', "%$term%")` was case-insensitive while this app ran
@@ -115,6 +116,28 @@ class AppServiceProvider extends ServiceProvider
         Builder::macro('orWhereFolded', function (string $column, ?string $term) {
             /** @var Builder $this */
             return $this->whereFolded($column, $term, 'or');
+        });
+
+        // Folded EQUALITY, which is a different question from folded
+        // containment and must not be spelled with the same macro. This one
+        // asks "is this column THIS value, however it was capitalised" — the
+        // shape identity matching needs: an e-mail typed `Admin@Leo…` on the
+        // invite form is the same account as `admin@leo…` in the catalog, while
+        // `whereFolded` would also match it inside `outro-admin@leo….com`.
+        // Wildcards are the reason it can't just be `whereLike` without them
+        // either: `_` is legal in an e-mail local part and is a LIKE wildcard,
+        // so `a_b@x.com` would match `axb@x.com`.
+        Builder::macro('whereFoldedIs', function (string $column, ?string $value, string $boolean = 'and') {
+            /** @var Builder $this */
+            if ($value === null || trim($value) === '') {
+                return $this;
+            }
+
+            return $this->whereRaw(
+                Fold::expression($column, $this->getConnection()) . ' = ?',
+                [Fold::text($value)],
+                $boolean,
+            );
         });
     }
 }

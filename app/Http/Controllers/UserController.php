@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\GrantPersonAccess;
+use App\Enums\UserRole;
 use App\Http\Requests\InviteUserRequest;
 use App\Http\Requests\RevokeUserAccessRequest;
 use App\Http\Requests\UpdateUserRoleRequest;
@@ -13,7 +14,6 @@ use App\View\Components\People\Accounts;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
-use Illuminate\Support\Str;
 
 /**
  * Accounts as accounts: inviting one, and changing its role.
@@ -30,9 +30,11 @@ use Illuminate\Support\Str;
  * `/people/accounts`, so what is left here are the two endpoints that are about
  * the ACCOUNT and not about whose it is:
  *
- * - `store()` — invite somebody who is NOT in the catalog. Still needed, and the
- *   seeded `admin@leomadeiras.com.br` is the proof: an account does not require
- *   a Person. This is the e-mail delivery; a person's page hands over a link.
+ * - `store()` — invite somebody by e-mail. It CREATES their catalog row as well
+ *   (or reuses the one already filed under that e-mail), because an account born
+ *   without a person is what made "vincular uma conta que já existe" a routine
+ *   gesture rather than a repair. This is the e-mail delivery; a person's page
+ *   hands the same thing over as a link.
  * - `update()` — the role, reachable from the accounts list and from the
  *   person's own Acesso card, which is why the refusals live in
  *   `UpdateUserRoleRequest` rather than in either screen.
@@ -88,17 +90,21 @@ class UserController extends Controller
         ]);
     }
 
-    public function store(InviteUserRequest $request): JsonResponse
+    /**
+     * Invites somebody by e-mail — the account and their catalog row, linked.
+     *
+     * Identity is the action's (`GrantPersonAccess::invite()`); what is left here
+     * is DELIVERY, which is the only thing that distinguishes this door from a
+     * person's Acesso card: the same destination, reached by e-mail instead of by
+     * a link handed over in a Teams thread.
+     */
+    public function store(InviteUserRequest $request, GrantPersonAccess $access): JsonResponse
     {
-        $user = User::create([
-            'name'  => $request->validated('name'),
-            'email' => $request->validated('email'),
-            'role'  => $request->validated('role'),
-            // Unusable until the invite link below sets a real one — the
-            // `password` column is NOT NULL and the invited person never
-            // chooses this value.
-            'password' => Str::random(40),
-        ]);
+        $user = $access->invite(
+            $request->validated('name'),
+            $request->validated('email'),
+            $request->enum('role', UserRole::class),
+        );
 
         $setPasswordUrl = route('password.reset', [
             'token' => Password::createToken($user),
@@ -108,8 +114,10 @@ class UserController extends Controller
         Mail::to($user)->queue(new UserInvitationMail($user, $setPasswordUrl));
 
         return response()->json([
-            'type'           => 'success',
-            'message'        => "Convite enviado para \"{$user->email}\".",
+            'type' => 'success',
+            // Names the person, because THAT is the new part: the account is
+            // not a loose e-mail any more, it belongs to a catalog row.
+            'message'        => "Convite enviado para \"{$user->email}\" — conta vinculada a \"{$user->person->name}\".",
             'updatableSlots' => [Accounts::slot()],
         ]);
     }

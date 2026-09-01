@@ -148,6 +148,11 @@ Route::middleware('auth')->group(function () {
     Route::patch('people/{person}/access', [PersonAccessController::class, 'link'])->name('people.access.link');
     Route::delete('people/{person}/access', [PersonAccessController::class, 'destroy'])->name('people.access.destroy');
     Route::patch('people/{person}/access/{user}/role', [PersonAccessController::class, 'updateRole'])->name('people.access.role');
+    // Undoes a link without touching the account — NOT `people.access.destroy`,
+    // which soft-deletes it. `/unlink` rather than a DELETE on `/link`: that
+    // pair is already taken by the magic LINK (the two senses of the word
+    // collide here, and a route name is the wrong place to be clever about it).
+    Route::delete('people/{person}/access/{user}/unlink', [PersonAccessController::class, 'unlink'])->name('people.access.unlink');
     Route::post('people/{person}/access/{user}/link', [PersonAccessController::class, 'refreshLink'])->name('people.access.link.refresh');
     Route::delete('people/{person}/access/{user}/link', [PersonAccessController::class, 'destroyLink'])->name('people.access.link.destroy');
 

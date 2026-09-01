@@ -8,7 +8,10 @@
 
      Every row is a link to somewhere something can be DONE (the person's page);
      an orphan says so and points at the fix, since linking is a gesture on the
-     person, not here. --}}
+     person, not here. Orphans are no longer MANUFACTURED, though — an invite
+     creates the catalog row with the account (`GrantPersonAccess::invite()`), so
+     what is listed without a person is the seeder's admin and rows older than
+     that change. --}}
 <div id="{{ $domId }}" class="overflow-hidden rounded-card border border-line bg-surface shadow-card">
     <div class="flex items-center justify-between gap-3 border-b border-line px-5 py-3.5">
         <div>
@@ -24,9 +27,25 @@
     <div class="divide-y divide-line">
         @forelse ($accounts as $account)
             <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+                {{-- The E-MAIL is the identity, so it leads: it is what logs in,
+                     and `users.name` is only how the app greets whoever is
+                     signed in. Leading with the name made every row read as a
+                     person of its own — which is what made "vincular uma conta"
+                     sound like linking a person to another person. Whose account
+                     it is sits underneath, as the answer to that question. --}}
                 <div class="min-w-0 flex-1">
-                    <p class="truncate text-sm font-medium text-ink">{{ $account->name }}</p>
-                    <p class="truncate text-xs text-muted">{{ $account->email }}</p>
+                    <p class="truncate text-sm font-medium text-ink">{{ $account->email }}</p>
+                    @if ($account->person)
+                        <a href="{{ route('people.show', $account->person) }}"
+                           class="inline-flex max-w-full items-center gap-1 text-xs text-accent hover:underline">
+                            <span class="truncate">{{ $account->person->name }}</span>
+                            <x-heroicon-o-arrow-top-right-on-square class="size-3.5 shrink-0" />
+                        </a>
+                    @else
+                        <span class="text-xs text-faint" title="Vincule esta conta na página da pessoa">
+                            sem pessoa vinculada
+                        </span>
+                    @endif
                 </div>
 
                 <div class="flex shrink-0 items-center gap-2.5">
@@ -64,18 +83,6 @@
                         ])>{{ $account->role->label() }}</span>
                     </x-ui.inline-edit>
 
-                    @if ($account->person)
-                        <a href="{{ route('people.show', $account->person) }}"
-                           class="inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline">
-                            {{ $account->person->name }}
-                            <x-heroicon-o-arrow-top-right-on-square class="size-3.5" />
-                        </a>
-                    @else
-                        <span class="text-xs text-faint" title="Vincule esta conta na página da pessoa">
-                            sem pessoa vinculada
-                        </span>
-                    @endif
-
                     @if ($editableRows[$account->id] ?? false)
                         {{-- Hidden sibling form per row: `ajax-post.js` always
                              POSTs and reads its body from the form the button
@@ -84,9 +91,9 @@
                         <form id="account-revoke-{{ $account->id }}" class="hidden">@csrf @method('DELETE')</form>
                         <button type="button" data-ak-ajax="account-revoke-{{ $account->id }}"
                             data-ak-action="{{ route('users.destroy', $account) }}"
-                            data-ak-confirm="Remover o acesso de {{ $account->name }}? A conta deixa de funcionar."
+                            data-ak-confirm="Remover o acesso de {{ $account->email }}? A conta deixa de funcionar."
                             class="text-muted transition-colors hover:text-crit"
-                            title="Remover acesso" aria-label="Remover acesso de {{ $account->name }}">
+                            title="Remover acesso" aria-label="Remover acesso de {{ $account->email }}">
                             <x-heroicon-o-trash class="size-4" />
                         </button>
                     @endif

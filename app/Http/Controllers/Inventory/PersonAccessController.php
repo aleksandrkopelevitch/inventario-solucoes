@@ -81,6 +81,25 @@ class PersonAccessController extends Controller
         return $this->saved($person, 'Conta vinculada a esta pessoa.');
     }
 
+    /**
+     * Detaches the account from this person, leaving the account alone.
+     *
+     * The inverse of `link()`, and it exists because "Remover acesso" was being
+     * used as one: undoing a mistaken link soft-deleted the account it named.
+     * Two gestures that read alike must not have that much distance between
+     * their consequences, so the mild one is spelled out on the card.
+     */
+    public function unlink(Person $person, User $user): JsonResponse
+    {
+        $this->authorize('manage', User::class);
+
+        $this->accountOf($person, $user);
+
+        $this->access->unlink($person);
+
+        return $this->saved($person, 'Conta desvinculada. Ela continua ativa, sem pessoa vinculada.');
+    }
+
     /** Replaces the access link, which is also the only way to kill a leaked one. */
     public function refreshLink(Person $person, User $user): JsonResponse
     {
