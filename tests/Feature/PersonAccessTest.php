@@ -474,3 +474,166 @@ it('reaches the person-card revoke the same way', function () {
 
     expect($person->fresh()->user_id)->toBeNull();
 });
+
+/*
+|--------------------------------------------------------------------------
+| Unlinking — the inverse of `link()`, and NOT of `grant()`
+|--------------------------------------------------------------------------
+|
+| The gap these close: the card offered "Vincular uma conta que já existe" and,
+| as its only apparent opposite, "Remover acesso" — which soft-deletes the
+| account. So correcting a mistaken link switched off the account it named, and
+| linking `admin@leomadeiras.com.br` to a person and undoing it locked the
+| seeded admin out of the app. Reported from the app 2026-09-01.
+|
+*/
+
+it('unlinks an account from a person and leaves it able to log in', function () {
+    $orphan = User::factory()->create(['role' => UserRole::Admin->value, 'email' => 'seed@leomadeiras.com.br']);
+    $person = personWithEmail('outro@leomadeiras.com.br');
+    $admin = accessAdmin();
+
+    $this->actingAs($admin)->patchJson(route('people.access.link', $person), ['user_id' => $orphan->id])->assertOk();
+
+    $this->actingAs($admin)
+        ->deleteJson(route('people.access.unlink', [$person, $orphan]))
+        ->assertOk()
+        ->assertJson(['type' => 'success']);
+
+    // The whole point: detached, and every one of the account's own facts intact.
+    expect($person->fresh()->user_id)->toBeNull();
+
+    $account = User::withTrashed()->find($orphan->id);
+
+    expect($account)->not->toBeNull()
+        ->and($account->trashed())->toBeFalse()
+        ->and($account->role)->toBe(UserRole::Admin)
+        ->and($account->person)->toBeNull();
+});
+
+it('leaves an unlinked account on the roster, linkable again', function () {
+    $orphan = User::factory()->create(['role' => UserRole::Viewer->value, 'email' => 'volta@leomadeiras.com.br']);
+    $person = personWithEmail('pessoa@leomadeiras.com.br');
+    $admin = accessAdmin();
+
+    $this->actingAs($admin)->patchJson(route('people.access.link', $person), ['user_id' => $orphan->id])->assertOk();
+    $this->actingAs($admin)->deleteJson(route('people.access.unlink', [$person, $orphan]))->assertOk();
+
+    // Back in the picker on the person's card, which is what makes the mistake
+    // recoverable instead of merely undone.
+    $content = $this->actingAs($admin)->get(route('people.show', $person->fresh()))->assertOk()->getContent();
+
+    expect($content)->toContain('volta@leomadeiras.com.br')
+        ->and($content)->toContain('Esta pessoa já tem uma conta?');
+});
+
+it('keeps the access link alive across an unlink', function () {
+    // Unlinking says nothing about how somebody logs in, so a link that was
+    // handed out has no reason to stop working.
+    $person = personWithEmail();
+    $admin = accessAdmin();
+    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'viewer'])->assertOk();
+
+    $account = $person->fresh()->user;
+    $token = $account->access_token;
+
+    $this->actingAs($admin)->deleteJson(route('people.access.unlink', [$person, $account]))->assertOk();
+
+    expect($account->fresh()->access_token)->toBe($token);
+    $this->get(route('access.show', $token))->assertRedirect();
+});
+
+it('404s an unlink whose person and account are not linked', function () {
+    $mine = personWithEmail('meu@leomadeiras.com.br');
+    $theirs = personWithEmail('deles@leomadeiras.com.br');
+    $admin = accessAdmin();
+
+    $this->actingAs($admin)->postJson(route('people.access.store', $mine), ['role' => 'viewer'])->assertOk();
+    $this->actingAs($admin)->postJson(route('people.access.store', $theirs), ['role' => 'viewer'])->assertOk();
+
+    $otherAccount = $theirs->fresh()->user;
+
+    $this->actingAs($admin)
+        ->deleteJson(route('people.access.unlink', [$mine, $otherAccount]))
+        ->assertNotFound();
+
+    expect($theirs->fresh()->user_id)->toBe($otherAccount->id);
+});
+
+it('refuses an EDITOR the unlink — it is access management, not curation', function () {
+    $person = personWithEmail();
+    $admin = accessAdmin();
+    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'viewer'])->assertOk();
+
+    $account = $person->fresh()->user;
+
+    $this->actingAs(User::factory()->create(['role' => UserRole::Writer->value]))
+        ->deleteJson(route('people.access.unlink', [$person, $account]))
+        ->assertForbidden();
+
+    expect($person->fresh()->user_id)->toBe($account->id);
+});
+
+it('offers both verbs on the card, each naming the account it acts on', function () {
+    // They read as opposites of two different gestures, so the card has to say
+    // which is which before either is pressed.
+    $person = personWithEmail();
+    $admin = accessAdmin();
+    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'viewer'])->assertOk();
+
+    $content = $this->actingAs($admin)->get(route('people.show', $person->fresh()))->assertOk()->getContent();
+
+    expect($content)->toContain('Desvincular conta')
+        ->and($content)->toContain('Remover acesso')
+        // Both confirms name the e-mail: which account is about to stop working
+        // is exactly what was missing from the screen.
+        ->and($content)->toContain('Desvincular fulano@leomadeiras.com.br')
+        ->and($content)->toContain('A conta fulano@leomadeiras.com.br deixa de funcionar');
+});
+
+it('reaches the unlink the way the button actually calls it', function () {
+    $person = personWithEmail();
+    $admin = accessAdmin();
+    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'viewer'])->assertOk();
+
+    $account = $person->fresh()->user;
+
+    $this->actingAs($admin)
+        ->postJson(route('people.access.unlink', [$person, $account]), ['_method' => 'DELETE'])
+        ->assertOk();
+
+    expect($person->fresh()->user_id)->toBeNull()
+        ->and(User::find($account->id))->not->toBeNull();
+});
+
+it('offers the orphan as a CREDENTIAL, never as a second person', function () {
+    // The confusion that started this: the picker was labelled with
+    // `users.name`, so choosing one read as linking a person to another person.
+    // An account is an e-mail and a role.
+    $orphan = User::factory()->create([
+        'role'  => UserRole::Admin->value,
+        'name'  => 'Admin adminovitch :)',
+        'email' => 'seed@leomadeiras.com.br',
+    ]);
+    $person = personWithEmail('quem@leomadeiras.com.br');
+
+    $content = $this->actingAs(accessAdmin())->get(route('people.show', $person))->assertOk()->getContent();
+
+    $option = str($content)->after('id="person-link-account"')->before('</select>')->toString();
+
+    expect($option)->toContain('seed@leomadeiras.com.br')
+        ->and($option)->toContain($orphan->role->label())
+        ->and($option)->not->toContain('Admin adminovitch');
+});
+
+it('leads a roster row with the e-mail and names whose account it is', function () {
+    $admin = accessAdmin();
+    $person = personWithEmail();
+    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'viewer'])->assertOk();
+
+    $content = $this->actingAs($admin)->get(route('people.accounts'))->assertOk()->getContent();
+    $row = str($content)->after('people-accounts-slot')->before('Convidar por e-mail')->toString();
+
+    // The e-mail comes first in the row; the person is the answer underneath it.
+    expect(strpos($row, $person->email))->toBeLessThan(strpos($row, $person->name));
+});

@@ -26,7 +26,6 @@ use App\View\Components\People\Systems;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 
 class PersonController extends Controller
 {
@@ -256,7 +255,7 @@ class PersonController extends Controller
 
         $data['slug'] = filled($data['slug'] ?? null)
             ? $data['slug']
-            : ($person?->slug ?? $this->uniqueSlug($data['name'], $person));
+            : ($person?->slug ?? Person::uniqueSlug($data['name'], $person));
 
         if ($request->hasFile('photo')) {
             $data['photo_path'] = $request->file('photo')->store('photos', 'public');
@@ -381,17 +380,6 @@ class PersonController extends Controller
     }
 
     /**
-     * Static segments that sit where `people/{person}` does, so a person slugged
-     * with one would be permanently unreachable at their own URL.
-     *
-     * `new` was already exposed before `accounts` joined it — a person actually
-     * named "New" would have taken the create route's place — which is why this
-     * list exists now rather than one segment later. Check it against
-     * `php artisan route:list --path=people` when adding a segment.
-     */
-    private const RESERVED_SLUGS = ['new', 'accounts'];
-
-    /**
      * "Quem tem acesso": every ACCOUNT, and which person each belongs to.
      *
      * A view of the Pessoas module rather than the modal it replaces, and it has
@@ -406,20 +394,5 @@ class PersonController extends Controller
         $this->authorize('manage', User::class);
 
         return view('people.accounts');
-    }
-
-    private function uniqueSlug(string $name, ?Person $person): string
-    {
-        $base = Str::slug($name) ?: 'pessoa';
-        $slug = $base;
-        $suffix = 1;
-
-        while (in_array($slug, self::RESERVED_SLUGS, true) || Person::where('slug', $slug)
-            ->when($person, fn ($q) => $q->whereKeyNot($person->getKey()))
-            ->exists()) {
-            $slug = $base . '-' . (++$suffix);
-        }
-
-        return $slug;
     }
 }

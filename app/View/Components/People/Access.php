@@ -67,6 +67,7 @@ class Access extends Component
             'accessUrl'   => route('people.access.store', $this->person),
             'linkUrl'     => route('people.access.link', $this->person),
             'revokeUrl'   => route('people.access.destroy', $this->person),
+            'unlinkUrl'   => $account ? route('people.access.unlink', [$this->person, $account]) : null,
             'roleUrl'     => $account ? route('people.access.role', [$this->person, $account]) : null,
             'refreshUrl'  => $account ? route('people.access.link.refresh', [$this->person, $account]) : null,
             'killLinkUrl' => $account ? route('people.access.link.destroy', [$this->person, $account]) : null,
@@ -77,10 +78,26 @@ class Access extends Component
                 ? route('access.show', $account->access_token)
                 : null,
             'expiresAt' => $account?->hasLiveAccessToken() ? $account->access_token_expires_at : null,
-            // Accounts nobody has claimed — what "vincular conta existente"
+            // Accounts nobody has claimed — what "esta pessoa já tem uma conta?"
             // offers. Only loaded for an admin looking at a person who has none.
+            //
+            // Labelled by E-MAIL and role, never by `users.name`: an account is a
+            // credential, and a picker leading with a human name reads as linking
+            // a person to another person — which is exactly the confusion this
+            // gesture caused. The name is dropped rather than appended, since it
+            // is the half that misleads and the e-mail is the half that logs in.
+            // Since 2026-09-01 an invite creates its own catalog row, so what is
+            // left here is the seeded admin and rows predating that: a repair
+            // tool, not a routine step.
             'orphanAccounts' => $canManage && $account === null
-                ? User::query()->whereDoesntHave('person')->orderBy('name')->get(['id', 'name', 'email'])
+                ? User::query()
+                    ->whereDoesntHave('person')
+                    ->orderBy('email')
+                    ->get(['id', 'name', 'email', 'role'])
+                    ->map(fn (User $orphan) => [
+                        'value' => $orphan->id,
+                        'label' => $orphan->email . ' · ' . $orphan->role->label(),
+                    ])
                 : collect(),
         ]);
     }

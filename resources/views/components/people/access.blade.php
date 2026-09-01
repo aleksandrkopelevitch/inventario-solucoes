@@ -5,7 +5,8 @@
      Three states, and the ordinary one is the FIRST: most people in the catalog
      are vendor contacts who will never have an account, so "sem acesso" is said
      plainly instead of the card hiding itself. --}}
-<div id="{{ $domId }}" class="rounded-card border border-line bg-surface shadow-card">
+<div id="{{ $domId }}" class="animate-ak-rise mt-5 rounded-card border border-line bg-surface shadow-card"
+     style="animation-delay: 90ms">
     <div class="flex items-center justify-between gap-3 border-b border-line px-5 py-3.5">
         <div class="flex items-center gap-2">
             <x-heroicon-o-key class="size-4 text-muted" />
@@ -63,28 +64,38 @@
                     </p>
                 @endif
 
-                {{-- Accounts nobody claimed. This is the other half of the
-                     accounts list: an account can exist without a Person (the
-                     admin do seeder é exatamente isso), and saying "these two
-                     are the same human" is a link, not a new account. --}}
+                {{-- Accounts nobody claimed. The question is about IDENTITY —
+                     "is this login already this human?" — so it is asked in
+                     those words, and each option is an e-mail plus a role
+                     rather than a name: an account is a credential, and a name
+                     in this list read as a second person to link the first one
+                     to. Ordinarily empty now, since an invite creates its own
+                     catalog row; what remains are the seeded admin and rows
+                     older than that. --}}
                 @if ($orphanAccounts->isNotEmpty())
-                    <form id="person-link-account-form" class="mt-4 flex flex-wrap items-end gap-2 border-t border-line pt-3">
+                    <form id="person-link-account-form" class="mt-4 border-t border-line pt-3">
                         @csrf
                         @method('PATCH')
-                        <div class="min-w-48 flex-1">
-                            <x-forms.label for="person-link-account" class="!text-[11px]">
-                                Ou vincular uma conta que já existe
-                            </x-forms.label>
-                            <x-forms.select id="person-link-account" name="user_id" class="!py-1.5 text-sm">
-                                @foreach ($orphanAccounts as $orphan)
-                                    <option value="{{ $orphan->id }}">{{ $orphan->name }} — {{ $orphan->email }}</option>
-                                @endforeach
-                            </x-forms.select>
+                        <x-forms.label for="person-link-account" class="!text-[11px]">
+                            Esta pessoa já tem uma conta?
+                        </x-forms.label>
+                        <div class="mt-1 flex flex-wrap items-end gap-2">
+                            <div class="min-w-48 flex-1">
+                                <x-forms.select id="person-link-account" name="user_id" class="!py-1.5 text-sm">
+                                    @foreach ($orphanAccounts as $orphan)
+                                        <option value="{{ $orphan['value'] }}">{{ $orphan['label'] }}</option>
+                                    @endforeach
+                                </x-forms.select>
+                            </div>
+                            <x-forms.button data-ak-ajax="person-link-account-form" data-ak-action="{{ $linkUrl }}"
+                                variant="ghost" class="!shrink-0 !px-3 !py-1.5 text-xs">
+                                É a mesma pessoa
+                            </x-forms.button>
                         </div>
-                        <x-forms.button data-ak-ajax="person-link-account-form" data-ak-action="{{ $linkUrl }}"
-                            variant="ghost" class="!shrink-0 !px-3 !py-1.5 text-xs">
-                            Vincular
-                        </x-forms.button>
+                        <p class="mt-1.5 text-[11px] text-faint">
+                            Contas sem pessoa vinculada — normalmente só a conta do seeder e as criadas
+                            antes de o convite cadastrar a pessoa junto.
+                        </p>
                     </form>
                 @endif
             @endif
@@ -165,13 +176,35 @@
                     @endif
                 </div>
 
+                {{-- Two verbs, and keeping them apart is the point. "Vincular"
+                     is a statement about identity, so it needs an inverse that
+                     is also only about identity — while this card offered just
+                     "Remover acesso", undoing a mistaken link soft-deleted the
+                     account it named (linking `admin@leomadeiras.com.br` to a
+                     person and pressing the only button that read as the
+                     opposite locked the seeded admin out). Both confirms name
+                     the ACCOUNT, since which e-mail is about to stop working is
+                     exactly what was not on screen. --}}
                 <div class="mt-4 border-t border-line pt-3">
-                    <form id="person-access-revoke-form" class="hidden">@csrf @method('DELETE')</form>
-                    <button type="button" data-ak-ajax="person-access-revoke-form" data-ak-action="{{ $revokeUrl }}"
-                        data-ak-confirm="Remover o acesso de {{ $person->name }}? A conta deixa de funcionar e a pessoa continua no catálogo."
-                        class="text-xs font-medium text-crit hover:underline">
-                        Remover acesso
-                    </button>
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+                        <form id="person-access-unlink-form" class="hidden">@csrf @method('DELETE')</form>
+                        <button type="button" data-ak-ajax="person-access-unlink-form" data-ak-action="{{ $unlinkUrl }}"
+                            data-ak-confirm="Desvincular {{ $account->email }} de {{ $person->name }}? A conta continua ativa — só deixa de estar ligada a esta pessoa."
+                            class="text-xs font-medium text-muted hover:text-ink hover:underline">
+                            Desvincular conta
+                        </button>
+
+                        <form id="person-access-revoke-form" class="hidden">@csrf @method('DELETE')</form>
+                        <button type="button" data-ak-ajax="person-access-revoke-form" data-ak-action="{{ $revokeUrl }}"
+                            data-ak-confirm="Remover o acesso de {{ $person->name }}? A conta {{ $account->email }} deixa de funcionar e a pessoa continua no catálogo."
+                            class="text-xs font-medium text-crit hover:underline">
+                            Remover acesso
+                        </button>
+                    </div>
+
+                    <p class="mt-1.5 text-[11px] text-faint">
+                        Desvincular desfaz só a ligação com esta pessoa; remover o acesso desativa a conta.
+                    </p>
                 </div>
             @endif
         @endif

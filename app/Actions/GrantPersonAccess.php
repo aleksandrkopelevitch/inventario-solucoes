@@ -15,11 +15,13 @@ use Illuminate\Support\Str;
  * and "who is this" was a different list of humans. Granting access is now
  * something you do to a PERSON, on their own page, next to the systems they own.
  *
- * Three operations, and each one is a single verb the panel calls:
+ * Five operations, and each one is a single verb a screen calls:
  *
- * - `grant()` — create the account, link it, and mint its access link.
+ * - `grant()` — create the account for a person, link it, mint its access link.
+ * - `invite()` — the reverse door: an e-mail arrives, and BOTH rows are made.
  * - `link()`  — attach an account that already exists (the orphans on the
  *   accounts list, `admin@leomadeiras.com.br` among them).
+ * - `unlink()` — detach it again, leaving the account untouched.
  * - `revoke()` — soft-delete the account and unlink it.
  *
  * What is NOT here is a hard delete. Revoking has to stop somebody logging in,
@@ -70,10 +72,71 @@ final class GrantPersonAccess
         return $user->refresh();
     }
 
+    /**
+     * Invites somebody by e-mail: the account AND their catalog row, linked.
+     *
+     * The reverse door of `grant()` — there, a person exists and is given an
+     * account; here, an e-mail arrives and both rows are made. It creates the
+     * Person because the alternative was an ORPHAN, and orphans are what made
+     * "vincular uma conta que já existe" a normal path instead of a repair: a
+     * picker of accounts labelled by `users.name` reads as linking a person to
+     * another person, which is a question the app should not be asking. The two
+     * tables stay separate (105 of 108 catalog rows have no e-mail and belong
+     * nowhere near the auth table, and `people` is writable by an EDITOR while
+     * an account is the admin's), but from now on a NEW account arrives with its
+     * human already attached.
+     *
+     * An existing catalog row with that e-mail is reused rather than duplicated
+     * — the invited person is very often already filed as a contact.
+     * `InviteUserRequest` refuses the one case this cannot resolve honestly (that
+     * person already holds a different account), so there is no half-state here.
+     */
+    public function invite(string $name, string $email, UserRole $role): User
+    {
+        $user = User::create([
+            'name'  => $name,
+            'email' => $email,
+            'role'  => $role,
+            // Unusable until the invite mail's link sets a real one: the column
+            // is NOT NULL and the invited person never chooses this value. Same
+            // shape as `grant()`, which hands the link over by hand instead.
+            'password' => Str::random(40),
+        ]);
+
+        $person = $this->personFor($name, $email);
+
+        $this->attach($person, $user);
+
+        // Set in memory rather than eager-loaded: the caller reports whose
+        // account this is, and the person is already in hand (§ Strict mode).
+        return $user->refresh()->setRelation('person', $person);
+    }
+
     /** Attaches an account that already exists to this person. */
     public function link(Person $person, User $user): void
     {
         $this->attach($person, $user);
+    }
+
+    /**
+     * Undoes `link()`: says these two are NOT the same human, and stops there.
+     *
+     * This is deliberately not `revoke()`. Linking is a statement about
+     * identity — "the account that logs in as X belongs to this catalog row" —
+     * and a statement can be wrong without the account being wrong. For a while
+     * the only way back was "Remover acesso", so correcting a mistaken link
+     * soft-deleted the account it named: linking `admin@leomadeiras.com.br` to a
+     * person and then undoing it locked the seeded admin out of the app, with
+     * the button reading as the inverse of the one that had just been pressed.
+     *
+     * So the account is left exactly as it was — role, password, access link —
+     * and becomes an orphan on the roster again, where it can be linked to
+     * somebody else or switched off on purpose.
+     */
+    public function unlink(Person $person): void
+    {
+        $person->user()->disassociate();
+        $person->save();
     }
 
     /** Ends this person's access. Delegates, so both entry points behave alike. */
@@ -81,8 +144,7 @@ final class GrantPersonAccess
     {
         $user = $person->user;
 
-        $person->user()->disassociate();
-        $person->save();
+        $this->unlink($person);
 
         if ($user) {
             $this->revokeAccount($user);
@@ -145,6 +207,22 @@ final class GrantPersonAccess
     public function revokeAccessToken(User $user): void
     {
         $user->forceFill(['access_token' => null, 'access_token_expires_at' => null])->save();
+    }
+
+    /**
+     * The catalog row for this e-mail, created if nobody is filed under it.
+     *
+     * Matched by folded EQUALITY (`Person::withEmail()`), so an invite typed
+     * `Admin@Leo…` finds the person filed as `admin@leo…` instead of creating a
+     * second row for the same human.
+     */
+    private function personFor(string $name, string $email): Person
+    {
+        return Person::withEmail($email)->first() ?? Person::create([
+            'name'  => $name,
+            'email' => $email,
+            'slug'  => Person::uniqueSlug($name),
+        ]);
     }
 
     private function attach(Person $person, User $user): void

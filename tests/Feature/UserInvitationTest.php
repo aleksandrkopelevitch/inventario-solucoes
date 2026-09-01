@@ -2,6 +2,7 @@
 
 use App\Enums\UserRole;
 use App\Mail\UserInvitationMail;
+use App\Models\Person;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Mail;
@@ -229,4 +230,114 @@ it('offers the role select on other rows of the roster and withholds it on your 
         ->and($content)->toContain('Eu Mesmo')
         ->and($content)->toContain($actionOf(User::where('name', 'Alguem Viewer')->sole()))
         ->and($content)->not->toContain($actionOf($admin));
+});
+
+/*
+|--------------------------------------------------------------------------
+| An invite creates the CATALOG ROW too
+|--------------------------------------------------------------------------
+|
+| Until 2026-09-01 this screen was the app's orphan factory: it made an account
+| and no Person, ever. That is what left "vincular uma conta que já existe" as a
+| routine gesture — and a picker of accounts labelled by `users.name` reads as
+| linking a person to another person, which is not a question the app should ask.
+| The two tables stay separate (105 of 108 catalog rows have no e-mail at all,
+| and `people` is writable by an editor while an account is the admin's); what
+| changed is that a NEW account arrives with its human attached.
+|
+*/
+
+it('creates the catalog row with the account and links the two', function () {
+    Mail::fake();
+
+    $response = $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]))
+        ->postJson(route('users.store'), [
+            'name'  => 'Marina Duarte',
+            'email' => 'marina.duarte@leomadeiras.com.br',
+            'role'  => 'writer',
+        ])->assertOk();
+
+    $account = User::firstWhere('email', 'marina.duarte@leomadeiras.com.br');
+    $person = Person::firstWhere('email', 'marina.duarte@leomadeiras.com.br');
+
+    expect($person)->not->toBeNull()
+        ->and($person->name)->toBe('Marina Duarte')
+        ->and($person->slug)->toBe('marina-duarte')
+        ->and($person->user_id)->toBe($account->id)
+        // No orphan left behind — which is the whole point.
+        ->and(User::whereDoesntHave('person')->whereKey($account->id)->exists())->toBeFalse()
+        ->and($response->json('message'))->toContain('Marina Duarte');
+});
+
+it('reuses the person already filed under that e-mail, whatever its case', function () {
+    Mail::fake();
+    // The ordinary case: the invited person is already in the catalog as a
+    // contact. A second row for the same human would be the wrong fix.
+    $existing = Person::factory()->create([
+        'name'  => 'Rafael Nogueira',
+        'email' => 'Rafael.Nogueira@leomadeiras.com.br',
+    ]);
+
+    $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]))
+        ->postJson(route('users.store'), [
+            'name'  => 'Rafael N.',
+            'email' => 'rafael.nogueira@leomadeiras.com.br',
+            'role'  => 'viewer',
+        ])->assertOk();
+
+    expect(Person::withEmail('rafael.nogueira@leomadeiras.com.br')->count())->toBe(1)
+        ->and($existing->fresh()->user_id)->not->toBeNull()
+        // The catalog's own copy of the name wins — it was curated.
+        ->and($existing->fresh()->name)->toBe('Rafael Nogueira');
+});
+
+it('refuses an invite whose person already holds a different account', function () {
+    Mail::fake();
+    $admin = User::factory()->create(['role' => UserRole::Admin->value]);
+
+    // Linked to an account with ANOTHER e-mail, which `unique:users,email`
+    // cannot catch — exactly the state that produced the lockout: linking would
+    // silently orphan the account this person already has.
+    $person = Person::factory()->create(['name' => 'Joana Prado', 'email' => 'joana@leomadeiras.com.br']);
+    $held = User::factory()->create(['email' => 'jp-antigo@leomadeiras.com.br']);
+    $person->user()->associate($held)->save();
+
+    $response = $this->actingAs($admin)
+        ->postJson(route('users.store'), [
+            'name'  => 'Joana Prado',
+            'email' => 'joana@leomadeiras.com.br',
+            'role'  => 'viewer',
+        ])->assertStatus(422);
+
+    expect($response->json('message'))->toContain('Joana Prado')
+        ->and($person->fresh()->user_id)->toBe($held->id)
+        ->and(User::where('email', 'joana@leomadeiras.com.br')->exists())->toBeFalse();
+
+    Mail::assertNothingQueued();
+});
+
+it('keeps an invited person off the reserved slugs', function () {
+    Mail::fake();
+    // `people/accounts` is a real route, so a person slugged `accounts` would be
+    // unreachable at their own URL. The rule lives on the model now, because
+    // this door creates people too.
+    $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]))
+        ->postJson(route('users.store'), [
+            'name'  => 'Accounts',
+            'email' => 'accounts@leomadeiras.com.br',
+            'role'  => 'viewer',
+        ])->assertOk();
+
+    expect(Person::firstWhere('email', 'accounts@leomadeiras.com.br')->slug)->not->toBe('accounts');
+});
+
+it('matches nobody when asked for the person with no e-mail', function () {
+    // 105 of 108 catalog rows have no e-mail. The folding macros read an empty
+    // value as "no constraint", so without the guard this scope answers with an
+    // arbitrary person — and its caller attaches an account to whoever that is.
+    Person::factory()->count(3)->create(['email' => null]);
+
+    expect(Person::withEmail(null)->exists())->toBeFalse()
+        ->and(Person::withEmail('')->exists())->toBeFalse()
+        ->and(Person::withEmail('   ')->exists())->toBeFalse();
 });

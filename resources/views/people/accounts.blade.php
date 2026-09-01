@@ -26,18 +26,24 @@
         </div>
     </x-ui.hero-panel>
 
-    <div class="max-w-3xl space-y-6">
+    {{-- Full width, like the hero above it: a 3xl cap left both cards
+         floating in the left two-thirds of a screen whose header ran edge
+         to edge, which reads as an unfinished layout rather than as a
+         reading measure. --}}
+    <div class="space-y-6">
         <x-people.accounts />
 
-        {{-- The invite form stays: it is the only way to create an account for
-             somebody who is NOT in the catalog, and the seeded admin proves that
-             is a real case. It sends an e-mail, where a person's page hands you a
-             link — same destination, two ways of delivering it. --}}
+        {{-- The invite form: the other door to the same destination. It sends an
+             e-mail where a person's page hands over a link — and since
+             2026-09-01 it also CREATES the catalog row (or reuses the one
+             already filed under that e-mail), so an account is never born
+             without a human. Its old title said "sem cadastro de pessoa",
+             which is exactly what it no longer does. --}}
         <div class="rounded-card border border-line bg-surface p-5 shadow-card">
-            <h2 class="font-display text-base font-semibold text-ink">Convidar sem cadastro de pessoa</h2>
+            <h2 class="font-display text-base font-semibold text-ink">Convidar por e-mail</h2>
             <p class="mt-0.5 text-xs text-muted">
-                Cria a conta e envia o convite por e-mail. Para alguém que já está no catálogo,
-                prefira conceder o acesso na página da pessoa — assim a conta fica vinculada a ela.
+                Cria a conta, cadastra a pessoa no catálogo e envia o convite por e-mail. Se ela já
+                estiver no catálogo com esse e-mail, a conta é vinculada ao registro que já existe.
             </p>
 
             <form id="user-invite-form" class="mt-3 space-y-2">
@@ -59,6 +65,8 @@
                 </div>
                 <p class="text-[11px] text-faint">
                     A pessoa convidada recebe um e-mail para definir a própria senha antes de acessar.
+                    Para quem já está no catálogo, conceder o acesso na página da pessoa entrega o
+                    mesmo convite como link.
                 </p>
             </form>
         </div>

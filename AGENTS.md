@@ -777,12 +777,39 @@ with. Both directions stay optional, and that is the whole shape of this:
   will have a catalog row; a screen listing only "people who have accounts"
   would leave the one account that cannot be locked out with no screen at all.
   It is also the only place an ORPHAN account's ROLE can be changed.
+- **But an orphan is no longer MANUFACTURED.** `UserController::store()` — the
+  invite — used to create a `User` and never a `Person`, which made it the app's
+  orphan factory and left "vincular uma conta que já existe" a routine step
+  rather than a repair. It goes through `GrantPersonAccess::invite()` now: the
+  account AND the catalog row, linked, reusing the person already filed under
+  that e-mail (`Person::withEmail()`, folded EQUALITY) instead of duplicating
+  them. What is listed without a person is the seeder's admin and rows older than
+  2026-09-01.
 
 The "Usuários" modal this replaced was about an email rather than about a human,
 because the two tables had no relation: the app could list who was able to log in
 and could not say who any of them were. `UserController` kept the two endpoints
 that really are about the account (`store` = invite somebody NOT in the catalog,
 `update` = the role, shared by both screens); its screen is gone.
+
+**The two tables are NOT merged, and an account is not a small person.** Asked
+directly (2026-09-01: "shouldn't it be one unique entity?"), the answer is no,
+for two reasons that are specific to this app rather than to Laravel. First,
+**105 of 108 catalog rows have no e-mail at all** — merging puts vendor contacts
+into the authentication table and makes `email`/`password` nullable so 97% of
+rows can hold neither, while "delete a contact" starts meaning "delete an
+identity that authored submissions" (nine FK columns point at `users`). Second,
+**the authority split falls exactly on the table boundary**: `people` is writable
+by an EDITOR, an account only by an admin, which is the whole point of the rule
+below — one merged row would be written by two authority levels, with `role`,
+`email` and `password` guarded by field lists instead of by a policy.
+
+What WAS wrong was the presentation, and it is fixed at the source rather than
+apologised for: an account is rendered as a CREDENTIAL everywhere it is offered
+— the orphan picker's options are `e-mail · perfil` and the roster's rows lead
+with the e-mail — because `users.name` is a human name, so leading with it made
+the gesture read as linking a person to another person. `users.name` survives for
+the one thing it is: how the app greets whoever is signed in.
 
 **`UserPolicy::manage`, never `PersonPolicy::update`.** This is the trap the
 whole feature turns on: an EDITOR may rewrite a person's job title, company and
@@ -837,6 +864,30 @@ that exists. Granting again RESTORES the same row rather than creating a second
 account beside it — `GrantPersonAccess::grant()` looks with `withTrashed()`,
 which is also what keeps the unique index on `email` from refusing the insert.
 Erasing an account for real is still database-only.
+
+**UNLINKING is not revoking, and the card offers both.** `link()` is a statement
+about identity — "the account that logs in as this e-mail is this catalog row" —
+so its inverse has to be a statement too: `unlink(Person)` disassociates and
+stops, leaving the account's role, password and access link exactly as they were,
+back on the roster as an orphan. For a while the only apparent opposite of
+"Vincular uma conta que já existe" was "Remover acesso", which soft-deletes the
+account, so undoing a mistaken link switched off the account it named: linking
+`admin@leomadeiras.com.br` to a person and pressing the button that read as the
+reverse locked the seeded admin out of the app, with the default password no
+longer accepted (the user provider's default scope hides a trashed row).
+Reported from the app 2026-09-01.
+
+Two things that go with it:
+
+- **Both confirms name the ACCOUNT, not just the person.** Which e-mail is about
+  to stop working was exactly what the screen did not say, and it is the one fact
+  that separates the two gestures at the moment of pressing either.
+- **`people.access.unlink` is `/access/{user}/unlink`, not a DELETE on
+  `/access/{user}/link`.** That pair is already the magic LINK's
+  (`refreshLink`/`destroyLink`) — the two senses of "link" collide in this
+  feature, and a route name is the wrong place to be clever about it. It answers
+  to `UserPolicy::manage` like every other verb here, and goes through
+  `accountOf()`, so a person/account pair that is not actually linked 404s.
 
 
 ### Three roles, and two predicates instead of thirteen comparisons
