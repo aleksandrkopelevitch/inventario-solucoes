@@ -820,6 +820,16 @@ Four things that make the link's generosity safe:
   and "expired". Telling them apart tells a stranger holding a dead URL whether
   the account behind it is real.
 
+**Revoking answers from BOTH screens, and the roster is the one that matters.**
+`GrantPersonAccess::revoke(Person)` delegates to `revokeAccount(User)` so the two
+behave alike — and the second exists because an account does not need a Person.
+Revoking lived only on a person's Acesso card at first, which left an orphan with
+its ROLE changeable on the roster and no way to be switched off anywhere at all.
+The refusal is the same one the role carries (nobody revokes their own account),
+and it is what keeps at least one panel-holder able to log in: revoking needs an
+admin asking about somebody else, so two exist and one always survives — no
+"last admin" guard, for the same reason it would be dead code there.
+
 **Revoking soft-deletes the account and unlinks it.** That stops the person
 logging in (Laravel's user provider applies the default scope, so an existing
 session stops resolving) while their submissions and chats keep pointing at a row
