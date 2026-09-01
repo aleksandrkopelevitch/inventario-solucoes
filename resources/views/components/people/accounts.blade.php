@@ -52,7 +52,7 @@
                         :value="$account->role->value"
                         :nullable="false"
                         :action="route('users.update', $account)"
-                        :editable="$editableRows[$account->id] ?? false"
+                        :editable="$changeable[$account->id] ?? false"
                         label="Perfil"
                         edit-class="min-w-44"
                         class="shrink-0">
@@ -74,21 +74,6 @@
                         <span class="text-xs text-faint" title="Vincule esta conta na página da pessoa">
                             sem pessoa vinculada
                         </span>
-                    @endif
-
-                    @if ($editableRows[$account->id] ?? false)
-                        {{-- Hidden sibling form per row: `ajax-post.js` always
-                             POSTs and reads its body from the form the button
-                             names, so the verb is spoofed with `@method` and a
-                             bodyless button would throw on `new FormData(null)`. --}}
-                        <form id="account-revoke-{{ $account->id }}" class="hidden">@csrf @method('DELETE')</form>
-                        <button type="button" data-ak-ajax="account-revoke-{{ $account->id }}"
-                            data-ak-action="{{ route('users.destroy', $account) }}"
-                            data-ak-confirm="Remover o acesso de {{ $account->name }}? A conta deixa de funcionar."
-                            class="text-muted transition-colors hover:text-crit"
-                            title="Remover acesso" aria-label="Remover acesso de {{ $account->name }}">
-                            <x-heroicon-o-trash class="size-4" />
-                        </button>
                     @endif
                 </div>
             </div>

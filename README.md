@@ -114,14 +114,8 @@ o próprio papel** (um select que tira de você o painel onde você está é uma
 armadilha sem ganho, e outro admin sempre pode fazer isso). Não há uma segunda regra
 para "o último admin", porque ela seria código morto: tirar o papel de um admin
 exige um admin pedindo sobre OUTRA pessoa, o que significa que existem dois — e
-um sempre sobra. **Remover acesso** também está nas duas telas — no card da pessoa e na lista
-`/people/accounts` —, e a segunda é a que importa: uma conta órfã não tem página
-de pessoa, então era a única coisa dela que não dava para desligar em lugar
-nenhum. Vale a mesma regra do papel (ninguém remove o próprio acesso), e é ela
-que garante que sempre sobra alguém com o painel. O que continua sendo só banco é
-**apagar** uma conta de verdade — remover acesso faz *soft delete*, e é o que
-"revogar" quer dizer aqui: a pessoa deixa de entrar, e o que ela escreveu
-continua apontando para uma linha que existe.
+um sempre sobra. O que continua sendo só banco é **excluir** uma conta (sessões,
+mais as submissões e conversas que ela tem).
 
 ## Arquitetura em resumo
 

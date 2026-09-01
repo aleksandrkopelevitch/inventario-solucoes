@@ -2,13 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Actions\GrantPersonAccess;
 use App\Http\Requests\InviteUserRequest;
-use App\Http\Requests\RevokeUserAccessRequest;
 use App\Http\Requests\UpdateUserRoleRequest;
 use App\Mail\UserInvitationMail;
 use App\Models\User;
-use App\View\Components\People\Access;
 use App\View\Components\People\Accounts;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Mail;
@@ -55,36 +52,6 @@ class UserController extends Controller
             'type'           => 'success',
             'message'        => "\"{$user->name}\" agora é {$user->fresh()->role->label()}.",
             'updatableSlots' => [Accounts::slot()],
-        ]);
-    }
-
-    /**
-     * Switches an account off: soft-deleted, unlinked from its person, its access
-     * link cleared (`GrantPersonAccess::revokeAccount()`).
-     *
-     * It answers from the ROSTER because an account does not need a Person — the
-     * orphans had nowhere else to be revoked from. A soft delete is what "revoke"
-     * means here: the person stops being able to log in (the auth provider's
-     * default scope stops resolving their session) while the submissions and
-     * chats they authored keep pointing at a row that exists. Erasing an account
-     * for real is a different job with a different blast radius.
-     */
-    public function destroy(RevokeUserAccessRequest $request, User $user, GrantPersonAccess $access): JsonResponse
-    {
-        // The person's own card has to hear about it too, and it is on another
-        // screen — `ajax-slot.js` no-ops on an id that is not in the document, so
-        // sending it whenever there IS a person is free.
-        $person = $user->person;
-
-        $access->revokeAccount($user);
-
-        return response()->json([
-            'type'           => 'success',
-            'message'        => "Acesso de \"{$user->name}\" removido.",
-            'updatableSlots' => array_values(array_filter([
-                Accounts::slot(),
-                $person ? Access::slot($person->fresh()) : null,
-            ])),
         ]);
     }
 
