@@ -16,12 +16,14 @@ use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Person;
 use App\Models\Solution;
+use App\Models\User;
 use App\View\Components\People\DetailHeader;
 use App\View\Components\People\FilterChips;
 use App\View\Components\People\Index as PeopleIndex;
 use App\View\Components\People\Notes;
 use App\View\Components\People\ResultsCount;
 use App\View\Components\People\Systems;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -378,13 +380,41 @@ class PersonController extends Controller
         ]);
     }
 
+    /**
+     * Static segments that sit where `people/{person}` does, so a person slugged
+     * with one would be permanently unreachable at their own URL.
+     *
+     * `new` was already exposed before `accounts` joined it — a person actually
+     * named "New" would have taken the create route's place — which is why this
+     * list exists now rather than one segment later. Check it against
+     * `php artisan route:list --path=people` when adding a segment.
+     */
+    private const RESERVED_SLUGS = ['new', 'accounts'];
+
+    /**
+     * "Quem tem acesso": every ACCOUNT, and which person each belongs to.
+     *
+     * A view of the Pessoas module rather than the modal it replaces, and it has
+     * to keep existing even though access is granted on a person's own page:
+     * an account does not need a Person. `admin@leomadeiras.com.br` comes from
+     * `DatabaseSeeder` and never will have a catalog row, so a screen listing
+     * only "people who have accounts" would leave the one account that cannot be
+     * locked out with no screen at all.
+     */
+    public function accounts(): View
+    {
+        $this->authorize('manage', User::class);
+
+        return view('people.accounts');
+    }
+
     private function uniqueSlug(string $name, ?Person $person): string
     {
-        $base = Str::slug($name);
+        $base = Str::slug($name) ?: 'pessoa';
         $slug = $base;
         $suffix = 1;
 
-        while (Person::where('slug', $slug)
+        while (in_array($slug, self::RESERVED_SLUGS, true) || Person::where('slug', $slug)
             ->when($person, fn ($q) => $q->whereKeyNot($person->getKey()))
             ->exists()) {
             $slug = $base . '-' . (++$suffix);

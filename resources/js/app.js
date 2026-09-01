@@ -28,6 +28,7 @@ import * as docsTree from './modules/docs-tree.js'
 import * as docsChat from './modules/docs-chat.js'
 import * as docsSearch from './modules/docs-search.js'
 import * as docsSecret from './modules/docs-secret.js'
+import * as copyField from './modules/copy-field.js'
 import * as flowspecChat from './modules/flowspec-chat.js'
 import * as catiChat from './modules/cati-chat.js'
 import * as mobileNav from './modules/mobile-nav.js'
@@ -64,6 +65,7 @@ window.globalModules = {
     "docsChat"          : docsChat,
     "docsSearch"        : docsSearch,
     "docsSecret"        : docsSecret,
+    "copyField"         : copyField,
     "flowspecChat"      : flowspecChat,
     "catiChat"          : catiChat,
     "mobileNav"         : mobileNav,

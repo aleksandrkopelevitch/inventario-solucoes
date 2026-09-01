@@ -22,11 +22,15 @@
                 <x-heroicon-o-adjustments-horizontal class="size-4 text-muted" /> Gerenciar atributos
             </a>
         @endcan
+        {{-- Was a "Usuários" MODAL here, which is the thing this entry replaces.
+             Access is an attribute of a person now, managed on their own page,
+             and this points at the roster that reads them all. A real page, so
+             it can be linked, bookmarked and reached from /people too. --}}
         @can('manage', \App\Models\User::class)
-            <a href="#" data-ak-modal-open="main-modal" data-ak-modal-url="{{ route('users.index') }}"
+            <a href="{{ route('people.accounts') }}"
                data-ak-toggle="sidebar-user-dropdown" data-ak-toggle-classes="hidden"
                class="flex items-center gap-2 px-3 py-2 text-[13px] font-medium text-ink no-underline hover:bg-raised">
-                <x-heroicon-o-user-plus class="size-4 text-muted" /> Usuários
+                <x-heroicon-o-key class="size-4 text-muted" /> Quem tem acesso
             </a>
         @endcan
     </div>

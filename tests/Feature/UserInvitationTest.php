@@ -9,18 +9,29 @@ use Illuminate\Support\Facades\Password;
 
 uses(LazilyRefreshDatabase::class);
 
-it('lets an admin open the users management modal', function () {
+it('lets an admin read the accounts roster and refuses everyone else', function () {
+    // The modal this replaces was `users.index` inside `#main-modal`. It is a
+    // real page in the Pessoas module now, so it can be linked and bookmarked —
+    // and it stays admin-only.
     $admin = User::factory()->create(['role' => UserRole::Admin->value]);
 
     $this->actingAs($admin)
-        ->getJson(route('users.index'))
-        ->assertOk();
+        ->get(route('people.accounts'))
+        ->assertOk()
+        ->assertSee('Quem tem acesso')
+        ->assertSee($admin->email);
+
+    foreach ([UserRole::Writer, UserRole::Viewer] as $role) {
+        $this->actingAs(User::factory()->create(['role' => $role->value]))
+            ->get(route('people.accounts'))
+            ->assertForbidden();
+    }
 });
 
 it('forbids a non-admin from viewing or inviting users', function () {
     $viewer = User::factory()->create();
 
-    $this->actingAs($viewer)->getJson(route('users.index'))->assertForbidden();
+    $this->actingAs($viewer)->get(route('people.accounts'))->assertForbidden();
     $this->actingAs($viewer)
         ->postJson(route('users.store'), ['name' => 'X', 'email' => 'x@leomadeiras.com.br', 'role' => 'viewer'])
         ->assertForbidden();
@@ -37,7 +48,7 @@ it('invites a new user and queues the invitation email', function () {
             'role'  => 'viewer',
         ])->assertOk()->assertJson(['type' => 'success']);
 
-    expect($response->json('updatableSlots.0.id'))->toBe('users-list-slot');
+    expect($response->json('updatableSlots.0.id'))->toBe('people-accounts-slot');
 
     $invited = User::firstWhere('email', 'nova@leomadeiras.com.br');
     expect($invited)->not->toBeNull()
@@ -128,7 +139,7 @@ it('lets an admin promote a viewer to editor', function () {
 
     expect($viewer->fresh()->role)->toBe(UserRole::Writer)
         ->and($response->json('message'))->toContain('Editor')
-        ->and($response->json('updatableSlots.0.id'))->toBe('users-list-slot');
+        ->and($response->json('updatableSlots.0.id'))->toBe('people-accounts-slot');
 });
 
 it('lets an admin demote another admin while one remains', function () {
@@ -203,17 +214,15 @@ it('rejects a role the enum does not know', function () {
     expect($target->fresh()->role)->toBe(UserRole::Viewer);
 });
 
-it('offers the select on other rows and withholds it on your own', function () {
+it('offers the role select on other rows of the roster and withholds it on your own', function () {
     $admin = User::factory()->create(['role' => UserRole::Admin->value, 'name' => 'Eu Mesmo']);
     User::factory()->create(['role' => UserRole::Admin->value, 'name' => 'Outro Admin']);
     User::factory()->create(['role' => UserRole::Viewer->value, 'name' => 'Alguem Viewer']);
 
-    $content = $this->actingAs($admin)->getJson(route('users.index'))->assertOk()->json('content');
+    $content = $this->actingAs($admin)->get(route('people.accounts'))->assertOk()->getContent();
 
-    // One editable row per account that is not mine (the second admin and the
-    // viewer), and the action points at each of them. The URL is compared
-    // JSON-encoded because that is how the component carries it — `json_encode`
-    // escapes the slashes, so the raw string never appears in the HTML.
+    // The URL is compared JSON-encoded because that is how the component
+    // carries it — `json_encode` escapes the slashes.
     $actionOf = fn (User $user) => trim(json_encode(route('users.update', $user)), '"');
 
     expect(substr_count($content, 'data-ak-inline-edit='))->toBe(2)

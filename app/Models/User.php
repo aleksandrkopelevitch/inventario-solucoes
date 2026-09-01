@@ -9,6 +9,7 @@ use App\Enums\UserRole;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -28,11 +29,41 @@ class User extends Authenticatable implements HasMedia
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
-            'password'          => 'hashed',
-            'preferences'       => 'array',
-            'role'              => UserRole::class,
+            'access_token_expires_at' => 'datetime',
+            'email_verified_at'       => 'datetime',
+            'password'                => 'hashed',
+            'preferences'             => 'array',
+            'role'                    => UserRole::class,
         ];
+    }
+
+    /**
+     * How long an access link stays usable. Seven days, and reusable within
+     * them: the link is handed over by hand (Teams, a call, in person), so a
+     * single-use one that the person opens on the wrong device is a support
+     * request. It is safe to be generous because of what it opens — the
+     * password screen, never a session (see `App\Actions\GrantPersonAccess`).
+     */
+    public const ACCESS_TOKEN_DAYS = 7;
+
+    /**
+     * The catalog record for this account's human, when somebody linked one.
+     *
+     * Nullable in both directions on purpose: most people in the catalog never
+     * log in, and `admin@leomadeiras.com.br` is an account with no Person and
+     * never will have one.
+     */
+    public function person(): HasOne
+    {
+        return $this->hasOne(Person::class);
+    }
+
+    /** Whether this account's access link can still be opened. */
+    public function hasLiveAccessToken(): bool
+    {
+        return filled($this->access_token)
+            && $this->access_token_expires_at !== null
+            && $this->access_token_expires_at->isFuture();
     }
 
     public function flowspecChats(): HasMany
