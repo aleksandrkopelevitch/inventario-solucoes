@@ -4,9 +4,9 @@ Aplicação Laravel standalone para catalogar as soluções e integrações da L
 Madeiras: cadastro de soluções/pessoas/empresas, um módulo de **Diagramas**
 (editor gráfico de topologia, um desenho por vez), um mapa read-only do
 ecossistema derivado desses desenhos, documentação rica (estilo GitBook) em
-árvore de páginas — com um assistente de IA que gera rascunhos —, um hub que
-reúne a cobertura dessa documentação, e um Especialista em Integrações que gera
-flowSpec Digibee em formato de chat.
+árvore de páginas — com um assistente de IA que gera rascunhos e com valores
+sensíveis atrás de cadeado —, um hub que reúne a cobertura dessa documentação, e
+um Especialista em Integrações que gera flowSpec Digibee em formato de chat.
 
 Uma página de documentação pode apontar para um diagrama, e é assim que texto e
 desenho se relacionam: um diagrama explica 1..N páginas (e, por elas, 1..N
@@ -32,7 +32,7 @@ parte deste projeto.
 - **Backend:** Laravel 13+, PHP 8.3+, SQLite ou PostgreSQL em dev (`.env.example` vem com SQLite), PostgreSQL em prod
 - **Frontend:** Blade, Vanilla JS (sem jQuery), Tailwind CSS 4
 - **Build:** Vite 8 (requer **Node 20+**)
-- **Auth:** sessão web, sem self-registration (contas só por convite de admin)
+- **Auth:** sessão web, sem self-registration (contas só por convite de admin); sessão de **12h ociosas** (`SESSION_LIFETIME=720`, janela deslizante — o `StartSession` reescreve o cookie a cada request)
 - **Testes:** Pest 4 — sempre em SQLite `:memory:`, qualquer que seja o banco de dev (`phpunit.xml` define `DB_CONNECTION`/`DB_DATABASE`, e o Dotenv do Laravel não sobrescreve variável de ambiente já definida, então a suíte nunca toca o banco de verdade)
 
 ## Setup
@@ -56,13 +56,50 @@ npm run build && php artisan optimize
 
 ## Papéis de usuário
 
-`App\Enums\UserRole`: **viewer**, **admin**. Não existe self-registration —
-toda conta é criada por um admin na área "Usuários" (menu do usuário na
-sidebar, `App\Http\Controllers\UserController`), que envia um convite por
-e-mail; a pessoa convidada define a própria senha pelo fluxo de reset de
-senha já existente (`Password::createToken()`/`ResetPasswordController`),
-sem um sistema de token separado. O primeiro admin vem do
-`DatabaseSeeder` (`admin@leomadeiras.com.br`).
+`App\Enums\UserRole`: **viewer** (Visualizador), **writer** (Editor) e
+**admin** (Administrador).
+
+- **Visualizador** lê o catálogo e a documentação. Nada além disso.
+- **Editor** escreve CONTEÚDO: soluções, pessoas, empresas, cadernos e suas
+  páginas, diagramas, o corpus do Especialista em Integrações. É o que o
+  aplicativo existe para catalogar.
+- **Administrador** faz também o que não é conteúdo: convidar contas, editar o
+  vocabulário de atributos, **excluir** registros, publicar o link público de um
+  caderno e ler os **valores protegidos** de uma página.
+
+Nenhuma policy compara o enum diretamente: as três decisões passam por
+`canWrite()` (admin ou editor), `canDelete()` (admin) e `isAdmin()` (admin).
+Antes de existir o Editor a mesma regra estava escrita como
+`$user->role === UserRole::Admin` em treze arquivos, e acrescentar um nível
+significava editar os treze sem esquecer nenhum. Duas fronteiras que valem
+reler:
+
+- **Excluir é do admin**, com uma exceção: apagar uma *página* é parte de
+  escrever a árvore, então ela vai por `update` no caderno. Um caderno leva a
+  árvore de páginas toda; um diagrama apagado deixa prosa citando ele.
+- **Publicar não é editar.** O menu "Compartilhar" de um caderno (link público
+  **e** código de leitura dos valores protegidos) é
+  `NotebookPolicy::administer`, não `update` — que deixou de significar "admin"
+  no dia em que o Editor entrou.
+
+Não existe self-registration: toda conta é criada por um admin na área
+"Usuários" (menu do usuário na sidebar, `App\Http\Controllers\UserController`),
+que envia um convite por e-mail; a pessoa convidada define a própria senha pelo
+fluxo de reset de senha já existente
+(`Password::createToken()`/`ResetPasswordController`), sem um sistema de token
+separado. O primeiro admin vem do `DatabaseSeeder`
+(`admin@leomadeiras.com.br`).
+
+**O papel também é trocado ali** (`PATCH users/{user}`: o selo de cada linha é
+um `x-ui.inline-edit`). Até isso existir o papel só podia ser escolhido no
+convite, e qualquer mudança depois era um `UPDATE` no banco de produção — o
+único ato administrativo do app sem tela. Uma regra o protege: **ninguém troca
+o próprio papel** (um select que tira de você o painel onde você está é uma
+armadilha sem ganho, e outro admin sempre pode fazer isso). Não há uma segunda regra
+para "o último admin", porque ela seria código morto: tirar o papel de um admin
+exige um admin pedindo sobre OUTRA pessoa, o que significa que existem dois — e
+um sempre sobra. O que continua sendo só banco é **excluir** uma conta (sessões,
+mais as submissões e conversas que ela tem).
 
 ## Arquitetura em resumo
 
@@ -629,6 +666,39 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
       que está escrito e, principalmente, quais soluções ainda não têm nenhum
       caderno com conteúdo.
 
+  **Um valor sensível fica atrás de um cadeado, e o texto puro nunca chega ao
+  navegador.** `{% secret %}…{% endsecret %}` é o sexto construto do dialeto e o
+  único **inline** (um header `Authorization`, uma variável de ambiente, uma
+  senha de serviço vivem no meio de uma frase, de uma célula de tabela ou de uma
+  linha de código). Quem lê vê um cadeado; o valor sai do servidor por
+  `App\Actions\Documentation\RevealPageSecret` e por mais nada, **um valor por
+  requisição**, para um admin ou para quem digitar o **código de leitura** do
+  caderno (`notebooks.secret_code`, seis caracteres tipo `X6h2dG`, visível e
+  rotacionável só no painel Compartilhar).
+
+  Não é um `<span>` escondido com CSS, e essa é a decisão inteira: marcação que
+  entrega o valor e o esconde é venda nos olhos, não proteção — o limite de
+  cinco tentativas na frente estaria guardando uma porta com a chave colada do
+  outro lado. Três consequências:
+
+    - **Todo mundo recebe marcadores `[[SECRET-n]]`, admin incluído.** O editor
+      round-trippa o Markdown cru, então uma cópia sem máscara colocaria a
+      página inteira de credenciais na tela de quem abriu o arquivo — e no
+      "Copiar Markdown", e no `existing_content` guardado da conversa com a IA.
+      O admin destrava um valor clicando no cadeado e não digitando nada.
+    - **Cinco tentativas por leitor, por caderno, por 12h.** É o limite que
+      importa: seis alfanuméricos são ~36 bits. Ele mora na Action e não como
+      `throttle:` na rota, porque um middleware contaria os acertos do admin e
+      não saberia **limpar** o contador — um código certo compra de volta os
+      erros anteriores.
+    - **O valor mora dentro de `<code>` mais vezes do que fora**, e é ali que o
+      round trip quebrou uma vez: o serializador achatava
+      `<code><span class="ak-secret-mark">` em `` `[[SECRET-n]]` `` e o valor
+      real era gravado em texto puro. Hoje as duas aninhagens saem numa forma só
+      (backticks fora, construto dentro) e o `restore()` **re-embrulha** um
+      marcador que perdeu o construto em vez de resolvê-lo — a proteção é do
+      servidor, não do cliente.
+
   **Uma página CITA diagramas, não possui um.** O bloco `Diagrama` do editor
   insere `{% diagram slug="…" %}` no Markdown — quinto construto do dialeto,
   auto-fechado com um atributo, mesma forma dos quatro do GitBook. Ele renderiza
@@ -704,6 +774,26 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   Ao lado, um **checklist de requisitos** separa o que falta como *atributo*
   (campo em branco na ficha) do que falta como *conteúdo* (seção que a doc não
   cobre).
+
+  **Três cofres ficam entre a página e o modelo**, cada um por um motivo
+  diferente, e todos porque o rascunho reescreve a página INTEIRA — tudo que não
+  volta, volta apagado:
+
+    - `[[LIT-n]]` (`LiteralVault`) congela literais opacos — token, hash,
+      base64 —, porque o modelo os copia **errado** e erra em silêncio.
+    - `[[SECRET-n]]` (`SecretText`) congela valores protegidos, porque o modelo
+      (e quem está editando) **não pode ler** aquilo.
+    - `[[BLOCK-n]]` (`BlockVault`) congela imagem, arquivo, embed e citação de
+      diagrama, porque o modelo **não sabe escrever** um desses (o `/files/{id}`
+      depende de um id que só o upload conhece).
+
+  O terceiro nasceu de um bug de prompt: o sistema proibia `<figure>` e ao mesmo
+  tempo exigia a página completa de volta, então numa página com imagem o modelo
+  resolvia a contradição **apagando a figura** — inclusive respondendo a um
+  pedido que não tinha nada a ver com ela. Um bloco que não volta é **contado**,
+  nunca reinserido (um marcador apagado não tem mais posição para onde voltar), e
+  a resposta avisa em PT-BR: remover uma imagem é legítimo quando foi pedido,
+  então o aviso diz o que falta e deixa o julgamento com quem aperta "Aplicar".
 - **Especialista em Integrações** (`/flowspec`): chat que gera o JSON de
   flowSpec Digibee a partir de um pedido em linguagem natural. Contexto **sem
   RAG** — Solutions citadas (explícitas via chips, ou inferidas casando o nome
@@ -715,7 +805,7 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   JSON e re-prompta com os erros concretos até `max_attempts`. Respostas
   conversacionais (dúvidas) sugerem documentação real que possa faltar. O
   corpus de referência (`FlowspecExample`) é curado à parte, num modal de
-  "Gerenciar referências" (admin, `FlowspecExampleController`) — não a partir
+  "Gerenciar referências" (admin ou editor — é conteúdo; excluir é do admin, `FlowspecExampleController`) — não a partir
   do resultado de uma conversa. Um `CredentialScrubber` barra segredo literal
   tanto no que é gerado (o documento é descartado se um literal sobreviver a
   todas as tentativas do loop) quanto no que é cadastrado no corpus. O
@@ -807,6 +897,27 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   campo sem apagar o outro). O canvas teve um segundo editor desses dois
   campos até 2026-08-17; dois editores do mesmo campo dessincronizam na
   primeira edição, então ele foi removido — e não deve voltar.
+- **Um valor protegido tem UMA porta.** O `GitbookRenderer` não tem flag de
+  "mostra mesmo assim": o texto puro sai por `RevealPageSecret` e por mais nada,
+  o que dá a essa feature um comportamento só para auditar em vez de um público
+  para raciocinar. Quem mascara o resto são quatro pontos que já entregavam o
+  texto de uma página a alguém, e cada um deles foi um vazamento real até ser
+  mascarado: o `<textarea>` do "Copiar Markdown" (autenticado e público), o
+  prompt do Assiste IA e o do Especialista em Integrações. O índice de busca não
+  precisou de nada — ele indexa o HTML RENDERIZADO, então indexa cadeados.
+- **Um bloco de código com cadeado não é colorido.** O `docs-highlight.js`
+  reconstrói o bloco a partir do `textContent`, então o `<button>` do cadeado
+  voltaria como o texto "valor protegido" — sem alvo de clique e sem explicação
+  nenhuma. Um header `Authorization:` num exemplo de request é o caso principal
+  do construto, então isso não é canto: `docs-code.js` pula esses blocos, e
+  monocromático é a metade mais barata de perder.
+- **Nunca peça ao modelo uma regra que ele não pode cumprir.** A proibição de
+  `<figure>` no prompt do Assiste IA convivia com "devolva a página completa", e
+  numa página com imagem as duas se contradizem — o modelo apagava a figura. A
+  intenção estava certa (ele não consegue escrever um `/files/{id}`) e a
+  redação, não: isso é argumento para nunca mostrar a sintaxe a ele, não para
+  pedir que a deixe de fora de um documento que já a tem. Virou marcador
+  (`[[BLOCK-n]]`), como os literais opacos antes dele.
 - **Busca e filtros de Soluções/Pessoas/Empresas** rodam via
   `execute-filters.js`/`execute-search.js` sobre `ajax.js` (contrato Promise
   baseado em `fetch`, não `XMLHttpRequest`) — ver `AGENTS.md` § `ajax.js`.
@@ -903,10 +1014,18 @@ os cards de sub-páginas; e o rail colapsado no galho em edição),
 `DocumentationCoverageTest` (hub de documentação, content-based — solução
 coberta *através* de um caderno),
 `DocumentationChatTest`/`DocumentationChatServiceTest` (Assiste IA — chat, job,
-polling e montagem do prompt), `DocumentationRequirementsTest` (checklist de
+polling, montagem do prompt e os três cofres: literal opaco, valor protegido e
+os blocos que o modelo não pode escrever nem perder), `DocumentationRequirementsTest` (checklist de
 requisitos), `FlowspecChatTest`/`FlowspecContextResolverTest`/
 `FlowspecGenerationServiceTest` (Especialista em Integrações — chat, resolução de
 contexto e loop de normalização/validação), `ColorRefactorTest`,
 `PageCrawlSmokeTest` (crawl de todas as páginas seedadas),
-`UserInvitationTest` (convite de usuário por admin + fluxo de definir senha),
-`AuthenticationTest` (login/throttle/reset de senha — sem self-registration).
+`UserInvitationTest` (convite de usuário por admin, fluxo de definir senha **e**
+a troca de papel: promover, rebaixar, a recusa do próprio papel e a invariante
+do último admin), `WriterRoleTest` (o que um Editor pode e o que continua sendo
+do admin — inclusive DELETE, link público e código de leitura),
+`DocumentationSecretTest` (valores protegidos: cadeado em vez de texto puro nas
+quatro superfícies, revelar com código, admin sem código, as cinco tentativas em
+12h com o tempo congelado, o magic link, e o round trip pelo editor — inclusive
+dentro de `<code>`), `AuthenticationTest` (login/throttle/reset de senha — sem
+self-registration; e o 401 em PT-BR de sessão expirada).
