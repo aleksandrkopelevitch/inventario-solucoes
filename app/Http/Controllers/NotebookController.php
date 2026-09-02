@@ -187,16 +187,29 @@ class NotebookController extends Controller
         ]);
     }
 
-    public function destroy(Notebook $notebook): JsonResponse
+    /**
+     * Deleting a caderno — and its whole page tree with it (Notebook::booted()
+     * walks the pages through their own models so Spatie cleans each one's
+     * embedded media).
+     *
+     * Answers with the catalog SLOT rather than the `redirect` it used to send.
+     * The endpoint had no caller at all until the trash icon on the catalog
+     * card, and from there a redirect to the page you are already standing on
+     * is a full reload that throws away the filters the URL still shows. The
+     * filters come back in on the query string for the same reason every other
+     * mutation in this app carries them.
+     */
+    public function destroy(Request $request, Notebook $notebook): JsonResponse
     {
         $this->authorize('delete', $notebook);
 
+        $name = $notebook->name;
         $notebook->delete();
 
         return response()->json([
-            'type'     => 'success',
-            'message'  => 'Caderno excluído.',
-            'redirect' => route('notebooks.index'),
+            'type'           => 'success',
+            'message'        => 'Caderno "' . $name . '" excluído.',
+            'updatableSlots' => [Index::slot((array) $request->query('filter', []))],
         ]);
     }
 

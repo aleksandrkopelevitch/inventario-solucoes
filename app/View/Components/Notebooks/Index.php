@@ -73,6 +73,22 @@ class Index extends Component
                 // NotebookPolicy takes a Notebook, so a `@can('update',
                 // Notebook::class)` in the view is a TypeError, not a denial.
                 'canEdit'   => auth()->user()?->can('update', $notebook) ?? false,
+                // Deleting is the ADMIN's, not the editor's — the same split the
+                // rest of the app keeps (`canDelete()`), and it matters more here
+                // than anywhere: a caderno delete takes its whole page tree with
+                // it, so an editor who may rewrite a page must not be able to
+                // remove the 133 they did not write.
+                'canDelete' => auth()->user()?->can('delete', $notebook) ?? false,
+                // The filters ride along so the slot this rebuilds is the list
+                // the person was actually looking at — see the "Preserving
+                // filters" rule. `route()` drops an empty `filter` array
+                // entirely, so this is safe to do unconditionally.
+                'deleteUrl' => route('notebooks.destroy', ['notebook' => $notebook, 'filter' => $this->filters]),
+                // Built here rather than in the view because it states a
+                // CONSEQUENCE, and the two that matter are counted, not
+                // guessed: how many pages go with it, and whether a link
+                // somebody already holds stops working.
+                'deleteConfirm' => $this->confirm($notebook),
                 'solutions' => $notebook->solutions->map(fn (Solution $solution) => [
                     'name' => $solution->name,
                     'url'  => route('solutions.show', $solution),
@@ -80,5 +96,29 @@ class Index extends Component
             ]),
             'hasFilters' => $search !== '' || $status !== null,
         ]);
+    }
+
+    /**
+     * What deleting this caderno actually costs, said before it happens.
+     *
+     * A `window.confirm` naming only the caderno reads the same whether it
+     * holds nothing or holds an imported GitBook space, and the page tree is
+     * exactly what makes those two different acts.
+     */
+    private function confirm(Notebook $notebook): string
+    {
+        $sentence = 'Excluir o caderno "' . $notebook->name . '"?';
+
+        if ($notebook->pages_count > 0) {
+            $sentence .= ' ' . ($notebook->pages_count === 1
+                ? 'A página dele vai junto.'
+                : 'As ' . $notebook->pages_count . ' páginas dele vão junto.');
+        }
+
+        if ($notebook->public_token !== null) {
+            $sentence .= ' O link público para de funcionar.';
+        }
+
+        return $sentence . ' Isso não pode ser desfeito.';
     }
 }

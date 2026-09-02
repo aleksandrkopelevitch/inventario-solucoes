@@ -360,6 +360,17 @@ Three more rules that are easy to half-implement:
   and strict mode then turns a lazy load into a 500 (§ Strict mode). The FK's
   `cascadeOnDelete` is the safety net; the model hook is what lets Spatie clean
   each page's embedded media.
+- **A caderno is deleted from the CATALOG card, by an admin.** `notebooks.destroy`
+  existed with no caller at all — the route appeared in no view, so the only way
+  to remove one was the database. The trash beside the pencil is that caller, and
+  the two answer to different rules on the same card: `update` (editor) opens the
+  rename panel, `delete` (admin) removes the caderno, so the trash is a missing
+  affordance for an editor rather than a button that refuses. It answers with the
+  catalog SLOT and not the `redirect` it used to send — from the catalog, a
+  redirect to the catalog is a full reload of the page you are standing on that
+  throws away the filters the URL still shows. The confirm states the two
+  consequences that are COUNTED rather than guessed: how many pages go with it,
+  and whether a public link somebody already holds stops working.
 
 The rail (`x-documentation.pages-nav`) renders that walk as ONE flat `@foreach`
 with an indent class per depth — deliberately not a recursive partial, so every

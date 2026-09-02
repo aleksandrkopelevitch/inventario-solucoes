@@ -30,12 +30,40 @@
                             </span>
                         @endif
 
+                        {{-- The row's actions. `x-forms.button`, not a raw
+                             <button>: the rule is app-wide and the trash icon
+                             would otherwise have been a second exception to it
+                             sitting beside the first. --}}
                         @if ($notebook['canEdit'])
-                            <button type="button" data-ak-panel-open data-ak-panel-url="{{ $notebook['panelUrl'] }}"
-                                class="shrink-0 cursor-pointer rounded-md p-1 text-faint transition-colors hover:bg-raised hover:text-ink"
+                            <x-forms.button type="button" variant="ghost"
+                                data-ak-panel-open data-ak-panel-url="{{ $notebook['panelUrl'] }}"
+                                class="shrink-0 !rounded-md !p-1 !text-faint hover:!bg-raised hover:!text-ink"
                                 aria-label="Editar caderno" title="Editar caderno">
                                 <x-heroicon-o-pencil-square class="size-4" />
-                            </button>
+                            </x-forms.button>
+                        @endif
+
+                        {{-- Deleting is the admin's (NotebookPolicy::delete →
+                             canDelete), so the trash is a missing affordance for
+                             an editor rather than a button that refuses.
+
+                             The hidden form is what `data-ak-ajax` builds its
+                             FormData from — it carries the CSRF token and the
+                             DELETE spoof, and there is no outer <form> on this
+                             page for it to nest inside. --}}
+                        @if ($notebook['canDelete'])
+                            <form id="notebook-delete-{{ $loop->index }}" class="hidden">
+                                @csrf
+                                @method('DELETE')
+                            </form>
+                            <x-forms.button type="button" variant="ghost"
+                                data-ak-ajax="notebook-delete-{{ $loop->index }}"
+                                data-ak-action="{{ $notebook['deleteUrl'] }}"
+                                data-ak-confirm="{{ $notebook['deleteConfirm'] }}"
+                                class="shrink-0 !rounded-md !p-1 !text-faint hover:!bg-crit-soft hover:!text-crit"
+                                aria-label="Excluir caderno" title="Excluir caderno">
+                                <x-heroicon-o-trash class="size-4" />
+                            </x-forms.button>
                         @endif
                     </div>
 

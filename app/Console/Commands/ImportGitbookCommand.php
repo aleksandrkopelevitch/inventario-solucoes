@@ -20,6 +20,14 @@ use Illuminate\Http\Client\ConnectionException;
  * The import is read-only against GitBook and re-runnable (see
  * ImportGitbookSpace), so `--dry-run` and a real run differ only in whether
  * anything is written — the same requests are made either way.
+ *
+ * `--dated` is the SNAPSHOT mode: the caderno is named
+ * `{Space}_imported_DD_MM_YYYY`, so each day's import is a caderno of its own
+ * and a second run the same day overwrites that day's rather than making a
+ * third. It is a flag on this command rather than a command of its own because
+ * the difference really is one string — the tree walk, the assets, the retries
+ * and the reporting are all the same work, and a second command would either
+ * duplicate them or wrap this one.
  */
 class ImportGitbookCommand extends Command
 {
@@ -29,6 +37,7 @@ class ImportGitbookCommand extends Command
         {--all : Import every space of the organization}
         {--org= : Organization id, when the token can read more than one}
         {--notebook= : Name for the Notebook (defaults to the space title; single space only)}
+        {--dated : Import into a dated snapshot caderno, "<Space>_imported_DD_MM_YYYY" — a second run on the same day overwrites it}
         {--group= : Deprecated alias for --notebook, kept so existing invocations keep working}
         {--flat : Import every page as a top-level one carrying its GitBook ancestry in the title, instead of reproducing the nesting}
         {--dry-run : Fetch and report what would be imported, without writing anything}';
@@ -66,12 +75,23 @@ class ImportGitbookCommand extends Command
                 return self::FAILURE;
             }
 
+            // Both name the caderno, so together they say two things at once.
+            // Refused rather than resolved by precedence: whichever one lost
+            // would be a flag the operator passed and the run ignored.
+            // `--dated` and `--all` DO compose — the name is derived per space.
+            if ($notebookName && $this->option('dated')) {
+                $this->components->error('--notebook and --dated both name the caderno; pass one.');
+
+                return self::FAILURE;
+            }
+
             foreach ($spaces as $spaceId) {
                 $this->report($import->handle(
                     spaceId: $spaceId,
                     notebookName: $notebookName,
                     nest: ! $this->option('flat'),
                     dryRun: (bool) $this->option('dry-run'),
+                    dated: (bool) $this->option('dated'),
                 ));
             }
         } catch (GitbookApiException $e) {
@@ -167,7 +187,8 @@ class ImportGitbookCommand extends Command
 
         if (! $report->notebook) {
             $this->components->info(
-                'Dry run · ' . $report->spaceTitle . ' · ' . $report->pageCount() . ' page(s) would be imported'
+                'Dry run · ' . $report->spaceTitle . ' → caderno "' . $report->notebookName . '" · '
+                . $report->pageCount() . ' page(s) would be imported'
             );
 
             // No numbering here: the lines are already indented by depth, and a
@@ -179,6 +200,16 @@ class ImportGitbookCommand extends Command
             $this->components->info($report->spaceTitle . ' → caderno "' . $report->notebook->name . '"');
             $this->components->twoColumnDetail('Pages created', (string) $report->created);
             $this->components->twoColumnDetail('Pages updated', (string) $report->updated);
+
+            // Only a dated snapshot can report this, and when it does it is the
+            // line worth reading twice: it is the one destructive thing the
+            // import does.
+            if ($report->removed > 0) {
+                $this->components->twoColumnDetail(
+                    'Pages removed', $report->removed . ' <fg=gray>(no longer in the space)</>'
+                );
+            }
+
             $this->components->twoColumnDetail('Assets re-hosted', (string) $report->assets);
 
             if ($report->sections > 0) {

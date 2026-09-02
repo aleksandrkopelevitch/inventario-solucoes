@@ -27,6 +27,41 @@ Pages can still be re-filed into another caderno (see "Re-filing a page" below).
 the work, `--notebook=` names the caderno (`--group=` still works). Strictly
 read-only against GitBook.
 
+### `--dated`: a snapshot caderno per day, and the one thing that deletes
+
+`--dated` names the caderno `{Space}_imported_DD_MM_YYYY`. The NAME is the whole
+mechanism: `ImportGitbookSpace::notebook()` resolves a caderno by name, so the
+first run of a day creates one and every later run that day lands in the same
+one. "Overwrite if imported on the same day" is that naming rule and not a
+second code path — which is also why this is a flag on the existing command
+rather than a command of its own: the tree walk, the assets, the retries and the
+reporting are the same work, and the difference really is one string.
+
+Four things it is easy to get wrong:
+
+- **It is the ONLY mode that removes a page.** A page the caderno holds that the
+  space no longer has is deleted, because a dated caderno claims to be that
+  space on that date and a leftover makes it a lie — a second same-day run has
+  to end where a from-scratch import would. Scoped strictly to the flag: the
+  ordinary import never deletes, since its caderno is somewhere people also
+  write by hand, and a page they added there is not a leftover.
+- **What is removed is COUNTED and printed** (`GitbookImportReport::$removed` →
+  "Pages removed (no longer in the space)"). The one destructive thing the
+  import does must never be silent.
+- **Pruning walks the FLAT leftovers**, relying on the documented no-op: a
+  subpage taken out with its parent earlier in the walk deletes a second time
+  against 0 rows (`DocumentationPage::booted()`). So the reported count is
+  pages, not roots, and the walk needs no ordering of its own.
+- **`--dated` and `--notebook` are refused together**, since both name the
+  caderno; whichever lost would be a flag the operator passed and the run
+  ignored. `--dated` and `--all` DO compose — the name is derived per space.
+  A dated `--dry-run` prints the name it would write to, which is the only part
+  of the flag a dry run can check.
+
+Verified against the live API 2026-09-02 (`Integrações Cobmais`, 7 pages, 4
+assets): first run created the dated caderno, a stray page plus its subpage
+added by hand were removed on the second run the same day and reported as 2.
+
 ### The space's shape comes across, clamped at `MAX_DEPTH`
 
 `GitbookPageTree` reproduces GitBook's nesting instead of flattening it, and

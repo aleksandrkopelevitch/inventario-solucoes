@@ -30,19 +30,22 @@ beforeEach(function () {
 
 /**
  * Fakes the four endpoints an import touches. `$markdown` is keyed by page id,
- * or a closure returning that map — `Http::fake()` MERGES stubs instead of
- * replacing them, so a test that re-imports with different content has to vary
- * it from inside the one stub, not by faking twice.
+ * and `$tree` is the page tree — either may be a closure returning the value
+ * instead, because `Http::fake()` MERGES stubs rather than replacing them: a
+ * test that re-imports with different content, or a SPACE THAT LOST A PAGE, has
+ * to vary it from inside the one stub. Faking `pages*` a second time leaves the
+ * first stub winning, silently, and the re-import then sees the original tree.
  *
- * @param  array<int, array<string, mixed>>  $tree
+ * @param  array<int, array<string, mixed>>|Closure  $tree
  * @param  array<string, string>|Closure  $markdown
  */
-function fakeGitbook(array $tree, array|Closure $markdown, string $title = 'Manual de Integrações'): void
+function fakeGitbook(array|Closure $tree, array|Closure $markdown, string $title = 'Manual de Integrações'): void
 {
     $resolve = $markdown instanceof Closure ? $markdown : fn () => $markdown;
+    $resolveTree = $tree instanceof Closure ? $tree : fn () => $tree;
 
     Http::fake([
-        'api.gitbook.com/v1/spaces/space-1/content/pages*' => Http::response(['pages' => $tree]),
+        'api.gitbook.com/v1/spaces/space-1/content/pages*' => fn () => Http::response(['pages' => $resolveTree()]),
         'api.gitbook.com/v1/spaces/space-1/content/page/*' => function (Request $request) use ($resolve) {
             $id = str($request->url())->before('?')->afterLast('/')->value();
 
@@ -487,6 +490,171 @@ it('accepts an explicit caderno name', function () {
     app(ImportGitbookSpace::class)->handle('space-1', notebookName: 'Legado GitBook');
 
     expect(Notebook::sole()->name)->toBe('Legado GitBook');
+});
+
+/*
+|--------------------------------------------------------------------------
+| --dated: a SNAPSHOT caderno per day
+|--------------------------------------------------------------------------
+|
+| The name is what carries the behaviour: `notebook()` resolves a caderno by
+| name, so the first run of a day creates one and every later run that day lands
+| in the same one. "Overwrite if imported on the same day" is the naming rule,
+| not a second mechanism.
+|
+*/
+
+it('names the caderno after the space and the day', function () {
+    fakeGitbook([['id' => 'p1', 'type' => 'document', 'title' => 'X']], ['p1' => 'y'], title: 'Espaço IAM');
+
+    $this->freezeTime();
+
+    app(ImportGitbookSpace::class)->handle('space-1', dated: true);
+
+    expect(Notebook::sole()->name)->toBe('Espaço IAM_imported_' . now()->format('d_m_Y'));
+});
+
+it('overwrites the same day and starts a new caderno on the next', function () {
+    // The whole point of the flag, and the only test that can tell the naming
+    // rule from a plain re-import: the clock is what decides, so it is frozen
+    // and then moved deliberately (see the "Freeze time" rule).
+    $content = ['p1' => 'manhã'];
+    fakeGitbook(
+        [['id' => 'p1', 'type' => 'document', 'title' => 'Visão geral']],
+        function () use (&$content) {
+            return $content;
+        },
+        title: 'Espaço IAM',
+    );
+
+    $this->travelTo('2026-09-02 09:00:00');
+    app(ImportGitbookSpace::class)->handle('space-1', dated: true);
+
+    // Later the same day: the same caderno, updated in place.
+    $this->travelTo('2026-09-02 17:30:00');
+    $content = ['p1' => 'tarde'];
+    $again = app(ImportGitbookSpace::class)->handle('space-1', dated: true);
+
+    expect(Notebook::count())->toBe(1)
+        ->and($again->created)->toBe(0)
+        ->and($again->updated)->toBe(1)
+        ->and(Notebook::sole()->pages()->sole()->documentation)->toBe('tarde');
+
+    // The next day: a caderno of its own, beside the first.
+    $this->travelTo('2026-09-03 08:00:00');
+    app(ImportGitbookSpace::class)->handle('space-1', dated: true);
+
+    expect(Notebook::orderBy('name')->pluck('name')->all())->toBe([
+        'Espaço IAM_imported_02_09_2026',
+        'Espaço IAM_imported_03_09_2026',
+    ]);
+});
+
+it('removes a page the space no longer has, so the snapshot is not a union', function () {
+    // A dated caderno claims to be that space on that date. A page left behind
+    // from an earlier run the same day makes it a lie.
+    $tree = [
+        ['id' => 'p1', 'type' => 'document', 'title' => 'Fica'],
+        ['id' => 'p2', 'type' => 'document', 'title' => 'Sai do GitBook'],
+    ];
+    fakeGitbook(
+        function () use (&$tree) {
+            return $tree;
+        },
+        ['p1' => 'um', 'p2' => 'dois'],
+        title: 'Espaço IAM',
+    );
+
+    $this->freezeTime();
+    app(ImportGitbookSpace::class)->handle('space-1', dated: true);
+    expect(Notebook::sole()->pages()->count())->toBe(2);
+
+    // Same day, and the space has lost a page.
+    $tree = [['id' => 'p1', 'type' => 'document', 'title' => 'Fica']];
+    $report = app(ImportGitbookSpace::class)->handle('space-1', dated: true);
+
+    expect($report->removed)->toBe(1)
+        ->and(Notebook::count())->toBe(1)
+        ->and(Notebook::sole()->pages()->pluck('title')->all())->toBe(['Fica']);
+});
+
+it('takes the whole subtree of a removed page with it', function () {
+    // Pruning walks a FLAT list of leftovers, and a subpage removed with its
+    // parent earlier in that walk deletes a second time as a no-op — so this
+    // asserts the count is the pages, not the roots.
+    $tree = [
+        ['id' => 'p1', 'type' => 'document', 'title' => 'Fica'],
+        ['id' => 'p2', 'type' => 'document', 'title' => 'Some', 'pages' => [
+            ['id' => 'p3', 'type' => 'document', 'title' => 'Some também'],
+        ]],
+    ];
+    fakeGitbook(
+        function () use (&$tree) {
+            return $tree;
+        },
+        ['p1' => 'um', 'p2' => 'dois', 'p3' => 'três'],
+        title: 'Espaço IAM',
+    );
+
+    $this->freezeTime();
+    app(ImportGitbookSpace::class)->handle('space-1', dated: true);
+    expect(Notebook::sole()->pages()->count())->toBe(3);
+
+    $tree = [['id' => 'p1', 'type' => 'document', 'title' => 'Fica']];
+    $report = app(ImportGitbookSpace::class)->handle('space-1', dated: true);
+
+    expect($report->removed)->toBe(2)
+        ->and(Notebook::sole()->pages()->pluck('title')->all())->toBe(['Fica']);
+});
+
+it('never removes a page on an ordinary import', function () {
+    // Pruning is scoped strictly to the dated flag: an ordinary caderno is
+    // somewhere people also write by hand, and a page they added is not a
+    // leftover.
+    fakeGitbook([['id' => 'p1', 'type' => 'document', 'title' => 'Do GitBook']], ['p1' => 'um']);
+
+    app(ImportGitbookSpace::class)->handle('space-1');
+
+    $notebook = Notebook::sole();
+    $written = app(DocumentationPageService::class)->create($notebook, 'Escrita à mão aqui');
+
+    $report = app(ImportGitbookSpace::class)->handle('space-1');
+
+    expect($report->removed)->toBe(0);
+    $this->assertModelExists($written);
+});
+
+it('says which caderno a dated dry run would write to', function () {
+    // A dry run that did not name it could not check the one thing the flag does.
+    fakeGitbook([['id' => 'p1', 'type' => 'document', 'title' => 'X']], ['p1' => 'y'], title: 'Espaço IAM');
+
+    $this->freezeTime();
+    $report = app(ImportGitbookSpace::class)->handle('space-1', dryRun: true, dated: true);
+
+    expect($report->notebook)->toBeNull()
+        ->and($report->notebookName)->toBe('Espaço IAM_imported_' . now()->format('d_m_Y'))
+        ->and(Notebook::count())->toBe(0);
+});
+
+it('refuses --notebook and --dated together, since both name the caderno', function () {
+    fakeGitbook([['id' => 'p1', 'type' => 'document', 'title' => 'X']], ['p1' => 'y']);
+
+    $this->artisan('gitbook:import --space=space-1 --notebook="Meu caderno" --dated')
+        ->expectsOutputToContain('both name the caderno')
+        ->assertFailed();
+
+    expect(Notebook::count())->toBe(0);
+});
+
+it('derives a name per space, so --dated composes with --all', function () {
+    // Unlike --notebook, which names ONE caderno and is refused for several
+    // spaces, a dated name is derived from each space's own title.
+    fakeGitbook([['id' => 'p1', 'type' => 'document', 'title' => 'X']], ['p1' => 'y'], title: 'Espaço IAM');
+
+    $this->freezeTime();
+    $this->artisan('gitbook:import --all --org=org-1 --dated')->assertSuccessful();
+
+    expect(Notebook::sole()->name)->toBe('Espaço IAM_imported_' . now()->format('d_m_Y'));
 });
 
 it('writes nothing on a dry run', function () {
