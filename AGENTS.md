@@ -561,7 +561,7 @@ caderno while the LINK picker does not: reading a page once is not the same
 promise as addressing it forever.
 
 **Both live behind ONE [+] in the composer**, which is the same box
-`x-flowspec.composer` is — a rounded frame holding this turn's context pills, the
+`x-flowspec.composer` and `x-submissions.composer` are — a rounded frame holding this turn's context pills, the
 textarea and a toolbar. They arrived as two labelled sections stacked above the
 textarea, each with a `+` of its own, and on a docked panel 320px wide those two
 rows pushed the message box to the floor. The menu has exactly two items because
@@ -575,6 +575,20 @@ inventory), never whether it is checked. A document pill used to turn accent whe
 checked, which was unambiguous while it had a section to itself and became a
 second pill kind the moment the rows merged; withheld is said by the checkbox
 plus a dim.
+
+The CATI composer (`x-submissions.composer`) is the same box and carries the
+same `[+]`, and its menu taught one rule the other two did not have to learn:
+**an item of that menu has to close it itself.** `toggle.js` closes a popover on
+an OUTSIDE click, and neither item's click is one — so attaching a link left the
+menu standing over the chip it had just created, which was the only feedback the
+attach had worked. The file item appeared to work and did so by accident: it
+clicks a hidden input that sits in the form and not in the menu, so that
+synthetic click bubbled out and tripped the outside-click listener. One move of
+that input and the menu would have stayed open behind a MODAL file dialog, whose
+own dismissing click never reaches `document` at all. All three composers close
+it explicitly now (`closeAttachMenu()`), and CATI's link item closes it only on
+SUCCESS: a refused url has to keep the field, and the menu holding it, on screen
+to be corrected.
 
 Five rules, and four of them are the module's existing rules seen from a new
 screen:

@@ -53,27 +53,46 @@
 
         <div class="flex items-end justify-between gap-2 px-3 pb-3">
             <div class="relative">
-                <x-forms.button type="button" variant="ghost" class="!p-2" title="Anexar material"
+                {{-- A round [+], the same trigger the Documentation Assistant's
+                     composer carries: it is the same gesture on the same shape
+                     of box, so it should not be a different button. --}}
+                <x-forms.button type="button" variant="ghost" class="!size-8 !rounded-full !p-0"
+                    title="Anexar material" aria-label="Anexar material"
                     data-ak-toggle="{{ $menuId }}" data-ak-toggle-classes="hidden" data-ak-toggle-blur="true">
-                    <x-heroicon-o-paper-clip class="size-5" />
+                    <x-heroicon-o-plus class="size-5" />
                 </x-forms.button>
 
-                <div id="{{ $menuId }}"
+                {{-- Two doors and one footnote, in that order. It read as THREE
+                     stacked blocks of grey text before — an uppercase eyebrow, a
+                     hint under the field and the paste note — which is more
+                     chrome than the two choices underneath it. --}}
+                <div id="{{ $menuId }}" data-ak-cati-attach-menu
                      class="absolute bottom-full left-0 z-20 mb-2 hidden w-80 rounded-card border border-line bg-surface p-1.5 shadow-lg">
                     <x-forms.button type="button" variant="ghost" data-ak-cati-open-file
-                        class="!w-full !justify-start !px-3 !py-2 !font-normal !text-body">
-                        <x-heroicon-o-arrow-up-tray class="size-4 text-muted" />
+                        class="!w-full !justify-start !px-3 !py-2 !text-left !font-normal !text-body">
+                        <x-heroicon-o-arrow-up-tray class="size-4 shrink-0 text-muted" />
                         <span class="flex flex-col items-start leading-tight">
                             <span>Arquivo do computador</span>
                             <span class="text-[11px] text-faint">Deck antigo, PDF, documento ou imagem</span>
                         </span>
                     </x-forms.button>
 
-                    <div class="mt-1 border-t border-line px-3 pb-1 pt-2">
-                        <x-forms.label for="cati-link-input" class="!text-[11px] !uppercase !tracking-wider !text-faint">
-                            Link de referência
-                        </x-forms.label>
-                        <div class="mt-1 flex items-center gap-1.5">
+                    {{-- The second door is a ROW rather than an item because it
+                         needs a field of its own, and shaped like the item above
+                         it so the menu still reads as two choices. The `for`
+                         stays on a real <label>: it is the field's only name. --}}
+                    <div class="mt-1 border-t border-line px-3 pb-1 pt-2.5">
+                        <div class="flex items-start gap-2">
+                            <x-heroicon-o-link class="mt-1 size-4 shrink-0 text-muted" />
+                            <span class="flex flex-col items-start leading-tight">
+                                <x-forms.label for="cati-link-input" class="!leading-tight">
+                                    Link de referência
+                                </x-forms.label>
+                                <span class="text-[11px] text-faint">Não é baixado — fica só como referência</span>
+                            </span>
+                        </div>
+
+                        <div class="mt-2 flex items-center gap-1.5 pl-6">
                             {{-- A plain input, not a nested form (see the note
                                  above) — cati-chat.js reads the value and posts
                                  it. --}}
@@ -84,12 +103,9 @@
                                 Anexar
                             </x-forms.button>
                         </div>
-                        <p class="mt-1.5 text-[11px] leading-snug text-faint">
-                            O conteúdo do link não é baixado — fica só como referência.
-                        </p>
                     </div>
 
-                    <p class="border-t border-line px-3 pb-1 pt-2 text-[11px] leading-snug text-faint">
+                    <p class="mt-1 border-t border-line px-3 pb-1 pt-2 text-[11px] leading-snug text-faint">
                         Texto longo colado na caixa vira anexo automaticamente.
                     </p>
                 </div>
