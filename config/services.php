@@ -202,6 +202,21 @@ return [
         // (PDF/image go as attachments, outside this limit).
         'doc_budget_chars'      => env('DOCS_AI_DOC_BUDGET_CHARS', 60000),
         'max_context_documents' => env('DOCS_AI_MAX_CONTEXT_DOCUMENTS', 10),
+        // Other documentation PAGES a turn may be given as reference, and the
+        // characters they get between them. Separate from `doc_budget_chars`
+        // on purpose: an uploaded document and a page of this app compete for
+        // the same prompt, and one runaway 100k page must not be able to push
+        // out the PDF somebody attached (or the other way round).
+        //
+        // Five, and 40k between them: a documentation page in the imported
+        // corpus averages ~10k characters, so this is "a handful of pages"
+        // rather than "a caderno" — which is the right unit, since the point is
+        // the two or three systems on the other end of what is being
+        // documented. Past the budget the remaining pages are omitted and
+        // FLAGGED (meta.omitted_pages), never dropped in silence: somebody
+        // picked them by hand.
+        'max_context_pages' => env('DOCS_AI_MAX_CONTEXT_PAGES', 5),
+        'page_budget_chars' => env('DOCS_AI_PAGE_BUDGET_CHARS', 40000),
         // Pasting more than this many characters into the Assiste IA composer
         // turns the paste into a context document instead of stuffing the
         // textarea — the same gesture the F8 composer has, and the same number.

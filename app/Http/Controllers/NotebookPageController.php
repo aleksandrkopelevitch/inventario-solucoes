@@ -19,6 +19,7 @@ use App\Models\DocumentationChatMessage;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Services\DocumentationPageService;
+use App\Services\DocumentationSearchService;
 use App\View\Components\Documentation\PageTitle;
 use App\View\Components\Solutions\Notebooks;
 use Illuminate\Contracts\View\View;
@@ -69,8 +70,7 @@ class NotebookPageController extends Controller
         ],
             eyebrow: 'Caderno · ' . $notebook->name,
             pageLabel: $page->title,
-            notebookLabel: $notebook->name,
-            notebookUrl: route('notebooks.show', $notebook),
+            notebook: $notebook,
         )->with([
             'pagesNav' => $this->pagesNav($notebook, $page),
             // The rail's header renames the caderno in place — `?page=` so the
@@ -236,6 +236,66 @@ class NotebookPageController extends Controller
                 'u' . $request->user()->id,
             ),
         ]);
+    }
+
+    /**
+     * Everything inside this caderno a link can point AT: its pages, and the
+     * H1–H3 headings of each one. Backs the editor's link picker
+     * (`docs-tools/link.js`), which writes `[texto](page:{slug}#anchor)`.
+     *
+     * Scoped to ONE caderno on purpose. A link is resolved at render time
+     * against whichever caderno the reader is in (App\Support\Documentation\PageLinks),
+     * and the magic-link reader can only answer for the caderno its token
+     * grants — so offering a page from somewhere else would be offering a link
+     * that works while you edit and dies the moment the caderno is shared.
+     *
+     * `update`, not `view`: the picker is an editing affordance, and a reader
+     * who cannot edit never gets an editor to open it from.
+     */
+    public function linkTargets(Notebook $notebook, DocumentationSearchService $search): JsonResponse
+    {
+        $this->authorize('update', $notebook);
+
+        return response()->json(['pages' => $search->linkTargets($notebook)]);
+    }
+
+    /**
+     * The pages a person may hand to the Documentation Assistant as context,
+     * grouped by caderno with the current one first.
+     *
+     * Deliberately NOT limited to this caderno, unlike `linkTargets()` above,
+     * and the difference is what each thing is for: a LINK has to resolve for
+     * whoever reads the page later, while context is read once, now, by the
+     * model — and the page most worth showing it is regularly in another
+     * caderno (the system on the other end of the integration being
+     * documented). The `{notebook}` in the URL is what authorizes the request
+     * and which group leads the list, nothing more.
+     *
+     * Only pages that HAVE content: an empty page is a heading with nothing
+     * under it, and offering it as context offers a title.
+     */
+    public function contextPages(Notebook $notebook): JsonResponse
+    {
+        $this->authorize('update', $notebook);
+
+        $groups = Notebook::query()
+            ->with(['documentedPages' => fn ($query) => $query->select('id', 'notebook_id', 'title', 'position', 'parent_id')])
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Notebook $book): array => [
+                'notebook' => $book->name,
+                'current'  => $book->is($notebook),
+                'pages'    => $book->documentedPages
+                    ->map(fn (DocumentationPage $page): array => ['id' => $page->id, 'title' => $page->title])
+                    ->all(),
+            ])
+            ->reject(fn (array $group): bool => $group['pages'] === [])
+            // The caderno being written leads: it is where most of what a person
+            // reaches for lives, and a search box below it covers the rest.
+            ->sortByDesc('current')
+            ->values();
+
+        return response()->json(['groups' => $groups]);
     }
 
     /* --- Documentation Assistant (chat that helps write the page's content) --- */

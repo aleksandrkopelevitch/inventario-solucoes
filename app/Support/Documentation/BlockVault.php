@@ -66,6 +66,40 @@ final class BlockVault
 
     private int $dropped = 0;
 
+    /**
+     * The same five constructs, REMOVED from a text rather than frozen in it.
+     *
+     * For context that is read but never rewritten: another documentation page
+     * handed to the assistant as reference (`ContextPageResolver`). Freezing
+     * those as `[[BLOCK-n]]` would be exactly wrong — a marker is an
+     * instruction to keep the block, and these blocks belong to a DIFFERENT
+     * page. Handing the raw markup over instead is worse: the model would be
+     * shown a `/files/{id}` or a `{% diagram slug="…" %}` it is perfectly
+     * capable of copying into the draft, which is how a reference page's image
+     * ends up embedded in the page being written — and it would half-work,
+     * since `MediaController` authorizes by collection while the magic link
+     * scopes media to the caderno's own pages, so the same image renders inside
+     * the app and breaks on the shared link.
+     *
+     * So the model is not shown the syntax at all. What it sees is a bracketed
+     * PT-BR word — deliberately not a `[[…]]` marker, so no restore anywhere
+     * can resolve it and nobody can mistake it for something to carry over.
+     */
+    public static function strip(?string $text): string
+    {
+        $text = (string) $text;
+
+        if ($text === '') {
+            return $text;
+        }
+
+        foreach (self::PATTERNS as [$label, $pattern]) {
+            $text = (string) preg_replace($pattern, '[' . $label . ']', $text);
+        }
+
+        return $text;
+    }
+
     /** @param list<string|null> $texts everything this turn will show the model */
     public static function from(array $texts): self
     {

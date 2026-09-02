@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Concerns;
 use App\Contracts\Documentable;
 use App\Http\Requests\SaveDocumentationRequest;
 use App\Http\Requests\UploadDocumentationMediaRequest;
+use App\Models\Notebook;
+use App\Support\Documentation\PageLinks;
 use App\Support\Documentation\SecretText;
 use App\Support\GitbookRenderer;
 use Illuminate\Contracts\View\View;
@@ -28,11 +30,12 @@ trait EditsDocumentation
      * render (GitbookRenderer), decided client-side via `canEdit`. Neither of
      * them receives the page's PROTECTED VALUES — see `documentation` below.
      *
-     * `$notebookLabel`/`$notebookUrl` are the caderno the page belongs to.
-     * They title the pages rail and, once that rail is collapsed, become the
-     * "Caderno › Página" crumb in the top bar; the ↗ beside them is the only
-     * way back to that record (there is no back arrow — it pointed at the same
-     * place without ever naming it).
+     * `$notebook` is the caderno the page belongs to. Its name titles the pages
+     * rail and, once that rail is collapsed, becomes the "Caderno › Página"
+     * crumb in the top bar; the ↗ beside it is the only way back to that record
+     * (there is no back arrow — it pointed at the same place without ever
+     * naming it). It is also what resolves the page's INTERNAL links: a
+     * `page:{slug}` destination means a page of THIS caderno (see PageLinks).
      *
      * @param  array{save: string, upload: string}  $urls
      */
@@ -41,8 +44,7 @@ trait EditsDocumentation
         array $urls,
         string $eyebrow,
         string $pageLabel,
-        string $notebookLabel,
-        string $notebookUrl,
+        Notebook $notebook,
     ): View {
         $canEdit = request()->user()->can('update', $model);
 
@@ -50,8 +52,8 @@ trait EditsDocumentation
             'title'         => $model->documentationTitle(),
             'eyebrow'       => $eyebrow,
             'pageLabel'     => $pageLabel,
-            'notebookLabel' => $notebookLabel,
-            'notebookUrl'   => $notebookUrl,
+            'notebookLabel' => $notebook->name,
+            'notebookUrl'   => route('notebooks.show', $notebook),
             'saveUrl'       => $urls['save'],
             'uploadUrl'     => $urls['upload'],
             // The EDITOR's source, and the protected values are MASKED in it
@@ -73,7 +75,14 @@ trait EditsDocumentation
             'canEdit'       => $canEdit,
             // Only users who can't edit receive the already-rendered HTML
             // (the editor builds its own from the raw Markdown client-side).
-            'renderedHtml' => $canEdit ? '' : app(GitbookRenderer::class)->render($model->documentation),
+            // `PageLinks::internal()` and not `none()`: a reader who is signed in
+            // follows a `page:` link to the app's own URL for that page. The
+            // magic-link reader resolves the same construct against its token
+            // instead (PublicDocumentationController) — which is the whole
+            // reason the Markdown stores a slug rather than an address.
+            'renderedHtml' => $canEdit
+                ? ''
+                : app(GitbookRenderer::class)->render($model->documentation, pageLinks: PageLinks::internal($notebook)),
         ]);
     }
 

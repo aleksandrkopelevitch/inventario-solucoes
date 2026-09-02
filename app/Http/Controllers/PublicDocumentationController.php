@@ -11,6 +11,7 @@ use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Services\DocumentationPageService;
 use App\Services\DocumentationSearchService;
+use App\Support\Documentation\PageLinks;
 use App\Support\Documentation\SecretText;
 use App\Support\GitbookRenderer;
 use App\View\Components\Documentation\SearchResults;
@@ -230,7 +231,7 @@ class PublicDocumentationController extends Controller
                 ? route('public.docs.secrets', [$token, $current->slug, 'index' => '__INDEX__'])
                 : null,
             'secretScope'  => $notebook->slug,
-            'renderedHtml' => $this->renderMarkdown($markdown, $token),
+            'renderedHtml' => $this->renderMarkdown($markdown, $notebook),
             // Raw Markdown for the "Copiar Markdown" button, with media already
             // rewritten to the public routes (the internal /files/{id} does
             // not resolve for visitors accessing only via the public link).
@@ -302,15 +303,28 @@ class PublicDocumentationController extends Controller
     }
 
     /** Renders the Markdown and rewrites `/files/{id}` to the public route. */
-    private function renderMarkdown(?string $markdown, string $token): string
+    private function renderMarkdown(?string $markdown, Notebook $notebook): string
     {
         // `linkDiagrams: false` — see GitbookRenderer::render(). A visitor on a
         // magic link has no account: the canvas is behind auth, so the link
         // would land them on the login screen while telling them the drawing's
         // slug on the way.
+        //
+        // `PageLinks::shared()` is the same idea for a link between two pages
+        // of this caderno, and the reason that link is stored as `page:{slug}`
+        // rather than as a URL: the app's own address for the target page is
+        // behind auth too, so an author writing "veja a página X" would be
+        // sending every visitor to the login screen. Resolved against the
+        // token, it stays inside the link that was shared — and a page of
+        // ANOTHER caderno resolves to nothing, which is correct: the token
+        // grants one caderno, so there is no address to offer.
         return $this->rewriteFileUrls(
-            app(GitbookRenderer::class)->render($markdown, linkDiagrams: false),
-            $token,
+            app(GitbookRenderer::class)->render(
+                $markdown,
+                linkDiagrams: false,
+                pageLinks: PageLinks::shared($notebook, (string) $notebook->public_token),
+            ),
+            (string) $notebook->public_token,
         );
     }
 

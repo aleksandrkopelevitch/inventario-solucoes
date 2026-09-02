@@ -3,6 +3,7 @@
 namespace App\Services\Documentation;
 
 use App\Models\DocumentationChatMessage;
+use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Support\Documentation\BlockVault;
 use App\Support\Documentation\DocumentationRequirements;
@@ -27,6 +28,7 @@ class DocumentationChatService
 
     public function __construct(
         private readonly ContextDocumentResolver $contextDocs,
+        private readonly ContextPageResolver $contextPages,
         private readonly DocumentationChatPromptBuilder $prompts,
     ) {}
 
@@ -62,6 +64,16 @@ class DocumentationChatService
 
         $contextDocs = $this->contextDocs->resolve($notebook, $userMessage->context_media_ids ?? []);
 
+        // Other pages of the documentation, chosen for THIS turn. They are
+        // masked and stripped on the way in (see ContextPageResolver) and the
+        // page being written is excluded from its own reference list — a second
+        // copy of it under another heading is how a model loses track of which
+        // text the draft is supposed to replace.
+        $contextPages = $this->contextPages->resolve(
+            $userMessage->context_page_ids ?? [],
+            $target instanceof DocumentationPage ? $target : null,
+        );
+
         // Opaque literals never reach the model — a reply rewrites the whole
         // page, and a token copied by hand comes back subtly wrong. Everything
         // the prompt will show is harvested first so one value gets one marker
@@ -78,6 +90,7 @@ class DocumentationChatService
             $userMessage->content,
             ...$history->pluck('content')->all(),
             ...$contextDocs->textDocs->pluck('content')->all(),
+            ...$contextPages->pages->pluck('content')->all(),
         ]);
 
         $userPrompt = $this->prompts->userPrompt(
@@ -87,6 +100,7 @@ class DocumentationChatService
             $history,
             $userMessage->content,
             $contextDocs->textDocs,
+            $contextPages,
             $requirements,
             $vault,
             $blocks,
@@ -126,6 +140,8 @@ class DocumentationChatService
                     'cache_read'  => $response->usage->cacheReadInputTokens,
                 ],
                 'inlined'             => $contextDocs->textDocs->pluck('name')->all(),
+                'context_pages'       => $contextPages->names(),
+                'omitted_pages'       => $contextPages->omitted,
                 'attached'            => $contextDocs->attachedMeta,
                 'omitted_attachments' => $contextDocs->omittedAttachments,
                 'omitted_context'     => [...$contextDocs->omittedContext, ...$contextDocs->omittedTexts],

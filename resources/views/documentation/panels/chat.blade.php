@@ -59,6 +59,35 @@
             </span>
         </div>
 
+        {{-- Other pages of the documentation, as reference for this turn.
+             Client-side only, unlike the documents above: a document is UPLOADED
+             and belongs to the caderno from then on, while a page already exists
+             — picking one is a statement about this conversation, so it is sent
+             as `page_ids[]` with the message and recorded on the message itself
+             (`context_page_ids`), never on the caderno.
+
+             The chips are rendered by docs-chat.js into the container below; the
+             picker is a modal, because the list spans every caderno and a
+             docked panel is 320px wide at its narrowest. --}}
+        <div class="mb-3">
+            <div class="mb-2 flex items-baseline gap-1.5">
+                <x-forms.label class="!mb-0">Páginas de contexto</x-forms.label>
+                <span class="text-xs text-muted">de qualquer caderno</span>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-1.5">
+                <div data-ak-context-pages class="contents"></div>
+
+                <x-forms.button type="button" variant="ghost"
+                    data-ak-context-page-add data-action="{{ $contextPagesUrl }}"
+                    class="!size-7 shrink-0 !rounded-full !border !border-dashed !border-line-2 !p-0 hover:!border-accent-line hover:!bg-accent-soft hover:!text-accent"
+                    title="Incluir outra página no contexto" aria-label="Incluir outra página no contexto">
+                    <x-heroicon-o-plus class="size-4" />
+                </x-forms.button>
+            </div>
+            <p data-ak-context-pages-empty class="mt-2 text-xs text-muted">Nenhuma página de contexto.</p>
+        </div>
+
         {{-- The composer's config, on the form. `attr="{{ json_encode(...) }}"`
              and never `@json()`: the latter silently fails to compile inside a
              component tag's attributes, and this form may yet become one.

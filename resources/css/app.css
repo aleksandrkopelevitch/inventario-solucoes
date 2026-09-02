@@ -450,6 +450,19 @@ dialog[open]::backdrop {
 .html-content p { @apply mt-4; }
 .html-content a { @apply text-accent font-medium hover:underline; }
 
+/* Um link interno (`page:{slug}`) para uma página que não existe mais neste
+   caderno perde o `href` no render (GitbookRenderer::resolvePageLinks) — um
+   <a> sem href não é link nenhum. Ele continua sendo o texto que a pessoa
+   escreveu, só que dito como texto: apagar uma página nunca deve estragar a
+   prosa que citava ela, e um link que parece link e leva ao topo da página
+   seria pior que nenhum. */
+.html-content a:not([href]) {
+    @apply text-muted font-normal no-underline;
+    cursor: help;
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+}
+
 /* O corpus importado do GitBook marca a maioria das suas seções como um
    parágrafo em **negrito**, não como heading — 758 ocorrências só no caderno
    "Dados • BigQuery • GCP". Herdando a cor do corpo, cada uma virava um bloco

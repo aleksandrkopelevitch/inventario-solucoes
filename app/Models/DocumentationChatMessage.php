@@ -16,6 +16,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * Salvar. `meta` audits the generation (tokens, context docs used/omitted,
  * requirements snapshot, error type on failure). `applied_at` is set once the
  * user loads this message's draft into the editor.
+ *
+ * A turn carries TWO kinds of context, and they are two lists rather than one
+ * because they come from two different places and are read two different ways:
+ * `context_media_ids` are the caderno's uploaded documents (a PDF goes to the
+ * model as a native attachment), while `context_page_ids` are other
+ * documentation PAGES of this app, inlined as text — and, unlike the documents,
+ * they may belong to any caderno.
  */
 class DocumentationChatMessage extends Model
 {
@@ -29,6 +36,7 @@ class DocumentationChatMessage extends Model
         'existing_content',
         'draft',
         'context_media_ids',
+        'context_page_ids',
         'meta',
         'applied_at',
     ];
@@ -37,6 +45,7 @@ class DocumentationChatMessage extends Model
     {
         return [
             'context_media_ids' => 'array',
+            'context_page_ids'  => 'array',
             'meta'              => 'array',
             'applied_at'        => 'datetime',
         ];

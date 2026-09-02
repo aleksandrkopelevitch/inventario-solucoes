@@ -116,7 +116,7 @@ function makeImageTool(Base) {
 
 // Editor.js and its plugins are heavy (~400 kB) and only used on this page, so
 // they're loaded on demand (separate chunk) only when an editor is on screen.
-async function loadTools(uploadUrl, catalogUrl) {
+async function loadTools({uploadUrl = '', catalogUrl = '', linkTargetsUrl = '', pageSlug = ''} = {}) {
     const [
         {default: EditorJS},
         {default: Header},
@@ -133,6 +133,7 @@ async function loadTools(uploadUrl, catalogUrl) {
         {default: HintTool},
         {default: DiagramTool},
         {default: SecretInlineTool},
+        {default: DocsLinkTool},
         {default: TabsTool},
         {default: DragDropTune},
     ] = await Promise.all([
@@ -151,6 +152,7 @@ async function loadTools(uploadUrl, catalogUrl) {
         import('./docs-tools/hint'),
         import('./docs-tools/diagram'),
         import('./docs-tools/secret'),
+        import('./docs-tools/link'),
         import('./docs-tools/tabs'),
         import('editorjs-drag-drop'),
     ])
@@ -237,6 +239,16 @@ async function loadTools(uploadUrl, catalogUrl) {
         // `inlineToolbar` is on — which is what makes a protected value
         // expressible in a paragraph, a heading, a list item or a table cell.
         secret: {class: SecretInlineTool},
+        // OVERRIDES Editor.js's built-in `link`. Naming an internal tool in
+        // `tools` is the supported way to replace it (`validateTools()` lets
+        // the name through and the config is deep-merged over the default), and
+        // it is one button rather than two on purpose: "Link" and "Link
+        // interno" side by side would be two subtly different answers to the
+        // same gesture. See docs-tools/link.js for what it adds — a picker for
+        // the caderno's own pages and headings, written as `page:{slug}#anchor`
+        // so the address is resolved per reader instead of being frozen into
+        // the Markdown.
+        link: {class: DocsLinkTool, config: {linkTargetsUrl, pageSlug}},
     })
 
     return {EditorJS, tools: buildTools()}
@@ -261,7 +273,7 @@ async function mount(holder) {
     const source = document.querySelector('[data-ak-docs-source]')
     const blocks = parse(source ? source.value : '')
 
-    const {EditorJS, tools} = await loadTools(config.uploadUrl || '', config.catalogUrl || '')
+    const {EditorJS, tools} = await loadTools(config)
 
     const editor = new EditorJS({
         holder,

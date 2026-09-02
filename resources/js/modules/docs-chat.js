@@ -1,6 +1,7 @@
 import * as ajaxModule from './ajax.js'
 import {updateSlots} from './ajax-slot.js'
 import {setButtonLoading} from './button-loading.js'
+import {fold} from './fold.js'
 import {renderMarkdownDiff} from './docs-diff.js'
 import {setEditorLocked} from './docs-editor.js'
 
@@ -9,10 +10,10 @@ import {setEditorLocked} from './docs-editor.js'
  * documentation (built against flowspec-chat.js's polling/composer pattern,
  * reusing docs-ai.js's editor-lock and diff-review mechanics).
  *
- * SEND: collects the message, the checked context documents and the editor's
- * CURRENT Markdown (window.__akDocsGetMarkdown, since an async snapshot can't
- * go through the generic data-ak-ajax form submission), POSTs, then swaps the
- * thread slot. While the assistant is replying the editor is LOCKED (overlay +
+ * SEND: collects the message, the checked context documents, the picked context
+ * PAGES (see below) and the editor's CURRENT Markdown
+ * (window.__akDocsGetMarkdown, since an async snapshot can't go through the
+ * generic data-ak-ajax form submission), POSTs, then swaps the thread slot. While the assistant is replying the editor is LOCKED (overlay +
  * input blocking + setEditorLocked(), which also holds back docs-editor.js's
  * autosave) — init() re-derives the lock/poll state from whatever the thread
  * slot renders (a [data-ak-docs-chat-poll] marker), so it's correct after a
@@ -51,6 +52,27 @@ let editorLocked = false
 let pendingDraft = null
 let pendingApplyUrl = null
 let pendingButton = null
+
+/**
+ * Other documentation pages picked as context for this conversation —
+ * `id -> {title, notebook}`.
+ *
+ * Client-side state, deliberately, and the difference from the context
+ * DOCUMENTS beside it is what makes that right: a document is uploaded and
+ * belongs to the caderno from then on (so the server renders its chips), while
+ * a page already exists and picking one is a statement about this conversation.
+ * It is recorded on the MESSAGE (`context_page_ids`) when one is sent.
+ *
+ * Kept across sends within a panel session — the pages someone reached for while
+ * writing are almost always the same on the next turn, and the chips say so
+ * plainly. Reset when a freshly rendered panel arrives (see `init()`).
+ */
+const contextPages = new Map()
+const seenPageContainers = new WeakSet()
+
+let pageCatalogPromise = null
+let pageCatalogFetchedAt = 0
+let pageCatalogFailed = false
 
 /* ------------------------------------------------------------------ */
 /*  Sending a message                                                  */
@@ -92,6 +114,7 @@ async function send(btn) {
     formData.append('message', message)
     formData.append('existing_content', existing)
     mediaIds.forEach((id) => formData.append('media_ids[]', id))
+    contextPages.forEach((_, id) => formData.append('page_ids[]', id))
 
     setButtonLoading(btn, true)
     try {
@@ -247,6 +270,228 @@ function setContextUploading(on) {
         input.classList.toggle('opacity-50', on)
         input.classList.toggle('pointer-events-none', on)
     })
+}
+
+/* ------------------------------------------------------------------ */
+/*  Context PAGES — other documentation pages handed to the assistant  */
+/*  as reference for this conversation.                                */
+/* ------------------------------------------------------------------ */
+
+/** Same short-TTL refetch as the link picker's, and for the same reason: a page
+ *  created minutes ago has to be offerable without reloading the screen. */
+const PAGE_CATALOG_TTL = 20000
+
+function loadPageCatalog(url) {
+    if (!url) return Promise.resolve([])
+
+    if (!pageCatalogPromise || Date.now() - pageCatalogFetchedAt > PAGE_CATALOG_TTL) {
+        pageCatalogFetchedAt = Date.now()
+        pageCatalogFailed = false
+        pageCatalogPromise = ajaxModule
+            .init('GET', url)
+            .then((r) => r.json())
+            .then((d) => d.groups || [])
+            .catch(() => {
+                pageCatalogFailed = true
+                // Not cached: a failed request must not be the answer for the
+                // next twenty seconds.
+                pageCatalogPromise = null
+                pageCatalogFetchedAt = 0
+
+                return []
+            })
+    }
+
+    return pageCatalogPromise
+}
+
+document.addEventListener('click', (e) => {
+    const add = e.target.closest('[data-ak-context-page-add]')
+    if (add) {
+        e.preventDefault()
+        openPagePicker(add.dataset.action)
+
+        return
+    }
+
+    const remove = e.target.closest('[data-ak-context-page-remove]')
+    if (remove) {
+        e.preventDefault()
+        contextPages.delete(Number(remove.dataset.akContextPageRemove))
+        renderContextPages()
+    }
+})
+
+/** The chips, rebuilt from `contextPages` — one place decides what is shown. */
+function renderContextPages() {
+    const host = document.querySelector('[data-ak-context-pages]')
+    const empty = document.querySelector('[data-ak-context-pages-empty]')
+    if (!host) return
+
+    host.replaceChildren()
+    if (empty) empty.classList.toggle('hidden', contextPages.size > 0)
+
+    contextPages.forEach((page, id) => {
+        const chip = document.createElement('div')
+        chip.className =
+            'inline-flex max-w-full items-center gap-1.5 rounded-full border border-accent-line bg-accent-soft py-1 pl-2.5 pr-1 text-xs shadow-sm'
+
+        const label = document.createElement('span')
+        label.className = 'max-w-[9rem] truncate font-medium text-ink'
+        label.textContent = page.title
+        // The caderno is in the tooltip rather than the chip: two pages named
+        // the same is common across cadernos, and the chip has no room to say
+        // both without truncating the half that identifies it.
+        label.title = page.notebook ? `${page.title} · ${page.notebook}` : page.title
+        chip.append(label)
+
+        const remove = document.createElement('button')
+        remove.type = 'button'
+        remove.dataset.akContextPageRemove = String(id)
+        remove.className =
+            'shrink-0 cursor-pointer rounded-full px-1 leading-none text-muted transition-colors hover:bg-crit-soft hover:text-crit'
+        remove.setAttribute('aria-label', 'Remover página do contexto')
+        remove.title = 'Remover do contexto'
+        remove.textContent = '\u00d7'
+        chip.append(remove)
+
+        host.append(chip)
+    })
+}
+
+function openPagePicker(url) {
+    const modal = document.getElementById('main-modal')
+    if (!modal || !window.Modal) {
+        Toast.show('Não consegui abrir o seletor de páginas.', 'warning')
+
+        return
+    }
+
+    const shell = document.createElement('div')
+    shell.className = 'flex max-h-[82vh] flex-col'
+
+    const header = document.createElement('div')
+    header.className = 'border-b border-line px-6 py-4'
+    header.innerHTML =
+        '<h2 class="text-base font-bold text-ink">Páginas de contexto</h2>' +
+        '<p class="mt-0.5 text-xs text-muted">Escolha outras páginas da documentação para o especialista ' +
+        'ler como referência. Elas não são alteradas — só a página atual é reescrita.</p>'
+
+    const search = document.createElement('input')
+    search.type = 'search'
+    search.placeholder = 'Filtrar por página ou caderno…'
+    search.className =
+        'mx-6 mt-4 rounded-field border border-line-2 bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent'
+
+    const list = document.createElement('div')
+    list.className = 'mt-3 min-h-0 flex-1 overflow-y-auto px-4 pb-4'
+    list.textContent = 'Carregando…'
+
+    const footer = document.createElement('div')
+    footer.className = 'flex items-center justify-end border-t border-line px-6 py-3'
+    const done = document.createElement('button')
+    done.type = 'button'
+    done.className =
+        'cursor-pointer rounded-field bg-btn px-4 py-2 text-sm font-semibold text-white shadow-btn transition-colors hover:bg-btn-hover'
+    done.textContent = 'Pronto'
+    done.addEventListener('click', () => window.Modal?.close('main-modal'))
+    footer.append(done)
+
+    shell.append(header, search, list, footer)
+    modal.querySelector('[data-content]').replaceChildren(shell)
+    modal.querySelector('[data-loading]')?.classList.add('hidden')
+    window.Modal.open('main-modal', true)
+
+    loadPageCatalog(url).then((groups) => {
+        list.replaceChildren()
+
+        if (!groups.length) {
+            list.className = 'px-6 pb-6 pt-2 text-sm text-muted'
+            // An unreachable catalog and an empty one must not read the same.
+            list.textContent = pageCatalogFailed
+                ? 'Não consegui carregar a lista de páginas. Tente de novo em instantes.'
+                : 'Nenhuma página com conteúdo ainda.'
+
+            return
+        }
+
+        groups.forEach((group) => list.append(renderPageGroup(group)))
+        search.focus()
+    })
+
+    search.addEventListener('input', () => {
+        const term = fold(search.value.trim())
+
+        list.querySelectorAll('[data-ak-ctx-group]').forEach((group) => {
+            const groupHit = !term || fold(group.dataset.akCtxGroup).includes(term)
+            let any = false
+
+            group.querySelectorAll('[data-ak-ctx-page]').forEach((row) => {
+                const hit = groupHit || fold(row.dataset.akCtxPage).includes(term)
+                row.classList.toggle('hidden', !hit)
+                any = any || hit
+            })
+
+            group.classList.toggle('hidden', !any)
+        })
+    })
+}
+
+/** One caderno: its name, then a toggle row per page with content. */
+function renderPageGroup(group) {
+    const wrap = document.createElement('div')
+    wrap.dataset.akCtxGroup = group.notebook
+    wrap.className = 'mb-3'
+
+    const title = document.createElement('div')
+    title.className = 'flex items-baseline gap-2 px-2 pb-1 pt-2'
+    const name = document.createElement('span')
+    name.className = 'truncate text-xs font-bold uppercase tracking-wide text-muted'
+    name.textContent = group.notebook
+    title.append(name)
+    if (group.current) {
+        const badge = document.createElement('span')
+        badge.className = 'shrink-0 rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold text-accent'
+        badge.textContent = 'caderno atual'
+        title.append(badge)
+    }
+    wrap.append(title)
+
+    group.pages.forEach((page) => {
+        const row = document.createElement('button')
+        row.type = 'button'
+        row.dataset.akCtxPage = page.title
+        row.className =
+            'flex w-full cursor-pointer items-center gap-2 rounded-field px-2 py-1.5 text-left text-sm text-body transition-colors hover:bg-raised hover:text-ink'
+
+        const check = document.createElement('span')
+        check.className = 'shrink-0 text-accent'
+        const label = document.createElement('span')
+        label.className = 'min-w-0 flex-1 truncate'
+        label.textContent = page.title
+
+        const paint = () => {
+            const on = contextPages.has(page.id)
+            check.textContent = on ? '\u2713' : '\u00a0'
+            row.classList.toggle('bg-accent-soft/50', on)
+            row.classList.toggle('font-semibold', on)
+        }
+
+        // A toggle, not an "add": the modal stays open so several pages can be
+        // picked in one go, and unpicking one is the same gesture as picking it.
+        row.addEventListener('click', () => {
+            if (contextPages.has(page.id)) contextPages.delete(page.id)
+            else contextPages.set(page.id, {title: page.title, notebook: group.notebook})
+            paint()
+            renderContextPages()
+        })
+
+        row.append(check, label)
+        paint()
+        wrap.append(row)
+    })
+
+    return wrap
 }
 
 /* ------------------------------------------------------------------ */
@@ -518,6 +763,17 @@ export function init() {
     }
 
     resumeIfPending()
+
+    // A panel that was just rendered by the server is a new conversation
+    // session as far as the picked pages go — the container is a brand new node,
+    // which is exactly what distinguishes "the panel reopened" from "the thread
+    // slot was swapped after a send".
+    const pageHost = document.querySelector('[data-ak-context-pages]')
+    if (pageHost && !seenPageContainers.has(pageHost)) {
+        seenPageContainers.add(pageHost)
+        contextPages.clear()
+    }
+    if (pageHost) renderContextPages()
 
     const scroll = document.querySelector('[data-ak-docs-chat-scroll]')
     if (scroll) scroll.scrollTop = scroll.scrollHeight

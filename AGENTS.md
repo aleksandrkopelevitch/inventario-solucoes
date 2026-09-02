@@ -259,6 +259,58 @@ reads as something. The picker (`diagrams.catalog`) groups the catalog by
 SOLUTION — the only relation a diagram has left — with a trailing group for
 drawings that name none, since those are still citable.
 
+**A link between two pages is `[texto](page:{slug})`, resolved per READER.**
+It is the one construct of the dialect that is not a `{% … %}` block — it is an
+ordinary Markdown link with a made-up scheme, which is what keeps both parsers,
+Editor.js's link tool and "Copiar Markdown" working with no change at all.
+`#anchor` alone means a heading of the page you are on;
+`page:{slug}#anchor` a heading of another page of the same caderno.
+
+The reason it is not simply a URL is that the same page has TWO addresses:
+`notebooks/{caderno}/{página}` for somebody signed in, and
+`public-docs/{token}/page/{slug}` for a visitor holding the magic link. An
+address written into the Markdown is therefore correct for exactly one audience
+— a shared caderno full of links to a login screen, or an internal page full of
+links carrying a token. `App\Support\Documentation\PageLinks` is what each
+reader's render is handed (`internal()` / `shared()` / `none()`), and
+`GitbookRenderer::resolvePageLinks()` substitutes the href. It also survives a
+caderno being renamed, which a stored URL would not.
+
+Five things that follow, and each of them has a reason that is not obvious:
+
+- **Scoped to ONE caderno, deliberately.** The public reader can only answer for
+  the caderno its token grants, so a link that could point outside it would be a
+  link that works while you edit and dies the moment the caderno is shared.
+  `notebooks.link-targets` (the picker's catalog) is scoped the same way. Context
+  for the ASSISTANT is deliberately not (§ below) — reading a page once is not
+  the same promise as addressing it forever.
+- **A slug the caderno does not have loses its `href` ENTIRELY.** An `<a>` with
+  no href is not a link: it renders as the words the author wrote (styled by
+  `.html-content a:not([href])`), which is the same promise the "Diagrama
+  removido" card makes — deleting a page must never damage the prose that
+  mentioned it. Pointing it at `#` instead would look like a link and scroll the
+  reader to the top for no stated reason.
+- **The resolution runs over the FINISHED html**, not over the Markdown, for the
+  same reason `paintSecrets()` does: `renderLines()` recurses, and a link is
+  just as legitimate inside a hint, a tab or a table cell. One pass covers every
+  nesting — and catches a link pasted as raw HTML, which never reaches the
+  Markdown parser.
+- **Anchors are never derived in the browser.** The picker
+  (`docs-tools/link.js`) is fed `DocumentationSearchService::linkTargets()`,
+  which is a READING of the search index — so the anchors are the ones
+  commonmark actually emitted, accents and `-1` collision suffixes included
+  (`id="autenticação"`, while the same anchor in a link destination comes out
+  percent-encoded; the browser matches the two). Re-implementing the slugger
+  client-side drifts silently: right page, wrong place.
+- **The `link` inline tool REPLACES Editor.js's built-in one** (naming an
+  internal tool in `tools` is the supported way). One button, not two: "Link"
+  and "Link interno" side by side would be two subtly different answers to the
+  same gesture. It keeps upstream's input for a typed URL and adds the picker;
+  what it does NOT keep is the fake background (`hiliteColor`), because removing
+  that highlight rewrites the very text nodes the saved Range points at — and
+  the Range has to survive a modal opening, so the link is inserted with DOM
+  calls rather than `execCommand`.
+
 **There is exactly ONE kind of documentation: the page.** There used to be two —
 a page tree, and an integration's own single-page `documentation` column with
 its own editor route, its own place in the rail and its own coverage
@@ -493,6 +545,52 @@ Sharing and the code are `NotebookPolicy::administer` (admin), NOT `update`:
 both reach beyond the page an editor is writing, and an editor who could read
 the code off the share panel would be able to unlock exactly what this exists to
 keep from them.
+
+### The assistant reads other pages; it rewrites exactly one
+
+A Documentation Assistant turn can be handed OTHER documentation pages as
+reference (`documentation_chat_messages.context_page_ids`, resolved by
+`App\Services\Documentation\ContextPageResolver`). It exists beside the
+caderno's uploaded context documents rather than inside them because the two
+answer different questions: a document is material somebody brought from
+outside and belongs to the caderno; a page is documentation this app already
+holds, is always text, and is regularly in ANOTHER caderno — the page most worth
+showing while documenting an integration is the one describing the system on the
+other end of it. That is why the picker (`notebooks.context-pages`) spans every
+caderno while the LINK picker does not: reading a page once is not the same
+promise as addressing it forever.
+
+Five rules, and four of them are the module's existing rules seen from a new
+screen:
+
+- **Masked.** `SecretText::mask()` — this is the FIFTH surface that hands a
+  page's text to somebody, and the only one where the page being read is not the
+  page being edited, so a value an editor may not see in caderno A must not
+  become quotable into caderno B.
+- **Media blocks are STRIPPED, not frozen** (`BlockVault::strip()`, which
+  reuses the same PATTERNS). A `[[BLOCK-n]]` marker is an instruction to KEEP a
+  block, and these blocks belong to a different page; handing over the raw
+  markup is worse still, since the model can copy a `/files/{id}` it is shown —
+  and that would half-work, rendering inside the app and breaking on the magic
+  link (`PublicDocumentationController::file()` scopes media to the caderno's
+  own pages). What it sees is `[imagem]`, deliberately not a `[[…]]` marker, so
+  no restore anywhere can resolve it.
+- **The page being written is never its own reference.** Its text is already in
+  the prompt as "CONTEÚDO ATUAL DA PÁGINA", and a second copy under another
+  heading is how a model loses track of which of the two the draft replaces.
+  The section heading says out loud what these pages are NOT, for the same
+  reason.
+- **Capped and budgeted separately** (`max_context_pages`,
+  `page_budget_chars`), because an uploaded document and a page compete for the
+  same prompt and one runaway page must not push out the PDF somebody attached.
+  What does not fit is FLAGGED (`meta.omitted_pages`), never dropped in silence:
+  somebody picked it by hand.
+- **The system prompt now names the `page:` construct** in the allowed inline
+  syntax, and that is not a courtesy — a reply rewrites the WHOLE page, so a
+  model told only about `[texto](https://url)` would "fix" an internal link into
+  a URL and quietly break it. It is also told never to INVENT a slug or an
+  anchor, which is the honest half of the rule: a slug the caderno lacks renders
+  as text with no link at all.
 
 ### The assistant is never asked to obey a rule it cannot keep
 

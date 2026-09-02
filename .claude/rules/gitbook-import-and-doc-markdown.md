@@ -126,7 +126,12 @@ up as literal `{% … %}` text on screen, or quietly disappears from the editor.
   parsed TWICE, by `App\Support\GitbookRenderer` (read-only render) and by
   `resources/js/modules/docs-markdown.js` (the editor), with near-duplicate
   regexes that must stay in step — `secret` in the INLINE halves of both
-  (`renderLockedSecret`/`inlineToMd`), never in the line-anchored ones.
+  (`renderLockedSecret`/`inlineToMd`), never in the line-anchored ones. One more
+  construct is not a `{% %}` block at all, and so is parsed by neither: an
+  internal link, `[texto](page:{slug}#ancora)` — an ordinary Markdown link whose
+  destination `GitbookRenderer::resolvePageLinks()` resolves per reader (§
+  Cadernos in AGENTS.md). Anything that GENERATES Markdown must never invent one
+  of those slugs; a slug the caderno lacks renders as text with no link at all.
 - **Those regexes accept ONE attribute and nothing more.** The editor matches
   `^\{%\s*embed\s+url="([^"]*)"\s*%\}$`, so GitBook's perfectly valid
   `{% embed url="…" fullWidth="false" %}` matches neither parser. Strip extras.
