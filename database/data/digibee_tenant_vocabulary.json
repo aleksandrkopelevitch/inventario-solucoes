@@ -1,0 +1,1406 @@
+{
+    "version": 1,
+    "generated_at": "2026-09-02T19:34:50+00:00",
+    "pipelines": 176,
+    "connectors": {
+        "assert-connector-v2": {
+            "uses": 22,
+            "params": {
+                "condition": 22,
+                "errorCode": 22,
+                "errorMessage": 22,
+                "failOnError": 22,
+                "internalErrorMessage": 22
+            },
+            "samples": [
+                {
+                    "condition": "{{ NOT(ISNULL(message.query)) }}",
+                    "errorCode": "500",
+                    "errorMessage": "Error",
+                    "failOnError": true,
+                    "internalErrorMessage": "Internal Error"
+                },
+                {
+                    "condition": "{{ EQUALTO( message.status, 200 ) }}",
+                    "errorCode": "500",
+                    "errorMessage": "Error",
+                    "failOnError": true,
+                    "internalErrorMessage": "Internal Error"
+                },
+                {
+                    "condition": "{{ EQUALTO( message.number, 1 ) }}",
+                    "errorCode": "500",
+                    "errorMessage": "Erro na VTEX - PUT de preço. {{ message.code }}. Mais detalhes nos logs abaixo",
+                    "failOnError": true,
+                    "internalErrorMessage": "<string>"
+                }
+            ]
+        },
+        "block-execution-connector": {
+            "uses": 225,
+            "params": {
+                "onProcess": 225,
+                "onException": 45
+            },
+            "samples": [
+                {
+                    "onProcess": "<string>"
+                },
+                {
+                    "onException": "<string>",
+                    "onProcess": "<string>"
+                },
+                {
+                    "onProcess": "17860648-e846-4d2f-b52e-23e0930a4967"
+                }
+            ]
+        },
+        "digibee-storage-connector": {
+            "uses": 3,
+            "params": {
+                "failOnError": 3,
+                "operation": 3,
+                "pageSize": 3,
+                "pageToken": 3,
+                "remoteDirectory": 3,
+                "remoteFileName": 3,
+                "showFileLink": 3,
+                "fileName": 2,
+                "expirationMillis": 1
+            },
+            "samples": [
+                {
+                    "failOnError": true,
+                    "fileName": "{{ message.fileName }}",
+                    "operation": "download",
+                    "pageSize": "",
+                    "pageToken": "",
+                    "remoteDirectory": "arquivos",
+                    "remoteFileName": "{{ message.fileName }}",
+                    "showFileLink": false
+                },
+                {
+                    "failOnError": true,
+                    "operation": "delete",
+                    "pageSize": "",
+                    "pageToken": "",
+                    "remoteDirectory": "arquivos",
+                    "remoteFileName": "{{ message.fileName }}",
+                    "showFileLink": false
+                },
+                {
+                    "expirationMillis": "21600000",
+                    "failOnError": false,
+                    "fileName": "{{ message.fileName }}",
+                    "operation": "upload",
+                    "pageSize": "",
+                    "pageToken": "",
+                    "remoteDirectory": "arquivos",
+                    "remoteFileName": "{{ message.fileName }}.json",
+                    "showFileLink": true
+                }
+            ]
+        },
+        "do-while-connector": {
+            "uses": 18,
+            "params": {
+                "interruptLoopOnError": 18,
+                "iteration": 18,
+                "onProcess": 18,
+                "showLoopIndex": 18,
+                "timeout": 18,
+                "onException": 2
+            },
+            "samples": [
+                {
+                    "interruptLoopOnError": true,
+                    "iteration": "500",
+                    "onProcess": "<string>",
+                    "showLoopIndex": true,
+                    "timeout": "9000000"
+                },
+                {
+                    "interruptLoopOnError": true,
+                    "iteration": "500",
+                    "onProcess": "<string>",
+                    "showLoopIndex": true,
+                    "timeout": 300000
+                },
+                {
+                    "interruptLoopOnError": true,
+                    "iteration": "100",
+                    "onException": "<string>",
+                    "onProcess": "<string>",
+                    "showLoopIndex": true,
+                    "timeout": 300000
+                }
+            ]
+        },
+        "email-connector-v2": {
+            "uses": 4,
+            "params": {
+                "attachmentRawMode": 4,
+                "attachments": 4,
+                "bcc": 4,
+                "body": 4,
+                "cc": 4,
+                "charset": 4,
+                "failOnError": 4,
+                "from": 4,
+                "isAuth": 4,
+                "isOverSSL": 4,
+                "isOverTLS": 4,
+                "smtpHost": 4,
+                "smtpPort": 4,
+                "subject": 4,
+                "to": 4,
+                "accountType": 2,
+                "forceTLS1_2": 2
+            },
+            "samples": [
+                {
+                    "accountType": "basic",
+                    "attachmentRawMode": false,
+                    "attachments": "[{\"attachment\":\"<endpoint>\",\"type\":\"ATTACHMENT\"}]",
+                    "bcc": "",
+                    "body": "<string>",
+                    "cc": "<endpoint>",
+                    "charset": "UTF-8",
+                    "failOnError": false,
+                    "forceTLS1_2": false,
+                    "from": "<endpoint>",
+                    "isAuth": true,
+                    "isOverSSL": false,
+                    "isOverTLS": true,
+                    "smtpHost": "<endpoint>",
+                    "smtpPort": "587",
+                    "subject": "Erro na integração {{ message.return.pipeline }} - Digibee [ {{message.return.chave_execução }}]",
+                    "to": "<endpoint>"
+                },
+                {
+                    "accountType": "basic",
+                    "attachmentRawMode": false,
+                    "attachments": "[{\"attachment\":\"<endpoint>\",\"type\":\"ATTACHMENT\"}]",
+                    "bcc": "",
+                    "body": "<string>",
+                    "cc": "<endpoint>",
+                    "charset": "UTF-8",
+                    "failOnError": false,
+                    "forceTLS1_2": false,
+                    "from": "<endpoint>",
+                    "isAuth": true,
+                    "isOverSSL": false,
+                    "isOverTLS": true,
+                    "smtpHost": "<endpoint>",
+                    "smtpPort": "587",
+                    "subject": "Erro na integração {{ message.return.pipeline }} - Digibee [ {{message.return.chave_execução }}]",
+                    "to": "<endpoint>"
+                },
+                {
+                    "attachmentRawMode": false,
+                    "attachments": "[]",
+                    "bcc": "",
+                    "body": "<html>\n\t<body>\n\t\t<strong>{\n    \"message\":  {{ message.error }},\n    \"payload\" : {{ TOSTRING(message.$) }}\n    }</strong>\n\t</body>\n</html>",
+                    "cc": "",
+                    "charset": "UTF-8",
+                    "failOnError": false,
+                    "from": "<endpoint>",
+                    "isAuth": true,
+                    "isOverSSL": false,
+                    "isOverTLS": true,
+                    "smtpHost": "<endpoint>",
+                    "smtpPort": "587",
+                    "subject": "SAP - ZLMI_CONSULTA_SALDO_NC - ambiente Teste",
+                    "to": "<endpoint>"
+                }
+            ]
+        },
+        "event-publisher-connector": {
+            "uses": 89,
+            "params": {
+                "body": 89,
+                "eventName": 89,
+                "showSendEventLog": 89,
+                "stopOnError": 89
+            },
+            "samples": [
+                {
+                    "body": "{{ message.$ }}",
+                    "eventName": "evt-send-delta",
+                    "showSendEventLog": false,
+                    "stopOnError": false
+                },
+                {
+                    "body": "{\n  \"id\": {{ message.id }},\n  \"tabela\": {{ message.tabela }},\n  \"metadados\": {\n    \"pipeline-key\": {{  metadata.execution.key }},\n    \"pipeline-name\": {{  metadata.pipeline.name }}\n  }\n}",
+                    "eventName": "evt-insert-bq",
+                    "showSendEventLog": false,
+                    "stopOnError": false
+                },
+                {
+                    "body": "{{ message.$ }}",
+                    "eventName": "evt-insert-nota-svl",
+                    "showSendEventLog": false,
+                    "stopOnError": false
+                }
+            ]
+        },
+        "excel-connector": {
+            "uses": 1,
+            "params": {
+                "cell": 1,
+                "cellValue": 1,
+                "cells": 1,
+                "excelFullPath": 1,
+                "failOnError": 1,
+                "fileName": 1,
+                "jsonData": 1,
+                "operation": 1,
+                "readAllSheets": 1,
+                "sheetName": 1,
+                "sheets": 1
+            },
+            "samples": [
+                {
+                    "cell": "<string>",
+                    "cellValue": "example",
+                    "cells": "[\"<string>\",\"<string>\",\"<string>\"]",
+                    "excelFullPath": "<endpoint>",
+                    "failOnError": true,
+                    "fileName": "<endpoint>",
+                    "jsonData": "[{\"src\":\"<string>\",\"name\":\"sun1\",\"hOffset\":250,\"vOffset\":250,\"alignment\":\"center\"},{\"src\":\"<string>\",\"name\":\"sun1\",\"hOffset\":250,\"vOffset\":250,\"alignment\":\"center\"},{\"src\":\"<string>\",\"name\":\"sun1\",\"hOffset\":250,\"vOffset\":250,\"alignment\":\"center\"},{\"src\":\"<string>\",\"name\":\"sun1\",\"hOffset\":250,\"vOffset\":250,\"alignment\":\"center\"},{\"src\":\"<string>\",\"name\":\"sun1\",\"hOffset\":250,\"vOffset\":250,\"alignment\":\"center\"}]",
+                    "operation": "read",
+                    "readAllSheets": true,
+                    "sheetName": "Planilha1",
+                    "sheets": "[\"Planilha2\",\"Planilha4\"]"
+                }
+            ]
+        },
+        "file-writer-connector": {
+            "uses": 2,
+            "params": {
+                "charset": 2,
+                "coalesce": 2,
+                "endOfLinePolicy": 2,
+                "failOnError": 2,
+                "fileExistsPolicy": 2,
+                "fileName": 2,
+                "inputData": 2,
+                "isBinary": 2,
+                "writeMetadataSidecar": 2
+            },
+            "samples": [
+                {
+                    "charset": "UTF-8",
+                    "coalesce": false,
+                    "endOfLinePolicy": "windows",
+                    "failOnError": false,
+                    "fileExistsPolicy": "append",
+                    "fileName": "<endpoint>",
+                    "inputData": "{{ message.return.error }}",
+                    "isBinary": false,
+                    "writeMetadataSidecar": false
+                }
+            ]
+        },
+        "for-each-connector": {
+            "uses": 67,
+            "params": {
+                "failOnError": 67,
+                "itemIdentifier": 67,
+                "onProcess": 67,
+                "parallel": 67,
+                "jsonPath": 65,
+                "onException": 28,
+                "advanced": 5,
+                "expression": 4,
+                "maxNumberLength": 2
+            },
+            "samples": [
+                {
+                    "failOnError": false,
+                    "itemIdentifier": "",
+                    "jsonPath": "<string>",
+                    "onException": "<string>",
+                    "onProcess": "<string>",
+                    "parallel": false
+                },
+                {
+                    "failOnError": false,
+                    "itemIdentifier": "",
+                    "jsonPath": "<string>",
+                    "onProcess": "<string>",
+                    "parallel": false
+                },
+                {
+                    "advanced": false,
+                    "expression": "<string>",
+                    "failOnError": false,
+                    "itemIdentifier": "",
+                    "jsonPath": "<string>",
+                    "maxNumberLength": "0",
+                    "onProcess": "<string>",
+                    "parallel": false
+                }
+            ]
+        },
+        "google-bigquery-sql-connector": {
+            "uses": 1,
+            "params": {
+                "digibeeAccountName": 1,
+                "digibeeUseDynamicAccount": 1,
+                "failOnError": 1
+            },
+            "samples": [
+                {
+                    "digibeeAccountName": "",
+                    "digibeeUseDynamicAccount": false,
+                    "failOnError": false
+                }
+            ]
+        },
+        "jolt-connector-v2": {
+            "uses": 70,
+            "params": {
+                "exprReference": 70,
+                "failOnError": 70,
+                "joltExpr": 70,
+                "joltExprReference": 2
+            },
+            "samples": [
+                {
+                    "exprReference": false,
+                    "failOnError": false,
+                    "joltExpr": "[{\"operation\":\"cardinality\",\"spec\":{\"body\":{\"payload\":{\"item\":\"MANY\"}}}}]"
+                },
+                {
+                    "exprReference": false,
+                    "failOnError": false,
+                    "joltExpr": "[{\"operation\":\"cardinality\",\"spec\":{\"body\":{\"payload\":{\"ET_RESPONSE\":{\"item\":\"MANY\"}}}}}]"
+                },
+                {
+                    "exprReference": false,
+                    "failOnError": false,
+                    "joltExpr": "[{\"operation\":\"cardinality\",\"spec\":{\"body\":{\"payload\":{\"E_CARTEIRIZACAO\":{\"item\":\"MANY\"}}}}}]"
+                }
+            ]
+        },
+        "jslt-connector": {
+            "uses": 219,
+            "params": {
+                "failOnError": 219,
+                "jsltExpr": 219,
+                "payload": 219,
+                "rawMode": 219
+            },
+            "samples": [
+                {
+                    "failOnError": false,
+                    "jsltExpr": "<string>",
+                    "payload": "{{ message.$ }}",
+                    "rawMode": false
+                },
+                {
+                    "failOnError": false,
+                    "jsltExpr": "<endpoint>",
+                    "payload": "{{ message.$ }}",
+                    "rawMode": false
+                },
+                {
+                    "failOnError": false,
+                    "jsltExpr": "{  \n  \"query\": {\n    \"tabela\": \"{{global.tabela-gld-vendas}}\",\n    \"LIMIT\": string(.data[0].LIMIT),\n    \"OFFSET\": string(.data[0].OFFSET),\n  }\n}",
+                    "payload": "{{ message.$ }}",
+                    "rawMode": false
+                }
+            ]
+        },
+        "json-generator-connector": {
+            "uses": 805,
+            "params": {
+                "failOnError": 805,
+                "json": 805
+            },
+            "samples": [
+                {
+                    "failOnError": false,
+                    "json": "{\n  \"message\": \"Sucesso no envio\",\n  \"details\": {{ message.$ }}\n}"
+                },
+                {
+                    "failOnError": false,
+                    "json": "{\n\"body\": {\n\"payload\": {{ message.return.body.return.body.soap:Envelope.soap:Body.n0:ZFL_LIMITE_CRED_CLIENTE_RESUMOResponse.ES_RESPONSE }},\n\"PARTNER_ID\": {{ message.body.PARTNER_ID }}\n} \n}"
+                },
+                {
+                    "failOnError": false,
+                    "json": "{\n\"body\": {\n\"payload\": {{ DEFAULT(message.return.body.return.body.Response.ET_RESPONSE,message.return.body.return.body) }},\n\"PARTNER_ID\": {{ message.body.PARTNER_ID }}\n} \n}"
+                }
+            ]
+        },
+        "json-transformer-connector": {
+            "uses": 11,
+            "params": {
+                "actions": 11,
+                "failOnError": 11
+            },
+            "samples": [
+                {
+                    "actions": "<double-braces>",
+                    "failOnError": false
+                },
+                {
+                    "actions": "[{\"type\":\"edit\",\"desc\":\"Incrementar retry sizes\",\"props\":[{\"root\":false,\"keyValueStringEdit\":\"{\\\"current\\\":\\\"{{ TOINT(SUM(item.current, 1)) }}\\\"}\",\"path\":\"_reprocess.retry\"}]}]",
+                    "failOnError": false
+                },
+                {
+                    "actions": "[{\"desc\":\"Remove o Consumer Group\",\"type\":\"remove\",\"props\":[{\"root\":false,\"keyRemove\":[\"customerGroupList\"],\"path\":\"body\"}]}]",
+                    "failOnError": false
+                }
+            ]
+        },
+        "jwt-connector": {
+            "uses": 1,
+            "params": {
+                "expiresIn": 1,
+                "failOnError": 1,
+                "operation": 1,
+                "scopes": 1
+            },
+            "samples": [
+                {
+                    "expiresIn": "43200000",
+                    "failOnError": false,
+                    "operation": "generate",
+                    "scopes": "{{ message.$ }}"
+                }
+            ]
+        },
+        "ldap-connector": {
+            "uses": 2,
+            "params": {
+                "binaryEntries": 2,
+                "dnAuthentication": 2,
+                "dnOperation": 2,
+                "entries": 2,
+                "failOnError": 2,
+                "filter": 2,
+                "host": 2,
+                "modifyOperation": 2,
+                "operation": 2,
+                "port": 2,
+                "searchOperation": 2,
+                "useSsl": 2
+            },
+            "samples": [
+                {
+                    "binaryEntries": "[]",
+                    "dnAuthentication": "<string>",
+                    "dnOperation": "{{ message.dn}}",
+                    "entries": "{{ message.atributosParaAtualizar }}",
+                    "failOnError": false,
+                    "filter": "{{message.$.filter}}",
+                    "host": "<endpoint>",
+                    "modifyOperation": "2",
+                    "operation": "MODIFY",
+                    "port": "636",
+                    "searchOperation": 0,
+                    "useSsl": true
+                },
+                {
+                    "binaryEntries": [],
+                    "dnAuthentication": "<string>",
+                    "dnOperation": "<string>",
+                    "entries": "[]",
+                    "failOnError": false,
+                    "filter": "(&(objectClass=user)(samaccountname={{ message.$.body.username }})(employeeid={{ message.$.body.employeeid }}))",
+                    "host": "<endpoint>",
+                    "modifyOperation": "0",
+                    "operation": "SEARCH",
+                    "port": "636",
+                    "searchOperation": "2",
+                    "useSsl": true
+                }
+            ]
+        },
+        "log-connector": {
+            "uses": 1107,
+            "params": {
+                "logLevel": 1107,
+                "message": 1107
+            },
+            "samples": [
+                {
+                    "logLevel": "ERROR",
+                    "message": "Erro no envio {{ message.body }}"
+                },
+                {
+                    "logLevel": "INFO",
+                    "message": "Sucesso no envio"
+                },
+                {
+                    "logLevel": "INFO",
+                    "message": "Payload recebido {{ message.$ }}"
+                }
+            ]
+        },
+        "object-store-connector": {
+            "uses": 337,
+            "params": {
+                "failOnError": 337,
+                "isolated": 337,
+                "objectStore": 337,
+                "operation": 337,
+                "unique": 337,
+                "objectId": 270,
+                "sort": 218,
+                "limit": 175,
+                "skip": 175,
+                "upsert": 151,
+                "document": 100,
+                "query": 69
+            },
+            "samples": [
+                {
+                    "failOnError": false,
+                    "isolated": false,
+                    "limit": "0",
+                    "objectId": "Authorization",
+                    "objectStore": "token-viasoft",
+                    "operation": "FIND",
+                    "skip": "0",
+                    "sort": "[]",
+                    "unique": true
+                },
+                {
+                    "failOnError": false,
+                    "isolated": false,
+                    "limit": "0",
+                    "objectId": "token",
+                    "objectStore": "token-viasoft",
+                    "operation": "FIND",
+                    "skip": "0",
+                    "sort": "[]",
+                    "unique": true
+                },
+                {
+                    "failOnError": false,
+                    "isolated": false,
+                    "limit": "0",
+                    "objectId": "1",
+                    "objectStore": "health-check-viasoft",
+                    "operation": "FIND",
+                    "skip": "0",
+                    "sort": "[]",
+                    "unique": true
+                }
+            ]
+        },
+        "pipeline-executor-connector": {
+            "uses": 54,
+            "params": {
+                "expiration": 54,
+                "failOnError": 54,
+                "operation": 54,
+                "payload": 54,
+                "pipelineName": 54,
+                "timeout": 54,
+                "versionMajor": 54
+            },
+            "samples": [
+                {
+                    "expiration": "300000",
+                    "failOnError": false,
+                    "operation": "ASYNC",
+                    "payload": "{\"manual\":true}",
+                    "pipelineName": "get-token-viasoft",
+                    "timeout": "200000",
+                    "versionMajor": "1"
+                },
+                {
+                    "expiration": "300000",
+                    "failOnError": false,
+                    "operation": "ASYNC",
+                    "payload": "{\"exec-manual\":true}",
+                    "pipelineName": "get-token-viasoft",
+                    "timeout": "200000",
+                    "versionMajor": "1"
+                },
+                {
+                    "expiration": "300000",
+                    "failOnError": false,
+                    "operation": "ASYNC",
+                    "payload": "{\"exec-manual\":true}",
+                    "pipelineName": "",
+                    "timeout": "200000",
+                    "versionMajor": "1"
+                }
+            ]
+        },
+        "rabbitmq-connector": {
+            "uses": 12,
+            "params": {
+                "applicationName": 12,
+                "binaryMessage": 12,
+                "body": 12,
+                "connectionTimeout": 12,
+                "contentEncoding": 12,
+                "contentType": 12,
+                "correlationId": 12,
+                "deliveryMode": 12,
+                "exchangeName": 12,
+                "expiration": 12,
+                "failOnError": 12,
+                "headers": 12,
+                "hostname": 12,
+                "mandatory": 12,
+                "messageId": 12,
+                "messagePriority": 12,
+                "messageType": 12,
+                "port": 12,
+                "publisherAcknowledgements": 12,
+                "publisherAcknowledgementsTimeout": 12,
+                "replyTo": 12,
+                "routingKey": 12,
+                "ssl": 12,
+                "timestamp": 12,
+                "vhost": 12
+            },
+            "samples": [
+                {
+                    "applicationName": "",
+                    "binaryMessage": false,
+                    "body": "{{ message.body }}",
+                    "connectionTimeout": "60000",
+                    "contentEncoding": "",
+                    "contentType": "",
+                    "correlationId": "",
+                    "deliveryMode": "2",
+                    "exchangeName": "ex_leomob",
+                    "expiration": "",
+                    "failOnError": false,
+                    "headers": "[]",
+                    "hostname": "{{global.rabbitmq-host-name}}",
+                    "mandatory": false,
+                    "messageId": "",
+                    "messagePriority": "",
+                    "messageType": "",
+                    "port": "{{global.rabbitmq-port}}",
+                    "publisherAcknowledgements": false,
+                    "publisherAcknowledgementsTimeout": "5000",
+                    "replyTo": "",
+                    "routingKey": "<string>",
+                    "ssl": false,
+                    "timestamp": "",
+                    "vhost": "<endpoint>"
+                },
+                {
+                    "applicationName": "",
+                    "binaryMessage": false,
+                    "body": "{{ message.body }}",
+                    "connectionTimeout": "60000",
+                    "contentEncoding": "",
+                    "contentType": "",
+                    "correlationId": "",
+                    "deliveryMode": "2",
+                    "exchangeName": "ex_sap_carteirizacao_svl",
+                    "expiration": "",
+                    "failOnError": false,
+                    "headers": "[]",
+                    "hostname": "{{global.rabbitmq-host-name}}",
+                    "mandatory": false,
+                    "messageId": "",
+                    "messagePriority": "",
+                    "messageType": "",
+                    "port": "{{global.rabbitmq-port}}",
+                    "publisherAcknowledgements": false,
+                    "publisherAcknowledgementsTimeout": "5000",
+                    "replyTo": "",
+                    "routingKey": "ex_sap_carteirizacao_svl",
+                    "ssl": false,
+                    "timestamp": "",
+                    "vhost": "<endpoint>"
+                },
+                {
+                    "applicationName": "",
+                    "binaryMessage": false,
+                    "body": "{{ message.body }}",
+                    "connectionTimeout": "60000",
+                    "contentEncoding": "",
+                    "contentType": "",
+                    "correlationId": "",
+                    "deliveryMode": "2",
+                    "exchangeName": "ex_sap_clientes_svl",
+                    "expiration": "",
+                    "failOnError": false,
+                    "headers": "[]",
+                    "hostname": "{{global.rabbitmq-host-name}}",
+                    "mandatory": false,
+                    "messageId": "",
+                    "messagePriority": "",
+                    "messageType": "",
+                    "port": "{{global.rabbitmq-port}}",
+                    "publisherAcknowledgements": false,
+                    "publisherAcknowledgementsTimeout": "5000",
+                    "replyTo": "",
+                    "routingKey": "<string>",
+                    "ssl": false,
+                    "timestamp": "",
+                    "vhost": "<endpoint>"
+                }
+            ]
+        },
+        "rest-connector-v2": {
+            "uses": 129,
+            "params": {
+                "advanced": 129,
+                "connectTimeout": 129,
+                "headers": 129,
+                "operation": 129,
+                "queryParams": 129,
+                "readTimeout": 129,
+                "stopOnClientError": 129,
+                "stopOnServerError": 129,
+                "url": 129,
+                "overrideResponseCharset": 127,
+                "sendBinaryFile": 115,
+                "body": 95,
+                "responseCharset": 81,
+                "callTimeout": 78,
+                "useDynamicAccount": 78,
+                "writeTimeout": 78,
+                "injectConsumer": 75,
+                "injectJWT": 75,
+                "injectPipelineKey": 75,
+                "injectTraceId": 75,
+                "readJWT": 75,
+                "compressBody": 70,
+                "forceHttp1": 70,
+                "isInsecure": 70,
+                "rawMode": 70,
+                "retry": 70,
+                "saveAsLocalFile": 70,
+                "rawModeAsBase64": 68,
+                "maxRetry": 60,
+                "fileName": 58,
+                "disableConnectionPool": 49,
+                "invalidateSSLSessionsOnEveryCall": 49,
+                "enableFollowRedirect": 21,
+                "waitNextRetry": 15,
+                "formData": 13,
+                "accountName": 9,
+                "multiPartData": 9,
+                "responseFileName": 9,
+                "scoped": 9
+            },
+            "samples": [
+                {
+                    "advanced": true,
+                    "body": "{{message.$}}",
+                    "callTimeout": "",
+                    "compressBody": false,
+                    "connectTimeout": "30000",
+                    "disableConnectionPool": false,
+                    "enableFollowRedirect": true,
+                    "forceHttp1": false,
+                    "headers": "{\"Content-Type\":\"application/json\",\"x-api-key\":\"{{global.promob-x-api-key}}\"}",
+                    "injectConsumer": false,
+                    "injectJWT": false,
+                    "injectPipelineKey": false,
+                    "injectTraceId": false,
+                    "invalidateSSLSessionsOnEveryCall": false,
+                    "isInsecure": true,
+                    "operation": "POST",
+                    "overrideResponseCharset": true,
+                    "queryParams": "[]",
+                    "rawMode": true,
+                    "rawModeAsBase64": false,
+                    "readJWT": false,
+                    "readTimeout": "30000",
+                    "responseCharset": "UTF-8",
+                    "retry": false,
+                    "saveAsLocalFile": false,
+                    "sendBinaryFile": false,
+                    "stopOnClientError": false,
+                    "stopOnServerError": false,
+                    "url": "{{global.url-base-promob}}/Promob.Integration/api/Promob2020Manager/Webhooks/Order",
+                    "useDynamicAccount": false,
+                    "writeTimeout": ""
+                },
+                {
+                    "advanced": true,
+                    "body": "{{ message.body-sap.body }}",
+                    "callTimeout": "30000",
+                    "compressBody": false,
+                    "connectTimeout": "30000",
+                    "disableConnectionPool": false,
+                    "enableFollowRedirect": true,
+                    "forceHttp1": false,
+                    "headers": "{\"Content-Type\":\"<string>\"}",
+                    "injectConsumer": false,
+                    "injectJWT": false,
+                    "injectPipelineKey": false,
+                    "injectTraceId": false,
+                    "invalidateSSLSessionsOnEveryCall": false,
+                    "isInsecure": false,
+                    "operation": "POST",
+                    "overrideResponseCharset": true,
+                    "queryParams": "[]",
+                    "rawMode": true,
+                    "rawModeAsBase64": false,
+                    "readJWT": false,
+                    "readTimeout": "30000",
+                    "responseCharset": "UTF-8",
+                    "retry": false,
+                    "saveAsLocalFile": false,
+                    "sendBinaryFile": false,
+                    "stopOnClientError": false,
+                    "stopOnServerError": false,
+                    "url": "{{global.url-base-sap-api}}/http/v1/leomadeiras/scl/CriaPedido",
+                    "useDynamicAccount": false,
+                    "writeTimeout": "30000"
+                },
+                {
+                    "advanced": false,
+                    "body": "{{ message.body }}",
+                    "callTimeout": "",
+                    "connectTimeout": "60000",
+                    "headers": "{\"Content-Type\":\"<string>\"}",
+                    "injectConsumer": false,
+                    "injectJWT": false,
+                    "injectPipelineKey": false,
+                    "injectTraceId": false,
+                    "operation": "POST",
+                    "overrideResponseCharset": true,
+                    "queryParams": "[]",
+                    "readJWT": false,
+                    "readTimeout": "60000",
+                    "responseCharset": "UTF-8",
+                    "sendBinaryFile": false,
+                    "stopOnClientError": false,
+                    "stopOnServerError": false,
+                    "url": "{{global.url-bigquery-projects}}/{{global.bigquery-project-id}}/queries",
+                    "useDynamicAccount": false,
+                    "writeTimeout": ""
+                }
+            ]
+        },
+        "retry-connector": {
+            "uses": 71,
+            "params": {
+                "failOnError": 71,
+                "maxRetry": 71,
+                "onProcess": 71,
+                "timeout": 71,
+                "onException": 4
+            },
+            "samples": [
+                {
+                    "failOnError": false,
+                    "maxRetry": 3,
+                    "onProcess": "<string>",
+                    "timeout": 30000
+                },
+                {
+                    "failOnError": false,
+                    "maxRetry": "2",
+                    "onProcess": "<string>",
+                    "timeout": 30000
+                },
+                {
+                    "failOnError": false,
+                    "maxRetry": 3,
+                    "onException": "<string>",
+                    "onProcess": "<string>",
+                    "timeout": 30000
+                }
+            ]
+        },
+        "sap-connector": {
+            "uses": 14,
+            "params": {
+                "RFC": 14,
+                "asHost": 14,
+                "client": 14,
+                "failOnError": 14,
+                "lang": 14,
+                "operation": 14,
+                "sapRequestTemplate": 14,
+                "sysnr": 14,
+                "applicationRelease": 11,
+                "idocType": 11,
+                "idocTypeExtension": 11,
+                "systemRelease": 11,
+                "fileName": 2,
+                "sendAsFile": 2,
+                "useDynamicAccount": 2
+            },
+            "samples": [
+                {
+                    "RFC": "YYPCL_RFC_ORDEM_FATURA",
+                    "applicationRelease": "",
+                    "asHost": "localhost",
+                    "client": "400",
+                    "failOnError": false,
+                    "fileName": "",
+                    "idocType": "",
+                    "idocTypeExtension": "",
+                    "lang": "en",
+                    "operation": "RFC",
+                    "sapRequestTemplate": "<endpoint>",
+                    "sendAsFile": false,
+                    "sysnr": "01",
+                    "systemRelease": "",
+                    "useDynamicAccount": false
+                },
+                {
+                    "RFC": "{{ message.rfc }}",
+                    "asHost": "{{global.sap-servidor}}",
+                    "client": "{{global.sap-client-id}}",
+                    "failOnError": false,
+                    "lang": "EN",
+                    "operation": "RFC",
+                    "sapRequestTemplate": "<string>",
+                    "sysnr": "{{global.sap-instance-number}}"
+                },
+                {
+                    "RFC": "{{ message.rfc }}",
+                    "applicationRelease": "",
+                    "asHost": "{{global.sap-servidor}}",
+                    "client": "{{global.sap-client-id}}",
+                    "failOnError": false,
+                    "idocType": "",
+                    "idocTypeExtension": "",
+                    "lang": "en",
+                    "operation": "RFC",
+                    "sapRequestTemplate": "<string>",
+                    "sysnr": "{{global.sap-instance-number}}",
+                    "systemRelease": ""
+                }
+            ]
+        },
+        "script-connector": {
+            "uses": 11,
+            "params": {
+                "code": 11,
+                "timeout": 11,
+                "useExperimentalRuntime": 8
+            },
+            "samples": [
+                {
+                    "code": "<endpoint>",
+                    "timeout": 10000,
+                    "useExperimentalRuntime": false
+                },
+                {
+                    "code": "<string>",
+                    "timeout": 10000
+                }
+            ]
+        },
+        "sftp-connector": {
+            "uses": 3,
+            "params": {
+                "connectTimeout": 3,
+                "failOnError": 3,
+                "fileName": 3,
+                "ftpOperation": 3,
+                "host": 3,
+                "isProxyEnabled": 3,
+                "overwriteOnUpload": 3,
+                "port": 3,
+                "remoteDirectory": 3,
+                "remoteFileName": 3,
+                "username": 3
+            },
+            "samples": [
+                {
+                    "connectTimeout": 30000,
+                    "failOnError": true,
+                    "fileName": "<endpoint>",
+                    "ftpOperation": "RETR",
+                    "host": "{{global.sftp-host}}",
+                    "isProxyEnabled": false,
+                    "overwriteOnUpload": true,
+                    "port": "{{global.sftp-port}}",
+                    "remoteDirectory": "<endpoint>",
+                    "remoteFileName": "{{ message.fileName }}",
+                    "username": ""
+                },
+                {
+                    "connectTimeout": 30000,
+                    "failOnError": false,
+                    "fileName": "",
+                    "ftpOperation": "LIST",
+                    "host": "{{global.sftp-host}}",
+                    "isProxyEnabled": false,
+                    "overwriteOnUpload": true,
+                    "port": "{{global.sftp-port}}",
+                    "remoteDirectory": "<endpoint>",
+                    "remoteFileName": "",
+                    "username": ""
+                },
+                {
+                    "connectTimeout": 30000,
+                    "failOnError": false,
+                    "fileName": "",
+                    "ftpOperation": "LIST",
+                    "host": "<endpoint>",
+                    "isProxyEnabled": false,
+                    "overwriteOnUpload": true,
+                    "port": "2222",
+                    "remoteDirectory": "<endpoint>",
+                    "remoteFileName": "",
+                    "username": ""
+                }
+            ]
+        },
+        "soap-connector-v2": {
+            "uses": 11,
+            "params": {
+                "advanced": 11,
+                "asString": 11,
+                "body": 11,
+                "connectTimeout": 11,
+                "headers": 11,
+                "isInsecure": 11,
+                "maxRetry": 11,
+                "overrideResponseCharset": 11,
+                "queryParams": 11,
+                "readTimeout": 11,
+                "retry": 11,
+                "stopOnClientError": 11,
+                "stopOnServerError": 11,
+                "url": 11,
+                "waitNextRetry": 11,
+                "withNamespace": 11,
+                "rawMode": 6
+            },
+            "samples": [
+                {
+                    "advanced": false,
+                    "asString": false,
+                    "body": "<endpoint>",
+                    "connectTimeout": 30000,
+                    "headers": "{\"Content-Type\":\"<string>\"}",
+                    "isInsecure": false,
+                    "maxRetry": 0,
+                    "overrideResponseCharset": false,
+                    "queryParams": "{\"services\":\"{{ message._XML.rfc }}\",\"sap-client\":\"{{global.sap-client-id}}\"}",
+                    "rawMode": false,
+                    "readTimeout": 30000,
+                    "retry": false,
+                    "stopOnClientError": false,
+                    "stopOnServerError": false,
+                    "url": "{{global.url-sap-soap-segunda-via-boleto-nf}}",
+                    "waitNextRetry": 0,
+                    "withNamespace": false
+                },
+                {
+                    "advanced": false,
+                    "asString": false,
+                    "body": "<endpoint>",
+                    "connectTimeout": 30000,
+                    "headers": "{\"Content-Type\":\"<string>\"}",
+                    "isInsecure": false,
+                    "maxRetry": 0,
+                    "overrideResponseCharset": false,
+                    "queryParams": "{\"services\":\"{{ message._XML.rfc }}\",\"sap-client\":\"{{global.sap-client-id}}\"}",
+                    "rawMode": false,
+                    "readTimeout": 30000,
+                    "retry": false,
+                    "stopOnClientError": false,
+                    "stopOnServerError": false,
+                    "url": "{{global.url-sap-soap-saldo-nota-credito}}",
+                    "waitNextRetry": 0,
+                    "withNamespace": false
+                },
+                {
+                    "advanced": false,
+                    "asString": false,
+                    "body": "<endpoint>",
+                    "connectTimeout": 30000,
+                    "headers": "{\"Content-Type\":\"<string>\",\"x-vtex-api-appkey\":\"vtexappkey-leomadeiras-HLOVYV\",\"x-vtex-api-apptoken\":\"<string>\"}",
+                    "isInsecure": false,
+                    "maxRetry": 0,
+                    "overrideResponseCharset": false,
+                    "queryParams": "{\"services\":\"{{ message._XML.rfc }}\",\"sap-client\":\"{{global.sap-client-id}}\"}",
+                    "rawMode": false,
+                    "readTimeout": 30000,
+                    "retry": false,
+                    "stopOnClientError": false,
+                    "stopOnServerError": false,
+                    "url": "{{global.url-sap-soap-saldo-nota-credito}}",
+                    "waitNextRetry": 0,
+                    "withNamespace": false
+                }
+            ]
+        },
+        "soap-connector-v3": {
+            "uses": 5,
+            "params": {
+                "advanced": 5,
+                "asString": 5,
+                "attachments": 5,
+                "body": 5,
+                "connectTimeout": 5,
+                "headers": 5,
+                "isMultipartResponse": 5,
+                "overrideResponseCharset": 5,
+                "queryParams": 5,
+                "readTimeout": 5,
+                "requestBodyAsFile": 5,
+                "responseCharset": 5,
+                "stopOnClientError": 5,
+                "stopOnServerError": 5,
+                "url": 5,
+                "useDynamicAccount": 5,
+                "withNamespace": 5,
+                "wsSecurity": 5,
+                "accountName": 2,
+                "fileName": 2,
+                "isInsecure": 2,
+                "maxRetry": 2,
+                "rawMode": 2,
+                "responseFileName": 2,
+                "retry": 2,
+                "saveAsLocalFile": 2,
+                "scoped": 2,
+                "waitNextRetry": 2
+            },
+            "samples": [
+                {
+                    "advanced": false,
+                    "asString": false,
+                    "attachments": "[]",
+                    "body": "{{ message.body.payload }}",
+                    "connectTimeout": "30000",
+                    "headers": "{\"Content-Type\":\"<string>\",\"SOAPAction\":\"\"}",
+                    "isMultipartResponse": false,
+                    "overrideResponseCharset": true,
+                    "queryParams": "[]",
+                    "readTimeout": "30000",
+                    "requestBodyAsFile": false,
+                    "responseCharset": "UTF-8",
+                    "stopOnClientError": false,
+                    "stopOnServerError": false,
+                    "url": "{{global.url-base-sap}}{{message.body.endpoint}}",
+                    "useDynamicAccount": false,
+                    "withNamespace": false,
+                    "wsSecurity": "[]"
+                },
+                {
+                    "advanced": false,
+                    "asString": false,
+                    "attachments": "[]",
+                    "body": "{{ message.body }}",
+                    "connectTimeout": "30000",
+                    "headers": "{\"Content-Type\":\"<string>\",\"SOAPAction\":\"<endpoint>\"}",
+                    "isMultipartResponse": false,
+                    "overrideResponseCharset": true,
+                    "queryParams": "[]",
+                    "readTimeout": "30000",
+                    "requestBodyAsFile": false,
+                    "responseCharset": "UTF-8",
+                    "stopOnClientError": false,
+                    "stopOnServerError": false,
+                    "url": "{{global.sap-unica}}",
+                    "useDynamicAccount": false,
+                    "withNamespace": true,
+                    "wsSecurity": "[]"
+                },
+                {
+                    "accountName": "",
+                    "advanced": true,
+                    "asString": true,
+                    "attachments": "[]",
+                    "body": "<double-braces>",
+                    "connectTimeout": "30000",
+                    "fileName": "<endpoint>",
+                    "headers": "{\"Content-Type\":\"<string>\",\"SOAPAction\":\"<endpoint>\"}",
+                    "isInsecure": false,
+                    "isMultipartResponse": false,
+                    "maxRetry": 0,
+                    "overrideResponseCharset": true,
+                    "queryParams": "[]",
+                    "rawMode": true,
+                    "readTimeout": "30000",
+                    "requestBodyAsFile": false,
+                    "responseCharset": "UTF-8",
+                    "responseFileName": "<endpoint>",
+                    "retry": false,
+                    "saveAsLocalFile": false,
+                    "scoped": false,
+                    "stopOnClientError": false,
+                    "stopOnServerError": false,
+                    "url": "{{global.sap-unica}}",
+                    "useDynamicAccount": false,
+                    "waitNextRetry": 0,
+                    "withNamespace": false,
+                    "wsSecurity": "[]"
+                }
+            ]
+        },
+        "stream-json-file-reader-connector": {
+            "uses": 2,
+            "params": {
+                "failOnError": 2,
+                "fileName": 2,
+                "itemIdentifier": 2,
+                "jsonPath": 2,
+                "onException": 2,
+                "onProcess": 2,
+                "parallel": 2
+            },
+            "samples": [
+                {
+                    "failOnError": false,
+                    "fileName": "{{ message.fileName }}",
+                    "itemIdentifier": "data",
+                    "jsonPath": "<string>",
+                    "onException": "<string>",
+                    "onProcess": "<string>",
+                    "parallel": false
+                }
+            ]
+        },
+        "throw-error-connector": {
+            "uses": 140,
+            "params": {
+                "customErrorEnabled": 140,
+                "customError": 90,
+                "errorMessage": 53,
+                "errorCode": 52,
+                "failOnError": 3
+            },
+            "samples": [
+                {
+                    "customError": "{\n  \"message\": \"Erro na atualização do pedido\",\n  \"error\": {\n     \"code\": {{ message.code }},\n     \"body\": {{ message.body }}\n  }\n}",
+                    "customErrorEnabled": true
+                },
+                {
+                    "customError": "{\"message\":\"Viasoft indisponivel\"}",
+                    "customErrorEnabled": true
+                },
+                {
+                    "customError": "{{ message.$ }}",
+                    "customErrorEnabled": true
+                }
+            ]
+        },
+        "validator-connector-v2": {
+            "uses": 1,
+            "params": {
+                "detectDraftVersion": 1,
+                "draftVersion": 1,
+                "failOnError": 1,
+                "jsonPayload": 1,
+                "jsonSchema": 1,
+                "simplifyResults": 1
+            },
+            "samples": [
+                {
+                    "detectDraftVersion": false,
+                    "draftVersion": "v7",
+                    "failOnError": true,
+                    "jsonPayload": "{{ message.body }}",
+                    "jsonSchema": "{\"$schema\":\"<endpoint>\",\"title\":\"Generated schema for Root\",\"type\":\"object\",\"properties\":{\"stockList\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"SKU\":{\"type\":\"number\"},\"partnerId\":{\"type\":\"number\"},\"warehouseId\":{\"type\":\"string\"},\"quantity\":{\"type\":\"string\"},\"price\":{\"type\":\"string\"},\"totalCost\":{\"type\":\"string\"}},\"required\":[\"SKU\",\"partnerId\",\"warehouseId\",\"quantity\",\"price\",\"totalCost\"]}}},\"required\":[\"stockList\"]}",
+                    "simplifyResults": false
+                }
+            ]
+        },
+        "wget-connector": {
+            "uses": 1,
+            "params": {
+                "failOnError": 1,
+                "fileName": 1,
+                "headers": 1,
+                "isBinary": 1,
+                "isInsecure": 1,
+                "localSave": 1,
+                "queryParams": 1,
+                "url": 1
+            },
+            "samples": [
+                {
+                    "failOnError": true,
+                    "fileName": "<endpoint>",
+                    "headers": "",
+                    "isBinary": false,
+                    "isInsecure": false,
+                    "localSave": true,
+                    "queryParams": "",
+                    "url": "{{global.url-images-sap}}{{ message.queryAndPath.imagePath }}"
+                }
+            ]
+        }
+    },
+    "globals": [
+        "api-key-scl",
+        "api-key-token-digibee",
+        "bigquery-project-id",
+        "cws-url",
+        "limit-pag-big-query",
+        "limit-pag-get-big-query",
+        "param-audience-svl",
+        "promob-x-api-key",
+        "rabbitmq-host-name",
+        "rabbitmq-port",
+        "rfc-name",
+        "sap-client-id",
+        "sap-host",
+        "sap-instance-number",
+        "sap-servidor",
+        "sap-system-id",
+        "sap-unica",
+        "sftp-host",
+        "sftp-port",
+        "tabela-gld-cliente",
+        "tabela-gld-vendas",
+        "tabela-gld-vendedor",
+        "tabela-staging-gld-clientes",
+        "tabela-staging-gld-vendas",
+        "url-amigo-leo",
+        "url-api-vtex",
+        "url-base-cws",
+        "url-base-promob",
+        "url-base-sap",
+        "url-base-sap-api",
+        "url-base-sap-leucotron",
+        "url-base-scl",
+        "url-base-viasoft",
+        "url-bigquery-projects",
+        "url-images-sap",
+        "url-sap-ecc",
+        "url-sap-soap-log",
+        "url-sap-soap-saldo-nota-credito",
+        "url-sap-soap-segunda-via-boleto-nf",
+        "url-token-digibee",
+        "url-token-svl",
+        "url-token-viasoft",
+        "x-vtex-api-appkey",
+        "x-vtex-api-apptoken"
+    ],
+    "accounts": [
+        "api-key-amigo",
+        "automacao-redeploy",
+        "basic-unica",
+        "bigquery-auth",
+        "bigquery-auth-unica",
+        "cws-auth",
+        "cws-basic-token",
+        "cws-user-and-password",
+        "dgb-internal-object-store-account",
+        "ldap-ad-unlock",
+        "ldap-ad-unlock-cert",
+        "lmp-leucotron-consulta-s4",
+        "rabbit-auth",
+        "sap-auth",
+        "sap-ecc-svl",
+        "sap-s4-cws",
+        "sap-s4-leobank",
+        "sap-s4-scl",
+        "sap-user",
+        "sap-vtex",
+        "sftp-user",
+        "smtp-leo",
+        "svl-auth",
+        "viasoft-auth"
+    ]
+}

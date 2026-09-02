@@ -7,6 +7,9 @@ use App\Models\FlowspecExample;
 use App\Models\FlowspecGuideline;
 use App\Models\FlowspecMessage;
 use App\Support\Context\TokenEstimator;
+use App\Support\Digibee\ConnectorCard;
+use App\Support\Digibee\ConnectorReference;
+use App\Support\Digibee\TenantVocabulary;
 use App\Support\Documentation\SecretText;
 use Illuminate\Support\Collection;
 
@@ -44,15 +47,15 @@ class FlowspecPromptBuilder
         Regras de plataforma (obrigatórias no MODO GERAÇÃO — o JSON é validado automaticamente e volta para você corrigir se violar qualquer uma):
 
         1. `flowSpec` é um mapa branch -> lista ordenada de steps. A branch de entrada chama-se exatamente `disconnected-root:<uuid v4>` e deve ser única.
-        2. Todo step tem `id` UUID v4 NOVO (gere UUIDs novos, nunca copie dos exemplos) e todo `id` fora de tracks de for-each tem entrada em `meta` com `position: {x, y}` numéricos (colunas de ~200px, linhas de ~150px por branch).
+        2. Todo step tem `id` UUID v4 NOVO — gere um UUID novo para cada step e NUNCA copie um dos exemplos ou do flowSpec de referência: um `id` repetido é o único erro desta lista que o sistema não conserta sozinho, e gasta uma tentativa de correção. Você NÃO precisa calcular `position`: se `meta` vier sem a posição de um step, o sistema preenche numa grade antes de validar.
         3. Steps `choice` roteiam por `when` e `otherwise`; cada condição tem `target` mais UM de `jsonPath` (`{target, jsonPath}`) OU `simple`, uma expressão Simple (`{target, simple}`, ex.: `#{body.RETURNING.STATUS} != '200'`) — use `jsonPath` por padrão e `simple` quando a condição comparar valores. `target`/`otherwise` referenciam NOMES de branch que PRECISAM existir como chave do `flowSpec`. Para status HTTP use faixa: `$.[?(@.status >= 200 && @.status <= 299)]`.
         4. `for-each-connector` aponta `params.onProcess`/`params.onException` para branches `<id-do-step>-onProcessTrack`/`<id-do-step>-onExceptionTrack`, que também precisam existir como chave do `flowSpec`. Steps dentro desses tracks NÃO entram no `meta`.
         5. Referência ao resultado de um step anterior usa SEMPRE o prefixo `step.`: `{{ step.<doubleBracesAlias>.campo }}`. NUNCA `{{ <alias>.campo }}` cru — isso quebra o pipeline com `mismatched input`.
         6. Escopos Double Braces válidos: message, global, account, step, metadata, trigger, session. Funções como UUID(), NOW(), CONCAT() são permitidas.
         7. Object Store SOBRESCREVE o `message` — preserve o payload que ainda será usado gerando antes um step jslt/json-generator com `doubleBracesAlias` e lendo depois via `{{ step.alias.$ }}`.
         8. Upsert em Object Store: operação `UPDATE` com `upsert: true` exige `unique: true` e `objectId` preenchido.
-        9. Use APENAS componentes do catálogo abaixo — não invente connector nem tipo de step.
-        10. NUNCA escreva credencial literal (chave de API, senha, token): valores sensíveis entram só por `{{ account.* }}` (via `accountLabel`/`accountLabels` no step) ou `{{ global.* }}`.
+        9. Use APENAS componentes do catálogo abaixo — não invente connector nem tipo de step. O catálogo tem só os NOMES; quando o pedido trouxer as seções "REFERÊNCIA DOS CONECTORES" e "COMO A LEO MADEIRAS ESCREVE ESSES CONECTORES", são elas que valem para o conteúdo de `params`. A documentação da Digibee nomeia cada parâmetro como ele aparece na TELA ("Verb", "Stop On Client Error") e o JSON usa outra chave (`operation`, `stopOnClientError`): onde as duas divergirem, escreva a chave que aparece nos usos reais. Se você não recebeu referência para um conector, diga que não tem o formato dos parâmetros dele em vez de inventar chaves — o validador não checa `params` e um nome errado só aparece quando alguém cola o resultado no canvas.
+        10. NUNCA escreva credencial literal (chave de API, senha, token): valores sensíveis entram só por `{{ account.* }}` (via `accountLabel`/`accountLabels` no step) ou `{{ global.* }}`. E não invente o NOME de uma variável global nem de uma conta: quando o pedido trouxer a lista das que existem no tenant, use uma dela; um `{{ global.x }}` inexistente passa na validação e quebra só em execução.
         {$this->guidelinesSection()}
         Catálogo de componentes permitidos:
         {$catalog}
@@ -108,6 +111,8 @@ class FlowspecPromptBuilder
         [$historySection, $trimmed] = $this->historySection($history, $historyAllowanceTokens);
 
         $sections = array_filter([
+            $this->connectorReferenceSection($context),
+            $this->tenantVocabularySection($context),
             $this->examplesSection($context->examples),
             $this->documentationSection($context),
             $this->materialSection($context),
@@ -144,6 +149,60 @@ class FlowspecPromptBuilder
 
         Responda novamente com o JSON {"meta", "flowSpec"} COMPLETO e corrigido — não explique, não responda parcial.
         PROMPT;
+    }
+
+    /**
+     * What each connector in play actually takes, distilled from Digibee's own
+     * published documentation (App\Support\Digibee\ConnectorCard).
+     *
+     * This is the section that closes the oldest hole in this prompt. The
+     * catalog below the platform rules is 34 NAMES and nothing else, and rule 9
+     * has always said "use only these" while the model was given no parameter
+     * shape for any of them — its only source was whichever 2-3 corpus examples
+     * the request happened to pull. The validator does not check `params`
+     * (outside track branches and the Object Store upsert), so an invented
+     * shape validates clean, gets persisted, and fails when somebody pastes it
+     * into the canvas: the one failure the correction loop cannot see.
+     *
+     * Only the connectors this turn is ABOUT are carried
+     * (FlowspecContextResolver::connectorsInPlay), capped by
+     * `max_connector_cards`. The cap is about attention rather than tokens —
+     * six cards is ~4k of a 500k limit — the same reasoning as `max_examples`.
+     */
+    private function connectorReferenceSection(FlowspecContext $context): string
+    {
+        $cards = (new ConnectorReference)->cardsFor($context->connectors);
+
+        if ($cards === []) {
+            return '';
+        }
+
+        return "# REFERÊNCIA DOS CONECTORES ENVOLVIDOS\n\n"
+            . '(documentação oficial da Digibee, destilada. Os nomes em **negrito** são os rótulos da TELA — '
+            . "a chave do JSON está na seção seguinte, quando houver uso real dela por aqui.)\n\n"
+            . implode("\n\n", array_map(fn (ConnectorCard $card) => $card->toPrompt(), $cards));
+    }
+
+    /**
+     * How Leo Madeiras' own pipelines spell those same connectors, plus the
+     * global variables and accounts that exist in the tenant.
+     *
+     * The pair matters: the card above says what a parameter MEANS, this says
+     * what it is CALLED. Measured over the real export, REST V2's documented
+     * **Verb** is written `operation` in all 129 real steps — a model given
+     * only the docs writes `"verb"` and nothing downstream notices.
+     */
+    private function tenantVocabularySection(FlowspecContext $context): string
+    {
+        $vocabulary = new TenantVocabulary;
+
+        return trim(implode(
+            "\n\n",
+            array_filter([
+                $vocabulary->toPrompt($context->connectors),
+                $vocabulary->referenceSection(),
+            ])
+        ));
     }
 
     /** @param Collection<int, FlowspecExample> $examples */

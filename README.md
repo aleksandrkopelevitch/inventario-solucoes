@@ -975,7 +975,13 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   RAG** — Solutions citadas (explícitas via chips, ou inferidas casando o nome
   no texto), documentação recortada por orçamento de caracteres (páginas das
   Solutions) e 2-3 exemplos de
-  um corpus curado por tags (`FlowspecExample`). A resposta é gerada em job
+  um corpus curado por tags (`FlowspecExample`), agora ranqueados também pelos
+  **conectores** que o pedido nomeia — uma tag é uma varredura de palavra-chave
+  sobre prosa, e três exemplos podiam não ter conector nenhum em comum com o que
+  foi pedido. Junto vai a **referência do conector**: o que ele aceita, destilado
+  da documentação oficial da Digibee, e como a Leo Madeiras escreve aquilo de
+  verdade nos 176 pipelines em produção — ver "Base de conhecimento Digibee" em
+  "Notas técnicas". A resposta é gerada em job
   assíncrono (`GenerateFlowspecReply`, uma vez por thread via
   `WithoutOverlapping`) com polling do thread; um loop **normaliza/valida** o
   JSON e re-prompta com os erros concretos até `max_attempts`. Respostas
@@ -1157,23 +1163,44 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   + Toast de desistência). O endpoint de status fica barato enquanto pende:
   só monta o slot/resultado quando a resposta chegou, não a cada tick. Ver
   `AGENTS.md` § Queue & Jobs.
-- **O catálogo de componentes do flowSpec (Especialista em Integrações) pode
-  ficar desatualizado em silêncio.** `digibee_component_catalog.json` é um
-  arquivo estático e versionado — de propósito: é o que faz a geração ser
-  reprodutível e testável, então nunca deve ser buscado ao vivo durante uma
-  geração. `flowspec-catalog-audit.php` (raiz do repo, dev-only — **não** é
-  um comando artisan, não roda em CI/produção) audita esse arquivo contra o
-  uso real em pipelines de produção, via `digibeectl` (CLI oficial da
-  Digibee) — mas fica **fora** do servidor de produção de propósito: a
-  credencial interativa do `digibeectl` tem escopo de
-  criar/deletar deployment em produção, então essa auditoria roda só na
-  máquina do dev, nunca com uma credencial desse alcance dentro do app. O
-  script só imprime um relatório (nomes de connector/step type usados de
-  verdade vs. cadastrados) — nunca escreve no catálogo nem no corpus sozinho;
-  qualquer novo connector ainda precisa de um exemplo curado à mão em
-  `database/data/digibee_flowspec_examples/` antes de ser realmente
-  utilizável pelo gerador (nome no catálogo só desbloqueia o validador, não
-  ensina o formato dos parâmetros).
+- **Base de conhecimento Digibee: duas fontes, e uma não substitui a outra.**
+  `digibee_component_catalog.json` é um arquivo estático e versionado — de
+  propósito: é o que faz a geração ser reprodutível e testável, então nunca deve
+  ser buscado ao vivo durante uma geração. Mas ele só tem **nomes**, e o
+  validador não checa `params` fora dos tracks e do upsert do Object Store: um
+  parâmetro inventado passa na validação e só quebra quando alguém cola o
+  resultado no canvas. Duas fontes fecham isso, e elas respondem perguntas
+  diferentes — a documentação oficial diz o que um parâmetro **significa** (tipo,
+  padrão, quando aparece), e os nossos pipelines dizem como ele **se chama**: o
+  parâmetro documentado como "Verb" é `operation` nos 129 steps `rest-connector-v2`
+  reais, e "Send A File" é `sendBinaryFile`. Nenhuma página publicada imprime uma
+  chave de JSON, porque a documentação descreve a TELA.
+  - `php artisan digibee:docs:sync` espelha `docs.digibee.com` (581 páginas
+    guiadas pelo `llms.txt`, ~2 min) em `storage/app/private/digibee-docs/` e
+    reconstrói os cards de conector. HTTP público, sem credencial — por isso é
+    a metade que **pode** ser agendada dentro do app (`routes/console.php`).
+  - `php artisan digibee:docs:import` publica esse corpus como um **caderno**
+    ligado à Solution "Digibee (iPaaS)" (630 páginas, re-importação atualiza no
+    lugar), então o manual fica pesquisável e anexável como qualquer outra
+    documentação daqui.
+  - `php artisan digibee:pipelines:pull` exporta os pipelines via `digibeectl` e
+    deriva `digibee_tenant_vocabulary.json`. **Nunca roda no servidor**: a
+    credencial interativa do `digibeectl` tem escopo de criar/deletar deployment
+    em produção e a Digibee não publica alternativa read-only (o produto
+    "Digibee APIs" está em beta e cobre só a API de métricas). O periódico mora
+    na máquina do dev, que publica o artefato derivado — **o artefato viaja, a
+    credencial não.**
+
+  O que é versionado é só o derivado e escrutinável (`digibee_connector_docs.json`,
+  `digibee_connector_cards.json`, `digibee_tenant_vocabulary.json`); o espelho e o
+  export ficam em `storage/app/private`, fora do git. O que sobrevive à raspagem
+  são **nomes e expressões** (`{{ global.* }}`, `accountLabel` — vocabulário, e um
+  global inventado passa na validação e quebra em execução); o que endereça uma
+  máquina vira `<endpoint>`, e um pipeline com credencial literal é pulado
+  inteiro (6 dos 182 hoje). `flowspec-catalog-audit.php` continua na raiz como a
+  auditoria de nomes que sempre foi. Um connector novo ainda ganha muito com um
+  exemplo curado à mão em `database/data/digibee_flowspec_examples/` — o card
+  ensina o formato dos parâmetros, o exemplo ensina o padrão de uso.
 - **`digibee-connection-monitor.flowspec.json` (raiz do repo) é uma pipeline
   Digibee standalone, gerada por IA — não faz parte do runtime do Laravel,**
   no mesmo espírito do `flowspec-catalog-audit.php` acima (fica no working

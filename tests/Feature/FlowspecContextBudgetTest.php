@@ -123,7 +123,13 @@ it('caps the meter at 100% instead of overflowing the bar', function () {
 */
 
 it('refuses a document that would not fit, without creating anything', function () {
-    config()->set('services.flowspec.context_limit_tokens', 5000);
+    // Comfortably above the FIXED cost of a request (the system prompt, the
+    // worst-case corpus examples and the worst-case Digibee reference, ~15k
+    // together) and far below the 200k-character document below. A limit under
+    // the fixed cost is a different state with a different message — the
+    // conversation is already full before anything is offered to it — and this
+    // test is about the document not fitting, not about that.
+    config()->set('services.flowspec.context_limit_tokens', 60000);
     config()->set('services.flowspec.history_reserve_tokens', 1000);
 
     $user = User::factory()->create();
@@ -142,7 +148,8 @@ it('refuses a document that would not fit, without creating anything', function 
 
 it('refuses a new conversation whose staged context would not fit', function () {
     Queue::fake();
-    config()->set('services.flowspec.context_limit_tokens', 5000);
+    // Same reasoning as the test above.
+    config()->set('services.flowspec.context_limit_tokens', 60000);
     config()->set('services.flowspec.history_reserve_tokens', 1000);
 
     $user = User::factory()->create();

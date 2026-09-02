@@ -72,6 +72,27 @@ class AppServiceProvider extends ServiceProvider
                 // why, instead of one exception ending the page's import.
                 throw: false,
             ));
+
+        // Digibee's published documentation. A SECOND external service, which
+        // makes the note above ("the only one") no longer true — and it is
+        // deliberately a different macro rather than a parameter on the GitBook
+        // one: docs.digibee.com is GitBook-hosted, but it is somebody else's
+        // space and we reach it as an anonymous reader over plain HTTP. Sending
+        // our organization's bearer token there would hand our credential to a
+        // third party, exactly what `gitbookAsset` above exists to avoid.
+        Http::macro('digibeeDocs', fn () => Http::baseUrl((string) config('services.digibee.docs_url'))
+            ->timeout((int) config('services.digibee.docs_timeout'))
+            ->connectTimeout(5)
+            ->retry(
+                (int) config('services.digibee.docs_retries'),
+                (int) config('services.digibee.docs_retry_sleep'),
+                fn (Throwable $e) => TransientHttpFailure::matches($e),
+                // Same reason as the two above: SyncDigibeeDocs reads
+                // `$response->failed()` to record WHICH page stayed behind, so
+                // one 404 in a 581-page corpus is a line in the report rather
+                // than the end of the sync.
+                throw: false,
+            ));
     }
 
     /**
