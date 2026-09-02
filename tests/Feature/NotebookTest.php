@@ -5,6 +5,7 @@ use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Models\Solution;
 use App\Models\User;
+use App\View\Components\Notebooks\Index as NotebooksIndex;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -14,6 +15,11 @@ uses(LazilyRefreshDatabase::class);
 function notebookAdmin(): User
 {
     return User::factory()->create(['role' => UserRole::Admin->value]);
+}
+
+function notebookEditor(): User
+{
+    return User::factory()->create(['role' => UserRole::Writer->value]);
 }
 
 /*
@@ -71,9 +77,16 @@ it('lets an admin rename a caderno without changing its slug', function () {
         ->and($response->json('updatableSlots.0.id'))->toBe('notebooks-index-slot');
 });
 
-it('lets an admin delete a caderno, cascading its pages', function () {
+it('lets an admin delete a caderno, cascading its whole page tree', function () {
     $notebook = Notebook::factory()->create();
-    $page = DocumentationPage::factory()->for($notebook)->create();
+
+    // Three levels deep on purpose: a delete that only reached the roots would
+    // pass with one page and leave the rest of the tree orphaned.
+    $root = DocumentationPage::factory()->for($notebook)->create(['title' => 'Raiz']);
+    $child = DocumentationPage::factory()->for($notebook)->create(['title' => 'Filha']);
+    $child->parent()->associate($root)->save();
+    $grandchild = DocumentationPage::factory()->for($notebook)->create(['title' => 'Neta']);
+    $grandchild->parent()->associate($child)->save();
 
     $this->actingAs(notebookAdmin())
         ->deleteJson(route('notebooks.destroy', $notebook))
@@ -81,7 +94,114 @@ it('lets an admin delete a caderno, cascading its pages', function () {
         ->assertJson(['type' => 'success']);
 
     $this->assertModelMissing($notebook);
-    $this->assertModelMissing($page);
+    $this->assertModelMissing($root);
+    $this->assertModelMissing($child);
+    $this->assertModelMissing($grandchild);
+});
+
+/*
+|--------------------------------------------------------------------------
+| …from the CATALOG CARD, which is where the delete became reachable
+|--------------------------------------------------------------------------
+|
+| `notebooks.destroy` existed with no caller at all — it appeared in no view, so
+| the only way to remove a caderno was the database.
+|
+*/
+
+it('answers a delete with the catalog slot, not a redirect', function () {
+    // From the catalog, a redirect to the catalog is a full reload of the page
+    // you are already on — and it throws away the filters the URL shows.
+    $notebook = Notebook::factory()->create();
+    Notebook::factory()->create(['name' => 'Fica']);
+
+    $response = $this->actingAs(notebookAdmin())
+        ->deleteJson(route('notebooks.destroy', $notebook))
+        ->assertOk();
+
+    expect($response->json('redirect'))->toBeNull()
+        ->and($response->json('updatableSlots.0.id'))->toBe(NotebooksIndex::DOM_ID)
+        ->and($response->json('updatableSlots.0.content'))->toContain('Fica');
+});
+
+it('rebuilds the slot with the filters that were active', function () {
+    $kept = Notebook::factory()->create(['name' => 'Integração SAP']);
+    $target = Notebook::factory()->create(['name' => 'Integração antiga']);
+    Notebook::factory()->create(['name' => 'Nada a ver com o termo']);
+
+    $response = $this->actingAs(notebookAdmin())
+        ->deleteJson(route('notebooks.destroy', [
+            'notebook' => $target,
+            'filter'   => ['search' => 'integracao'],
+        ]))
+        ->assertOk();
+
+    expect($response->json('updatableSlots.0.content'))
+        ->toContain($kept->name)
+        ->not->toContain('Nada a ver com o termo');
+});
+
+it('names the caderno in the message, since the card it was on is gone', function () {
+    $notebook = Notebook::factory()->create(['name' => 'Caderno do IAM']);
+
+    $response = $this->actingAs(notebookAdmin())
+        ->deleteJson(route('notebooks.destroy', $notebook))
+        ->assertOk();
+
+    expect($response->json('message'))->toContain('Caderno do IAM');
+});
+
+it('refuses a delete to an editor, who may write every page in it', function () {
+    $notebook = Notebook::factory()->create();
+
+    $this->actingAs(notebookEditor())
+        ->deleteJson(route('notebooks.destroy', $notebook))
+        ->assertForbidden();
+
+    $this->assertModelExists($notebook);
+});
+
+it('offers the trash to an admin and withholds it from an editor', function () {
+    // The affordance and the rule have to agree: a button that refuses is a
+    // worse answer than a button that is not there.
+    //
+    // Asserted on the trash's own markers, deliberately NOT on the delete URL:
+    // `notebooks.destroy` is DELETE on `notebooks/{notebook}`, the same path
+    // every card title links to, so a URL assertion passes for both roles and
+    // proves nothing.
+    $notebook = Notebook::factory()->create();
+
+    $this->actingAs(notebookAdmin());
+    $asAdmin = (string) (new NotebooksIndex)->render()->render();
+
+    $this->actingAs(notebookEditor());
+    $asEditor = (string) (new NotebooksIndex)->render()->render();
+
+    expect($asAdmin)->toContain('aria-label="Excluir caderno"')
+        ->and($asAdmin)->toContain('data-ak-confirm')
+        ->and($asEditor)->not->toContain('aria-label="Excluir caderno"')
+        ->and($asEditor)->not->toContain('data-ak-confirm')
+        // The editor still gets the pencil — this is a split, not a lockout.
+        ->and($asEditor)->toContain(route('notebooks.panel.edit', $notebook));
+});
+
+it('states what a delete costs before it happens', function () {
+    // A confirm naming only the caderno reads the same whether it holds nothing
+    // or holds an imported GitBook space, and the page tree is what separates
+    // them. Both consequences are COUNTED, never guessed.
+    $notebook = Notebook::factory()->create(['name' => 'Com páginas']);
+    DocumentationPage::factory()->count(3)->for($notebook)->create();
+    $notebook->update(['public_token' => 'abc123abc123']);
+
+    Notebook::factory()->create(['name' => 'Vazio']);
+
+    $this->actingAs(notebookAdmin());
+    $html = (string) (new NotebooksIndex)->render()->render();
+
+    expect($html)->toContain('As 3 páginas dele vão junto.')
+        ->and($html)->toContain('O link público para de funcionar.')
+        // The empty one says neither — there is nothing to warn about.
+        ->and($html)->toContain('Excluir o caderno &quot;Vazio&quot;? Isso não pode ser desfeito.');
 });
 
 it('forbids a viewer from renaming or deleting a caderno', function () {
