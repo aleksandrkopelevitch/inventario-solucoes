@@ -23,8 +23,19 @@ use function Laravel\Ai\agent;
  */
 class DocumentationChatService
 {
-    /** Matches the 4-backtick draft block (see DocumentationChatPromptBuilder::systemPrompt()). */
-    private const DRAFT_FENCE_PATTERN = '/^(.*?)\n?`{4}[^\n]*\n(.*)\n`{4}[ \t]*$/s';
+    /**
+     * Matches the 4-backtick draft block (see DocumentationChatPromptBuilder::systemPrompt()).
+     *
+     * The trailing group is what makes this forgiving, and it is not
+     * decoration: the pattern used to be anchored so the closing fence had to
+     * be the LAST thing in the reply, and a model that signed off with "quer
+     * que eu ajuste alguma parte?" therefore produced no match at all — the
+     * whole draft collapsed into the conversational half, so the person saw
+     * raw Markdown in a chat bubble and no "Aplicar" button, with nothing
+     * anywhere reporting a failure. The system prompt now says the block must
+     * come last; this is the half that does not depend on the model obeying.
+     */
+    private const DRAFT_FENCE_PATTERN = '/^(?<before>.*?)\n?`{4}[^\n]*\n(?<draft>.*?)\n`{4}[ \t]*(?:\n(?<after>.*))?$/s';
 
     public function __construct(
         private readonly ContextDocumentResolver $contextDocs,
@@ -162,7 +173,12 @@ class DocumentationChatService
     private function extractDraft(string $text): array
     {
         if (preg_match(self::DRAFT_FENCE_PATTERN, trim($text), $m) === 1) {
-            return [trim($m[1]), trim($m[2]) . "\n"];
+            // Anything after the closing fence is conversation too, joined to
+            // what came before it — a sign-off belongs in the bubble, not
+            // thrown away and not pasted into the page.
+            $conversation = trim(trim($m['before']) . "\n\n" . trim($m['after'] ?? ''));
+
+            return [$conversation, trim($m['draft']) . "\n"];
         }
 
         return [trim($text), null];

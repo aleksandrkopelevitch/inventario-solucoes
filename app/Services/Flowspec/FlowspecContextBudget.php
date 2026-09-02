@@ -8,6 +8,9 @@ use App\Models\FlowspecAttachment;
 use App\Models\FlowspecChat;
 use App\Models\FlowspecExample;
 use App\Support\Context\TokenEstimator;
+use App\Support\Digibee\ConnectorDocMap;
+use App\Support\Digibee\ConnectorReference;
+use App\Support\Digibee\TenantVocabulary;
 use Illuminate\Support\Collection;
 
 /**
@@ -59,6 +62,7 @@ class FlowspecContextBudget
 
         $fixedPrompt = TokenEstimator::forText($this->prompts->systemPrompt());
         $corpus = $this->worstCaseCorpusTokens();
+        $reference = $this->worstCaseReferenceTokens();
         $history = $chat === null ? 0 : $this->historyTokens($chat);
 
         $limit = (int) config('services.flowspec.context_limit_tokens');
@@ -68,13 +72,14 @@ class FlowspecContextBudget
             lines: [
                 'Regras e catálogo Digibee' => $fixedPrompt,
                 'Exemplos do corpus'        => $corpus,
+                'Referência Digibee'        => $reference,
                 'Documentos do inventário'  => $documents,
                 'Arquivos e textos'         => $material + $pendingTokens,
                 'Histórico da conversa'     => $history,
             ],
             attached: $documents + $material + $pendingTokens,
             history: $history,
-            fixed: $fixedPrompt + $corpus,
+            fixed: $fixedPrompt + $corpus + $reference,
             limit: $limit,
             // Clamped at 0: a misconfigured reserve larger than the limit must
             // not produce a negative ceiling that refuses everything silently.
@@ -142,6 +147,43 @@ class FlowspecContextBudget
             ->sum();
 
         return TokenEstimator::forChars((int) $chars);
+    }
+
+    /**
+     * The most the Digibee reference could add to one request: the largest
+     * `max_connector_cards` cards, their tenant usage blocks, and the
+     * globals/accounts list.
+     *
+     * Counted for the same reason the corpus is, and it is the rule this
+     * module is built on: **the meter has to cover everything the prompt will
+     * carry, whether or not somebody attached it.** Which connectors a request
+     * pulls depends on text nobody has typed yet, so — exactly like
+     * `worstCaseCorpusTokens()` — this assumes the worst case rather than
+     * guessing low. A meter that undershoots is the failure it exists to
+     * prevent.
+     *
+     * This is not the "nothing enters a prompt that nobody attached" rule being
+     * bent: no documentation of ours enters here. It is bounded reference
+     * material about components the request itself names, the same standing as
+     * the component catalog already in the system prompt — and now it is on the
+     * meter, which is what that rule actually protects.
+     */
+    private function worstCaseReferenceTokens(): int
+    {
+        $reference = new ConnectorReference;
+        $vocabulary = new TenantVocabulary;
+        $limit = (int) config('services.digibee.max_connector_cards');
+
+        $cards = collect(ConnectorDocMap::connectors())
+            ->map(fn (string $connector) => mb_strlen(
+                ($reference->card($connector)?->toPrompt() ?? '')
+                . $vocabulary->toPrompt([$connector])
+            ))
+            ->sortDesc()
+            ->take($limit)
+            ->sum();
+
+        return TokenEstimator::forChars((int) $cards + mb_strlen($vocabulary->referenceSection()));
     }
 
     /**

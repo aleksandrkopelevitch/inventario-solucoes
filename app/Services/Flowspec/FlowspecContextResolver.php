@@ -11,6 +11,10 @@ use App\Models\FlowspecChat;
 use App\Models\FlowspecExample;
 use App\Models\Solution;
 use App\Support\Context\NativeAttachmentType;
+use App\Support\Digibee\ConnectorDocMap;
+use App\Support\Digibee\ConnectorReference;
+use App\Support\Digibee\TenantVocabulary;
+use App\Support\Fold;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Laravel\Ai\Files\LocalDocument;
@@ -38,6 +42,8 @@ use Laravel\Ai\Files\LocalImage;
  */
 class FlowspecContextResolver
 {
+    public function __construct(private readonly TenantVocabulary $vocabulary = new TenantVocabulary) {}
+
     public function resolve(FlowspecChat $chat, string $request): FlowspecContext
     {
         $attachments = $chat->attachments()->with('media')->get();
@@ -46,16 +52,24 @@ class FlowspecContextResolver
         [$textDocs, $nativeAttachments, $attachedMeta, $omittedAttachments] = $this->partitionMaterial($attachments);
 
         $tags = $this->candidateTags($this->normalize($request));
+        $referenceFlowspecs = $this->referenceFlowspecs($attachments);
+
+        // What this turn is ABOUT, before the examples are picked: a pasted
+        // pipeline and a request naming a component are far better evidence
+        // than a keyword-derived tag, and they are what ranks the corpus below.
+        $named = $this->namedConnectors($request, $referenceFlowspecs);
+        $examples = $this->selectExamples($tags, $named);
 
         return new FlowspecContext(
             pages: $pages,
             textDocs: $textDocs,
-            referenceFlowspecs: $this->referenceFlowspecs($attachments),
+            referenceFlowspecs: $referenceFlowspecs,
             attachments: $nativeAttachments,
             attachedMeta: $attachedMeta,
             omittedAttachments: $omittedAttachments,
-            examples: $this->selectExamples($tags),
+            examples: $examples,
             tags: $tags,
+            connectors: $this->connectorsInPlay($named, $examples),
         );
     }
 
@@ -294,21 +308,177 @@ class FlowspecContextResolver
     }
 
     /**
-     * The 2-3 examples with the most tags in common with the request — more
-     * than that dilutes the signal and wastes tokens. Fallback: the generic
-     * anchor example.
+     * Connector names this turn NAMES, most certain first.
+     *
+     * Two sources, and both are statements rather than guesses: a pipeline the
+     * user pasted uses the connectors it uses, and a request that writes
+     * `object-store-connector` means that connector. Deliberately not derived
+     * from tags — a tag is a keyword match on prose, which is fine for ranking
+     * examples and far too loose to decide which component's parameter
+     * reference gets 2 KB of the prompt.
+     *
+     * @param  Collection<int, array{label: string, content: string}>  $referenceFlowspecs
+     * @return list<string>
+     */
+    private function namedConnectors(string $request, Collection $referenceFlowspecs): array
+    {
+        $pasted = $this->vocabulary->connectorsMentionedIn(
+            $referenceFlowspecs->pluck('content')->implode(' ')
+        );
+
+        return array_values(array_unique([
+            ...$pasted,
+            ...$this->vocabulary->connectorsMentionedIn($request),
+            ...$this->catalogConnectorsIn($request),
+            ...$this->titledConnectorsIn($request),
+        ]));
+    }
+
+    /**
+     * Connectors the request names the way a PERSON names them — by the title
+     * on the card, which is the label Digibee prints on the canvas.
+     *
+     * Nobody types `object-store-connector`; they write "guarda no Object
+     * Store". Without this the only high-confidence signal was the JSON name,
+     * so a request that said exactly what it wanted still fell through to
+     * ranking by how rare a connector is across our pipelines — which is a
+     * decent proxy and a poor substitute for being told.
+     *
+     * The version suffix is tried both ways ("REST V2" and "REST"), since the
+     * canvas shows the version and a sentence rarely does. Folded on both
+     * sides and matched on word boundaries, like every other search in this app
+     * (§ Searching — `whereFolded()`).
+     *
+     * @return list<string>
+     */
+    private function titledConnectorsIn(string $request): array
+    {
+        $folded = Fold::text($request);
+        $reference = new ConnectorReference;
+        $found = [];
+
+        foreach (ConnectorDocMap::connectors() as $connector) {
+            $title = $reference->card($connector)?->title;
+
+            if ($title === null) {
+                continue;
+            }
+
+            $candidates = array_unique(array_filter([
+                $title,
+                preg_replace('/\s+V\d+$/i', '', $title),
+            ], fn (?string $candidate) => $candidate !== null && mb_strlen($candidate) >= 3));
+
+            foreach ($candidates as $candidate) {
+                $pattern = '/(?<![a-z0-9])' . preg_quote(Fold::text($candidate), '/') . '(?![a-z0-9])/';
+
+                if (preg_match($pattern, $folded) === 1) {
+                    $found[] = $connector;
+
+                    break;
+                }
+            }
+        }
+
+        return $found;
+    }
+
+    /**
+     * Catalog connectors written out in the request, for the ones our own
+     * pipelines have never used — the vocabulary only knows the 31 connectors
+     * that appear in the export, and the catalog has 34.
+     *
+     * @return list<string>
+     */
+    private function catalogConnectorsIn(string $request): array
+    {
+        return array_values(array_filter(
+            ConnectorDocMap::connectors(),
+            fn (string $connector) => str_contains($request, $connector),
+        ));
+    }
+
+    /**
+     * The connectors whose reference the prompt will carry: what the request
+     * named, then what the chosen examples use.
+     *
+     * The examples are a weaker signal deliberately placed second — they are
+     * how a request that names no component at all ("preciso ler um arquivo do
+     * SFTP e gravar no BigQuery") still gets the right cards, since the corpus
+     * example it pulled is made of exactly those connectors.
+     *
+     * @param  list<string>  $named
+     * @param  Collection<int, FlowspecExample>  $examples
+     * @return list<string>
+     */
+    private function connectorsInPlay(array $named, Collection $examples): array
+    {
+        // RAREST FIRST, and that ordering is the whole value of this list.
+        // An example is a whole pipeline, so it drags in the plumbing every
+        // pipeline has — `log-connector` and `throw-error-connector` appear in
+        // almost all 176 of ours. In step order they came out ahead of the
+        // connectors the request was actually about: "ler um arquivo do SFTP e
+        // gravar no BigQuery" filled its six card slots with log, throw-error
+        // and json-generator, and BigQuery never got one. How often we use a
+        // connector is exactly how little it distinguishes this request from
+        // any other, and the tenant vocabulary already counts it.
+        $fromExamples = $examples
+            ->flatMap(fn (FlowspecExample $example) => $this->connectorsOf($example->flow_spec))
+            ->unique()
+            ->sortBy(fn (string $connector) => $this->vocabulary->forConnector($connector)['uses'] ?? 0)
+            ->all();
+
+        return array_values(array_unique([...$named, ...$fromExamples]));
+    }
+
+    /**
+     * Connector names used by a `{meta, flowSpec}` document.
+     *
+     * @param  array<string, mixed>|null  $document
+     * @return list<string>
+     */
+    private function connectorsOf(?array $document): array
+    {
+        $names = [];
+
+        foreach ($document['flowSpec'] ?? [] as $steps) {
+            foreach (is_array($steps) ? $steps : [] as $step) {
+                if (is_array($step) && ($step['type'] ?? null) === 'connector' && is_string($step['name'] ?? null)) {
+                    $names[$step['name']] = true;
+                }
+            }
+        }
+
+        return array_keys($names);
+    }
+
+    /**
+     * The 2-3 examples closest to the request — more than that dilutes the
+     * signal and wastes tokens. Fallback: the generic anchor example.
+     *
+     * Ranked by CONNECTOR overlap first and tag overlap second. Tags are a
+     * keyword scan over prose, so three examples could legitimately share no
+     * component at all with what was asked for; a connector the request or a
+     * pasted pipeline actually names is a fact, and an example using it teaches
+     * the param shape the request is going to need.
      *
      * @param  list<string>  $tags
+     * @param  list<string>  $connectors
      * @return Collection<int, FlowspecExample>
      */
-    private function selectExamples(array $tags): Collection
+    private function selectExamples(array $tags, array $connectors = []): Collection
     {
         $limit = (int) config('services.flowspec.max_examples');
 
-        $examples = $tags === []
+        $examples = $tags === [] && $connectors === []
             ? collect()
-            : FlowspecExample::query()->active()->withAnyTag($tags)->get()
-                ->sortByDesc(fn (FlowspecExample $example) => count(array_intersect($example->tags, $tags)))
+            : FlowspecExample::query()->active()
+                ->when($tags !== [], fn ($query) => $query->withAnyTag($tags))
+                ->get()
+                ->sortByDesc(fn (FlowspecExample $example) => [
+                    count(array_intersect($this->connectorsOf($example->flow_spec), $connectors)),
+                    count(array_intersect($example->tags, $tags)),
+                ])
                 ->take($limit)
                 ->values();
 

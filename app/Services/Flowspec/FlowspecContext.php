@@ -30,6 +30,7 @@ final class FlowspecContext
      * @param  list<string>  $omittedAttachments  dropped by the aggregate byte ceiling, never silently
      * @param  Collection<int, FlowspecExample>  $examples
      * @param  list<string>  $tags  candidate tags derived from the request
+     * @param  list<string>  $connectors  connector names this turn is about, most certain first
      */
     public function __construct(
         public readonly Collection $pages,
@@ -40,6 +41,7 @@ final class FlowspecContext
         public readonly array $omittedAttachments,
         public readonly Collection $examples,
         public readonly array $tags,
+        public readonly array $connectors = [],
     ) {}
 
     /** Documentation from the inventory that this request is standing on. */
@@ -59,6 +61,7 @@ final class FlowspecContext
             'omitted_attachments' => $this->omittedAttachments,
             'examples'            => $this->examples->pluck('slug')->all(),
             'tags'                => $this->tags,
+            'connectors'          => $this->connectors,
         ];
     }
 }

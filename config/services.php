@@ -116,6 +116,71 @@ return [
     ],
 
     /*
+    |--------------------------------------------------------------------------
+    | Digibee knowledge base — two corpora, deliberately separate
+    |--------------------------------------------------------------------------
+    |
+    | The flowSpec generator answers with a document that has to paste into the
+    | Digibee canvas, and until now the only thing it knew about a connector was
+    | its NAME (database/data/digibee_component_catalog.json, 34 of them). Two
+    | sources fill that in, and they are not interchangeable:
+    |
+    | - The PLATFORM DOCS say what a connector can do — parameters, types,
+    |   defaults, which ones appear only under a condition. Public HTTP, no
+    |   credential, so the sync is safe to schedule inside the app.
+    | - Our own PIPELINES say how we spell it — the real JSON keys (the docs
+    |   name UI labels: "Stop On Client Error", not `stopOnClientError`), our
+    |   `global.*` names and account labels. That one comes out of `digibeectl`,
+    |   whose credential can create and delete deployments in production, so it
+    |   NEVER runs on the server. See App\Support\Digibee\DigibeectlClient.
+    |
+    */
+    'digibee' => [
+        // The published documentation, mirrored by `php artisan digibee:docs:sync`.
+        'docs_url'         => env('DIGIBEE_DOCS_URL', 'https://docs.digibee.com'),
+        'docs_index'       => env('DIGIBEE_DOCS_INDEX', '/llms.txt'),
+        'docs_timeout'     => env('DIGIBEE_DOCS_TIMEOUT', 30),
+        'docs_retries'     => env('DIGIBEE_DOCS_RETRIES', 3),
+        'docs_retry_sleep' => env('DIGIBEE_DOCS_RETRY_SLEEP', 500),
+
+        // Pages fetched per pool. 581 pages at 8.5 KB average is a ~5 MB
+        // corpus; batching keeps the whole sync to a couple of minutes without
+        // opening 581 sockets at once against somebody else's docs site.
+        'docs_batch' => env('DIGIBEE_DOCS_BATCH', 12),
+
+        // The caderno `digibee:docs:import` writes into. Named, not id'd, for
+        // the same reason ImportGitbookSpace resolves one by name: a re-import
+        // has to land in the caderno the last one made.
+        'docs_notebook' => env('DIGIBEE_DOCS_NOTEBOOK', 'Digibee — Documentação da plataforma'),
+
+        // digibeectl (Windows binary on a developer's machine, authenticated
+        // against the real tenant) and where its export lands. The export is
+        // under storage/app/private, which is gitignored in full: real
+        // pipelines carry internal hostnames and IPs, and only the DERIVED,
+        // scrubbed vocabulary is committed.
+        'ctl_bin'       => env('DIGIBEECTL_BIN', '/mnt/c/Users/alexandre.kopelevitc/digibeectl/digibeectl.exe'),
+        'ctl_timeout'   => env('DIGIBEECTL_TIMEOUT', 120),
+        'pipelines_dir' => env('DIGIBEE_PIPELINES_DIR', 'digibee-pipelines'),
+
+        // The two DERIVED artifacts, committed beside the component catalog so
+        // a generated flowSpec stays reproducible from a checkout and a change
+        // to either shows up in a diff somebody reads. Configurable because a
+        // test that rebuilds them must not overwrite the ones in the repo.
+        'cards_path'      => env('DIGIBEE_CARDS_PATH', database_path('data/digibee_connector_cards.json')),
+        'vocabulary_path' => env('DIGIBEE_VOCABULARY_PATH', database_path('data/digibee_tenant_vocabulary.json')),
+
+        // How many real usages of one connector's params the vocabulary keeps.
+        // Enough to show the shape and the optional keys; not so many that the
+        // artifact becomes a copy of the export.
+        'usage_samples' => env('DIGIBEE_USAGE_SAMPLES', 3),
+
+        // Connector reference cards folded into one flowSpec prompt. A card is
+        // ~1-3 KB, so this is small against the 500k context limit — the cap is
+        // about ATTENTION, the same reason max_examples is 3.
+        'max_connector_cards' => env('DIGIBEE_MAX_CONNECTOR_CARDS', 6),
+    ],
+
+    /*
     | Documentation "AI assist" — populates the current page via LLM based on
     | a prompt + Solution context documents (App\Services\Documentation).
     | Same env-driven pattern as flowspec; the API key is read by config/ai.php

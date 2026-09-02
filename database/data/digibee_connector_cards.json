@@ -1,0 +1,3770 @@
+{
+    "assert-connector-v2": {
+        "connector": "assert-connector-v2",
+        "title": "Assert V2",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/tools/assert-v2.md",
+        "summary": "Take a look at the configuration options for the component. Parameters supported by Double Braces expressions are marked with (DB).",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "Condition",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "{{ EQUALTO( message.number, 1 ) }}",
+                        "visibleWhen": "",
+                        "description": "When the condition isn't true, the pipeline execution is interrupted."
+                    },
+                    {
+                        "name": "Error Message",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "Error",
+                        "visibleWhen": "",
+                        "description": "Defines the error message returned by the pipeline when the condition isn't true."
+                    },
+                    {
+                        "name": "Internal Error Message",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "Internal Error",
+                        "visibleWhen": "",
+                        "description": "Field where you define the internal error message when the condition isn't true."
+                    },
+                    {
+                        "name": "HTTP Status Code",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "500-Internal server error",
+                        "visibleWhen": "",
+                        "description": "Return status of the component."
+                    },
+                    {
+                        "name": "Fail On Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "True",
+                        "visibleWhen": "",
+                        "description": "If the option is activated, the execution of the pipeline with an error will be interrupted; otherwise, the pipeline execution proceeds, but the result will show a false value for the \"success\" property."
+                    }
+                ]
+            }
+        ]
+    },
+    "block-execution-connector": {
+        "connector": "block-execution-connector",
+        "title": "Block Execution",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/logic/block-execution.md",
+        "summary": "To work with this type of component, you must consider 2 important concepts:",
+        "groups": []
+    },
+    "digibee-storage-connector": {
+        "connector": "digibee-storage-connector",
+        "title": "Digibee Storage",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/file-storage/digibee-storage.md",
+        "summary": "Take a look at the configuration parameters of the component. Parameters supported by Double Braces expressions are marked with (DB).",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "Operation",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "Upload",
+                        "visibleWhen": "",
+                        "description": "Operation to be executed (Upload, Download, List, or Delete)."
+                    },
+                    {
+                        "name": "File Name",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "local-pdf-test.pdf",
+                        "visibleWhen": "",
+                        "description": "Name of the file or full file path to the local file, available only for the Download and Upload operations."
+                    },
+                    {
+                        "name": "Remote File Name",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "pdf-test.pdf",
+                        "visibleWhen": "",
+                        "description": "Name of the remote file or relative path (eg.: tmp/file.txt) to the remote file. This parameter is presented in the Download, Upload, and Delete operations."
+                    },
+                    {
+                        "name": "Page Size",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Size of the page, which means, the amount of items to be returned when the List operation is used. If the value isn’t specified, all the items will be returned. If there’re more items than the amount specified in this pa..."
+                    },
+                    {
+                        "name": "Page Token",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Token used to request the following page when the List operation is executed. This following page will return the amount of items defined in the Page Size parameter. Available only if Operation is set to List."
+                    },
+                    {
+                        "name": "Remote Directory",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "folder",
+                        "visibleWhen": "",
+                        "description": "Base remote directory in which the selected operation will be executed. This parameter is presented in the List, Download, Upload, and Delete operations."
+                    },
+                    {
+                        "name": "Generate Download Link",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If the option is enabled, a public link for the file download is generated. This parameter only applies to the Upload operation."
+                    },
+                    {
+                        "name": "Link Expiration",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Time for the link expiration, in milliseconds. This parameter is valid only if the Generate Download Link option is enabled."
+                    },
+                    {
+                        "name": "Fail On Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If the option is enabled, the execution of the pipeline with error will be interrupted; otherwise, the pipeline execution continues, but the result will show a false value for the “success” property."
+                    }
+                ]
+            }
+        ]
+    },
+    "do-while-connector": {
+        "connector": "do-while-connector",
+        "title": "Do While",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/logic/do-while.md",
+        "summary": "Take a look at the configuration parameters for the connector. Parameters supported by Double Braces expressions are marked with (DB).",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "Iteration",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "10",
+                        "visibleWhen": "",
+                        "description": "Defines the maximum number of times a loop is executed (it's possible to stop the loop before this number is reached)."
+                    },
+                    {
+                        "name": "Timeout",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "300000",
+                        "visibleWhen": "",
+                        "description": "Maximum time the loop must execute."
+                    },
+                    {
+                        "name": "Loop Index",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If the option is activated, a “loopIndex” property will be inserted in the presented message at each loop iteration and will inform the current iteration index (1, 2, 3, …)."
+                    },
+                    {
+                        "name": "Interrupt Loop On Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "True",
+                        "visibleWhen": "",
+                        "description": "If the option is activated, an error occurred inside an iteration will cause the loop interruption as a whole. Otherwise, the loop will continue from the next iteration."
+                    }
+                ]
+            }
+        ]
+    },
+    "email-connector-v2": {
+        "connector": "email-connector-v2",
+        "title": "Email V2",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/web-protocols/email-v2.md",
+        "summary": "The Email V2 connector enables you to send simple emails in HTML format, with or without attachments.",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "Alias",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "email-v2-1",
+                        "visibleWhen": "",
+                        "description": "Name (alias) for this connector’s output, allowing you to reference it later in the flow using Double Braces expressions."
+                    },
+                    {
+                        "name": "Account Type",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "Basic",
+                        "visibleWhen": "",
+                        "description": "Type of account used for authentication. Supported: Azure Key and Basic."
+                    },
+                    {
+                        "name": "Use Dynamic Account",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "",
+                        "description": "If enabled, the connector uses the account dynamically via the Store Account connector; otherwise, it uses the account statically as configured in Accounts on the Platform."
+                    },
+                    {
+                        "name": "Scoped",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "Use Dynamic Account is enabled",
+                        "description": "If enabled, isolates the stored account from other sub-processes. Not supported for accounts used in headers or body. To learn more, read the Dynamic Accounts documentation."
+                    },
+                    {
+                        "name": "Account Name",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "Use Dynamic Account is enabled",
+                        "description": "Name of the account defined in the Store Account connector."
+                    },
+                    {
+                        "name": "Account",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "",
+                        "visibleWhen": "Use Dynamic Account is disabled",
+                        "description": "Account used to authenticate with the email server. Required if the service requires authentication. Must be an Azure Key or Basic account type, configured in Accounts on the Platform."
+                    },
+                    {
+                        "name": "SMTP Host",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "smtp.gmail.com",
+                        "visibleWhen": "",
+                        "description": "SMTP server host. Example: smtp.gmail.com"
+                    },
+                    {
+                        "name": "SMTP Port",
+                        "type": "Integer",
+                        "doubleBraces": "yes",
+                        "default": "587",
+                        "visibleWhen": "",
+                        "description": "SMTP server port. Commonly 587, but may vary."
+                    },
+                    {
+                        "name": "From",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Sender's email address."
+                    },
+                    {
+                        "name": "To",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Recipient email address(es), separated by commas."
+                    },
+                    {
+                        "name": "CC",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "CC recipient(s), separated by commas."
+                    },
+                    {
+                        "name": "BCC",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "BCC recipient(s), separated by commas."
+                    },
+                    {
+                        "name": "Subject",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Email subject line."
+                    },
+                    {
+                        "name": "Charset",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "UTF-8",
+                        "visibleWhen": "",
+                        "description": "Character set for the email body."
+                    },
+                    {
+                        "name": "Content",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Email body. Supports Freemarker templates for dynamic HTML."
+                    },
+                    {
+                        "name": "Custom Attachments Specification",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "",
+                        "description": "Enables raw attachment input and hides the form-based attachment field."
+                    },
+                    {
+                        "name": "Attachments",
+                        "type": "Array of objects",
+                        "doubleBraces": "no",
+                        "default": "",
+                        "visibleWhen": "Custom Attachments Specification is enabled",
+                        "description": "Email attachments. Specified via form or raw array."
+                    },
+                    {
+                        "name": "Authenticated",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "true",
+                        "visibleWhen": "",
+                        "description": "Enable if SMTP authentication is required."
+                    },
+                    {
+                        "name": "Is Over TLS",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "true",
+                        "visibleWhen": "",
+                        "description": "Enable to send the message over TLS."
+                    },
+                    {
+                        "name": "Is Over SSL",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "Is Over TLS is disabled",
+                        "description": "Enable to send the message over SSL."
+                    },
+                    {
+                        "name": "Socket Port",
+                        "type": "Integer",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "Is Over SSL is enabled",
+                        "description": "Required if SSL is enabled. Specifies the port used."
+                    },
+                    {
+                        "name": "Force TLSv1.2",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "",
+                        "description": "Forces TLS 1.2 for secure email server connections."
+                    },
+                    {
+                        "name": "Fail On Error",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "fals",
+                        "visibleWhen": "",
+                        "description": "If enabled, interrupts the pipeline execution when an error occurs. If disabled, execution continues, but the \"success\" property will be set to false."
+                    },
+                    {
+                        "name": "Documentation",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Optional field to describe the connector configuration and any relevant business rules."
+                    },
+                    {
+                        "name": "{% endtab %}",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": ""
+                    },
+                    {
+                        "name": "{% endtabs %}",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": ""
+                    }
+                ]
+            }
+        ]
+    },
+    "event-publisher-connector": {
+        "connector": "event-publisher-connector",
+        "title": "Event Publisher",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/queues-and-messaging/event-publisher.md",
+        "summary": "The Event Publisher connector enables event-driven communication between pipelines, notifying other pipelines about a state change, an action, or an occurred fact so they can react to it, leveraging the platform's native event routing.",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "Alias",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "event-publisher-1",
+                        "visibleWhen": "",
+                        "description": "A name for this connector's output, so you can reference it later in the flow with Double Braces."
+                    },
+                    {
+                        "name": "Event",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "{{ DEFAULT(message.eventName, \"new-event\") }}",
+                        "visibleWhen": "",
+                        "description": "Name of the created event to be published for other pipelines to consume."
+                    },
+                    {
+                        "name": "Body",
+                        "type": "JSON",
+                        "doubleBraces": "yes",
+                        "default": "{{ message.$ }}",
+                        "visibleWhen": "",
+                        "description": "Payload to be sent with the event."
+                    },
+                    {
+                        "name": "Log Each Event Sent",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "",
+                        "description": "If enabled, generates an input log for each sent event."
+                    },
+                    {
+                        "name": "Fail On Error",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "",
+                        "description": "If enabled, interrupts the pipeline execution when an error occurs. If disabled, execution continues, but the \"success\" property will be set to false."
+                    },
+                    {
+                        "name": "Documentation",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Optional field to describe the connector configuration and any relevant business rules."
+                    }
+                ]
+            }
+        ]
+    },
+    "excel-connector": {
+        "connector": "excel-connector",
+        "title": "Excel",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/files/excel.md",
+        "summary": "Take a look at the configuration options for the component. Parameters supported by Double Braces expressions are marked with (DB).",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "Operation",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "Read",
+                        "visibleWhen": "",
+                        "description": "Action to be executed by the component (Read, Create, Read Specific Sheets, Read One Cell, Read Multiple Cell, and Update One Cell)."
+                    },
+                    {
+                        "name": "Excel Full Path",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "/Users/example.xlsx",
+                        "visibleWhen": "",
+                        "description": "Path in which the Excel file is located."
+                    },
+                    {
+                        "name": "File Name",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "example.xlsx",
+                        "visibleWhen": "",
+                        "description": "File name or full file path (i.e. tmp/processed/file.txt)."
+                    },
+                    {
+                        "name": "Sheet Name",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "Planilha1",
+                        "visibleWhen": "",
+                        "description": "Name of the sheet."
+                    },
+                    {
+                        "name": "Cell",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "A:1",
+                        "visibleWhen": "",
+                        "description": "Specification of the sheet cell."
+                    },
+                    {
+                        "name": "Cells",
+                        "type": "Array of Strings",
+                        "doubleBraces": "",
+                        "default": "[\"A:1\", \"B:2\", \"C:6\"]",
+                        "visibleWhen": "",
+                        "description": "List of sheet cells."
+                    },
+                    {
+                        "name": "Cell Value",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "example",
+                        "visibleWhen": "",
+                        "description": "Value to be replaced in a specific cell."
+                    },
+                    {
+                        "name": "Sheets",
+                        "type": "Array of Strings",
+                        "doubleBraces": "",
+                        "default": "[\"Planilha2\", \"Planilha4\"]",
+                        "visibleWhen": "",
+                        "description": "List of sheet names."
+                    },
+                    {
+                        "name": "JSON Data",
+                        "type": "Array of Objects (JSON)",
+                        "doubleBraces": "",
+                        "default": "[{\"src\":\"Images/Sun.png\",\"name\":\"sun1\",\"hOffset\":250,\"vOffset\":250,\"alignment\":\"...",
+                        "visibleWhen": "",
+                        "description": "JSON to be used in the generation of the Excel file."
+                    },
+                    {
+                        "name": "Read All Sheets",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If the option is activated, all the Excel file sheets will be read."
+                    },
+                    {
+                        "name": "Fail On Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "True",
+                        "visibleWhen": "",
+                        "description": "If the option is enabled, the execution of the pipeline with error will be interrupted; otherwise, the pipeline execution proceeds, but the result will show a false value for the \"success\" property."
+                    }
+                ]
+            }
+        ]
+    },
+    "file-writer-connector": {
+        "connector": "file-writer-connector",
+        "title": "File Writer",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/files/file-writer.md",
+        "summary": "Configure the connector using the parameters below. Fields that support Double Braces expressions are marked in the Supports DB column.",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "File Name",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "data.csv",
+                        "visibleWhen": "",
+                        "description": "File name or full file path (for example, tmp/processed/file.txt) of the file to be created by the connector with the input information."
+                    },
+                    {
+                        "name": "Data",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "{{ message.data }}",
+                        "visibleWhen": "",
+                        "description": "Data to write to the file. Accepts an array of strings or a simple string. If the value is an array, each item is written on a new line. If the value is an object rather than a string, enable Coalesce to avoid an error."
+                    },
+                    {
+                        "name": "Policy for when file already exists",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "Override",
+                        "visibleWhen": "",
+                        "description": "Behavior to apply when a file with the same name already exists in the current execution. Options: Append (adds data to the existing file), Override (replaces the existing file), Fail (stops the flow with an error)."
+                    },
+                    {
+                        "name": "End of Line policy",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "Windows",
+                        "visibleWhen": "",
+                        "description": "End-of-line character to use. Options: Windows (CR + LF, 2 characters), Unix (LF, 1 character), None (no end-of-line character)."
+                    },
+                    {
+                        "name": "Charset",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "UTF-8",
+                        "visibleWhen": "",
+                        "description": "Character encoding to use when creating the file."
+                    },
+                    {
+                        "name": "Binary file",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "When enabled, treats the value in Data as a base64 string and converts it to binary before writing the file."
+                    },
+                    {
+                        "name": "Coalesce",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "When enabled, the connector accepts objects and arrays as input and writes them to the file without returning an error. When disabled and the input is an object (or an array containing objects), the connector throws \"Inv..."
+                    },
+                    {
+                        "name": "Metadata",
+                        "type": "JSON Object or JSON String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "A JSON object with custom key-value pairs to attach to the file. When configured, the connector returns the metadata in the step response and, if Write metadata sidecar is enabled, writes it to a sidecar file alongside t..."
+                    },
+                    {
+                        "name": "Write metadata sidecar",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "When enabled and Metadata is configured, the connector writes a {fileName}.metadata.json sidecar file to the pipeline's working directory alongside the created file. When disabled, the metadata is returned in the respons..."
+                    },
+                    {
+                        "name": "Fail on error",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "When enabled, the pipeline stops if an error occurs. When disabled, the pipeline continues and the output shows \"success\": false."
+                    }
+                ]
+            }
+        ]
+    },
+    "for-each-connector": {
+        "connector": "for-each-connector",
+        "title": "For Each",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/logic/for-each.md",
+        "summary": "Configure the connector using the parameters below. Fields that support Double Braces expressions are marked in the Supports DB column.",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "Alias",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "for-each-1",
+                        "visibleWhen": "",
+                        "description": "Name (alias) for this connector’s output, allowing you to reference it later in the flow using Double Braces expressions."
+                    },
+                    {
+                        "name": "Expression",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "$",
+                        "visibleWhen": "",
+                        "description": "The expression used to filter and retrieve the JSON structure for iteration. Supports Double Braces expressions and JSON Path expressions."
+                    },
+                    {
+                        "name": "Element Identifier",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Unique element that identifies the line under processing (for example, \"id\" element)."
+                    },
+                    {
+                        "name": "Parallel Execution",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If enabled, this parameter processes up to 10 array elements concurrently. As each execution finishes, the next begins automatically until completion. If disabled, processing is serial, requiring each element to finish b..."
+                    },
+                    {
+                        "name": "Advanced",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "Enable advanced options."
+                    },
+                    {
+                        "name": "Max Number Length",
+                        "type": "Integer",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Maximum allowed length for numeric values in JSON. If not specified, the default limit defined by Jackson (1000) is applied."
+                    },
+                    {
+                        "name": "Fail On Error",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "When enabled, this parameter suspends the pipeline only if a critical error occurs within the iteration structure, preventing its completion. It does not trigger for errors within the onProcess or onException subpipeline..."
+                    }
+                ]
+            }
+        ]
+    },
+    "google-bigquery-sql-connector": {
+        "connector": "google-bigquery-sql-connector",
+        "title": "Google BigQuery Standard SQL",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/google-gcp/bigquery-standard-sql.md",
+        "summary": "Take a look at the configuration parameters for the connector. Parameters supported by Double Braces expressions are marked with (DB).",
+        "groups": [
+            {
+                "name": "General tab",
+                "parameters": [
+                    {
+                        "name": "Dynamic Account",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "When active, the connector will use the account dynamically. Otherwise, it will use the account statically."
+                    },
+                    {
+                        "name": "Account Name",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "The name of the dynamic account used by the connector. This account must have been previously configured in a Store Account connector in the pipeline for this process to take effect. It is only available if the Dynamic A..."
+                    },
+                    {
+                        "name": "Account",
+                        "type": "Account",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "The account used by the connector. Supported type: Private Key.It is only available if the Dynamic Account parameter is inactive."
+                    },
+                    {
+                        "name": "Project Id",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Google Cloud Project ID."
+                    },
+                    {
+                        "name": "Query String",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "BigQuery standard SQL query."
+                    },
+                    {
+                        "name": "Fail On Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If the option is activated, the pipeline's execution with an error will be interrupted. Otherwise, the pipeline execution proceeds, but the result will show a false value for the \"success\" property."
+                    }
+                ]
+            },
+            {
+                "name": "Headers tab",
+                "parameters": [
+                    {
+                        "name": "Translated Query",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Preprocessed query text."
+                    }
+                ]
+            },
+            {
+                "name": "Documentation tab",
+                "parameters": [
+                    {
+                        "name": "Documentation",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Section for documenting any necessary information about the connector configuration and business rules."
+                    }
+                ]
+            }
+        ]
+    },
+    "google-storage-connector": {
+        "connector": "google-storage-connector",
+        "title": "Google Storage",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/file-storage/google-storage.md",
+        "summary": "Take a look at the configuration parameters of the component. Parameters supported by Double Braces expressions are marked with (DB).",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "Account",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "For the component to make the service authentication, it's necessary to have a Private key-type account. To know more about credentials, visit the official documentation."
+                    },
+                    {
+                        "name": "Operation",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "Upload",
+                        "visibleWhen": "",
+                        "description": "Operation to be executed, which can be List, Download, Upload, or Delete."
+                    },
+                    {
+                        "name": "Project ID",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "projectId",
+                        "visibleWhen": "",
+                        "description": "ID of the project where the operation with the file will be made."
+                    },
+                    {
+                        "name": "Bucket Name",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "bucketName",
+                        "visibleWhen": "",
+                        "description": "This resource represents a bucket in the Google Cloud Storage - there's only one namespace shared by all the buckets."
+                    },
+                    {
+                        "name": "Page Size",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "This parameter is only available when the List operation is selected and informs the amount of items to be returned when the List operation is used. If the value isn’t specified, all the items will be returned. If there’..."
+                    },
+                    {
+                        "name": "Page Token",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "This parameter is only available when the List operation is selected and sets the token used to request the next page when the List operation is used. In this next page, the amount of items defined in the Page Size param..."
+                    },
+                    {
+                        "name": "File Name",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "local-pdf-test.pdf",
+                        "visibleWhen": "",
+                        "description": "Name of the file or full file path to the local file. This parameter is available only in the Download and Upload operations."
+                    },
+                    {
+                        "name": "Remote File Name",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "pdf-test.pdf",
+                        "visibleWhen": "",
+                        "description": "Name of the remote file or relative path (e.g., tmp/file.txt) for the remote file. This parameter is displayed in the Download, Upload, and Delete operations."
+                    },
+                    {
+                        "name": "Remote Directory",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "folder",
+                        "visibleWhen": "",
+                        "description": "Base remote directory, which can be relative (e.g., pub/tmp) or absolute (e.g., /root/pub), where the selected operation will be made. This parameter is displayed in the List, Download, Upload, and Delete operations."
+                    },
+                    {
+                        "name": "Generate Download Link",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If the option is enabled, a public link for the file download is generated. This parameter is applicable in the Upload operation only."
+                    },
+                    {
+                        "name": "Link Expiration",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "0",
+                        "visibleWhen": "",
+                        "description": "Time for the link expiration (in milliseconds). This parameter is valid only if the Generate Download Link option is enabled."
+                    },
+                    {
+                        "name": "Fail On Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If the option is enabled, the execution of the pipeline with an error will be interrupted; otherwise, the pipeline execution proceeds, but the result will show a false value for the “success” property."
+                    }
+                ]
+            }
+        ]
+    },
+    "hash-connector": {
+        "connector": "hash-connector",
+        "title": "Hash",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/security/hash.md",
+        "summary": "The Hash connector allows you to generate hashed values from different types of input. Depending on your use case, you can choose to hash specific fields, files, or the entire payload.",
+        "groups": [
+            {
+                "name": "Common parameters",
+                "parameters": [
+                    {
+                        "name": "Alias",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "hash-1",
+                        "visibleWhen": "",
+                        "description": "Name (alias) for this connector’s output, allowing you to reference it later in the flow using Double Braces expressions. Learn more."
+                    },
+                    {
+                        "name": "Crypto Operation",
+                        "type": "Select",
+                        "doubleBraces": "no",
+                        "default": "Hash Fields",
+                        "visibleWhen": "",
+                        "description": "Type of operation to be performed. Possible values: Hash Fields, Hash Payload, or Hash File."
+                    },
+                    {
+                        "name": "Crypto Algorithm",
+                        "type": "Select",
+                        "doubleBraces": "no",
+                        "default": "SHA-512",
+                        "visibleWhen": "",
+                        "description": "Type of algorithm used to generate the hash. Possible values: MD5, SHA-1, SHA-256, SHA-384, SHA-512, HmacSHA1, HmacSHA256, HmacSHA384, HmacSHA512, and BCrypt."
+                    },
+                    {
+                        "name": "Result As Hexadecimal",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "true",
+                        "visibleWhen": "",
+                        "description": "If enabled, keeps the hash in hexadecimal format; otherwise, the format will be base64."
+                    },
+                    {
+                        "name": "Fail On Error",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "",
+                        "description": "If enabled, interrupts the pipeline execution when an error occurs. If disabled, execution continues, but the \"success\" property will be set to false."
+                    }
+                ]
+            }
+        ]
+    },
+    "jolt-connector-v2": {
+        "connector": "jolt-connector-v2",
+        "title": "Transformer (JOLT) V2",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/tools/jolt-v2.md",
+        "summary": "The component is useful:",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "Expression Reference",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If the option is activated, the JOLT Reference parameter expects a JOLT expression declaration through Double Braces reference."
+                    },
+                    {
+                        "name": "JOLT",
+                        "type": "JSON",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "The JOLT expression to be executed."
+                    },
+                    {
+                        "name": "JOLT Reference",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "The Double Braces reference to the JOLT expression to be executed. This parameter is available only if Expression Reference is activated."
+                    },
+                    {
+                        "name": "Fail On Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If the option is activated, the execution of the pipeline with an error will be interrupted. Otherwise, the pipeline execution proceeds, but the result will show a false value for the “success” property."
+                    }
+                ]
+            }
+        ]
+    },
+    "jslt-connector": {
+        "connector": "jslt-connector",
+        "title": "JSLT",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/tools/jslt.md",
+        "summary": "The JSLT connector allows manipulation of a JSON using JSLT, a language for JSON processing and querying. For more information, see the official documentation on Github.",
+        "groups": [
+            {
+                "name": "General tab",
+                "parameters": [
+                    {
+                        "name": "Payload",
+                        "type": "JSON",
+                        "doubleBraces": "yes",
+                        "default": "{{ message.payload }}",
+                        "visibleWhen": "",
+                        "description": "The JSON content to be manipulated."
+                    },
+                    {
+                        "name": "JSLT",
+                        "type": "JSON",
+                        "doubleBraces": "",
+                        "default": "{ *: . }",
+                        "visibleWhen": "",
+                        "description": "The JSLT declaration to be executed."
+                    },
+                    {
+                        "name": "Fail On Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If enabled, interrupts the pipeline execution when an error occurs. If disabled, execution continues, but the \"success\" property will be set to false."
+                    },
+                    {
+                        "name": "Raw Mode",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If this option is active, the JSLT expression can dynamically incorporate values using Double Braces ({{ }}) for entire expressions, object keys, or object values. This enables more flexible and dynamic transformations.I..."
+                    }
+                ]
+            },
+            {
+                "name": "Documentation tab",
+                "parameters": [
+                    {
+                        "name": "Documentation",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Optional field to describe the connector configuration and any relevant business rules."
+                    }
+                ]
+            }
+        ]
+    },
+    "json-generator-connector": {
+        "connector": "json-generator-connector",
+        "title": "JSON Generator",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/tools/json-generator.md",
+        "summary": "Take a look at the configuration options for the connector. Parameters supported by Double Braces expressions are marked with (DB).",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "JSON",
+                        "type": "JSON Object",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "The JSON object that will be the output of the connector."
+                    },
+                    {
+                        "name": "Fail on Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If the option is activated, the pipeline's execution with an error will be interrupted. Otherwise, the pipeline execution proceeds, but the result will show a false value for the \"success\" property."
+                    }
+                ]
+            }
+        ]
+    },
+    "json-transformer-connector": {
+        "connector": "json-transformer-connector",
+        "title": "JSON Transformer",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/tools/json-transformer.md",
+        "summary": "Take a look at the configuration options for the component. Parameters supported by Double Braces expressions are marked with (DB).",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "Actions",
+                        "type": "Options of Actions",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Add or remove different actions."
+                    },
+                    {
+                        "name": "Description",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "This field is used to document the action."
+                    },
+                    {
+                        "name": "Type",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "Rename Property",
+                        "visibleWhen": "",
+                        "description": "Set the action that will be executed, such as: Rename Property, Edit Property, Remove Property, and Remove Property with Condition. See more details about each action in the section below."
+                    },
+                    {
+                        "name": "Action Settings",
+                        "type": "Options of Action Settings",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Additional settings related to the selected action."
+                    },
+                    {
+                        "name": "Root Path",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "Must be activated when the JSON property is in the root of the object. When this option is activated, Path (Dot Notation) is not available."
+                    },
+                    {
+                        "name": "Path (Dot notation)",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Must be filled when the JSON property isn't in the root of the object. It allows indicating dot notation, which makes it simple to access different JSON levels, including going through the JSON array and object."
+                    },
+                    {
+                        "name": "Properties to be renamed",
+                        "type": "Key-value Pairs",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "This parameter is shown only when action Rename Property is selected. Must be filled with the key and value you want to rename."
+                    },
+                    {
+                        "name": "Values to be edited",
+                        "type": "Key-value Pairs",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "This parameter is shown only when action Edit Property is selected. Must be filled with the key and value you want to edit."
+                    },
+                    {
+                        "name": "Properties to be removed",
+                        "type": "String / Key-value Pairs",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "This parameter is shown only when actions Remove Property or Remove Property with Condition are selected. Must be filled with the exact key name of the JSON (in case of Remove Property) or key and value you want to remov..."
+                    },
+                    {
+                        "name": "Fail On Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If the option is activated, the execution of the pipeline with error will be interrupted; otherwise, the pipeline execution proceeds, but the result will show a false value for the “success” property."
+                    }
+                ]
+            }
+        ]
+    },
+    "jwt-connector": {
+        "connector": "jwt-connector",
+        "title": "JWT V2",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/security/jwt.md",
+        "summary": "Take a look at the configuration parameters of this component:",
+        "groups": [
+            {
+                "name": "Parâmetros",
+                "parameters": [
+                    {
+                        "name": "Operation",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "the operation to be performed by the component. Options are:"
+                    },
+                    {
+                        "name": "Public Key",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "public key account used to verify JWS tokens and encrypt JWE tokens. For RSA-based algorithms, an RSA-type public key (derived from a private key of at least 2048 bits) is expected. For EC-based algorithms, an EC-type pu..."
+                    },
+                    {
+                        "name": "Private Key",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "private key account used to sign JWS tokens and decrypt JWE tokens. For RSA-based algorithms, a RSA-type private key of at least 2048 bits is expected. For EC-based algorithms, an EC-type private key with the respective..."
+                    },
+                    {
+                        "name": "Certificate Chain",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Certificate chain type account that allows the extraction of a private key from its content and its use with the same objective as the Private Key parameter (that is, to sign JWS tokens and decrypt JWE tokens). You only..."
+                    },
+                    {
+                        "name": "Secret Key",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "secret account used to sign/verify JWS tokens and encrypt/decrypt JWE tokens. See below the list of available algorithms for this parameter:"
+                    },
+                    {
+                        "name": "Custom Account (custom.account-1)",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "used to reference the information of a configured account in some token claims through Double Braces while generating a JWS token. At the moment this reference is only available for Issuer (iss) and Custom Claims."
+                    },
+                    {
+                        "name": "Key as Base64",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "if this option is active, the secret key account must be in Base64 format; otherwise, it must contain the value of the key to be used. This parameter is only available if you use a secret key account."
+                    },
+                    {
+                        "name": "Key Charset",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "the key charset. Available if Key as Base64 is active."
+                    },
+                    {
+                        "name": "JWS Algorithm (JWA)",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "the algorithm to be used to verify and sign JWS tokens. Options are: HS256, HS384, HS512, RS256, RS384, RS512, PS256, PS384, PS512, ES256, ES384, ES512, ES256K, and EdDSA (JWK only). This parameter is not available if Ve..."
+                    },
+                    {
+                        "name": "JWE Algorithm (JWA)",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "the algorithm to be used to encrypt and decrypt JWE tokens. Options are: A128KW, A192KW, A256KW, A128GCMKW, A192GCMKW, A256GCMKW, RSA1\\_5, RSA-OAEP, RSA-OAEP-256, ECDH-ES, ECDH-ES+A128KW, ECDH-ES+A192KW, and ECDH-ES+A256..."
+                    },
+                    {
+                        "name": "Set algorithm from JWK",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "if this option is active, the component uses the algorithm configured in the JWK to handle the JWT tokens. Available only if Use JWK is active."
+                    },
+                    {
+                        "name": "Content Encryption Algorithm",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "the algorithm to be used to encrypt and decrypt the payload from JWE tokens. Options are: A128CBC-HS256, A192CBC-HS384, A256CBC-HS512, A128GCM, A192GCM, and A256GCM."
+                    },
+                    {
+                        "name": "Issuer (iss)",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "the “iss” claim identifies the issuer of the JWT. The processing of the claim is usually specific to the application. This claim is optional. It’s possible to reference a Custom Account using Double Braces to set up this..."
+                    },
+                    {
+                        "name": "Expiration Time (exp)",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "the “exp” claim identifies the expiration time in which or after which JWT cannot be accepted for processing. Processing of the “exp” request requires that the current date/time be before the expiration date/time specifi..."
+                    },
+                    {
+                        "name": "Issued at (iat)",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "the “iat” claim identifies the time when JWT was issued (timestamp format). This statement can be used to determine the JWT’s age. Its value must be a number. The use of this claim is optional."
+                    },
+                    {
+                        "name": "Subject (sub)",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "the “sub” claim identifies the subject of the JWT. Statements in a JWT are usually about the subject. The value of the subject must be locally exclusive in the context of the issuer or globally exclusive. The processing..."
+                    },
+                    {
+                        "name": "Token Id (jti)",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "the “jti” claim provides a unique identifier for JWT. The value of the identifier must be given to minimize the chances that the same value will be accidentally given to an object with different data. If the application..."
+                    },
+                    {
+                        "name": "Audience (aud)",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "single value. The “aud” claim identifies the JWT recipients. Each recipient who intends to process JWT must identify itself with a value within the claim. If the recipient is not identified with a value in the “aud” clai..."
+                    },
+                    {
+                        "name": "Not Before (nbf)",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "the “nbf” claim identifies the time before in which JWT must not be accepted for processing. The processing of the “nbf” statement requires that the current date/time (timestamp format) is after or equal to the date/time..."
+                    },
+                    {
+                        "name": "Custom Claims",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "to specify custom claims, inform the key (name of the claim) and value of the claim. It’s possible to reference a Custom Account using Double Braces for the claim values."
+                    },
+                    {
+                        "name": "Custom Headers",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "to specify custom headers, inform the key and value of the header in the respective fields."
+                    },
+                    {
+                        "name": "JWE",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "JWE token."
+                    },
+                    {
+                        "name": "JWS",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "JWS token."
+                    },
+                    {
+                        "name": "Payload Charset",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "charset of the payload used to create JWE tokens. Default value: UTF-8."
+                    },
+                    {
+                        "name": "Payload",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "payload to be used to create JWE tokens."
+                    },
+                    {
+                        "name": "Use JWK",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "if this option is active, a JWS is expected to sign/verify the JWS token or encrypt/decrypt the JWE token. Use JWK also deactivates all account options (Secret Key, Private Key, and Public Key parameters), as well as Key..."
+                    },
+                    {
+                        "name": "JWK",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "JWK to be used to sign or verify the JWS token and encrypt or decrypt the JWE token."
+                    },
+                    {
+                        "name": "Fail On Error",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "if the option is enabled, the execution of the pipeline with error is suspended; otherwise, the pipeline execution proceeds, but the result will display a false value for the \"success\" property."
+                    }
+                ]
+            }
+        ]
+    },
+    "ldap-connector": {
+        "connector": "ldap-connector",
+        "title": "LDAP",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/security/ldap.md",
+        "summary": "Configure the connector using the parameters below. Fields that support Double Braces expressions are marked in the Supports DB column.",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "Account",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Account used to authenticate the connector against the LDAP server. Must be a Basic account type, configured in Accounts on the Platform."
+                    },
+                    {
+                        "name": "SSL",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "",
+                        "description": "If enabled, the connector encrypts the connection using SSL. Configure the certificate through the Custom SSL Certificate parameter."
+                    },
+                    {
+                        "name": "Custom SSL Certificate",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "",
+                        "visibleWhen": "SSL is enabled",
+                        "description": "Custom account used for the SSL connection."
+                    },
+                    {
+                        "name": "Operation",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "Search",
+                        "visibleWhen": "",
+                        "description": "LDAP operation the connector executes: Search, Add, Delete, or Modify."
+                    },
+                    {
+                        "name": "Search Operation",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "Object",
+                        "visibleWhen": "Operation is Search",
+                        "description": "Scope of the search: Object, One level, or Sub trees."
+                    },
+                    {
+                        "name": "Modify Operation",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "Add Attribute",
+                        "visibleWhen": "Operation is Modify",
+                        "description": "Type of change applied to the entry: Add Attribute, Remove Attribute, Replace Attribute, or Increment Attribute."
+                    },
+                    {
+                        "name": "Hostname",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "199.199.199.1",
+                        "visibleWhen": "",
+                        "description": "Name or IP address of the LDAP server."
+                    },
+                    {
+                        "name": "Port",
+                        "type": "Integer",
+                        "doubleBraces": "yes",
+                        "default": "389",
+                        "visibleWhen": "",
+                        "description": "Port used to connect to the LDAP server."
+                    },
+                    {
+                        "name": "Authentication DN",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "CN=Users,DC=digibee,DC=io",
+                        "visibleWhen": "",
+                        "description": "Distinguished Name (DN) used to connect the LDAP server. If left blank, the account username is used as the complete bind DN, with no changes applied. If filled in, the connector combines it with the account username usi..."
+                    },
+                    {
+                        "name": "Operation DN",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "{{message.$.dnOperation}}",
+                        "visibleWhen": "",
+                        "description": "Distinguished Name (DN) the operation applies to."
+                    },
+                    {
+                        "name": "Filter",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Filter expression used to narrow down the search results."
+                    },
+                    {
+                        "name": "Entries",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "Operation is Modify or Add",
+                        "description": "JSON expression representing the entry attributes to add or modify."
+                    },
+                    {
+                        "name": "Binary Entries",
+                        "type": "List",
+                        "doubleBraces": "no",
+                        "default": "",
+                        "visibleWhen": "Operation is Modify or Add",
+                        "description": "List of entries added through the connector UI. Select + Add to add a new item, and use the reorder and delete controls to manage items."
+                    },
+                    {
+                        "name": "Entry Name",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "",
+                        "visibleWhen": "Inside a Binary Entries item",
+                        "description": "Name of the entry, set within a Binary Entries item."
+                    },
+                    {
+                        "name": "Fail On Error",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "",
+                        "description": "If enabled, the execution of the pipeline with an error is interrupted, and the exception includes both the translated message and the original error detail. Otherwise, the pipeline execution proceeds, but the result sho..."
+                    },
+                    {
+                        "name": "Documentation",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Optional field to describe the connector configuration and any relevant business rules."
+                    },
+                    {
+                        "name": "{% endtab %}",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": ""
+                    },
+                    {
+                        "name": "{% endtabs %}",
+                        "type": "",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": ""
+                    }
+                ]
+            }
+        ]
+    },
+    "log-connector": {
+        "connector": "log-connector",
+        "title": "Log",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/tools/log.md",
+        "summary": "When you are building a pipeline and testing in the Execution panel area, the results are displayed on the Logs tab.",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "Log Level",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "ERROR",
+                        "visibleWhen": "",
+                        "description": "How the generated log will be classified. The options are: Info, Error, and Warn."
+                    },
+                    {
+                        "name": "Message",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "Error processing message {{ message.$.myField }}",
+                        "visibleWhen": "",
+                        "description": "Message that is entered in the log. It's possible to use the Double Braces, which allows you to create a message with data from the pipeline flow (example: “There's been an error when trying to register the client code {..."
+                    }
+                ]
+            }
+        ]
+    },
+    "object-store-connector": {
+        "connector": "object-store-connector",
+        "title": "Object Store",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/structured-data/object-store.md",
+        "summary": "Take a look at the configuration parameters of the connector. Parameters supported by Double Braces expressions are marked with (DB).",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "Account",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "Digibee Object Store Account",
+                        "visibleWhen": "",
+                        "description": "Account to be used by the connector. This item can't be changed."
+                    },
+                    {
+                        "name": "Operation",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "Find by Object ID",
+                        "visibleWhen": "",
+                        "description": "Operation to be executed inside Object Store - Find by Object ID, Find By Query, Insert, Aggregate, Update By Object ID, Update By Query, Delete By Object ID, Delete By Query, Create Index, List Indexes and Drop Index."
+                    },
+                    {
+                        "name": "Object Store Name",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "sales",
+                        "visibleWhen": "",
+                        "description": "Name of the collection to be used to record or read information. If it doesn't exist, it will be automatically created."
+                    },
+                    {
+                        "name": "Expire After Seconds",
+                        "type": "Integer",
+                        "doubleBraces": "yes",
+                        "default": "0",
+                        "visibleWhen": "",
+                        "description": "Defines the number of seconds after which a document from the Object Store expires."
+                    },
+                    {
+                        "name": "Object ID",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "1",
+                        "visibleWhen": "",
+                        "description": "Identifier of the object to be stored or searched. It can be a unique number or a UUID. This item supports Double Braces."
+                    },
+                    {
+                        "name": "Limit",
+                        "type": "Integer",
+                        "doubleBraces": "yes",
+                        "default": "0",
+                        "visibleWhen": "",
+                        "description": "Maximum number of objects to be returned in a search. This item supports Double Braces."
+                    },
+                    {
+                        "name": "Skip",
+                        "type": "Integer",
+                        "doubleBraces": "yes",
+                        "default": "0",
+                        "visibleWhen": "",
+                        "description": "Amount of objects to be skipped before returning to the query. This parameter is usually used along with the Limit parameter to create a way of pagination. This item supports Double Braces."
+                    },
+                    {
+                        "name": "Sort",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Specification of the query ordination rules."
+                    },
+                    {
+                        "name": "Query",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "This JSON field for a query is available only if Find by Query, Aggregate, Update by Query, Delete by Query, Create Index or Drop Index operations are selected."
+                    },
+                    {
+                        "name": "Document",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Available only if Insert, Update by Object ID, or Update by Query are selected. Double braces expressions are supported."
+                    },
+                    {
+                        "name": "Unique Index",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "True",
+                        "visibleWhen": "",
+                        "description": "If the option is activated, an Object ID will be created to accept unique values only; otherwise, a non-unique index will be created."
+                    },
+                    {
+                        "name": "Isolated",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If the option is activated, all the queries will be delimited in the execution scope."
+                    },
+                    {
+                        "name": "Upsert",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "This option is available only if Update By Object ID or Update By Query operations are selected. When enabled, the item informed for the object will be inserted in the collection in case it doesn't exist."
+                    },
+                    {
+                        "name": "Fail On Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If the option is enabled, the execution of the pipeline with error will be interrupted; otherwise, the pipeline execution proceeds, but the result will show a false value for the “success” property."
+                    }
+                ]
+            }
+        ]
+    },
+    "parallel-execution-connector": {
+        "connector": "parallel-execution-connector",
+        "title": "Parallel Execution",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/logic/parallel-execution.md",
+        "summary": "The component has 2 configuration steps: one for the parameters that define the executions general behavior and another one for the specific parameters of the execution lines.",
+        "groups": [
+            {
+                "name": "Component",
+                "parameters": [
+                    {
+                        "name": "Aggregation Type",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "COLLATE",
+                        "visibleWhen": "",
+                        "description": "It can be configured as SUMMARY or COLLATE; see more details below."
+                    },
+                    {
+                        "name": "Show Execution Ids",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "True",
+                        "visibleWhen": "",
+                        "description": "If enabled, the property will make sure that the ID of each execution line is informed in the result."
+                    },
+                    {
+                        "name": "Report Exceptions",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "True",
+                        "visibleWhen": "",
+                        "description": "If enabled, the property will make sure that any exceptions are informed in the result; see more details below."
+                    }
+                ]
+            },
+            {
+                "name": "Execution lines",
+                "parameters": [
+                    {
+                        "name": "Description",
+                        "type": "N/A",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Property that can be used to document the execution lines, because it turns into the component presented text in the pipeline canvas."
+                    },
+                    {
+                        "name": "Execution ID",
+                        "type": "N/A",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Defines the ID of each parallel execution."
+                    }
+                ]
+            }
+        ]
+    },
+    "pipeline-executor-connector": {
+        "connector": "pipeline-executor-connector",
+        "title": "Pipeline Executor",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/tools/pipeline-executor.md",
+        "summary": "The Pipeline Executor connector makes synchronous or asynchronous calls to other pipelines that are already deployed. Use the synchronous approach when you need the result of the called pipeline, or the asynchronous approach when you don't need to wait for it.",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "Operation",
+                        "type": "Select",
+                        "doubleBraces": "no",
+                        "default": "SYNC",
+                        "visibleWhen": "",
+                        "description": "SYNC for synchronous calls to the pipeline and ASYNC for asynchronous calls to the pipeline."
+                    },
+                    {
+                        "name": "Pipeline Name",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Name of the pipeline to be called."
+                    },
+                    {
+                        "name": "Version Major",
+                        "type": "Integer",
+                        "doubleBraces": "yes",
+                        "default": "1",
+                        "visibleWhen": "",
+                        "description": "Major Version of the pipeline to be called."
+                    },
+                    {
+                        "name": "Payload",
+                        "type": "Any",
+                        "doubleBraces": "yes",
+                        "default": "{{ message.body }}",
+                        "visibleWhen": "",
+                        "description": "Payload to be sent when the pipeline is called."
+                    },
+                    {
+                        "name": "Timeout",
+                        "type": "Integer",
+                        "doubleBraces": "yes",
+                        "default": "20000",
+                        "visibleWhen": "",
+                        "description": "Maximum time allowed for the full round trip of a synchronous call, from the moment the message is published until the response returns to the calling pipeline (in milliseconds). This includes any time the message spends..."
+                    },
+                    {
+                        "name": "Expiration",
+                        "type": "Integer",
+                        "doubleBraces": "yes",
+                        "default": "30000",
+                        "visibleWhen": "",
+                        "description": "Time that the message remains in the queue when trying to execute the pipeline (in milliseconds)."
+                    },
+                    {
+                        "name": "Fail On Error",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "",
+                        "description": "If enabled, interrupts the pipeline execution when an error occurs. If disabled, execution continues, but the \"success\" property will be set to false."
+                    },
+                    {
+                        "name": "Documentation",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Optional field to describe the connector configuration and any relevant business rules."
+                    }
+                ]
+            }
+        ]
+    },
+    "rabbitmq-connector": {
+        "connector": "rabbitmq-connector",
+        "title": "RabbitMQ",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/queues-and-messaging/rabbitmq.md",
+        "summary": "Take a look at the configuration parameters of the connector. Parameters supported by Double Braces expressions are marked with (DB).",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "SSL/TLS",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "Activate the SSL/TLS authentication method when connecting to a RabbitMQ server."
+                    },
+                    {
+                        "name": "Account",
+                        "type": "Account",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Basic account type required to authenticate using basic auth method.This option is only available if the SSL/TLS parameter is deactivated."
+                    },
+                    {
+                        "name": "Key Store",
+                        "type": "Account",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Certificate-chain account type (in PEM format) that contains the client certificates required for authentication using the SSL/TLS method.This option is only available if the SSL/TLS parameter is activated."
+                    },
+                    {
+                        "name": "Trust Store",
+                        "type": "Account",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Certificate-chain account type (in PEM format) that contains the trusted material required for authentication using the SSL/TLS method.This option is only available if the SSL/TLS parameter is activated."
+                    },
+                    {
+                        "name": "Hostname Verification",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If this option is activated, the system checks whether the server certificate has been issued for the hostname to which the client is connecting.This option is only available if the SSL/TLS parameter is activated."
+                    },
+                    {
+                        "name": "Hostname",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Name of the host that executes the RabbitMQ."
+                    },
+                    {
+                        "name": "Port",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "5672",
+                        "visibleWhen": "",
+                        "description": "Connection port of the RabbitMQ."
+                    },
+                    {
+                        "name": "Connection Timeout",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "60000",
+                        "visibleWhen": "",
+                        "description": "Maximum time to connect to RabbitMQ."
+                    },
+                    {
+                        "name": "Virtual Host",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "/",
+                        "visibleWhen": "",
+                        "description": "Name of the logical group inside RabbitMQ to which there must be a connection."
+                    },
+                    {
+                        "name": "Exchange Name",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Name of the exchange defined in RabbitMQ to which there are messages sent to."
+                    },
+                    {
+                        "name": "Binary Message",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If the option is activated, the message will be considered binary, and the Message Body field must inform a string containing the base64 representation of the bytes set to be sent; otherwise, the message will be consider..."
+                    },
+                    {
+                        "name": "Message Body",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Content of the message to be sent."
+                    },
+                    {
+                        "name": "Routing Key",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "String representing the relationship key between the Exchange and the Queue(s)."
+                    },
+                    {
+                        "name": "Headers",
+                        "type": "Key-value",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Set of key-value inputs containing headers that are sent in the message (optional field)."
+                    },
+                    {
+                        "name": "Message Type",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "String representing the type of message (optional field)."
+                    },
+                    {
+                        "name": "Message Content Type",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "String representing the content type of the message (e.g., application/json) (optional field)."
+                    },
+                    {
+                        "name": "Message Content Encoding",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "String representing the content coding (e.g., UTF-8) (optional field)."
+                    },
+                    {
+                        "name": "Priority",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Number indicating the priority of the message (optional field)."
+                    },
+                    {
+                        "name": "Correlation ID",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "String representing the correlation ID of the message (optional field)."
+                    },
+                    {
+                        "name": "Message ID",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "String representing the ID of the message (optional field)."
+                    },
+                    {
+                        "name": "Delivery Mode",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "Persistent Message",
+                        "visibleWhen": "",
+                        "description": "If \"Persistent Message\", then the message is sent with the persistent flag, and the broker will try to keep it in disk as soon as possible; if \"Transient Message\", then the broker will try to keep the message in memory."
+                    },
+                    {
+                        "name": "Reply To",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "String representing the message return address (optional field)."
+                    },
+                    {
+                        "name": "Message Expiration",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Number representing the duration time of the message in the queue (also known as TTL) (optional field)."
+                    },
+                    {
+                        "name": "Message Timestamp",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Number representing the message timestamp (optional field)."
+                    },
+                    {
+                        "name": "Application Name",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "String representing the application name (optional field)."
+                    },
+                    {
+                        "name": "Fail On Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If the option is enabled, the execution of the pipeline with error will be interrupted; otherwise, the pipeline execution proceeds, but the result will show a false value for the “success” property."
+                    },
+                    {
+                        "name": "Wait for a Publish Acknowledgement",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If the option is activated, the connector will wait for a message publication confirmation; otherwise, the connector will send the message and won't wait for a confirmation."
+                    },
+                    {
+                        "name": "Publisher Acknowledgement Timeout",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "5000",
+                        "visibleWhen": "",
+                        "description": "Maximum time the connector will wait for a message publication confirmation."
+                    },
+                    {
+                        "name": "Mandatory Message",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If the option is activated, the message is marked as mandatory, and an error will be thrown if it can't be routed; otherwise, no routing verification is made (the Wait for a Publish Acknowledgement option needs to be ena..."
+                    }
+                ]
+            }
+        ]
+    },
+    "rest-connector-v2": {
+        "connector": "rest-connector-v2",
+        "title": "REST V2",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/web-protocols/rest-v2.md",
+        "summary": "REST V2 makes calls to HTTP endpoints, supporting actions such as GET, POST, PUT, and DELETE. t uses Double Braces expressions to compose the URL, headers, query parameters, and message body, allowing direct access to pipeline data.",
+        "groups": [
+            {
+                "name": "Connection",
+                "parameters": [
+                    {
+                        "name": "URL",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "https://viacep.com.br/ws/{{ DEFAULT(message.$.cep, \"04547-130\") }}/json/",
+                        "visibleWhen": "",
+                        "description": "Address that will receive the HTTP call. Supports Double Braces, but account references are not allowed."
+                    },
+                    {
+                        "name": "Headers",
+                        "type": "Key-value pairs",
+                        "doubleBraces": "yes",
+                        "default": "Content-Type: application/json",
+                        "visibleWhen": "",
+                        "description": "All headers required for the call (for example, Content-Type: application/json). Supports Double Braces for both key and value fields. Account references are only allowed in value fields."
+                    },
+                    {
+                        "name": "Query Params",
+                        "type": "Key-value pairs",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Query parameters required for the call. Supports Double Braces only for value fields."
+                    },
+                    {
+                        "name": "Verb",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "GET",
+                        "visibleWhen": "",
+                        "description": "The HTTP method (GET, POST, PUT, DELETE, PATCH, and HEAD)."
+                    },
+                    {
+                        "name": "Send A File",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "Verb is POST, PUT, DELETE, or PATCH",
+                        "description": "If enabled, sends a file in place of the body."
+                    },
+                    {
+                        "name": "File Name",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "Send A File is enabled",
+                        "description": "File name or full file path (for example, tmp/processed/file.txt)."
+                    },
+                    {
+                        "name": "Body",
+                        "type": "JSON",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "Verb is POST, PUT, DELETE, or PATCH",
+                        "description": "The body of the request. Click Write with AI to get AI support."
+                    }
+                ]
+            },
+            {
+                "name": "Authentication",
+                "parameters": [
+                    {
+                        "name": "Use Dynamic Account",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "",
+                        "description": "If enabled, uses the account dynamically; otherwise, uses it statically."
+                    },
+                    {
+                        "name": "Scoped",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "Use Dynamic Account is enabled",
+                        "description": "If enabled, isolates the stored account from other sub-processes. Not supported for accounts used in headers or body. To learn more, read the Dynamic Accounts documentation."
+                    },
+                    {
+                        "name": "Account Name",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "",
+                        "visibleWhen": "Use Dynamic Account is enabled",
+                        "description": "Account name generated dynamically through the Store Account connector."
+                    },
+                    {
+                        "name": "Account",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "",
+                        "visibleWhen": "Use Dynamic Account is disabled",
+                        "description": "Account used by the connector. Learn more in the Using accounts section."
+                    },
+                    {
+                        "name": "Custom Account #1",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Account whose credentials can be referenced in any Double Braces-supported field through {{ account.custom-1.<field> }}. Learn more in the Using custom accounts section."
+                    },
+                    {
+                        "name": "Custom Account #2",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Account whose credentials can be referenced in any Double Braces-supported field through {{ account.custom-1.<field> }}. Learn more in the Using custom accounts section."
+                    }
+                ]
+            },
+            {
+                "name": "Timeouts",
+                "parameters": [
+                    {
+                        "name": "Connect Timeout",
+                        "type": "Integer",
+                        "doubleBraces": "no",
+                        "default": "30000",
+                        "visibleWhen": "",
+                        "description": "Maximum time to establish a connection with the server, in milliseconds (includes DNS, TCP handshake, and TLS when applicable)."
+                    },
+                    {
+                        "name": "Read Timeout",
+                        "type": "Integer",
+                        "doubleBraces": "no",
+                        "default": "30000",
+                        "visibleWhen": "",
+                        "description": "Maximum time to wait for a response after the connection is established, in milliseconds."
+                    },
+                    {
+                        "name": "Write Timeout",
+                        "type": "Integer",
+                        "doubleBraces": "no",
+                        "default": "30000",
+                        "visibleWhen": "",
+                        "description": "Maximum time to send the request body to the server, in milliseconds."
+                    },
+                    {
+                        "name": "Call Timeout",
+                        "type": "Integer",
+                        "doubleBraces": "no",
+                        "default": "30000",
+                        "visibleWhen": "",
+                        "description": "Total time allowed for the entire request (connect, write, read), in milliseconds."
+                    }
+                ]
+            },
+            {
+                "name": "Error handling",
+                "parameters": [
+                    {
+                        "name": "Stop On Client Error",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "",
+                        "description": "If enabled, interrupts pipeline execution on a 4xx HTTP error."
+                    },
+                    {
+                        "name": "Stop On Server Error",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "",
+                        "description": "If enabled, interrupts pipeline execution on a 5xx HTTP error."
+                    }
+                ]
+            },
+            {
+                "name": "Response",
+                "parameters": [
+                    {
+                        "name": "Override Response Charset",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "",
+                        "description": "If enabled, replaces the charset returned by the endpoint with the value specified in Response Charset."
+                    },
+                    {
+                        "name": "Response Charset",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "UTF-8",
+                        "visibleWhen": "Override Response Charset is enabled",
+                        "description": "Charset to apply."
+                    }
+                ]
+            },
+            {
+                "name": "Advanced",
+                "parameters": [
+                    {
+                        "name": "Raw Mode",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "",
+                        "description": "If enabled, receives or sends a non-JSON payload."
+                    },
+                    {
+                        "name": "Raw Mode As Base64",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "Raw Mode is enabled",
+                        "description": "If enabled, returns the response encoded in Base64."
+                    },
+                    {
+                        "name": "Save As Local File",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "",
+                        "description": "If enabled, saves the response as a file in the local pipeline directory."
+                    },
+                    {
+                        "name": "Response File Name",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "Save As Local File is enabled",
+                        "description": "File name or full file path (for example, tmp/processed/file.txt). Supports Double Braces, but account references are not allowed."
+                    },
+                    {
+                        "name": "Allow Insecure Endpoints",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "",
+                        "description": "If enabled, allows calls to HTTPS endpoints with invalid certificates."
+                    },
+                    {
+                        "name": "Enable Retries",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "",
+                        "description": "If enabled, retries the request after server errors."
+                    },
+                    {
+                        "name": "Number Of Retries",
+                        "type": "Integer",
+                        "doubleBraces": "no",
+                        "default": "0",
+                        "visibleWhen": "Enable Retries is enabled",
+                        "description": "Maximum number of retry attempts before giving up."
+                    },
+                    {
+                        "name": "Time To Wait Between Retries",
+                        "type": "Integer",
+                        "doubleBraces": "no",
+                        "default": "0",
+                        "visibleWhen": "Enable Retries is enabled",
+                        "description": "Wait time between retry attempts, in milliseconds."
+                    },
+                    {
+                        "name": "Compress Body With GZIP",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "",
+                        "description": "If enabled, compresses the request body using GZIP."
+                    },
+                    {
+                        "name": "Force HTTP 1.1",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "",
+                        "description": "If enabled, forces the request to use HTTP 1.1."
+                    },
+                    {
+                        "name": "Disable Connection Pooling",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "",
+                        "description": "If enabled, does not reuse connections. Recommended for endpoints with connection reuse issues."
+                    },
+                    {
+                        "name": "Invalidate SSL Sessions On Every Call",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "false",
+                        "visibleWhen": "",
+                        "description": "If enabled, invalidates SSL sessions on every request. Recommended for endpoints with SSL session reuse issues. Activating this option makes the connector single-threaded."
+                    },
+                    {
+                        "name": "Enable Follow Redirect",
+                        "type": "Boolean",
+                        "doubleBraces": "no",
+                        "default": "true",
+                        "visibleWhen": "",
+                        "description": "If enabled, automatically follows redirects for 302 responses. If disabled, returns the original 302 response for inspection before the redirect."
+                    }
+                ]
+            },
+            {
+                "name": "Documentation",
+                "parameters": [
+                    {
+                        "name": "Documentation",
+                        "type": "String",
+                        "doubleBraces": "no",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Space for documenting connector configuration details and business rules."
+                    }
+                ]
+            }
+        ]
+    },
+    "retry-connector": {
+        "connector": "retry-connector",
+        "title": "Retry",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/logic/retry.md",
+        "summary": "Take a look at the configuration parameters of the component. Parameters supported by Double Braces expressions are marked with (DB).",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "Maximum Number of Retries",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "3",
+                        "visibleWhen": "",
+                        "description": "The first retry also counts, so if the step fails in the first execution and you want a new retry to be made, the value of this parameter should be 2."
+                    },
+                    {
+                        "name": "Timeout Of The Whole Retry Operation",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "30000",
+                        "visibleWhen": "",
+                        "description": "Maximum length of the sum of all retry attempts, including the first one (in milliseconds)."
+                    },
+                    {
+                        "name": "Fail On Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If the option is activated, the Retry execution that reaches the maximum number of tries or the maximum length will end with an error and will be interrupted; otherwise, the pipeline execution continues, but the result o..."
+                    }
+                ]
+            }
+        ]
+    },
+    "sap-connector": {
+        "connector": "sap-connector",
+        "title": "SAP (IDoc and RFC)",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/enterprise-applications/sap.md",
+        "summary": "The SAP connector allows integration with SAP systems by using the RFC protocol and the IDoc standard for data exchange.",
+        "groups": [
+            {
+                "name": "Authorization tab",
+                "parameters": [
+                    {
+                        "name": "Use Dynamic Account",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "When active, the connector will use the account dynamically. Otherwise, it will use the account statically. Learn more about Dynamic Accounts."
+                    },
+                    {
+                        "name": "Scoped",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "When active, the stored account is isolated from other subprocesses. In this case, the subprocesses see their own version of the stored account data. It is only available if the Use Dynamic Account parameter is enabled."
+                    },
+                    {
+                        "name": "Account Name",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "The name of the dynamic account used by the connector. This account must have been previously configured in a Store Account connector in the pipeline for this process to take effect. It is only available if the Use Dynam..."
+                    },
+                    {
+                        "name": "Account",
+                        "type": "Account",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "The account used by the connector. Supported type: Basic (user and password). It is only available if the Use Dynamic Account parameter is disabled."
+                    },
+                    {
+                        "name": "Host",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Hostname of the SAP system. To support \"IP\" and \"Port\", VPN connectivity is required (you can configure VPN via SAP GUI). To resolve the hostname to an IP address, you must add a mapping entry to the host file on the mac..."
+                    },
+                    {
+                        "name": "Client ID",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "400",
+                        "visibleWhen": "",
+                        "description": "SAP client ID, typically a 3-digit number used to connect to SAP."
+                    },
+                    {
+                        "name": "System Number",
+                        "type": "Integer",
+                        "doubleBraces": "yes",
+                        "default": "01",
+                        "visibleWhen": "",
+                        "description": "SAP system number, typically 2 digits. You can find this information in the SAP GUI."
+                    },
+                    {
+                        "name": "Language",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "en",
+                        "visibleWhen": "",
+                        "description": "Language used for the SAP system connection (for example, \"EN\" for English)."
+                    }
+                ]
+            },
+            {
+                "name": "General tab",
+                "parameters": [
+                    {
+                        "name": "Alias",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "sap-1",
+                        "visibleWhen": "",
+                        "description": "Name (alias) for this connector’s output, allowing you to reference it later in the flow using Double Braces expressions. Learn more."
+                    },
+                    {
+                        "name": "SAP Operation",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "RFC",
+                        "visibleWhen": "",
+                        "description": "SAP system connection type. Supported options: RFC or IDoc."
+                    },
+                    {
+                        "name": "RFC",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "YYPCL_RFC_ORDEM_FATURA",
+                        "visibleWhen": "",
+                        "description": "Name of the RFC used to connect to the SAP system. This value is provided by the client. The import parameters of the SAP function must be mapped."
+                    },
+                    {
+                        "name": "Search Template",
+                        "type": "Button",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Button that automatically populates the Template (XML) parameter with an RFC template when all authorization details and the RFC name are valid."
+                    },
+                    {
+                        "name": "Send as File",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "When enabled, a file can be defined and sent."
+                    },
+                    {
+                        "name": "File Name",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "File that contains the body to be sent to the SAP server. Use this option when the payload is too large for the Template field. It's recommended to use other connectors like Template Transformer and File Writer to genera..."
+                    },
+                    {
+                        "name": "Template (XML)",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Defines the Apache FreeMarker template for the SOAP message sent in the request. For RFC calls, a template is generated through the Search Template button when authorization details and the RFC name are valid."
+                    },
+                    {
+                        "name": "Fail On Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If enabled, interrupts the pipeline execution when an error occurs. If disabled, execution continues, but the \"success\" property will be set to false."
+                    },
+                    {
+                        "name": "Raw Mode",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "When enabled the result will be returned in original SAP XML format, wrapped in a JSON."
+                    },
+                    {
+                        "name": "IDoc Type",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Basic IDoc Type of the IDoc to be sent."
+                    },
+                    {
+                        "name": "IDoc Type Extension",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "IDoc Type Extension of the IDoc, if applicable."
+                    },
+                    {
+                        "name": "System Release",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "SAP Basis Release associated with the IDoc."
+                    },
+                    {
+                        "name": "Application Release",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Application Release associated with the IDoc."
+                    },
+                    {
+                        "name": "Send as File",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "When enabled, a file can be defined and sent."
+                    },
+                    {
+                        "name": "File Name",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "File that contains the body to be sent to the SAP server. Use this option when the payload is too large for the Template field. It's recommended to use other connectors like Template Transformer and File Writer to genera..."
+                    },
+                    {
+                        "name": "Template (XML)",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Defines the Apache FreeMarker template for the SOAP message sent in the request."
+                    },
+                    {
+                        "name": "Fail On Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If enabled, interrupts the pipeline execution when an error occurs. If disabled, execution continues, but the \"success\" property will be set to false."
+                    }
+                ]
+            },
+            {
+                "name": "Documentation tab",
+                "parameters": [
+                    {
+                        "name": "Documentation",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Optional field to describe the connector configuration and any relevant business rules."
+                    }
+                ]
+            }
+        ]
+    },
+    "script-connector": {
+        "connector": "script-connector",
+        "title": "Script (JavaScript)",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/tools/script.md",
+        "summary": "Take a look at the configuration options for the connector. Parameters supported by Double Braces expressions are marked with (DB).",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "Code",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "var currentDate = moment.tz(new Date(), \"America/Sao_Paulo\");output = {currentDa...",
+                        "visibleWhen": "",
+                        "description": "Place to insert the JavaScript code."
+                    },
+                    {
+                        "name": "Script Timeout",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "10000",
+                        "visibleWhen": "",
+                        "description": "Time for the script to expire (in milliseconds)."
+                    },
+                    {
+                        "name": "Use Experimental Runtime (Improved Performance)",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "Enable the experimental runtime for improved performance and consistency. This engine is still in beta."
+                    }
+                ]
+            }
+        ]
+    },
+    "sftp-connector": {
+        "connector": "sftp-connector",
+        "title": "SFTP",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/file-storage/sftp.md",
+        "summary": "Take a look at the configuration options for the component. Parameters supported by Double Braces expressions are marked with (DB).",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "Operation",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "Upload",
+                        "visibleWhen": "",
+                        "description": "The operation to be executed: Upload, Delete, Download, List, or Move."
+                    },
+                    {
+                        "name": "Account #1",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Basic or Private key-type account."
+                    },
+                    {
+                        "name": "Account #2",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Basic or Private key-type account."
+                    },
+                    {
+                        "name": "Host",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "ftp.server.com.br",
+                        "visibleWhen": "",
+                        "description": "Host or IP address to be used for the connection."
+                    },
+                    {
+                        "name": "Username",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "User",
+                        "visibleWhen": "",
+                        "description": "Used only when the account type is Private key. If both Basic and Private Key accounts are set, this parameter will be ignored due to the presence of the Basic account username."
+                    },
+                    {
+                        "name": "Port",
+                        "type": "Integer",
+                        "doubleBraces": "yes",
+                        "default": "22",
+                        "visibleWhen": "",
+                        "description": "Port number. Generally, assumes value 22."
+                    },
+                    {
+                        "name": "Server Host Key",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Specifies any additional algorithms to be supported for the server host key configuration. Each algorithm must be set separately."
+                    },
+                    {
+                        "name": "Public Key Algorithms",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Specifies any additional algorithms to be supported for the public key algorithms configuration. Each algorithm must be set separately."
+                    },
+                    {
+                        "name": "KEX Algorithms",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Specifies any additional algorithms to be supported for the KEX (key exchange) algorithms configuration. Each algorithm must be set separately."
+                    },
+                    {
+                        "name": "File Name",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "local-test.pdf",
+                        "visibleWhen": "",
+                        "description": "Name of the file or full file path (i.e. tmp/processed/file.txt) to the local file."
+                    },
+                    {
+                        "name": "Remote File Name",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "test.pdf",
+                        "visibleWhen": "",
+                        "description": "Remote file name or full file path (i.e. tmp/processed/file.txt) to the remote file."
+                    },
+                    {
+                        "name": "Remote Directory",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "Folder",
+                        "visibleWhen": "",
+                        "description": "Base remote directory, which can be relative (e.g., pub/tmp) or absolute (e.g.,_ /root/pub_). This parameter is mandatory."
+                    },
+                    {
+                        "name": "Connection Timeout",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "30000",
+                        "visibleWhen": "",
+                        "description": "Time limit for the connection with the server to expire (in milliseconds)."
+                    },
+                    {
+                        "name": "Overwrite File On Upload",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "True",
+                        "visibleWhen": "",
+                        "description": "If the option is active, files with conflicting names will be replaced when uploading."
+                    },
+                    {
+                        "name": "Fail On Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If the option is active, the execution of the pipeline with an error will be interrupted; otherwise, the pipeline execution proceeds, but the result will show a false value for the “success” property."
+                    },
+                    {
+                        "name": "Proxy Enabled",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If the option is active, you will be able to set a proxy to establish the connection with the SFTP service."
+                    },
+                    {
+                        "name": "Host (Proxy)",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Proxy host. Available if Proxy Enabled is activated."
+                    },
+                    {
+                        "name": "Port (Proxy)",
+                        "type": "Integer",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Proxy port. Available if Proxy Enabled is activated. Value must be greater than or equal to 80."
+                    },
+                    {
+                        "name": "Use Dynamic Account",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "When the option is active, the component will use the account dynamically. When deactivated, it will use the account statically."
+                    },
+                    {
+                        "name": "Account Name #1",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Account name to be set. The name of the account is generated dynamically via the Store Account component."
+                    },
+                    {
+                        "name": "Account Name #2",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Account name to be set. The name of the account is generated dynamically via the Store Account component."
+                    },
+                    {
+                        "name": "Scoped",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "When the option is active, the stored account is isolated from other sub-processes. Sub-processes will see their own version of the stored account data. To know more about the Scoped feature, check out the Dynamic Accoun..."
+                    }
+                ]
+            }
+        ]
+    },
+    "soap-connector-v2": {
+        "connector": "soap-connector-v2",
+        "title": "SOAP V2",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/web-protocols/soap-v2.md",
+        "summary": "Besides, the component uses Apache Freemaker templates to generate the request message that converts the SOAP return into JSON, trying its best not to disrupt the conversion.",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "URL",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "https://apps.correios.com.br/SigepMasterJPA/AtendeClienteService/AtendeCliente",
+                        "visibleWhen": "",
+                        "description": "URL to be called - it may contain parameters following the {:param1} pattern, which will be replaced by the corresponding input message property."
+                    },
+                    {
+                        "name": "Account",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Account to be used by the component. Supported accounts: Basic, Certificate Chain.Read the Accounts documentation to learn more about available account types."
+                    },
+                    {
+                        "name": "Custom Account #1",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Additional account to be used by the component through Double Braces {{ account.custom-1.value }}. Read the article Double Braces Functions to learn more about the topic."
+                    },
+                    {
+                        "name": "Custom Account #2",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Additional account to be used by the component through Double Braces {{ account.custom-2.value }}.Read the article Double Braces Functions to learn more about the topic."
+                    },
+                    {
+                        "name": "Send the Request Body from a File",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If enabled, the options considers the content to be sent in the call through a file; otherwise, it will be considered what's specified in Template."
+                    },
+                    {
+                        "name": "File Name",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Informs the name of the file to be sent in the SOAP call, if the Send the Request Body from a File option is enabled."
+                    },
+                    {
+                        "name": "Template (XML)",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Apache FreeMarker template for the SOAP message to be sent in the request."
+                    },
+                    {
+                        "name": "Headers",
+                        "type": "Object/Map",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Headers of the call."
+                    },
+                    {
+                        "name": "Query Params",
+                        "type": "Object/Map",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Query parameters of the call."
+                    },
+                    {
+                        "name": "Connect Timeout",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "30000",
+                        "visibleWhen": "",
+                        "description": "Connection expiration time (in milliseconds)."
+                    },
+                    {
+                        "name": "Read Timeout",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "30000",
+                        "visibleWhen": "",
+                        "description": "Maximum time for reading (in milliseconds)."
+                    },
+                    {
+                        "name": "Stop On Client Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If activated, the option will generate an error and suspend the pipeline execution."
+                    },
+                    {
+                        "name": "Stop On Server Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If activated, the option will generate an error and suspend the pipeline execution."
+                    },
+                    {
+                        "name": "All Values As String",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If activated, the option will return all the values inside the XML property in string."
+                    },
+                    {
+                        "name": "With Namespace",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "True",
+                        "visibleWhen": "",
+                        "description": "If activated, the option keeps the namespaces in the XML return."
+                    },
+                    {
+                        "name": "Advanced Settings",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "Advanced configurations."
+                    },
+                    {
+                        "name": "Allow Insecure Calls To HTTPS Endpoints",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If activated, the option allows non-reliable calls to HTTPS endpoints to be made."
+                    },
+                    {
+                        "name": "Raw Mode",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If activated, the option receives or passes a payload without being JSON."
+                    },
+                    {
+                        "name": "Save As Local File",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If activated, the option saves the response as a file in the local pipeline directory. The file will be saved only when the SOAP call is successful, that is, if the http status code of the response is between 200 and 399..."
+                    },
+                    {
+                        "name": "Response File Name",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "File name of complete file path (eg.: tmp/processed/file.txt) where the SOAP call response will be saved at. Double Braces are supported."
+                    },
+                    {
+                        "name": "Enable Retries",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If activated, the option allows new tries."
+                    },
+                    {
+                        "name": "Maximum Number Of Retries Before Giving Up",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "0",
+                        "visibleWhen": "",
+                        "description": "Maximum number of retries before giving up the call."
+                    },
+                    {
+                        "name": "Time To Wait Before Each Retry",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "0",
+                        "visibleWhen": "",
+                        "description": "Maximum time between retries (in milliseconds)."
+                    },
+                    {
+                        "name": "Override Response Charset",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "True",
+                        "visibleWhen": "",
+                        "description": "When activated, the option will overwrite the charset returned from the endpoint to the charset specified in the Response Charset property. When disabled, it will respect the charset return in the Content-Type header. If..."
+                    },
+                    {
+                        "name": "Response Charset",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "UTF-8",
+                        "visibleWhen": "",
+                        "description": "Used only when the Override Response Charset option is active and will force the use of the charset specified in this property."
+                    }
+                ]
+            }
+        ]
+    },
+    "soap-connector-v3": {
+        "connector": "soap-connector-v3",
+        "title": "SOAP V3",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/web-protocols/soap-v3.md",
+        "summary": "The SOAP V3 component uses Apache Freemaker templates to generate the request message that converts the SOAP return into JSON, trying its best not to disrupt the conversion. Double Braces expressions are supported.",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "URL",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "https://apps.correios.com.br/SigepMasterJPA/AtendeClienteService/AtendeCliente",
+                        "visibleWhen": "",
+                        "description": "URL to be called - it may contain parameters following the {:param1} pattern, which will be replaced by the corresponding input message property."
+                    },
+                    {
+                        "name": "Account",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Account to be used by the component. Supported accounts: basic, certificate-chain, and ntlmRead the Accounts documentation to learn more about available account types."
+                    },
+                    {
+                        "name": "Custom Account #1",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Additional account to be used by the component through Double Braces {{ account.custom-1.value }}. Read the article Double Braces Functions to learn more about the topic."
+                    },
+                    {
+                        "name": "Custom Account #2",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Additional account to be used by the component through Double Braces {{ account.custom-2.value }}. Read the article Double Braces Functions to learn more about the topic."
+                    },
+                    {
+                        "name": "Send the Request Body from a File",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If enabled, the options consider the content to be sent in the call through a file; otherwise, it will be considered what's specified in Template (XML)."
+                    },
+                    {
+                        "name": "Request Body File Name",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Informs the name or full file path (i.e. tmp/processed/file.txt) of the file to be sent in the SOAP call if the Send the Request Body from a File option is enabled."
+                    },
+                    {
+                        "name": "Template (XML)",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Apache FreeMarker template for the SOAP message to be sent in the request. This field will not be available if the Send the Request Body From a File option is enabled."
+                    },
+                    {
+                        "name": "Headers",
+                        "type": "Key-value Pairs",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Headers of the call."
+                    },
+                    {
+                        "name": "Query Params",
+                        "type": "Key-value Pairs",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Query parameters of the call."
+                    },
+                    {
+                        "name": "Attachments (MTOM)",
+                        "type": "Options of Attachments",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Add or remove options to set files or binary content to be sent in the request, using MTOM technology. This field will not be available if the Send the Request Body From a File option is enabled."
+                    },
+                    {
+                        "name": "Is Binary",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If activated, the connector must receive the binary content and the ID of the file to be sent in the request; otherwise, the file name must be informed. Available only when Attachments (MTOM) parameter is added."
+                    },
+                    {
+                        "name": "File Name",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "When the option Is Binary is deactivated, informs the name of the file to be sent along with the XML configured in Template (XML). Available only when Attachments (MTOM) parameter is added."
+                    },
+                    {
+                        "name": "File ID",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "When the option Is Binary is activated, informs the ID of the file to be sent along with the XML configured in Template (XML). Available only when Attachments (MTOM) parameter is added."
+                    },
+                    {
+                        "name": "Base64 Content",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "When the option Is Binary is activated, informs the Base64 content to be sent along with the XML configured in Template (XML). Available only when Attachments (MTOM) parameter is added."
+                    },
+                    {
+                        "name": "WS-Security",
+                        "type": "Options of WS-Security",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Configures the request security layer using WS-Security technology. This parameter will not be available if the Send the Request Body From a File option is enabled."
+                    },
+                    {
+                        "name": "Type",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Type of property to be inserted in the security layer in the XML of the request. Currently, the connector only supports Timestamp and UsernameToken types. Available only when WS-Security parameter is added."
+                    },
+                    {
+                        "name": "Time to live",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "0",
+                        "visibleWhen": "",
+                        "description": "Time in seconds to be used to generate the creation and expiration date. Available only if Timestamp is selected in Type."
+                    },
+                    {
+                        "name": "Millisecond precision",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "Defines whether the creation and expiration date must include millisecond precision. Available only if Timestamp is selected in Type."
+                    },
+                    {
+                        "name": "Username",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Username of the account to be used. Available only if UsernameToken is selected in Type."
+                    },
+                    {
+                        "name": "Password",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Password of the account to be used. Available only if UsernameToken is selected in Type."
+                    },
+                    {
+                        "name": "Password Type",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Type of password to be used (Password Text or Password Digest). Available only if UsernameToken is selected in Type."
+                    },
+                    {
+                        "name": "Add Nonce",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If enabled, includes a Nonce. Available only if UsernameToken is selected in Type."
+                    },
+                    {
+                        "name": "Add Created",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If enabled, includes the creation date. Available only if UsernameToken is selected in Type."
+                    },
+                    {
+                        "name": "Connection Timeout",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "30000",
+                        "visibleWhen": "",
+                        "description": "Connection expiration time (in milliseconds)."
+                    },
+                    {
+                        "name": "Reading Timeout",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "30000",
+                        "visibleWhen": "",
+                        "description": "Maximum time for reading (in milliseconds)."
+                    },
+                    {
+                        "name": "Stop On Client Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If activated, the option will generate an error and suspend the pipeline execution."
+                    },
+                    {
+                        "name": "Stop On Server Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If activated, the option will generate an error and suspend the pipeline execution."
+                    },
+                    {
+                        "name": "All Values As String",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If activated, the option will return all the values inside the XML property in string."
+                    },
+                    {
+                        "name": "Is Multipart Response",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If enabled, a Multipart response from the call will be expected, and a list will be displayed containing each Part returned."
+                    },
+                    {
+                        "name": "With Namespace",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "True",
+                        "visibleWhen": "",
+                        "description": "If activated, the option keeps the namespaces in the XML return."
+                    },
+                    {
+                        "name": "Override Response Charset",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "True",
+                        "visibleWhen": "",
+                        "description": "When enabled, the option will overwrite the charset returned from the endpoint to the charset specified in Response Charset. When disabled, it will respect the charset return in the Content-Type field (within the Headers..."
+                    },
+                    {
+                        "name": "Response Charset",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "UTF-8",
+                        "visibleWhen": "",
+                        "description": "Sets the use of the charset specified in this field. Available only when the Override Response Charset option is active."
+                    },
+                    {
+                        "name": "Advanced Settings",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If activated, the following parameters will be available:"
+                    },
+                    {
+                        "name": "Allow Insecure",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If activated, the option allows non-reliable calls to HTTPS endpoints to be made."
+                    },
+                    {
+                        "name": "Raw Mode",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If activated, the option receives or passes a payload without being JSON."
+                    },
+                    {
+                        "name": "Save As Local File",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If activated, the option saves the response as a file in the local pipeline directory. The file will be saved only when the SOAP call is successful, that is, if the http status code of the response is between 200 and 399..."
+                    },
+                    {
+                        "name": "Response File Name",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "File name of complete file path (e.g., tmp/processed/file.txt) where the SOAP call response will be saved at. Double Braces are supported. This field is shown only if Save as Local File is activated."
+                    },
+                    {
+                        "name": "Enable Retries",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If activated, the option allows new tries."
+                    },
+                    {
+                        "name": "Maximum Number Of Retries Before Giving Up",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "0",
+                        "visibleWhen": "",
+                        "description": "Maximum number of retries before giving up the call. This field is shown only if Enable Retries is activated."
+                    },
+                    {
+                        "name": "Time To Wait Before Each Retry",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "0",
+                        "visibleWhen": "",
+                        "description": "Maximum time between retries (in milliseconds). This field is shown only if Enable Retries is activated."
+                    },
+                    {
+                        "name": "Use Dynamic Account",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "When the option is active, the component will use the account dynamically. When deactivated, it will use the account statically."
+                    },
+                    {
+                        "name": "Account Name",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Account name to be set. The name of the account is generated dynamically via the Store Account component."
+                    },
+                    {
+                        "name": "Scoped",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "When the option is active, the stored account is isolated to other sub-process. In that case, sub-processes will see their own version of the stored account data. This option is not supported for accounts used in headers..."
+                    }
+                ]
+            }
+        ]
+    },
+    "stream-json-file-reader-connector": {
+        "connector": "stream-json-file-reader-connector",
+        "title": "Stream JSON File Reader",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/files/stream-json-file-reader.md",
+        "summary": "Take a look at the configuration parameters of the component. Parameters supported by Double Braces expressions are marked with (DB).",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "File Name",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "data.json",
+                        "visibleWhen": "",
+                        "description": "File name or full file path (i.e. tmp/processed/file.json) of the local JSON file."
+                    },
+                    {
+                        "name": "JSON Path",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "$",
+                        "visibleWhen": "",
+                        "description": "JSON Path expression that determines how the JSON file stream reading will occur."
+                    },
+                    {
+                        "name": "Element Identifier",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "data",
+                        "visibleWhen": "",
+                        "description": "Attribute that will be sent in case of errors."
+                    },
+                    {
+                        "name": "Parallel Execution Of Each Iteration",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "Occurs in parallel with the loop execution."
+                    },
+                    {
+                        "name": "Fail On Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "When active, this parameter suspends the pipeline execution if there’s a severe occurrence in the iteration structure, disabling its complete conclusion.The Fail On Error parameter activation doesn’t have any connection..."
+                    }
+                ]
+            }
+        ]
+    },
+    "throw-error-connector": {
+        "connector": "throw-error-connector",
+        "title": "Throw Error",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/tools/throw-error.md",
+        "summary": "Take a look at the configuration options for the component. Parameters supported by Double Braces expressions are marked with (DB).",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "Error Message",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Defines the error message that goes with the error code."
+                    },
+                    {
+                        "name": "HTTP Status Code",
+                        "type": "Integer",
+                        "doubleBraces": "",
+                        "default": "500-Internal Server Error",
+                        "visibleWhen": "",
+                        "description": "Defines the code of the error (we use it based on HTTP errors code)."
+                    },
+                    {
+                        "name": "Enable Custom Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "Defines that the user wants to use a custom error."
+                    },
+                    {
+                        "name": "Custom Error (JSON)",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Can be used to define a custom error message (in this case, HTTP Status Code and Error Message are ignored)."
+                    }
+                ]
+            }
+        ]
+    },
+    "validator-connector-v2": {
+        "connector": "validator-connector-v2",
+        "title": "Validator V2",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/tools/validator-v2.md",
+        "summary": "JSON Schema is a market standard language for annotating and validating JSON documents that act as a \"contract\" that must be followed by the component. For more information about it, refer to the official JSON documentation.",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "Schema Draft version",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "v4",
+                        "visibleWhen": "",
+                        "description": "Schema Draft version. Supported versions: v4, v6, v7, v2019-09, and v2020-12."
+                    },
+                    {
+                        "name": "Detect Draft version",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If this option is active, the Schema Draft version will be based on the version inserted in the JSON Schema parameter."
+                    },
+                    {
+                        "name": "JSON Payload",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "The JSON content to be validated."
+                    },
+                    {
+                        "name": "JSON Schema",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "The JSON Schema to be used as the basis for validating the JSON content."
+                    },
+                    {
+                        "name": "Simplify validation results",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If this option is active, validation errors will be shown in a simplified way; otherwise, they will be displayed in a detailed way."
+                    },
+                    {
+                        "name": "Fail on Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If the option is active, the execution of the pipeline with an error will be interrupted. Otherwise, the pipeline execution proceeds, but the result will show a false value for the “success” property."
+                    }
+                ]
+            }
+        ]
+    },
+    "wget-connector": {
+        "connector": "wget-connector",
+        "title": "WGet (Download HTTP)",
+        "url": "https://docs.digibee.com/documentation/connectors-and-triggers/connectors/web-protocols/wget.md",
+        "summary": "Take a look at the configuration options for the component. Parameters supported by Double Braces expressions are marked with (DB).",
+        "groups": [
+            {
+                "name": "Parameters",
+                "parameters": [
+                    {
+                        "name": "URL",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "https://sendgrid.com/docs/API_Reference/Web_API_v3/Mail/index.html",
+                        "visibleWhen": "",
+                        "description": "Where the file will be downloaded from - Double Braces expressions are supported."
+                    },
+                    {
+                        "name": "Headers",
+                        "type": "Key-value Pairs",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Headers of the call."
+                    },
+                    {
+                        "name": "Query Params",
+                        "type": "Key-value Pairs",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Query parameters of the call."
+                    },
+                    {
+                        "name": "Account",
+                        "type": "String",
+                        "doubleBraces": "",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Account to be used by the component. Supported accounts: ApiKey, Basic, Certificate Chain, Custom Auth Header, Oauth2, and Oauth Bearer Token."
+                    },
+                    {
+                        "name": "Fail On Error",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If the option is enabled, the execution of the pipeline with error will be interrupted; otherwise, the pipeline execution proceeds, but the result will show a false value for the “success” property."
+                    },
+                    {
+                        "name": "Allow Insecure Calls To HTTPS Endpoints",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "When activated, the option allows non-reliable calls to HTTPS endpoints to be made."
+                    },
+                    {
+                        "name": "Binary File",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If activated, the option returns the base64 of the file."
+                    },
+                    {
+                        "name": "Local Save",
+                        "type": "Boolean",
+                        "doubleBraces": "",
+                        "default": "False",
+                        "visibleWhen": "",
+                        "description": "If activated, the option allows the file to be saved locally."
+                    },
+                    {
+                        "name": "File Name",
+                        "type": "String",
+                        "doubleBraces": "yes",
+                        "default": "",
+                        "visibleWhen": "",
+                        "description": "Name or full file path (i.e. tmp/processed/file.txt) of the local file to be downloaded or uploaded."
+                    }
+                ]
+            }
+        ]
+    }
+}

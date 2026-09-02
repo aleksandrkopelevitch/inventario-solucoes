@@ -89,6 +89,24 @@ it('extracts a 4-backtick draft block, keeping conversational text separate', fu
         ->and($result->draft)->not->toContain('````');
 });
 
+it('still finds the draft when the reply signs off after the closing fence', function () {
+    $notebook = Notebook::factory()->create();
+    $page = DocumentationPage::factory()->for($notebook)->create();
+
+    // The pattern used to be anchored at the end of the reply, so one trailing
+    // question meant NO match: the whole draft collapsed into the
+    // conversational half and the person got raw Markdown in a chat bubble with
+    // no "Aplicar" button, and nothing anywhere reported a failure.
+    $reply = "Revisei a página.\n\n````\n# Título\n\nTexto.\n````\n\nQuer que eu ajuste alguma seção?";
+    $result = fakeChatService($reply)->generate(chatMessageFor($page));
+
+    expect($result->draft)->toContain('# Título')
+        ->and($result->draft)->not->toContain('Quer que eu ajuste')
+        // The sign-off is conversation, so it belongs in the bubble — not
+        // dropped, and certainly not pasted into the page.
+        ->and($result->content)->toBe("Revisei a página.\n\nQuer que eu ajuste alguma seção?");
+});
+
 it('preserves a nested 3-backtick code block inside the draft', function () {
     $notebook = Notebook::factory()->create();
     $page = DocumentationPage::factory()->for($notebook)->create();
