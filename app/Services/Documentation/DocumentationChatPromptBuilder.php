@@ -92,6 +92,11 @@ class DocumentationChatPromptBuilder
           {% endtabs %}
         - Formatação inline: `**negrito**`, `*itálico*`, `` `código` ``,
           `[texto](https://url)`, `<mark>destaque</mark>`, `<u>sublinhado</u>`.
+        - Links internos do caderno: `[texto](page:slug-da-pagina)` aponta para
+          outra página do MESMO caderno, `[texto](page:slug-da-pagina#ancora)`
+          para uma seção dela, e `[texto](#ancora)` para uma seção da própria
+          página. O endereço real é resolvido na hora de ler, então NUNCA troque
+          um desses por uma URL.
         - Blocos preservados: marcadores no formato [[BLOCK-1]], descritos na
           seção "BLOCOS PRESERVADOS" do prompt do usuário.
 
@@ -107,6 +112,19 @@ class DocumentationChatPromptBuilder
         - Só remova um [[BLOCK-n]] se o usuário pedir explicitamente. Se remover,
           diga qual removeu na resposta conversacional.
 
+        PÁGINAS DE CONTEXTO:
+        - O prompt pode trazer outras páginas da documentação como REFERÊNCIA,
+          na seção "PÁGINAS DE CONTEXTO". Elas NÃO são a página que você está
+          escrevendo — servem para você entender o sistema do outro lado,
+          conferir nomes, siglas e fluxos, e não repetir o que já está
+          documentado em outro lugar.
+        - O bloco de rascunho substitui APENAS a página atual ("CONTEÚDO ATUAL
+          DA PÁGINA"). Nunca devolva o conteúdo de uma página de contexto dentro
+          dele.
+        - Trechos escritos como [imagem], [arquivo], [diagrama] ou
+          [vídeo/embed] numa página de contexto são blocos que foram retirados
+          do texto que você recebeu. Não tente reconstruí-los.
+
         PROIBIDO no bloco de rascunho:
         - Não CRIE imagens, `<figure>`, `<img>`, `{% file %}`, `{% embed %}` nem
           `{% diagram %}`, e não invente caminhos `/files/{id}`: esses blocos
@@ -115,6 +133,9 @@ class DocumentationChatPromptBuilder
           resposta conversacional que ela é inserida pelo editor — não escreva
           um bloco novo no rascunho.
         - Não escreva um [[BLOCK-n]] que não esteja na lista que você recebeu.
+        - Não INVENTE um `page:slug` nem uma `#ancora`. Copie apenas os que já
+          estão no conteúdo atual da página ou que o usuário te passou: um slug
+          que não existe no caderno vira texto sem link nenhum para quem lê.
         PROMPT;
     }
 
@@ -130,6 +151,7 @@ class DocumentationChatPromptBuilder
         Collection $history,
         string $message,
         Collection $textDocs,
+        ContextPageSet $contextPages,
         array $requirements,
         LiteralVault $vault,
         BlockVault $blocks,
@@ -189,6 +211,20 @@ class DocumentationChatPromptBuilder
                 ->map(fn (array $d) => "### Documento: {$d['name']}\n" . $vault->mask($blocks->mask($d['content'])))
                 ->implode("\n\n");
             $parts[] = "DOCUMENTOS DE CONTEXTO (texto):\n\n{$docs}";
+        }
+
+        // Other pages of the documentation, as reference. The heading says what
+        // they are NOT, because that is the failure this section invites: asked
+        // for the complete page back, a model handed two bodies of text under
+        // two headings can return the wrong one.
+        if ($contextPages->pages->isNotEmpty()) {
+            $pages = $contextPages->pages
+                ->map(fn (array $page): string => "### Página: {$page['title']}"
+                    . ($page['notebook'] !== '' ? " (caderno: {$page['notebook']})" : '')
+                    . "\n" . $vault->mask($page['content']))
+                ->implode("\n\n");
+            $parts[] = 'PÁGINAS DE CONTEXTO (outras páginas da documentação, apenas como referência '
+                . "— NÃO são a página que você está escrevendo):\n\n{$pages}";
         }
 
         if ($history->isNotEmpty()) {

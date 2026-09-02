@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Diagram;
+use App\Support\Documentation\PageLinks;
 use App\Support\Documentation\SecretText;
 use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
@@ -33,6 +34,11 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  *   {% secret %} … {% endsecret %}   (inline, ours)
  *       → a lock the value is NOT inside — see App\Support\Documentation\SecretText
  *
+ * One construct of the dialect is not a `{% … %}` block at all: a link whose
+ * destination is `page:{slug}` (optionally with `#anchor`) points at another
+ * page of the same caderno, and is resolved here into whatever URL the reader
+ * of THIS render can actually use — see App\Support\Documentation\PageLinks.
+ *
  * Images come as plain HTML (<figure><img src="/files/{id}">…), which
  * commonmark passes through (html_input=allow) — /files/{id} resolves via
  * the files.show route.
@@ -41,6 +47,9 @@ class GitbookRenderer
 {
     /** Set by `render()` on every call — see the note there. */
     private bool $linkDiagrams = true;
+
+    /** Set by `render()` on every call, for the same reason `$linkDiagrams` is. */
+    private PageLinks $pageLinks;
 
     private ?MarkdownConverter $converter = null;
 
@@ -78,8 +87,13 @@ class GitbookRenderer
      *                              its slug is. The card itself still renders:
      *                              the picture and the name are documentation,
      *                              the link is an editing affordance.
+     * @param  PageLinks|null  $pageLinks  How a `page:{slug}` link becomes a URL.
+     *                                     Omitted means "there is no caderno to resolve
+     *                                     against", and such a link then renders as dead
+     *                                     text rather than as an address that goes
+     *                                     nowhere — see PageLinks::none().
      */
-    public function render(?string $markdown, bool $linkDiagrams = true): string
+    public function render(?string $markdown, bool $linkDiagrams = true, ?PageLinks $pageLinks = null): string
     {
         // A property rather than a parameter threaded through `renderLines()`:
         // that walk recurses (tabs and hints nest), so the flag would have to
@@ -89,6 +103,7 @@ class GitbookRenderer
         // call — but it is set on EVERY entry, never only when false, so a
         // previous call can't leave it behind either.
         $this->linkDiagrams = $linkDiagrams;
+        $this->pageLinks = $pageLinks ?? PageLinks::none();
 
         if (blank($markdown)) {
             return '';
@@ -115,7 +130,7 @@ class GitbookRenderer
 
         $lines = preg_split('/\r\n|\r|\n/', $markdown);
 
-        return $this->paintSecrets($this->renderLines($lines));
+        return $this->resolvePageLinks($this->paintSecrets($this->renderLines($lines)));
     }
 
     /**
@@ -158,6 +173,49 @@ class GitbookRenderer
 
     /** Heroicons outline `lock-closed`, sized to the surrounding text. */
     private const LOCK_ICON = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-[1em] shrink-0" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>';
+
+    /**
+     * Turns every `page:{slug}` link destination into the URL this render's
+     * audience can actually use (see App\Support\Documentation\PageLinks).
+     *
+     * Run on the finished HTML rather than on the Markdown, for the same reason
+     * `paintSecrets()` is: the walk in `renderLines()` recurses (a link lives
+     * just as legitimately inside a hint, a tab or a table cell), and commonmark
+     * is what turns `[texto](page:x)` into an `<a href>` in the first place. One
+     * pass over the output covers every nesting there is. It also catches a link
+     * pasted as raw HTML, which never goes through the Markdown parser at all.
+     *
+     * A slug this caderno does not have loses its `href` ENTIRELY rather than
+     * getting a broken one. An `<a>` with no href is not a link — it renders as
+     * the words the author wrote, which is the same promise the "Diagrama
+     * removido" card makes: deleting a page must never damage the prose that
+     * mentioned it. Pointing it at `#` instead would look like a link and
+     * scroll the reader to the top of the page for no stated reason.
+     */
+    private function resolvePageLinks(string $html): string
+    {
+        if (stripos($html, 'href="page:') === false) {
+            return $html;
+        }
+
+        return (string) preg_replace_callback(
+            '/href="page:([^"]*)"/i',
+            function (array $match): string {
+                // The fragment is the reader's business, not the resolver's: it
+                // is a heading anchor inside the target page, and the same one
+                // whichever URL that page happens to have.
+                [$slug, $fragment] = array_pad(explode('#', html_entity_decode($match[1], ENT_QUOTES), 2), 2, '');
+                $url = $this->pageLinks->urlFor(rawurldecode($slug));
+
+                if ($url === null) {
+                    return 'data-ak-page-missing="' . e($slug) . '" title="Página não encontrada neste caderno"';
+                }
+
+                return 'href="' . e($url . ($fragment !== '' ? '#' . $fragment : '')) . '"';
+            },
+            $html,
+        );
+    }
 
     /**
      * @param  array<int, string>  $lines

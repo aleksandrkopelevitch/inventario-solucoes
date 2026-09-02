@@ -503,6 +503,14 @@ Route::middleware('auth')->group(function () {
 
     Route::post('notebooks/{notebook}/pages', [NotebookPageController::class, 'store'])->name('notebooks.pages.store');
 
+    // Two catalogs the documentation editor reads, both static segments and so
+    // both BEFORE the {page} group below (and both reserved in
+    // DocumentationPageService::RESERVED_SLUGS, or a page could take the URL):
+    // what a link inside this caderno may point at, and which pages may be
+    // handed to the Documentation Assistant as context.
+    Route::get('notebooks/{notebook}/link-targets', [NotebookPageController::class, 'linkTargets'])->name('notebooks.link-targets');
+    Route::get('notebooks/{notebook}/context-pages', [NotebookPageController::class, 'contextPages'])->name('notebooks.context-pages');
+
     // Documentation Assistant polling — the chat carries its own target, so it
     // doesn't need {page} in the URL (and avoids scopeBindings' auto-scope
     // trying to resolve {chat} as a page's child).

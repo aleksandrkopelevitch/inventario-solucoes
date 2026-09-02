@@ -234,6 +234,53 @@ class DocumentationSearchService
         ];
     }
 
+    /**
+     * The caderno's pages and their linkable headings, in reading order — what
+     * the editor's link picker offers when somebody writes a link to another
+     * part of this caderno (`docs-tools/link.js`).
+     *
+     * A READING of the search index rather than a second walk of the corpus,
+     * and that is the whole reason it lives here. The index already splits every
+     * page into its H1–H3 sections and already carries each one's anchor read
+     * out of the RENDERED html — which is the one way to get an anchor right
+     * (re-deriving commonmark's slug normalizer drifts the moment two headings
+     * on a page collide and it starts suffixing `-1`, and a drifted anchor is a
+     * silent failure: the right page at the wrong place). It is also already
+     * cached by content, so the picker costs a hash comparison on every open
+     * after the first.
+     *
+     * @return array<int, array{slug: string, title: string, trail: array<int, string>, headings: array<int, array{anchor: string, text: string, level: int}>}>
+     */
+    public function linkTargets(Notebook $notebook): array
+    {
+        $pages = [];
+
+        foreach ($this->index($notebook) as $entry) {
+            $slug = $entry['slug'];
+
+            // A page's own entry always precedes its sections (see `build()`),
+            // so the bucket is there by the time a heading needs it.
+            if ($entry['kind'] === 'page') {
+                $pages[$slug] = [
+                    'slug'     => $slug,
+                    'title'    => $entry['title'],
+                    'trail'    => $entry['trail'],
+                    'headings' => [],
+                ];
+
+                continue;
+            }
+
+            $pages[$slug]['headings'][] = [
+                'anchor' => $entry['anchor'],
+                'text'   => $entry['title'],
+                'level'  => $entry['level'],
+            ];
+        }
+
+        return array_values($pages);
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Building the index

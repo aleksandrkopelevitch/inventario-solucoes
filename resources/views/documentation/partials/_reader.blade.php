@@ -21,9 +21,22 @@
         <textarea data-ak-docs-source hidden>{{ $documentation }}</textarea>
 
         {{-- Editor.js mount point (resources/js/modules/docs-editor.js).
-             Block borders only appear on hover; the block menu opens with "/". --}}
+             Block borders only appear on hover; the block menu opens with "/".
+
+             `linkTargetsUrl`/`pageSlug` drive the Link tool's picker
+             (docs-tools/link.js): what this caderno's pages and headings are,
+             and which of them is the page being written — a heading of the
+             CURRENT page is linked as a plain `#anchor`, everything else as
+             `page:{slug}#anchor`. Both are `?? null` for a caller that renders
+             this column without a caderno behind it; the tool then falls back to
+             plain URLs, which is exactly the built-in behaviour. --}}
         <div class="ak-docs-editor" data-ak-docs-editor
-            data-config="{{ json_encode(['uploadUrl' => $uploadUrl, 'catalogUrl' => route('diagrams.catalog')]) }}"></div>
+            data-config="{{ json_encode([
+                'uploadUrl'      => $uploadUrl,
+                'catalogUrl'     => route('diagrams.catalog'),
+                'linkTargetsUrl' => isset($notebook) ? route('notebooks.link-targets', $notebook) : null,
+                'pageSlug'       => $titlePage->slug ?? null,
+            ]) }}"></div>
 
         {{-- Resume marker: present when this user has a Documentation Assistant
              chat still generating a reply for this page/diagram (e.g. they

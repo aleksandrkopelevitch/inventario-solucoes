@@ -7,6 +7,7 @@ use App\Models\Notebook;
 use App\Models\Solution;
 use App\Models\User;
 use App\Services\Documentation\ContextDocumentResolver;
+use App\Services\Documentation\ContextPageResolver;
 use App\Services\Documentation\DocumentationChatPromptBuilder;
 use App\Services\Documentation\DocumentationChatService;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -28,7 +29,11 @@ function fakeChatService(string $reply): DocumentationChatService
 
         public function __construct(private string $reply)
         {
-            parent::__construct(app(ContextDocumentResolver::class), app(DocumentationChatPromptBuilder::class));
+            parent::__construct(
+                app(ContextDocumentResolver::class),
+                app(ContextPageResolver::class),
+                app(DocumentationChatPromptBuilder::class),
+            );
         }
 
         protected function prompt(string $prompt, array $attachments = []): AgentResponse

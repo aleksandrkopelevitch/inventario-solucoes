@@ -48,6 +48,11 @@ trait AssistsDocumentation
                 'chat'            => $chat,
                 'sendUrl'         => $sendUrl,
                 'contextStoreUrl' => route('notebooks.context.store', $notebook),
+                // The catalog behind the "Páginas de contexto" picker. It lists
+                // every caderno's pages, not just this one's — see
+                // NotebookPageController::contextPages() for why context and a
+                // LINK are scoped differently.
+                'contextPagesUrl' => route('notebooks.context-pages', $notebook),
                 'requirements'    => DocumentationRequirements::for($target),
             ])->render(),
         ]);
@@ -78,6 +83,7 @@ trait AssistsDocumentation
             'content'           => $data['message'],
             'existing_content'  => $data['existing_content'] ?? null,
             'context_media_ids' => array_map(intval(...), $data['media_ids'] ?? []),
+            'context_page_ids'  => array_map(intval(...), $data['page_ids'] ?? []),
         ]);
 
         $chat->touch();

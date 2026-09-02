@@ -611,3 +611,22 @@
 .ak-docs-editor {
     --ak-secret-lock: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='black'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z'/%3E%3C/svg%3E");
 }
+
+/* Painel de ações da ferramenta "Link" (docs-tools/link.js).
+
+   O Editor.js entrega o `renderActions()` de uma ferramenta inline dentro de um
+   popover ANINHADO cujo container tem `width: 200px; min-width: 200px` e
+   `overflow: hidden` — largura pensada para a lista de "Converter em", não para
+   um campo de URL. Com ela, o `w-[19rem]` do painel era recortado em 186px: o
+   placeholder saía cortado no meio ("https://... ou escolha no c") e o botão
+   "Remover" ficava fora da caixa.
+
+   Só o container QUE CONTÉM o nosso painel é alargado (`:has()`), e não todo
+   popover aninhado — o de "Converter em" continua com a largura que a lista
+   dele pede. CSS custom porque o elemento é criado pelo Editor.js: não existe
+   nada em Blade onde pendurar utilitário. */
+.ce-popover--inline .ce-popover--nested .ce-popover__container:has(.ak-link-actions) {
+    width: 20rem;
+    min-width: 20rem;
+    max-width: 80vw;
+}
