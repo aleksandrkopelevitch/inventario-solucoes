@@ -305,10 +305,34 @@ function loadPageCatalog(url) {
     return pageCatalogPromise
 }
 
+/**
+ * The [+] menu, whose two items are the only two ways to add context: a file
+ * from the computer and a documentation page. Opening/closing the menu itself
+ * is toggle.js's (data-ak-toggle + data-ak-toggle-blur) — all that is here is
+ * closing it once an item has done its job, which toggle.js cannot know.
+ */
+function closeAttachMenu(el) {
+    el?.closest('form')?.querySelector('[data-ak-docs-chat-attach-menu]')?.classList.add('hidden')
+}
+
 document.addEventListener('click', (e) => {
+    // Menu item → the native file dialog. The input is `!hidden` inside the
+    // form and uploads on selection (see uploadContextDoc below), so the menu
+    // has to close now rather than behind the dialog: the dialog is modal and
+    // the click that dismisses it never reaches this document.
+    const attachFile = e.target.closest('[data-ak-docs-chat-attach-file]')
+    if (attachFile) {
+        e.preventDefault()
+        closeAttachMenu(attachFile)
+        attachFile.closest('form')?.querySelector('[data-ak-context-upload]')?.click()
+
+        return
+    }
+
     const add = e.target.closest('[data-ak-context-page-add]')
     if (add) {
         e.preventDefault()
+        closeAttachMenu(add)
         openPagePicker(add.dataset.action)
 
         return
@@ -322,22 +346,42 @@ document.addEventListener('click', (e) => {
     }
 })
 
+/**
+ * The composer's context row is hidden while it holds nothing — an empty
+ * bordered strip above the textarea reads as a broken pill.
+ *
+ * It counts [data-ak-ctx-pill] rather than using `:empty`, and that is not a
+ * preference: the row's two children are the documents SLOT and the pages host,
+ * both `display: contents`, so the row is never empty as far as CSS is
+ * concerned and both of its children always exist.
+ */
+function paintContextRow() {
+    const row = document.querySelector('[data-ak-docs-chat-context]')
+    if (!row) return
+
+    const any = row.querySelector('[data-ak-ctx-pill]') !== null
+    row.classList.toggle('hidden', !any)
+    row.classList.toggle('flex', any)
+}
+
 /** The chips, rebuilt from `contextPages` — one place decides what is shown. */
 function renderContextPages() {
     const host = document.querySelector('[data-ak-context-pages]')
-    const empty = document.querySelector('[data-ak-context-pages-empty]')
     if (!host) return
 
     host.replaceChildren()
-    if (empty) empty.classList.toggle('hidden', contextPages.size > 0)
 
     contextPages.forEach((page, id) => {
+        // Accent tone, against the neutral one the caderno's own documents
+        // carry: the two live in the same row now, and what tells them apart is
+        // documentation already in the inventory vs. material somebody brought.
         const chip = document.createElement('div')
+        chip.dataset.akCtxPill = ''
         chip.className =
-            'inline-flex max-w-full items-center gap-1.5 rounded-full border border-accent-line bg-accent-soft py-1 pl-2.5 pr-1 text-xs shadow-sm'
+            'inline-flex max-w-full items-center gap-1.5 rounded-full bg-accent-soft py-1 pl-2.5 pr-1 text-xs font-medium text-ink ring-1 ring-accent-line'
 
         const label = document.createElement('span')
-        label.className = 'max-w-[9rem] truncate font-medium text-ink'
+        label.className = 'max-w-[9rem] truncate'
         label.textContent = page.title
         // The caderno is in the tooltip rather than the chip: two pages named
         // the same is common across cadernos, and the chip has no room to say
@@ -357,6 +401,8 @@ function renderContextPages() {
 
         host.append(chip)
     })
+
+    paintContextRow()
 }
 
 function openPagePicker(url) {
@@ -774,6 +820,11 @@ export function init() {
         contextPages.clear()
     }
     if (pageHost) renderContextPages()
+
+    // Also covers the swap that renderContextPages() can't see: a context
+    // document uploaded or removed replaces its own slot and leaves the pages
+    // host untouched.
+    paintContextRow()
 
     const scroll = document.querySelector('[data-ak-docs-chat-scroll]')
     if (scroll) scroll.scrollTop = scroll.scrollHeight
