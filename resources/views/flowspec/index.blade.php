@@ -18,7 +18,7 @@
                     <x-heroicon-o-cpu-chip class="size-6" />
                 </div>
                 <h1 class="font-display text-[26px] font-semibold leading-tight text-ink">Gerar um flowSpec</h1>
-                <p class="mt-1.5 max-w-lg text-sm text-muted">Descreva a integração e gere um pipeline Digibee pronto para colar no canvas. Use <x-heroicon-o-paper-clip class="inline size-4 align-text-bottom" /> para anexar a documentação do inventário ou um arquivo seu — texto longo colado na caixa também vira anexo. O que estiver anexado vale para toda a conversa.</p>
+                <p class="mt-1.5 max-w-lg text-sm text-muted">Descreva a integração e gere um pipeline Digibee pronto para colar no canvas. Use <x-heroicon-o-plus class="inline size-4 align-text-bottom" /> para anexar a documentação do inventário ou um arquivo seu — texto longo colado na caixa também vira anexo. O que estiver anexado vale para toda a conversa.</p>
             </div>
 
             {{-- Composer — pinned to the bottom, full width --}}

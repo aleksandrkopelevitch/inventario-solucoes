@@ -296,7 +296,7 @@ function labelForPaste(text) {
 /* ---------------------------------- events -------------------------------- */
 
 document.addEventListener('click', (e) => {
-    // 📎 menu → open the file dialog. (The picker item opens the side panel on
+    // [+] menu → open the file dialog. (The picker item opens the side panel on
     // its own via data-ak-panel-open, with no code in between.)
     const fileBtn = e.target.closest('[data-ak-fs-open-file]')
     if (fileBtn) {
@@ -306,7 +306,7 @@ document.addEventListener('click', (e) => {
         return
     }
 
-    // Closes the 📎 menu behind the picker. Deliberately does NOT return or
+    // Closes the [+] menu behind the picker. Deliberately does NOT return or
     // preventDefault: side-panel.js is listening for this same click, and it is
     // what actually opens the panel.
     const pickerBtn = e.target.closest('[data-ak-fs-open-picker]')

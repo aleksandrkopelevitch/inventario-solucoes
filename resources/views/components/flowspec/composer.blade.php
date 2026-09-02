@@ -26,7 +26,7 @@
 {{-- ChatGPT/Claude-style composer: one rounded box holding the conversation's
      context, the message textarea and a toolbar.
 
-     There are exactly TWO ways to add context, and the 📎 menu has exactly two
+     There are exactly TWO ways to add context, and the [+] menu has exactly two
      items to match: documentation already in the inventory, and material the
      user brings (a file from disk, or a long paste — which becomes a text
      attachment on its own, the way the Claude client does it). The old third
@@ -69,9 +69,13 @@
     {{-- Toolbar --}}
     <div class="flex items-center justify-between gap-2 px-3 pb-3">
         <div class="relative">
-            <x-forms.button type="button" variant="ghost" class="!p-2" title="Anexar contexto"
+            {{-- The round [+] every composer in the app carries. Same gesture,
+                 same box, so it must not be a different button — this one was
+                 the last paper-clip left. --}}
+            <x-forms.button type="button" variant="ghost" class="!size-8 !rounded-full !p-0"
+                title="Anexar contexto" aria-label="Anexar contexto"
                 data-ak-toggle="{{ $menuId }}" data-ak-toggle-classes="hidden" data-ak-toggle-blur="true">
-                <x-heroicon-o-paper-clip class="size-5" />
+                <x-heroicon-o-plus class="size-5" />
             </x-forms.button>
 
             <div id="{{ $menuId }}" data-ak-fs-menu
@@ -82,16 +86,16 @@
                      it (the checked references). --}}
                 <x-forms.button type="button" variant="ghost" data-ak-fs-open-picker
                     data-ak-panel-open data-ak-panel-url="{{ $config['pickerUrl'] }}" data-ak-panel-size="medium"
-                    class="!w-full !justify-start !px-3 !py-2 !font-normal !text-body">
-                    <x-heroicon-o-document-text class="size-4 text-muted" />
+                    class="!w-full !justify-start !px-3 !py-2 !text-left !font-normal !text-body">
+                    <x-heroicon-o-document-text class="size-4 shrink-0 text-muted" />
                     <span class="flex flex-col items-start leading-tight">
                         <span>Documentos do inventário</span>
-                        <span class="text-[11px] text-faint">Páginas de soluções e integrações</span>
+                        <span class="text-[11px] text-faint">Páginas de qualquer caderno</span>
                     </span>
                 </x-forms.button>
                 <x-forms.button type="button" variant="ghost" data-ak-fs-open-file
-                    class="!w-full !justify-start !px-3 !py-2 !font-normal !text-body">
-                    <x-heroicon-o-arrow-up-tray class="size-4 text-muted" />
+                    class="!w-full !justify-start !px-3 !py-2 !text-left !font-normal !text-body">
+                    <x-heroicon-o-arrow-up-tray class="size-4 shrink-0 text-muted" />
                     <span class="flex flex-col items-start leading-tight">
                         <span>Arquivo do computador</span>
                         <span class="text-[11px] text-faint">PDF, deck, texto, planilha ou imagem</span>

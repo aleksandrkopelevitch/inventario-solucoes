@@ -19,7 +19,7 @@ paths:
 ### flowSpec context — exactly two kinds, attached to the CONVERSATION, under a meter
 
 The Especialista em Integrações (F8) accepts context in exactly **two** shapes,
-and the composer's 📎 menu has exactly two items to match:
+and the composer's [+] menu has exactly two items to match:
 
 1. **Documents from the inventory** — a `DocumentationPage`, from whichever
    `Notebook` ("Caderno") holds it, chosen in the picker panel.

@@ -576,8 +576,15 @@ checked, which was unambiguous while it had a section to itself and became a
 second pill kind the moment the rows merged; withheld is said by the checkbox
 plus a dim.
 
-The CATI composer (`x-submissions.composer`) is the same box and carries the
-same `[+]`, and its menu taught one rule the other two did not have to learn:
+All three composers are the same box and carry the same `[+]` — a round ghost
+button, never a paper-clip, since it is one gesture and should not be three
+buttons. What the box does NOT unify is the send button's label: flowSpec's
+new-chat screen says "Gerar flowSpec", so that button stays label-only while the
+two chat ones carry a paper-airplane. Two pieces of copy PICTURE the `[+]` in
+prose (`x-submissions.sources`' empty state and the flowSpec index hero) and
+have to move with it, or they point at a button that no longer exists.
+
+The CATI composer's menu taught one rule the other two did not have to learn:
 **an item of that menu has to close it itself.** `toggle.js` closes a popover on
 an OUTSIDE click, and neither item's click is one — so attaching a link left the
 menu standing over the chip it had just created, which was the only feedback the

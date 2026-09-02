@@ -13,7 +13,7 @@ use Illuminate\Foundation\Http\FormRequest;
  * paste.
  *
  * Three fields, one required — `required_without_all` rather than three
- * separate endpoints, because the composer's 📎 menu, the picker panel and the
+ * separate endpoints, because the composer's [+] menu, the picker panel and the
  * assistant's own "adicionar ao contexto" buttons all post here and differ only
  * in which field they fill.
  */
