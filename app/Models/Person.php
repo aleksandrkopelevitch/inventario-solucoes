@@ -127,9 +127,36 @@ class Person extends Model
     }
 
     /**
-     * People catalog filters — search by name/company/system and filters by
-     * company and role. Reused by People\Index (list), People\ResultsCount
-     * (counter) and People\FilterChips, so the three never diverge.
+     * People catalog filters — search by name/e-mail/phone/company/system and
+     * filters by company and role. Reused by People\Index (list),
+     * People\ResultsCount (counter) and People\FilterChips, so the three never
+     * diverge.
+     *
+     * **An e-mail lives in THREE places for one person, and the search has to
+     * ask all three.** It was asking none of them: the box covered name,
+     * company and solution only, so typing the one thing you are most likely to
+     * have in hand — the address somebody wrote to you from — answered "0
+     * registros" for a person who was filed under exactly that address.
+     * Reported from the app 2026-09-02 for `admin@leomadeiras.com.br`.
+     *
+     * The three, and why none of them can be dropped:
+     *
+     * - `people.email`, the person's own column, which the card prints.
+     * - `contacts`, the additional-contacts repeater — a second work address or
+     *   a phone. Searching the raw `value` is what makes a phone number
+     *   findable too, and that is a feature rather than a side effect: it is the
+     *   other string somebody arrives holding.
+     * - the linked ACCOUNT's e-mail (`user_id` → `users.email`). This is the
+     *   half the report was really about: linking an account is how an address
+     *   gets attached to a person without their own column ever being filled
+     *   in, and `users` is where that address then lives. A revoked account is
+     *   unlinked as well as soft-deleted (GrantPersonAccess::revoke), so
+     *   `whereHas('user')` only ever reaches a live credential.
+     *
+     * `whereFolded`, containment, like every other search — deliberately NOT
+     * the folded EQUALITY `withEmail()` uses. That one answers "which human IS
+     * this" for an invite and must not match a substring; this one is a search
+     * box, where finding a person by half their address is the point.
      *
      * @param  array<string, mixed>  $filters
      */
@@ -138,6 +165,9 @@ class Person extends Model
         $query
             ->when($filters['search'] ?? null, fn (Builder $q, $search) => $q->where(fn (Builder $w) => $w
                 ->whereFolded('name', $search)
+                ->orWhereFolded('email', $search)
+                ->orWhereHas('contacts', fn (Builder $c) => $c->whereFolded('value', $search))
+                ->orWhereHas('user', fn (Builder $u) => $u->whereFolded('email', $search))
                 ->orWhereHas('company', fn (Builder $c) => $c->whereFolded('name', $search))
                 ->orWhereHas('solutions', fn (Builder $s) => $s->whereFolded('name', $search))))
             ->when($filters['company'] ?? null, fn (Builder $q, $v) => $q->where('company_id', $v))
