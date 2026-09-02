@@ -682,6 +682,66 @@ Four things to keep:
   `[[BLOCK-n]]` (here). A shared prefix would let one restore resolve another's
   markers.
 
+### Six ways the Documentation Assistant's prompt could lie about its own contract
+
+The vaults above cover what the model must not WRITE. These are the other half —
+places where the prompt asked for something the pipeline then failed to honour,
+or forbade something it should have enabled. All six were found by reading the
+prompt against the code that consumes it (2026-09-02).
+
+- **The draft block has to be the LAST thing in the reply, and nothing said so.**
+  `DocumentationChatService::DRAFT_FENCE_PATTERN` was anchored at the end, so a
+  model that signed off with "quer que eu ajuste alguma parte?" after the
+  closing fence produced NO match: the whole draft collapsed into the
+  conversational half, the person saw raw Markdown in a chat bubble with no
+  "Aplicar" button, and nothing anywhere reported a failure. Both halves are
+  fixed — the prompt says the block comes last and there is at most one, and the
+  pattern now captures trailing prose and joins it to the conversational text,
+  so this never again depends on the model obeying.
+- **Nothing told it to keep the prose it was not asked to change.** This is the
+  BlockVault incident one level up: "devolva a página completa" plus a targeted
+  request is how a model rewrites a page it was asked to amend. Images,
+  literals and protected values all have a vault; ordinary sentences somebody
+  wrote have none, so the guard has to be a rule — MUDANÇA MÍNIMA, stated as
+  "'devolva a página completa' é uma exigência de formato, nunca um convite
+  para reescrever o que já estava lá."
+- **The requirements checklist is keyword matching, and the model was told it
+  was fact.** `DocumentationRequirements::contentItems()` is `str_contains` over
+  a handful of stems, and its own docblock calls it "best-effort... honest, not
+  a quality judgment" — but a page describing contingency without the word
+  "contingência" arrived as `[FALTA] Tratamento de erros`, and the model
+  dutifully told the author to write what was already there. The items are
+  labelled `[checagem por palavra-chave: …]` now, and the prompt says to confirm
+  against the content before reporting a gap.
+- **The two attribute markers must not share a prefix.** They both began "já no
+  cadastro da Solução", and the rule "NUNCA pergunte sobre um item marcado como
+  'já no cadastro da Solução'" matched both — so a rule written for a fact the
+  model HAD been handed also silenced the case where nothing had been handed at
+  all, which is the one worth a sentence ("a Solução não tem Criticidade
+  preenchida"). They are `[fato do cadastro da Solução]` and
+  `[em branco no cadastro da Solução]` now, and the prompt answers each
+  separately.
+- **`{% secret %}` was invisible unless the page already had one.** It was
+  mentioned only when the current content contained a `[[SECRET-n]]` marker, so
+  "documenta esse header: `Authorization: Bearer …`" was written into the draft
+  IN THE CLEAR — LiteralVault masks it on the way in and restores the real bytes
+  on the way out, and the page saved a live credential with no lock. It is in
+  the allowed-syntax list unconditionally now, and named as the ONE construct
+  there the model can author from scratch: unlike `{% file %}` or
+  `{% diagram %}` it needs no id or slug only the app knows.
+- **"Não invente um `page:slug`" forbade without enabling.** With no list of
+  slugs, a model that wanted to cross-link could only guess, and a guess renders
+  as text with no link at all. The caderno's pages are named in the prompt now
+  (`pageCatalog()`), with two limits that matter: **this caderno only**, because
+  that is all the construct can resolve, and **all of them or none** — a
+  truncated list reads as complete, so the pages past the cut look nonexistent
+  and the model invents a slug for one it can see in a context page. Past 200
+  pages the section is omitted entirely, which is exactly where an imported
+  vendor manual lands. It is a plain `slug`/`title` query and deliberately NOT
+  `DocumentationSearchService::linkTargets()`, which would add anchors at the
+  price of building the whole search index (~6 s cold) inside a chat turn.
+
+
 ### The Documentation Assistant never sees an opaque literal
 
 A reply from the Especialista em Documentação rewrites the WHOLE page (the
@@ -732,6 +792,7 @@ Four things that are easy to undo:
 `meta.literals` (`frozen`/`repaired`/`unresolved`) audits each turn;
 `unresolved` counts markers the model invented, which is the shape of a
 prompt regression.
+
 
 ## Eloquent
 

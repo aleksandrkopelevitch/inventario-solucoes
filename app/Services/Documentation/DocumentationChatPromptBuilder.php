@@ -4,6 +4,7 @@ namespace App\Services\Documentation;
 
 use App\Contracts\Documentable;
 use App\Models\DocumentationChatMessage;
+use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Models\Solution;
 use App\Support\Documentation\BlockVault;
@@ -19,6 +20,13 @@ use Illuminate\Support\Collection;
  */
 class DocumentationChatPromptBuilder
 {
+    /**
+     * Past this many pages the caderno's slug list is omitted entirely rather
+     * than truncated — see pageCatalog(). Sized well above a hand-written
+     * caderno and well below an imported vendor manual.
+     */
+    private const MAX_LINKABLE_PAGES = 200;
+
     public function systemPrompt(): string
     {
         return <<<'PROMPT'
@@ -32,10 +40,28 @@ class DocumentationChatPromptBuilder
           diretamente — não reescreva a documentação inteira sem necessidade.
         - Se o usuário pedir para criar, reescrever, expandir ou corrigir a
           documentação, produza a proposta seguindo o bloco de rascunho abaixo.
-        - Use a seção "REQUISITOS MÍNIMOS" fornecida no prompt do usuário para
-          notar proativamente o que falta no conteúdo — mas NUNCA pergunte
-          sobre um item marcado como "já no cadastro da Solução": esse valor já
-          foi te entregue como fato, é só usar (ou mencionar) se fizer sentido.
+        - Na dúvida entre responder e propor um rascunho, RESPONDA e pergunte o
+          que ele quer. Um rascunho substitui a página inteira, então propor um
+          sem que tenham pedido custa muito mais caro do que perguntar.
+        - MUDANÇA MÍNIMA: o rascunho contém a página inteira, mas só a parte
+          pedida deve estar diferente. Preserve o texto, os títulos e a ordem
+          das seções que não têm relação com o pedido — palavra por palavra,
+          mesmo que você escreveria diferente. "Devolva a página completa" é uma
+          exigência de formato, nunca um convite para reescrever o que já
+          estava lá.
+        - Use a seção "REQUISITOS MÍNIMOS" do prompt do usuário para notar
+          proativamente o que falta, com duas ressalvas:
+          - Os itens marcados `[checagem por palavra-chave]` são exatamente
+            isso: uma busca por palavras no texto, não um julgamento de
+            qualidade. Antes de apontar um deles como falta, confira no
+            "CONTEÚDO ATUAL DA PÁGINA" se o assunto já está descrito com outras
+            palavras — se estiver, não é falta.
+          - Um item `[fato do cadastro da Solução]` já veio como valor: use ou
+            mencione se fizer sentido e NUNCA pergunte por ele. Um item
+            `[em branco no cadastro da Solução]` é o contrário: não é uma
+            pergunta para o usuário responder no chat, é um campo vazio no
+            cadastro da Solução — vale dizer isso em uma linha, e não vale
+            inventar o valor nem pedir que ele digite aqui.
         - Não invente fatos: baseie-se no pedido, no histórico da conversa, no
           conteúdo atual e nos documentos de contexto fornecidos. Quando algo
           não estiver disponível, diga isso em vez de supor.
@@ -68,6 +94,11 @@ class DocumentationChatPromptBuilder
         repita o conteúdo da documentação fora do bloco de 4 crases. Se não
         houver proposta de conteúdo nesta resposta, não inclua o bloco.
 
+        O bloco de rascunho é a ÚLTIMA coisa da mensagem, e há no máximo UM
+        por resposta: toda a sua resposta conversacional vem ANTES da linha que
+        abre as 4 crases. Não escreva uma despedida, uma pergunta nem qualquer
+        outra linha depois da linha que fecha o bloco.
+
         FORMATO DO CONTEÚDO DENTRO DO BLOCO DE RASCUNHO (obrigatório):
         Sintaxe permitida (e só ela):
         - Títulos: `#` a `######` (comece as seções em `##`; reserve `#` para um
@@ -97,6 +128,16 @@ class DocumentationChatPromptBuilder
           para uma seção dela, e `[texto](#ancora)` para uma seção da própria
           página. O endereço real é resolvido na hora de ler, então NUNCA troque
           um desses por uma URL.
+        - Valor protegido: `{% secret %}valor{% endsecret %}`, inline, no meio
+          de uma frase, de uma célula de tabela ou de uma linha de exemplo de
+          código. É o ÚNICO construto desta lista que você pode escrever do
+          zero — ele não depende de nenhum id que só o aplicativo conhece.
+          Sempre que o usuário te passar um valor sensível para documentar
+          (token, senha, chave de API, header `Authorization`, string de
+          conexão), escreva-o dentro de `{% secret %}`: no aplicativo ele vira
+          um cadeado, e quem lê a página só vê o valor se tiver permissão. Um
+          segredo escrito solto no texto fica visível para todo mundo que abrir
+          a página.
         - Blocos preservados: marcadores no formato [[BLOCK-1]], descritos na
           seção "BLOCOS PRESERVADOS" do prompt do usuário.
 
@@ -124,6 +165,9 @@ class DocumentationChatPromptBuilder
         - Trechos escritos como [imagem], [arquivo], [diagrama] ou
           [vídeo/embed] numa página de contexto são blocos que foram retirados
           do texto que você recebeu. Não tente reconstruí-los.
+        - Uma página de contexto de OUTRO caderno não pode ser linkada:
+          `page:slug` só resolve dentro do caderno desta página. Cite-a pelo
+          nome, sem link.
 
         PROIBIDO no bloco de rascunho:
         - Não CRIE imagens, `<figure>`, `<img>`, `{% file %}`, `{% embed %}` nem
@@ -133,9 +177,12 @@ class DocumentationChatPromptBuilder
           resposta conversacional que ela é inserida pelo editor — não escreva
           um bloco novo no rascunho.
         - Não escreva um [[BLOCK-n]] que não esteja na lista que você recebeu.
-        - Não INVENTE um `page:slug` nem uma `#ancora`. Copie apenas os que já
-          estão no conteúdo atual da página ou que o usuário te passou: um slug
-          que não existe no caderno vira texto sem link nenhum para quem lê.
+        - Não INVENTE um `page:slug` nem uma `#ancora`. Um slug que não existe no
+          caderno vira texto sem link nenhum para quem lê. Quando o prompt
+          trouxer a seção "PÁGINAS DESTE CADERNO", ela é a lista COMPLETA dos
+          slugs válidos — use um dela ou nenhum. Sem essa seção, copie apenas os
+          slugs que já estão no conteúdo atual da página ou que o usuário te
+          passou. Âncoras: só as que aparecem no conteúdo que você recebeu.
         PROMPT;
     }
 
@@ -171,6 +218,10 @@ class DocumentationChatPromptBuilder
         }
 
         $parts[] = "Página/documento: {$target->documentationTitle()}";
+
+        if ($catalog = $this->pageCatalog($notebook, $target)) {
+            $parts[] = $catalog;
+        }
 
         // Everything below is masked: the legend comes first so the model
         // reads what a marker means before meeting one (see LiteralVault).
@@ -236,19 +287,68 @@ class DocumentationChatPromptBuilder
         return implode("\n\n---\n\n", $parts);
     }
 
+    /**
+     * Every page of THIS caderno, as `slug — título`.
+     *
+     * The prompt has always forbidden inventing a `page:` slug, and forbidding
+     * was all it did: with no list, a model that wanted to cross-link could
+     * only guess, and a guess renders as text with no link at all. Naming them
+     * turns the prohibition into a capability.
+     *
+     * Two deliberate limits:
+     *
+     * - **This caderno only**, matching what the construct can actually
+     *   resolve (see App\Support\Documentation\PageLinks). Context pages come
+     *   from anywhere; links do not.
+     * - **All of them or none.** A truncated list is worse than no list: it
+     *   reads as complete, so the pages past the cut look nonexistent and the
+     *   model invents a slug for one it can see in a context page. The imported
+     *   vendor manuals run to hundreds of pages, which is exactly where this
+     *   would bite.
+     *
+     * A plain `slug`/`title` query, deliberately NOT
+     * `DocumentationSearchService::linkTargets()` — that would give anchors
+     * too, at the price of building the whole search index (~6 s cold on a big
+     * corpus) inside a chat turn.
+     */
+    private function pageCatalog(Notebook $notebook, Documentable $target): ?string
+    {
+        $pages = $notebook->pages()
+            ->where('id', '!=', $target instanceof DocumentationPage ? $target->getKey() : 0)
+            ->orderBy('position')
+            ->get(['id', 'slug', 'title']);
+
+        if ($pages->isEmpty() || $pages->count() > self::MAX_LINKABLE_PAGES) {
+            return null;
+        }
+
+        return "PÁGINAS DESTE CADERNO (lista completa dos slugs válidos para `[texto](page:slug)`):\n\n"
+            . $pages->map(fn (DocumentationPage $page) => "- `{$page->slug}` — {$page->title}")->implode("\n");
+    }
+
     /** @param  list<array{key: string, label: string, satisfied: bool, source: string, value?: string}>  $requirements */
     private function formatRequirements(array $requirements): string
     {
         $lines = array_map(function (array $item) {
+            // The two attribute cases deliberately share no prefix. They used
+            // to both start with "já no cadastro da Solução", and the system
+            // prompt's rule ("NUNCA pergunte sobre um item marcado como…")
+            // matched that prefix — so the rule written for a fact the model
+            // had been handed also silenced the case where nothing had been
+            // handed at all, which is the one worth mentioning.
             if ($item['source'] === 'attribute') {
                 return $item['satisfied']
-                    ? "- [já no cadastro da Solução] {$item['label']}: {$item['value']}"
-                    : "- [já no cadastro da Solução, mas não preenchido] {$item['label']}";
+                    ? "- [fato do cadastro da Solução] {$item['label']}: {$item['value']}"
+                    : "- [em branco no cadastro da Solução] {$item['label']}";
             }
 
-            $status = $item['satisfied'] ? 'OK' : 'FALTA';
+            // Named for what it is. `DocumentationRequirements::contentItems()`
+            // is `str_contains` over a handful of stems, and calling its answer
+            // "FALTA" got a page that explains contingency without using the
+            // word "contingência" told it had no error handling.
+            $status = $item['satisfied'] ? 'OK' : 'não encontrado';
 
-            return "- [{$status}] {$item['label']}";
+            return "- [checagem por palavra-chave: {$status}] {$item['label']}";
         }, $requirements);
 
         return implode("\n", $lines);
