@@ -46,6 +46,20 @@ it('keeps names and expressions, and replaces anything that addresses a machine'
         ->and($redacted['documentation'])->toBe('<string>');
 });
 
+it('does not let a Double Braces expression launder a literal address beside it', function () {
+    // Found on the first real pull: this exact shape survived whole, because
+    // "contains {{" was checked first and answered for the whole string.
+    $redacted = (new ParamRedactor)->value([
+        'url'      => 'https://leomadeiras.freshservice.com/api/v2/attachments/{{ message.id }}',
+        'composed' => '{{ global.url-base-promob }}/Promob.Integration/api/Webhooks/Order',
+    ]);
+
+    expect($redacted['url'])->toBe('<endpoint>/api/v2/attachments/{{ message.id }}')
+        // A URL composed from a GLOBAL keeps its name and its path: the host is
+        // already abstracted, and the composition is the lesson.
+        ->and($redacted['composed'])->toBe('{{ global.url-base-promob }}/Promob.Integration/api/Webhooks/Order');
+});
+
 /*
 |--------------------------------------------------------------------------
 | The index

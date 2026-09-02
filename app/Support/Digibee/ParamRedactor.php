@@ -66,6 +66,17 @@ class ParamRedactor
         return $redacted;
     }
 
+    /**
+     * Replaces `scheme://host` — and a bare host at the start of a path — with
+     * `<endpoint>`, leaving everything else intact.
+     */
+    private function withoutHosts(string $value): string
+    {
+        $value = (string) preg_replace('~https?://[^/\s"\']+~i', '<endpoint>', $value);
+
+        return (string) preg_replace('~^[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z]{2,}(?=[/:])~', '<endpoint>', $value);
+    }
+
     private function string(string $value): string
     {
         $trimmed = trim($value);
@@ -74,10 +85,17 @@ class ParamRedactor
             return '';
         }
 
-        // An expression is kept whole even when it is long and even when it
-        // wraps an address: `{{ global.url-base }}` is the NAME of the place
-        // the address is configured, which is exactly the lesson.
+        // An expression is kept — `{{ global.url-base }}` is the NAME of the
+        // place an address is configured, and composing a URL out of one is
+        // exactly the lesson — but the expression does not launder a literal
+        // address sitting beside it. Found on the first real pull:
+        // `https://leomadeiras.freshservice.com/api/v2/attachments/{{ message.id }}`
+        // survived whole, because "contains {{" was checked first and answered
+        // for the whole string. The scheme and host go; the path and the
+        // expression stay, so the composition is still legible.
         if (str_contains($trimmed, '{{')) {
+            $trimmed = $this->withoutHosts($trimmed);
+
             return mb_strlen($trimmed) <= 200 ? $trimmed : '<double-braces>';
         }
 

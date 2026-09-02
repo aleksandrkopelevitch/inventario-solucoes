@@ -47,6 +47,16 @@ class PullDigibeePipelinesCommand extends Command
             foreach ($report['failures'] as $failure) {
                 $this->components->warn($failure);
             }
+
+            foreach ($report['pruned'] as $pruned) {
+                $this->components->warn("removed, no longer in the tenant: {$pruned}");
+            }
+
+            if ($report['failures'] !== []) {
+                $this->components->warn(
+                    'nothing pruned: a pipeline this run could not reach is indistinguishable from one that was deleted.'
+                );
+            }
         }
 
         if ($this->option('no-index')) {
