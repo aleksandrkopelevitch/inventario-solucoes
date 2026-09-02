@@ -187,10 +187,30 @@ async function attachFiles(form, files) {
     }
 }
 
-/** 📎 → file dialog. */
+/**
+ * Closing the [+] menu once one of its two items has done its job. Opening it
+ * is toggle.js's (data-ak-toggle + -toggle-blur), and so is closing it on an
+ * outside click — but neither item's click IS an outside click, so each has to
+ * say so itself.
+ *
+ * Both halves were broken in a way that is easy to miss. Attaching a LINK left
+ * the menu standing over the chip that had just appeared, so the only feedback
+ * the attach had worked was hidden behind the thing that caused it. And the
+ * FILE item only closed the menu by accident: it clicks a hidden input that
+ * sits in the form and NOT in the menu, so that synthetic click bubbled out and
+ * tripped the outside-click listener. Move the input, or stop propagation
+ * anywhere on its path, and the menu would stay open behind a modal file
+ * dialog — whose own dismissing click never reaches `document` at all.
+ */
+function closeAttachMenu(el) {
+    composerOf(el)?.querySelector('[data-ak-cati-attach-menu]')?.classList.add('hidden')
+}
+
+/** [+] → file dialog. */
 document.addEventListener('click', (e) => {
     if (e.target.closest('[data-ak-cati-open-file]')) {
         e.preventDefault()
+        closeAttachMenu(e.target)
         composerOf(e.target)?.querySelector('[data-ak-cati-file-input]')?.click()
     }
 })
@@ -209,7 +229,7 @@ document.addEventListener('change', async (e) => {
     await attachFiles(form, files)
 })
 
-/** 📎 → "Anexar" next to the link field. */
+/** [+] → "Anexar" next to the link field. */
 document.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-ak-cati-link-add]')
     if (!btn) return
@@ -226,7 +246,12 @@ document.addEventListener('click', async (e) => {
 
     setButtonLoading(btn, true)
     try {
-        if (await attach(form, {url})) input.value = ''
+        // Only on SUCCESS: a refused url has to stay on screen, and so does the
+        // menu holding the field, or there is nowhere left to correct it.
+        if (await attach(form, {url})) {
+            input.value = ''
+            closeAttachMenu(btn)
+        }
     } finally {
         setButtonLoading(btn, false)
     }

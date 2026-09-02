@@ -1,7 +1,7 @@
 {{-- The material, in full: what was read out of each file and anything in it
      that looks like a credential.
 
-     Attaching happens in the composer's 📎 (or by pasting/dropping into it),
+     Attaching happens in the composer's [+] (or by pasting/dropping into it),
      never here — one door, next to the conversation that actually uses the
      material. This card is the manager: the whole list, its state, and the
      way out. --}}
@@ -15,7 +15,7 @@
 
     @if ($sources->isEmpty())
         <p class="mt-2 text-xs text-muted">
-            Tem um deck ou documento antigo? Anexe pelo <x-heroicon-o-paper-clip class="inline size-3.5 align-text-bottom" />
+            Tem um deck ou documento antigo? Anexe pelo <x-heroicon-o-plus class="inline size-3.5 align-text-bottom" />
             da conversa — ou cole o texto direto na caixa. O assistente lê e já chega com rascunho.
         </p>
     @else
