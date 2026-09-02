@@ -926,7 +926,7 @@ one.
 `people.user_id` (nullable, unique) links a `Person` to the account they log in
 with. Both directions stay optional, and that is the whole shape of this:
 
-- **Most people never log in.** They are vendor contacts — 106 of the 108 rows
+- **Most people never log in.** They are vendor contacts — 105 of the 108 rows
   in dev have no email at all — so a person without an account is the ordinary
   state, said plainly on the card rather than hidden.
 - **An account without a Person is normal too**, which is why the roster at

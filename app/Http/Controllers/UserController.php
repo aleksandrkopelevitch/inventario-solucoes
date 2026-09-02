@@ -46,8 +46,10 @@ class UserController extends Controller
      *
      * The role used to be settable only at invite time, which left promoting a
      * viewer to editor — and taking the admin off someone who left — as a
-     * database edit. Both refusals (your own account, the last admin) are in
-     * `UpdateUserRoleRequest::after()`, so this stays a save and a slot.
+     * database edit. The one refusal (your own account) is in
+     * `UpdateUserRoleRequest::after()`, so this stays a save and a slot — and
+     * that single rule is also what keeps an admin in the system, since only
+     * an admin asking about SOMEBODY ELSE can demote one.
      */
     public function update(UpdateUserRoleRequest $request, User $user): JsonResponse
     {

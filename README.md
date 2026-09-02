@@ -5,8 +5,10 @@ Madeiras: cadastro de soluções/pessoas/empresas, um módulo de **Diagramas**
 (editor gráfico de topologia, um desenho por vez), um mapa read-only do
 ecossistema derivado desses desenhos, documentação rica (estilo GitBook) em
 árvore de páginas — com um assistente de IA que gera rascunhos e com valores
-sensíveis atrás de cadeado —, um hub que reúne a cobertura dessa documentação, e
-um Especialista em Integrações que gera flowSpec Digibee em formato de chat.
+sensíveis atrás de cadeado —, um hub que reúne a cobertura dessa documentação,
+um Especialista em Integrações que gera flowSpec Digibee em formato de chat e o
+módulo do **Comitê de Arquitetura**, onde uma proposta é preparada, entrevistada,
+vira deck e volta para o catálogo depois de deliberada.
 
 Uma página de documentação pode apontar para um diagrama, e é assim que texto e
 desenho se relacionam: um diagrama explica 1..N páginas (e, por elas, 1..N
@@ -54,6 +56,32 @@ composer test         # Pest (php artisan test)
 npm run build && php artisan optimize
 ```
 
+**Importar do GitBook.** Um *space* vira um caderno e cada página dele uma
+`DocumentationPage`. É só-leitura contra o GitBook e re-executável: página já
+trazida é atualizada, não duplicada.
+
+```bash
+php artisan gitbook:import --list                 # títulos dos spaces → ids
+php artisan gitbook:import --space=<id>           # um space
+php artisan gitbook:import --space=<id> --dry-run # não escreve nada
+php artisan gitbook:import --all --dated          # snapshot do dia, por space
+```
+
+Um space é endereçado pelo id opaco, e `--list` é o único lugar que diz qual id
+é qual título. `--notebook=` nomeia o caderno, `--flat` desiste do aninhamento
+(a ancestralidade vira título) e `--dated` é o modo **snapshot**: o caderno se
+chama `{Space}_imported_DD_MM_YYYY`, então cada dia é um caderno próprio e a
+segunda execução do mesmo dia cai naquele mesmo — "sobrescrever se importado
+hoje" é a regra de nome, não um segundo caminho de código.
+
+`--dated` é também o **único modo que apaga**: página que o caderno tem e o
+space não tem mais é removida, porque um caderno datado afirma ser aquele space
+naquela data e uma página sobrando faz dele uma mentira. O que sai é **contado
+e impresso**, e a importação comum nunca apaga nada — o caderno dela é um lugar
+onde gente também escreve à mão, e uma página que alguém acrescentou ali não é
+sobra. `--dated` recusa `--notebook=` (os dois nomeiam o caderno) e compõe com
+`--all` (o nome é derivado por space).
+
 ## Papéis de usuário
 
 `App\Enums\UserRole`: **viewer** (Visualizador), **writer** (Editor) e
@@ -82,13 +110,20 @@ reler:
   `NotebookPolicy::administer`, não `update` — que deixou de significar "admin"
   no dia em que o Editor entrou.
 
-Não existe self-registration: toda conta é criada por um admin na área
-"Usuários" (menu do usuário na sidebar, `App\Http\Controllers\UserController`),
-que envia um convite por e-mail; a pessoa convidada define a própria senha pelo
-fluxo de reset de senha já existente
+Não existe self-registration: toda conta é criada por um admin, que envia um
+convite por e-mail (`UserController::store`); a pessoa convidada define a
+própria senha pelo fluxo de reset de senha já existente
 (`Password::createToken()`/`ResetPasswordController`), sem um sistema de token
 separado. O primeiro admin vem do `DatabaseSeeder`
 (`admin@leomadeiras.com.br`).
+
+A tela "Usuários" que ficava no menu da sidebar **não existe mais**; do
+`UserController` sobraram os dois endpoints que são mesmo sobre a conta e não
+sobre de quem ela é — convidar e trocar o perfil. E o convite deixou de ser a
+fábrica de contas órfãs do app: ele passa por `GrantPersonAccess::invite()` e
+cria a linha do catálogo junto, reaproveitando a pessoa já arquivada naquele
+e-mail (`Person::withEmail()`, igualdade dobrada) em vez de duplicá-la. Órfã,
+hoje, é o admin do seeder e o que foi cadastrado antes de 2026-09-01.
 
 **O acesso é gerenciado em `/people`, não numa tela de usuários.** Conceder,
 trocar o perfil, gerar o link de senha e remover acesso ficam no card **Acesso**
@@ -122,6 +157,27 @@ que garante que sempre sobra alguém com o painel. O que continua sendo só banc
 **apagar** uma conta de verdade — remover acesso faz *soft delete*, e é o que
 "revogar" quer dizer aqui: a pessoa deixa de entrar, e o que ela escreveu
 continua apontando para uma linha que existe.
+
+**Desvincular não é revogar, e o card oferece as duas coisas.** Vincular é uma
+afirmação sobre identidade — "a conta que entra com este e-mail é esta linha do
+catálogo" —, então o inverso dela também tem que ser uma afirmação: `unlink()`
+desassocia e para, deixando perfil, senha e link de acesso exatamente como
+estavam, e a conta volta para `/people/accounts` como órfã. Por um tempo o único
+oposto aparente de "Vincular uma conta que já existe" era "Remover acesso", que
+faz *soft delete* — então desfazer um vínculo errado desligava a conta que ele
+nomeava: vincular o `admin@leomadeiras.com.br` a uma pessoa e apertar o botão
+que parecia o contrário trancou o admin do seeder fora do app, com a senha
+padrão deixando de ser aceita. Por isso os dois confirmes **nomeiam a conta**, e
+não só a pessoa: qual e-mail para de funcionar era exatamente o que a tela não
+dizia no momento de apertar qualquer um dos dois.
+
+E uma conta é apresentada como **credencial** em todo lugar onde ela é oferecida
+— as opções do seletor de órfãs são `e-mail · perfil`, e as linhas de
+`/people/accounts` começam pelo e-mail —, porque `users.name` é nome de gente:
+começar por ele fazia o gesto parecer vincular uma pessoa a outra pessoa. As
+duas tabelas **não** foram fundidas de propósito: 105 das 108 linhas de `people`
+não têm e-mail nenhum, e a autoridade divide exatamente na fronteira delas (uma
+pessoa é escrita por um Editor, uma conta só por um admin).
 
 ## Arquitetura em resumo
 
@@ -554,6 +610,14 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   de contatos adicionais (`Person::contacts()`, tipo email/telefone/whatsapp/
   outro), editáveis no form pela seção repetível "Contatos adicionais" e, um a
   um, na própria página de detalhe.
+
+  A busca alcança os **três** lugares onde o e-mail de uma pessoa mora:
+  `people.email`, o `value` cru dos contatos adicionais (o que faz um telefone
+  ser encontrável também) e o e-mail da **conta vinculada** (`users.email`) —
+  vincular uma conta é justamente como um endereço se prende a alguém sem a
+  coluna dela nunca ser preenchida. Dobrar acento e caixa (`whereFolded()`) é só
+  metade de "isso pode ser encontrado"; a outra metade é quais colunas o
+  `orWhere` nomeia, e essa não tem macro que acerte por você.
 - **Diagramas** (`/diagrams`): o módulo dos desenhos. Um diagrama é um registro
   de primeira classe — tem nome, status e uma página só sua
   (`/diagrams/{slug}`) onde o canvas gráfico
@@ -756,6 +820,50 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   nenhum) ele diz isso em vez de sumir; com o diagrama apagado, vira um card
   "removido" em vez de estragar a prosa em volta.
 
+  **Um link entre duas páginas é `[texto](page:{slug})`, resolvido por LEITOR.**
+  É o único construto do dialeto que não é um `{% … %}`: é um link Markdown
+  comum com um esquema inventado, e é isso que deixa os dois parsers, a
+  ferramenta de link do Editor.js e o "Copiar Markdown" funcionando sem mudança
+  nenhuma. `#ancora` sozinho é um heading da página aberta;
+  `page:{slug}#ancora`, um heading de outra página do mesmo caderno.
+
+  Ele não é uma URL porque a mesma página tem **dois endereços**:
+  `notebooks/{caderno}/{página}` para quem está logado e
+  `public-docs/{token}/page/{slug}` para quem tem o link público. Um endereço
+  escrito no Markdown está certo para exatamente uma dessas plateias — ou um
+  caderno compartilhado cheio de links para a tela de login, ou uma página
+  interna cheia de links carregando token. `App\Support\Documentation\PageLinks`
+  é o que cada render recebe (`internal()`/`shared()`/`none()`), e ele sobrevive
+  a um caderno renomeado, que uma URL guardada não sobreviveria.
+
+  Três consequências:
+
+    - **O escopo é UM caderno, de propósito.** O leitor público só sabe
+      responder pelo caderno que o token dele dá, então um link que pudesse
+      apontar para fora seria um link que funciona enquanto você edita e morre
+      no dia em que o caderno é compartilhado. O seletor é escopado igual.
+    - **Slug que o caderno não tem perde o `href` inteiro.** Um `<a>` sem href
+      não é link: ele renderiza como as palavras que o autor escreveu — a mesma
+      promessa do card "Diagrama removido", de que apagar uma página nunca
+      estraga a prosa que a mencionava. Apontar para `#` pareceria um link e
+      levaria o leitor para o topo da página sem explicação nenhuma.
+    - **As âncoras nunca são derivadas no navegador.** O seletor é alimentado
+      por `DocumentationSearchService::linkTargets()`, que é uma **leitura do
+      índice de busca** — então são as âncoras que o commonmark emitiu de
+      verdade, acento e sufixo `-1` de colisão incluídos. Reimplementar o
+      slugger no cliente deriva em silêncio: página certa, lugar errado.
+
+  A ferramenta `link` **substitui** a nativa do Editor.js (nomear uma interna em
+  `tools` é o jeito suportado) em vez de ficar ao lado dela: "Link" e "Link
+  interno" lado a lado seriam duas respostas sutilmente diferentes para o mesmo
+  gesto. Ela mantém o campo de URL digitada do upstream e ganha o seletor. E o
+  prompt do Assiste IA **nomeia** o construto `page:`, o que não é cortesia: uma
+  resposta reescreve a página inteira, então um modelo que só soubesse de
+  `[texto](https://url)` "consertaria" um link interno virando URL e o quebraria
+  em silêncio. Ele também é instruído a nunca **inventar** slug ou âncora — a
+  metade honesta da regra, já que um slug que o caderno não tem renderiza como
+  texto sem link.
+
   A navegação é um **rail à esquerda** com as páginas do caderno, um passo de
   indentação por nível com linha-guia. Ele **abre só o galho que leva à página
   aberta** (`DocumentationPageService::navRows()` decide isso no servidor, então
@@ -792,10 +900,42 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   documentação, um painel lateral é uma
   **conversa** — espelhando o composer do Especialista em Integrações — e não
   um formulário de um tiro só. Cada turno recebe o histórico, o Markdown atual
-  do editor e os **documentos de contexto** marcados (coleção
-  `context_documents` por **caderno** — PDF/imagem/texto, compartilhados por
-  todas as páginas dele; o upload persiste no `change`, sem botão "anexar" à
-  parte). Textos entram embutidos no prompt (com orçamento
+  do editor e duas espécies de contexto marcadas:
+
+    - os **documentos de contexto** (coleção `context_documents` por
+      **caderno** — PDF/imagem/texto, compartilhados por todas as páginas dele);
+    - **outras páginas** de documentação como referência (`context_page_ids` na
+      mensagem, resolvidas por `ContextPageResolver`).
+
+  As duas existem separadas porque respondem a perguntas diferentes: um
+  documento é material que alguém trouxe de fora e pertence ao caderno; uma
+  página é documentação que este app já tem, é sempre texto, e está com
+  frequência em OUTRO caderno — a página mais útil enquanto se documenta uma
+  integração é a que descreve o sistema do outro lado dela. É por isso que esse
+  seletor atravessa todos os cadernos enquanto o de **link** não: ler uma página
+  uma vez não é a mesma promessa que endereçá-la para sempre.
+
+  Uma página emprestada chega **mascarada** (`SecretText::mask()` — é a quinta
+  superfície que entrega o texto de uma página a alguém, e a única em que a
+  página lida não é a página editada) e com imagem, arquivo, embed e citação de
+  diagrama **arrancados**, não congelados (`BlockVault::strip()`): um marcador
+  `[[BLOCK-n]]` quer dizer "mantenha este bloco", e esses blocos são de outra
+  página. O que não cabe no orçamento é **sinalizado** (`meta.omitted_pages`),
+  nunca descartado em silêncio — alguém escolheu aquilo à mão. Os dois limites
+  são separados (`max_context_pages`, `page_budget_chars`) porque documento e
+  página disputam o mesmo prompt, e uma página desgovernada não pode empurrar
+  para fora o PDF que alguém anexou.
+
+  **As duas portas ficam atrás de um só `[+]`** no composer, e as três caixas de
+  conversa do app (Assiste IA, Comitê de Arquitetura e Especialista em
+  Integrações) são a mesma caixa com o mesmo botão — um redondo e fantasma,
+  nunca um clipe de papel, já que é um gesto e não deveria virar três botões.
+  Elas chegaram como duas seções rotuladas empilhadas sobre o textarea, e num
+  painel de 320px aquilo empurrava a caixa de mensagem para o chão. O menu tem
+  exatamente dois itens porque existem exatamente duas portas: colar um texto
+  longo é a terceira e não precisa de item, já que vira um documento sozinho.
+
+  Textos entram embutidos no prompt (com orçamento
   de caracteres); PDFs/imagens vão como anexos nativos ao modelo (`laravel/ai`).
   A resposta vem de um job assíncrono (`GenerateDocumentationChatReply`, uma
   geração por alvo de cada vez via `WithoutOverlapping`) com polling.
@@ -855,6 +995,18 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   faz "onde está a doc do SVL?" ter resposta sem saber como o caderno se chama.
   Criar/renomear e vincular soluções vivem num painel lateral; o vínculo também
   é editável de dentro do editor, na barra de cima.
+
+  No card, o lápis e a lixeira respondem a **regras diferentes na mesma linha**:
+  `update` (Editor) abre o painel de renomear, `delete` (admin) remove o
+  caderno — então a lixeira é uma affordance que falta para um Editor, e não um
+  botão que recusa. `notebooks.destroy` existia sem chamador nenhum: a rota não
+  aparecia em view alguma, e a única forma de remover um caderno era o banco —
+  o que passou a incomodar mais quando a importação virou um caderno por dia. O
+  confirme diz o que a exclusão **custa**, e as duas partes são contadas em vez
+  de chutadas: quantas páginas vão junto e se um link público que alguém já tem
+  para de funcionar. A resposta é o **slot** do catálogo, não o `redirect` que a
+  rota mandava antes — do catálogo, redirecionar para o catálogo é recarregar a
+  página onde você está e jogar fora os filtros que a URL ainda mostra.
 - **Busca da documentação pública** (`⌘K`): o gatilho fica na barra de cima e é
   só o campo; abrir leva a uma **paleta de comandos** (`<dialog>`) com a busca,
   os controles e os resultados.
@@ -882,6 +1034,48 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   mas vazio". Contadores agregados em `DocumentationCoverageService`. Substitui
   o antigo painel de cobertura por 3 toggles booleanos
   (`has_macro_architecture` e afins — aposentados).
+- **Comitê de Arquitetura** (`/submissions`): o módulo das submissões ao CATI —
+  preparar a proposta, entrevistar quem a traz, gerar o deck e registrar a
+  deliberação. A página de uma submissão são quatro abas — **Preparação**,
+  **Documento**, **Diagramas** e **Comitê** —, e todas ficam alcançáveis em
+  qualquer estágio (`SubmissionStages`): o estágio diz onde a submissão está,
+  não o que se pode abrir.
+
+  O documento tem **11 seções** (`SubmissionSectionKey`, de "Resumo da
+  proposta" a "Alternativas avaliadas"), cada uma com estado próprio, e um
+  **checklist determinístico** (`SubmissionRequirements`) que separa o que
+  falta de verdade do que só não foi escrito ainda. O material que sustenta a
+  proposta é anexado no composer — upload, link, texto colado ou uma citação do
+  próprio inventário (`SubmissionSourceKind`) — e a **entrevista** é um chat
+  (`SubmissionChatService`): ele pergunta o que falta, e uma resposta aplicada
+  escreve a seção em vez de virar mais uma mensagem.
+
+  A submissão tem **arquitetura própria**: quatro desenhos
+  (`SubmissionDiagramKind` — AS IS, TO BE, C4 Contexto e C4 Contêineres) no
+  mesmo canvas do módulo de Diagramas, porque `ChainCanvas` deixou o canvas
+  agnóstico de dono. O `afterChainMutation()` de um `SubmissionDiagram` é vazio
+  de propósito: proposta não escreve no catálogo, porque proposta pode ser
+  reprovada.
+
+  As saídas são três: o documento em Markdown, o texto pronto do chamado no Leo
+  Resolve e o **deck `.pptx`** (`resources/cati/cati-template.pptx` +
+  `scripts/render_deck.py`, um sidecar em python-pptx). Diagrama entra no deck
+  como **imagem com link**, nunca como forma nativa — forma nativa criaria um
+  segundo lugar onde o desenho se edita, e alguém empurrando uma caixa no
+  PowerPoint durante a reunião é exatamente a deriva que este módulo existe
+  para eliminar.
+
+  Do lado do comitê: conformidade determinística (`ConformanceChecks`), uma
+  **prévia adversarial** por LLM (`PreReviewService`) e a deliberação com
+  ressalvas rastreáveis. Aprovar **não escreve topologia** — um TO BE é um grafo
+  livre, pode descrever várias integrações ou uma que ainda não existe, e uma
+  aprovação que adivinhasse o alvo sobrescreveria topologia real com um chute.
+  Ela registra uma **pendência** com snapshot do `chain` (`ApprovedTopology`),
+  visível nos dois lados (aba Comitê da submissão e aviso na página da Solution,
+  acima da lista que ainda mostra o cenário anterior), com dois desfechos que
+  não são a mesma afirmação: APLICADA ("o catálogo agora diz isto") e JÁ
+  REFLETIDA ("o catálogo já estava certo"). As quatro fases e o raciocínio de
+  cada uma estão em `docs/cati-fase-{1,2,3,4}.md`.
 
 ## Notas técnicas não óbvias
 
@@ -1044,7 +1238,8 @@ sem solução no bloco raiz; edição parcial de nome/status),
 `DocumentationTest` (editor de blocos; a citação de diagrama nos seus três
 estados — com imagem, sem snapshot ainda, e apontando para um desenho apagado;
 os cards de sub-páginas; e o rail colapsado no galho em edição),
-`NotebookTest` (CRUD do caderno e o vínculo com soluções),
+`NotebookTest` (CRUD do caderno e o vínculo com soluções — inclusive a exclusão
+pelo card do catálogo, em cascata por três níveis),
 `DocumentationPageMoveTest` (mover página entre cadernos, com a subárvore),
 `PublicDocumentationTest` (magic link do caderno),
 `DocumentationCoverageTest` (hub de documentação, content-based — solução
@@ -1064,4 +1259,16 @@ do admin — inclusive DELETE, link público e código de leitura),
 quatro superfícies, revelar com código, admin sem código, as cinco tentativas em
 12h com o tempo congelado, o magic link, e o round trip pelo editor — inclusive
 dentro de `<code>`), `AuthenticationTest` (login/throttle/reset de senha — sem
-self-registration; e o 401 em PT-BR de sessão expirada).
+self-registration; e o 401 em PT-BR de sessão expirada), `PersonAccessTest` (o
+card Acesso: conceder, vincular uma conta que já existe, **desvincular** sem
+desligar nada, revogar pelos dois lados e o link que leva à tela de senha),
+`PersonSearchByEmailTest` (a busca de pessoas achando pelos três lugares onde um
+e-mail mora), `DocumentationInternalLinkTest` (o link `page:` resolvido por
+leitor — interno, magic link e o slug que o caderno não tem),
+`DocumentationContextPageTest` (páginas emprestadas ao Assiste IA: máscara,
+blocos arrancados e o que não coube no orçamento),
+`PublicDocumentationSearchTest` (a paleta e os três escopos), `GitbookImportTest`
+(a importação, o snapshot datado e a poda que só ele faz) e a família
+`Cati*Test` (o Comitê de Arquitetura: modelo, ingestão de material, checklist,
+entrevista, deck, desenhos próprios, conformidade, prévia adversarial e a
+topologia aprovada).
