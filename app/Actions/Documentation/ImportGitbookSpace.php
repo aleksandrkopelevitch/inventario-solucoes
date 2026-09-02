@@ -40,6 +40,20 @@ use Illuminate\Support\Str;
  * Slugs deliberately do NOT follow the rename — a page's URL stays stable, the
  * same rule the rest of the module keeps.
  *
+ * **`dated: true` makes it a SNAPSHOT instead**, in a caderno named
+ * `{Space}_imported_DD_MM_YYYY`. The name is what carries the whole behaviour:
+ * `notebook()` resolves a caderno BY NAME, so the first run of a day creates
+ * one and every later run that day lands in the same one — "overwrite if
+ * imported on the same day" falls out of the naming rather than needing a rule.
+ *
+ * It is also the one mode that DELETES. A page still in the caderno that the
+ * space no longer has is removed, because a dated caderno claims to be that
+ * space on that date and a leftover page makes it a lie — a second same-day run
+ * has to end up where a from-scratch import would. That is scoped strictly to
+ * this flag: the ordinary import never deletes anything, since its caderno is
+ * somewhere people also write by hand. What is removed is COUNTED
+ * (`GitbookImportReport::$removed`) and printed, never silent.
+ *
  * There is deliberately no wrapping transaction: the work is dozens-to-hundreds
  * of HTTP requests, and a half-finished import that can simply be re-run is
  * worth far more than one that rolls back an hour of downloads because page 180
@@ -59,6 +73,7 @@ class ImportGitbookSpace
         ?string $notebookName = null,
         bool $nest = true,
         bool $dryRun = false,
+        bool $dated = false,
     ): GitbookImportReport {
         $space = $this->client->space($spaceId);
         $title = trim((string) ($space['title'] ?? '')) ?: 'GitBook ' . $spaceId;
@@ -66,10 +81,15 @@ class ImportGitbookSpace
         $tree = new GitbookPageTree($this->client->pageTree($spaceId), $nest);
         $found = $tree->pages();
 
+        $name = $notebookName ?: ($dated ? self::datedName($title) : $title);
+
         if ($dryRun) {
             return new GitbookImportReport(
                 spaceId: $spaceId,
                 spaceTitle: $title,
+                // The caderno it WOULD land in. A dated run's whole point is the
+                // name, so a dry run that did not say it could not be checked.
+                notebookName: $name,
                 // Indented, so a dry run shows the SHAPE it would write and not
                 // just a list of names — the shape is the point now.
                 planned: array_map(
@@ -82,7 +102,7 @@ class ImportGitbookSpace
             );
         }
 
-        $notebook = $this->notebook($notebookName ?: $title);
+        $notebook = $this->notebook($name);
 
         // Fetched once for the whole space: it is the only place an embedded
         // asset's real download URL exists (its Markdown reference is a GitBook
@@ -157,6 +177,18 @@ class ImportGitbookSpace
             $page->update(['documentation' => $rehosted->markdown ?: null]);
         }
 
+        // Whatever is left in `$unclaimed` is a page this caderno holds and the
+        // space does not. Only a dated snapshot removes them; see the docblock.
+        // A subpage taken out with its parent earlier in this loop deletes a
+        // second time as a documented no-op (DocumentationPage::booted()), so
+        // the flat walk needs no ordering of its own.
+        $removed = 0;
+
+        if ($dated) {
+            $removed = $unclaimed->count();
+            $unclaimed->each->delete();
+        }
+
         return new GitbookImportReport(
             spaceId: $spaceId,
             spaceTitle: $title,
@@ -164,6 +196,7 @@ class ImportGitbookSpace
             created: $created,
             updated: $updated,
             assets: $assets,
+            removed: $removed,
             skipped: $tree->skipped(),
             failures: $failures,
             sections: $tree->sections(),
@@ -189,6 +222,20 @@ class ImportGitbookSpace
         return $unclaimed->first(fn (DocumentationPage $page) => $page->title === $source->title && $page->parent_id === $parent?->id)
             ?? $unclaimed->first(fn (DocumentationPage $page) => $page->title === $source->origin())
             ?? $unclaimed->first(fn (DocumentationPage $page) => $page->title === $source->title);
+    }
+
+    /**
+     * `{Space title}_imported_DD_MM_YYYY`.
+     *
+     * The day, not the instant: it is what makes a second import on the same
+     * afternoon land in the caderno the morning's made instead of beside it,
+     * and a caderno anybody has to pick out of a list needs a name a person can
+     * read. Underscores rather than spaces because this name is typed back into
+     * `--notebook` when somebody wants to re-run one by hand.
+     */
+    private static function datedName(string $title): string
+    {
+        return $title . '_imported_' . now()->format('d_m_Y');
     }
 
     /**

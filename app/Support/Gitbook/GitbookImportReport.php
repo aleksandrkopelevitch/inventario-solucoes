@@ -17,6 +17,8 @@ class GitbookImportReport
      * @param  array<int, string>  $failures  Assets left pointing at GitBook, with the reason
      * @param  int  $sections  GitBook `group`s written as empty section pages
      * @param  int  $collapsed  Pages too deep to nest, whose ancestry went into their title
+     * @param  int  $removed  Pages the caderno held that the space no longer has — only ever non-zero for a dated snapshot
+     * @param  string|null  $notebookName  The caderno a DRY RUN would write to; `notebook` carries it on a real one
      */
     public function __construct(
         public readonly string $spaceId,
@@ -30,6 +32,8 @@ class GitbookImportReport
         public readonly array $failures = [],
         public readonly int $sections = 0,
         public readonly int $collapsed = 0,
+        public readonly int $removed = 0,
+        public readonly ?string $notebookName = null,
     ) {}
 
     public function pageCount(): int
