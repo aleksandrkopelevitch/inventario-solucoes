@@ -41,7 +41,7 @@
     <x-ui.filter-bar form-id="people-filter-form">
         <x-slot:search>
             <x-ui.filter-search id="people-search" :url="route('people.index')"
-                placeholder="Buscar por nome, empresa ou sistema"
+                placeholder="Buscar por nome, e-mail, telefone, empresa ou sistema"
                 :value="$filters['search'] ?? null" />
         </x-slot:search>
 

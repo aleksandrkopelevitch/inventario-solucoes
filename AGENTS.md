@@ -822,6 +822,18 @@ Three things this depends on:
   narrowed in the browser must answer a query the same way the database does,
   or the same word finds different things on two screens.
 
+**A search has to reach every column the thing is actually filed under.** The
+people catalog folded correctly and still answered "0 registros" for
+`admin@leomadeiras.com.br`, because `Person::scopeFilter()` searched name,
+company and solution and no e-mail at all (reported 2026-09-02). An e-mail lives
+in THREE places for one person and the box asks all three now: `people.email`,
+the `contacts` repeater (whose raw `value` makes a phone number findable too),
+and — the half the report was really about — the linked ACCOUNT's `users.email`,
+since linking an account is how an address gets attached to a person without
+their own column ever being filled in. Folding is only half of "can this be
+found"; the other half is which columns the `orWhere` chain names, and that half
+has no macro to get right for you.
+
 The one deliberate exception is `PublicDocumentationController::diagramPicture()`,
 which asks whether a caderno cites an exact slug. That is authorisation, not
 search: folding it would let `SLUG-A` stand in for `slug-a`.
