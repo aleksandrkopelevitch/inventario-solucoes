@@ -560,6 +560,22 @@ other end of it. That is why the picker (`notebooks.context-pages`) spans every
 caderno while the LINK picker does not: reading a page once is not the same
 promise as addressing it forever.
 
+**Both live behind ONE [+] in the composer**, which is the same box
+`x-flowspec.composer` is — a rounded frame holding this turn's context pills, the
+textarea and a toolbar. They arrived as two labelled sections stacked above the
+textarea, each with a `+` of its own, and on a docked panel 320px wide those two
+rows pushed the message box to the floor. The menu has exactly two items because
+there are exactly two doors; a long paste is the third and needs no item, since
+it becomes a document on its own. Two details are load-bearing: the pills sit
+inside the BOX but outside `#docs-chat-message-form` (each document pill carries
+its own `<form>` for the remove button, and a nested form is dropped by the
+parser — § Blade), and TONE in that row means which KIND of context a pill is
+(neutral for material somebody brought, accent for documentation already in the
+inventory), never whether it is checked. A document pill used to turn accent when
+checked, which was unambiguous while it had a section to itself and became a
+second pill kind the moment the rows merged; withheld is said by the checkbox
+plus a dim.
+
 Five rules, and four of them are the module's existing rules seen from a new
 screen:
 
