@@ -102,6 +102,56 @@ it('is idempotent — reseeding does not duplicate examples', function () {
     expect(FlowspecExample::count())->toBe($count);
 });
 
+it('does not read a date or an endpoint as the credential it describes', function () {
+    $scrubber = new CredentialScrubber;
+
+    // Every one of these was reported as a literal secret on the real export
+    // (2026-09-02), and the same scrubber runs inside DigibeeFlowspecValidator
+    // — so a GENERATED pipeline carrying an `authorizationDate` mapping was
+    // failing every correction attempt and having its document discarded.
+    $descriptive = ['flowSpec' => ['root' => [['params' => [
+        'body' => json_encode([
+            'lastPasswordUpdate' => '2022-11-14T10:22:31Z',
+            'authorizationDate'  => '2026-01-02',
+            'tokenUrl'           => 'https://auth.example.com/oauth/token',
+            'apiKeyName'         => 'x-api-key',
+        ]),
+    ]]]]];
+
+    expect($scrubber->violations($descriptive))->toBe([]);
+});
+
+it('does not read a transform mapping as a value', function () {
+    $scrubber = new CredentialScrubber;
+
+    // A JOLT spec's VALUES are the names of the fields being mapped. The whole
+    // vtex-sap-pedidos-dispatcher pipeline was excluded from the teaching
+    // corpus over these three.
+    $mapping = ['flowSpec' => ['root' => [['transformSpec' => [[
+        'spec' => [
+            'payment' => [
+                'authorizationToken' => 'payment.authorizationToken',
+                'authorizationDate'  => '=split(\'T\',@(1,orderDate))',
+            ],
+        ],
+    ]]]]]];
+
+    expect($scrubber->violations($mapping))->toBe([]);
+});
+
+it('still catches a secret whose key merely sounds descriptive', function () {
+    $scrubber = new CredentialScrubber;
+
+    // The suffix guard excuses a DESCRIPTION of a credential, never a
+    // credential: a bare 32-character key has no path punctuation to hide
+    // behind, and `password` does not end in one of the suffixes.
+    $leaky = ['flowSpec' => ['root' => [['params' => [
+        'body' => json_encode(['apikey' => 'naP95LJaQ2mXv7Rt0KcE1sBd8UyHfZgW', 'password' => 'hunter2hunter2']),
+    ]]]]];
+
+    expect($scrubber->violations($leaky))->toHaveCount(3);
+});
+
 it('flags literal secrets and accepts double-braces references', function () {
     $scrubber = new CredentialScrubber;
 

@@ -880,8 +880,32 @@ place for the internal network's shape.
 
 A pipeline `CredentialScrubber` flags is **skipped whole**, never redacted
 around: a pipeline that would fail the generator's own validation is not a
-pipeline to teach from. Six of the 182 real ones are skipped today, which is
-itself worth knowing.
+pipeline to teach from. Eight of 201 are skipped today, which is itself worth
+knowing.
+
+**Auditing that list is what found the scrubber's false positives**, and they
+mattered well beyond this corpus — the same class runs inside
+`DigibeeFlowspecValidator`, so a GENERATED pipeline tripping one failed every
+correction attempt and had its document discarded by
+`FlowspecGenerationService`. Two rules were too loose:
+
+- **A key was sensitive if a sensitive word appeared anywhere in it**, so
+  `lastPasswordUpdate` (a date), `authorizationDate` (a date) and `tokenUrl` (an
+  endpoint) all read as credentials. `DESCRIPTIVE_KEY_SUFFIXES` excuses a key
+  that DESCRIBES a credential — one ending in `date`, `at`, `url`, `update`, `id`
+  and friends — while `password` and `apiKey` still land, since neither ends in
+  one.
+- **Any non-`{{` string counted as a value**, so a JOLT spec's mappings did too:
+  the values in a `transformSpec` are the NAMES of the fields being mapped
+  (`payment.authorizationToken`, `=split('T',@(1,orderDate))`). `isLiteral()`
+  now also excuses a JOLT operation, a date, and a bare field path — a path only
+  when it carries a `.` or `[`, so a 32-character API key with no punctuation is
+  still a literal.
+
+What it does NOT try to settle is a long `eyJ…` blob sitting in mock data: a
+VTEX order `handle` is base64 JSON and indistinguishable from a JWT. Flagging it
+costs that pipeline its place in the teaching corpus, which is the cheaper half
+to lose.
 
 **An expression does not launder a literal address sitting beside it.** "Contains
 `{{`" was checked first and answered for the whole string, so

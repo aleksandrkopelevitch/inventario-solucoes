@@ -1,7 +1,7 @@
 {
     "version": 1,
-    "generated_at": "2026-09-02T21:00:20+00:00",
-    "pipelines": 192,
+    "generated_at": "2026-09-03T00:27:57+00:00",
+    "pipelines": 193,
     "connectors": {
         "assert-connector-v2": {
             "uses": 22,
@@ -102,13 +102,13 @@
             ]
         },
         "do-while-connector": {
-            "uses": 18,
+            "uses": 20,
             "params": {
-                "interruptLoopOnError": 18,
-                "iteration": 18,
-                "onProcess": 18,
-                "showLoopIndex": 18,
-                "timeout": 18,
+                "interruptLoopOnError": 20,
+                "iteration": 20,
+                "onProcess": 20,
+                "showLoopIndex": 20,
+                "timeout": 20,
                 "onException": 2
             },
             "samples": [
@@ -216,12 +216,12 @@
             ]
         },
         "event-publisher-connector": {
-            "uses": 91,
+            "uses": 93,
             "params": {
-                "body": 91,
-                "eventName": 91,
-                "showSendEventLog": 91,
-                "stopOnError": 91
+                "body": 93,
+                "eventName": 93,
+                "showSendEventLog": 93,
+                "stopOnError": 93
             },
             "samples": [
                 {
@@ -600,10 +600,10 @@
             ]
         },
         "log-connector": {
-            "uses": 1191,
+            "uses": 1197,
             "params": {
-                "logLevel": 1191,
-                "message": 1191
+                "logLevel": 1197,
+                "message": 1197
             },
             "samples": [
                 {
@@ -621,18 +621,18 @@
             ]
         },
         "object-store-connector": {
-            "uses": 343,
+            "uses": 344,
             "params": {
-                "failOnError": 343,
-                "isolated": 343,
-                "objectStore": 343,
-                "operation": 343,
-                "unique": 343,
-                "objectId": 276,
-                "sort": 224,
+                "failOnError": 344,
+                "isolated": 344,
+                "objectStore": 344,
+                "operation": 344,
+                "unique": 344,
+                "objectId": 277,
+                "sort": 225,
                 "limit": 181,
                 "skip": 181,
-                "upsert": 157,
+                "upsert": 158,
                 "document": 106,
                 "query": 75,
                 "expireAfterSeconds": 6
@@ -829,40 +829,40 @@
             ]
         },
         "rest-connector-v2": {
-            "uses": 165,
+            "uses": 167,
             "params": {
-                "advanced": 165,
-                "headers": 165,
-                "operation": 165,
-                "url": 165,
-                "connectTimeout": 157,
-                "readTimeout": 157,
-                "stopOnClientError": 157,
-                "stopOnServerError": 157,
-                "overrideResponseCharset": 155,
-                "queryParams": 154,
-                "sendBinaryFile": 138,
+                "advanced": 167,
+                "headers": 167,
+                "operation": 167,
+                "url": 167,
+                "connectTimeout": 159,
+                "readTimeout": 159,
+                "stopOnClientError": 159,
+                "stopOnServerError": 159,
+                "overrideResponseCharset": 157,
+                "queryParams": 156,
+                "sendBinaryFile": 140,
                 "body": 127,
                 "responseCharset": 109,
                 "injectJWT": 106,
                 "readJWT": 106,
                 "useDynamicAccount": 102,
                 "callTimeout": 101,
+                "retry": 101,
                 "writeTimeout": 101,
-                "retry": 99,
+                "compressBody": 99,
+                "forceHttp1": 99,
+                "isInsecure": 99,
+                "rawMode": 99,
+                "saveAsLocalFile": 99,
                 "injectConsumer": 98,
                 "injectPipelineKey": 98,
                 "injectTraceId": 98,
-                "compressBody": 97,
-                "forceHttp1": 97,
-                "isInsecure": 97,
-                "rawMode": 97,
-                "saveAsLocalFile": 97,
-                "rawModeAsBase64": 92,
-                "maxRetry": 89,
-                "fileName": 85,
-                "disableConnectionPool": 76,
-                "invalidateSSLSessionsOnEveryCall": 76,
+                "rawModeAsBase64": 94,
+                "maxRetry": 91,
+                "fileName": 87,
+                "disableConnectionPool": 78,
+                "invalidateSSLSessionsOnEveryCall": 78,
                 "enableFollowRedirect": 48,
                 "waitNextRetry": 44,
                 "accountName": 41,
@@ -1109,25 +1109,25 @@
             ]
         },
         "soap-connector-v2": {
-            "uses": 11,
+            "uses": 12,
             "params": {
-                "advanced": 11,
-                "asString": 11,
-                "body": 11,
-                "connectTimeout": 11,
-                "headers": 11,
-                "isInsecure": 11,
-                "maxRetry": 11,
-                "overrideResponseCharset": 11,
-                "queryParams": 11,
-                "readTimeout": 11,
-                "retry": 11,
-                "stopOnClientError": 11,
-                "stopOnServerError": 11,
-                "url": 11,
-                "waitNextRetry": 11,
-                "withNamespace": 11,
-                "rawMode": 6
+                "advanced": 12,
+                "asString": 12,
+                "body": 12,
+                "connectTimeout": 12,
+                "headers": 12,
+                "isInsecure": 12,
+                "maxRetry": 12,
+                "overrideResponseCharset": 12,
+                "queryParams": 12,
+                "readTimeout": 12,
+                "retry": 12,
+                "stopOnClientError": 12,
+                "stopOnServerError": 12,
+                "url": 12,
+                "waitNextRetry": 12,
+                "withNamespace": 12,
+                "rawMode": 7
             },
             "samples": [
                 {
@@ -1450,6 +1450,7 @@
         "url-pricefy",
         "url-sap-ecc",
         "url-sap-soap-log",
+        "url-sap-soap-pedido",
         "url-sap-soap-saldo-nota-credito",
         "url-sap-soap-segunda-via-boleto-nf",
         "url-svl-colaborador",

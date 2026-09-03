@@ -1191,6 +1191,22 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
     na máquina do dev, que publica o artefato derivado — **o artefato viaja, a
     credencial não.**
 
+  **Rotina de atualização.** A metade da documentação se atualiza sozinha
+  (agendada aos domingos, 03:00 e 03:30). A dos pipelines é manual, e é só isto:
+
+  ```bash
+  php artisan digibee:pipelines:pull    # ~4 min, precisa do login do digibeectl
+  git add database/data/digibee_tenant_vocabulary.json
+  ```
+
+  O comando remove do export os pipelines que não existem mais no tenant (mas
+  **só depois de uma passada limpa** — um pipeline que ele não conseguiu buscar
+  é indistinguível de um que foi apagado), reconstrói o artefato e imprime o que
+  mudou, incluindo os pipelines pulados por terem credencial literal. O export
+  cru fica em `storage/app/private/` e nunca entra no git; só o JSON derivado
+  entra. `--index-only` reconstrói o artefato a partir do export que já está em
+  disco, sem tocar no tenant — é o caminho para mexer nas regras de raspagem.
+
   O que é versionado é só o derivado e escrutinável (`digibee_connector_docs.json`,
   `digibee_connector_cards.json`, `digibee_tenant_vocabulary.json`); o espelho e o
   export ficam em `storage/app/private`, fora do git. O que sobrevive à raspagem

@@ -10,6 +10,23 @@ namespace App\Services\Flowspec;
  */
 class CredentialScrubber
 {
+    /**
+     * Suffixes that turn a sensitive-sounding key into a DESCRIPTION of a
+     * credential rather than the credential.
+     *
+     * `lastPasswordUpdate` is a date, `authorizationDate` is a date,
+     * `tokenUrl` is an endpoint — and all three were reported as literal
+     * secrets, because the fragment match below only asks whether the word
+     * appears anywhere in the name. Found auditing the real export
+     * (2026-09-02), where it also meant the flowSpec VALIDATOR would reject a
+     * generated pipeline carrying a legitimate `authorizationDate` mapping and
+     * FlowspecGenerationService would then discard the document outright.
+     */
+    private const DESCRIPTIVE_KEY_SUFFIXES = [
+        'date', 'at', 'time', 'update', 'updated', 'expires', 'expiry', 'expiration',
+        'id', 'name', 'type', 'url', 'uri', 'count', 'length', 'flag', 'enabled',
+    ];
+
     /** Fragments (lowercase key, no -_/space) that mark a key as sensitive. */
     private const SENSITIVE_KEY_FRAGMENTS = [
         'password', 'senha', 'secret', 'apikey', 'authorization',
@@ -79,6 +96,16 @@ class CredentialScrubber
             return true;
         }
 
+        foreach (self::DESCRIPTIVE_KEY_SUFFIXES as $suffix) {
+            // Checked before the fragments, and only when something precedes
+            // it: a key called exactly `id` or `name` is not sensitive either
+            // way, but `password` must not be excused by ending in a word that
+            // happens to be a suffix of itself.
+            if ($normalized !== $suffix && str_ends_with($normalized, $suffix)) {
+                return false;
+            }
+        }
+
         foreach (self::SENSITIVE_KEY_FRAGMENTS as $fragment) {
             if (str_contains($normalized, $fragment)) {
                 return true;
@@ -88,9 +115,32 @@ class CredentialScrubber
         return false;
     }
 
-    /** A value with any Double Braces reference is not a literal secret. */
+    /**
+     * Whether the value under a sensitive key is an actual VALUE.
+     *
+     * Four things are not, and each cost a false positive on the real export:
+     * a Double Braces reference (the whole point of the rule), a JOLT
+     * operation (`=split('...')`), a bare field PATH — a transformSpec's values
+     * are the names of fields being mapped, `payment.authorizationToken`, not
+     * anything secret — and a date.
+     *
+     * A path is only excused when it has no whitespace AND contains a `.` or
+     * `[`, so a 32-character API key with no punctuation is still a literal.
+     * A JWT reaches here as a path-shaped string too, but the JWT pattern in
+     * `walk()` is checked independently of the key, so it is still caught.
+     */
     private function isLiteral(string $value): bool
     {
-        return trim($value) !== '' && ! str_contains($value, '{{');
+        $value = trim($value);
+
+        if ($value === '' || str_contains($value, '{{') || str_starts_with($value, '=')) {
+            return false;
+        }
+
+        if (preg_match('/^\d{4}-\d{2}-\d{2}([T ]|$)/', $value) === 1) {
+            return false;
+        }
+
+        return preg_match('/^[A-Za-z_$@][A-Za-z0-9_$@.\[\]*-]*[.\[][A-Za-z0-9_$@.\[\]*-]*$/', $value) !== 1;
     }
 }
