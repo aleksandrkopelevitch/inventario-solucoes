@@ -883,9 +883,16 @@ around: a pipeline that would fail the generator's own validation is not a
 pipeline to teach from. Six of the 182 real ones are skipped today, which is
 itself worth knowing.
 
-One accepted residual: a kept expression can carry a path (`{{ global.url-base-promob }}/Promob.Integration/api/...`).
-The host is abstracted behind the global, the path teaches the composition
-pattern, and treating names as vocabulary was the explicit call.
+**An expression does not launder a literal address sitting beside it.** "Contains
+`{{`" was checked first and answered for the whole string, so
+`https://leomadeiras.freshservice.com/api/v2/attachments/{{ message.id }}`
+survived intact on the first real pull. The scheme and host are stripped now and
+the path and the expression stay, which keeps the composition legible.
+
+One accepted residual remains: a URL composed from a GLOBAL keeps its path
+(`{{ global.url-base-promob }}/Promob.Integration/api/...`). There the host is
+already abstracted behind the global, the path teaches the composition pattern,
+and treating names as vocabulary was the explicit call.
 
 #### Traps already paid for
 
@@ -914,6 +921,15 @@ pattern, and treating names as vocabulary was the explicit call.
   parsing regression looks identical from inside the builder — so it goes in the
   report every time rather than being decided silently either way. With no
   groups, `ConnectorCard::toPrompt()` prints the summary and claims nothing.
+- **The pipeline export PRUNES; the docs mirror does not.** A deleted or
+  renamed pipeline is simply never overwritten again, and
+  `IndexPipelineVocabulary` walks the directory with no manifest to filter by —
+  so it keeps teaching from a pipeline that stopped existing (two files from a
+  June snapshot were still being indexed in September). The docs sync can afford
+  to leave a retired page on disk because the manifest every reader iterates
+  stops listing it; there is no manifest here, so the file has to go. Pruning
+  runs **only after a clean pull**: a pipeline this run could not reach is
+  indistinguishable from one that was deleted.
 - **Which connectors get a card is ranked, and the ranking is the feature.**
   Three signals, most certain first: a pipeline the user pasted, the request
   naming a connector (by its JSON name OR by its CARD TITLE — nobody types
