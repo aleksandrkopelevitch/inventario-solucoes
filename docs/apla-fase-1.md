@@ -21,7 +21,7 @@ sem descobrir quatro subsistemas depois que a premissa estava errada.
 | Reconhecimento — `digibeectl`, export real, docs | **feito** (2026-09-04) |
 | A — resolução de credencial + cliente HTTP + probe read-only | **feito** — 13 testes em `tests/Feature/DigibeeDesignProbeTest.php`, suíte inteira verde (1237) |
 | A′ — **rodar** o probe contra o tenant | **feito** (2026-09-04) — as três rotas respondem, e o pipeline volta com as 34 chaves (§ O que o probe respondeu) |
-| A″ — verificar os **verbos de escrita** | **create verificado**, update NÃO — `PUT`/`PATCH` dão 405 (§ O que o A″ respondeu) |
+| A″ — verificar os **verbos de escrita** | **create e update verificados** — o loop fecha. Deploy recusado por permissão (§ O que o A″ respondeu) |
 | B — modo de ingestão no normalizador/validador | não começado, desbloqueado por A′ |
 | C — síntese de `triggerSpec` | não começado |
 | D — runner de deploy (via `digibeectl`) | não começado |
@@ -277,7 +277,25 @@ Duas coisas da resposta que o Bloco B tem de respeitar:
   pipeline só é chamável depois de implantado, então falta saber se o deploy
   sobe a versão antes de mudar esse default.
 
-**Atualizar não é `PUT` nem `PATCH`.** Ambos em
+**Atualizar É `POST` na COLEÇÃO com o `id` no corpo — verificado.**
+`POST /design/realms/{realm}/pipelines` mandando o documento lido de volta com
+o `id` e um `flowSpec` novo responde **200**, a contagem por nome **fica em 1**
+(atualizou, não duplicou) e o `flowSpec` relido é **byte-idêntico** ao enviado.
+O §3.3 estava certo sobre isso, e agora está provado em vez de suposto: **a
+ingestão fecha.**
+
+Dois detalhes que vêm com ela:
+
+- **A raiz `start` foi ACEITA**, o que fecha a pergunta aberta da constatação 3:
+  um documento ingerido pela API se enraíza em `start`, como os 201 do tenant —
+  não em `disconnected-root:<uuid>`, que é o formato de colagem. O Bloco B tem
+  as duas pontas confirmadas.
+- **O upsert não sobe versão**: continua `v0.0` com `draft: true`. Escreve o
+  rascunho. Falta saber se o deploy é o que versiona, e é o que decide o default
+  de `versionMajor` em `PipelineTestSuite::endpointUrl()`.
+
+**O caminho anterior, registrado para ninguém repetir:** atualizar não é `PUT`
+nem `PATCH`. Ambos em
 `/design/realms/{realm}/pipelines/{id}` respondem **405 Method Not Allowed** —
 e 405, não 404, é a notícia boa: o recurso EXISTE (o GET nele funciona) e só o
 verbo está errado.
@@ -307,10 +325,10 @@ recurso individual**, o que deixa `POST` na COLEÇÃO como último candidato de 
 custo de estar errado é um segundo rascunho vazio no projeto que já tem um para
 limpar.
 
-A segunda é um ganho para o Bloco B: **`/projects/{id}/pipelines` é uma rota
-mapeada**, quase certamente o GET que lista os pipelines de um projeto — isto é,
-o que o `?projectId=` finge ser. Resolve de uma vez o descarte silencioso do
-campo e o download dos 1803 com flowSpec embutido.
+A segunda parecia um ganho para o Bloco B e não é: **`/projects/{id}/pipelines`
+é uma rota mapeada, mas o `GET` nela responde 403.** Existe e esta credencial
+não alcança. Então resolver pipeline por **nome** (`?name=`, honrado) segue
+sendo o caminho, e o descarte silencioso do `projectId` segue sem solução.
 
 ### O deploy é recusado por PERMISSÃO, e isso contradiz o AGENTS.md
 
@@ -461,7 +479,9 @@ afirmação de conteúdo honesta a partir do documento.
 - [x] Um 200 que não devolve `flowSpec` é reportado como loop inalcançável.
 - [x] Probe rodado contra o tenant, com a forma real das respostas anexada
       aqui (§ O que o probe respondeu).
-- [ ] Verbo de escrita verificado — o probe confirma a LEITURA, e é isso.
+- [x] Verbos de escrita de design verificados: cria, atualiza (upsert por
+      `POST` na coleção) e o `flowSpec` sobrevive byte-idêntico.
+- [ ] Deploy verificado — bloqueado por permissão, não por rota.
 - [x] Matriz de testes derivada do flowSpec, com o que não dá para derivar
       reportado como dívida de cobertura em vez de payload inventado.
 
@@ -471,15 +491,28 @@ afirmação de conteúdo honesta a partir do documento.
 
 O bloqueio de leitura caiu; sobraram dois, e o segundo é novo.
 
-**1. Falta o verbo que ESCREVE o flowSpec.** Criar está verificado (§ O que o
-A″ respondeu); `PUT` e `PATCH` em `/pipelines/{id}` dão 405 e o `Allow` não
-chega. Falta a captura de uma requisição de Salvar do canvas no devtools —
-método, URL e as chaves de topo do payload. É a operação que o loop de
-auto-correção repete, então é a que decide se o loop fecha.
+**1. O deploy é uma questão de PERMISSÃO, não de rota.** A metade de design
+está verificada — cria e atualiza, com round-trip byte-idêntico. O que falta é
+`POST /runtime/realms/{realm}/deployments`, e ele responde **403** para a
+credencial interativa. Isso não se resolve escrevendo código: é uma pergunta
+para quem administra o realm — *quem pode criar deployment em `test`, e essa
+permissão pode ser concedida a um usuário de serviço?*
 
-Continua sem verificação, e é da API (não do CLI, ver constatação 1):
-`POST /runtime/realms/{realm}/deployments` faz deploy? O probe confirmou só o
-`GET` dessa rota.
+Se a resposta for "ninguém fora de um time específico", os Blocos D e G mudam
+de forma e a autonomia do agente para na ingestão. Continua sendo a maior parte
+do valor (gerar, ingerir, e a matriz de testes para alguém rodar), mas é uma
+feature diferente da que o §1.2 descreve.
+
+**2. Três rotas respondem 403 para esta credencial** —
+`GET /projects/{id}/pipelines`, `POST /runtime/.../deployments`, e o filtro por
+projeto que sobra sem solução. A credencial interativa é bem mais estreita do
+que este plano assumiu, o que é boa notícia para a fronteira de segurança e má
+para o roadmap: reforça que um usuário de serviço restrito é viável, e levanta a
+dúvida de se `DEPLOYMENT:CREATE` é concedível.
+
+**3. O nome do campo de projeto.** O create aceita e descarta `projectId`, e
+`/projects/{id}/pipelines` não é a rota alternativa (403). Um `apla-probe` vazio
+segue em `default` até alguém apagar pelo canvas.
 
 **2. O usuário de realm restrito ainda não existe.** O que o probe provou, ele
 provou com a credencial interativa ampla. Que a rota responda 200 para um
