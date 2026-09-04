@@ -366,6 +366,69 @@ Duas descobertas read-only do caminho, que o Bloco B usa:
 
 ---
 
+## A API, como referência
+
+Tudo abaixo foi observado contra o realm real em 2026-09-04, com a credencial
+interativa do `digibeectl`. Nada aqui é documentado pela Digibee — é o
+resultado do A′/A″, e existe para o Bloco B não redescobrir.
+
+Host: `core.godigibee.io` (o `endpoint` da config do `digibeectl`). O canvas é
+servido de `www.godigibee.io` e chama esse outro.
+
+| rota | verbo | resultado |
+|---|---|---|
+| `/design/realms/{realm}/pipelines` | GET | 200 — **1803 itens com o `flowSpec` embutido em cada um** (expõe cada versão). `?name=` é honrado; `?projectId=` é ignorado em silêncio |
+| `/design/realms/{realm}/pipelines` | POST | 200 — **cria** sem `id`, **faz upsert** com `id`. Descarta `projectId`. Responde o envelope `{pipeline, configurations}`, não o documento |
+| `/design/realms/{realm}/pipelines/{id}` | GET | 200 — 34 chaves, superconjunto das 29 da listagem (adiciona `projectId`, `projectName`, `configurations`, `isTracingEnabled`, `tracingSamplingRate`) |
+| `/design/realms/{realm}/pipelines/{id}` | PUT / PATCH / POST | **405** — o path é GET-only |
+| `/design/realms/{realm}/projects` | GET | 200 — 16 projetos, cada um com `amountOfPipelines` |
+| `/design/realms/{realm}/projects/{id}/pipelines` | GET | **403** — mapeada, fora do alcance desta credencial |
+| `/design/realms/{realm}/projects/{id}/pipelines` | POST | 405 |
+| `/runtime/realms/{realm}/deployments` | GET | 200 — 110 em `test`; carrega `activeConfiguration`, `accounts`, `environmentParameters` |
+| `/runtime/realms/{realm}/deployments` | POST | **403 `INSUFFICIENT_PERMISSIONS`** |
+| qualquer uma | OPTIONS | 500, e o gateway remove o header `Allow` |
+
+`DELETE` nunca foi probado, em nenhuma rota, de propósito.
+
+Quatro coisas de forma que não estão na tabela:
+
+- **Dois formatos de erro, dois serviços.** O design responde problem details
+  RFC 7807 (`{type: "about:blank", title, status, detail, instance}`); o runtime
+  responde o erro default do Spring Boot
+  (`{timestamp, status, error, message, errorCode, path}`). Quem for tratar erro
+  dos dois lados precisa ler os dois — `DigibeeApiException::fromResponse()` já
+  tenta `message` e `error.message` por isso.
+- **O detalhe do pipeline EMBUTE o objeto `realm` inteiro**, com informação de
+  licença. E ela importa para o Bloco D: `licenseModel` é
+  `CONSUMPTION_BASED_MODEL`, e no `digibeectl` as flags `--minReplicas` /
+  `--maxReplicas` são descritas como "valid for Consumption Based Model realms"
+  — então são essas, e não `--replicas`, que valem aqui. O `cluster` é
+  `digibee-production-1`.
+- **Um pipeline novo nasce `v0.0` com `draft: true`**, e o upsert **não sobe
+  versão** — escreve o rascunho. O que versiona (provavelmente o deploy) segue
+  sem observação, e é o que decide o default de `versionMajor` em
+  `endpointUrl()`.
+- **A config do `digibeectl` é um ARRAY de topo** de objetos de conta, cada um
+  com o seu `endpoint`, `currentRealm`, `jwt` e `apikey` — não um objeto com os
+  campos na raiz, que é o que o §3.1 sugere. `DigibeeAuthResolver` acha por
+  busca aninhada e REPORTA o caminho JSON que usou (`0.jwt`), que foi como essa
+  forma apareceu sem ninguém abrir o arquivo. O JWT tem ~1000 caracteres e sai
+  de sessão interativa; a apikey, 32.
+
+### O que ainda não se sabe
+
+- **Como um pipeline vai para um projeto.** `projectId` é aceito e descartado em
+  duas rotas, e `/projects/{id}/pipelines` dá 403. A flag do CLI é `--project`
+  ("name or id"), então o campo tem outro nome.
+- **Quem pode criar deployment.** Pergunta de administração de realm, não de
+  código (§ Bloqueios).
+- **O que versiona um pipeline**, e portanto o `v{n}` da URL de runtime.
+- **Se `POST /pipelines` valida o `flowSpec`.** O upsert aceitou um `start` com
+  um step; um documento inválido pode passar igual e só quebrar no canvas — que
+  é exatamente a falha que o `DigibeeFlowspecValidator` existe para pegar antes.
+
+---
+
 ## Ordem de construção
 
 A ordem não é a do roadmap da especificação, por um motivo: o **Bloco E**
