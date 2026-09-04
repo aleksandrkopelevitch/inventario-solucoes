@@ -21,7 +21,7 @@ sem descobrir quatro subsistemas depois que a premissa estava errada.
 | Reconhecimento — `digibeectl`, export real, docs | **feito** (2026-09-04) |
 | A — resolução de credencial + cliente HTTP + probe read-only | **feito** — 13 testes em `tests/Feature/DigibeeDesignProbeTest.php`, suíte inteira verde (1237) |
 | A′ — **rodar** o probe contra o tenant | **feito** (2026-09-04) — as três rotas respondem, e o pipeline volta com as 34 chaves (§ O que o probe respondeu) |
-| A″ — verificar os **verbos de escrita** (design create/update + runtime deploy) | **não começado** — só GET foi verificado (§ Bloqueios) |
+| A″ — verificar os **verbos de escrita** | **create verificado**, update NÃO — `PUT`/`PATCH` dão 405 (§ O que o A″ respondeu) |
 | B — modo de ingestão no normalizador/validador | não começado, desbloqueado por A′ |
 | C — síntese de `triggerSpec` | não começado |
 | D — runner de deploy (via `digibeectl`) | não começado |
@@ -239,6 +239,70 @@ par de chaves, o agente precisa de renovação antes de ter qualquer autonomia
 
 ---
 
+## O que o A″ respondeu
+
+Rodado em 2026-09-04 contra o projeto `isol`, com a credencial interativa.
+
+**Criar funciona.** `POST /design/realms/{realm}/pipelines` com só
+`{name, description, projectId}` responde **200** — os mesmos três campos que
+`digibeectl create pipeline` aceita, o que é uma boa indicação de que o CLI
+chama esta rota. O filtro `?name=` confirma que foi criado exatamente um
+pipeline, sem duplicata: `apla-probe`,
+id `4d775d68-4cd6-4686-b155-0ec24936832f`.
+
+Duas coisas da resposta que o Bloco B tem de respeitar:
+
+- **A resposta do create é um ENVELOPE**, `{pipeline, configurations}` — não o
+  documento de 34 chaves que o GET devolve. O id sai de `pipeline.id`, e a
+  primeira versão deste script leu `$body['id']` e recebeu vazio exatamente por
+  isso.
+- **Um pipeline nasce em v0.0 com `draft: true`**, `flowSpec: null`,
+  `canvasVersion: 0` e `metadata: {}` — a mesma casca vazia do CLI. O v0 tem
+  consequência para `PipelineTestSuite::endpointUrl()`, que assume 1: um
+  pipeline só é chamável depois de implantado, então falta saber se o deploy
+  sobe a versão antes de mudar esse default.
+
+**Atualizar não é `PUT` nem `PATCH`.** Ambos em
+`/design/realms/{realm}/pipelines/{id}` respondem **405 Method Not Allowed** —
+e 405, não 404, é a notícia boa: o recurso EXISTE (o GET nele funciona) e só o
+verbo está errado.
+
+A dedução seguinte não deu certo, e vale registrar para ninguém repetir: um 405
+tem de anunciar os métodos aceitos (RFC 7231 §6.5.5) e esta API é claramente
+Spring (problem details `about:blank`), que manda `Allow`. Só que **o gateway
+remove o header** — `OPTIONS` responde 500 nas três rotas e nenhuma resposta
+405 traz `Allow`. Não há como ler os verbos do servidor.
+
+Sobrou `POST`, em dois sabores, e **nenhum dos dois foi tentado de propósito**:
+
+- `POST /pipelines/{id}` — semântica não adivinhável. Num Spring, um
+  `@PostMapping("/pipelines/{id}")` pode ser "duplica", "sobe versão" ou
+  "implanta" com a mesma naturalidade que "atualiza".
+- `POST /pipelines` com o `id` no corpo (o upsert que o §3.3 afirma) — se for
+  create-only, cria um segundo `apla-probe`, num realm onde **nada apaga
+  pipeline** (ver abaixo).
+
+O caminho de risco zero para a resposta definitiva é capturar a requisição real
+do canvas no devtools: como o path já está certo e só o verbo falta, uma
+requisição capturada resolve.
+
+**Nada apaga um pipeline.** `digibeectl delete` cobre `api-mgmt-credentials` e
+`deployment`, não pipeline, e não foi probada nenhuma rota DELETE. Então
+`apla-probe` sai do realm pelo canvas, na mão — é uma obrigação de limpeza que
+este experimento criou.
+
+Duas descobertas read-only do caminho, que o Bloco B usa:
+
+- **`GET /design/realms/{realm}/projects` funciona** — 16 projetos, cada linha
+  com `amountOfPipelines`. `isol` é `2aa7ab0a-fd48-4f88-b343-1afe446ac672`.
+- **`?name=` é honrado; `?projectId=` é IGNORADO EM SILÊNCIO.** O segundo
+  devolveu os 1803 itens em vez de dar erro, que é a forma perigosa da coisa:
+  quem acreditar que filtrou processa o realm inteiro pensando que é um
+  projeto. Resolver pipeline por nome é o caminho — e evita o download de 1803
+  flowSpecs.
+
+---
+
 ## Ordem de construção
 
 A ordem não é a do roadmap da especificação, por um motivo: o **Bloco E**
@@ -362,22 +426,15 @@ afirmação de conteúdo honesta a partir do documento.
 
 O bloqueio de leitura caiu; sobraram dois, e o segundo é novo.
 
-**1. Os verbos de escrita não foram verificados.** O probe confirma que as
-rotas existem e que um pipeline volta legível — não que um flowSpec entra por
-elas. São TRÊS suposições, não uma, e todas as três são da API (não do CLI, ver
-constatação 1):
+**1. Falta o verbo que ESCREVE o flowSpec.** Criar está verificado (§ O que o
+A″ respondeu); `PUT` e `PATCH` em `/pipelines/{id}` dão 405 e o `Allow` não
+chega. Falta a captura de uma requisição de Salvar do canvas no devtools —
+método, URL e as chaves de topo do payload. É a operação que o loop de
+auto-correção repete, então é a que decide se o loop fecha.
 
-- `POST /design/realms/{realm}/pipelines` **cria**?
-- o mesmo verbo, ou outro em `/pipelines/{id}`, **atualiza**? O loop de
-  auto-correção reingere a cada tentativa, então essa é a que ele usa mais.
-- `POST /runtime/realms/{realm}/deployments` faz deploy?
-
-O experimento não precisa de casca criada pelo CLI. Se `POST` é upsert, ele
-cria de qualquer jeito — pré-criar não evita risco nenhum e ainda deixa o
-caminho de criação sem verificação, testando só o de atualização. A contenção
-não vem de qual ferramenta cria a casca; vem de: um projeto de rascunho, um
-nome que se anuncia (`apla-probe`), **nunca** fazer deploy dela, e tocar em um
-único id de pipeline. Nunca um dos 201 que rodam.
+Continua sem verificação, e é da API (não do CLI, ver constatação 1):
+`POST /runtime/realms/{realm}/deployments` faz deploy? O probe confirmou só o
+`GET` dessa rota.
 
 **2. O usuário de realm restrito ainda não existe.** O que o probe provou, ele
 provou com a credencial interativa ampla. Que a rota responda 200 para um
