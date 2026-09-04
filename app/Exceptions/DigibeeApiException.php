@@ -32,6 +32,22 @@ class DigibeeApiException extends RuntimeException
         );
     }
 
+    /**
+     * Refused rather than defaulted. A deployed pipeline's host encodes its
+     * environment, so falling back to a configured one would call production
+     * for an environment nobody mapped — and report it as that environment.
+     */
+    public static function unknownEnvironment(string $environment): self
+    {
+        $known = implode(', ', array_keys((array) config('services.digibee.design.runtime_hosts')));
+
+        return new self(
+            "No runtime host configured for the environment \"{$environment}\" — known: {$known}. "
+            . 'A deployed pipeline is reached at https://{test|api}.godigibee.io/pipeline/{realm}/v{n}/{name}, '
+            . 'so the environment is the HOST: guessing one would call another environment and label it this one.'
+        );
+    }
+
     public static function unreadableConfig(string $path, string $reason): self
     {
         return new self("digibeectl config at {$path} could not be read: {$reason}.");

@@ -2,6 +2,8 @@
 
 namespace App\Support\Digibee\Testing;
 
+use App\Exceptions\DigibeeApiException;
+
 /**
  * A whole test matrix for one pipeline in one environment — §3.4's `testSuite`
  * document, and the artifact that travels between the generator, the runner and
@@ -20,22 +22,39 @@ final readonly class PipelineTestSuite
         public string $pipelineName,
         public string $environment,
         public array $cases = [],
+        /**
+         * The pipeline's MAJOR version, which is a segment of its own URL
+         * (`/v{n}/`) rather than a literal `v1`. Derived from the pipeline
+         * document when there is one; a freshly generated `{meta, flowSpec}`
+         * has no version yet, so 1 is the right default for it.
+         */
+        public int $versionMajor = 1,
     ) {}
 
     /**
-     * Where the deployed pipeline is called.
+     * Where the deployed pipeline is called:
+     * `https://{test|api}.godigibee.io/pipeline/{realm}/v{n}/{pipelineName}`.
      *
-     * **Unverified**, and the one piece of this module that is: §3.4 states
-     * `{host}/pipeline/{realm}/{environment}/v1/{pipelineName}`, and the local
-     * export cannot corroborate it — `previewURL` is empty on all 201
-     * pipelines. So the host is configuration rather than a literal, and the
-     * first real run is what confirms the path.
+     * **The environment is the HOST, not a path segment.** The APLA spec
+     * writes it the other way round — one host with `/{environment}/` in the
+     * path — and Digibee's REST trigger reference contradicts that on three
+     * separate documentation pages. The distinction is a safety property, not
+     * a cosmetic one: written the spec's way, the surplus path segment 404s,
+     * and the obvious "fix" of deleting it sends every call for the `test`
+     * environment to PRODUCTION while the report still says test. So the
+     * host is looked up per environment and an unmapped one is REFUSED.
+     *
+     * @throws DigibeeApiException
      */
     public function endpointUrl(string $realm): string
     {
-        $host = rtrim((string) config('services.digibee.design.runtime_url'), '/');
+        $host = config("services.digibee.design.runtime_hosts.{$this->environment}");
 
-        return "{$host}/pipeline/{$realm}/{$this->environment}/v1/{$this->pipelineName}";
+        if (! is_string($host) || $host === '') {
+            throw DigibeeApiException::unknownEnvironment($this->environment);
+        }
+
+        return rtrim($host, '/') . "/pipeline/{$realm}/v{$this->versionMajor}/{$this->pipelineName}";
     }
 
     /** @return list<PipelineTestCase> the cases that can run with nothing added */
@@ -70,10 +89,11 @@ final readonly class PipelineTestSuite
     public function toArray(): array
     {
         return [
-            'testSuite'    => $this->name,
-            'pipelineName' => $this->pipelineName,
-            'environment'  => $this->environment,
-            'cases'        => array_map(fn (PipelineTestCase $case) => $case->toArray(), $this->cases),
+            'testSuite'            => $this->name,
+            'pipelineName'         => $this->pipelineName,
+            'pipelineVersionMajor' => $this->versionMajor,
+            'environment'          => $this->environment,
+            'cases'                => array_map(fn (PipelineTestCase $case) => $case->toArray(), $this->cases),
         ];
     }
 
@@ -103,6 +123,7 @@ final readonly class PipelineTestSuite
             pipelineName: (string) ($document['pipelineName'] ?? ''),
             environment: (string) ($document['environment'] ?? 'test'),
             cases: $cases,
+            versionMajor: (int) ($document['pipelineVersionMajor'] ?? 1),
         );
     }
 }

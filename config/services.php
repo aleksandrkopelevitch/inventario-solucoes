@@ -225,10 +225,27 @@ return [
             'retries'     => env('DIGIBEE_API_RETRIES', 2),
             'retry_sleep' => env('DIGIBEE_API_RETRY_SLEEP', 500),
 
-            // Where a deployed pipeline is CALLED, which is a different host
-            // from the design API and belongs to the test runner:
-            // {runtime_url}/pipeline/{realm}/{environment}/v1/{pipelineName}.
-            'runtime_url' => env('DIGIBEE_RUNTIME_URL', 'https://api.godigibee.io'),
+            // Where a deployed pipeline is CALLED — a different host from the
+            // design API, and one host PER ENVIRONMENT. That last part is not
+            // a detail: the APLA spec writes this as one host with the
+            // environment as a path segment
+            // (`api.godigibee.io/pipeline/{realm}/{environment}/v1/{name}`),
+            // and Digibee's own REST trigger reference says otherwise —
+            // `https://{test|api}.godigibee.io/pipeline/{realm}/v{n}/{name}`,
+            // where the environment IS the host and `v{n}` is the pipeline's
+            // major version. Corroborated on three separate doc pages (the
+            // REST trigger reference, the mTLS how-to and the naming
+            // best-practices page).
+            //
+            // Getting it wrong the spec's way is dangerous rather than merely
+            // broken: drop the segment that 404s and every "test" call lands
+            // on PRODUCTION while the report says test. Hence a map with no
+            // default — an environment absent from it is refused, never
+            // silently resolved to the surviving host.
+            'runtime_hosts' => [
+                'test' => env('DIGIBEE_RUNTIME_TEST_URL', 'https://test.godigibee.io'),
+                'prod' => env('DIGIBEE_RUNTIME_PROD_URL', 'https://api.godigibee.io'),
+            ],
 
             // The guardrail that actually matters, and it is not the delete
             // routes §5 of the spec worries about: `create deployment -e prod`

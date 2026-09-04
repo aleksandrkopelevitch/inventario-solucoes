@@ -68,6 +68,10 @@ class BuildPipelineTestMatrix
             name: Str::slug($pipelineName) . '-integration',
             pipelineName: $pipelineName,
             environment: $environment,
+            // Present on a pipeline read back from the platform, absent on a
+            // freshly generated document — and it is a segment of the URL the
+            // runner calls, so it is carried rather than assumed to be 1.
+            versionMajor: (int) ($document['versionMajor'] ?? 1),
             cases: [
                 $this->happyPath($skeleton, $fields),
                 ...$this->branchCoverage($spec, $entry, $skeleton),

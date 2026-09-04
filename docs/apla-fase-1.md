@@ -21,7 +21,7 @@ sem descobrir quatro subsistemas depois que a premissa estava errada.
 | Reconhecimento — `digibeectl`, export real, docs | **feito** (2026-09-04) |
 | A — resolução de credencial + cliente HTTP + probe read-only | **feito** — 13 testes em `tests/Feature/DigibeeDesignProbeTest.php`, suíte inteira verde (1237) |
 | A′ — **rodar** o probe contra o tenant | **feito** (2026-09-04) — as três rotas respondem, e o pipeline volta com as 34 chaves (§ O que o probe respondeu) |
-| A″ — verificar o **verbo de escrita** | **não começado** — só GET foi verificado (§ Bloqueios) |
+| A″ — verificar os **verbos de escrita** (design create/update + runtime deploy) | **não começado** — só GET foi verificado (§ Bloqueios) |
 | B — modo de ingestão no normalizador/validador | não começado, desbloqueado por A′ |
 | C — síntese de `triggerSpec` | não começado |
 | D — runner de deploy (via `digibeectl`) | não começado |
@@ -82,8 +82,8 @@ segue precisando da credencial ampla.
 
 ## O que o reconhecimento encontrou
 
-Cinco constatações, todas medidas contra o `digibeectl` instalado e contra os
-201 pipelines do export local (`storage/app/private/digibee-pipelines/`).
+Seis constatações, todas medidas contra o `digibeectl` instalado, a
+documentação espelhada e os 201 pipelines do export local (`storage/app/private/digibee-pipelines/`).
 
 ### 1. `digibeectl` já cobre tudo menos a operação que importa
 
@@ -98,11 +98,25 @@ cria uma casca vazia. Não existe flag para subir um flowSpec, e isso está
 confirmado tanto no `--help` do binário quanto na tabela de operações publicada
 pela Digibee.
 
-Consequência para o §3.3 da especificação: o `DigibeeDriver` **não** deve
-falar REST com a plataforma para deploy, status, métricas e histórico — isso
-tudo já tem interface suportada, e um wrapper (`DigibeectlClient`) neste
-repositório. A rota não documentada é para **uma** operação: o upsert do
-flowSpec.
+Consequência que essa constatação teve **antes** da decisão de topologia: usar
+o CLI para deploy, status, métricas e histórico, e a rota não documentada só
+para o upsert. **Com a decisão de rodar no droplet, isso não se sustenta**, e a
+correção é do plano, não da constatação.
+
+O `digibeectl` existe para Linux (`tar.gz`, instalado por
+`curl -s .../install.sh | bash`), então não é impossível — é caro do jeito
+errado. Colocá-lo no droplet significa um binário de terceiro instalado por
+pipe-para-bash num host compartilhado com outros dois apps, atualizado por
+fora, mais uma SEGUNDA cópia da credencial no arquivo de config dele (com
+chave de encriptação e passphrase próprias, `digibeectl config set`), para
+depois o agente falar com a plataforma por subprocesso em vez de por HTTP.
+
+Então o driver é **a API para tudo**, e a consequência de verdade é outra: as
+rotas de runtime precisam ser verificadas igual às de design. O probe confirmou
+`GET /runtime/realms/{realm}/deployments`; o `POST` que cria deployment é tão
+não verificado quanto o de design. O CLI segue sendo a ferramenta da estação de
+trabalho — é o que `digibee:pipelines:pull` usa, e continua sendo o jeito certo
+ali.
 
 ### 2. `meta` e `position` não existem em pipeline armazenado
 
@@ -147,7 +161,30 @@ ele mesmo acabou de fazer deploy. `canvasVersion` também não é universal: 2 e
 Uma coisa que **não** divergiu: `params.onProcess`/`onException` apontando para
 `<id>-onProcessTrack` bate com a realidade (404 steps usam exatamente isso).
 
-### 5. O guard-rail do §5 está no verbo errado
+### 5. A URL do §3.4 aponta para produção
+
+A especificação diz que um pipeline implantado é chamado em
+`https://api.godigibee.io/pipeline/{realm}/{environment}/v1/{pipelineName}`.
+A referência do trigger REST da própria Digibee diz outra coisa, e três páginas
+independentes concordam (referência do REST, how-to de mTLS, boas práticas de
+nomenclatura):
+
+```
+https://test.godigibee.io/pipeline/{realm}/v{n}/{pipeline-name}   TEST
+https://api.godigibee.io/pipeline/{realm}/v{n}/{pipeline-name}    PROD
+```
+
+Duas diferenças, e a primeira é de segurança: **o ambiente é o HOST**, não um
+segmento de path, e `v{n}` é a versão MAJOR do pipeline, não um `v1` literal.
+
+Escrito do jeito da especificação, o segmento sobrando dá 404 — e a "correção"
+óbvia, apagar o segmento que sobra, manda toda chamada do ambiente `test` para
+**produção**, com o relatório dizendo test. Por isso `runtime_hosts` é um mapa
+sem default e um ambiente fora dele é **recusado**
+(`DigibeeApiException::unknownEnvironment`), em vez de resolver para o host que
+sobrou.
+
+### 6. O guard-rail do §5 está no verbo errado
 
 "Nunca chamar `DELETE /pipelines`" é razoável e insuficiente. O verbo
 destrutivo aqui é **`create deployment -e prod`**: promoção é o que alcança
@@ -212,9 +249,10 @@ autorização a mais, porque escreve.
 
 1. ~~**A′ — rodar o probe.**~~ Feito: as três rotas respondem e o pipeline
    volta com as 34 chaves (§ O que o probe respondeu).
-2. **A″ — verificar o verbo de escrita**, contra uma casca vazia criada só para
-   isso. É o que separa "a rota existe" de "o loop fecha", e é a única tarefa
-   do plano que muda algo no tenant.
+2. **A″ — verificar os verbos de escrita** (design create, design update,
+   runtime deploy), num pipeline de rascunho que nunca sobe. É o que separa "a
+   rota existe" de "o loop fecha", e é a única tarefa do plano que muda algo no
+   tenant.
 3. ~~**E — matriz de testes.**~~ Feito: `BuildPipelineTestMatrix` mais os
    value objects em `App\Support\Digibee\Testing`. Sem rede, sem credencial.
 4. **B + C — modo de ingestão.** Chave de modo no normalizador/validador
@@ -324,16 +362,22 @@ afirmação de conteúdo honesta a partir do documento.
 
 O bloqueio de leitura caiu; sobraram dois, e o segundo é novo.
 
-**1. O verbo de escrita não foi verificado.** O probe confirma que a rota
-existe e que um pipeline volta legível — não que um flowSpec entra por ela. O
-§3.3 supõe `POST /design/realms/{realm}/pipelines` como upsert, e isso segue
-sendo suposição. Verificar exige um write contra o design de produção, que é
-uma classe de risco diferente de três GETs, então o experimento tem que ser
-contido: criar uma casca vazia com o verbo suportado
-(`digibeectl create pipeline -n apla-probe -p <projeto de rascunho>`), fazer
-POST de um flowSpec trivial nela, ler de volta e conferir. Um pipeline novo,
-vazio e nunca implantado é o único alvo aceitável — nunca um dos 201 que
-rodam.
+**1. Os verbos de escrita não foram verificados.** O probe confirma que as
+rotas existem e que um pipeline volta legível — não que um flowSpec entra por
+elas. São TRÊS suposições, não uma, e todas as três são da API (não do CLI, ver
+constatação 1):
+
+- `POST /design/realms/{realm}/pipelines` **cria**?
+- o mesmo verbo, ou outro em `/pipelines/{id}`, **atualiza**? O loop de
+  auto-correção reingere a cada tentativa, então essa é a que ele usa mais.
+- `POST /runtime/realms/{realm}/deployments` faz deploy?
+
+O experimento não precisa de casca criada pelo CLI. Se `POST` é upsert, ele
+cria de qualquer jeito — pré-criar não evita risco nenhum e ainda deixa o
+caminho de criação sem verificação, testando só o de atualização. A contenção
+não vem de qual ferramenta cria a casca; vem de: um projeto de rascunho, um
+nome que se anuncia (`apla-probe`), **nunca** fazer deploy dela, e tocar em um
+único id de pipeline. Nunca um dos 201 que rodam.
 
 **2. O usuário de realm restrito ainda não existe.** O que o probe provou, ele
 provou com a credencial interativa ampla. Que a rota responda 200 para um

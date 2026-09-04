@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Flowspec\BuildPipelineTestMatrix;
+use App\Exceptions\DigibeeApiException;
 use App\Support\Digibee\Testing\Assertion;
 use App\Support\Digibee\Testing\AssertionOperator;
 use App\Support\Digibee\Testing\JsonPath;
@@ -220,13 +221,31 @@ it('round-trips a suite through its JSON shape, raw body and blocked reason incl
         ->and($reloaded->cases[1]->runnable())->toBeFalse();
 });
 
-it('builds the runtime endpoint from configuration', function () {
-    config()->set('services.digibee.design.runtime_url', 'https://api.example.test/');
+it('puts the environment in the host and the major version in the path', function () {
+    // Digibee's REST trigger reference:
+    // https://{test|api}.godigibee.io/pipeline/{realm}/v{n}/{pipeline-name}
+    // — NOT one host with the environment as a path segment, which is what the
+    // APLA spec says.
+    expect((new PipelineTestSuite('s', 'sch-rastreio-pedidos', 'test'))->endpointUrl('leomadeiras'))
+        ->toBe('https://test.godigibee.io/pipeline/leomadeiras/v1/sch-rastreio-pedidos')
+        ->and((new PipelineTestSuite('s', 'sch-rastreio-pedidos', 'prod', versionMajor: 3))->endpointUrl('leomadeiras'))
+        ->toBe('https://api.godigibee.io/pipeline/leomadeiras/v3/sch-rastreio-pedidos');
+});
 
-    $suite = new PipelineTestSuite('s', 'sch-rastreio-pedidos', 'test');
+it('refuses an environment it has no host for instead of defaulting to one', function () {
+    // The dangerous failure this guards: with a fallback, a call for an
+    // unmapped environment lands on production and gets reported as that
+    // environment.
+    expect(fn () => (new PipelineTestSuite('s', 'p', 'homolog'))->endpointUrl('leomadeiras'))
+        ->toThrow(DigibeeApiException::class, 'No runtime host configured');
+});
 
-    expect($suite->endpointUrl('leomadeiras'))
-        ->toBe('https://api.example.test/pipeline/leomadeiras/test/v1/sch-rastreio-pedidos');
+it('carries the major version off a pipeline read back from the platform', function () {
+    $document = flowspecDocument([['id' => 'a', 'type' => 'connector', 'name' => 'log-connector']]);
+    $document['versionMajor'] = 4;
+
+    expect(matrixFor($document)->versionMajor)->toBe(4)
+        ->and(matrixFor(flowspecDocument([]))->versionMajor)->toBe(1);
 });
 
 /*
