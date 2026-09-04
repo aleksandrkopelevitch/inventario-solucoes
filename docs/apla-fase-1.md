@@ -25,7 +25,7 @@ sem descobrir quatro subsistemas depois que a premissa estava errada.
 | B — modo de ingestão no normalizador/validador | não começado, desbloqueado por A′ |
 | C — síntese de `triggerSpec` | não começado |
 | D — runner de deploy (via `digibeectl`) | não começado |
-| E — matriz de testes sintéticos + avaliador de asserções | não começado, **não depende de A′** |
+| E — matriz de testes sintéticos + avaliador de asserções | **feito** — 26 testes em `tests/Feature/FlowspecTestMatrixTest.php`, e as 201 do export constroem sem erro (§ O que a matriz produz) |
 | F — loop de auto-correção com evidência de runtime | não começado |
 | G — portão de promoção para `prod` | não começado |
 
@@ -215,9 +215,8 @@ autorização a mais, porque escreve.
 2. **A″ — verificar o verbo de escrita**, contra uma casca vazia criada só para
    isso. É o que separa "a rota existe" de "o loop fecha", e é a única tarefa
    do plano que muda algo no tenant.
-3. **E — matriz de testes.** Schema de caso de teste (§3.4), avaliador de
-   asserções por JsonPath, gerador da matriz a partir do flowSpec (caminho
-   feliz, uma por condição de `choice`, uma por track de exceção). Sem rede.
+3. ~~**E — matriz de testes.**~~ Feito: `BuildPipelineTestMatrix` mais os
+   value objects em `App\Support\Digibee\Testing`. Sem rede, sem credencial.
 4. **B + C — modo de ingestão.** Chave de modo no normalizador/validador
    (`start` × `disconnected-root:`), envelope `metadata`, e síntese de
    `triggerSpec` — que tem 183 exemplos reais no export para aprender a forma.
@@ -228,6 +227,78 @@ autorização a mais, porque escreve.
    concretos, até `max_attempts`. O que muda não é o loop, é o **sinal** —
    hoje validação estática, aqui a resposta HTTP, o log e a métrica.
 7. **G — portão de `prod`.** Só depois de tudo verde em `test`.
+
+---
+
+## O que a matriz produz
+
+`App\Actions\Flowspec\BuildPipelineTestMatrix` deriva a bateria do §3.4 a
+partir de um `{meta, flowSpec}`. Duas decisões carregam o bloco, e a segunda é
+a que o §3.4 pede ao contrário.
+
+**O contrato de entrada sai das referências `{{ message.* }}`.** Um flowSpec
+nunca declara a própria entrada, mas todo campo que ele LÊ do payload aparece
+como referência Double Braces em algum lugar dele. Medido sobre o export: 163
+dos 201 pipelines leem ao menos um campo (a maioria entre 2 e 8), então para
+quatro em cinco o corpo da requisição é derivado, não chutado. Os valores são
+placeholders que NOMEIAM o campo (`"<cpf>"`), e o caso do caminho feliz sai
+`blocked` listando o que precisa de valor real — ninguém inventa um CPF que
+exista no SAP, e uma suíte que finge isso reporta problema de dado como defeito
+de pipeline.
+
+**Ela se recusa a fabricar payload de roteamento.** O §3.4 pede "payloads
+engineered to trigger each choice condition", e para quase toda condição isso
+não é computável: um `choice` que decide por
+`#{body.RETURNING.STATUS} != '200'` depois de uma chamada REST está decidindo
+sobre a resposta de outro sistema, e nenhum corpo de requisição força aquilo.
+O movimento tentador — emitir um payload plausível de qualquer forma — é o pior
+disponível, porque o caso então roda, pega o caminho feliz, e reporta a branch
+como coberta.
+
+O número que fecha essa discussão: construindo a matriz das 201 do export,
+**dos 1205 casos de cobertura de branch apenas 3 eram sintetizáveis** (0,2%).
+Fabricar os outros 1202 seria fabricar 1202 falsos verdes.
+
+O subconjunto que É solúvel foi resolvido: igualdade simples sobre um campo do
+corpo, num `choice` que nada antes reescreveu (`#{body.tipo} == 'X'` ou
+`$.[?(@.tipo == 'X')]`). `PASS_THROUGH` tem só `log-connector` de propósito —
+praticamente todo conector substitui o `message`, e errar para o lado
+permissivo aqui é justamente afirmar que um payload dirige uma branch que ele
+não alcança.
+
+Medição completa das 201, sem nenhum erro de construção:
+
+| | |
+|---|---|
+| casos gerados | 2500 (mediana 11 por pipeline, máximo 61) |
+| executáveis sem ajuda | 1052 (42%) |
+| casos de branch | 1205, sintetizados 3 (0,2%) |
+| casos de tratamento de erro | 83 |
+| pipelines que não leem entrada | 38 |
+
+Três coisas menores que já custaram uma decisão:
+
+- **`StatusExpectation` aceita `!5xx`, e isso é uma expectativa completa.** Para
+  um corpo malformado, ninguém sabe se o pipeline correto responde 400, 422 ou
+  200 com objeto de erro — a plataforma e o autor decidem isso juntos. O que é
+  defeito nos três mundos é um **500** não tratado. Exigir status exato ali
+  faria a categoria inteira reportar discordâncias sobre um contrato que ninguém
+  escreveu, e um loop de auto-correção alimentado com isso corrige pipeline que
+  está certo.
+- **`JsonPath` recusa o que não suporta, em vez de não casar em silêncio.** As
+  condições de `choice` são filtros JsonPath completos, então essa sintaxe vai
+  ser colada numa asserção mais cedo ou mais tarde — e tratada como "não casou"
+  ela transforma um `exists` em falso silencioso e um `missing` em passe
+  silencioso. Errado pelo motivo errado é pior que não suportado.
+- **O contrato de entrada é lido só do `flowSpec`.** Um pipeline lido da
+  plataforma traz `metadata.disconnectedFlowSpecs` — blocos que alguém deixou
+  no canvas, cujas referências inflariam o contrato com campos que nada vivo lê.
+
+O que a matriz **não** deriva, e é o próximo ganho óbvio: a forma da SAÍDA. Um
+`json-generator` ou `jslt` no fim da branch de entrada nomeia as chaves da
+resposta literalmente, então o caminho feliz poderia asserir mais do que "voltou
+um corpo". Hoje ele asserta só isso, deliberadamente, porque é a única
+afirmação de conteúdo honesta a partir do documento.
 
 ---
 
@@ -244,6 +315,8 @@ autorização a mais, porque escreve.
 - [x] Probe rodado contra o tenant, com a forma real das respostas anexada
       aqui (§ O que o probe respondeu).
 - [ ] Verbo de escrita verificado — o probe confirma a LEITURA, e é isso.
+- [x] Matriz de testes derivada do flowSpec, com o que não dá para derivar
+      reportado como dívida de cobertura em vez de payload inventado.
 
 ---
 
