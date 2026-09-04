@@ -243,12 +243,27 @@ par de chaves, o agente precisa de renovação antes de ter qualquer autonomia
 
 Rodado em 2026-09-04 contra o projeto `isol`, com a credencial interativa.
 
-**Criar funciona.** `POST /design/realms/{realm}/pipelines` com só
-`{name, description, projectId}` responde **200** — os mesmos três campos que
-`digibeectl create pipeline` aceita, o que é uma boa indicação de que o CLI
-chama esta rota. O filtro `?name=` confirma que foi criado exatamente um
-pipeline, sem duplicata: `apla-probe`,
-id `4d775d68-4cd6-4686-b155-0ec24936832f`.
+**Criar funciona, e o `projectId` é IGNORADO EM SILÊNCIO.**
+`POST /design/realms/{realm}/pipelines` com `{name, description, projectId}`
+responde **200** e cria exatamente um pipeline, sem duplicata (`?name=`
+confirma): `apla-probe`, id `4d775d68-4cd6-4686-b155-0ec24936832f`.
+
+Só que ele **não nasce no projeto pedido**. Mandado para `isol`
+(`2aa7ab0a-…`), o pipeline foi para `default` (`ee1803d8-…`) — e `isol` continua
+reportando `amountOfPipelines=0`. Este é o **segundo** lugar onde esta API
+aceita `projectId` e descarta: a listagem faz o mesmo (devolve os 1803). Os dois
+respondem 200 fazendo outra coisa que não o pedido, que é a forma que custa uma
+tarde.
+
+A flag do CLI é `--project` ("project name or id"), então o campo do corpo tem
+outro nome, ou o projeto entra na URL
+(`POST /projects/{projectId}/pipelines` seria a forma REST óbvia). Não foi
+chutado: cada tentativa errada de create é mais um pipeline de rascunho num
+realm onde nada apaga pipeline, e a captura do canvas responde isso junto com o
+verbo de update.
+
+**Dívida de limpeza deste experimento:** um `apla-probe` vazio em `default`
+(não em `isol`), que sai só pelo canvas.
 
 Duas coisas da resposta que o Bloco B tem de respeitar:
 
@@ -287,19 +302,19 @@ do canvas no devtools: como o path já está certo e só o verbo falta, uma
 requisição capturada resolve.
 
 **Nada apaga um pipeline.** `digibeectl delete` cobre `api-mgmt-credentials` e
-`deployment`, não pipeline, e não foi probada nenhuma rota DELETE. Então
-`apla-probe` sai do realm pelo canvas, na mão — é uma obrigação de limpeza que
-este experimento criou.
+`deployment`, não pipeline, e não foi probada nenhuma rota DELETE. É o que
+transforma "chutar o nome do campo" de barato em caro: cada chute errado é um
+rascunho permanente até alguém abrir o canvas.
 
 Duas descobertas read-only do caminho, que o Bloco B usa:
 
 - **`GET /design/realms/{realm}/projects` funciona** — 16 projetos, cada linha
   com `amountOfPipelines`. `isol` é `2aa7ab0a-fd48-4f88-b343-1afe446ac672`.
 - **`?name=` é honrado; `?projectId=` é IGNORADO EM SILÊNCIO.** O segundo
-  devolveu os 1803 itens em vez de dar erro, que é a forma perigosa da coisa:
-  quem acreditar que filtrou processa o realm inteiro pensando que é um
-  projeto. Resolver pipeline por nome é o caminho — e evita o download de 1803
-  flowSpecs.
+  devolveu os 1803 itens em vez de dar erro — o mesmo descarte silencioso que o
+  create faz com o mesmo campo, o que sugere que `projectId` simplesmente não é
+  o nome dele em nenhuma das duas rotas. Resolver pipeline por NOME é o
+  caminho, e evita o download de 1803 flowSpecs embutidos.
 
 ---
 
