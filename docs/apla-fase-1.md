@@ -21,7 +21,7 @@ sem descobrir quatro subsistemas depois que a premissa estava errada.
 | Reconhecimento — `digibeectl`, export real, docs | **feito** (2026-09-04) |
 | A — resolução de credencial + cliente HTTP + probe read-only | **feito** — 13 testes em `tests/Feature/DigibeeDesignProbeTest.php`, suíte inteira verde (1237) |
 | A′ — **rodar** o probe contra o tenant | **feito** (2026-09-04) — as três rotas respondem, e o pipeline volta com as 34 chaves (§ O que o probe respondeu) |
-| A″ — verificar os **verbos de escrita** (design create/update + runtime deploy) | **não começado** — só GET foi verificado (§ Bloqueios) |
+| A″ — verificar os **verbos de escrita** | **create e update verificados** — o loop fecha. Deploy recusado por permissão (§ O que o A″ respondeu) |
 | B — modo de ingestão no normalizador/validador | não começado, desbloqueado por A′ |
 | C — síntese de `triggerSpec` | não começado |
 | D — runner de deploy (via `digibeectl`) | não começado |
@@ -239,6 +239,196 @@ par de chaves, o agente precisa de renovação antes de ter qualquer autonomia
 
 ---
 
+## O que o A″ respondeu
+
+Rodado em 2026-09-04 contra o projeto `isol`, com a credencial interativa.
+
+**Criar funciona, e o `projectId` é IGNORADO EM SILÊNCIO.**
+`POST /design/realms/{realm}/pipelines` com `{name, description, projectId}`
+responde **200** e cria exatamente um pipeline, sem duplicata (`?name=`
+confirma): `apla-probe`, id `4d775d68-4cd6-4686-b155-0ec24936832f`.
+
+Só que ele **não nasce no projeto pedido**. Mandado para `isol`
+(`2aa7ab0a-…`), o pipeline foi para `default` (`ee1803d8-…`) — e `isol` continua
+reportando `amountOfPipelines=0`. Este é o **segundo** lugar onde esta API
+aceita `projectId` e descarta: a listagem faz o mesmo (devolve os 1803). Os dois
+respondem 200 fazendo outra coisa que não o pedido, que é a forma que custa uma
+tarde.
+
+A flag do CLI é `--project` ("project name or id"), então o campo do corpo tem
+outro nome, ou o projeto entra na URL
+(`POST /projects/{projectId}/pipelines` seria a forma REST óbvia). Não foi
+chutado: cada tentativa errada de create é mais um pipeline de rascunho num
+realm onde nada apaga pipeline, e a captura do canvas responde isso junto com o
+verbo de update.
+
+**Dívida de limpeza deste experimento:** um `apla-probe` vazio em `default`
+(não em `isol`), que sai só pelo canvas.
+
+Duas coisas da resposta que o Bloco B tem de respeitar:
+
+- **A resposta do create é um ENVELOPE**, `{pipeline, configurations}` — não o
+  documento de 34 chaves que o GET devolve. O id sai de `pipeline.id`, e a
+  primeira versão deste script leu `$body['id']` e recebeu vazio exatamente por
+  isso.
+- **Um pipeline nasce em v0.0 com `draft: true`**, `flowSpec: null`,
+  `canvasVersion: 0` e `metadata: {}` — a mesma casca vazia do CLI. O v0 tem
+  consequência para `PipelineTestSuite::endpointUrl()`, que assume 1: um
+  pipeline só é chamável depois de implantado, então falta saber se o deploy
+  sobe a versão antes de mudar esse default.
+
+**Atualizar É `POST` na COLEÇÃO com o `id` no corpo — verificado.**
+`POST /design/realms/{realm}/pipelines` mandando o documento lido de volta com
+o `id` e um `flowSpec` novo responde **200**, a contagem por nome **fica em 1**
+(atualizou, não duplicou) e o `flowSpec` relido é **byte-idêntico** ao enviado.
+O §3.3 estava certo sobre isso, e agora está provado em vez de suposto: **a
+ingestão fecha.**
+
+Dois detalhes que vêm com ela:
+
+- **A raiz `start` foi ACEITA**, o que fecha a pergunta aberta da constatação 3:
+  um documento ingerido pela API se enraíza em `start`, como os 201 do tenant —
+  não em `disconnected-root:<uuid>`, que é o formato de colagem. O Bloco B tem
+  as duas pontas confirmadas.
+- **O upsert não sobe versão**: continua `v0.0` com `draft: true`. Escreve o
+  rascunho. Falta saber se o deploy é o que versiona, e é o que decide o default
+  de `versionMajor` em `PipelineTestSuite::endpointUrl()`.
+
+**O caminho anterior, registrado para ninguém repetir:** atualizar não é `PUT`
+nem `PATCH`. Ambos em
+`/design/realms/{realm}/pipelines/{id}` respondem **405 Method Not Allowed** —
+e 405, não 404, é a notícia boa: o recurso EXISTE (o GET nele funciona) e só o
+verbo está errado.
+
+A dedução seguinte não deu certo, e vale registrar para ninguém repetir: um 405
+tem de anunciar os métodos aceitos (RFC 7231 §6.5.5) e esta API é claramente
+Spring (problem details `about:blank`), que manda `Allow`. Só que **o gateway
+remove o header** — `OPTIONS` responde 500 nas três rotas e nenhuma resposta
+405 traz `Allow`. Não há como ler os verbos do servidor.
+
+Sobrou `POST`, e **um probe sem handler eliminou a ambiguidade** em vez de
+chutar. O truque é a ordem de despacho do Spring — casa método, DEPOIS negocia
+content-type, DEPOIS liga o corpo — então um POST com `Content-Type: text/plain`
+distingue "rota aceita POST" (415, recusado na negociação) de "rota não aceita
+POST" (405) sem o handler nunca executar:
+
+| | |
+|---|---|
+| `POST /pipelines/{id}` | **405** — some junto com PUT/PATCH: esse path é GET-only |
+| `POST /projects/{id}/pipelines` | **405** — mas 405, não 404: o path EXISTE |
+| `POST /pipelines` | funciona (foi o create) |
+
+Duas conclusões. A primeira é que **não existe rota de update pendurada no
+recurso individual**, o que deixa `POST` na COLEÇÃO como último candidato de pé
+— exatamente o que o §3.3 documenta ("Upsert Pipeline", payload completo com
+`id`). Deixou de ser um chute entre vários para ser o único que sobrou, e o
+custo de estar errado é um segundo rascunho vazio no projeto que já tem um para
+limpar.
+
+A segunda parecia um ganho para o Bloco B e não é: **`/projects/{id}/pipelines`
+é uma rota mapeada, mas o `GET` nela responde 403.** Existe e esta credencial
+não alcança. Então resolver pipeline por **nome** (`?name=`, honrado) segue
+sendo o caminho, e o descarte silencioso do `projectId` segue sem solução.
+
+### O deploy é recusado por PERMISSÃO, e isso contradiz o AGENTS.md
+
+`POST /runtime/realms/{realm}/deployments` responde **403
+`INSUFFICIENT_PERMISSIONS`** — e num formato de erro diferente (o erro default
+do Spring Boot, `{timestamp, error, message, errorCode, path}`, não o problem
+details RFC 7807 do design), então é outro serviço. O Spring Security roda antes
+do dispatcher, o que é por que veio 403 e não 405/415: **a credencial
+interativa do `digibeectl` não tem permissão para criar deployment.**
+
+Isso mexe na justificativa da fronteira. O `AGENTS.md` e o docblock do
+`DigibeectlClient` sustentam "a credencial nunca roda no servidor" dizendo que o
+alcance dela chega a criar e APAGAR deployment em produção. Nesta rota, com esta
+credencial, não chega. Não é prova de que a fronteira está errada — o CLI pode
+autenticar por outro caminho, e a checagem pode ser mais fina do que "criar
+deployment" — mas é evidência contra a frase como está escrita, e a frase é o
+argumento inteiro. Vale resolver antes de o usuário de realm restrito ser
+desenhado: se nem a credencial ampla implanta, a permissão que o agente precisa
+é uma que ninguém tem hoje.
+
+**Nada apaga um pipeline.** `digibeectl delete` cobre `api-mgmt-credentials` e
+`deployment`, não pipeline, e não foi probada nenhuma rota DELETE. É o que
+transforma "chutar o nome do campo" de barato em caro: cada chute errado é um
+rascunho permanente até alguém abrir o canvas.
+
+Duas descobertas read-only do caminho, que o Bloco B usa:
+
+- **`GET /design/realms/{realm}/projects` funciona** — 16 projetos, cada linha
+  com `amountOfPipelines`. `isol` é `2aa7ab0a-fd48-4f88-b343-1afe446ac672`.
+- **`?name=` é honrado; `?projectId=` é IGNORADO EM SILÊNCIO.** O segundo
+  devolveu os 1803 itens em vez de dar erro — o mesmo descarte silencioso que o
+  create faz com o mesmo campo, o que sugere que `projectId` simplesmente não é
+  o nome dele em nenhuma das duas rotas. Resolver pipeline por NOME é o
+  caminho, e evita o download de 1803 flowSpecs embutidos.
+
+---
+
+## A API, como referência
+
+Tudo abaixo foi observado contra o realm real em 2026-09-04, com a credencial
+interativa do `digibeectl`. Nada aqui é documentado pela Digibee — é o
+resultado do A′/A″, e existe para o Bloco B não redescobrir.
+
+Host: `core.godigibee.io` (o `endpoint` da config do `digibeectl`). O canvas é
+servido de `www.godigibee.io` e chama esse outro.
+
+| rota | verbo | resultado |
+|---|---|---|
+| `/design/realms/{realm}/pipelines` | GET | 200 — **1803 itens com o `flowSpec` embutido em cada um** (expõe cada versão). `?name=` é honrado; `?projectId=` é ignorado em silêncio |
+| `/design/realms/{realm}/pipelines` | POST | 200 — **cria** sem `id`, **faz upsert** com `id`. Descarta `projectId`. Responde o envelope `{pipeline, configurations}`, não o documento |
+| `/design/realms/{realm}/pipelines/{id}` | GET | 200 — 34 chaves, superconjunto das 29 da listagem (adiciona `projectId`, `projectName`, `configurations`, `isTracingEnabled`, `tracingSamplingRate`) |
+| `/design/realms/{realm}/pipelines/{id}` | PUT / PATCH / POST | **405** — o path é GET-only |
+| `/design/realms/{realm}/projects` | GET | 200 — 16 projetos, cada um com `amountOfPipelines` |
+| `/design/realms/{realm}/projects/{id}/pipelines` | GET | **403** — mapeada, fora do alcance desta credencial |
+| `/design/realms/{realm}/projects/{id}/pipelines` | POST | 405 |
+| `/runtime/realms/{realm}/deployments` | GET | 200 — 110 em `test`; carrega `activeConfiguration`, `accounts`, `environmentParameters` |
+| `/runtime/realms/{realm}/deployments` | POST | **403 `INSUFFICIENT_PERMISSIONS`** |
+| qualquer uma | OPTIONS | 500, e o gateway remove o header `Allow` |
+
+`DELETE` nunca foi probado, em nenhuma rota, de propósito.
+
+Quatro coisas de forma que não estão na tabela:
+
+- **Dois formatos de erro, dois serviços.** O design responde problem details
+  RFC 7807 (`{type: "about:blank", title, status, detail, instance}`); o runtime
+  responde o erro default do Spring Boot
+  (`{timestamp, status, error, message, errorCode, path}`). Quem for tratar erro
+  dos dois lados precisa ler os dois — `DigibeeApiException::fromResponse()` já
+  tenta `message` e `error.message` por isso.
+- **O detalhe do pipeline EMBUTE o objeto `realm` inteiro**, com informação de
+  licença. E ela importa para o Bloco D: `licenseModel` é
+  `CONSUMPTION_BASED_MODEL`, e no `digibeectl` as flags `--minReplicas` /
+  `--maxReplicas` são descritas como "valid for Consumption Based Model realms"
+  — então são essas, e não `--replicas`, que valem aqui. O `cluster` é
+  `digibee-production-1`.
+- **Um pipeline novo nasce `v0.0` com `draft: true`**, e o upsert **não sobe
+  versão** — escreve o rascunho. O que versiona (provavelmente o deploy) segue
+  sem observação, e é o que decide o default de `versionMajor` em
+  `endpointUrl()`.
+- **A config do `digibeectl` é um ARRAY de topo** de objetos de conta, cada um
+  com o seu `endpoint`, `currentRealm`, `jwt` e `apikey` — não um objeto com os
+  campos na raiz, que é o que o §3.1 sugere. `DigibeeAuthResolver` acha por
+  busca aninhada e REPORTA o caminho JSON que usou (`0.jwt`), que foi como essa
+  forma apareceu sem ninguém abrir o arquivo. O JWT tem ~1000 caracteres e sai
+  de sessão interativa; a apikey, 32.
+
+### O que ainda não se sabe
+
+- **Como um pipeline vai para um projeto.** `projectId` é aceito e descartado em
+  duas rotas, e `/projects/{id}/pipelines` dá 403. A flag do CLI é `--project`
+  ("name or id"), então o campo tem outro nome.
+- **Quem pode criar deployment.** Pergunta de administração de realm, não de
+  código (§ Bloqueios).
+- **O que versiona um pipeline**, e portanto o `v{n}` da URL de runtime.
+- **Se `POST /pipelines` valida o `flowSpec`.** O upsert aceitou um `start` com
+  um step; um documento inválido pode passar igual e só quebrar no canvas — que
+  é exatamente a falha que o `DigibeeFlowspecValidator` existe para pegar antes.
+
+---
+
 ## Ordem de construção
 
 A ordem não é a do roadmap da especificação, por um motivo: o **Bloco E**
@@ -352,7 +542,9 @@ afirmação de conteúdo honesta a partir do documento.
 - [x] Um 200 que não devolve `flowSpec` é reportado como loop inalcançável.
 - [x] Probe rodado contra o tenant, com a forma real das respostas anexada
       aqui (§ O que o probe respondeu).
-- [ ] Verbo de escrita verificado — o probe confirma a LEITURA, e é isso.
+- [x] Verbos de escrita de design verificados: cria, atualiza (upsert por
+      `POST` na coleção) e o `flowSpec` sobrevive byte-idêntico.
+- [ ] Deploy verificado — bloqueado por permissão, não por rota.
 - [x] Matriz de testes derivada do flowSpec, com o que não dá para derivar
       reportado como dívida de cobertura em vez de payload inventado.
 
@@ -362,22 +554,28 @@ afirmação de conteúdo honesta a partir do documento.
 
 O bloqueio de leitura caiu; sobraram dois, e o segundo é novo.
 
-**1. Os verbos de escrita não foram verificados.** O probe confirma que as
-rotas existem e que um pipeline volta legível — não que um flowSpec entra por
-elas. São TRÊS suposições, não uma, e todas as três são da API (não do CLI, ver
-constatação 1):
+**1. O deploy é uma questão de PERMISSÃO, não de rota.** A metade de design
+está verificada — cria e atualiza, com round-trip byte-idêntico. O que falta é
+`POST /runtime/realms/{realm}/deployments`, e ele responde **403** para a
+credencial interativa. Isso não se resolve escrevendo código: é uma pergunta
+para quem administra o realm — *quem pode criar deployment em `test`, e essa
+permissão pode ser concedida a um usuário de serviço?*
 
-- `POST /design/realms/{realm}/pipelines` **cria**?
-- o mesmo verbo, ou outro em `/pipelines/{id}`, **atualiza**? O loop de
-  auto-correção reingere a cada tentativa, então essa é a que ele usa mais.
-- `POST /runtime/realms/{realm}/deployments` faz deploy?
+Se a resposta for "ninguém fora de um time específico", os Blocos D e G mudam
+de forma e a autonomia do agente para na ingestão. Continua sendo a maior parte
+do valor (gerar, ingerir, e a matriz de testes para alguém rodar), mas é uma
+feature diferente da que o §1.2 descreve.
 
-O experimento não precisa de casca criada pelo CLI. Se `POST` é upsert, ele
-cria de qualquer jeito — pré-criar não evita risco nenhum e ainda deixa o
-caminho de criação sem verificação, testando só o de atualização. A contenção
-não vem de qual ferramenta cria a casca; vem de: um projeto de rascunho, um
-nome que se anuncia (`apla-probe`), **nunca** fazer deploy dela, e tocar em um
-único id de pipeline. Nunca um dos 201 que rodam.
+**2. Três rotas respondem 403 para esta credencial** —
+`GET /projects/{id}/pipelines`, `POST /runtime/.../deployments`, e o filtro por
+projeto que sobra sem solução. A credencial interativa é bem mais estreita do
+que este plano assumiu, o que é boa notícia para a fronteira de segurança e má
+para o roadmap: reforça que um usuário de serviço restrito é viável, e levanta a
+dúvida de se `DEPLOYMENT:CREATE` é concedível.
+
+**3. O nome do campo de projeto.** O create aceita e descarta `projectId`, e
+`/projects/{id}/pipelines` não é a rota alternativa (403). Um `apla-probe` vazio
+segue em `default` até alguém apagar pelo canvas.
 
 **2. O usuário de realm restrito ainda não existe.** O que o probe provou, ele
 provou com a credencial interativa ampla. Que a rota responda 200 para um
