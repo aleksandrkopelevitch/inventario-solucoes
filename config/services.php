@@ -178,6 +178,69 @@ return [
         // ~1-3 KB, so this is small against the 500k context limit — the cap is
         // about ATTENTION, the same reason max_examples is 3.
         'max_connector_cards' => env('DIGIBEE_MAX_CONNECTOR_CARDS', 6),
+
+        /*
+        |----------------------------------------------------------------------
+        | Platform API (APLA — the autonomous lifecycle)
+        |----------------------------------------------------------------------
+        |
+        | The lifecycle agent needs five operations `digibeectl` already covers
+        | (deploy, redeploy, deployment status, metrics, deployment history) and
+        | one it does not: writing a flowSpec into a pipeline. `create pipeline`
+        | takes only --name/--description/--project and makes an empty shell —
+        | confirmed in the CLI's own help and in Digibee's published operations
+        | table — so the upsert has no supported interface and goes through the
+        | platform's own (undocumented) design routes.
+        |
+        | **This reverses the boundary stated in DigibeectlClient, deliberately
+        | and only for a NARROWER credential.** That rule — "the artifact
+        | travels, the credential does not" — was written about the interactive
+        | login, which can delete production deployments. Digibee documents
+        | per-operation permissions (PIPELINE:READ, DEPLOYMENT:CREATE,
+        | DEPLOYMENT:CREATE:REDEPLOY, DEPLOYMENT:DELETE, CONFIGURATION:*) and
+        | digibeectl authenticates with a key pair rather than a login, so the
+        | credential this reads is meant to be a realm user restricted to the
+        | operations below. `digibee:pipelines:pull` stays off the server
+        | regardless: it still needs the broad one.
+        |
+        */
+        'design' => [
+            // Resolved by App\Support\Digibee\DigibeeAuthResolver, environment
+            // first. These four MUST be encrypted environment variables on the
+            // server (AGENTS.md § Security) — `jwt` in particular is a bearer
+            // credential for the whole realm the key pair is scoped to.
+            'endpoint' => env('DIGIBEE_ENDPOINT'),
+            'realm'    => env('DIGIBEE_REALM'),
+            'jwt'      => env('DIGIBEE_JWT'),
+            'apikey'   => env('DIGIBEE_APIKEY'),
+
+            // Fallback for a workstation, where the session already exists.
+            // Empty means "$HOME/.digibeectl/config.json" — which under WSL is
+            // NOT where the real file lives (digibeectl is a Windows binary, so
+            // its config sits under /mnt/c/Users/...), so on a dev machine this
+            // is set rather than defaulted.
+            'config_path' => env('DIGIBEECTL_CONFIG', ''),
+
+            'timeout'     => env('DIGIBEE_API_TIMEOUT', 30),
+            'retries'     => env('DIGIBEE_API_RETRIES', 2),
+            'retry_sleep' => env('DIGIBEE_API_RETRY_SLEEP', 500),
+
+            // Where a deployed pipeline is CALLED, which is a different host
+            // from the design API and belongs to the test runner:
+            // {runtime_url}/pipeline/{realm}/{environment}/v1/{pipelineName}.
+            'runtime_url' => env('DIGIBEE_RUNTIME_URL', 'https://api.godigibee.io'),
+
+            // The guardrail that actually matters, and it is not the delete
+            // routes §5 of the spec worries about: `create deployment -e prod`
+            // is the destructive verb here, because promotion is what reaches
+            // real traffic. Nothing may deploy to an environment absent from
+            // this list, so opening production is an explicit act of
+            // configuration rather than an argument the agent can choose.
+            'deployable_environments' => array_values(array_filter(array_map(
+                'trim',
+                explode(',', (string) env('DIGIBEE_DEPLOYABLE_ENVIRONMENTS', 'test')),
+            ))),
+        ],
     ],
 
     /*

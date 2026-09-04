@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Support\Digibee\DigibeeAuthResolver;
 use App\Support\Fold;
 use App\Support\Gitbook\TransientHttpFailure;
 use Carbon\Carbon;
@@ -93,6 +94,23 @@ class AppServiceProvider extends ServiceProvider
                 // than the end of the sync.
                 throw: false,
             ));
+
+        // Digibee's PLATFORM api — a third external service, and the only one
+        // this app authenticates against with a credential that can change
+        // something. Deliberately a macro like the two above so every caller
+        // inherits the timeouts and the auth headers, but the configuration
+        // comes from DigibeeAuthResolver rather than straight from config():
+        // on a workstation the session lives in digibeectl's own file, and the
+        // resolver is what reads it.
+        //
+        // The closure delegates by IMPORTED CLASS NAME on purpose. A
+        // Http::macro closure is rebound to the PendingRequest
+        // (Macroable::__call does `bindTo($this, static::class)`), so `self::`
+        // and `static::` inside it resolve to PendingRequest and die with
+        // "Method PendingRequest::x does not exist" on a line that looks
+        // perfectly correct — see AGENTS.md § HTTP Client. `use` statements are
+        // resolved at compile time and are immune.
+        Http::macro('digibeeDesign', fn () => app(DigibeeAuthResolver::class)->pendingRequest());
     }
 
     /**
