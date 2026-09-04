@@ -69,11 +69,21 @@ possível:
 - `digibeectl config set` autentica com um par `--auth-key`/`--secret-key`, não
   com um login interativo.
 
-Logo, um usuário de realm dedicado, limitado a ler pipelines e criar deployment
-em `test`, é um **objeto de risco diferente** daquele sobre o qual a regra foi
-escrita. É isso que torna a reversão defensável, e é exatamente isso que
-precisa ser confirmado com quem administra o realm antes de qualquer coisa ir
-para o droplet — que, vale lembrar, é compartilhado com outros dois apps.
+Logo, uma credencial dedicada e estreita é um **objeto de risco diferente**
+daquele sobre o qual a regra foi escrita, e é isso que torna a reversão
+defensável.
+
+**Duas coisas desta redação original saíram erradas, e a seção § A credencial é
+um TOKEN do digibeectl tem a versão certa.** Não é um "usuário de realm" e não
+precisa de quem administra o realm: é um **token do `digibeectl`**, criado em
+Administration → Digibeectl com lista de permissões e expiração próprias — ou
+seja, a plataforma já oferece de fábrica exatamente a credencial escopada que
+esta decisão pressupõe. E "criar deployment em `test`" **não é escopável**:
+`DEPLOYMENT:CREATE` vale para todos os ambientes. O que fecha o loop sem
+alcance em produção é `DEPLOYMENT:CREATE:REDEPLOY` (esse sim por ambiente) mais
+uma pessoa fazendo o primeiro deploy.
+
+O droplet, vale lembrar, é compartilhado com outros dois apps.
 
 `digibee:pipelines:pull` **continua fora do servidor** de qualquer forma: ele
 segue precisando da credencial ampla.
@@ -330,24 +340,22 @@ A segunda parecia um ganho para o Bloco B e não é: **`/projects/{id}/pipelines
 não alcança. Então resolver pipeline por **nome** (`?name=`, honrado) segue
 sendo o caminho, e o descarte silencioso do `projectId` segue sem solução.
 
-### O deploy é recusado por PERMISSÃO, e isso contradiz o AGENTS.md
+### O deploy é recusado por PERMISSÃO do TOKEN
 
 `POST /runtime/realms/{realm}/deployments` responde **403
 `INSUFFICIENT_PERMISSIONS`** — e num formato de erro diferente (o erro default
 do Spring Boot, `{timestamp, error, message, errorCode, path}`, não o problem
 details RFC 7807 do design), então é outro serviço. O Spring Security roda antes
-do dispatcher, o que é por que veio 403 e não 405/415: **a credencial
-interativa do `digibeectl` não tem permissão para criar deployment.**
+do dispatcher, o que é por que veio 403 e não 405/415.
 
-Isso mexe na justificativa da fronteira. O `AGENTS.md` e o docblock do
-`DigibeectlClient` sustentam "a credencial nunca roda no servidor" dizendo que o
-alcance dela chega a criar e APAGAR deployment em produção. Nesta rota, com esta
-credencial, não chega. Não é prova de que a fronteira está errada — o CLI pode
-autenticar por outro caminho, e a checagem pode ser mais fina do que "criar
-deployment" — mas é evidência contra a frase como está escrita, e a frase é o
-argumento inteiro. Vale resolver antes de o usuário de realm restrito ser
-desenhado: se nem a credencial ampla implanta, a permissão que o agente precisa
-é uma que ninguém tem hoje.
+**Não é o usuário que falta permissão, é o token** — e a distinção é a resposta
+inteira, ver § A credencial é um TOKEN do digibeectl. A primeira redação desta
+seção concluía que o 403 era evidência CONTRA a frase do `AGENTS.md` que
+sustenta a fronteira da credencial ("o alcance dela chega a criar e apagar
+deployment em produção"). Estava errado, e a lista de permissões da plataforma é
+o que mostra: `DEPLOYMENT:CREATE` é "deploy pipelines in **all environments**".
+Qualquer token que implanta, implanta em produção. A frase do `AGENTS.md` está
+certa; o que estava errado era supor que dava para escopar deploy em `test`.
 
 **Nada apaga um pipeline.** `digibeectl delete` cobre `api-mgmt-credentials` e
 `deployment`, não pipeline, e não foi probada nenhuma rota DELETE. É o que
@@ -363,6 +371,60 @@ Duas descobertas read-only do caminho, que o Bloco B usa:
   create faz com o mesmo campo, o que sugere que `projectId` simplesmente não é
   o nome dele em nenhuma das duas rotas. Resolver pipeline por NOME é o
   caminho, e evita o download de 1803 flowSpecs embutidos.
+
+---
+
+## A credencial é um TOKEN do digibeectl, e o deploy não é escopável
+
+Isto responde de uma vez "que usuário a API usa" e corrige o que este documento
+afirmava sobre o 403 do deploy.
+
+**Não é um usuário.** O arquivo do `digibeectl` é um **token** criado no painel
+em **Administration → Digibeectl → Create**, com título, **uma lista explícita
+de permissões** e uma expiração (de 1 hora a 1 ano); a plataforma gera a chave
+de encriptação, você define a senha do arquivo e baixa. É esse arquivo que vira
+`~/.digibeectl/config.json` — o array de topo que encontramos é uma entrada por
+token. Então a identidade das chamadas é o TOKEN, não o login de quem o criou:
+o usuário pode ter permissão de deploy em `test` e o token não ter, que é
+exatamente o caso aqui. `digibeectl get user-permissions -o` lista o que o token
+corrente tem.
+
+**E a correção.** Este plano dizia que o 403 era evidência contra a frase do
+`AGENTS.md` que sustenta a fronteira da credencial. A lista de permissões diz o
+contrário — a frase está certa:
+
+- `DEPLOYMENT:CREATE` — "deploy pipelines in **all environments**"
+- `DEPLOYMENT:DELETE` — "delete deployments in **all environments**"
+- `DEPLOYMENT:CREATE:REDEPLOY` — "redeploy pipelines in **the selected
+  environment**"
+
+**Não existe permissão de deploy só em `test`.** Qualquer token que implanta,
+implanta em produção — que é literalmente o que o `DigibeectlClient` afirma. O
+desenho "credencial restrita a deploy em test" que a decisão de topologia
+pressupõe **não é construível como estava escrito**.
+
+A terceira linha é a saída, e é melhor que a proposta original:
+**`DEPLOYMENT:CREATE:REDEPLOY` é escopado por ambiente.** Então uma pessoa faz
+o PRIMEIRO deploy do pipeline em `test`, e o agente só **redeploya** — que é
+exatamente o que o loop de correção faz de qualquer forma, já que toda iteração
+é um redeploy do mesmo pipeline. Fecha o loop com zero alcance em produção, e
+faz `deployable_environments` deixar de ser o único guarda-corpo.
+
+A lista do token do agente fica:
+
+| permissão | por quê |
+|---|---|
+| `PIPELINE:READ` | ler o pipeline de volta, resolver por nome |
+| `PIPELINE:CREATE` + `PIPELINE:UPDATE` | o create e o upsert verificados |
+| `DEPLOYMENT:READ` | acompanhar o status do deploy |
+| `DEPLOYMENT:CREATE:REDEPLOY` | redeploy, só em `test` |
+| `CONFIGURATION:READ` | a coluna de permissões do próprio CLI exige para deploy |
+
+Sem `DEPLOYMENT:CREATE`, sem `DEPLOYMENT:DELETE`, sem `PIPELINE:DELETE`.
+
+Uma consequência operacional: **esses tokens expiram**, no máximo em um ano. Uma
+credencial no droplet que morre calada no meio do loop merece data de expiração
+monitorada, não um 401 de surpresa.
 
 ---
 
@@ -554,7 +616,14 @@ afirmação de conteúdo honesta a partir do documento.
 
 O bloqueio de leitura caiu; sobraram dois, e o segundo é novo.
 
-**1. O deploy é uma questão de PERMISSÃO, não de rota.** A metade de design
+**1. O deploy precisa de um token novo, e de uma pessoa no primeiro deploy.**
+Resolvido no desenho, não no código: § A credencial é um TOKEN do digibeectl
+explica por que o 403 acontece, por que "deploy só em test" não existe como
+permissão, e por que `DEPLOYMENT:CREATE:REDEPLOY` mais um primeiro deploy
+humano é a saída. O que falta é criar o token com essa lista e verificar o
+`POST /runtime/.../deployments` com ele.
+
+**1b. A redação antiga desta seção dizia o contrário e ficou errada.** A metade de design
 está verificada — cria e atualiza, com round-trip byte-idêntico. O que falta é
 `POST /runtime/realms/{realm}/deployments`, e ele responde **403** para a
 credencial interativa. Isso não se resolve escrevendo código: é uma pergunta
