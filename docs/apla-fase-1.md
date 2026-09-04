@@ -288,18 +288,48 @@ Spring (problem details `about:blank`), que manda `Allow`. Só que **o gateway
 remove o header** — `OPTIONS` responde 500 nas três rotas e nenhuma resposta
 405 traz `Allow`. Não há como ler os verbos do servidor.
 
-Sobrou `POST`, em dois sabores, e **nenhum dos dois foi tentado de propósito**:
+Sobrou `POST`, e **um probe sem handler eliminou a ambiguidade** em vez de
+chutar. O truque é a ordem de despacho do Spring — casa método, DEPOIS negocia
+content-type, DEPOIS liga o corpo — então um POST com `Content-Type: text/plain`
+distingue "rota aceita POST" (415, recusado na negociação) de "rota não aceita
+POST" (405) sem o handler nunca executar:
 
-- `POST /pipelines/{id}` — semântica não adivinhável. Num Spring, um
-  `@PostMapping("/pipelines/{id}")` pode ser "duplica", "sobe versão" ou
-  "implanta" com a mesma naturalidade que "atualiza".
-- `POST /pipelines` com o `id` no corpo (o upsert que o §3.3 afirma) — se for
-  create-only, cria um segundo `apla-probe`, num realm onde **nada apaga
-  pipeline** (ver abaixo).
+| | |
+|---|---|
+| `POST /pipelines/{id}` | **405** — some junto com PUT/PATCH: esse path é GET-only |
+| `POST /projects/{id}/pipelines` | **405** — mas 405, não 404: o path EXISTE |
+| `POST /pipelines` | funciona (foi o create) |
 
-O caminho de risco zero para a resposta definitiva é capturar a requisição real
-do canvas no devtools: como o path já está certo e só o verbo falta, uma
-requisição capturada resolve.
+Duas conclusões. A primeira é que **não existe rota de update pendurada no
+recurso individual**, o que deixa `POST` na COLEÇÃO como último candidato de pé
+— exatamente o que o §3.3 documenta ("Upsert Pipeline", payload completo com
+`id`). Deixou de ser um chute entre vários para ser o único que sobrou, e o
+custo de estar errado é um segundo rascunho vazio no projeto que já tem um para
+limpar.
+
+A segunda é um ganho para o Bloco B: **`/projects/{id}/pipelines` é uma rota
+mapeada**, quase certamente o GET que lista os pipelines de um projeto — isto é,
+o que o `?projectId=` finge ser. Resolve de uma vez o descarte silencioso do
+campo e o download dos 1803 com flowSpec embutido.
+
+### O deploy é recusado por PERMISSÃO, e isso contradiz o AGENTS.md
+
+`POST /runtime/realms/{realm}/deployments` responde **403
+`INSUFFICIENT_PERMISSIONS`** — e num formato de erro diferente (o erro default
+do Spring Boot, `{timestamp, error, message, errorCode, path}`, não o problem
+details RFC 7807 do design), então é outro serviço. O Spring Security roda antes
+do dispatcher, o que é por que veio 403 e não 405/415: **a credencial
+interativa do `digibeectl` não tem permissão para criar deployment.**
+
+Isso mexe na justificativa da fronteira. O `AGENTS.md` e o docblock do
+`DigibeectlClient` sustentam "a credencial nunca roda no servidor" dizendo que o
+alcance dela chega a criar e APAGAR deployment em produção. Nesta rota, com esta
+credencial, não chega. Não é prova de que a fronteira está errada — o CLI pode
+autenticar por outro caminho, e a checagem pode ser mais fina do que "criar
+deployment" — mas é evidência contra a frase como está escrita, e a frase é o
+argumento inteiro. Vale resolver antes de o usuário de realm restrito ser
+desenhado: se nem a credencial ampla implanta, a permissão que o agente precisa
+é uma que ninguém tem hoje.
 
 **Nada apaga um pipeline.** `digibeectl delete` cobre `api-mgmt-credentials` e
 `deployment`, não pipeline, e não foi probada nenhuma rota DELETE. É o que
