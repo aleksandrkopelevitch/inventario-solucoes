@@ -614,7 +614,7 @@ afirmação de conteúdo honesta a partir do documento.
 
 ## Bloqueios
 
-O bloqueio de leitura caiu; sobraram dois, e o segundo é novo.
+O bloqueio de leitura caiu; sobraram quatro.
 
 **1. O deploy precisa de um token novo, e de uma pessoa no primeiro deploy.**
 Resolvido no desenho, não no código: § A credencial é um TOKEN do digibeectl
@@ -646,7 +646,7 @@ dúvida de se `DEPLOYMENT:CREATE` é concedível.
 `/projects/{id}/pipelines` não é a rota alternativa (403). Um `apla-probe` vazio
 segue em `default` até alguém apagar pelo canvas.
 
-**2. O usuário de realm restrito ainda não existe.** O que o probe provou, ele
+**4. O usuário de realm restrito ainda não existe.** O que o probe provou, ele
 provou com a credencial interativa ampla. Que a rota responda 200 para um
 desenvolvedor não diz nada sobre ela responder para um usuário limitado a
 `PIPELINE:READ` + `DEPLOYMENT:CREATE` em `test` — e é esse usuário que a
