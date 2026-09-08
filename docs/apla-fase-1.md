@@ -24,7 +24,7 @@ sem descobrir quatro subsistemas depois que a premissa estava errada.
 | A″ — verificar os **verbos de escrita** | **create e update verificados** — o loop fecha. Deploy recusado por permissão (§ O que o A″ respondeu) |
 | B — modo de ingestão no normalizador/validador | não começado, desbloqueado por A′ |
 | C — síntese de `triggerSpec` | não começado |
-| D — runner de deploy (via `digibeectl`) | não começado |
+| D — runner de deploy (pela API) | não começado, bloqueado por permissão |
 | E — matriz de testes sintéticos + avaliador de asserções | **feito** — 26 testes em `tests/Feature/FlowspecTestMatrixTest.php`, e as 201 do export constroem sem erro (§ O que a matriz produz) |
 | F — loop de auto-correção com evidência de runtime | não começado |
 | G — portão de promoção para `prod` | não começado |
@@ -493,25 +493,43 @@ Quatro coisas de forma que não estão na tabela:
 
 ## Ordem de construção
 
-A ordem não é a do roadmap da especificação, por um motivo: o **Bloco E**
-(matriz de testes e avaliador de asserções) é lógica local pura, não depende de
-nenhuma credencial nem de nenhuma rota, e é metade do valor da feature. Com A′
-feito, ele e A″ podem andar em paralelo — e A″ é o único que precisa de uma
+A ordem não foi a do roadmap da especificação, por um motivo que se pagou: o
+**Bloco E** (matriz de testes e avaliador de asserções) é lógica local pura,
+não depende de nenhuma credencial nem de nenhuma rota, e é metade do valor da
+feature — então ele andou em paralelo com A″, o único bloco que precisava de
 autorização a mais, porque escreve.
+
+Os três primeiros itens estão feitos e ficam abaixo como registro. A mesma
+regra decide o que sobrou: **B + C não precisam de credencial nova** — o modo
+de ingestão é lógica local, e resolver pipeline por nome é leitura já
+verificada —, enquanto D, F e G esperam pelo token com a lista do § A
+credencial é um TOKEN do digibeectl. Começar por B + C não é a ordem
+confortável: é a única metade que não depende de administração de realm.
 
 1. ~~**A′ — rodar o probe.**~~ Feito: as três rotas respondem e o pipeline
    volta com as 34 chaves (§ O que o probe respondeu).
-2. **A″ — verificar os verbos de escrita** (design create, design update,
-   runtime deploy), num pipeline de rascunho que nunca sobe. É o que separa "a
-   rota existe" de "o loop fecha", e é a única tarefa do plano que muda algo no
-   tenant.
+2. ~~**A″ — verificar os verbos de escrita.**~~ Feito para o design: cria e
+   atualiza (upsert por `POST` na coleção), com o `flowSpec` byte-idêntico na
+   volta — é o que separa "a rota existe" de "o loop fecha" (§ O que o A″
+   respondeu). De pé fica só a metade de runtime: o `POST` de deployment
+   responde 403 para a credencial interativa, e destravá-lo é criar o token com
+   a lista do § A credencial é um TOKEN do digibeectl, não escrever código.
 3. ~~**E — matriz de testes.**~~ Feito: `BuildPipelineTestMatrix` mais os
    value objects em `App\Support\Digibee\Testing`. Sem rede, sem credencial.
 4. **B + C — modo de ingestão.** Chave de modo no normalizador/validador
    (`start` × `disconnected-root:`), envelope `metadata`, e síntese de
    `triggerSpec` — que tem 183 exemplos reais no export para aprender a forma.
-5. **D — runner de deploy.** Via `digibeectl`, não via REST. `--wait` já
-   resolve o polling do §3.3, e `get deployment --status` o diagnóstico.
+5. **D — runner de deploy.** Pela API, não pelo `digibeectl`: a constatação 1
+   e a decisão de topologia já descartaram instalar um binário de terceiro no
+   droplet, e o CLI segue sendo a ferramenta da estação de trabalho (é o que
+   `digibee:pipelines:pull` usa). O que se perde na troca é o `--wait`, então o
+   polling do §3.3 passa a ser nosso — contra o
+   `GET /runtime/realms/{realm}/deployments` que o probe já confirmou, e que
+   devolve `activeConfiguration`, `accounts` e `environmentParameters` sem
+   precisar de rota de métrica. O `POST` da mesma rota é o que falta verificar
+   (403 para a credencial interativa, § Bloqueios), e num realm
+   `CONSUMPTION_BASED_MODEL` os parâmetros de escala são os equivalentes de
+   `--minReplicas`/`--maxReplicas`, não de `--replicas`.
 6. **F — loop de auto-correção.** É a única parte que já existe pela metade:
    `FlowspecGenerationService` já normaliza, valida e re-prompta com os erros
    concretos, até `max_attempts`. O que muda não é o loop, é o **sinal** —
