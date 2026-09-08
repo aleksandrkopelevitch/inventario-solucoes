@@ -2,6 +2,7 @@
 
 namespace App\Services\Flowspec;
 
+use App\Enums\FlowspecTarget;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 
@@ -18,9 +19,17 @@ class DigibeeFlowspecNormalizer
     private const UUID_PATTERN = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i';
 
     /** @param array<string, mixed> $document */
-    public function normalize(array $document): NormalizationResult
+    public function normalize(array $document, FlowspecTarget $target = FlowspecTarget::Clipboard): NormalizationResult
     {
-        if (! is_array($document['meta'] ?? null) || ! is_array($document['flowSpec'] ?? null)) {
+        if (! is_array($document['flowSpec'] ?? null)) {
+            return new NormalizationResult($document, []);
+        }
+
+        // `meta` is required of a clipboard document and meaningless in a
+        // stored one, so demanding it unconditionally — which is what this did
+        // while the paste path was the only path — makes every document read
+        // back from the platform unnormalizable.
+        if ($target->usesCanvasPositions() && ! is_array($document['meta'] ?? null)) {
             return new NormalizationResult($document, []);
         }
 
@@ -28,7 +37,10 @@ class DigibeeFlowspecNormalizer
 
         $document = $this->regenerateInvalidIds($document, $fixes);
         $document = $this->prefixRawAliasReferences($document, $fixes);
-        $document = $this->fillMissingPositions($document, $fixes);
+
+        $document = $target->usesCanvasPositions()
+            ? $this->fillMissingPositions($document, $fixes)
+            : $this->forPlatform($document, $fixes);
 
         return new NormalizationResult($document, $fixes);
     }
@@ -69,12 +81,14 @@ class DigibeeFlowspecNormalizer
             return $document;
         }
 
-        $meta = [];
+        if (is_array($document['meta'] ?? null)) {
+            $meta = [];
 
-        foreach ($document['meta'] as $id => $entry) {
-            $meta[$replacements[$id] ?? $id] = $entry;
+            foreach ($document['meta'] as $id => $entry) {
+                $meta[$replacements[$id] ?? $id] = $entry;
+            }
+            $document['meta'] = $meta;
         }
-        $document['meta'] = $meta;
 
         $flowSpec = [];
 
@@ -179,6 +193,55 @@ class DigibeeFlowspecNormalizer
             }
 
             $row++;
+        }
+
+        return $document;
+    }
+
+    /**
+     * The clipboard shape turned into the stored one: the entry branch is
+     * renamed to `start` and the canvas `meta` is dropped.
+     *
+     * Both halves are measured rather than inferred. All 201 pipelines
+     * exported from the tenant root at `start`, none has a top-level `meta`,
+     * and the design API's write path was verified with exactly this shape —
+     * a document upserted rooted at `start` reads back byte-identical.
+     *
+     * **Renaming the entry branch is safe precisely because nothing points at
+     * it.** A `choice` targets branch names and a for-each track is named
+     * after its own step id; the entry is the one branch no step can
+     * reference, which is why this is a key rename and not a graph rewrite.
+     * The renamed branch stays FIRST, because the stored documents put it
+     * there and a diff nobody can read is a diff nobody reviews.
+     *
+     * @param  array<string, mixed>  $document
+     * @param  list<string>  $fixes
+     * @return array<string, mixed>
+     */
+    private function forPlatform(array $document, array &$fixes): array
+    {
+        $roots = array_values(array_filter(
+            array_keys($document['flowSpec']),
+            fn (string $branch) => FlowspecTarget::Clipboard->isRootBranch($branch),
+        ));
+
+        // Nothing to convert: already rooted at `start`, or rooted at
+        // something this cannot name — the validator says which, with the
+        // spelling it expected, instead of a rename being invented here.
+        if (count($roots) === 1) {
+            $flowSpec = [];
+
+            foreach ($document['flowSpec'] as $branch => $steps) {
+                $flowSpec[$branch === $roots[0] ? FlowspecTarget::Platform->rootBranch() : $branch] = $steps;
+            }
+
+            $document['flowSpec'] = $flowSpec;
+            $fixes[] = "Branch de entrada \"{$roots[0]}\" renomeada para \"start\" (formato de pipeline armazenado).";
+        }
+
+        if (array_key_exists('meta', $document)) {
+            unset($document['meta']);
+            $fixes[] = 'Canvas `meta` removido: um pipeline armazenado não tem essa chave (0 dos 201 do tenant).';
         }
 
         return $document;

@@ -22,8 +22,8 @@ sem descobrir quatro subsistemas depois que a premissa estava errada.
 | A — resolução de credencial + cliente HTTP + probe read-only | **feito** — 13 testes em `tests/Feature/DigibeeDesignProbeTest.php`, suíte inteira verde (1237) |
 | A′ — **rodar** o probe contra o tenant | **feito** (2026-09-04) — as três rotas respondem, e o pipeline volta com as 34 chaves (§ O que o probe respondeu) |
 | A″ — verificar os **verbos de escrita** | **create e update verificados** — o loop fecha. Deploy recusado por permissão (§ O que o A″ respondeu) |
-| B — modo de ingestão no normalizador/validador | não começado, desbloqueado por A′ |
-| C — síntese de `triggerSpec` | não começado |
+| B — modo de ingestão no normalizador/validador | **feito** — 31 testes em `tests/Feature/FlowspecIngestionTest.php` (§ O que a ingestão escreve) |
+| C — síntese de `triggerSpec` | **feito** — 19 testes em `tests/Feature/DigibeeTriggerSpecTest.php` (§ O que o triggerSpec sintetiza) |
 | D — runner de deploy (pela API) | não começado, bloqueado por permissão |
 | E — matriz de testes sintéticos + avaliador de asserções | **feito** — 26 testes em `tests/Feature/FlowspecTestMatrixTest.php`, e as 201 do export constroem sem erro (§ O que a matriz produz) |
 | F — loop de auto-correção com evidência de runtime | não começado |
@@ -499,12 +499,13 @@ não depende de nenhuma credencial nem de nenhuma rota, e é metade do valor da
 feature — então ele andou em paralelo com A″, o único bloco que precisava de
 autorização a mais, porque escreve.
 
-Os três primeiros itens estão feitos e ficam abaixo como registro. A mesma
-regra decide o que sobrou: **B + C não precisam de credencial nova** — o modo
-de ingestão é lógica local, e resolver pipeline por nome é leitura já
-verificada —, enquanto D, F e G esperam pelo token com a lista do § A
-credencial é um TOKEN do digibeectl. Começar por B + C não é a ordem
-confortável: é a única metade que não depende de administração de realm.
+Os quatro primeiros itens estão feitos e ficam abaixo como registro — os dois
+últimos deles porque **B + C não precisavam de credencial nova**: o modo de
+ingestão é lógica local e resolver pipeline por nome é leitura já verificada.
+O que sobra (D, F, G) espera pelo token com a lista do § A credencial é um
+TOKEN do digibeectl, e não por código: o loop de auto-correção precisa de um
+deploy para ter sinal de runtime, e o portão de `prod` precisa de tudo verde
+em `test` antes.
 
 1. ~~**A′ — rodar o probe.**~~ Feito: as três rotas respondem e o pipeline
    volta com as 34 chaves (§ O que o probe respondeu).
@@ -516,9 +517,12 @@ confortável: é a única metade que não depende de administração de realm.
    a lista do § A credencial é um TOKEN do digibeectl, não escrever código.
 3. ~~**E — matriz de testes.**~~ Feito: `BuildPipelineTestMatrix` mais os
    value objects em `App\Support\Digibee\Testing`. Sem rede, sem credencial.
-4. **B + C — modo de ingestão.** Chave de modo no normalizador/validador
-   (`start` × `disconnected-root:`), envelope `metadata`, e síntese de
-   `triggerSpec` — que tem 183 exemplos reais no export para aprender a forma.
+4. ~~**B + C — modo de ingestão.**~~ Feito: `App\Enums\FlowspecTarget` no
+   normalizador e no validador, `IngestFlowspec` + `DigibeeDesignClient` para
+   o upsert verificado, e `SynthesizeTriggerSpec` a partir dos 183 exemplos
+   reais do export (§ O que a ingestão escreve, § O que o triggerSpec
+   sintetiza). A chave de modo NÃO chegou ao system prompt, e a seção explica
+   por que isso ficou melhor assim.
 5. **D — runner de deploy.** Pela API, não pelo `digibeectl`: a constatação 1
    e a decisão de topologia já descartaram instalar um binário de terceiro no
    droplet, e o CLI segue sendo a ferramenta da estação de trabalho (é o que
@@ -607,6 +611,162 @@ O que a matriz **não** deriva, e é o próximo ganho óbvio: a forma da SAÍDA.
 resposta literalmente, então o caminho feliz poderia asserir mais do que "voltou
 um corpo". Hoje ele asserta só isso, deliberadamente, porque é a única
 afirmação de conteúdo honesta a partir do documento.
+
+---
+
+## O que a ingestão escreve
+
+`App\Actions\Digibee\IngestFlowspec` mais `App\Support\Digibee\DigibeeDesignClient`.
+O caminho é curto — normaliza, valida, resolve por nome, lê o documento de 34
+chaves, devolve com o `flowSpec` trocado, relê e compara — e cada passo existe
+por um motivo que já custou algo.
+
+**A chave de modo é `App\Enums\FlowspecTarget`, e ela NÃO chegou ao system
+prompt.** A previsão da constatação 3 era que os dois formatos atravessariam
+normalizador, validador *e* prompt. Atravessam os dois primeiros; o terceiro
+não, porque a diferença é mecânica — renomear uma branch e apagar `meta` — e um
+segundo contrato de geração dobraria a superfície que toda regressão de prompt
+precisa cobrir. O modelo continua emitindo UMA forma (colagem) e a ingestão
+converte.
+
+Renomear a branch de entrada é seguro por uma razão específica: ela é a única
+branch que nenhum step referencia. `choice` aponta para nomes de branch e um
+track de for-each se chama pelo id do próprio step; a entrada é a que ninguém
+cita. Por isso é uma troca de chave e não uma reescrita de grafo — e a branch
+renomeada continua PRIMEIRA, porque é onde os documentos armazenados a põem.
+
+Seis coisas que a ingestão faz e que não são obviedades:
+
+- **Valida ANTES de escrever, e recusa em qualquer erro.** A pergunta aberta da
+  Fase 1 — se `POST /pipelines` valida `flowSpec` — segue aberta, e a resposta
+  provável é "não": o upsert aceitou um documento de um step sem reclamar. Um
+  documento inválido então é armazenado com sucesso e quebra quando alguém abre
+  o canvas, que é exatamente a falha que o `DigibeeFlowspecValidator` existe
+  para pegar primeiro.
+- **Resolve por NOME, com o filtro no servidor e a igualdade no cliente.**
+  `?name=` é honrado, mas nada publicado diz se ele casa exato ou por prefixo —
+  e um prefixo devolveria `zfl-cadastro-cliente-v2` para
+  `zfl-cadastro-cliente`, com a ingestão escrevendo o flowSpec no pipeline
+  errado. Filtrar no servidor é o que evita baixar 1801 flowSpecs embutidos;
+  conferir o nome no cliente é o que evita escrever no vizinho.
+- **Recusa o `upsert` sem `id`.** É a mesma rota do create, então um documento
+  sem `id` não falha: ele cria um segundo pipeline com o mesmo nome, e nada na
+  plataforma apaga pipeline. Criar também é explícito (`create: true`), pelo
+  mesmo motivo.
+- **Relê e compara.** A rota responde 200 para create, para upsert e para um
+  campo descartado em silêncio (`projectId`, duas vezes), então 200 não é
+  evidência de escrita. A verificação é a mesma que o A″ fez à mão: o
+  `flowSpec` relido tem de ser idêntico ao enviado.
+- **`metadata.canvas` e `metadata.integrityHash` são REMOVIDOS.** Os dois são
+  uma leitura do flowSpec que acabou de ser substituído, e o primeiro é o
+  perigoso: ele embute o grafo de nós ANTIGO, nó de trigger incluído, então
+  carregá-lo adiante desenharia o pipeline anterior sobre o novo. Apagar é
+  seguro por medida, não por otimismo — 161 dos 201 pipelines do tenant não têm
+  nenhuma das duas chaves, ou seja, a ausência é o estado comum.
+- **Os contadores derivados viajam DESATUALIZADOS, e isso é dito no relatório.**
+  Recalcular `counters` e `metadata.componentsCount` exigiria decidir o que a
+  plataforma conta como step, capsule e subFlow — três definições que ninguém
+  aqui verificou —, e um número confiantemente errado é pior que um número
+  velho.
+
+E uma que é sobre autoridade, não sobre forma: **um `triggerSpec` que já existe
+é preservado.** Ele carrega o modo de autenticação e os métodos que alguém
+configurou; sobrescrever isso ao trocar um flowSpec é mudar quem pode chamar o
+pipeline sem ninguém ter pedido. Substituir é um pedido explícito.
+
+O comando é `digibee:flowspec:ingest`, com `--dry-run` (resolve, valida e
+relata sem escrever) e confirmação antes de qualquer escrita. Fica fora de
+`routes/console.php` pelo mesmo motivo que o probe: uma pessoa roda, quando
+quer.
+
+---
+
+## O que o triggerSpec sintetiza
+
+`App\Actions\Flowspec\SynthesizeTriggerSpec` mais
+`App\Support\Digibee\TriggerSpec`. Os defaults saem dos 183 triggers
+armazenados do export, e as duas decisões interessantes são onde a medição
+**não** foi seguida:
+
+- **Content types vão para JSON**, embora o corpus diga XML com folga
+  (`text/xml, application/xml` em 51 dos 65 triggers `http`). Essa maioria é um
+  fato sobre o legado SOAP, não um default para o que está sendo escrito agora.
+  O vocabulário do tenant é autoridade sobre como uma chave se CHAMA, nunca
+  sobre o que um pipeline novo deveria falar.
+- **`timeout` vai para 30000**, o default da plataforma, e não para os 90s e
+  900s que o corpus tem de sobra. Um timeout generoso é uma decisão sobre um
+  sistema específico.
+
+Três coisas que a síntese recusa, e é aí que ela se parece com a matriz de
+testes:
+
+- **Um cron.** Um agendamento não sai do flowSpec, e chutá-lo não falha: roda,
+  na hora errada, contra o que o pipeline toca. Vai para `missing` e o
+  `triggerSpec` sai sem a chave.
+- **Um nome de evento.** Um nome inventado escuta um evento que ninguém
+  publica: o pipeline sobe, reporta saudável e nunca executa.
+- **Um caminho REST.** Sem `uris`, o trigger responde no caminho default da
+  plataforma — que é o que 32 dos 46 specs armazenados fazem. Um caminho
+  inventado publica um endpoint num endereço que ninguém combinou, e o runner
+  chama o default e toma 404.
+
+Duas armadilhas de forma que só aparecem medindo:
+
+- **`name` não é `type` no scheduler.** Todo outro tipo escreve o próprio tipo
+  ali; o scheduler escreve o PRESET do canvas (`custom-scheduler` 25,
+  `5min-scheduler` 7, `30min-scheduler` 5) — e o preset não amarra o cron (um
+  `5min-scheduler` roda `0 0 23 ? * * *`). A síntese sempre diz
+  `custom-scheduler`, o único dos três que não afirma nada sobre o horário ao
+  lado.
+- **`uris` não é chave do trigger `http`**, em nenhum dos 66 specs armazenados
+  — é do `rest`. Herdar do construtor comum escreveria uma chave que o canvas
+  não lê.
+
+E uma regra que é de segurança: **`DigibeeTriggerAuth::None` existe e nunca é
+default.** A convenção do tenant é "autenticado" (`basicAuth` em 55 dos 56
+`http` que têm a chave, `keyAuth` em 21 dos 28 `rest`), então é ela que vale
+quando ninguém escolhe. Um endpoint aberto é uma decisão dita em voz alta, não
+um valor que chega porque faltou argumento — e os três flags saem como um
+CONJUNTO com exatamente um `true`, porque dois seria uma pergunta sobre
+precedência que ninguém respondeu.
+
+---
+
+## O que validar os 201 encontrou
+
+Rodar o `DigibeeFlowspecValidator` contra os pipelines que o tenant realmente
+roda é uma checagem que a era só-de-colagem não tinha motivo para fazer. Ela
+achou **duas regras que não descreviam nada real**, e as duas importam para o
+Bloco F: o sinal daquele loop inclui validar um pipeline lido DE VOLTA da
+plataforma, então uma regra falsa manda o modelo "corrigir" pipeline que já
+estava certo — a mesma forma da condição `simple` de `choice` e das chaves de
+data do scrubber, as duas vezes anteriores em que isso aconteceu.
+
+| | antes | depois |
+|---|---|---|
+| pipelines limpos (target `platform`) | 88 de 201 | **188 de 201** |
+
+- **O track de exceção é OPCIONAL.** `params.onProcess` é uma branch real em
+  404 das 404 referências do corpus; `params.onException` simplesmente não está
+  lá em 296 das 384 — e nunca aponta para um nome inexistente. Exigir os dois
+  rejeitava 101 dos 201 pipelines vivos. Uma referência PRESENTE apontando para
+  branch que não existe continua erro: isso é typo, não omissão.
+- **`iterators` e `replica` são escopos Double Braces documentados**, e os dois
+  faltavam. `{{iterators.<for-each-alias>.current}}` é como a referência do
+  próprio For Each lê o item da iteração, e `{{replica.instance_variable_name}}`
+  é o padrão do guia de multi-instância. Enquanto faltavam, um corpo de
+  for-each escrito do jeito documentado voltava para o modelo como "escopo
+  desconhecido" até as tentativas acabarem — e a regra 6 do system prompt
+  ensinava a lista curta, então o modelo nem podia acertar.
+
+Os 13 que continuam falhando são achados sobre os pipelines, não sobre o
+validador: 29 credenciais literais (todas dentro de
+`metadata.disconnectedFlowSpecs`, blocos que alguém deixou no canvas — 3
+pipelines falham SÓ por isso), 2 `doubleBracesAlias` duplicados, 2 aliases
+inexistentes e 3 choices com problema de condição. Vale registrar que um
+pipeline lido de volta pode falhar a validação por causa de lixo de canvas que
+o flowSpec vivo não usa, o que é uma decisão a tomar no Bloco F: validar o
+documento inteiro ou só o `flowSpec` conectado.
 
 ---
 
