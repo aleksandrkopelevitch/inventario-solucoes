@@ -627,3 +627,105 @@ it('still rejects a scope nobody documents', function () {
     expect(implode(' ', app(DigibeeFlowspecValidator::class)->validate($document, FlowspecTarget::Platform)->errors))
         ->toContain('Escopo Double Braces desconhecido');
 });
+
+/*
+|--------------------------------------------------------------------------
+| What a read-back pipeline is judged on
+|--------------------------------------------------------------------------
+*/
+
+it('judges a stored pipeline by its live flow, not by blocks abandoned on the canvas', function () {
+    $step = (string) Str::uuid();
+
+    $document = [
+        'flowSpec' => ['start' => [[
+            'id'       => $step,
+            'type'     => 'connector',
+            'name'     => 'rest-connector-v2',
+            'stepName' => 'Chama serviço',
+            'params'   => ['headers' => ['Authorization' => '{{ account.servico }}']],
+        ]]],
+        'metadata' => [
+            'disconnectedFlowSpecs' => [[
+                'flowSpec' => ['disconnected-start:x' => [[
+                    'id'     => (string) Str::uuid(),
+                    'type'   => 'connector',
+                    'name'   => 'rest-connector-v2',
+                    'params' => ['headers' => ['ApiKey' => 'ZmFrZS1hcGkta2V5LTEyMzQ1Njc4OTBhYmNkZWY']],
+                ]]],
+            ]],
+        ],
+    ];
+
+    // 29 of the corpus's credential findings sit in leftovers like this, and 3
+    // pipelines fail for no other reason. No rewrite of the flow can fix one.
+    expect(app(DigibeeFlowspecValidator::class)->validate($document, FlowspecTarget::Platform)->passes())
+        ->toBeTrue();
+});
+
+it('still fails a stored pipeline whose LIVE flow carries the credential', function () {
+    $step = (string) Str::uuid();
+
+    $document = ['flowSpec' => ['start' => [[
+        'id'       => $step,
+        'type'     => 'connector',
+        'name'     => 'rest-connector-v2',
+        'stepName' => 'Chama serviço',
+        'params'   => ['headers' => ['ApiKey' => 'ZmFrZS1hcGkta2V5LTEyMzQ1Njc4OTBhYmNkZWY']],
+    ]]]];
+
+    expect(implode(' ', app(DigibeeFlowspecValidator::class)->validate($document, FlowspecTarget::Platform)->errors))
+        ->toContain('Credencial literal');
+});
+
+it('keeps scanning a clipboard document whole, since that is what gets persisted', function () {
+    $step = (string) Str::uuid();
+    $document = clipboardDocument();
+    $document['flowSpec'][array_key_first($document['flowSpec'])][0]['params']['headers'] = [
+        'ApiKey' => 'ZmFrZS1hcGkta2V5LTEyMzQ1Njc4OTBhYmNkZWY',
+    ];
+
+    expect(implode(' ', app(DigibeeFlowspecValidator::class)->validate($document)->errors))
+        ->toContain('Credencial literal');
+});
+
+it('accepts the third choice dialect, the one that can compose conditions', function () {
+    $choice = (string) Str::uuid();
+
+    $document = ['flowSpec' => [
+        'start' => [[
+            'id'       => $choice,
+            'type'     => 'choice',
+            'stepName' => 'Allowlist de rotas',
+            'when'     => [[
+                // 5 conditions across 2 live pipelines use this, and it is the
+                // only dialect of the three that composes.
+                'doubleBraces' => '{{ AND(EQUALTO(message.method, "GET"), CONTAINS(message.path, "/rota")) }}',
+                'target'       => 'rota-permitida',
+            ]],
+            'otherwise' => 'rota-negada',
+        ]],
+        'rota-permitida' => [],
+        'rota-negada'    => [],
+    ]];
+
+    expect(app(DigibeeFlowspecValidator::class)->validate($document, FlowspecTarget::Platform)->passes())
+        ->toBeTrue();
+});
+
+it('still flags a choice condition with no dialect at all', function () {
+    $choice = (string) Str::uuid();
+
+    $document = ['flowSpec' => [
+        'start' => [[
+            'id'       => $choice,
+            'type'     => 'choice',
+            'stepName' => 'Sem condição',
+            'when'     => [['target' => 'algum-lugar']],
+        ]],
+        'algum-lugar' => [],
+    ]];
+
+    expect(implode(' ', app(DigibeeFlowspecValidator::class)->validate($document, FlowspecTarget::Platform)->errors))
+        ->toContain('doubleBraces');
+});

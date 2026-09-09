@@ -24,8 +24,8 @@ sem descobrir quatro subsistemas depois que a premissa estava errada.
 | A″ — verificar os **verbos de escrita** | **create e update verificados** — o loop fecha. Deploy recusado por permissão (§ O que o A″ respondeu) |
 | B — modo de ingestão no normalizador/validador | **feito** — 31 testes em `tests/Feature/FlowspecIngestionTest.php` (§ O que a ingestão escreve) |
 | C — síntese de `triggerSpec` | **feito** — 19 testes em `tests/Feature/DigibeeTriggerSpecTest.php` (§ O que o triggerSpec sintetiza) |
-| D — runner de deploy (pela API) | não começado, bloqueado por permissão |
-| E — matriz de testes sintéticos + avaliador de asserções | **feito** — 26 testes em `tests/Feature/FlowspecTestMatrixTest.php`, e as 201 do export constroem sem erro (§ O que a matriz produz) |
+| D — runner de deploy (pela API) | **metade feita** — o runner de testes existe e é testado sem rede (§ O runner, sem a rede); falta o deploy, bloqueado por permissão |
+| E — matriz de testes sintéticos + avaliador de asserções | **feito** — 36 testes em `tests/Feature/FlowspecTestMatrixTest.php`, e as 201 do export constroem sem erro (§ O que a matriz produz, § O contrato de resposta) |
 | F — loop de auto-correção com evidência de runtime | não começado |
 | G — portão de promoção para `prod` | não começado |
 
@@ -523,7 +523,8 @@ em `test` antes.
    reais do export (§ O que a ingestão escreve, § O que o triggerSpec
    sintetiza). A chave de modo NÃO chegou ao system prompt, e a seção explica
    por que isso ficou melhor assim.
-5. **D — runner de deploy.** Pela API, não pelo `digibeectl`: a constatação 1
+5. **D — runner de deploy.** *A metade de testes já existe* (§ O runner, sem a
+   rede): o que falta é o deploy em si. Pela API, não pelo `digibeectl`: a constatação 1
    e a decisão de topologia já descartaram instalar um binário de terceiro no
    droplet, e o CLI segue sendo a ferramenta da estação de trabalho (é o que
    `digibee:pipelines:pull` usa). O que se perde na troca é o `--wait`, então o
@@ -606,11 +607,8 @@ Três coisas menores que já custaram uma decisão:
   plataforma traz `metadata.disconnectedFlowSpecs` — blocos que alguém deixou
   no canvas, cujas referências inflariam o contrato com campos que nada vivo lê.
 
-O que a matriz **não** deriva, e é o próximo ganho óbvio: a forma da SAÍDA. Um
-`json-generator` ou `jslt` no fim da branch de entrada nomeia as chaves da
-resposta literalmente, então o caminho feliz poderia asserir mais do que "voltou
-um corpo". Hoje ele asserta só isso, deliberadamente, porque é a única
-afirmação de conteúdo honesta a partir do documento.
+A forma da SAÍDA era o que a matriz não derivava, e passou a derivar — com uma
+armadilha no meio que valia a medição (§ O contrato de resposta).
 
 ---
 
@@ -767,6 +765,83 @@ inexistentes e 3 choices com problema de condição. Vale registrar que um
 pipeline lido de volta pode falhar a validação por causa de lixo de canvas que
 o flowSpec vivo não usa, o que é uma decisão a tomar no Bloco F: validar o
 documento inteiro ou só o `flowSpec` conectado.
+
+---
+
+## O contrato de resposta
+
+Um pipeline nunca declara o que devolve, mas um `json-generator` ou um `jslt`
+no fim de uma branch **nomeia as chaves literalmente** — é a única fonte
+honesta para o caminho feliz asserir mais que "voltou um corpo".
+`ShapeTemplate` lê essas chaves e
+`BuildPipelineTestMatrix::responseContract()` decide o que dá para afirmar.
+
+**A armadilha é que a forma mais comum do corpus não é uma resposta.** 105 dos
+178 terminais que declaram forma emitem `{code, body, Content-Type}`, e a
+referência do trigger HTTP da Digibee é explícita sobre os três: `code` é o
+status que o endpoint retorna, `body` é o corpo (e precisa ser string),
+`Content-Type` é o tipo dele. Ou seja, é o ENVELOPE do trigger — quem chama
+nunca vê esses nomes. Asserir `$.code` teria falhado contra a forma mais comum
+do tenant inteiro, e num loop de auto-correção isso é pior que inútil: manda
+reescrever pipeline que está certo.
+
+Três regras seguram a afirmação:
+
+- **Um terminal desconhecido anula o contrato.** Se alguma branch termina numa
+  chamada REST ou num Object Store, a resposta daquele caminho é desconhecida —
+  e uma afirmação que vale para as outras três é uma afirmação que falha toda
+  vez que a quarta rodar.
+- **Só a interseção é afirmada.** O caminho feliz pega UMA branch e ninguém
+  sabe qual, então uma chave só entra se TODOS os terminais a nomeiam.
+- **O status só é estreitado quando todos concordam.** `code` é literal em 55
+  dos 105 envelopes; um pipeline com branch de sucesso e de erro discorda
+  (200 × 500) e a expectativa de família (`2xx`) fica de pé.
+
+O ganho medido sobre as 201: **18 pipelines passam a asserir chaves reais (30
+asserções novas) e 1 ganha status exato**. É bem menos que os 70 com forma
+derivável, e a diferença é justamente a honestidade — nos 51 envelopes o `body`
+é `{{ TOSTRING(...) }}`, que o documento genuinamente não descreve.
+
+O próximo ganho disponível está medido e não foi feito: **`Content-Type` é
+literal nos 105 envelopes**, então dá para afirmar o tipo da resposta assim que
+uma asserção puder olhar HEADER e não só corpo (hoje `Assertion::evaluate()`
+recebe apenas o corpo).
+
+---
+
+## O runner, sem a rede
+
+`App\Actions\Digibee\RunPipelineTestSuite` é a metade do Bloco D que não
+precisa de deploy nenhum para estar correta: a matriz vem do Bloco E, a
+avaliação vem de `PipelineTestCase::evaluate()`, e no meio há uma chamada HTTP
+por caso. Escrito e testado contra `Http::fake()`, ele deixa o Bloco D como
+"apontar para um deployment" em vez de "construir um subsistema".
+
+Quatro propriedades, cada uma um jeito de o relatório mentir:
+
+- **Recusa ambiente fora de `deployable_environments`.** Uma bateria sintética
+  é tráfego hostil de propósito — payload malformado, campo faltando, o que a
+  branch exigir — e os pipelines que ela acerta escrevem em SAP, VTEX e
+  BigQuery. "Pode implantar aqui" e "pode disparar isso aqui" são a mesma
+  pergunta, então compartilham UMA lista em vez de duas para manter em sincronia.
+- **Nunca envia um caso BLOQUEADO.** Eles carregam placeholders que NOMEIAM o
+  campo (`"<cpf>"`) — exatamente o que o Bloco E se recusou a passar por dado.
+  Mandar isso põe valor inventado num sistema real e reporta a recusa como
+  defeito do pipeline.
+- **Não repete.** O cliente de design repete falha transitória porque uma
+  leitura é idempotente; um caso de teste não é. Um 500 aqui é o SINAL, e
+  re-disparar um POST que já rodou pela metade duplica o que ele escreveu antes
+  de falhar.
+- **Distingue "recusado na porta" de "falhou".** Se todos os casos voltarem
+  401/403 e nenhuma credencial foi passada, `SuiteRun::refusedForCredentials()`
+  diz isso. É a entrada mais enganosa que esta feature pode dar a um modelo: um
+  muro de 401 é idêntico a um pipeline que rejeita tudo.
+
+A credencial do endpoint (`EndpointCredential`) **não é a do design**, e não sai
+de configuração: quem consome um pipeline implantado usa Basic Auth, API key ou
+um JWT que a plataforma emitiu, e isso pertence a quem é dono daquela
+integração. Mandar o token do design para o host de runtime seria despachar uma
+credencial de realm inteiro para outro serviço.
 
 ---
 

@@ -1068,6 +1068,37 @@ Both are the same failure as the `simple` choice condition and the scrubber's
 date keys: a rule written against generated documents, never checked against
 the estate it describes.
 
+**What a pipeline says about its own OUTPUT, and the trap in reading it.** A
+`json-generator` or `jslt` at the end of a branch names its keys literally,
+which is the only honest source for asserting more than "a body came back" —
+`ShapeTemplate` reads them and `BuildPipelineTestMatrix::responseContract()`
+decides what may be claimed. The trap is that the most common terminal shape in
+the estate is not a response at all: 105 of the 178 declaring terminals emit
+`{code, body, Content-Type}`, which Digibee's HTTP trigger reference defines as
+the endpoint's own envelope — `code` BECOMES the status, `body` becomes the
+payload — so asserting `$.code` would fail against most of the tenant. Three
+rules keep the claim true: one terminal that declares nothing voids the whole
+contract (a claim that holds for three branches fails whenever the fourth
+runs), only the intersection across terminals is asserted (nobody knows which
+branch the happy path takes), and the status is narrowed only when every
+terminal returns the same literal code. Yield over the 201: 18 pipelines gain
+30 real assertions and one gains an exact status — far short of the 70 with a
+derivable shape, and that gap IS the honesty.
+
+**Running that matrix is `RunPipelineTestSuite`, and it is hostile traffic by
+design.** It refuses any environment outside
+`services.digibee.design.deployable_environments` — "may deploy here" and "may
+fire malformed payloads at it" are the same question, so they share one list;
+it never sends a BLOCKED case, whose placeholders name a field
+(`"<cpf>"`) rather than carrying a value; it does not retry, because a 500 is
+the signal and re-firing a POST that half-ran duplicates what it wrote; and it
+distinguishes "refused at the door" from "failed" — a wall of 401s with no
+credential given is the single most misleading thing this feature can hand a
+model, since it looks exactly like a pipeline that rejects everything. The
+endpoint credential (`EndpointCredential`) is NOT the design credential and
+never comes from configuration: sending a realm-wide token to the runtime host
+would hand one service another service's keys.
+
 `digibeectl` is still not involved and the boundary in
 `App\Support\Digibee\DigibeectlClient` is untouched — this is HTTP with the
 credential `DigibeeAuthResolver` resolves. The ingestion is driven by hand

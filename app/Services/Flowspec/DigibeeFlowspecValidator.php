@@ -112,15 +112,54 @@ class DigibeeFlowspecValidator
                 . '(destino: ' . $target->label() . ') — encontradas: ' . count($roots) . '.';
         }
 
+        $scanned = $this->scannedText($document, $target);
+
         $this->validateSteps($spec, $target, $errors);
         $this->validateBranchReferences($spec, $errors);
-        $this->validateDoubleBraces($document, $spec, $errors);
+        $this->validateDoubleBraces($scanned, $spec, $errors);
 
-        foreach ($this->scrubber->violations($document) as $violation) {
+        foreach ($this->scrubber->violations($scanned) as $violation) {
             $errors[] = "Credencial literal: {$violation}.";
         }
 
         return new ValidationResult(array_values(array_unique($errors)));
+    }
+
+    /**
+     * What the two whole-document scans — credentials and Double Braces — are
+     * allowed to look at, which is not the same question for the two targets.
+     *
+     * A CLIPBOARD document is scanned whole. It is what gets persisted on the
+     * message and rendered back to a person, so anything anywhere in it can
+     * leak, and there is nothing in it that is not the pipeline: a generated
+     * document is `{meta, flowSpec}` and `meta` is coordinates.
+     *
+     * A PLATFORM document is scanned at its `flowSpec` only, because a
+     * pipeline read back from the tenant carries
+     * `metadata.disconnectedFlowSpecs` — blocks somebody abandoned on the
+     * canvas, which the pipeline does not execute. Measured over the 201:
+     * 29 literal-credential findings live in there, and 3 pipelines fail
+     * validation for no other reason. Judging a flow by what is lying beside
+     * it has two costs and no benefit: block F's correction loop would be
+     * handed errors that no rewrite of the flowSpec can fix, and the ingestion
+     * would refuse to write a correct pipeline because of a block nobody has
+     * run in a year.
+     *
+     * **This is deliberately not "ignore it".** Those credentials are real and
+     * they are in the tenant; what changes is only whose finding they are —
+     * they belong to whoever audits the canvas, not to the loop rewriting one
+     * flow. `IndexPipelineVocabulary` still scrubs the whole document, and
+     * still skips a pipeline whole when anything in it trips the scrubber, so
+     * nothing leftover ever reaches a prompt.
+     *
+     * @param  array<string, mixed>  $document
+     * @return array<string, mixed>
+     */
+    private function scannedText(array $document, FlowspecTarget $target): array
+    {
+        return $target === FlowspecTarget::Platform
+            ? ['flowSpec' => $document['flowSpec']]
+            : $document;
     }
 
     /** @param list<string> $errors */
@@ -192,17 +231,26 @@ class DigibeeFlowspecValidator
                 }
 
                 foreach ($when as $condition) {
-                    // A condition routes by EITHER a JSONPath or a Simple
-                    // expression (`#{body.STATUS} != '200'`) — Digibee's canvas
-                    // offers both, and 18 of the 612 conditions across the 182
-                    // deployed Leo Madeiras pipelines use `simple`. Demanding
-                    // `jsonPath` rejected those as malformed and sent the model
-                    // off to "fix" a choice that was already correct.
-                    $hasJsonPath = is_string($condition['jsonPath'] ?? null) && $condition['jsonPath'] !== '';
-                    $hasSimple = is_string($condition['simple'] ?? null) && $condition['simple'] !== '';
+                    // A condition routes by ONE of three dialects the canvas
+                    // offers, and the count over the tenant's 664 real
+                    // conditions is the whole argument for knowing all three:
+                    // `jsonPath` 633, `simple` 26 (`#{body.STATUS} != '200'`),
+                    // `doubleBraces` 5
+                    // (`{{ AND(EQUALTO(message.method, "GET"), CONTAINS(...)) }}`).
+                    //
+                    // Each one was added after the narrower rule rejected
+                    // pipelines that were already right: demanding `jsonPath`
+                    // failed the 9 pipelines using `simple`, and demanding
+                    // either failed the 2 using `doubleBraces` — which is the
+                    // only dialect of the three that can COMPOSE conditions,
+                    // so it is not a stylistic variant of the others.
+                    $dialects = array_filter(
+                        ['jsonPath', 'simple', 'doubleBraces'],
+                        fn (string $key) => is_string($condition[$key] ?? null) && $condition[$key] !== '',
+                    );
 
-                    if (! $hasJsonPath && ! $hasSimple) {
-                        $errors[] = "Choice \"{$label}\": condição sem `jsonPath` nem `simple`.";
+                    if ($dialects === []) {
+                        $errors[] = "Choice \"{$label}\": condição sem `jsonPath`, `simple` nem `doubleBraces`.";
                     }
 
                     $target = $condition['target'] ?? null;

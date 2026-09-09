@@ -88,6 +88,24 @@ class DigibeeApiException extends RuntimeException
         );
     }
 
+    /**
+     * Refused rather than run. A synthetic test battery is hostile traffic by
+     * design, and the pipelines it would hit write to real downstream systems
+     * — so where it may run is the same question as where a deploy may land,
+     * answered by the same configured list.
+     *
+     * @param  list<string>  $allowed
+     */
+    public static function refusedEnvironment(string $environment, array $allowed): self
+    {
+        return new self(
+            "Refusing to run a synthetic test suite against \"{$environment}\" — allowed: "
+            . (implode(', ', $allowed) ?: '(none)') . '. These cases send malformed and incomplete '
+            . 'payloads on purpose, so the environments they may reach are the ones a deploy may reach '
+            . '(services.digibee.design.deployable_environments).'
+        );
+    }
+
     public static function unreadableConfig(string $path, string $reason): self
     {
         return new self("digibeectl config at {$path} could not be read: {$reason}.");

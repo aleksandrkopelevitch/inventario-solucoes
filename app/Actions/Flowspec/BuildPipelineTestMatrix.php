@@ -7,6 +7,7 @@ use App\Support\Digibee\Testing\Assertion;
 use App\Support\Digibee\Testing\AssertionOperator;
 use App\Support\Digibee\Testing\PipelineTestCase;
 use App\Support\Digibee\Testing\PipelineTestSuite;
+use App\Support\Digibee\Testing\ShapeTemplate;
 use App\Support\Digibee\Testing\StatusExpectation;
 use App\Support\Digibee\Testing\TestCaseCategory;
 use Illuminate\Support\Arr;
@@ -73,7 +74,7 @@ class BuildPipelineTestMatrix
             // runner calls, so it is carried rather than assumed to be 1.
             versionMajor: (int) ($document['versionMajor'] ?? 1),
             cases: [
-                $this->happyPath($skeleton, $fields),
+                $this->happyPath($skeleton, $fields, $this->responseContract($spec, $entry)),
                 ...$this->branchCoverage($spec, $entry, $skeleton),
                 ...$this->errorHandlers($spec),
                 ...$this->contractCases($skeleton, $fields),
@@ -167,17 +168,32 @@ class BuildPipelineTestMatrix
     }
 
     /** @param list<string> $fields */
-    private function happyPath(array $skeleton, array $fields): PipelineTestCase
+    /**
+     * @param  array{keys: list<string>, status: int|null}  $contract  what the
+     *                                                                 flowSpec's terminal steps DECLARE about the response
+     */
+    private function happyPath(array $skeleton, array $fields, array $contract): PipelineTestCase
     {
         return new PipelineTestCase(
             name: 'Caminho feliz',
             category: TestCaseCategory::HappyPath,
-            expects: StatusExpectation::ok(),
-            // Deliberately minimal. The output shape is not derivable from the
-            // flowSpec, so the one thing worth asserting is that a body came
-            // back at all — a 200 with an empty payload is a real Digibee
-            // failure mode and the only content claim this can honestly make.
-            assertions: [new Assertion('$', AssertionOperator::Exists)],
+            // Sharpened to the exact code only when every terminal of the flow
+            // agrees on the same literal one; two branches returning 200 and
+            // 500 leave the family expectation alone.
+            expects: $contract['status'] === null
+                ? StatusExpectation::ok()
+                : StatusExpectation::parse($contract['status']),
+            // A body came back at all is the floor — a 200 with an empty
+            // payload is a real Digibee failure mode. Above it sit the keys
+            // the flow's own terminal steps NAME, which is the only content
+            // claim derivable from the document (see responseContract()).
+            assertions: [
+                new Assertion('$', AssertionOperator::Exists),
+                ...array_map(
+                    fn (string $key) => new Assertion('$.' . $key, AssertionOperator::Exists),
+                    $contract['keys'],
+                ),
+            ],
             body: $skeleton,
             blocked: $fields === []
                 ? null
@@ -192,6 +208,150 @@ class BuildPipelineTestMatrix
      *
      * @return list<PipelineTestCase>
      */
+    /**
+     * What the flowSpec DECLARES about its own response, read off the steps
+     * the flow actually ends at.
+     *
+     * A pipeline never states its output contract, but a `json-generator` or a
+     * `jslt` at the end of a branch names the keys literally — that is the one
+     * honest source for asserting more than "a body came back". Measured over
+     * the tenant's 201: 70 pipelines have a fully declared shape, and 135 end
+     * their entry branch on a `choice`, which is why this follows the choice
+     * targets instead of reading the last step of `start` and stopping.
+     *
+     * Three rules keep the claim honest, and the middle one is the whole
+     * reason this took a measurement rather than an afternoon:
+     *
+     * - **One unknown terminal voids the contract.** If any branch ends at a
+     *   REST call or an Object Store, the response of THAT path is unknown,
+     *   and a claim that holds for the other three is a claim that fails
+     *   whenever the fourth runs.
+     * - **The envelope is not the response.** 105 of the 178 declaring
+     *   terminals emit `{code, body, Content-Type}`, which Digibee's HTTP
+     *   trigger reference defines as the endpoint's own envelope: `code`
+     *   BECOMES the status and `body` becomes the payload. Asserting those
+     *   names against the response would fail on the most common shape in the
+     *   estate. What is usable from an envelope is the literal `code` (55 of
+     *   105) and whatever literal object sits in `body`.
+     * - **Only the intersection is claimed.** The happy path takes one branch
+     *   and nobody knows which, so a key is asserted only when EVERY terminal
+     *   names it. 68 of the 70 pipelines with a derivable shape have a
+     *   non-empty intersection; the other two claim nothing.
+     *
+     * @return array{keys: list<string>, status: int|null}
+     */
+    private function responseContract(FlowspecDocument $spec, ?string $entry): array
+    {
+        $nothing = ['keys' => [], 'status' => null];
+
+        if ($entry === null) {
+            return $nothing;
+        }
+
+        $seen = [];
+        $terminals = $this->terminalSteps($spec, $entry, $seen);
+
+        if ($terminals === []) {
+            return $nothing;
+        }
+
+        $templates = [];
+
+        foreach ($terminals as $terminal) {
+            $template = ShapeTemplate::of($terminal);
+
+            if ($template === null || $template->keys() === []) {
+                return $nothing;
+            }
+
+            $templates[] = $template;
+        }
+
+        $envelopes = array_filter($templates, fn (ShapeTemplate $t) => $t->isResponseEnvelope());
+
+        // A mix of the two is not a shape: one describes the endpoint's
+        // envelope and the other the payload, so an intersection across them
+        // would claim a name that is only ever the envelope's.
+        if ($envelopes !== [] && count($envelopes) !== count($templates)) {
+            return $nothing;
+        }
+
+        $isEnvelope = $envelopes !== [];
+
+        $keys = null;
+
+        foreach ($templates as $template) {
+            $declared = $isEnvelope ? $template->envelopeBodyKeys() : $template->keys();
+            $keys = $keys === null ? $declared : array_intersect($keys, $declared);
+        }
+
+        return [
+            'keys'   => array_values($keys ?? []),
+            'status' => $isEnvelope ? $this->agreedStatus($templates) : null,
+        ];
+    }
+
+    /**
+     * The status every terminal returns, when they all return the same
+     * literal one. A pipeline with a success and an error branch disagrees,
+     * and disagreement means the family expectation stands.
+     *
+     * @param  list<ShapeTemplate>  $templates
+     */
+    private function agreedStatus(array $templates): ?int
+    {
+        $codes = array_map(fn (ShapeTemplate $t) => $t->envelopeStatus(), $templates);
+
+        return in_array(null, $codes, true) || count(array_unique($codes)) !== 1
+            ? null
+            : $codes[0];
+    }
+
+    /**
+     * The steps the flow can END at, following `choice` targets.
+     *
+     * `$seen` is what keeps a loop — a choice routing back into a branch
+     * already walked — from recursing forever; a branch is answered once.
+     *
+     * @param  array<string, true>  $seen
+     * @return list<array<string, mixed>>
+     */
+    private function terminalSteps(FlowspecDocument $spec, string $branch, array &$seen): array
+    {
+        if (isset($seen[$branch])) {
+            return [];
+        }
+
+        $seen[$branch] = true;
+        $steps = $spec->branches[$branch] ?? [];
+
+        if ($steps === []) {
+            return [];
+        }
+
+        $last = $steps[count($steps) - 1];
+
+        if (($last['type'] ?? null) !== 'choice') {
+            return [$last];
+        }
+
+        $terminals = [];
+
+        foreach (is_array($last['when'] ?? null) ? $last['when'] : [] as $condition) {
+            if (is_string($condition['target'] ?? null)) {
+                $terminals = [...$terminals, ...$this->terminalSteps($spec, $condition['target'], $seen)];
+            }
+        }
+
+        if (is_string($last['otherwise'] ?? null)) {
+            $terminals = [...$terminals, ...$this->terminalSteps($spec, $last['otherwise'], $seen)];
+        }
+
+        // A choice whose targets lead nowhere IS the terminal — and it
+        // declares no shape, which voids the contract, correctly.
+        return $terminals === [] ? [$last] : $terminals;
+    }
+
     private function branchCoverage(FlowspecDocument $spec, ?string $entry, array $skeleton): array
     {
         $cases = [];
