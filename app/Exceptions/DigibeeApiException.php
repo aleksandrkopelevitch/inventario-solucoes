@@ -48,6 +48,64 @@ class DigibeeApiException extends RuntimeException
         );
     }
 
+    /**
+     * The create answered 200 with something that is not the envelope A″
+     * observed. Reported rather than shrugged off, because a create whose id
+     * we failed to read is a pipeline that now exists and that nothing can
+     * delete — the next run would make a second one.
+     *
+     * @param  list<string>  $keys
+     */
+    public static function unexpectedCreateEnvelope(array $keys): self
+    {
+        return new self(
+            'The pipeline create answered without an id. Expected the envelope {pipeline, configurations} '
+            . 'with the id at `pipeline.id`; got keys: ' . (implode(', ', $keys) ?: '(none)') . '. '
+            . 'A pipeline may have been created anyway — check the canvas before retrying, since nothing '
+            . 'in the platform deletes a pipeline.'
+        );
+    }
+
+    /**
+     * The upsert is a POST on the COLLECTION, which is also the create — so a
+     * document without an id does not fail, it silently makes a second
+     * pipeline with the same name.
+     */
+    public static function upsertWithoutId(): self
+    {
+        return new self(
+            'Refusing to upsert a pipeline document with no `id`: the design API uses one route for both '
+            . 'verbs (POST on the collection), so this would CREATE a duplicate pipeline instead of '
+            . 'updating one — and nothing in the platform can delete it afterwards.'
+        );
+    }
+
+    public static function nonJsonBody(string $method, string $path, int $status): self
+    {
+        return new self(
+            "{$method} {$path} answered {$status} with a body that is not JSON. These routes are "
+            . 'undocumented, so this usually means a gateway or login page answered instead of the API.'
+        );
+    }
+
+    /**
+     * Refused rather than run. A synthetic test battery is hostile traffic by
+     * design, and the pipelines it would hit write to real downstream systems
+     * — so where it may run is the same question as where a deploy may land,
+     * answered by the same configured list.
+     *
+     * @param  list<string>  $allowed
+     */
+    public static function refusedEnvironment(string $environment, array $allowed): self
+    {
+        return new self(
+            "Refusing to run a synthetic test suite against \"{$environment}\" — allowed: "
+            . (implode(', ', $allowed) ?: '(none)') . '. These cases send malformed and incomplete '
+            . 'payloads on purpose, so the environments they may reach are the ones a deploy may reach '
+            . '(services.digibee.design.deployable_environments).'
+        );
+    }
+
     public static function unreadableConfig(string $path, string $reason): self
     {
         return new self("digibeectl config at {$path} could not be read: {$reason}.");

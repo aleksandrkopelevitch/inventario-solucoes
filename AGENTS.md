@@ -994,6 +994,117 @@ the other, so a broken import cannot take the flowSpec reference down with it.
   and searching. A broken image on every other page is the worse of the two, and
   every page opens with a hint linking the original.
 
+### Writing a flowSpec INTO a pipeline — one document, two shapes
+
+The generator's output is written to be PASTED, and a pipeline stored on the
+platform is a different shape of the same document. `App\Enums\FlowspecTarget`
+is that mode key, and it is measured rather than stylistic: all 201 pipelines
+exported from the tenant root at `start`, none carries a top-level `meta` and
+no step carries a `position`, while a clipboard document is required to emit
+exactly one `disconnected-root:<uuid>` plus a `meta` entry per canvas step. So
+`meta.position` is a clipboard construct, and `DigibeeFlowspecNormalizer` /
+`DigibeeFlowspecValidator` both take the target — run with the wrong one, the
+validator is exactly inverted: it rejects every pipeline the tenant runs and
+passes documents that can never be ingested.
+
+**The mode key deliberately stops before the system prompt.** The model keeps
+one generation contract (rule 1, the clipboard root) and
+`App\Actions\Digibee\IngestFlowspec` converts, because the difference is
+mechanical — rename one branch key, drop `meta` — and a second contract would
+double what every prompt regression has to be tested against. Renaming the
+entry branch is safe for a specific reason: it is the one branch no step can
+reference (a `choice` targets branch names, a for-each track is named after its
+own step id), so it is a key rename and not a graph rewrite.
+
+Five rules the write path holds, each paid for by something Fase 1 observed:
+
+- **Validate before writing, refuse on any error.** Whether
+  `POST /pipelines` validates a flowSpec at all is still an open question, and
+  the evidence points at "no" — the upsert accepted a one-step document without
+  complaint. An invalid document is then stored happily and breaks when
+  somebody opens the canvas.
+- **Resolve by NAME, filter on the server, match exactly on the client.**
+  `?name=` is honoured; `?projectId=` is ignored in silence. Nothing published
+  says whether the name filter is exact or a prefix, and a prefix would hand
+  back `zfl-cadastro-cliente-v2` for `zfl-cadastro-cliente` — writing the
+  flowSpec into the wrong pipeline. Listing unfiltered is a multi-megabyte
+  download: 1801 items, each embedding its whole flowSpec.
+- **`POST` on the collection is both verbs.** With an `id` it upserts, without
+  one it CREATES — so `DigibeeDesignClient::upsert()` refuses an id-less
+  document rather than silently making a second pipeline with the same name.
+  Nothing in the platform deletes a pipeline, which is what makes every
+  mistaken create permanent, and why there is no delete method on that client
+  at all.
+- **200 is not evidence of a write**, on a route that answers 200 for a create,
+  an upsert and a discarded field alike. The flowSpec is read back and compared
+  byte-for-byte, which is the property A″ established by hand.
+- **`metadata.canvas` and `metadata.integrityHash` are dropped; derived
+  counters travel stale and are REPORTED.** `canvas` embeds the old node graph,
+  trigger node included, so carrying it forward draws the previous pipeline
+  over the new one — and dropping both is safe by measurement, since 161 of the
+  201 stored pipelines have neither key. Recomputing `counters` would mean
+  guessing what the platform counts as a step, a capsule and a subFlow.
+
+A `triggerSpec` that already exists is PRESERVED unless replacing it is asked
+for explicitly: it carries the endpoint's authentication mode and methods,
+which a person configured. `App\Actions\Flowspec\SynthesizeTriggerSpec` builds
+one for a pipeline that has none, and `DigibeeTriggerAuth::None` is never its
+default — the tenant's convention is authenticated (`basicAuth` in 55 of 56
+`http` specs, `keyAuth` in 21 of 28 `rest`), so an open endpoint has to be
+asked for. It refuses to invent a cron expression or an event name, because
+both fail by RUNNING: a guessed schedule runs at the wrong hour, and an
+invented event name subscribes to something nobody publishes.
+
+**Validating the tenant's own 201 pipelines is what found the two rules that
+described nothing real** (clean: 88 → 188). `params.onException` is absent in
+296 of 384 track references and never dangling, so an exception track is
+optional — demanding one rejected 101 live pipelines; `onProcess` stays strict,
+being a real branch in 404 of 404. And `iterators`/`replica` are documented
+Double Braces scopes (`{{iterators.<for-each-alias>.current}}` in the For Each
+reference, `{{replica.instance_variable_name}}` in the multi-instance guide)
+that `VALID_SCOPES` and prompt rule 6 both omitted, so a for-each body written
+the documented way came back as "unknown scope" until the attempts ran out.
+Both are the same failure as the `simple` choice condition and the scrubber's
+date keys: a rule written against generated documents, never checked against
+the estate it describes.
+
+**What a pipeline says about its own OUTPUT, and the trap in reading it.** A
+`json-generator` or `jslt` at the end of a branch names its keys literally,
+which is the only honest source for asserting more than "a body came back" —
+`ShapeTemplate` reads them and `BuildPipelineTestMatrix::responseContract()`
+decides what may be claimed. The trap is that the most common terminal shape in
+the estate is not a response at all: 105 of the 178 declaring terminals emit
+`{code, body, Content-Type}`, which Digibee's HTTP trigger reference defines as
+the endpoint's own envelope — `code` BECOMES the status, `body` becomes the
+payload — so asserting `$.code` would fail against most of the tenant. Three
+rules keep the claim true: one terminal that declares nothing voids the whole
+contract (a claim that holds for three branches fails whenever the fourth
+runs), only the intersection across terminals is asserted (nobody knows which
+branch the happy path takes), and the status is narrowed only when every
+terminal returns the same literal code. Yield over the 201: 18 pipelines gain
+30 real assertions and one gains an exact status — far short of the 70 with a
+derivable shape, and that gap IS the honesty.
+
+**Running that matrix is `RunPipelineTestSuite`, and it is hostile traffic by
+design.** It refuses any environment outside
+`services.digibee.design.deployable_environments` — "may deploy here" and "may
+fire malformed payloads at it" are the same question, so they share one list;
+it never sends a BLOCKED case, whose placeholders name a field
+(`"<cpf>"`) rather than carrying a value; it does not retry, because a 500 is
+the signal and re-firing a POST that half-ran duplicates what it wrote; and it
+distinguishes "refused at the door" from "failed" — a wall of 401s with no
+credential given is the single most misleading thing this feature can hand a
+model, since it looks exactly like a pipeline that rejects everything. The
+endpoint credential (`EndpointCredential`) is NOT the design credential and
+never comes from configuration: sending a realm-wide token to the runtime host
+would hand one service another service's keys.
+
+`digibeectl` is still not involved and the boundary in
+`App\Support\Digibee\DigibeectlClient` is untouched — this is HTTP with the
+credential `DigibeeAuthResolver` resolves. The ingestion is driven by hand
+(`digibee:flowspec:ingest`, with `--dry-run` and a confirmation), and like the
+probe it stays out of `routes/console.php`.
+
 ## Eloquent
 
 - Always define return types on relationships:

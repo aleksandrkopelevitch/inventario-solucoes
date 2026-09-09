@@ -466,3 +466,119 @@ it('reads the input contract off the live flow, not off blocks left on the canva
 
     expect(caseNamed(matrixFor($document), 'Caminho feliz')->body)->toBe(['cpf' => '<cpf>']);
 });
+
+/*
+|--------------------------------------------------------------------------
+| The response shape, read off the flow's terminal steps
+|--------------------------------------------------------------------------
+*/
+
+function jsonGenerator(string $template, string $alias = 'json-generator-1'): array
+{
+    return [
+        'id'                => (string) Str::uuid(),
+        'type'              => 'connector',
+        'name'              => 'json-generator-connector',
+        'stepName'          => 'Monta resposta',
+        'doubleBracesAlias' => $alias,
+        'params'            => ['json' => $template],
+    ];
+}
+
+function happyPathOf(PipelineTestSuite $suite): PipelineTestCase
+{
+    return $suite->cases[0];
+}
+
+/** @return list<string> */
+function assertedPaths(PipelineTestCase $case): array
+{
+    return array_map(fn (Assertion $a) => $a->jsonPath, $case->assertions);
+}
+
+it('asserts the keys the terminal step names, on top of "a body came back"', function () {
+    $suite = matrixFor(flowspecDocument([
+        jsonGenerator('{ "mensagem": {{ message.texto }}, "sucesso": true }'),
+    ]));
+
+    expect(assertedPaths(happyPathOf($suite)))->toBe(['$', '$.mensagem', '$.sucesso']);
+});
+
+it('reads keys out of a jslt template that opens with let bindings', function () {
+    $step = jsonGenerator('x');
+    $step['name'] = 'jslt-connector';
+    $step['params'] = ['jsltExpr' => "let empresa = if (.body.id > 1999) 1 else 2\n\n{\n\"empresa\": \$empresa,\n\"payload\": .body\n}"];
+
+    expect(assertedPaths(happyPathOf(matrixFor(flowspecDocument([$step])))))
+        ->toBe(['$', '$.empresa', '$.payload']);
+});
+
+it('claims nothing about the keys of a trigger response envelope', function () {
+    // Digibee's HTTP trigger reference: `code` BECOMES the status and `body`
+    // becomes the payload, so a caller never sees these names. This is the
+    // most common terminal shape in the tenant — 105 of 178 — and asserting
+    // it would fail every one of them.
+    $suite = matrixFor(flowspecDocument([
+        jsonGenerator('{ "code": 200, "body": {{ TOSTRING(message.$) }}, "Content-Type": "application/json" }'),
+    ]));
+
+    expect(assertedPaths(happyPathOf($suite)))->toBe(['$']);
+});
+
+it('sharpens the expected status when every terminal returns the same literal code', function () {
+    $suite = matrixFor(flowspecDocument([
+        jsonGenerator('{ "code": 201, "body": {{ TOSTRING(message.$) }}, "Content-Type": "application/json" }'),
+    ]));
+
+    expect(happyPathOf($suite)->expects->spec)->toBe('201');
+});
+
+it('leaves the status family alone when two terminals disagree', function () {
+    $choice = ['id' => (string) Str::uuid(), 'type' => 'choice', 'stepName' => 'Deu certo?',
+        'when'      => [['jsonPath' => '$.[?(@.ok == true)]', 'target' => 'sucesso']], 'otherwise' => 'erro'];
+
+    $suite = matrixFor(flowspecDocument([$choice], [
+        'sucesso' => [jsonGenerator('{ "code": 200, "body": {{ TOSTRING(message.$) }}, "Content-Type": "application/json" }', 'g1')],
+        'erro'    => [jsonGenerator('{ "code": 500, "body": {{ TOSTRING(message.$) }}, "Content-Type": "application/json" }', 'g2')],
+    ]));
+
+    expect(happyPathOf($suite)->expects->spec)->toBe('2xx');
+});
+
+it('asserts only the keys EVERY branch names, since nobody knows which one runs', function () {
+    $choice = ['id' => (string) Str::uuid(), 'type' => 'choice', 'stepName' => 'Rota',
+        'when'      => [['jsonPath' => '$.[?(@.tipo == "a")]', 'target' => 'a']], 'otherwise' => 'b'];
+
+    $suite = matrixFor(flowspecDocument([$choice], [
+        'a' => [jsonGenerator('{ "message": {{ message.m }}, "details": {{ message.d }} }', 'g1')],
+        'b' => [jsonGenerator('{ "message": {{ message.m }}, "trace": {{ message.t }} }', 'g2')],
+    ]));
+
+    expect(assertedPaths(happyPathOf($suite)))->toBe(['$', '$.message']);
+});
+
+it('claims nothing when one branch ends somewhere that declares no shape', function () {
+    $choice = ['id' => (string) Str::uuid(), 'type' => 'choice', 'stepName' => 'Rota',
+        'when'      => [['jsonPath' => '$.[?(@.tipo == "a")]', 'target' => 'a']], 'otherwise' => 'b'];
+
+    $suite = matrixFor(flowspecDocument([$choice], [
+        'a' => [jsonGenerator('{ "message": {{ message.m }} }', 'g1')],
+        // A REST call says nothing about what comes out, so a claim that holds
+        // for branch `a` is a claim that fails whenever `b` runs.
+        'b' => [['id' => (string) Str::uuid(), 'type' => 'connector', 'name' => 'rest-connector-v2', 'stepName' => 'Chama']],
+    ]));
+
+    expect(assertedPaths(happyPathOf($suite)))->toBe(['$']);
+});
+
+it('does not hang on a choice that routes back into a branch already walked', function () {
+    $choice = ['id' => (string) Str::uuid(), 'type' => 'choice', 'stepName' => 'Volta',
+        'when'      => [['jsonPath' => '$.[?(@.again == true)]', 'target' => 'loop']], 'otherwise' => 'fim'];
+
+    $suite = matrixFor(flowspecDocument([$choice], [
+        'loop' => [$choice],
+        'fim'  => [jsonGenerator('{ "ok": true }')],
+    ]));
+
+    expect(assertedPaths(happyPathOf($suite)))->toBe(['$', '$.ok']);
+});
