@@ -98,10 +98,12 @@ class RunPipelineTestSuite
         } catch (ConnectionException $e) {
             // A pipeline that never answers is a result, not an exception to
             // abort the suite with: the remaining cases still have something
-            // to say, and a timeout is itself a finding about this one.
-            return $case->evaluate(0, null);
+            // to say, and a timeout is itself a finding about this one. No
+            // headers are passed because there are none — a media-type claim
+            // then reports "veio nenhum", which is true.
+            return $case->evaluate(0, null, []);
         }
 
-        return $case->evaluate($response->status(), $response->json() ?? $response->body());
+        return $case->evaluate($response->status(), $response->json() ?? $response->body(), $response->headers());
     }
 }

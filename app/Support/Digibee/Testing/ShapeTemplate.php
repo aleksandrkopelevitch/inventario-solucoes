@@ -78,6 +78,27 @@ final readonly class ShapeTemplate
     }
 
     /**
+     * The media type this envelope declares, parameters stripped.
+     *
+     * Literal in all 105 envelopes of the tenant's corpus — and useless from
+     * here alone: only 3 of the 201 pipelines have every terminal declaring
+     * the SAME one, because a success branch answering JSON and an error
+     * branch answering XML is the norm. See
+     * BuildPipelineTestMatrix::responseContract() for the source that does
+     * settle it.
+     */
+    public function envelopeContentType(): ?string
+    {
+        $value = trim((string) ($this->value('Content-Type') ?? $this->value('content-type') ?? ''));
+
+        if (! str_starts_with($value, '"')) {
+            return null; // an expression, not a declaration
+        }
+
+        return strtolower(trim(explode(';', trim($value, '"'))[0]));
+    }
+
+    /**
      * The keys INSIDE the envelope's `body`, when it holds a literal object
      * rather than the `{{ TOSTRING(…) }}` it usually holds.
      *

@@ -1085,6 +1085,32 @@ terminal returns the same literal code. Yield over the 201: 18 pipelines gain
 30 real assertions and one gains an exact status — far short of the 70 with a
 derivable shape, and that gap IS the honesty.
 
+**The response's media type is the one claim made about a HEADER, and the
+source for it is the trigger rather than the flow.** `Content-Type` is literal
+in all 105 envelopes, which looks like it settles the question and does not:
+per PIPELINE the terminals agree only 3 times in 201, because a success branch
+answering JSON beside an error branch answering XML is the norm and the happy
+path does not know which one it took. `triggerSpec.responseContentTypes`
+constrains every response the endpoint can give, so a trigger declaring exactly
+one type claims it for all branches — rare in the legacy estate (53 specs list
+three, two list one) and universal in what this app generates, since
+`SynthesizeTriggerSpec` emits one. Three details the comparison needs:
+`PipelineTestCase::mediaTypeOf()` compares the MEDIA TYPE, never the raw header
+(the platform sends `application/json;charset=UTF-8` against a declared
+`application/json`, so equality fails every correct answer); a missing header
+with a claim standing is a FAILURE rather than "nothing to check", since the
+caller's parser needs the type; and the claim rides on the happy path alone,
+because the error and contract cases accept a status range on purpose and some
+of those answers come from the platform's gateway rather than the flow.
+
+**The battery is visible in the app** (`x-flowspec.test-matrix`, a `<details>`
+on the message that produced the flowSpec). It had no reader at all for a
+while, which made the blocked cases — the honest half of the whole matrix —
+readable only from PHP. Only a VALIDATED document gets one: a document with
+pending errors still builds a battery, but its cases describe a flow the
+validator already refused. No endpoint URL is rendered, because nothing has
+been ingested and the pipeline name is a slug of the conversation's title.
+
 **Running that matrix is `RunPipelineTestSuite`, and it is hostile traffic by
 design.** It refuses any environment outside
 `services.digibee.design.deployable_environments` — "may deploy here" and "may

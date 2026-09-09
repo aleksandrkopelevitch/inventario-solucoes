@@ -9,17 +9,42 @@ namespace App\Support\Digibee\Testing;
  */
 final readonly class CaseResult
 {
-    /** @param list<AssertionOutcome> $outcomes */
+    /**
+     * @param  list<AssertionOutcome>  $outcomes
+     * @param  string|null  $contentType  the response's media type, or null when
+     *                                    the caller had no headers to read
+     */
     public function __construct(
         public PipelineTestCase $case,
         public int $status,
         public bool $statusMatched,
         public array $outcomes = [],
+        public ?string $contentType = null,
     ) {}
 
     public function passed(): bool
     {
-        return $this->statusMatched && $this->failedAssertions() === [];
+        return $this->statusMatched && $this->failedAssertions() === [] && $this->contentTypeMatched() !== false;
+    }
+
+    /**
+     * Whether the response carried the declared media type — null when there
+     * was nothing to compare, which is not the same as a pass.
+     *
+     * A missing header with a claim standing is a FAILURE, deliberately: the
+     * caller's parser needs the type, and "the pipeline sent none" is exactly
+     * the bug this claim exists to catch. Only an evaluation with no headers
+     * at all (nobody read them) answers null.
+     */
+    public function contentTypeMatched(): ?bool
+    {
+        $expected = $this->case->expectsContentType;
+
+        if ($expected === null) {
+            return null;
+        }
+
+        return $this->contentType === strtolower($expected);
     }
 
     /** @return list<AssertionOutcome> */
@@ -35,6 +60,11 @@ final readonly class CaseResult
 
         if (! $this->statusMatched) {
             $failures[] = "Esperava {$this->case->expects->describe()}, veio {$this->status}.";
+        }
+
+        if ($this->contentTypeMatched() === false) {
+            $failures[] = "Esperava Content-Type {$this->case->expectsContentType}, veio "
+                . ($this->contentType ?? 'nenhum') . '.';
         }
 
         foreach ($this->failedAssertions() as $outcome) {

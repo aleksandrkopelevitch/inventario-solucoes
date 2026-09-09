@@ -505,3 +505,71 @@ it('forbids non-admins from managing guidelines', function () {
     $this->actingAs($viewer)->patchJson(route('flowspec.guidelines.update', $guideline), $payload)->assertForbidden();
     $this->actingAs($viewer)->deleteJson(route('flowspec.guidelines.destroy', $guideline))->assertForbidden();
 });
+
+/*
+|--------------------------------------------------------------------------
+| The test battery, on the message that produced the flowSpec
+|--------------------------------------------------------------------------
+*/
+
+it('shows the derived test battery on a validated flowSpec', function () {
+    $user = flowspecUser(UserRole::Writer);
+    $chat = FlowspecChat::factory()->for($user, 'user')->create(['title' => 'Consulta de cliente']);
+    $chat->messages()->create([
+        'role'      => 'assistant',
+        'content'   => 'Pronto.',
+        'flow_spec' => assistantFlowspec(),
+        'meta'      => ['validated' => true, 'attempts' => [['attempt' => 1, 'errors' => []]]],
+    ]);
+
+    $response = $this->actingAs($user)->get(route('flowspec.show', $chat));
+
+    // BuildPipelineTestMatrix existed since block E with no reader at all.
+    $response->assertOk()
+        ->assertSee('Bateria de testes')
+        ->assertSee('casos executáveis')
+        ->assertSee('Caminho feliz')
+        ->assertSee('flowspec-suite-', escape: false);
+});
+
+it('withholds the battery from a document the validator refused', function () {
+    $user = flowspecUser(UserRole::Writer);
+    $chat = FlowspecChat::factory()->for($user, 'user')->create();
+    $chat->messages()->create([
+        'role'      => 'assistant',
+        'content'   => 'Com pendências.',
+        'flow_spec' => assistantFlowspec(),
+        'meta'      => ['validated' => false, 'attempts' => [['attempt' => 1, 'errors' => ['algo errado']]]],
+    ]);
+
+    // A battery for a flow nobody can deploy is a test plan for nothing.
+    $this->actingAs($user)->get(route('flowspec.show', $chat))
+        ->assertOk()
+        ->assertDontSee('Bateria de testes');
+});
+
+it('names the blocked cases so the coverage debt is readable', function () {
+    $user = flowspecUser(UserRole::Writer);
+    $chat = FlowspecChat::factory()->for($user, 'user')->create();
+
+    $id = (string) Str::uuid();
+    $chat->messages()->create([
+        'role'      => 'assistant',
+        'content'   => 'Pronto.',
+        'flow_spec' => [
+            'meta'     => [$id => ['position' => ['x' => 200, 'y' => 0]]],
+            'flowSpec' => ['disconnected-root:' . Str::uuid() => [[
+                'id'       => $id, 'type' => 'connector', 'name' => 'json-generator-connector',
+                'stepName' => 'Response',
+                // Reads a field off the payload, so the happy path is owed a
+                // real value and says which.
+                'params' => ['json' => '{"cpf": {{ message.cpf }}}', 'failOnError' => false],
+            ]]],
+        ],
+        'meta' => ['validated' => true, 'attempts' => []],
+    ]);
+
+    $this->actingAs($user)->get(route('flowspec.show', $chat))
+        ->assertOk()
+        ->assertSee('Preencha valores reais para: cpf');
+});

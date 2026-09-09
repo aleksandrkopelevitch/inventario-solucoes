@@ -16,6 +16,12 @@ namespace App\Support\Digibee\Testing;
  *   the worst available: the case runs, takes the happy path, and reports the
  *   branch as covered. A blocked case is honest coverage debt; a fabricated
  *   one is a false green.
+ *
+ * `$expectsContentType` is the one claim made about a HEADER rather than the
+ * body, and it exists because the response's media type is the one thing a
+ * pipeline declares that its payload does not describe: a flow can return a
+ * perfectly shaped object with the wrong `Content-Type` and every body
+ * assertion still passes, while the caller's parser fails.
  */
 final readonly class PipelineTestCase
 {
@@ -36,6 +42,12 @@ final readonly class PipelineTestCase
         public array|string|null $body = null,
         public ?string $covers = null,
         public ?string $blocked = null,
+        /**
+         * The media type the response must carry, without parameters
+         * (`application/json`, never `application/json;charset=UTF-8`) —
+         * see mediaTypeOf().
+         */
+        public ?string $expectsContentType = null,
     ) {}
 
     /** Whether this case can be executed as generated, with nothing added. */
@@ -44,14 +56,45 @@ final readonly class PipelineTestCase
         return $this->blocked === null;
     }
 
-    public function evaluate(int $status, mixed $body): CaseResult
+    /**
+     * @param  array<string, string|list<string>>  $headers  the response's, for
+     *                                                       the media-type claim; absent means no claim can be checked
+     */
+    public function evaluate(int $status, mixed $body, array $headers = []): CaseResult
     {
         return new CaseResult(
             case: $this,
             status: $status,
             statusMatched: $this->expects->matches($status),
             outcomes: array_map(fn (Assertion $a) => $a->evaluate($body), $this->assertions),
+            contentType: $this->mediaTypeOf($headers),
         );
+    }
+
+    /**
+     * The response's media type, parameters stripped.
+     *
+     * Comparing the raw header would fail on every correct answer: the
+     * platform sends `application/json;charset=UTF-8` while a flowSpec
+     * declares `application/json`, so an equality check on the full value
+     * reports a mismatch that is only a charset. Case-insensitive for the
+     * same reason a gateway is.
+     *
+     * @param  array<string, string|list<string>>  $headers
+     */
+    private function mediaTypeOf(array $headers): ?string
+    {
+        foreach ($headers as $name => $value) {
+            if (strtolower((string) $name) !== 'content-type') {
+                continue;
+            }
+
+            $raw = is_array($value) ? ($value[0] ?? '') : $value;
+
+            return strtolower(trim(explode(';', (string) $raw)[0]));
+        }
+
+        return null;
     }
 
     /** @return array<string, mixed> */
@@ -67,10 +110,11 @@ final readonly class PipelineTestCase
                 'headers' => $this->headers,
                 'body'    => $this->body,
             ],
-            'expected' => [
+            'expected' => array_filter([
                 'status'         => $this->expects->spec,
+                'contentType'    => $this->expectsContentType,
                 'bodyAssertions' => array_map(fn (Assertion $a) => $a->toArray(), $this->assertions),
-            ],
+            ], fn ($value) => $value !== null),
         ], fn ($value) => $value !== null);
     }
 

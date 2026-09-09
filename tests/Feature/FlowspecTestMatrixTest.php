@@ -582,3 +582,53 @@ it('does not hang on a choice that routes back into a branch already walked', fu
 
     expect(assertedPaths(happyPathOf($suite)))->toBe(['$', '$.ok']);
 });
+
+it('takes the media type from the trigger, which constrains every branch', function () {
+    $document = flowspecDocument([jsonGenerator('{ "mensagem": {{ message.texto }} }')]);
+    // What SynthesizeTriggerSpec emits, and what a read-back pipeline carries.
+    $document['triggerSpec'] = ['type' => 'rest', 'responseContentTypes' => ['application/json']];
+
+    expect(happyPathOf(matrixFor($document))->expectsContentType)->toBe('application/json');
+});
+
+it('claims no media type when the trigger allows several', function () {
+    $document = flowspecDocument([jsonGenerator('{ "mensagem": {{ message.texto }} }')]);
+    // 53 of the tenant's specs list three, which is why this claims nothing
+    // for most of the legacy estate.
+    $document['triggerSpec'] = ['responseContentTypes' => ['text/xml', 'application/xml', 'application/json']];
+
+    expect(happyPathOf(matrixFor($document))->expectsContentType)->toBeNull();
+});
+
+it('falls back to the terminals when they all declare the same media type', function () {
+    $suite = matrixFor(flowspecDocument([
+        jsonGenerator('{ "code": 200, "body": {{ TOSTRING(message.$) }}, "Content-Type": "application/json" }'),
+    ]));
+
+    expect(happyPathOf($suite)->expectsContentType)->toBe('application/json');
+});
+
+it('claims no media type when two terminals declare different ones', function () {
+    $choice = ['id' => (string) Str::uuid(), 'type' => 'choice', 'stepName' => 'Deu certo?',
+        'when'      => [['jsonPath' => '$.[?(@.ok == true)]', 'target' => 'sucesso']], 'otherwise' => 'erro'];
+
+    // The norm in the corpus: only 3 of 201 pipelines have every terminal
+    // agreeing, and the happy path does not know which branch it took.
+    $suite = matrixFor(flowspecDocument([$choice], [
+        'sucesso' => [jsonGenerator('{ "code": 200, "body": {{ TOSTRING(message.$) }}, "Content-Type": "application/json" }', 'g1')],
+        'erro'    => [jsonGenerator('{ "code": 500, "body": {{ TOSTRING(message.$) }}, "Content-Type": "text/xml" }', 'g2')],
+    ]));
+
+    expect(happyPathOf($suite)->expectsContentType)->toBeNull();
+});
+
+it('puts the media-type claim on the happy path only', function () {
+    $document = flowspecDocument([jsonGenerator('{ "mensagem": {{ message.texto }} }')]);
+    $document['triggerSpec'] = ['responseContentTypes' => ['application/json']];
+
+    $others = array_slice(matrixFor($document)->cases, 1);
+
+    // The other categories accept a range of statuses on purpose, and some of
+    // those answers come from the platform's gateway rather than the flow.
+    expect(array_filter($others, fn ($case) => $case->expectsContentType !== null))->toBe([]);
+});
