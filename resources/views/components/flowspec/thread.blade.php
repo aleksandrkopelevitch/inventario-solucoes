@@ -150,6 +150,9 @@
                         </details>
                     @endif
 
+                    {{-- Bateria de testes derivada do documento (só quando validado) --}}
+                    <x-flowspec.test-matrix :message="$message" :pipeline-name="$chat->title" />
+
                     {{-- JSON pronto para colar --}}
                     <div class="relative mt-3">
                         <pre id="flowspec-json-{{ $message->id }}"

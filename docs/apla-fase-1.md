@@ -25,7 +25,7 @@ sem descobrir quatro subsistemas depois que a premissa estava errada.
 | B — modo de ingestão no normalizador/validador | **feito** — 31 testes em `tests/Feature/FlowspecIngestionTest.php` (§ O que a ingestão escreve) |
 | C — síntese de `triggerSpec` | **feito** — 19 testes em `tests/Feature/DigibeeTriggerSpecTest.php` (§ O que o triggerSpec sintetiza) |
 | D — runner de deploy (pela API) | **metade feita** — o runner de testes existe e é testado sem rede (§ O runner, sem a rede); falta o deploy, bloqueado por permissão |
-| E — matriz de testes sintéticos + avaliador de asserções | **feito** — 36 testes em `tests/Feature/FlowspecTestMatrixTest.php`, e as 201 do export constroem sem erro (§ O que a matriz produz, § O contrato de resposta) |
+| E — matriz de testes sintéticos + avaliador de asserções | **feito** — 41 testes em `tests/Feature/FlowspecTestMatrixTest.php`, as 201 do export constroem sem erro, e a bateria aparece na conversa do F8 (§ O que a matriz produz, § O contrato de resposta, § A bateria na tela) |
 | F — loop de auto-correção com evidência de runtime | não começado |
 | G — portão de promoção para `prod` | não começado |
 
@@ -802,10 +802,31 @@ asserções novas) e 1 ganha status exato**. É bem menos que os 70 com forma
 derivável, e a diferença é justamente a honestidade — nos 51 envelopes o `body`
 é `{{ TOSTRING(...) }}`, que o documento genuinamente não descreve.
 
-O próximo ganho disponível está medido e não foi feito: **`Content-Type` é
-literal nos 105 envelopes**, então dá para afirmar o tipo da resposta assim que
-uma asserção puder olhar HEADER e não só corpo (hoje `Assertion::evaluate()`
-recebe apenas o corpo).
+**O tipo da resposta também é afirmado agora, e a fonte não é a que eu esperava.**
+`Content-Type` é literal nos 105 envelopes, o que parecia dar a afirmação de
+graça — mas o que importa é a concordância POR PIPELINE, e aí são **3 de 201**:
+o normal é a branch de sucesso responder JSON e a de erro responder XML, e o
+caminho feliz não sabe qual pegou.
+
+Quem resolve é o TRIGGER. `triggerSpec.responseContentTypes` restringe toda
+resposta que o endpoint pode dar, então quando ele declara exatamente um tipo a
+afirmação vale para qualquer branch. No legado isso quase não acontece (53 specs
+listam três tipos, 2 listam um), mas vale para **tudo que este app gera**, já
+que `SynthesizeTriggerSpec` emite exatamente um — a afirmação cresce com os
+pipelines que a gente escreve, que é o lado certo.
+
+Três detalhes que a comparação exige:
+
+- **Compara MEDIA TYPE, não o header.** A plataforma manda
+  `application/json;charset=UTF-8` e o flowSpec declara `application/json`;
+  igualdade no valor cru reprova toda resposta correta por causa de um charset.
+- **Header ausente com afirmação de pé é FALHA**, não "não deu para checar": o
+  parser de quem chama precisa do tipo, e "o pipeline não mandou nenhum" é
+  exatamente o defeito que isso existe para pegar.
+- **A afirmação anda só no caminho feliz.** Os casos de erro e de contrato
+  aceitam faixa de status de propósito (`!5xx`), e parte dessas respostas vem do
+  gateway da plataforma e não do fluxo — asserir o tipo declarado contra um erro
+  de gateway reprova por algo que o pipeline não fez.
 
 ---
 
@@ -842,6 +863,33 @@ de configuração: quem consome um pipeline implantado usa Basic Auth, API key o
 um JWT que a plataforma emitiu, e isso pertence a quem é dono daquela
 integração. Mandar o token do design para o host de runtime seria despachar uma
 credencial de realm inteiro para outro serviço.
+
+---
+
+## A bateria na tela
+
+`BuildPipelineTestMatrix` existia desde o Bloco E **sem nenhum leitor**: derivava
+uma mediana de 11 casos por documento e nada no app mostrava um, então a dívida
+de cobertura que ela reporta com tanto cuidado ("preencha valores reais para:
+cpf") só era visível de dentro do PHP. Os casos BLOQUEADOS são o ponto — um caso
+que alguém ainda deve só serve se alguém ler.
+
+`x-flowspec.test-matrix` é um `<details>` na própria mensagem que produziu o
+flowSpec: cobertura no resumo, um item por caso (categoria, método, status
+esperado, tipo de resposta, branch que cobre, e o motivo quando está bloqueado)
+e o documento `testSuite` do §3.4 inteiro com "Copiar bateria" — é o artefato
+que viaja entre gerador, runner e loop, então ele é oferecido inteiro e não como
+uma leitura enfeitada de si mesmo.
+
+Duas escolhas:
+
+- **Só documento VALIDADO ganha bateria.** Um documento com pendências também
+  constrói uma (a matriz é tolerante de propósito), mas os casos descrevem um
+  fluxo que o validador já recusou — oferecer isso é oferecer plano de teste
+  para o que ninguém pode implantar.
+- **Nenhuma URL é renderizada.** O nome do pipeline sai do título da conversa
+  em slug, porque nada foi ingerido ainda; montar `endpointUrl()` a partir
+  desse palpite seria mostrar um endereço que não existe.
 
 ---
 

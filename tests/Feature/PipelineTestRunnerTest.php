@@ -217,3 +217,57 @@ it('refuses an environment with no host mapped instead of defaulting to one', fu
     expect(fn () => app(RunPipelineTestSuite::class)->handle(suiteWith([okCase()], 'homolog')))
         ->toThrow(DigibeeApiException::class, 'No runtime host configured');
 });
+
+/*
+|--------------------------------------------------------------------------
+| The one claim about a header
+|--------------------------------------------------------------------------
+*/
+
+function contentTypeCase(string $expected = 'application/json'): PipelineTestCase
+{
+    return new PipelineTestCase(
+        name: 'Caminho feliz',
+        category: TestCaseCategory::HappyPath,
+        expects: StatusExpectation::ok(),
+        expectsContentType: $expected,
+    );
+}
+
+it('passes when the response carries the declared media type, charset and all', function () {
+    withRuntime();
+    Http::fake(['*' => Http::response(['ok' => true], 200, ['Content-Type' => 'application/json;charset=UTF-8'])]);
+
+    // Comparing the raw header would fail on every correct answer.
+    expect(app(RunPipelineTestSuite::class)->handle(suiteWith([contentTypeCase()]))->passed())->toBeTrue();
+});
+
+it('fails when the pipeline answers with another media type', function () {
+    withRuntime();
+    Http::fake(['*' => Http::response('<xml/>', 200, ['Content-Type' => 'text/xml'])]);
+
+    $run = app(RunPipelineTestSuite::class)->handle(suiteWith([contentTypeCase()]));
+
+    // A perfectly shaped body with the wrong type still breaks the caller's
+    // parser, which is the whole reason this claim exists.
+    expect($run->passed())->toBeFalse()
+        ->and(implode(' ', $run->failures()))->toContain('Esperava Content-Type application/json, veio text/xml');
+});
+
+it('fails when the pipeline sends no content type at all', function () {
+    withRuntime();
+    Http::fake(['*' => Http::response('', 200, [])]);
+
+    expect(implode(' ', app(RunPipelineTestSuite::class)->handle(suiteWith([contentTypeCase()]))->failures()))
+        ->toContain('veio nenhum');
+});
+
+it('claims nothing about the media type when the document declared none', function () {
+    withRuntime();
+    Http::fake(['*' => Http::response(['mensagem' => 'ok'], 200, ['Content-Type' => 'text/plain'])]);
+
+    $run = app(RunPipelineTestSuite::class)->handle(suiteWith([okCase()]));
+
+    expect($run->results[0]->contentTypeMatched())->toBeNull()
+        ->and($run->passed())->toBeTrue();
+});

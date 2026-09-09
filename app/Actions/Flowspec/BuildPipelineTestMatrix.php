@@ -74,7 +74,7 @@ class BuildPipelineTestMatrix
             // runner calls, so it is carried rather than assumed to be 1.
             versionMajor: (int) ($document['versionMajor'] ?? 1),
             cases: [
-                $this->happyPath($skeleton, $fields, $this->responseContract($spec, $entry)),
+                $this->happyPath($skeleton, $fields, $this->responseContract($document, $spec, $entry)),
                 ...$this->branchCoverage($spec, $entry, $skeleton),
                 ...$this->errorHandlers($spec),
                 ...$this->contractCases($skeleton, $fields),
@@ -169,8 +169,8 @@ class BuildPipelineTestMatrix
 
     /** @param list<string> $fields */
     /**
-     * @param  array{keys: list<string>, status: int|null}  $contract  what the
-     *                                                                 flowSpec's terminal steps DECLARE about the response
+     * @param  array{keys: list<string>, status: int|null, contentType: string|null}  $contract
+     *                                                                                           what the document DECLARES about the response
      */
     private function happyPath(array $skeleton, array $fields, array $contract): PipelineTestCase
     {
@@ -194,6 +194,13 @@ class BuildPipelineTestMatrix
                     $contract['keys'],
                 ),
             ],
+            // The media-type claim rides on the happy path ALONE. The error
+            // and contract cases accept a range of statuses on purpose
+            // (`!5xx`), and some of those answers come from the platform's own
+            // gateway rather than from the flow — asserting the flow's
+            // declared type against a gateway error would fail for something
+            // the pipeline did not do.
+            expectsContentType: $contract['contentType'],
             body: $skeleton,
             blocked: $fields === []
                 ? null
@@ -238,11 +245,12 @@ class BuildPipelineTestMatrix
      *   names it. 68 of the 70 pipelines with a derivable shape have a
      *   non-empty intersection; the other two claim nothing.
      *
-     * @return array{keys: list<string>, status: int|null}
+     * @param  array<string, mixed>  $document
+     * @return array{keys: list<string>, status: int|null, contentType: string|null}
      */
-    private function responseContract(FlowspecDocument $spec, ?string $entry): array
+    private function responseContract(array $document, FlowspecDocument $spec, ?string $entry): array
     {
-        $nothing = ['keys' => [], 'status' => null];
+        $nothing = ['keys' => [], 'status' => null, 'contentType' => $this->declaredContentType($document)];
 
         if ($entry === null) {
             return $nothing;
@@ -286,9 +294,57 @@ class BuildPipelineTestMatrix
         }
 
         return [
-            'keys'   => array_values($keys ?? []),
-            'status' => $isEnvelope ? $this->agreedStatus($templates) : null,
+            'keys'        => array_values($keys ?? []),
+            'status'      => $isEnvelope ? $this->agreedStatus($templates) : null,
+            'contentType' => $this->declaredContentType($document) ?? ($isEnvelope ? $this->agreedContentType($templates) : null),
         ];
+    }
+
+    /**
+     * The media type the TRIGGER declares, when it declares exactly one.
+     *
+     * This is the source that actually settles the question, and it is not the
+     * terminal steps: `Content-Type` is literal in all 105 envelopes of the
+     * corpus, yet only 3 of the 201 pipelines have every terminal declaring
+     * the same one — a success branch answering JSON beside an error branch
+     * answering XML is the norm, and the happy path does not know which
+     * branch it took.
+     *
+     * `triggerSpec.responseContentTypes` has no such problem: it constrains
+     * every response the endpoint can give. The catch is the corpus again —
+     * 53 of the tenant's specs list three types and only 2 list one, so this
+     * claims nothing for most of the legacy estate. What it does cover is
+     * everything this app GENERATES, since SynthesizeTriggerSpec emits exactly
+     * one type. The claim grows with the pipelines we write, which is the
+     * right way round.
+     *
+     * @param  array<string, mixed>  $document
+     */
+    private function declaredContentType(array $document): ?string
+    {
+        $declared = Arr::get($document, 'triggerSpec.responseContentTypes');
+
+        if (! is_array($declared) || count($declared) !== 1 || ! is_string($declared[0] ?? null)) {
+            return null;
+        }
+
+        return strtolower(trim(explode(';', $declared[0])[0]));
+    }
+
+    /**
+     * The media type every terminal declares, when they all declare the same
+     * one — the fallback for a document with no `triggerSpec`, which is what a
+     * freshly generated `{meta, flowSpec}` is.
+     *
+     * @param  list<ShapeTemplate>  $templates
+     */
+    private function agreedContentType(array $templates): ?string
+    {
+        $types = array_map(fn (ShapeTemplate $t) => $t->envelopeContentType(), $templates);
+
+        return in_array(null, $types, true) || count(array_unique($types)) !== 1
+            ? null
+            : $types[0];
     }
 
     /**
