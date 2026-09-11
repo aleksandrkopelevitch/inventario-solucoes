@@ -81,6 +81,21 @@ class DeployPipeline
 
         $pipelineId = (string) ($pipeline['id'] ?? '');
 
+        // Only a RELEASED version deploys. All 111 deployments in `test` are
+        // v1, no pipeline lists a v0, and a v0.0 pipeline answers this route
+        // with 404 "No such entity" — which reads as a wrong id and is not.
+        // Versioning happens in the canvas; no API route for it has been found.
+        if ((int) ($pipeline['versionMajor'] ?? 0) < 1) {
+            return new DeploymentReport(
+                pipelineName: $pipelineName,
+                environment: $environment,
+                pipelineId: $pipelineId,
+                errors: ['O pipeline está em v0.0 — um rascunho nunca implantado não tem versão publicada, '
+                    . 'e a plataforma responde 404 "No such entity" a isso. Publique uma versão no canvas primeiro; '
+                    . 'os 111 deployments de `test` são todos v1.'],
+            );
+        }
+
         if (($pipeline['triggerSpec'] ?? []) === []) {
             $warnings[] = 'O pipeline não tem triggerSpec: ele sobe, mas não ganha URL — '
                 . 'a bateria de testes não vai ter o que chamar.';
@@ -92,22 +107,28 @@ class DeployPipeline
             $warnings[] = 'Já existe deployment desse pipeline no ambiente, e o redeploy não foi pedido.';
         }
 
-        $payload = $this->payload($pipelineId, $environment, $size, $redeploy && $existing !== []);
+        $payload = $this->payload($pipelineId, $size, $redeploy && $existing !== []);
 
         if ($dryRun) {
+            // `$existing[0]?->` does NOT guard a missing index — the null-safe
+            // operator only guards a null value — so a pipeline nobody has
+            // deployed yet raised "Undefined array key 0" on the one path that
+            // exists to be safe.
+            $current = $existing[0] ?? null;
+
             return new DeploymentReport(
                 pipelineName: $pipelineName,
                 environment: $environment,
                 pipelineId: $pipelineId,
-                deploymentId: $existing[0]?->id(),
-                status: $existing[0]?->status() ?? DeploymentStatus::Unknown,
-                endpoint: $existing[0]?->endpoint(),
+                deploymentId: $current?->id(),
+                status: $current?->status() ?? DeploymentStatus::Unknown,
+                endpoint: $current?->endpoint(),
                 warnings: [...$warnings, 'Dry run: o corpo montado tem as chaves '
                     . implode(', ', array_keys($payload)) . '.'],
             );
         }
 
-        $this->client->deploy($payload);
+        $this->client->deploy($payload, $environment);
 
         return $this->awaitSettled($pipelineName, $environment, $pipelineId, $timeoutSeconds, $warnings);
     }
@@ -115,20 +136,24 @@ class DeployPipeline
     /**
      * The request body.
      *
-     * **Unverified against the platform when it was written** — the route
-     * answered 403 to every credential available until the scoped token
-     * existed, so these keys come from `digibeectl create deployment`'s own
-     * flags plus the `activeConfiguration` of deployments that already exist.
-     * A 400 from this route is information about the payload, not about the
-     * pipeline.
+     * The pipeline is named by `id`, NOT by `pipelineId` — probed on
+     * 2026-09-11, and the two answer differently: `id` makes the handler look
+     * something up (404 "No such entity" for a pipeline with no released
+     * version) while `pipelineId` leaves it holding nothing (500 "The given id
+     * must not be null"). The remaining keys are `digibeectl create
+     * deployment`'s own flags, accepted structurally by the handler.
+     *
+     * The environment is deliberately absent — it goes in the query string,
+     * and putting it here is what produced three identical 403s before anyone
+     * realised the denial was about a field the server never read
+     * (`DigibeeDesignClient::deploy()` has the full account).
      *
      * @return array<string, mixed>
      */
-    private function payload(string $pipelineId, string $environment, string $size, bool $redeploy): array
+    private function payload(string $pipelineId, string $size, bool $redeploy): array
     {
         return [
-            'pipelineId'   => $pipelineId,
-            'environment'  => $environment,
+            'id'           => $pipelineId,
             'pipelineSize' => strtoupper($size),
             'redeploy'     => $redeploy,
         ];

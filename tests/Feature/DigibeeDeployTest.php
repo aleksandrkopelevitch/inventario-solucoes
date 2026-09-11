@@ -203,7 +203,7 @@ it('reports what it would send on a dry run, without deploying', function () {
     $report = app(DeployPipeline::class)->handle('meu-pipeline', dryRun: true);
 
     expect($report->deployed)->toBeFalse()
-        ->and(implode(' ', $report->warnings))->toContain('pipelineId');
+        ->and(implode(' ', $report->warnings))->toContain('id, pipelineSize, redeploy');
 
     Http::assertNotSent(fn (Request $request) => $request->method() === 'POST');
 });
@@ -219,4 +219,53 @@ it('refuses a pipeline the realm does not have', function () {
 
     expect($report->ok())->toBeFalse()
         ->and(implode(' ', $report->errors))->toContain('Nenhum pipeline');
+});
+
+it('dry-runs a pipeline that has never been deployed', function () {
+    withDeployConfig();
+    fakeDeployApi([]); // no deployment at all — the state every first deploy is in
+
+    $report = app(DeployPipeline::class)->handle('meu-pipeline', dryRun: true);
+
+    expect($report->ok())->toBeTrue()
+        ->and($report->deploymentId)->toBeNull()
+        ->and($report->status)->toBe(DeploymentStatus::Unknown);
+});
+
+it('sends the environment in the query string, where the permission check reads it', function () {
+    withDeployConfig();
+    fakeDeployApi([deploymentRow()]);
+
+    app(DeployPipeline::class)->handle('meu-pipeline');
+
+    // Three identical 403s came from putting this in the body: the check runs
+    // before the handler and is environment-scoped, so a request whose
+    // environment the server cannot see is evaluated against nothing.
+    Http::assertSent(fn (Request $request) => $request->method() === 'POST'
+        && str_contains($request->url(), 'environment=test')
+        && ! array_key_exists('environment', $request->data()));
+});
+
+it('refuses a v0 draft with the reason, instead of forwarding a 404 that reads as a wrong id', function () {
+    withDeployConfig();
+    fakeDeployApi([], ['id' => 'pid-1', 'name' => 'meu-pipeline', 'versionMajor' => 0, 'versionMinor' => 0, 'triggerSpec' => ['type' => 'rest']]);
+
+    $report = app(DeployPipeline::class)->handle('meu-pipeline');
+
+    expect($report->ok())->toBeFalse()
+        ->and(implode(' ', $report->errors))->toContain('v0.0');
+
+    Http::assertNotSent(fn (Request $request) => $request->method() === 'POST');
+});
+
+it('names the pipeline by `id`, which is the key the handler reads', function () {
+    withDeployConfig();
+    fakeDeployApi([deploymentRow()]);
+
+    app(DeployPipeline::class)->handle('meu-pipeline');
+
+    // `pipelineId` leaves the handler holding nothing: "The given id must not
+    // be null".
+    Http::assertSent(fn (Request $request) => $request->method() === 'POST'
+        && ($request->data()['id'] ?? null) === 'pid-1');
 });

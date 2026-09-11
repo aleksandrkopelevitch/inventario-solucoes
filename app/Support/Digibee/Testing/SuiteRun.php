@@ -33,7 +33,55 @@ final readonly class SuiteRun
 
     public function passed(): bool
     {
-        return $this->results !== [] && $this->failed() === [];
+        return $this->results !== []
+            && $this->failed() === []
+            && ! $this->nothingAnswered();
+    }
+
+    /**
+     * Every case came back 404 — which is not a pipeline handling bad input,
+     * it is nothing being there.
+     *
+     * This exists because the suite produced a false green in exactly that
+     * situation: three `!5xx` cases fired at an undeployed pipeline, each got
+     * a 404, each "passed", and the run reported itself green. A 404 is a
+     * legitimate answer FROM a pipeline (a route that rejects an unknown
+     * path), so the signal is not the status alone — it is every single case
+     * getting it.
+     */
+    public function nothingAnswered(): bool
+    {
+        if ($this->results === []) {
+            return false;
+        }
+
+        foreach ($this->results as $result) {
+            if ($result->status !== 404) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Whether the case that actually proves the pipeline WORKS was run and
+     * passed.
+     *
+     * A suite whose happy path is blocked (waiting on a real CPF, say) can
+     * still be all-green on its negative cases, and calling that "green" says
+     * the pipeline works when nothing has shown that it does. The tally is
+     * honest; the word is not.
+     */
+    public function provenByHappyPath(): bool
+    {
+        foreach ($this->results as $result) {
+            if ($result->case->category === TestCaseCategory::HappyPath && $result->passed()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

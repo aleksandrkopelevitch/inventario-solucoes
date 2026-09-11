@@ -199,21 +199,35 @@ class DigibeeDesignClient
     /**
      * Creates (or re-creates) a deployment.
      *
-     * **The body shape is the one thing in this client that was never verified
-     * against the platform before it was written.** Every route above came out
-     * of A′/A″; this one answered 403 to the credential those ran with, so the
-     * payload below is derived from `digibeectl create deployment`'s own flags
-     * (`--pipeline-id`, `--environment`, `--pipeline-size`, `--consumers`,
-     * `--replicas`, `--redeploy`) plus the shape of `activeConfiguration` on a
-     * deployment that already exists. Treat a 400 here as information about
-     * the payload rather than about the pipeline.
+     * **The environment is a QUERY parameter, and that is not a detail.**
+     * Verified 2026-09-11, after the obvious shape — `environment` inside the
+     * body, mirroring `digibeectl create deployment --environment` — answered
+     * **403 "Access denied"** three times over. The permission check runs
+     * before the handler and is environment-scoped, so a request whose
+     * environment the server cannot see is evaluated against nothing and
+     * denied. Moving the same value to `?environment=` got straight through to
+     * the handler, which then answered about the pipeline instead.
+     *
+     * The consequence for anything reading these errors — the correction loop
+     * above all — is that on THIS route a 403 can be payload information
+     * rather than a permission fact. The tell is that it does not change when
+     * the environment does: `environment=test` and `environment=nao-existe`
+     * gave byte-identical denials.
+     *
+     * The remaining body keys (`pipelineId`, `pipelineSize`, `redeploy`) come
+     * from the CLI's own flags; the handler accepted them structurally on the
+     * first request that reached it.
      *
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */
-    public function deploy(array $payload): array
+    public function deploy(array $payload, string $environment): array
     {
-        $body = $this->json('POST', "/runtime/realms/{$this->realm()}/deployments", $payload);
+        $body = $this->json(
+            'POST',
+            "/runtime/realms/{$this->realm()}/deployments?" . http_build_query(['environment' => $environment]),
+            $payload,
+        );
 
         return is_array($body) ? $body : [];
     }

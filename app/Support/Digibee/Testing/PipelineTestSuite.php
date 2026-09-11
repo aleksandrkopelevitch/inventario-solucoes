@@ -54,6 +54,16 @@ final readonly class PipelineTestSuite
             throw DigibeeApiException::unknownEnvironment($this->environment);
         }
 
+        // `/v0/` addresses nothing: a pipeline is only reachable once a
+        // version is released, and every deployment in the tenant is v1 or
+        // above. Composing it anyway is worse than failing, because the URL
+        // answers 404 and a suite full of `!5xx` cases then PASSES against an
+        // endpoint that does not exist — which is the false green this whole
+        // matrix is built to avoid.
+        if ($this->versionMajor < 1) {
+            throw DigibeeApiException::unreleasedPipeline($this->pipelineName);
+        }
+
         return rtrim($host, '/') . "/pipeline/{$realm}/v{$this->versionMajor}/{$this->pipelineName}";
     }
 

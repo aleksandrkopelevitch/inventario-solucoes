@@ -1180,13 +1180,19 @@ it. `RunPipelineTestSuite` prefers that over composing one from
 address assembled wrong calls another environment while the report says this
 one. Composition stays as the fallback for a pipeline nothing has deployed yet.
 
-One thing there is NOT verified: the deploy POST's body. Every other route in
-this feature came out of phase A′/A″, but this one answered 403 to every
-credential available until the scoped token existed, so its keys are derived
-from `digibeectl create deployment`'s flags plus the `activeConfiguration` of
-an existing deployment. **A 400 from that route is information about the
-payload, not about the pipeline** — both docblocks say so, because reading it
-the other way would send a correction loop after a flowSpec that is fine.
+**On the deploy route, a 403 and a 404 can both be information about the
+PAYLOAD** — which is the opposite of what those statuses usually mean, and it
+cost three identical denials to learn. The environment is a QUERY parameter:
+put it in the body, as `digibeectl --environment` suggests, and the
+permission check (which runs before the handler and is environment-scoped) sees
+no environment, evaluates against nothing and answers 403. The tell was that the
+denial did not change when the environment did. The pipeline is named by `id`,
+not `pipelineId` — the first makes the handler look something up, the second
+leaves it holding null. And only a RELEASED version deploys: all 111 deployments
+in `test` are v1, no pipeline lists a v0, and a v0.0 draft answers 404 "No such
+entity", which reads as a wrong id and is not. `DeployPipeline` refuses a v0.0
+before calling, with that explanation, rather than forwarding a 404 that lies
+about its cause.
 
 `digibeectl` is still not involved and the boundary in
 `App\Support\Digibee\DigibeectlClient` is untouched — this is HTTP with the
