@@ -19,10 +19,10 @@ sem descobrir quatro subsistemas depois que a premissa estava errada.
 | Bloco | Situação |
 |---|---|
 | Reconhecimento — `digibeectl`, export real, docs | **feito** (2026-09-04) |
-| A — resolução de credencial + cliente HTTP + probe read-only | **feito** — 13 testes em `tests/Feature/DigibeeDesignProbeTest.php`, suíte inteira verde (1237) |
+| A — resolução de credencial + cliente HTTP + probe read-only | **feito** — 17 testes em `tests/Feature/DigibeeDesignProbeTest.php`, suíte inteira verde (1371) |
 | A′ — **rodar** o probe contra o tenant | **feito** (2026-09-04) — as três rotas respondem, e o pipeline volta com as 34 chaves (§ O que o probe respondeu) |
 | A″ — verificar os **verbos de escrita** | **feito, e agora com o token escopado** — cria, faz upsert e relê idêntico (§ O que o token escopado respondeu) |
-| B — modo de ingestão no normalizador/validador | **feito** — 31 testes em `tests/Feature/FlowspecIngestionTest.php` (§ O que a ingestão escreve) |
+| B — modo de ingestão no normalizador/validador | **feito** — 36 testes em `tests/Feature/FlowspecIngestionTest.php` (§ O que a ingestão escreve) |
 | C — síntese de `triggerSpec` | **feito** — 19 testes em `tests/Feature/DigibeeTriggerSpecTest.php` (§ O que o triggerSpec sintetiza) |
 | D — runner de deploy (pela API) | **feito, com uma ressalva** — 12 testes em `tests/Feature/DigibeeDeployTest.php`; o CORPO do POST é o único pedaço desta feature nunca verificado contra a plataforma (§ O deploy) |
 | E — matriz de testes sintéticos + avaliador de asserções | **feito** — 41 testes em `tests/Feature/FlowspecTestMatrixTest.php`, as 201 do export constroem sem erro, e a bateria aparece na conversa do F8 (§ O que a matriz produz, § O contrato de resposta, § A bateria na tela) |
@@ -484,12 +484,18 @@ Quatro coisas de forma que não estão na tabela:
 
 ### O que ainda não se sabe
 
-- **Como um pipeline vai para um projeto.** `projectId` é aceito e descartado em
-  duas rotas, e `/projects/{id}/pipelines` dá 403. A flag do CLI é `--project`
-  ("name or id"), então o campo tem outro nome.
-- **Quem pode criar deployment.** Pergunta de administração de realm, não de
-  código (§ Bloqueios).
-- **O que versiona um pipeline**, e portanto o `v{n}` da URL de runtime.
+- **Como um pipeline vai para um projeto** pela API. `projectId` é aceito e
+  descartado em duas rotas. Sabe-se agora que associar pipeline a projeto é uma
+  OPERAÇÃO com permissão própria (`PROJECT:UPDATE:LINK-WITH-PIPELINE`, de papel)
+  e que o CLI filia no `create pipeline --project` — então o contorno é criar a
+  casca no projeto certo e só fazer upsert. A rota da API segue desconhecida, e
+  deixou de estar no caminho crítico.
+- ~~**Quem pode criar deployment.**~~ Respondido: um token com
+  `DEPLOYMENT:CREATE{ENV=TEST}`, que existe e está em uso.
+- ~~**O que versiona um pipeline**, e portanto o `v{n}` da URL de runtime.~~
+  Deixou de importar para a URL: a plataforma REPORTA o endereço em
+  `deploymentStatus.trigger` e o runner usa esse (§ O deploy). Continua sem
+  resposta como pergunta sobre versionamento, e continua sem consumidor.
 - **Se `POST /pipelines` valida o `flowSpec`.** O upsert aceitou um `start` com
   um step; um documento inválido pode passar igual e só quebrar no canvas — que
   é exatamente a falha que o `DigibeeFlowspecValidator` existe para pegar antes.
@@ -1044,8 +1050,10 @@ que este app colocaria algo no ar.
 
 - [x] Credencial resolvida por ambiente primeiro, arquivo do `digibeectl`
       depois, com a origem de cada campo reportada e **nenhum valor** impresso.
-- [x] JWT enviado **cru** no `Authorization` (sem `Bearer`) — `withToken()`
-      responderia 401 num token perfeitamente válido.
+- [x] JWT enviado no `Authorization` com o esquema que a credencial pede:
+      **cru** para sessão interativa, **`Bearer`** para token escopado. As duas
+      metades foram medidas contra o realm, e cada uma responde 401 com o
+      esquema da outra (§ O esquema do header depende de QUAL credencial é).
 - [x] Probe só faz GET, e isso é propriedade da classe, não do argumento.
 - [x] 401, 403 e 404 são três notícias diferentes, reportadas juntas numa
       rodada, em vez de a primeira encerrar a execução.
@@ -1054,7 +1062,10 @@ que este app colocaria algo no ar.
       aqui (§ O que o probe respondeu).
 - [x] Verbos de escrita de design verificados: cria, atualiza (upsert por
       `POST` na coleção) e o `flowSpec` sobrevive byte-idêntico.
-- [ ] Deploy verificado — bloqueado por permissão, não por rota.
+- [ ] Deploy verificado. **Não é mais bloqueio de permissão** — o token traz
+      `DEPLOYMENT:CREATE{ENV=TEST}` e o Bloco D está construído e testado; o que
+      falta provar é o CORPO do POST, que custa um deploy real em `test`
+      (§ O que o deploy ainda NÃO provou).
 - [x] Matriz de testes derivada do flowSpec, com o que não dá para derivar
       reportado como dívida de cobertura em vez de payload inventado.
 
@@ -1110,15 +1121,16 @@ o droplet.
 
 ## Antes de construir em cima
 
-- **`AGENTS.md` ainda afirma a regra absoluta** ("never runs on the server"), e
-  o bloco novo em `config/services.php` já documenta a reversão. Os dois não
-  podem discordar: quando o usuário restrito existir, a seção do `AGENTS.md`
-  precisa ganhar a distinção entre a credencial de login e a de serviço. Até
-  lá, a regra como está escrita é a que vale.
+- ~~**`AGENTS.md` ainda afirma a regra absoluta**~~ — feito em 2026-09-11: a
+  seção § `digibeectl` never runs on the server ganhou a distinção entre a
+  credencial de login (que segue proibida no servidor, e é a que
+  `digibee:pipelines:pull` usa) e o token escopado (que é outro objeto de
+  risco). O binário continua fora do servidor; o que mudou é que existe uma
+  credencial estreita para a API.
 - **O probe não está em `routes/console.php`, e não deve entrar.** Nada nele é
   periódico: roda uma vez, por uma pessoa, quando a credencial ou a rota muda.
-- **Uma sessão do `digibeectl` é curta.** Se a credencial de serviço acabar
-  sendo um JWT com validade de horas em vez de um par de chaves, o agente
-  precisa de renovação antes de ter qualquer autonomia — um loop de
-  auto-correção que morre em 401 no meio da terceira tentativa é pior que
-  nenhum.
+- ~~**Uma sessão do `digibeectl` é curta.**~~ Respondido, e melhor do que se
+  temia: o token escopado vale **até 2036**, então não há renovação a construir.
+  A preocupação inverteu de sinal — é uma credencial de dez anos, sem expiração
+  que limite um vazamento, e por isso variável de ambiente CRIPTOGRAFADA no
+  droplet.

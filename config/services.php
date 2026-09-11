@@ -196,12 +196,21 @@ return [
         | and only for a NARROWER credential.** That rule — "the artifact
         | travels, the credential does not" — was written about the interactive
         | login, which can delete production deployments. Digibee documents
-        | per-operation permissions (PIPELINE:READ, DEPLOYMENT:CREATE,
-        | DEPLOYMENT:CREATE:REDEPLOY, DEPLOYMENT:DELETE, CONFIGURATION:*) and
-        | digibeectl authenticates with a key pair rather than a login, so the
-        | credential this reads is meant to be a realm user restricted to the
-        | operations below. `digibee:pipelines:pull` stays off the server
-        | regardless: it still needs the broad one.
+        | per-operation permissions, and a digibeectl TOKEN carries its own
+        | list of them inside its JWT — environment scoping included. The
+        | credential this reads is that token, not a realm user and not a
+        | login: in use since 2026-09-11 with PIPELINE:READ, PIPELINE:CREATE,
+        | CONFIGURATION:READ, DEPLOYMENT:READ and DEPLOYMENT:CREATE{ENV=TEST},
+        | so it can neither delete anything nor reach production.
+        | `digibee:pipelines:pull` stays off the server regardless: it still
+        | needs the broad interactive one.
+        |
+        | Two consequences worth knowing here. A token goes in `Authorization`
+        | as `Bearer <jwt>` while an interactive session goes RAW, and
+        | DigibeeCredentials decides by reading the token's own `useTokenACL`
+        | claim. And a token is valid for up to ten years, so these four values
+        | must be ENCRYPTED environment variables: nothing expires to bound a
+        | leak.
         |
         */
         'design' => [

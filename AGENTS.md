@@ -867,6 +867,21 @@ scheduled there — the docs half is public HTTP with no credential at all. The
 periodic pipeline pull belongs on a workstation or ops box that publishes the
 derived JSON: **the artifact travels, the credential does not.**
 
+**That rule is about the LOGIN credential, and since 2026-09-11 there is a
+second kind.** A digibeectl TOKEN (Administration → Digibeectl) carries an
+explicit permission list in its own JWT, environment scoping included, so the
+one the lifecycle agent uses holds `PIPELINE:READ`, `PIPELINE:CREATE`,
+`CONFIGURATION:READ`, `DEPLOYMENT:READ` and `DEPLOYMENT:CREATE{ENV=TEST}` — it
+cannot delete anything and cannot reach production. That is a different risk
+object from the interactive login, and it is what makes the APLA design and
+deploy calls defensible from the server (`config/services.php` § Platform API
+documents the reversal). Two halves of the old rule survive unchanged: the
+BINARY still never runs on the server — everything here is plain HTTP — and
+`digibee:pipelines:pull` still needs the broad interactive credential, so it
+stays off the server too. A scoped token in `.env` must be an ENCRYPTED
+environment variable: it is valid for ten years, so nothing expires to bound a
+leak.
+
 #### The redaction line: names and expressions are vocabulary, addresses are not
 
 `App\Support\Digibee\ParamRedactor`. Double Braces expressions survive verbatim,
