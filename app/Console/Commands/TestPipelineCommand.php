@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Actions\Digibee\RunPipelineTestSuite;
 use App\Actions\Flowspec\BuildPipelineTestMatrix;
 use App\Enums\DigibeeTriggerAuth;
+use App\Exceptions\DigibeeApiException;
 use App\Support\Digibee\DigibeeDesignClient;
 use App\Support\Digibee\Testing\EndpointCredential;
 use App\Support\Digibee\Testing\SuiteRun;
@@ -77,7 +78,16 @@ class TestPipelineCommand extends Command
             return self::FAILURE;
         }
 
-        $run = $runner->handle($suite, $credential, $endpoint);
+        try {
+            $run = $runner->handle($suite, $credential, $endpoint);
+        } catch (DigibeeApiException $e) {
+            // These messages are authored for a person — an unreleased
+            // pipeline, an unmapped environment — so a stack trace would be
+            // the wrong way to deliver one.
+            $this->components->error($e->getMessage());
+
+            return self::FAILURE;
+        }
 
         $this->report($run);
 
@@ -153,8 +163,27 @@ class TestPipelineCommand extends Command
             return;
         }
 
-        $run->passed()
-            ? $this->components->info('Bateria verde.')
-            : $this->components->warn("{$tally['failed']} caso(s) falharam.");
+        // "Nothing answered" and "green" look identical from the tally: the
+        // negative cases pass against a 404 because a 404 is not a 5xx.
+        if ($run->nothingAnswered()) {
+            $this->components->error(
+                'Todos os casos voltaram 404. Isso é NADA respondendo nessa URL — '
+                . 'pipeline não implantado, versão não publicada ou endereço errado — e não o pipeline '
+                . 'tratando entrada ruim.'
+            );
+
+            return;
+        }
+
+        match (true) {
+            ! $run->passed()          => $this->components->warn("{$tally['failed']} caso(s) falharam."),
+            $run->provenByHappyPath() => $this->components->info('Bateria verde.'),
+            // The only cases that ran were the negative ones: nothing has
+            // shown the pipeline WORKS, and saying "green" would say it did.
+            default => $this->components->warn(
+                'Os casos negativos passaram, mas o caminho feliz não rodou — '
+                . 'nada aqui mostra que o pipeline funciona.'
+            ),
+        };
     }
 }

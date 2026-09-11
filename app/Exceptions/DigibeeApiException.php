@@ -124,6 +124,21 @@ class DigibeeApiException extends RuntimeException
         );
     }
 
+    /**
+     * A pipeline with no released version has no URL at all — `v0` is the
+     * draft state, and every deployment in the realm is v1 or above. Refusing
+     * beats composing, because the composed address answers 404 and the
+     * negative cases of a suite (`!5xx`) pass against it.
+     */
+    public static function unreleasedPipeline(string $pipelineName): self
+    {
+        return new self(
+            "\"{$pipelineName}\" has no released version (v0 is the draft state), so it has no URL to call. "
+            . 'Publish a version first — a composed /v0/ URL answers 404, and a battery of "anything but a 5xx" '
+            . 'cases would pass against an endpoint that does not exist.'
+        );
+    }
+
     public static function unreadableConfig(string $path, string $reason): self
     {
         return new self("digibeectl config at {$path} could not be read: {$reason}.");

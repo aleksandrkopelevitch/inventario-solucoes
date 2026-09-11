@@ -1066,6 +1066,35 @@ O que sobra para fechar: **alguém publica uma versão do `apla-probe` no canvas
 (um clique) e o deploy roda. `DeployPipeline` já recusa v0.0 antes da chamada,
 com essa explicação, em vez de repassar um 404 que mente sobre a causa.
 
+### A bateria deu VERDE contra um pipeline que não existia
+
+O primeiro `digibee:pipeline:test` real reportou **"Bateria verde"** contra um
+pipeline não implantado. Três coisas em cadeia, e as três eram minhas:
+
+1. A suíte **compôs uma URL `/v0/`**, porque `versionMajor` saiu do documento
+   (0) e nada recusava isso. Esse endereço não existe.
+2. Tudo respondeu **404**.
+3. Os casos negativos esperam `!5xx` — e 404 não é 5xx —, então **passaram**. O
+   caso que prova alguma coisa (o caminho feliz) estava BLOQUEADO esperando um
+   CPF real, ou seja, os únicos casos que rodaram foram os que não afirmam nada.
+
+É exatamente o falso verde que o Bloco E se recusa a produzir com payload
+inventado, chegando pela porta dos fundos. Os três elos estão fechados:
+`endpointUrl()` recusa `versionMajor < 1` (um pipeline sem versão publicada não
+tem URL), `SuiteRun::nothingAnswered()` trata "todos os casos 404" como nada
+respondendo — um 404 isolado continua sendo resposta legítima de um pipeline —,
+e "verde" agora exige que o caminho feliz tenha RODADO
+(`provenByHappyPath()`); caso contrário o relatório diz que os negativos
+passaram e que nada mostrou o pipeline funcionando.
+
+### Uma versão é uma LINHA, com id próprio
+
+Salvar no canvas não alterou a v0.0: criou a **v0.1 como outro documento, com
+outro id**. Por isso a listagem de design devolve 1801 itens para ~200
+pipelines — cada `versionMajor.versionMinor` é uma linha. `latestByName()`
+escolher a maior versão é o comportamento certo, e foi o que resolveu para a
+v0.1 recém-salva.
+
 Uma descoberta lateral que vale registrar: o `apla-probe` acumulou **seis
 `configurations`**, uma por upsert. Ninguém pediu isso e nada as usa; se cada
 escrita cria uma configuração, um pipeline sob um loop de auto-correção vai
