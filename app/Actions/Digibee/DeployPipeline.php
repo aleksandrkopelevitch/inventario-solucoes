@@ -99,7 +99,23 @@ class DeployPipeline
             $warnings[] = 'Já existe deployment desse pipeline no ambiente, e o redeploy não foi pedido.';
         }
 
-        $payload = $this->payload($pipelineId, $size, $redeploy && $existing !== []);
+        [$configurationId, $refusal] = $this->configurationFor(
+            $this->client->configurations($pipelineId),
+            $size,
+            $environment,
+        );
+
+        if ($refusal !== null) {
+            return new DeploymentReport(
+                pipelineName: $pipelineName,
+                environment: $environment,
+                pipelineId: $pipelineId,
+                errors: [$refusal],
+                warnings: $warnings,
+            );
+        }
+
+        $payload = $this->payload($pipelineId, (string) $configurationId);
 
         if ($dryRun) {
             // `$existing[0]?->` does NOT guard a missing index — the null-safe
@@ -126,40 +142,60 @@ class DeployPipeline
     }
 
     /**
-     * The request body.
-     *
-     * The pipeline is named by `pipelineId`, and the two error messages say
-     * which is which — the opposite of how I first read them. `pipelineId`
-     * RESOLVES the pipeline: with it, the handler got as far as validating the
-     * pipeline's trigger spec ("Could not redeploy this pipeline due to an
-     * invalid trigger spec - missing type"), which it could only do having
-     * found it. `id` never resolves anything (404 "No such entity"), whatever
-     * value it carries.
-     *
-     * **What the route still wants is unknown.** With `pipelineId` and a valid
-     * trigger it answers 500 "The given id must not be null" — a SECOND id,
-     * and fifteen shapes did not find it: `id`, `configurationId`,
-     * `configuration.id`, `activeConfiguration.id`, the pipeline's own
-     * configuration ids, the live deployment's id, each alone and combined.
-     * The honest next step is capturing the canvas's own deploy request in
-     * devtools, not more guessing against somebody's production platform —
-     * the same rule ProbeDigibeeDesignApi states for a 404 on a documented
-     * guess.
+     * The request body: `{pipelineId, runtimeConfigurationId}`.
      *
      * The environment is deliberately absent — it goes in the query string,
      * and putting it here is what produced three identical 403s before anyone
      * realised the denial was about a field the server never read
-     * (`DigibeeDesignClient::deploy()` has the full account).
+     * (`DigibeeDesignClient::deploy()` has the full account, including how the
+     * second id was finally found).
      *
      * @return array<string, mixed>
      */
-    private function payload(string $pipelineId, string $size, bool $redeploy): array
+    private function payload(string $pipelineId, string $configurationId): array
     {
         return [
-            'pipelineId'   => $pipelineId,
-            'pipelineSize' => strtoupper($size),
-            'redeploy'     => $redeploy,
+            'pipelineId'             => $pipelineId,
+            'runtimeConfigurationId' => $configurationId,
         ];
+    }
+
+    /**
+     * The configuration to deploy with, chosen by SIZE and ENVIRONMENT.
+     *
+     * **This is the second place production can be reached**, and it is less
+     * obvious than the first. A pipeline has six configurations — three sizes
+     * times `test` and `prod` — and the deploy names one by id. The
+     * environment in the query string says where the request is aimed; the
+     * configuration says which settings it lands with, and sending `prod`'s id
+     * would at best be incoherent and at worst deploy production settings from
+     * a request that looked like a test. So the match must be on both, and a
+     * failure to find exactly one is a refusal rather than a first-one-wins.
+     *
+     * @param  list<array<string, mixed>>  $configurations
+     * @return array{0: string|null, 1: string|null} the id, or the reason there is none
+     */
+    private function configurationFor(array $configurations, string $size, string $environment): array
+    {
+        $wanted = strtolower($size);
+
+        $matching = array_values(array_filter(
+            $configurations,
+            fn (array $c) => str_starts_with(strtolower((string) ($c['name'] ?? '')), $wanted . '-')
+                && strtolower((string) ($c['environment']['name'] ?? '')) === strtolower($environment),
+        ));
+
+        if ($matching === []) {
+            $available = implode(', ', array_map(
+                fn (array $c) => ($c['name'] ?? '?') . '@' . ($c['environment']['name'] ?? '?'),
+                $configurations,
+            ));
+
+            return [null, "Nenhuma configuração {$wanted} para o ambiente \"{$environment}\". Existem: "
+                . ($available ?: 'nenhuma') . '.'];
+        }
+
+        return [(string) ($matching[0]['id'] ?? ''), null];
     }
 
     /**

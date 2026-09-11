@@ -59,7 +59,30 @@ function deploymentRow(string $status = 'SERVICE_ACTIVE', ?string $endpoint = 'h
     ];
 }
 
-/** Design list, design detail, runtime list, runtime POST — all four in one fake. */
+/**
+ * The six configurations every pipeline has: three sizes times two
+ * environments, each naming its own.
+ *
+ * @return list<array<string, mixed>>
+ */
+function deployConfigurations(): array
+{
+    $rows = [];
+
+    foreach (['small', 'medium', 'large'] as $size) {
+        foreach (['test', 'prod'] as $environment) {
+            $rows[] = [
+                'id'          => "cfg-{$size}-{$environment}",
+                'name'        => "{$size}-meu-pipeline",
+                'environment' => ['name' => $environment],
+            ];
+        }
+    }
+
+    return $rows;
+}
+
+/** Design list, design detail, configurations, runtime list, runtime POST. */
 function fakeDeployApi(array $deployments, array $pipeline = ['id' => 'pid-1', 'name' => 'meu-pipeline', 'versionMajor' => 1, 'versionMinor' => 0, 'triggerSpec' => ['type' => 'rest']]): void
 {
     Http::fake(function (Request $request) use ($deployments, $pipeline) {
@@ -67,6 +90,10 @@ function fakeDeployApi(array $deployments, array $pipeline = ['id' => 'pid-1', '
             return $request->method() === 'POST'
                 ? Http::response(['id' => 'dep-1'])
                 : Http::response($deployments);
+        }
+
+        if (str_contains($request->url(), '/configurations')) {
+            return Http::response(deployConfigurations());
         }
 
         return Http::response([$pipeline]);
@@ -138,6 +165,10 @@ it('waits for a settling deployment and stops when it settles', function () {
                 : Http::response(count($answers) > 1 ? array_shift($answers) : $answers[0]);
         }
 
+        if (str_contains($request->url(), '/configurations')) {
+            return Http::response(deployConfigurations());
+        }
+
         return Http::response([['id' => 'pid-1', 'name' => 'meu-pipeline', 'versionMajor' => 1, 'triggerSpec' => ['type' => 'rest']]]);
     });
 
@@ -203,7 +234,7 @@ it('reports what it would send on a dry run, without deploying', function () {
     $report = app(DeployPipeline::class)->handle('meu-pipeline', dryRun: true);
 
     expect($report->deployed)->toBeFalse()
-        ->and(implode(' ', $report->warnings))->toContain('pipelineId, pipelineSize, redeploy');
+        ->and(implode(' ', $report->warnings))->toContain('pipelineId, runtimeConfigurationId');
 
     Http::assertNotSent(fn (Request $request) => $request->method() === 'POST');
 });
@@ -270,4 +301,32 @@ it('names the pipeline by `pipelineId`, the key that resolves it', function () {
     // such entity" whatever the value.
     Http::assertSent(fn (Request $request) => $request->method() === 'POST'
         && ($request->data()['pipelineId'] ?? null) === 'pid-1');
+});
+
+it('deploys with the configuration for that size AND environment', function () {
+    withDeployConfig();
+    fakeDeployApi([deploymentRow()]);
+
+    app(DeployPipeline::class)->handle('meu-pipeline', size: 'MEDIUM');
+
+    // The environment lives in the query string; the CONFIGURATION carries one
+    // too, and sending prod's id from a request aimed at test would land
+    // production settings. Both have to agree.
+    Http::assertSent(fn (Request $request) => $request->method() === 'POST'
+        && ($request->data()['runtimeConfigurationId'] ?? null) === 'cfg-medium-test');
+});
+
+it('refuses when no configuration matches, instead of taking the first', function () {
+    withDeployConfig();
+    fakeDeployApi([deploymentRow()]);
+
+    // A size the pipeline has no configuration for. Falling back to the first
+    // row would deploy with settings nobody asked for — and one of the six is
+    // production's.
+    $report = app(DeployPipeline::class)->handle('meu-pipeline', size: 'XLARGE');
+
+    expect($report->ok())->toBeFalse()
+        ->and(implode(' ', $report->errors))->toContain('Nenhuma configuração');
+
+    Http::assertNotSent(fn (Request $request) => $request->method() === 'POST');
 });

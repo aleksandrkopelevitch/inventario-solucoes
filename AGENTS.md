@@ -1190,9 +1190,32 @@ denial did not change when the environment did. The pipeline is named by `id`,
 not `pipelineId` — the first makes the handler look something up, the second
 leaves it holding null. And only a RELEASED version deploys: all 111 deployments
 in `test` are v1, no pipeline lists a v0, and a v0.0 draft answers 404 "No such
-entity", which reads as a wrong id and is not. `DeployPipeline` refuses a v0.0
-before calling, with that explanation, rather than forwarding a 404 that lies
-about its cause.
+entity", which reads as a wrong id and is not. That last one was WRONG and is corrected below.
+
+**The deploy body is `{pipelineId, runtimeConfigurationId}`, and the second key
+came out of the `digibeectl` BINARY.** Fifteen guesses failed on it
+(`configurationId`, `configuration.id`, `activeConfiguration.id`, the
+pipeline's own configuration ids, the live deployment's id). `digibeectl` is a
+Go binary, Go embeds string literals, and the CLI builds that body by
+concatenation — so `strings` on it prints the template in pieces, along with
+every model's `json:` tags and the route shapes. **A published Go binary is API
+documentation nobody wrote**, and reaching for it beats both guessing and
+asking somebody to capture a request in devtools.
+
+**A pipeline has six runtime configurations — three sizes × two environments —
+and that is the second place production can be reached.** Each carries
+`environment.name`, and only `GET /design/realms/{realm}/pipelines/{id}/configurations`
+names them: the design document's own `configurations` array has ids and
+versions with no name and no environment. `DeployPipeline` matches on size AND
+environment and refuses when it cannot find exactly one, because
+`deployable_environments` does not catch this — a request aimed at `test` with
+prod's configuration id still says `test` in the query string.
+
+Two corrections this left behind: a v0 pipeline DOES deploy (the canvas deploys
+v0 rows; "all 111 deployments are v1" described the estate, not a rule), and
+`pipelineId` is what resolves the pipeline — with it the handler got as far as
+validating the pipeline's trigger, while `id` answers 404 "No such entity"
+whatever it carries.
 
 `digibeectl` is still not involved and the boundary in
 `App\Support\Digibee\DigibeectlClient` is untouched — this is HTTP with the

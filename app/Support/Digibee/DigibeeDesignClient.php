@@ -197,6 +197,25 @@ class DigibeeDesignClient
     }
 
     /**
+     * The runtime configurations a pipeline can be deployed with.
+     *
+     * Six per pipeline, always: three sizes (`small-`, `medium-`, `large-`)
+     * times two environments, and each one carries `environment.name`
+     * ("test"/"prod") plus the consumer count its description advertises. This
+     * route is what makes the deploy possible at all — the design document's
+     * own `configurations` array lists ids and version numbers with no name
+     * and no environment, so nothing there says which id means what.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function configurations(string $pipelineId): array
+    {
+        $body = $this->json('GET', "/design/realms/{$this->realm()}/pipelines/{$pipelineId}/configurations");
+
+        return array_is_list($body) ? array_values(array_filter($body, is_array(...))) : [];
+    }
+
+    /**
      * Creates (or re-creates) a deployment.
      *
      * **The environment is a QUERY parameter, and that is not a detail.**
@@ -214,9 +233,16 @@ class DigibeeDesignClient
      * the environment does: `environment=test` and `environment=nao-existe`
      * gave byte-identical denials.
      *
-     * The remaining body keys (`pipelineId`, `pipelineSize`, `redeploy`) come
-     * from the CLI's own flags; the handler accepted them structurally on the
-     * first request that reached it.
+     * **The body is `{pipelineId, runtimeConfigurationId}`**, and the second
+     * key is where fifteen guesses failed: `configurationId`,
+     * `configuration.id`, `activeConfiguration.id` and the rest all left the
+     * handler answering 500 "The given id must not be null". It was found by
+     * reading the `digibeectl` binary rather than by guessing again — a Go
+     * binary embeds its string literals, and the CLI builds this body by
+     * concatenation, so `strings` on it prints the template in pieces:
+     * `{"pipelineId": "`, `,"runtimeConfigurationId": "`,
+     * `,"replicaInstanceName": "`, `,"allowAllUsers": true`, `,"owner": "`.
+     * The last three have not been needed.
      *
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>

@@ -1058,18 +1058,43 @@ pipeline due to an invalid trigger spec - missing type"), o que só consegue
 tendo encontrado o pipeline. Com `id` ele nunca resolve nada (404 "No such
 entity"), qualquer que seja o valor.
 
-**3. E o que a rota ainda quer é desconhecido.** Com `pipelineId` e um trigger
-válido, ela responde 500 "The given id must not be null" — um SEGUNDO id.
-Quinze formas não acharam: `id`, `configurationId`, `configuration.id`,
-`activeConfiguration.id`, os ids das próprias `configurations` do pipeline, o id
-do deployment vivo, sozinhos e combinados. A cada um, a resposta é a mesma
-conforme a chave do pipeline: `pipelineId` presente → 500 "id must not be null";
-`pipeline: {id}` → 404 "No such entity".
+**3. O segundo id é `runtimeConfigurationId`, e ele saiu do BINÁRIO.** Com
+`pipelineId` e um trigger válido, a rota responde 500 "The given id must not be
+null". Quinze formas não acharam o campo — `id`, `configurationId`,
+`configuration.id`, `activeConfiguration.id`, os ids das `configurations` do
+pipeline, o id do deployment vivo, sozinhos e combinados.
 
-**O próximo passo honesto é capturar a requisição de deploy do CANVAS no
-devtools**, não continuar chutando contra a plataforma de produção de alguém —
-é a mesma regra que `ProbeDigibeeDesignApi` já enuncia para um 404 num palpite
-documentado.
+Adivinhar não era o caminho, e capturar no devtools também não precisou ser: o
+`digibeectl` é um binário **Go**, Go embute os literais de string, e o CLI monta
+esse corpo por concatenação. `strings` no executável imprime o template em
+pedaços:
+
+```
+{"pipelineId": "     ,"runtimeConfigurationId": "     ,"replicaInstanceName": "
+,"allowAllUsers": true     ,"owner": "
+```
+
+Com `{pipelineId, runtimeConfigurationId}` a rota para de reclamar de id. Os
+outros três campos não foram necessários. **Vale guardar o método**: um binário
+Go publicado é documentação de API que ninguém escreveu — `strings` nele também
+devolveu as tags `json:` de todos os modelos e as rotas
+(`/runtime/realms/`, `/deployments?environment=`, `?pipelineName=&deploymentId=`).
+
+**4. A configuração de runtime é o SEGUNDO lugar por onde produção entra.** Um
+pipeline tem seis configurações — três tamanhos × dois ambientes — e cada uma
+carrega `environment.name` (`test`/`prod`). Quem as nomeia é
+`GET /design/realms/{realm}/pipelines/{id}/configurations`; o array
+`configurations` do próprio documento só traz id e versão, sem nome e sem
+ambiente, então de lá não dá para saber qual id é qual.
+
+O deploy escolhe por tamanho **e** ambiente, e recusa quando não acha
+exatamente uma. Mandar o id da configuração de `prod` numa requisição apontada
+para `test` seria, na melhor hipótese, incoerente — e o guarda-corpo de
+`deployable_environments` não pega isso, porque o ambiente da query continuaria
+dizendo `test`.
+
+Isso também explica o "seis configurações" que este documento já tinha
+estranhado duas vezes: não é acúmulo, é 3 × 2.
 
 **Uma inferência anterior caiu no caminho.** Este documento afirmou que "só
 versão publicada implanta", a partir de os 111 deployments serem todos v1 — e o
@@ -1133,6 +1158,14 @@ um pipeline que roda:
 Ou seja: o pipeline foi implantado com uma configuração de escala **em branco**,
 e o engine não consegue lê-la. É configuração de deploy, não conteúdo do
 flowSpec.
+
+E a lista nomeada confirma: **as seis configurações do `apla-probe` têm
+`cooldownPeriod: null` e `autoscaling: false`**, enquanto as de um pipeline que
+roda têm 300 e `true`. Por isso nem o canvas nem a API conseguem subi-lo — o
+deploy pela API chega ao controlador e morre lá ("Error deploying to
+controller"), que é a mesma parede por outro caminho. Falta alguém preencher a
+configuração de deploy do pipeline; nenhuma rota de escrita para isso foi
+procurada.
 
 **E uma correção de algo que este documento afirmou.** Eu escrevi que o
 `apla-probe` tinha acumulado "seis `configurations`, uma por upsert". Errado:
