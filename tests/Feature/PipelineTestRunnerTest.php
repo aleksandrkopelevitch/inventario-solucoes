@@ -282,3 +282,107 @@ it('calls the URL the platform reported rather than composing one', function () 
     expect($run->url)->toBe($reported);
     Http::assertSent(fn (Request $request) => $request->url() === $reported);
 });
+
+/*
+|--------------------------------------------------------------------------
+| The command that finally fires the battery
+|--------------------------------------------------------------------------
+*/
+
+/** Design list + detail, runtime deployments, and the endpoint under test. */
+function fakeTestableTenant(?string $endpoint = 'https://test.example.test/pipeline/leomadeiras/v1/meu-pipeline', array $response = ['mensagem' => 'ok']): void
+{
+    $pipeline = [
+        'id'           => 'pid-1',
+        'name'         => 'meu-pipeline',
+        'versionMajor' => 1,
+        'versionMinor' => 0,
+        'triggerSpec'  => ['type' => 'rest', 'responseContentTypes' => ['application/json']],
+        'flowSpec'     => ['start' => [[
+            'id'     => '11111111-1111-4111-9111-111111111111', 'type' => 'connector',
+            'name'   => 'json-generator-connector', 'stepName' => 'Resposta',
+            'params' => ['json' => '{ "mensagem": {{ message.texto }} }'],
+        ]]],
+    ];
+
+    Http::fake(function (Request $request) use ($pipeline, $endpoint, $response) {
+        if (str_contains($request->url(), '/design/')) {
+            return Http::response(str_contains($request->url(), '/pipelines/pid-1') ? $pipeline : [$pipeline]);
+        }
+
+        if (str_contains($request->url(), '/runtime/')) {
+            return Http::response([[
+                'id'               => 'dep-1', 'pipelineName' => 'meu-pipeline', 'status' => 'SERVICE_ACTIVE',
+                'deploymentStatus' => ['trigger' => $endpoint === null ? null : json_encode([['key' => 'endpoint', 'value' => $endpoint]])],
+            ]]);
+        }
+
+        return Http::response($response, 200, ['Content-Type' => 'application/json']);
+    });
+}
+
+it('runs the battery against the deployed pipeline and reports the tally', function () {
+    withRuntime();
+    fakeTestableTenant();
+
+    // The runner was built, tested and unreachable: nothing in the app put the
+    // matrix, the deployment's URL and the evaluation together.
+    $this->artisan('digibee:pipeline:test', ['name' => 'meu-pipeline', '--auth' => 'none'])
+        ->expectsOutputToContain('meu-pipeline')
+        ->assertSuccessful();
+
+    Http::assertSent(fn (Request $request) => str_contains($request->url(), '/pipeline/leomadeiras/v1/meu-pipeline'));
+});
+
+it('refuses to test a pipeline that is not deployed', function () {
+    withRuntime();
+    Http::fake(function (Request $request) {
+        return Http::response(str_contains($request->url(), '/runtime/')
+            ? []
+            : [['id' => 'pid-1', 'name' => 'meu-pipeline', 'versionMajor' => 1, 'flowSpec' => ['start' => []]]]);
+    });
+
+    $this->artisan('digibee:pipeline:test', ['name' => 'meu-pipeline', '--auth' => 'none'])
+        ->expectsOutputToContain('não está implantado')
+        ->assertFailed();
+});
+
+it('says a wall of 401s is the door refusing, not the pipeline failing', function () {
+    withRuntime();
+
+    // ONE fake per test: `Http::fake()` MERGES stub callbacks rather than
+    // replacing them, so a second call leaves the first still answering — and
+    // the test then asserts against whichever won.
+    Http::fake(function (Request $request) {
+        if (str_contains($request->url(), '/runtime/')) {
+            return Http::response([[
+                'id'               => 'dep-1', 'pipelineName' => 'meu-pipeline', 'status' => 'SERVICE_ACTIVE',
+                'deploymentStatus' => ['trigger' => json_encode([[
+                    'key' => 'endpoint', 'value' => 'https://test.example.test/pipeline/leomadeiras/v1/meu-pipeline',
+                ]])],
+            ]]);
+        }
+
+        if (str_contains($request->url(), '/design/')) {
+            return Http::response([[
+                'id'       => 'pid-1', 'name' => 'meu-pipeline', 'versionMajor' => 1, 'triggerSpec' => ['type' => 'rest'],
+                'flowSpec' => ['start' => [['id' => '1', 'type' => 'connector', 'name' => 'log-connector', 'stepName' => 'Log']]],
+            ]]);
+        }
+
+        return Http::response(['message' => 'unauthorized'], 401);
+    });
+
+    $this->artisan('digibee:pipeline:test', ['name' => 'meu-pipeline', '--auth' => 'none'])
+        ->expectsOutputToContain('recusando na porta')
+        ->assertFailed();
+});
+
+it('rejects an auth mode it does not know, before calling the endpoint', function () {
+    withRuntime();
+    fakeTestableTenant();
+
+    $this->artisan('digibee:pipeline:test', ['name' => 'meu-pipeline', '--auth' => 'inventado'])
+        ->expectsOutputToContain('--auth inválido')
+        ->assertFailed();
+});
