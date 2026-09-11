@@ -1051,20 +1051,34 @@ e negada. O mesmo valor em `?environment=` passou direto para o handler. O
 sinal de que o 403 era de payload: ele não mudava com o ambiente —
 `environment=test` e `environment=nao-existe` deram negações idênticas.
 
-**2. O pipeline se chama `id`, não `pipelineId`.** Com `id`, o handler procura
-alguma coisa (404 "No such entity"); com `pipelineId`, fica sem nada nas mãos
-(500 "The given id must not be null").
+**2. O pipeline se chama `pipelineId`** — e as duas mensagens dizem qual é
+qual, ao contrário de como eu li na primeira vez. Com `pipelineId` o handler
+RESOLVE o pipeline: chegou a validar o trigger dele ("Could not redeploy this
+pipeline due to an invalid trigger spec - missing type"), o que só consegue
+tendo encontrado o pipeline. Com `id` ele nunca resolve nada (404 "No such
+entity"), qualquer que seja o valor.
 
-**3. Só versão PUBLICADA implanta — e é aqui que a verificação parou.** Os 111
-deployments de `test` são **todos v1**, e nenhum pipeline lista uma v0: `v0.0` é
-o rascunho. O `apla-probe` está em v0.0, então a rota responde
-404 "No such entity" — que se lê como id errado e não é. Publicar versão
-acontece no canvas; nenhuma rota de API para isso foi encontrada, e nenhuma foi
-chutada.
+**3. E o que a rota ainda quer é desconhecido.** Com `pipelineId` e um trigger
+válido, ela responde 500 "The given id must not be null" — um SEGUNDO id.
+Quinze formas não acharam: `id`, `configurationId`, `configuration.id`,
+`activeConfiguration.id`, os ids das próprias `configurations` do pipeline, o id
+do deployment vivo, sozinhos e combinados. A cada um, a resposta é a mesma
+conforme a chave do pipeline: `pipelineId` presente → 500 "id must not be null";
+`pipeline: {id}` → 404 "No such entity".
 
-O que sobra para fechar: **alguém publica uma versão do `apla-probe` no canvas**
-(um clique) e o deploy roda. `DeployPipeline` já recusa v0.0 antes da chamada,
-com essa explicação, em vez de repassar um 404 que mente sobre a causa.
+**O próximo passo honesto é capturar a requisição de deploy do CANVAS no
+devtools**, não continuar chutando contra a plataforma de produção de alguém —
+é a mesma regra que `ProbeDigibeeDesignApi` já enuncia para um 404 num palpite
+documentado.
+
+**Uma inferência anterior caiu no caminho.** Este documento afirmou que "só
+versão publicada implanta", a partir de os 111 deployments serem todos v1 — e o
+canvas implantou uma **v0.2**. O que a plataforma recusa não é a v0: é outra
+coisa. O guarda que eu tinha construído sobre essa leitura recusava um deploy
+legítimo e foi removido; "os 111 são v1" descrevia o parque, não uma regra.
+
+Também apareceu um status novo, `REDEPLOY`, que não estava na amostra dos 111 —
+que é precisamente o argumento para `DeploymentStatus::Unknown` existir.
 
 ### A bateria deu VERDE contra um pipeline que não existia
 
@@ -1095,10 +1109,38 @@ pipelines — cada `versionMajor.versionMinor` é uma linha. `latestByName()`
 escolher a maior versão é o comportamento certo, e foi o que resolveu para a
 v0.1 recém-salva.
 
-Uma descoberta lateral que vale registrar: o `apla-probe` acumulou **seis
-`configurations`**, uma por upsert. Ninguém pediu isso e nada as usa; se cada
-escrita cria uma configuração, um pipeline sob um loop de auto-correção vai
-juntar dezenas. Vale olhar antes do Bloco F.
+### Por que o `apla-probe` não sobe — e o que NÃO é a causa
+
+A v1.0 foi promovida e implantada pelo canvas, e o deployment fica em
+`STARTING` com 0/1 réplicas e "Pipeline Configuration is invalid
+… Node is expected to be an object node". Nada responde na URL, que é o que a
+bateria (corretamente) reportou como "nada respondendo".
+
+A pista concreta está no `activeConfiguration` do deployment, comparado com o de
+um pipeline que roda:
+
+| | `apla-probe` | saudável |
+|---|---|---|
+| `fallback` | **null** | `{failureThreshold, replicas}` |
+| `scalerTrigger` | **null** | lista de 2 |
+| `cooldownPeriod` | null | 300 |
+| `initialCooldownPeriod` | null | 180 |
+| `pollingInterval` | null | 3 |
+| `useCachedMetrics` | null | true |
+| `autoscaling` | false | true |
+
+`fallback: null` onde se espera um objeto casa exatamente com o erro do Jackson.
+Ou seja: o pipeline foi implantado com uma configuração de escala **em branco**,
+e o engine não consegue lê-la. É configuração de deploy, não conteúdo do
+flowSpec.
+
+**E uma correção de algo que este documento afirmou.** Eu escrevi que o
+`apla-probe` tinha acumulado "seis `configurations`, uma por upsert". Errado:
+**todo pipeline do tenant tem exatamente seis** — `token-digibee`,
+`zfl-bloq-desbloq-cliente` e `get-token-cws` também. Seis é o conjunto padrão da
+plataforma, e as nossas escritas não multiplicaram nada. O que difere é que as
+seis do `apla-probe` têm `cooldownPeriod: null` e as dos outros não — ou seja,
+elas nunca foram configuradas, não foram poluídas.
 
 ---
 

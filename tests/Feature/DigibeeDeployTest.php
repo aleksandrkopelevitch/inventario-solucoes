@@ -203,7 +203,7 @@ it('reports what it would send on a dry run, without deploying', function () {
     $report = app(DeployPipeline::class)->handle('meu-pipeline', dryRun: true);
 
     expect($report->deployed)->toBeFalse()
-        ->and(implode(' ', $report->warnings))->toContain('id, pipelineSize, redeploy');
+        ->and(implode(' ', $report->warnings))->toContain('pipelineId, pipelineSize, redeploy');
 
     Http::assertNotSent(fn (Request $request) => $request->method() === 'POST');
 });
@@ -246,26 +246,28 @@ it('sends the environment in the query string, where the permission check reads 
         && ! array_key_exists('environment', $request->data()));
 });
 
-it('refuses a v0 draft with the reason, instead of forwarding a 404 that reads as a wrong id', function () {
+it('deploys the LATEST version row, which is what the platform accepts', function () {
     withDeployConfig();
-    fakeDeployApi([], ['id' => 'pid-1', 'name' => 'meu-pipeline', 'versionMajor' => 0, 'versionMinor' => 0, 'triggerSpec' => ['type' => 'rest']]);
+    // A v0 row deploys — the canvas proved it. What answers 404 "No such
+    // entity" is an OLD version's id, since every version is its own document.
+    fakeDeployApi([deploymentRow()], ['id' => 'pid-1', 'name' => 'meu-pipeline', 'versionMajor' => 0, 'versionMinor' => 2, 'triggerSpec' => ['type' => 'rest']]);
 
     $report = app(DeployPipeline::class)->handle('meu-pipeline');
 
-    expect($report->ok())->toBeFalse()
-        ->and(implode(' ', $report->errors))->toContain('v0.0');
-
-    Http::assertNotSent(fn (Request $request) => $request->method() === 'POST');
+    expect($report->ok())->toBeTrue();
+    Http::assertSent(fn (Request $request) => $request->method() === 'POST'
+        && ($request->data()['pipelineId'] ?? null) === 'pid-1');
 });
 
-it('names the pipeline by `id`, which is the key the handler reads', function () {
+it('names the pipeline by `pipelineId`, the key that resolves it', function () {
     withDeployConfig();
     fakeDeployApi([deploymentRow()]);
 
     app(DeployPipeline::class)->handle('meu-pipeline');
 
-    // `pipelineId` leaves the handler holding nothing: "The given id must not
-    // be null".
+    // With `pipelineId` the handler resolves the pipeline — it got as far as
+    // validating that pipeline's trigger spec. With `id` it answers 404 "No
+    // such entity" whatever the value.
     Http::assertSent(fn (Request $request) => $request->method() === 'POST'
-        && ($request->data()['id'] ?? null) === 'pid-1');
+        && ($request->data()['pipelineId'] ?? null) === 'pid-1');
 });
