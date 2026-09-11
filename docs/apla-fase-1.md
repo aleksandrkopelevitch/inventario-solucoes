@@ -1051,20 +1051,34 @@ e negada. O mesmo valor em `?environment=` passou direto para o handler. O
 sinal de que o 403 era de payload: ele não mudava com o ambiente —
 `environment=test` e `environment=nao-existe` deram negações idênticas.
 
-**2. O pipeline se chama `id`, não `pipelineId`.** Com `id`, o handler procura
-alguma coisa (404 "No such entity"); com `pipelineId`, fica sem nada nas mãos
-(500 "The given id must not be null").
+**2. O pipeline se chama `pipelineId`** — e as duas mensagens dizem qual é
+qual, ao contrário de como eu li na primeira vez. Com `pipelineId` o handler
+RESOLVE o pipeline: chegou a validar o trigger dele ("Could not redeploy this
+pipeline due to an invalid trigger spec - missing type"), o que só consegue
+tendo encontrado o pipeline. Com `id` ele nunca resolve nada (404 "No such
+entity"), qualquer que seja o valor.
 
-**3. Só versão PUBLICADA implanta — e é aqui que a verificação parou.** Os 111
-deployments de `test` são **todos v1**, e nenhum pipeline lista uma v0: `v0.0` é
-o rascunho. O `apla-probe` está em v0.0, então a rota responde
-404 "No such entity" — que se lê como id errado e não é. Publicar versão
-acontece no canvas; nenhuma rota de API para isso foi encontrada, e nenhuma foi
-chutada.
+**3. E o que a rota ainda quer é desconhecido.** Com `pipelineId` e um trigger
+válido, ela responde 500 "The given id must not be null" — um SEGUNDO id.
+Quinze formas não acharam: `id`, `configurationId`, `configuration.id`,
+`activeConfiguration.id`, os ids das próprias `configurations` do pipeline, o id
+do deployment vivo, sozinhos e combinados. A cada um, a resposta é a mesma
+conforme a chave do pipeline: `pipelineId` presente → 500 "id must not be null";
+`pipeline: {id}` → 404 "No such entity".
 
-O que sobra para fechar: **alguém publica uma versão do `apla-probe` no canvas**
-(um clique) e o deploy roda. `DeployPipeline` já recusa v0.0 antes da chamada,
-com essa explicação, em vez de repassar um 404 que mente sobre a causa.
+**O próximo passo honesto é capturar a requisição de deploy do CANVAS no
+devtools**, não continuar chutando contra a plataforma de produção de alguém —
+é a mesma regra que `ProbeDigibeeDesignApi` já enuncia para um 404 num palpite
+documentado.
+
+**Uma inferência anterior caiu no caminho.** Este documento afirmou que "só
+versão publicada implanta", a partir de os 111 deployments serem todos v1 — e o
+canvas implantou uma **v0.2**. O que a plataforma recusa não é a v0: é outra
+coisa. O guarda que eu tinha construído sobre essa leitura recusava um deploy
+legítimo e foi removido; "os 111 são v1" descrevia o parque, não uma regra.
+
+Também apareceu um status novo, `REDEPLOY`, que não estava na amostra dos 111 —
+que é precisamente o argumento para `DeploymentStatus::Unknown` existir.
 
 ### A bateria deu VERDE contra um pipeline que não existia
 

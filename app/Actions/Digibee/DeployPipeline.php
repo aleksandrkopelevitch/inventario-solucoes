@@ -81,20 +81,12 @@ class DeployPipeline
 
         $pipelineId = (string) ($pipeline['id'] ?? '');
 
-        // Only a RELEASED version deploys. All 111 deployments in `test` are
-        // v1, no pipeline lists a v0, and a v0.0 pipeline answers this route
-        // with 404 "No such entity" — which reads as a wrong id and is not.
-        // Versioning happens in the canvas; no API route for it has been found.
-        if ((int) ($pipeline['versionMajor'] ?? 0) < 1) {
-            return new DeploymentReport(
-                pipelineName: $pipelineName,
-                environment: $environment,
-                pipelineId: $pipelineId,
-                errors: ['O pipeline está em v0.0 — um rascunho nunca implantado não tem versão publicada, '
-                    . 'e a plataforma responde 404 "No such entity" a isso. Publique uma versão no canvas primeiro; '
-                    . 'os 111 deployments de `test` são todos v1.'],
-            );
-        }
+        // A v0 row IS deployable — the canvas deployed one while this code
+        // was refusing to. What the platform answers 404 "No such entity" to
+        // is an OLD version row: every version is a document of its own, and
+        // the deployable one is the LATEST, which is exactly what
+        // latestByName() resolves. "All 111 deployments are v1" described the
+        // estate; reading it as a rule was the mistake.
 
         if (($pipeline['triggerSpec'] ?? []) === []) {
             $warnings[] = 'O pipeline não tem triggerSpec: ele sobe, mas não ganha URL — '
@@ -136,12 +128,23 @@ class DeployPipeline
     /**
      * The request body.
      *
-     * The pipeline is named by `id`, NOT by `pipelineId` — probed on
-     * 2026-09-11, and the two answer differently: `id` makes the handler look
-     * something up (404 "No such entity" for a pipeline with no released
-     * version) while `pipelineId` leaves it holding nothing (500 "The given id
-     * must not be null"). The remaining keys are `digibeectl create
-     * deployment`'s own flags, accepted structurally by the handler.
+     * The pipeline is named by `pipelineId`, and the two error messages say
+     * which is which — the opposite of how I first read them. `pipelineId`
+     * RESOLVES the pipeline: with it, the handler got as far as validating the
+     * pipeline's trigger spec ("Could not redeploy this pipeline due to an
+     * invalid trigger spec - missing type"), which it could only do having
+     * found it. `id` never resolves anything (404 "No such entity"), whatever
+     * value it carries.
+     *
+     * **What the route still wants is unknown.** With `pipelineId` and a valid
+     * trigger it answers 500 "The given id must not be null" — a SECOND id,
+     * and fifteen shapes did not find it: `id`, `configurationId`,
+     * `configuration.id`, `activeConfiguration.id`, the pipeline's own
+     * configuration ids, the live deployment's id, each alone and combined.
+     * The honest next step is capturing the canvas's own deploy request in
+     * devtools, not more guessing against somebody's production platform —
+     * the same rule ProbeDigibeeDesignApi states for a 404 on a documented
+     * guess.
      *
      * The environment is deliberately absent — it goes in the query string,
      * and putting it here is what produced three identical 403s before anyone
@@ -153,7 +156,7 @@ class DeployPipeline
     private function payload(string $pipelineId, string $size, bool $redeploy): array
     {
         return [
-            'id'           => $pipelineId,
+            'pipelineId'   => $pipelineId,
             'pipelineSize' => strtoupper($size),
             'redeploy'     => $redeploy,
         ];
