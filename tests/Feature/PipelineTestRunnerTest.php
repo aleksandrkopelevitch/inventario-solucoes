@@ -271,3 +271,14 @@ it('claims nothing about the media type when the document declared none', functi
     expect($run->results[0]->contentTypeMatched())->toBeNull()
         ->and($run->passed())->toBeTrue();
 });
+
+it('calls the URL the platform reported rather than composing one', function () {
+    withRuntime();
+    Http::fake(['*' => Http::response(['mensagem' => 'ok'])]);
+
+    $reported = 'https://test.example.test/pipeline/leomadeiras/v7/outro-nome';
+    $run = app(RunPipelineTestSuite::class)->handle(suiteWith([okCase()]), null, $reported);
+
+    expect($run->url)->toBe($reported);
+    Http::assertSent(fn (Request $request) => $request->url() === $reported);
+});

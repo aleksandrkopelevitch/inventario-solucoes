@@ -1144,6 +1144,35 @@ tokens at all (the token list mirrors CLI operations, and the CLI has no
 pipeline-update), so the upsert authorizes under `PIPELINE:CREATE` — verified
 with a write from a token holding no update permission of any kind.
 
+**Deploying (`DeployPipeline`) is the verb that reaches real traffic**, so the
+guardrails sit there rather than on DELETE, which is where the spec expected
+them. The environment must be in
+`services.digibee.design.deployable_environments` — configuration, not an
+argument — and the TOKEN is asked before the platform is: a scoped token
+carries its ACL in the JWT with environment scoping, so "this credential may
+not deploy there" is answered before the request instead of as a 403 after it
+(an interactive session declares no roles and is left to the platform, since
+guessing would refuse a deploy that would have worked). Waiting has a ceiling
+and "did not settle in N seconds" is a THIRD outcome beside refused and broken
+— collapsing it into either is how a correction loop starts rewriting a
+pipeline that was merely slow. And `availableReplicas: "0/0"` is not a failure:
+it is the ordinary parked state for 81 of the 111 deployments in `test`.
+
+**The platform reports the URL it assigned**, inside `deploymentStatus.trigger`
+as a JSON string holding a key/value list, and `Deployment::endpoint()` reads
+it. `RunPipelineTestSuite` prefers that over composing one from
+`runtime_hosts`, which removes the failure that map exists to prevent: an
+address assembled wrong calls another environment while the report says this
+one. Composition stays as the fallback for a pipeline nothing has deployed yet.
+
+One thing there is NOT verified: the deploy POST's body. Every other route in
+this feature came out of phase A′/A″, but this one answered 403 to every
+credential available until the scoped token existed, so its keys are derived
+from `digibeectl create deployment`'s flags plus the `activeConfiguration` of
+an existing deployment. **A 400 from that route is information about the
+payload, not about the pipeline** — both docblocks say so, because reading it
+the other way would send a correction loop after a flowSpec that is fine.
+
 `digibeectl` is still not involved and the boundary in
 `App\Support\Digibee\DigibeectlClient` is untouched — this is HTTP with the
 credential `DigibeeAuthResolver` resolves. The ingestion is driven by hand

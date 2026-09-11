@@ -106,6 +106,24 @@ class DigibeeApiException extends RuntimeException
         );
     }
 
+    /**
+     * The guardrail §5 of the spec asked for, in the right place. Deleting a
+     * pipeline is not the destructive verb here — deploying is, because
+     * promotion is what reaches real traffic. Which environments may be
+     * deployed to is configuration, so opening production is a deliberate edit
+     * by a person rather than an argument the agent can pass.
+     *
+     * @param  list<string>  $allowed
+     */
+    public static function refusedDeployEnvironment(string $environment, array $allowed): self
+    {
+        return new self(
+            "Refusing to deploy to \"{$environment}\" — allowed: " . (implode(', ', $allowed) ?: '(none)')
+            . '. Deploying is the verb that reaches real traffic, so the environments it may reach live in '
+            . 'services.digibee.design.deployable_environments and nowhere else.'
+        );
+    }
+
     public static function unreadableConfig(string $path, string $reason): self
     {
         return new self("digibeectl config at {$path} could not be read: {$reason}.");

@@ -24,7 +24,7 @@ sem descobrir quatro subsistemas depois que a premissa estava errada.
 | A″ — verificar os **verbos de escrita** | **feito, e agora com o token escopado** — cria, faz upsert e relê idêntico (§ O que o token escopado respondeu) |
 | B — modo de ingestão no normalizador/validador | **feito** — 31 testes em `tests/Feature/FlowspecIngestionTest.php` (§ O que a ingestão escreve) |
 | C — síntese de `triggerSpec` | **feito** — 19 testes em `tests/Feature/DigibeeTriggerSpecTest.php` (§ O que o triggerSpec sintetiza) |
-| D — runner de deploy (pela API) | **metade feita** — o runner de testes existe e é testado sem rede (§ O runner, sem a rede); o deploy deixou de ser bloqueado por permissão (§ O token escopa deploy por ambiente) e falta implementar |
+| D — runner de deploy (pela API) | **feito, com uma ressalva** — 12 testes em `tests/Feature/DigibeeDeployTest.php`; o CORPO do POST é o único pedaço desta feature nunca verificado contra a plataforma (§ O deploy) |
 | E — matriz de testes sintéticos + avaliador de asserções | **feito** — 41 testes em `tests/Feature/FlowspecTestMatrixTest.php`, as 201 do export constroem sem erro, e a bateria aparece na conversa do F8 (§ O que a matriz produz, § O contrato de resposta, § A bateria na tela) |
 | F — loop de auto-correção com evidência de runtime | não começado |
 | G — portão de promoção para `prod` | não começado |
@@ -528,8 +528,9 @@ em `test` antes.
    reais do export (§ O que a ingestão escreve, § O que o triggerSpec
    sintetiza). A chave de modo NÃO chegou ao system prompt, e a seção explica
    por que isso ficou melhor assim.
-5. **D — runner de deploy.** *A metade de testes já existe* (§ O runner, sem a
-   rede): o que falta é o deploy em si. Pela API, não pelo `digibeectl`: a constatação 1
+5. ~~**D — runner de deploy.**~~ Feito, menos uma verificação: o corpo do POST
+   segue sem prova contra a plataforma (§ O deploy). Pela API, não pelo
+   `digibeectl`: a constatação 1
    e a decisão de topologia já descartaram instalar um binário de terceiro no
    droplet, e o CLI segue sendo a ferramenta da estação de trabalho (é o que
    `digibee:pipelines:pull` usa). O que se perde na troca é o `--wait`, então o
@@ -974,6 +975,68 @@ em cima" sobre renovação — não precisa de nenhuma — e levanta outra: é u
 credencial de dez anos morando em `.env`, que faz deploy em `test`. No droplet
 ela tem de ser variável de ambiente CRIPTOGRAFADA, e não há expiração para
 limitar um vazamento.
+
+---
+
+## O deploy
+
+`App\Actions\Digibee\DeployPipeline` mais `digibee:pipeline:deploy`. Implanta,
+espera a plataforma estabilizar e devolve um `DeploymentReport` — que é o que o
+Bloco F vai ler para decidir se o pipeline merece ser testado, corrigido, ou se
+nem subiu.
+
+**A plataforma DIZ a URL, e é ela que vale.** `deploymentStatus.trigger` volta
+como uma string JSON com uma lista chave/valor:
+
+```
+[{"key":"endpoint","value":"https://test.godigibee.io/pipeline/leomadeiras/v1/zfl-bloq-desbloq-cliente"}]
+```
+
+Isso confirma a constatação 5 (o ambiente é o HOST, `v{n}` é a versão major) e
+faz melhor que confirmar: o runner passa a receber essa URL em vez de compor
+uma. Compor continua existindo como fallback para pipeline ainda não implantado,
+mas a falha que o mapa `runtime_hosts` existe para evitar — montar o endereço
+errado e chamar outro ambiente com o relatório dizendo este — deixa de ser
+possível quando a plataforma já respondeu qual é.
+
+Quatro propriedades, e as duas primeiras são o guarda-corpo que o §5 da
+especificação pediu no verbo errado:
+
+- **Ambiente fora de `deployable_environments` é RECUSADO**, antes de qualquer
+  chamada. Abrir produção é uma edição de configuração feita por uma pessoa,
+  nunca um argumento que o agente escolhe.
+- **O TOKEN é perguntado primeiro.** O ACL vem dentro do próprio JWT, com
+  escopo de ambiente (`DEPLOYMENT:CREATE{ENV=TEST}`), então "esta credencial
+  não pode implantar aí" é respondível antes da requisição em vez de virar um
+  403 depois. Uma sessão interativa não declara papéis e fica por conta da
+  plataforma — chutar ali recusaria um deploy que funcionaria.
+- **A espera tem teto e reporta o que viu.** "Não estabilizou em N segundos" é
+  um TERCEIRO resultado, diferente de recusado e de quebrado; juntar os três é
+  como um loop de correção começa a reescrever pipeline que só estava lento.
+- **`availableReplicas: "0/0"` não é falha.** É o estado normal de 81 dos 111
+  deployments de `test` — autoscaling estacionou o pipeline. Ler isso como
+  defeito reprovaria três quartos do tenant.
+
+Vocabulário de status observado nos 111: `SERVICE_ACTIVE` 108, `SERVICE_ERROR`
+2, `DELETING` 1. `DeploymentStatus::Unknown` existe porque essas strings não são
+documentadas: um status novo tem de ler como "não estabilizado, não saudável",
+nunca derrubar o loop e muito menos passar por sucesso.
+
+### O que o deploy ainda NÃO provou
+
+**O corpo do POST nunca foi verificado contra a plataforma.** Toda outra rota
+desta feature saiu do A′/A″; essa respondia 403 para toda credencial disponível
+até o token escopado existir, então as chaves (`pipelineId`, `environment`,
+`pipelineSize`, `redeploy`) vêm das flags do próprio
+`digibeectl create deployment` mais a forma do `activeConfiguration` de um
+deployment que já existe. **Um 400 dessa rota é informação sobre o payload, não
+sobre o pipeline** — está dito no docblock dos dois lados (cliente e ação) para
+ninguém ler ao contrário no dia em que acontecer.
+
+Verificar custa um deploy real em `test`, e a sequência honesta é: sintetizar um
+trigger REST, ingerir no `apla-probe`, implantar, e rodar a bateria contra a URL
+que a plataforma devolver. É o loop inteiro de ponta a ponta, e é a primeira vez
+que este app colocaria algo no ar.
 
 ---
 
