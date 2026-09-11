@@ -24,7 +24,7 @@ sem descobrir quatro subsistemas depois que a premissa estava errada.
 | A″ — verificar os **verbos de escrita** | **feito, e agora com o token escopado** — cria, faz upsert e relê idêntico (§ O que o token escopado respondeu) |
 | B — modo de ingestão no normalizador/validador | **feito** — 36 testes em `tests/Feature/FlowspecIngestionTest.php` (§ O que a ingestão escreve) |
 | C — síntese de `triggerSpec` | **feito** — 19 testes em `tests/Feature/DigibeeTriggerSpecTest.php` (§ O que o triggerSpec sintetiza) |
-| D — runner de deploy (pela API) | **feito, com uma ressalva** — 12 testes em `tests/Feature/DigibeeDeployTest.php`; o CORPO do POST é o único pedaço desta feature nunca verificado contra a plataforma (§ O deploy) |
+| D — runner de deploy (pela API) | **feito** — 16 testes em `tests/Feature/DigibeeDeployTest.php`; o corpo foi probado contra a plataforma e três coisas mudaram por causa disso (§ O que a verificação do corpo encontrou). Falta um deploy que complete: o `apla-probe` precisa de uma versão publicada |
 | E — matriz de testes sintéticos + avaliador de asserções | **feito** — 41 testes em `tests/Feature/FlowspecTestMatrixTest.php`, as 201 do export constroem sem erro, e a bateria aparece na conversa do F8 (§ O que a matriz produz, § O contrato de resposta, § A bateria na tela) |
 | F — loop de auto-correção com evidência de runtime | não começado |
 | G — portão de promoção para `prod` | não começado |
@@ -1038,21 +1038,38 @@ Vocabulário de status observado nos 111: `SERVICE_ACTIVE` 108, `SERVICE_ERROR`
 documentadas: um status novo tem de ler como "não estabilizado, não saudável",
 nunca derrubar o loop e muito menos passar por sucesso.
 
-### O que o deploy ainda NÃO provou
+### O que a verificação do corpo encontrou (2026-09-11)
 
-**O corpo do POST nunca foi verificado contra a plataforma.** Toda outra rota
-desta feature saiu do A′/A″; essa respondia 403 para toda credencial disponível
-até o token escopado existir, então as chaves (`pipelineId`, `environment`,
-`pipelineSize`, `redeploy`) vêm das flags do próprio
-`digibeectl create deployment` mais a forma do `activeConfiguration` de um
-deployment que já existe. **Um 400 dessa rota é informação sobre o payload, não
-sobre o pipeline** — está dito no docblock dos dois lados (cliente e ação) para
-ninguém ler ao contrário no dia em que acontecer.
+O corpo foi probado contra a plataforma, e o que ele ensinou vale mais que o
+formato: **nesta rota um 403 e um 404 podem ser informação sobre o PAYLOAD.**
 
-Verificar custa um deploy real em `test`, e a sequência honesta é: sintetizar um
-trigger REST, ingerir no `apla-probe`, implantar, e rodar a bateria contra a URL
-que a plataforma devolver. É o loop inteiro de ponta a ponta, e é a primeira vez
-que este app colocaria algo no ar.
+**1. O ambiente é QUERY, não corpo.** A forma óbvia — `environment` dentro do
+corpo, espelhando `--environment` do CLI — respondeu **403 "Access denied"**. E
+não era permissão: a checagem roda antes do handler e é escopada por ambiente,
+então uma requisição cujo ambiente o servidor não enxerga é avaliada contra nada
+e negada. O mesmo valor em `?environment=` passou direto para o handler. O
+sinal de que o 403 era de payload: ele não mudava com o ambiente —
+`environment=test` e `environment=nao-existe` deram negações idênticas.
+
+**2. O pipeline se chama `id`, não `pipelineId`.** Com `id`, o handler procura
+alguma coisa (404 "No such entity"); com `pipelineId`, fica sem nada nas mãos
+(500 "The given id must not be null").
+
+**3. Só versão PUBLICADA implanta — e é aqui que a verificação parou.** Os 111
+deployments de `test` são **todos v1**, e nenhum pipeline lista uma v0: `v0.0` é
+o rascunho. O `apla-probe` está em v0.0, então a rota responde
+404 "No such entity" — que se lê como id errado e não é. Publicar versão
+acontece no canvas; nenhuma rota de API para isso foi encontrada, e nenhuma foi
+chutada.
+
+O que sobra para fechar: **alguém publica uma versão do `apla-probe` no canvas**
+(um clique) e o deploy roda. `DeployPipeline` já recusa v0.0 antes da chamada,
+com essa explicação, em vez de repassar um 404 que mente sobre a causa.
+
+Uma descoberta lateral que vale registrar: o `apla-probe` acumulou **seis
+`configurations`**, uma por upsert. Ninguém pediu isso e nada as usa; se cada
+escrita cria uma configuração, um pipeline sob um loop de auto-correção vai
+juntar dezenas. Vale olhar antes do Bloco F.
 
 ---
 
