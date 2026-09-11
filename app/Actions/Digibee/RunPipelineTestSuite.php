@@ -46,8 +46,15 @@ class RunPipelineTestSuite
 {
     public function __construct(private readonly DigibeeAuthResolver $auth) {}
 
-    public function handle(PipelineTestSuite $suite, ?EndpointCredential $credential = null): SuiteRun
-    {
+    /**
+     * @param  string|null  $endpoint  the URL the PLATFORM reported for this
+     *                                 deployment (`Deployment::endpoint()`), which beats composing one
+     */
+    public function handle(
+        PipelineTestSuite $suite,
+        ?EndpointCredential $credential = null,
+        ?string $endpoint = null,
+    ): SuiteRun {
         $allowed = (array) config('services.digibee.design.deployable_environments');
 
         if (! in_array($suite->environment, $allowed, true)) {
@@ -60,9 +67,14 @@ class RunPipelineTestSuite
             throw DigibeeApiException::missingCredentials('realm');
         }
 
-        // Throws for an environment with no host mapped, rather than falling
-        // back to one — the environment IS the host here.
-        $url = $suite->endpointUrl($realm);
+        // The platform reports the URL it assigned in
+        // `deploymentStatus.trigger`; composing one is the fallback for a
+        // pipeline that has not been deployed yet. Preferring the reported one
+        // removes the failure the whole environment-to-host map exists to
+        // prevent — a URL assembled wrong calls another environment and labels
+        // it this one. `endpointUrl()` still throws for an unmapped
+        // environment rather than falling back to some surviving host.
+        $url = $endpoint ?? $suite->endpointUrl($realm);
 
         $results = [];
 

@@ -165,6 +165,59 @@ class DigibeeDesignClient
         return is_array($body) && array_is_list($body) ? $body : [];
     }
 
+    /**
+     * Deployments in one environment, newest shape first — optionally narrowed
+     * to one pipeline by name.
+     *
+     * The narrowing is done client-side. `?name=` is honoured on the DESIGN
+     * listing, and nothing says the runtime one reads the same parameter; a
+     * filter the server ignores would answer with every deployment in the
+     * realm and the first one would silently become "the" deployment of the
+     * pipeline being polled.
+     *
+     * @return list<Deployment>
+     */
+    public function deployments(string $environment, ?string $pipelineName = null): array
+    {
+        $body = $this->json('GET', "/runtime/realms/{$this->realm()}/deployments", ['environment' => $environment]);
+
+        $items = array_is_list($body) ? $body : ($body['content'] ?? []);
+
+        $deployments = array_map(
+            Deployment::from(...),
+            array_values(array_filter(is_array($items) ? $items : [], is_array(...))),
+        );
+
+        return $pipelineName === null
+            ? $deployments
+            : array_values(array_filter(
+                $deployments,
+                fn (Deployment $deployment) => $deployment->pipelineName() === $pipelineName,
+            ));
+    }
+
+    /**
+     * Creates (or re-creates) a deployment.
+     *
+     * **The body shape is the one thing in this client that was never verified
+     * against the platform before it was written.** Every route above came out
+     * of A′/A″; this one answered 403 to the credential those ran with, so the
+     * payload below is derived from `digibeectl create deployment`'s own flags
+     * (`--pipeline-id`, `--environment`, `--pipeline-size`, `--consumers`,
+     * `--replicas`, `--redeploy`) plus the shape of `activeConfiguration` on a
+     * deployment that already exists. Treat a 400 here as information about
+     * the payload rather than about the pipeline.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    public function deploy(array $payload): array
+    {
+        $body = $this->json('POST', "/runtime/realms/{$this->realm()}/deployments", $payload);
+
+        return is_array($body) ? $body : [];
+    }
+
     public function realm(): string
     {
         return $this->auth->credentials()->realm;
