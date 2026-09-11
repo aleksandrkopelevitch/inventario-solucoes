@@ -37,6 +37,7 @@ class IngestFlowspecCommand extends Command
         {--cron= : Cron expression, required by --trigger=scheduler}
         {--event= : Event name, required by --trigger=event}
         {--replace-trigger : Overwrite a triggerSpec the pipeline already has}
+        {--force : Skip the confirmation — for a caller with no terminal to answer it}
         {--dry-run : Resolve, validate and report — write nothing}';
 
     protected $description = 'Write a generated flowSpec into a Digibee pipeline through the design API';
@@ -58,7 +59,12 @@ class IngestFlowspecCommand extends Command
         $name = (string) $this->argument('name');
         $dryRun = (bool) $this->option('dry-run');
 
-        if (! $dryRun && ! $this->confirm("Escrever o flowSpec no pipeline \"{$name}\" do realm?", false)) {
+        // `--no-interaction` makes confirm() take its default, which is NO —
+        // so a caller without a terminal writes nothing and reports success,
+        // which is the worst of both. `--force` is the deliberate way past it,
+        // and the correction loop (block F) will need exactly that.
+        if (! $dryRun && ! $this->option('force')
+            && ! $this->confirm("Escrever o flowSpec no pipeline \"{$name}\" do realm?", false)) {
             $this->components->warn('Nada foi escrito.');
 
             return self::SUCCESS;

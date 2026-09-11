@@ -1125,6 +1125,25 @@ endpoint credential (`EndpointCredential`) is NOT the design credential and
 never comes from configuration: sending a realm-wide token to the runtime host
 would hand one service another service's keys.
 
+**The `Authorization` scheme depends on WHICH credential is resolved, and
+getting it wrong answers 401 on a perfectly valid token.** An interactive
+`digibeectl` session goes in the header RAW — prefixing it with `Bearer `
+fails, which is why nothing here uses `withToken()`. A scoped digibeectl TOKEN
+(Administration → Digibeectl) is the exact opposite: raw answers 401 and
+`Bearer ` answers 200, measured one GET per variant against the real realm on
+2026-09-11. `DigibeeCredentials::headers()` decides by reading the JWT's own
+payload (`useTokenACL: true` marks a token ACL) rather than by a config flag,
+because a flag's failure mode is a silent 401 that reads as "the credential is
+wrong". Two more things that credential taught: a token's permissions are
+carried IN the JWT and are environment-scoped
+(`DEPLOYMENT:CREATE{ENV=TEST}`) — the role-permission table cannot express that
+and says deploy is all-environments — so `digibee:design:probe --diagnose`
+prints the ACL, making "may this credential do what I am about to ask"
+answerable offline instead of by a 403; and there is no `PIPELINE:UPDATE` for
+tokens at all (the token list mirrors CLI operations, and the CLI has no
+pipeline-update), so the upsert authorizes under `PIPELINE:CREATE` — verified
+with a write from a token holding no update permission of any kind.
+
 `digibeectl` is still not involved and the boundary in
 `App\Support\Digibee\DigibeectlClient` is untouched — this is HTTP with the
 credential `DigibeeAuthResolver` resolves. The ingestion is driven by hand

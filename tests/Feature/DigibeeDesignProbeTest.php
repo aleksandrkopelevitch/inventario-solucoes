@@ -3,6 +3,7 @@
 use App\Actions\Digibee\ProbeDigibeeDesignApi;
 use App\Exceptions\DigibeeApiException;
 use App\Support\Digibee\DigibeeAuthResolver;
+use App\Support\Digibee\DigibeeCredentials;
 use App\Support\Digibee\DigibeeProbeReport;
 use Illuminate\Support\Facades\Http;
 
@@ -246,4 +247,71 @@ it('exits non-zero when a probed route did not answer as the spec assumes', func
     ]);
 
     $this->artisan('digibee:design:probe')->assertFailed();
+});
+
+/*
+|--------------------------------------------------------------------------
+| Two credentials, two header schemes
+|--------------------------------------------------------------------------
+*/
+
+/** A synthetic, unsigned JWT — the payload is all this reads. */
+function fakeJwt(array $payload): string
+{
+    $encode = fn (array $part) => rtrim(strtr(base64_encode((string) json_encode($part)), '+/', '-_'), '=');
+
+    return $encode(['alg' => 'HS256', 'typ' => 'JWT']) . '.' . $encode($payload) . '.signature';
+}
+
+it('sends a scoped digibeectl token as a Bearer credential', function () {
+    // Measured against the real realm: raw answers 401 for a token ACL and
+    // Bearer answers 200 — the exact opposite of an interactive session.
+    $credentials = new DigibeeCredentials(
+        endpoint: 'https://core.example.test',
+        realm: 'leomadeiras',
+        jwt: fakeJwt(['useTokenACL' => true, 'roles' => ['PIPELINE:READ']]),
+        apikey: 'a-key',
+    );
+
+    expect($credentials->usesTokenAcl())->toBeTrue()
+        ->and($credentials->headers()['Authorization'])->toStartWith('Bearer ');
+});
+
+it('sends an interactive session token raw, which is what it needs', function () {
+    $credentials = new DigibeeCredentials(
+        endpoint: 'https://core.example.test',
+        realm: 'leomadeiras',
+        jwt: fakeJwt(['sub' => 'somebody']),
+        apikey: 'a-key',
+    );
+
+    expect($credentials->usesTokenAcl())->toBeFalse()
+        ->and($credentials->headers()['Authorization'])->not->toStartWith('Bearer ');
+});
+
+it('falls back to the session scheme when the JWT cannot be read', function () {
+    $credentials = new DigibeeCredentials(
+        endpoint: 'https://core.example.test',
+        realm: 'leomadeiras',
+        jwt: 'not-a-jwt-at-all',
+        apikey: 'a-key',
+    );
+
+    // Every credential before the scoped token was a session one, so that is
+    // the safe default for anything unparseable.
+    expect($credentials->headers()['Authorization'])->toBe('not-a-jwt-at-all')
+        ->and($credentials->roles())->toBe([]);
+});
+
+it('reads the environment-scoped permissions the token declares', function () {
+    $credentials = new DigibeeCredentials(
+        endpoint: 'https://core.example.test',
+        realm: 'leomadeiras',
+        jwt: fakeJwt(['useTokenACL' => true, 'roles' => ['PIPELINE:READ', 'DEPLOYMENT:CREATE{ENV=TEST}']]),
+        apikey: 'a-key',
+    );
+
+    // `{ENV=TEST}` is the whole point: a token ACL scopes deploy by
+    // environment, which the role-permission table does not.
+    expect($credentials->roles())->toBe(['PIPELINE:READ', 'DEPLOYMENT:CREATE{ENV=TEST}']);
 });
