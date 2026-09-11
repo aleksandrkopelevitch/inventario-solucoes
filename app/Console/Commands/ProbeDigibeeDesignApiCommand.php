@@ -118,5 +118,22 @@ class ProbeDigibeeDesignApiCommand extends Command
                 $row['length'] === 0 ? '—' : (string) $row['length'],
             ], $credentials->diagnose()),
         );
+
+        // What the credential itself says it may do. A scoped digibeectl token
+        // carries its ACL in the payload, environment scoping included
+        // (`DEPLOYMENT:CREATE{ENV=TEST}`), so "may this credential deploy to
+        // test" is answerable here rather than by a 403 later. An interactive
+        // session carries no such list and says so.
+        $roles = $credentials->roles();
+
+        $this->components->twoColumnDetail(
+            'credential kind',
+            $credentials->usesTokenAcl() ? 'digibeectl token (Bearer)' : 'interactive session (raw)',
+        );
+
+        $this->components->twoColumnDetail(
+            'token permissions',
+            $roles === [] ? '<comment>none declared — the user\'s own role applies</comment>' : implode(', ', $roles),
+        );
     }
 }

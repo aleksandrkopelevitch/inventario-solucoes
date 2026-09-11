@@ -21,10 +21,10 @@ sem descobrir quatro subsistemas depois que a premissa estava errada.
 | Reconhecimento — `digibeectl`, export real, docs | **feito** (2026-09-04) |
 | A — resolução de credencial + cliente HTTP + probe read-only | **feito** — 13 testes em `tests/Feature/DigibeeDesignProbeTest.php`, suíte inteira verde (1237) |
 | A′ — **rodar** o probe contra o tenant | **feito** (2026-09-04) — as três rotas respondem, e o pipeline volta com as 34 chaves (§ O que o probe respondeu) |
-| A″ — verificar os **verbos de escrita** | **create e update verificados** — o loop fecha. Deploy recusado por permissão (§ O que o A″ respondeu) |
+| A″ — verificar os **verbos de escrita** | **feito, e agora com o token escopado** — cria, faz upsert e relê idêntico (§ O que o token escopado respondeu) |
 | B — modo de ingestão no normalizador/validador | **feito** — 31 testes em `tests/Feature/FlowspecIngestionTest.php` (§ O que a ingestão escreve) |
 | C — síntese de `triggerSpec` | **feito** — 19 testes em `tests/Feature/DigibeeTriggerSpecTest.php` (§ O que o triggerSpec sintetiza) |
-| D — runner de deploy (pela API) | **metade feita** — o runner de testes existe e é testado sem rede (§ O runner, sem a rede); falta o deploy, bloqueado por permissão |
+| D — runner de deploy (pela API) | **metade feita** — o runner de testes existe e é testado sem rede (§ O runner, sem a rede); o deploy deixou de ser bloqueado por permissão (§ O token escopa deploy por ambiente) e falta implementar |
 | E — matriz de testes sintéticos + avaliador de asserções | **feito** — 41 testes em `tests/Feature/FlowspecTestMatrixTest.php`, as 201 do export constroem sem erro, e a bateria aparece na conversa do F8 (§ O que a matriz produz, § O contrato de resposta, § A bateria na tela) |
 | F — loop de auto-correção com evidência de runtime | não começado |
 | G — portão de promoção para `prod` | não começado |
@@ -402,6 +402,11 @@ contrário — a frase está certa:
 implanta em produção — que é literalmente o que o `DigibeectlClient` afirma. O
 desenho "credencial restrita a deploy em test" que a decisão de topologia
 pressupõe **não é construível como estava escrito**.
+
+> **Errado, e corrigido em 2026-09-11.** Isto vale para a tabela de permissões
+> por PAPEL; o ACL de um token escopa por ambiente
+> (`DEPLOYMENT:CREATE{ENV=TEST}`). Ver § O token ESCOPA deploy por ambiente. O
+> parágrafo fica como registro do raciocínio que a evidência derrubou.
 
 A terceira linha é a saída, e é melhor que a proposta original:
 **`DEPLOYMENT:CREATE:REDEPLOY` é escopado por ambiente.** Então uma pessoa faz
@@ -893,6 +898,85 @@ Duas escolhas:
 
 ---
 
+## O que o token escopado respondeu
+
+Rodado em 2026-09-11 com um token criado em Administration → Digibeectl, com
+cinco permissões e nada além delas. As três rotas de leitura respondem **200**,
+o documento volta com as 34 chaves, e o upsert **escreveu e releu idêntico** no
+`apla-probe` — sem duplicar: o realm continua com exatamente um pipeline com
+esse nome. **A metade de design fecha sob credencial escopada, de dentro do
+app.**
+
+Três achados, e cada um corrige alguma coisa que este plano afirmava.
+
+### O esquema do header depende de QUAL credencial é
+
+A sessão interativa do `digibeectl` vai **crua** no `Authorization` — está na
+definição de pronto desta fase e continua verdade. Um TOKEN do digibeectl é o
+oposto exato: cru responde **401**, `Bearer ` responde **200**. Medido com um
+GET por variante contra o realm real:
+
+| header | resposta |
+|---|---|
+| `Authorization: <jwt>` + `apikey` | 401 |
+| `Authorization: Bearer <jwt>` + `apikey` | **200** |
+| `Authorization: <jwt>` sozinho | 401 |
+| `apikey` sozinho | 401 |
+| `Bearer <jwt>` + `x-api-key` | 401 |
+
+Custou uma rodada de 401 que parecia credencial errada, e não era. Quem decide
+agora é o próprio token: o payload de um token ACL carrega `useTokenACL: true`,
+uma sessão não — então `DigibeeCredentials::headers()` escolhe o esquema lendo
+o JWT em vez de ler uma flag de configuração, cuja falha seria um 401 silencioso
+que se lê como "a credencial está errada".
+
+### O token ESCOPA deploy por ambiente — a § da credencial estava errada
+
+A seção § A credencial é um TOKEN do digibeectl conclui que "não existe
+permissão de deploy só em `test`", a partir da tabela de permissões por serviço
+("DEPLOYMENT:CREATE: deploy pipelines in **all environments**"). **Isso vale
+para papéis, não para tokens.** O ACL do token real traz:
+
+```
+PIPELINE:READ, PIPELINE:CREATE, CONFIGURATION:READ,
+DEPLOYMENT:READ{ENV=TEST}, DEPLOYMENT:READ{ENV=PROD},
+DEPLOYMENT:CREATE:REDEPLOY{ENV=TEST}, DEPLOYMENT:CREATE{ENV=TEST}
+```
+
+`{ENV=TEST}` é o que a tabela de papéis não expressa. Consequência direta: **o
+desenho "uma pessoa faz o primeiro deploy, o agente só redeploya" não é mais
+necessário** — o agente pode criar o deployment também, confinado a `test`. O
+guarda-corpo continua sendo `deployable_environments` mais o ACL do token, agora
+em duas camadas independentes em vez de uma.
+
+`php artisan digibee:design:probe --diagnose` imprime o ACL, então "esta
+credencial pode fazer o que eu vou pedir" é uma pergunta respondível **offline**,
+antes de um 403 responder em produção.
+
+### `PIPELINE:UPDATE` não existe para token, e não faz falta
+
+A lista de permissões do token espelha as OPERAÇÕES do `digibeectl`, e o CLI tem
+`get pipeline` e `create pipeline` — operação de update não existe, que é
+exatamente por que esta feature usa a API de design. O upsert é `POST` na mesma
+coleção do create, então quem autoriza é `PIPELINE:CREATE`: verificado com o
+write acima, com o mesmo token que não tem `PIPELINE:UPDATE` nenhum.
+
+Vale o mesmo para o projeto: não há permissão de token para associar pipeline a
+projeto (`PROJECT:UPDATE:LINK-WITH-PIPELINE` é de papel, não de token), e o CLI
+filia no `create pipeline --project`. O caminho limpo é criar a casca no projeto
+certo à mão e deixar o agente só fazer upsert em pipeline que já existe — o que
+contorna o `projectId` descartado em silêncio em vez de resolvê-lo.
+
+### Uma nota operacional
+
+O token vale **até 2036-09-10**. Isso responde a dúvida de "§ Antes de construir
+em cima" sobre renovação — não precisa de nenhuma — e levanta outra: é uma
+credencial de dez anos morando em `.env`, que faz deploy em `test`. No droplet
+ela tem de ser variável de ambiente CRIPTOGRAFADA, e não há expiração para
+limitar um vazamento.
+
+---
+
 ## Definição de pronto da Fase 1
 
 - [x] Credencial resolvida por ambiente primeiro, arquivo do `digibeectl`
@@ -916,6 +1000,13 @@ Duas escolhas:
 ## Bloqueios
 
 O bloqueio de leitura caiu; sobraram quatro.
+
+**Atualização de 2026-09-11: o token existe, e os bloqueios 1, 2 e 4 caíram.**
+As leituras e o upsert foram verificados com ele (§ O que o token escopado
+respondeu), e o ACL traz `DEPLOYMENT:CREATE{ENV=TEST}` — então nem o deploy nem
+o primeiro deploy dependem mais de alguém. O que sobra do bloqueio 3 é a filiação
+a projeto, contornada criando a casca no projeto certo. O texto abaixo é o
+registro de como o problema se apresentava.
 
 **1. O deploy precisa de um token novo, e de uma pessoa no primeiro deploy.**
 Resolvido no desenho, não no código: § A credencial é um TOKEN do digibeectl
