@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\AsciiSlug;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -21,7 +22,7 @@ class UpdateSolutionRequest extends FormRequest
 
         return [
             'name'                   => ['required', 'string', 'max:255'],
-            'slug'                   => ['nullable', 'string', 'max:255', Rule::unique('solutions', 'slug')->ignore($solutionId)],
+            'slug'                   => ['nullable', 'string', 'max:255', new AsciiSlug, Rule::unique('solutions', 'slug')->ignore($solutionId)],
             'description'            => ['nullable', 'string'],
             'vendor_company_id'      => ['nullable', 'integer', 'exists:companies,id'],
             'category'               => ['required', Rule::exists('attribute_options', 'value')->where('group', 'category')],

@@ -1371,6 +1371,34 @@ Route::get('/proposals/{proposal}/analyses/{analysis}', ...)
     ->scopeBindings();
 ```
 
+### A slug is lowercase ASCII, always
+
+`[a-z0-9]` and single hyphens. **No accents, no `ç`, no spaces, no
+underscores, no leading or trailing dash** — `Soluções` is `solucoes`,
+`Operação & Manutenção` is `operacao-manutencao`. `App\Rules\AsciiSlug`
+enforces it and its message suggests the transliterated form.
+
+Everything that GENERATES a slug already complied, because `Str::slug()`
+transliterates. The hole was everything that ACCEPTS one: the six
+Store/Update requests for solutions, people and companies took `slug` as
+`string|max:255|unique` and nothing else, so a posted `Soluções & Cia` would
+have been stored verbatim and become part of a URL. Pages, cadernos and
+diagrams never take a client slug at all — theirs are always derived from the
+title — so they were never exposed.
+
+The reason is that a slug is an ADDRESS, and it is compared as bytes in places
+where nothing forgives a difference: route model binding, `page:{slug}` and
+`{% diagram slug="…" %}` inside documentation, and
+`PublicDocumentationController::diagramPicture()`, which is authorisation and
+therefore deliberately NOT folded (§ Searching — folding it would let `SLUG-A`
+stand in for `slug-a`). Add an accent and `operações` and `operacoes` become
+two strings that look like one, in URLs that get pasted into Teams and
+percent-encoded by some clients and not others.
+
+Heading ANCHORS are a different construct and keep their accents on purpose
+(`id="autenticação"`): they are read back out of the rendered HTML rather than
+re-derived, so they must match what commonmark emitted. Don't "fix" those.
+
 **URL paths in this app are in English** (`/solutions`, `/companies`,
 `/people`, `/notebooks`, `/documentation`, `/map`, `/flowspec`) even though every
 label the user reads is PT-BR — `/notebooks` is where a **caderno** lives. Keep
