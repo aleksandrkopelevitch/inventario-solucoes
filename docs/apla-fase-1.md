@@ -1109,10 +1109,38 @@ pipelines — cada `versionMajor.versionMinor` é uma linha. `latestByName()`
 escolher a maior versão é o comportamento certo, e foi o que resolveu para a
 v0.1 recém-salva.
 
-Uma descoberta lateral que vale registrar: o `apla-probe` acumulou **seis
-`configurations`**, uma por upsert. Ninguém pediu isso e nada as usa; se cada
-escrita cria uma configuração, um pipeline sob um loop de auto-correção vai
-juntar dezenas. Vale olhar antes do Bloco F.
+### Por que o `apla-probe` não sobe — e o que NÃO é a causa
+
+A v1.0 foi promovida e implantada pelo canvas, e o deployment fica em
+`STARTING` com 0/1 réplicas e "Pipeline Configuration is invalid
+… Node is expected to be an object node". Nada responde na URL, que é o que a
+bateria (corretamente) reportou como "nada respondendo".
+
+A pista concreta está no `activeConfiguration` do deployment, comparado com o de
+um pipeline que roda:
+
+| | `apla-probe` | saudável |
+|---|---|---|
+| `fallback` | **null** | `{failureThreshold, replicas}` |
+| `scalerTrigger` | **null** | lista de 2 |
+| `cooldownPeriod` | null | 300 |
+| `initialCooldownPeriod` | null | 180 |
+| `pollingInterval` | null | 3 |
+| `useCachedMetrics` | null | true |
+| `autoscaling` | false | true |
+
+`fallback: null` onde se espera um objeto casa exatamente com o erro do Jackson.
+Ou seja: o pipeline foi implantado com uma configuração de escala **em branco**,
+e o engine não consegue lê-la. É configuração de deploy, não conteúdo do
+flowSpec.
+
+**E uma correção de algo que este documento afirmou.** Eu escrevi que o
+`apla-probe` tinha acumulado "seis `configurations`, uma por upsert". Errado:
+**todo pipeline do tenant tem exatamente seis** — `token-digibee`,
+`zfl-bloq-desbloq-cliente` e `get-token-cws` também. Seis é o conjunto padrão da
+plataforma, e as nossas escritas não multiplicaram nada. O que difere é que as
+seis do `apla-probe` têm `cooldownPeriod: null` e as dos outros não — ou seja,
+elas nunca foram configuradas, não foram poluídas.
 
 ---
 
