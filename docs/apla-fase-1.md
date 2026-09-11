@@ -870,11 +870,21 @@ Quatro propriedades, cada uma um jeito de o relatório mentir:
   diz isso. É a entrada mais enganosa que esta feature pode dar a um modelo: um
   muro de 401 é idêntico a um pipeline que rejeita tudo.
 
+**E agora ela tem quem a dispare.** `digibee:pipeline:test` resolve o pipeline,
+constrói a matriz a partir do documento armazenado (inclusive o
+`triggerSpec`, de onde sai a afirmação sobre o tipo da resposta), pega a URL do
+deployment e roda os casos executáveis. Por um tempo o runner não tinha chamador
+nenhum — o mesmo problema que a matriz tinha antes de virar painel: escrito,
+testado e inalcançável.
+
 A credencial do endpoint (`EndpointCredential`) **não é a do design**, e não sai
 de configuração: quem consome um pipeline implantado usa Basic Auth, API key ou
 um JWT que a plataforma emitiu, e isso pertence a quem é dono daquela
 integração. Mandar o token do design para o host de runtime seria despachar uma
-credencial de realm inteiro para outro serviço.
+credencial de realm inteiro para outro serviço. O comando **pergunta** o valor
+com entrada escondida (`secret()`) em vez de aceitá-lo por flag: uma flag põe a
+credencial no histórico do shell e no `ps`. `--auth=none` é como se diz em voz
+alta que o endpoint é aberto.
 
 ---
 
