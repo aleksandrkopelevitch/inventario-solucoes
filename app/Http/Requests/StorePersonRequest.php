@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Enums\ContactType;
 use App\Enums\PersonSolutionRole;
 use App\Models\Person;
+use App\Rules\AsciiSlug;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -22,7 +23,7 @@ class StorePersonRequest extends FormRequest
     {
         return [
             'name'       => ['required', 'string', 'max:255'],
-            'slug'       => ['nullable', 'string', 'max:255', Rule::unique('people', 'slug')],
+            'slug'       => ['nullable', 'string', 'max:255', new AsciiSlug, Rule::unique('people', 'slug')],
             'company_id' => ['nullable', 'integer', 'exists:companies,id'],
             'job_title'  => ['nullable', 'string', 'max:255'],
             'email'      => ['nullable', 'email', 'max:255'],
