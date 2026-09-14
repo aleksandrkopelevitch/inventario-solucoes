@@ -105,6 +105,10 @@ class PipelineHealingService
      *                                               pipeline's own trigger — never
      *                                               the design credential
      */
+    /**
+     * @param  (callable(HealingRound): void)|null  $onRound  called as each round
+     *         finishes, before the next one starts
+     */
     public function heal(
         array $document,
         string $pipelineName,
@@ -113,6 +117,8 @@ class PipelineHealingService
         ?EndpointCredential $credential = null,
         bool $create = false,
         ?int $maxRounds = null,
+        ?callable $onRound = null,
+        ?int $deployTimeoutSeconds = null,
     ): HealingReport {
         $maxRounds = max(1, $maxRounds ?? (int) config('services.digibee.design.max_healing_rounds', 3));
 
@@ -120,9 +126,21 @@ class PipelineHealingService
         $endpoint = null;
 
         for ($round = 1; $round <= $maxRounds; $round++) {
-            $outcome = $this->round($round, $document, $pipelineName, $environment, $trigger, $credential, $create);
+            $outcome = $this->round(
+                $round, $document, $pipelineName, $environment,
+                $trigger, $credential, $create, $deployTimeoutSeconds,
+            );
             $rounds[] = $outcome;
             $endpoint = $outcome->deployment?->endpoint ?? $endpoint;
+
+            // Reported as it happens, not at the end. A round is a real
+            // deployment in a shared realm, and a screen that only resolves
+            // minutes later leaves somebody watching a spinner while those
+            // deployments occur. The callback runs BEFORE the model is asked
+            // for a correction, which is the slowest part of a cycle.
+            if ($onRound !== null) {
+                $onRound($outcome);
+            }
 
             // The pipeline creation is a first-round concern only: rounds two
             // and up are rewriting the pipeline round one created, and asking
@@ -141,11 +159,16 @@ class PipelineHealingService
             $corrected = $this->correct($document, $outcome->evidence, $pipelineName, $environment);
 
             if ($corrected === null || $this->sameDocument($corrected, $document)) {
-                $rounds[] = new HealingRound(
+                $stuck = new HealingRound(
                     round: $round + 1,
                     verdict: HealingVerdict::Stuck,
                     evidence: $outcome->evidence,
                 );
+                $rounds[] = $stuck;
+
+                if ($onRound !== null) {
+                    $onRound($stuck);
+                }
 
                 return $this->report($pipelineName, $environment, HealingVerdict::Stuck, $rounds, $document, $endpoint);
             }
@@ -171,6 +194,7 @@ class PipelineHealingService
         ?TriggerSpec $trigger,
         ?EndpointCredential $credential,
         bool $create,
+        ?int $deployTimeoutSeconds,
     ): HealingRound {
         try {
             $ingestion = $this->ingest->handle(
@@ -214,10 +238,18 @@ class PipelineHealingService
             );
         }
 
-        $deployment = $this->deploy->handle(
-            pipelineName: $pipelineName,
-            environment: $environment,
-        );
+        // The wait is a parameter because the caller's own ceiling decides it.
+        // A queued run must finish inside `retry_after` (900s): a job that
+        // outlives it is RUN AGAIN by another worker while the first is still
+        // going, which here means a second set of real deployments. The console
+        // has no such ceiling and keeps the action's default.
+        $deployment = $deployTimeoutSeconds === null
+            ? $this->deploy->handle(pipelineName: $pipelineName, environment: $environment)
+            : $this->deploy->handle(
+                pipelineName: $pipelineName,
+                environment: $environment,
+                timeoutSeconds: $deployTimeoutSeconds,
+            );
 
         Log::info('APLA: rodada de cura — deploy', [
             'pipeline' => $pipelineName,
