@@ -224,15 +224,21 @@ class PipelineHealingService
         ]);
 
         if (! $ingestion->confirmed()) {
-            // Refusals here are validation errors in the document itself, so
-            // they ARE re-promptable — it is the one non-runtime evidence this
-            // loop accepts, and it costs nothing because the errors already
-            // exist. A write that answered but could not be verified is not
-            // this: nothing is deployed, and re-prompting would correct a
-            // document that may well be the one stored.
+            // A refused write is NOT automatically evidence about the document,
+            // and treating it as such is how this loop spent a model call
+            // asking for a fix to a flowSpec that was fine: the default
+            // pipeline name on the new screen is a slug of the chat title,
+            // which usually names no pipeline at all, and "no pipeline called X
+            // exists in the realm" came back as something to correct.
+            //
+            // `IngestionReport::correctable()` is the discriminator, and only
+            // OUR validation rejecting the flowSpec sets it. A missing
+            // pipeline, or a triggerSpec the caller asked for without the cron
+            // it needs, are facts about the request and the realm — the run
+            // stops and says so.
             return new HealingRound(
                 round: $round,
-                verdict: HealingVerdict::NotIngested,
+                verdict: $ingestion->correctable() ? HealingVerdict::NotIngested : HealingVerdict::NotWritable,
                 ingestion: $ingestion,
                 evidence: $ingestion->errors,
             );

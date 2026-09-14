@@ -315,7 +315,7 @@ it('treats an engine that came up broken as evidence about the document', functi
 });
 
 it('feeds a refused write back, because those errors are about the document', function () {
-    $refused = new IngestionReport(pipelineName: 'p', errors: ['Step sem id UUID v4.']);
+    $refused = new IngestionReport(pipelineName: 'p', errors: ['Step sem id UUID v4.'], documentRejected: true);
 
     $service = healingService(
         deployments: [liveDeployment()],
@@ -330,6 +330,32 @@ it('feeds a refused write back, because those errors are about the document', fu
         ->and($report->rounds[0]->reached())->toBe('escrita')
         ->and($report->verdict)->toBe(HealingVerdict::Green)
         ->and($service->calls)->toBe(1);
+});
+
+it('does not re-prompt a write the REALM refused, only one the document earned', function () {
+    // The default pipeline name on the new screen is a slug of the chat title,
+    // which usually names no pipeline at all — so "no pipeline called X exists"
+    // is the routine refusal there. Handing it to the model spends an attempt
+    // asking it to fix a flowSpec that is fine, and ends the run confused.
+    $refused = new IngestionReport(
+        pipelineName: 'p',
+        errors: ['Nenhum pipeline chamado "p" existe no realm.'],
+    );
+
+    $service = healingService(
+        deployments: [],
+        runs: [],
+        answers: ['```json' . json_encode(healingDocument('corrigido')) . '```'],
+        ingestions: [$refused],
+    );
+
+    $report = $service->heal(healingDocument(), 'p');
+
+    expect($report->verdict)->toBe(HealingVerdict::NotWritable)
+        ->and($report->verdict->judgedThePipeline())->toBeFalse()
+        ->and($service->calls)->toBe(0)               // nothing asked of the model
+        ->and($report->deploys())->toBe(0)
+        ->and($report->finalEvidence()[0])->toContain('existe no realm');
 });
 
 /*

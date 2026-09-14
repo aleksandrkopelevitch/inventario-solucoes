@@ -1367,8 +1367,8 @@ ele não alcança, deixando mais uma implantação num realm que não apaga nada
 | `Green` | bateria rodou e o caminho feliz passou | — |
 | `Unproven` | nada falhou, e nada provou que funciona | **não** |
 | `StillFailing` | casos falharam (ou o engine subiu quebrado) | **sim** |
-| `NotIngested` | a nossa validação recusou o documento | **sim** |
-| `NotWritable` | a plataforma recusou a escrita | **não** |
+| `NotIngested` | a nossa validação recusou o DOCUMENTO | **sim** |
+| `NotWritable` | a escrita foi recusada por algo que não é o documento | **não** |
 | `Refused` | ambiente, permissão, configuração | não |
 | `Unsettled` | o deploy não estabilizou no teto | não |
 | `NotAnswering` | todos os casos 404 | não |
@@ -1380,6 +1380,26 @@ mesmos bytes e colheria a mesma evidência, então é um deploy gasto para não
 aprender nada. A comparação é do JSON canônico (chaves ordenadas), senão o mesmo
 pipeline com duas chaves trocadas de lugar lê como progresso e compra outro
 deploy.
+
+#### Uma recusa de escrita não é automaticamente sobre o documento
+
+Corrigido em 2026-09-14, e o defeito só ficou visível quando a tela existiu. O
+loop tratava TODA recusa do `IngestFlowspec` como evidência re-promptável, e o
+nome de pipeline que o painel sugere é um slug do título da conversa — que
+normalmente não nomeia pipeline nenhum. O resultado era gastar uma chamada ao
+modelo pedindo que ele "corrigisse" um flowSpec impecável por causa de
+*"Nenhum pipeline chamado X existe no realm"*, e terminar `Stuck`.
+
+`IngestionReport::correctable()` é o discriminador, e só a NOSSA validação
+recusando o flowSpec o liga. As outras duas recusas daquele action — o realm não
+ter o pipeline (e criar não ter sido pedido) e um `triggerSpec` incompleto — são
+fatos sobre o pedido e sobre o realm: nenhuma reescrita muda qualquer um dos
+dois. Elas terminam `NotWritable`, que por isso deixou de significar só "não
+está em rascunho" e passou a ser "a escrita foi recusada por algo que não é o
+documento", com a linha de evidência dizendo qual dos casos foi.
+
+É a mesma regra da tabela acima vista de um ângulo novo: o que ganha uma
+tentativa do modelo é só o que uma reescrita alcança.
 
 #### O deploy PUBLICA o pipeline, e é isso que limita o loop hoje
 

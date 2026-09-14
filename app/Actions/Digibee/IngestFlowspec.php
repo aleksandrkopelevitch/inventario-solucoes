@@ -116,6 +116,9 @@ class IngestFlowspec
                 branchCount: count($flowSpec),
                 changes: $changes,
                 errors: $validation->errors,
+                // The ONE refusal here that is about the document, and so the
+                // one the healing loop may hand back to the model.
+                documentRejected: true,
             );
         }
 
