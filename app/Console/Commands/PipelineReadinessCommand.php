@@ -2,50 +2,49 @@
 
 namespace App\Console\Commands;
 
-use App\Actions\Digibee\PromotePipeline;
+use App\Actions\Digibee\AssessPromotion;
 use App\Actions\Flowspec\SynthesizeTriggerSpec;
 use App\Enums\DigibeeTriggerAuth;
 use App\Enums\DigibeeTriggerKind;
 use App\Services\Digibee\PipelineHealingService;
-use App\Support\Digibee\PromotionReport;
+use App\Support\Digibee\PromotionReadiness;
 use App\Support\Digibee\Testing\EndpointCredential;
 use App\Support\Digibee\TriggerSpec;
 use Illuminate\Console\Command;
 use JsonException;
 
 /**
- * Runs the lifecycle end to end: heal in `test`, then ask the gate about
- * production.
+ * Runs the lifecycle in `test` and answers whether a person should promote.
+ *
+ * It never promotes. The agent's reach stops at `test` by decision — promotion
+ * is a human clicking in the Digibee panel — so what this command produces is a
+ * verdict to act on, plus the VERSION to look for in that panel.
  *
  * **The evidence is always produced by this same invocation**, and that is the
- * design rather than a convenience. A promotion authorised by a green run from
- * last week says nothing about the pipeline as it stands now — and the gate's
- * drift check exists precisely because the canvas can rewrite a pipeline
- * between the two. Making the run fresh removes the whole class of stale
- * evidence instead of trying to date it.
+ * design rather than a convenience: a verdict resting on last week's green run
+ * says nothing about the pipeline as it stands, and the drift check exists
+ * precisely because the canvas can rewrite it in between. Making the run fresh
+ * removes the whole class of stale evidence instead of trying to date it.
  *
- * Out of `routes/console.php`, like every other verb here, and it confirms
- * before it starts: one invocation can deploy several times in `test` and once
- * in production.
+ * Out of `routes/console.php`, like every verb here, and it confirms first: one
+ * invocation can deploy several times in `test`, and this platform deletes
+ * nothing.
  */
-class PromotePipelineCommand extends Command
+class PipelineReadinessCommand extends Command
 {
-    protected $signature = 'digibee:pipeline:promote
+    protected $signature = 'digibee:pipeline:readiness
         {name : The pipeline name in the realm}
         {--file= : Path to a generated {meta, flowSpec} JSON document}
-        {--from=test : Which environment the evidence is produced in}
-        {--to=prod : Which environment to promote to (must be allowed in config)}
-        {--size=SMALL : Runtime configuration size to promote with}
-        {--rounds= : Healing cycles allowed in the evidence environment}
+        {--environment=test : Which environment to produce the evidence in}
+        {--rounds= : Healing cycles allowed}
         {--trigger= : Synthesize a triggerSpec to write: rest|http|http-file|scheduler|event}
         {--endpoint-auth=none : basic|key|jwt|none — how the battery authenticates when calling}
         {--key-header=x-api-key : Header name for --endpoint-auth=key}
-        {--dry-run : Judge and report — promote nothing}
         {--force : Skip the confirmation}';
 
-    protected $description = 'Heal a pipeline in test and, only if it comes out green, promote it';
+    protected $description = 'Heal a pipeline in test and say whether it is fit to promote by hand';
 
-    public function handle(PipelineHealingService $healing, PromotePipeline $promote, SynthesizeTriggerSpec $triggers): int
+    public function handle(PipelineHealingService $healing, AssessPromotion $assess, SynthesizeTriggerSpec $triggers): int
     {
         $document = $this->document();
 
@@ -66,13 +65,11 @@ class PromotePipelineCommand extends Command
         }
 
         $name = (string) $this->argument('name');
-        $from = (string) $this->option('from');
-        $to = (string) $this->option('to');
-        $dryRun = (bool) $this->option('dry-run');
+        $environment = (string) $this->option('environment');
         $rounds = (string) $this->option('rounds');
 
-        if (! $dryRun && ! $this->option('force') && ! $this->confirm(
-            "Curar \"{$name}\" em {$from} e, se ficar verde, promover para {$to}?",
+        if (! $this->option('force') && ! $this->confirm(
+            "Curar \"{$name}\" em {$environment} e avaliar se está pronto para promoção?",
             false,
         )) {
             $this->components->warn('Nada foi feito.');
@@ -80,12 +77,10 @@ class PromotePipelineCommand extends Command
             return self::SUCCESS;
         }
 
-        $this->components->info("Produzindo evidência em {$from}…");
-
         $evidence = $healing->heal(
             document: $document,
             pipelineName: $name,
-            environment: $from,
+            environment: $environment,
             trigger: $trigger,
             credential: $credential,
             maxRounds: $rounds === '' ? null : (int) $rounds,
@@ -93,50 +88,38 @@ class PromotePipelineCommand extends Command
 
         $this->line('  <fg=gray>evidência:</> ' . $evidence->verdict->label());
 
-        $report = $promote->handle(
-            evidence: $evidence,
-            toEnvironment: $to,
-            size: (string) $this->option('size'),
-            dryRun: $dryRun,
-        );
+        $this->report($assess->handle($evidence));
 
-        $this->report($report);
-
-        return $report->promoted || $dryRun && ! $report->refused() ? self::SUCCESS : self::FAILURE;
+        return self::SUCCESS;
     }
 
-    private function report(PromotionReport $report): void
+    private function report(PromotionReadiness $readiness): void
     {
         $this->newLine();
 
         $this->table(['', ''], [
-            ['pipeline', $report->pipelineName],
-            ['evidência de', $report->fromEnvironment],
-            ['destino', $report->toEnvironment],
-            ['promovido', $report->promoted ? 'sim' : 'não'],
-            ['endpoint', $report->deployment?->endpoint ?? '—'],
+            ['pipeline', $readiness->pipelineName],
+            ['testado em', $readiness->testedIn],
+            ['versão armazenada', $readiness->version ?? '—'],
+            ['endpoint', $readiness->endpoint ?? '—'],
+            ['pronto para promover', $readiness->ready ? 'sim' : 'não'],
         ]);
 
-        // Every refusal, never just the first: somebody asking why this is not
-        // in production deserves the whole list rather than a queue of
-        // one-at-a-time discoveries.
-        foreach ($report->refusals as $refusal) {
-            $this->line("  <fg=red>x</> {$refusal}");
+        // Every blocker, never just the first: somebody deciding whether to
+        // promote deserves the whole list rather than a queue of discoveries.
+        foreach ($readiness->blockers as $blocker) {
+            $this->line("  <fg=red>x</> {$blocker}");
         }
 
-        foreach ($report->warnings as $warning) {
-            $this->line("  <fg=yellow>!</> {$warning}");
+        foreach ($readiness->notes as $note) {
+            $this->line("  <fg=gray>-</> {$note}");
         }
 
         $this->newLine();
 
-        if ($report->promoted) {
-            $this->components->info('Promovido.');
-
-            return;
-        }
-
-        $this->components->warn($report->refused() ? 'O portão recusou.' : 'Nada foi promovido.');
+        $readiness->ready
+            ? $this->components->info('Pronto: promova ' . ($readiness->version ?? 'a versão armazenada') . ' pelo painel da Digibee.')
+            : $this->components->warn('Não promova ainda.');
     }
 
     /** @return array<string, mixed>|null */

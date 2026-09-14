@@ -382,3 +382,45 @@ it('refuses when no configuration matches, instead of taking the first', functio
 
     Http::assertNotSent(fn (Request $request) => $request->method() === 'POST');
 });
+
+it('ships with production closed, as a default rather than a setting to remember', function () {
+    // This guard moved here when the promotion gate stopped deploying: the
+    // environment list now protects THIS action (and the test battery), which
+    // is the only thing left that can reach a runtime host.
+    //
+    // Read from the SHIPPED config file with the variables unset, because that
+    // is the state of a box where nobody added them — and the guardrail is only
+    // a guardrail if it holds there. Asserting `config()` would assert this
+    // test environment instead.
+    $keys = ['DIGIBEE_DEPLOYABLE_ENVIRONMENTS', 'DIGIBEE_MAX_HEALING_ROUNDS'];
+    $saved = [];
+
+    foreach ($keys as $key) {
+        $saved[$key] = [$_ENV[$key] ?? null, $_SERVER[$key] ?? null, getenv($key)];
+        unset($_ENV[$key], $_SERVER[$key]);
+        putenv($key);
+    }
+
+    try {
+        $services = require base_path('config/services.php');
+
+        expect($services['digibee']['design']['deployable_environments'])->toBe(['test'])
+            ->and($services['digibee']['design']['max_healing_rounds'])->toBe(3);
+    } finally {
+        foreach ($keys as $key) {
+            [$env, $server, $raw] = $saved[$key];
+
+            if ($env !== null) {
+                $_ENV[$key] = $env;
+            }
+
+            if ($server !== null) {
+                $_SERVER[$key] = $server;
+            }
+
+            if ($raw !== false) {
+                putenv("{$key}={$raw}");
+            }
+        }
+    }
+});
