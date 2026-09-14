@@ -1526,6 +1526,45 @@ parecer que acusasse drift sempre seria indistinguível deste sob mock.
   já existia em `FlowspecIngestionTest.php` e a suíte inteira morreu com
   `Cannot redeclare`. Os helpers deste arquivo levam prefixo próprio.
 
+### A ponte: o ciclo de vida aponta para o que o próprio app gerou
+
+`App\Support\Flowspec\FlowspecDocumentSource`. Fase 1 terminou com um ciclo de
+vida completo e **sem público**: todo verbo exigia um terminal e um `--file` em
+disco, enquanto os documentos que interessam já estavam no banco — o gerador
+escreve cada um em `flowspec_messages.flow_spec`, no formato `{meta, flowSpec}`
+inteiro (8 deles no banco de dev). Quem gera flowSpec vive no navegador; para
+usar o que foi construído era preciso exportar JSON à mão primeiro.
+
+Três fontes agora, e **exatamente uma** por execução:
+
+- `--file` — como antes.
+- `--chat` — a última mensagem daquela conversa que carrega documento. O id é o
+  da barra de endereço (`flowspec/{chat}` liga por id, sem `getRouteKeyName`),
+  e esse é o ponto: é o identificador que uma pessoa realmente tem.
+- `--message` — aquela mensagem exata, para quando a conversa gerou várias vezes
+  e a que interessa não é a última.
+
+Três decisões que parecem detalhe e não são:
+
+- **Duas fontes são RECUSADAS, não resolvidas por precedência.** Uma preferência
+  silenciosa é como alguém escreve o documento que não queria, tendo passado as
+  duas e acreditado na outra — e aqui nada apaga pipeline.
+- **"A conversa não gerou nada" é diferente de "não existe".** Um chat que só
+  respondeu em prosa é o caso ordinário (o gerador tem MODO CONVERSA), e chamar
+  isso de inexistente manda a pessoa caçar erro de digitação no id.
+- **A origem é impressa.** `documento: mensagem #72 da conversa #17` sai antes de
+  qualquer escrita: um comando que grava num realm real não pode deixar "apontei
+  para a conversa errada" invisível no próprio relatório.
+
+Verificado contra o banco real: `--chat=17` puxou um flowSpec de **18 steps em 7
+branches** e o normalizou para a plataforma sem ninguém exportar nada; `--file`
+mais `--chat` juntos recusaram nomeando as duas; e sem fonte nenhuma a mensagem
+de uso explica as três.
+
+Isso também desfez uma duplicação: o leitor de `--file` estava copiado nos três
+comandos que tomam documento (`digibee:flowspec:ingest`,
+`digibee:pipeline:heal`, `digibee:pipeline:readiness`).
+
 ---
 
 ## Definição de pronto da Fase 1
