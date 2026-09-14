@@ -30,6 +30,7 @@ import * as docsSearch from './modules/docs-search.js'
 import * as docsSecret from './modules/docs-secret.js'
 import * as copyField from './modules/copy-field.js'
 import * as flowspecChat from './modules/flowspec-chat.js'
+import * as lifecyclePoll from './modules/lifecycle-poll.js'
 import * as catiChat from './modules/cati-chat.js'
 import * as mobileNav from './modules/mobile-nav.js'
 
@@ -67,6 +68,7 @@ window.globalModules = {
     "docsSecret"        : docsSecret,
     "copyField"         : copyField,
     "flowspecChat"      : flowspecChat,
+    "lifecyclePoll"     : lifecyclePoll,
     "catiChat"          : catiChat,
     "mobileNav"         : mobileNav,
 }

@@ -1565,6 +1565,62 @@ Isso também desfez uma duplicação: o leitor de `--file` estava copiado nos tr
 comandos que tomam documento (`digibee:flowspec:ingest`,
 `digibee:pipeline:heal`, `digibee:pipeline:readiness`).
 
+### A tela: acionar o ciclo pela própria conversa
+
+`x-flowspec.lifecycle-panel` na mensagem que gerou o flowSpec, `PipelineRun`
+como registro, `RunPipelineLifecycle` na fila e `lifecycle-poll.js` assistindo.
+Duas decisões do usuário (2026-09-14) moldaram o resto: **qualquer editor pode
+apertar** e **a tela mostra rodada a rodada**.
+
+**"Qualquer editor" compõe com a privacidade do chat, não a substitui.**
+`FlowspecChatPolicy::run` é `view() && canWrite()`: ver a conversa é do dono
+(chats são pessoais) e alcançar o realm é capacidade de escrita. Um Visualizador
+dono de um chat lê todo flowSpec dele e não implanta nenhum — a mesma costura de
+todo outro `canWrite()` do app.
+
+**"Rodada a rodada" virou uma mudança no serviço, não na tela.** `heal()` ganhou
+um callback `onRound`, invocado quando cada rodada termina e ANTES de o modelo
+ser consultado (a parte lenta do ciclo); o job grava ali mesmo. Sem isso a tela
+só teria um spinner resolvendo minutos depois, enquanto implantações reais
+aconteciam no realm.
+
+Três guardas que o caminho web precisou e o console não:
+
+- **Uma execução não-encerrada por mensagem.** Duas escreveriam e implantariam o
+  mesmo documento; o `WithoutOverlapping` do job as serializa, não as impede — a
+  segunda aconteceria mais tarde, deixando implantações que ninguém pediu.
+- **Execuções paradas são ceifadas nos DOIS caminhos** (ao pedir uma nova e a
+  cada poll). Um worker morto deixa a linha `running` e nada mais a moveria: o
+  job que a terminaria não existe mais. Sem isso, um worker morto bloqueia
+  aquela mensagem para sempre e a cura seria um `UPDATE` no banco.
+- **O poll só renderiza quando há novidade.** O cliente manda quantas rodadas já
+  desenhou (`?seen=`) e o servidor devolve o slot só quando o número mudou ou a
+  execução encerrou. Um tick a cada 4s por vários minutos não pode gastar uma
+  query e um render por vez em markup que o cliente joga fora.
+
+**E o job vive sob uma cadeia de tetos que não são dele.** `retry_after` 900s
+(ultrapassá-lo faz OUTRO worker começar o mesmo job — uma segunda leva de
+implantações), o `--timeout=660` do próprio worker e o `stopwaitsecs=660` do
+supervisor (um deploy no meio manda SIGKILL, então nenhum `failed()` roda).
+`$timeout = 600` cabe nos três, e por isso o caminho da fila usa **2 rodadas de
+240s** em vez das 3 do console: um veredito `Unsettled` desperdiça a rodada
+inteira, e deploys medidos no mesmo realm variaram de 12s a mais de 300s.
+`QueueConfigurationTest` é o que mantém isso honesto — ele compara o job mais
+lento com o conf do supervisor, no único lugar onde as duas linguagens se
+encontram, e foi ele que recusou a primeira versão desta feature.
+
+#### Duas armadilhas de Blade pagas aqui
+
+- **Um MÉTODO público num componente de classe é entregue à view como closure,
+  sob o próprio nome — e sombreia a variável de mesmo nome vinda do `render()`.**
+  Com `domId()` e `'domId' => …`, o `{{ $domId }}` ecoou a closure e a view
+  morreu com `htmlspecialchars(): Argument #1 must be of type string, Closure
+  given`, apontando para um arquivo compilado numa linha que lê perfeitamente. O
+  método chama-se `slotId()` agora.
+- **`@props` num componente de CLASSE relê os nomes de `$attributes`**, que não
+  os carrega. A view de um componente de classe recebe as propriedades públicas
+  mais o array do `render()` e não deve declarar `@props`.
+
 ---
 
 ## Definição de pronto da Fase 1

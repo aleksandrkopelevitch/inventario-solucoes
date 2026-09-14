@@ -23,6 +23,7 @@ use App\Http\Controllers\MediaController;
 use App\Http\Controllers\NotebookContextDocumentController;
 use App\Http\Controllers\NotebookController;
 use App\Http\Controllers\NotebookPageController;
+use App\Http\Controllers\PipelineRunController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicDocumentationController;
 use App\Http\Controllers\SolutionMapController;
@@ -374,6 +375,16 @@ Route::middleware('auth')->group(function () {
 
     Route::get('flowspec/{chat}/status', [FlowspecChatController::class, 'status'])->name('flowspec.status');
     Route::post('flowspec/{chat}/messages', [FlowspecMessageController::class, 'store'])->name('flowspec.messages.store');
+
+    // The lifecycle run: the app's only web surface that reaches the Digibee
+    // realm. Scoped so a message can never be run through another chat's URL,
+    // which would sidestep the personal-chat policy guarding it.
+    Route::post('flowspec/{chat}/messages/{message}/lifecycle', [PipelineRunController::class, 'store'])
+        ->scopeBindings()
+        ->name('flowspec.lifecycle.store');
+    Route::get('flowspec/{chat}/messages/{message}/lifecycle', [PipelineRunController::class, 'status'])
+        ->scopeBindings()
+        ->name('flowspec.lifecycle.status');
     Route::post('flowspec/{chat}/attachments', [FlowspecAttachmentController::class, 'store'])->name('flowspec.attachments.store');
 
     // Scoped: without it, DELETE flowspec/{a}/attachments/{attachment} would

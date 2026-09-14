@@ -153,6 +153,9 @@
                     {{-- Bateria de testes derivada do documento (só quando validado) --}}
                     <x-flowspec.test-matrix :message="$message" :pipeline-name="$chat->title" />
 
+                    {{-- E o que executa essa bateria de verdade, contra a plataforma --}}
+                    <x-flowspec.lifecycle-panel :message="$message" :chat-title="$chat->title" />
+
                     {{-- JSON pronto para colar --}}
                     <div class="relative mt-3">
                         <pre id="flowspec-json-{{ $message->id }}"
