@@ -6,6 +6,7 @@ use App\Enums\DeploymentStatus;
 use App\Exceptions\DigibeeApiException;
 use App\Support\Digibee\Deployment;
 use App\Support\Digibee\DeploymentReport;
+use App\Support\Digibee\DeployPermission;
 use App\Support\Digibee\DigibeeAuthResolver;
 use App\Support\Digibee\DigibeeDesignClient;
 use Illuminate\Support\Sleep;
@@ -212,35 +213,15 @@ class DeployPipeline
     }
 
     /**
-     * Why this credential cannot deploy there, read off the token's own ACL —
-     * or null when it can, or when the credential declares no roles at all
-     * (an interactive session, judged by the platform).
+     * Why this credential cannot deploy there, read off the token's own ACL.
+     *
+     * The rule itself lives in `DeployPermission` because the promotion gate
+     * asks it one step earlier — a gate that only learns the answer by
+     * attempting the deploy is not a gate.
      */
     private function tokenDenial(string $environment, bool $redeploy): ?string
     {
-        $roles = $this->auth->credentials()->roles();
-
-        if ($roles === []) {
-            return null;
-        }
-
-        $wanted = strtoupper($environment);
-        $grants = ['DEPLOYMENT:CREATE', "DEPLOYMENT:CREATE{ENV={$wanted}}"];
-
-        if ($redeploy) {
-            $grants[] = 'DEPLOYMENT:CREATE:REDEPLOY';
-            $grants[] = "DEPLOYMENT:CREATE:REDEPLOY{ENV={$wanted}}";
-        }
-
-        foreach ($grants as $grant) {
-            if (in_array($grant, $roles, true)) {
-                return null;
-            }
-        }
-
-        return "O token não declara permissão de deploy em \"{$environment}\". "
-            . 'Ele tem: ' . implode(', ', $roles) . '. '
-            . 'Isso é lido do próprio token, antes da chamada — a plataforma responderia 403.';
+        return DeployPermission::denial($this->auth->credentials()->roles(), $environment, $redeploy);
     }
 
     /**

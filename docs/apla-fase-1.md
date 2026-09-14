@@ -27,7 +27,7 @@ sem descobrir quatro subsistemas depois que a premissa estava errada.
 | D — runner de deploy (pela API) | **feito** — 16 testes em `tests/Feature/DigibeeDeployTest.php`; o corpo foi probado contra a plataforma e três coisas mudaram por causa disso (§ O que a verificação do corpo encontrou). **feito de ponta a ponta**: `apla-boot-01` foi escrito pelo ingest e subiu em `test` a 1/1 em 12 s, com URL atribuída pela plataforma (§ O ingest escreve pipeline que BOOTA) |
 | E — matriz de testes sintéticos + avaliador de asserções | **feito** — 41 testes em `tests/Feature/FlowspecTestMatrixTest.php`, as 201 do export constroem sem erro, e a bateria aparece na conversa do F8 (§ O que a matriz produz, § O contrato de resposta, § A bateria na tela) |
 | F — loop de auto-correção com evidência de runtime | **feito** — `PipelineHealingService` mais 17 testes em `tests/Feature/PipelineHealingTest.php`; o loop roda ao vivo, e a plataforma o limita a UM deploy por pipeline enquanto o token não puder chamar `/draft` (§ Bloco F) |
-| G — portão de promoção para `prod` | não começado |
+| G — portão de promoção para `prod` | **feito** — `PromotePipeline` mais 13 testes em `tests/Feature/PipelinePromotionTest.php`; recusa ao vivo com a configuração real, por ambiente fechado e por ACL do token (§ Bloco G) |
 
 **A Fase 1 entrega uma constatação, não um comportamento.** Ela responde uma
 única pergunta — "é possível escrever um flowSpec num pipeline pela API?" — e
@@ -553,7 +553,10 @@ em `test` antes.
    estático custa uma chamada de modelo, uma rodada aqui custa uma implantação
    REAL num realm que não apaga nada. Daí a lista de vereditos: só duas das dez
    maneiras de terminar entregam algo ao modelo (§ Bloco F).
-7. **G — portão de `prod`.** Só depois de tudo verde em `test`.
+7. ~~**G — portão de `prod`.**~~ Feito, e ele é quase só recusa: cinco
+   condições, todas reportadas mesmo quando a primeira já reprova. A que
+   nenhuma outra substitui é a de DRIFT — o canvas escreve direto, então o
+   pipeline pode mudar entre a bateria verde e a promoção (§ Bloco G).
 
 ---
 
@@ -1436,6 +1439,87 @@ enquanto a nova ainda não apareceu na listagem.
 `apla-draft-01` (pipeline e deployment, no ar em 1/1) soma-se ao `apla-boot-01`
 e às duas do `apla-probe`. Nada disso sai daqui: a plataforma não apaga
 pipeline, e o token não tem `DEPLOYMENT:DELETE`.
+
+### Bloco G — o portão, que é quase só recusa
+
+`App\Actions\Digibee\PromotePipeline`. É o verbo que este ciclo de vida existe
+para guardar: `DELETE /pipelines` era a preocupação da especificação original, e
+a operação destrutiva aqui é **implantar em `prod`**, porque promoção é o que
+alcança tráfego real — a plataforma nem tem delete.
+
+Ele consome o `HealingReport` do Bloco F, que é o encaixe natural entre os dois:
+o loop produz a evidência, o portão a julga. Cinco condições, e **todas são
+checadas mesmo quando a primeira já reprova** — quem pergunta "por que isso não
+está em produção" merece a lista inteira, não uma fila de descobertas uma a uma:
+
+1. **O destino tem de estar em `deployable_environments`.** Configuração, nunca
+   argumento. Hoje a lista só tem `test`, então o portão recusa toda promoção —
+   e isso é o comportamento correto, não um stub.
+2. **O destino tem de ser diferente do ambiente da evidência.** Promover `test`
+   para `test` não é promoção, e deixaria uma corrida verde autorizar um
+   redeploy de si mesma.
+3. **A evidência tem de ser VERDE**, o que neste app é mais do que lista de
+   falhas vazia: o caminho feliz precisa ter RODADO e passado — `Green` já
+   codifica isso. Contagem não é veredito; a bateria inteira existe porque "três
+   casos negativos passaram" já foi reportado uma vez como pipeline funcionando.
+4. **O token tem de declarar permissão de deploy no destino**, lido do próprio
+   JWT antes de perguntar à plataforma.
+5. **O que está armazenado tem de ser o que foi testado.** Esta é a checagem que
+   nenhuma outra substitui: entre a corrida verde e a promoção, alguém abre o
+   canvas e altera o pipeline. Promover com base numa bateria que rodou contra
+   outros bytes é exatamente a falha que um portão existe para impedir, e mais
+   nada aqui perceberia.
+
+A comparação do item 5 é sobre `flowSpec` e contra a forma de PLATAFORMA, que é
+o único terreno comum: o documento testado é o que o gerador emite (raiz
+`disconnected-root:<uuid>`, com `meta` de canvas) e o armazenado tem raiz `start`
+e nenhum `meta`. O portão normaliza com `FlowspecTarget::Platform` em vez de
+inventar uma segunda noção de "o mesmo pipeline" — comparar cru recusaria toda
+promoção correta.
+
+**O que ele deliberadamente NÃO faz é testar produção.** Rodar a bateria em
+`prod` depois de promover seria disparar payload malformado contra tráfego real —
+`RunPipelineTestSuite` é tráfego hostil por desenho, e é por isso que ela recusa
+qualquer ambiente fora de `deployable_environments`. A evidência vem de `test`;
+produção recebe o deploy e nada mais.
+
+**E a evidência é sempre produzida pela mesma invocação.** `digibee:pipeline:promote`
+cura em `test` e só então pergunta ao portão. Uma promoção autorizada por uma
+corrida verde da semana passada não diz nada sobre o pipeline de agora — e a
+checagem de drift existe justamente porque o canvas escreve no meio. Exigir a
+corrida fresca elimina a classe inteira de evidência velha em vez de tentar
+datá-la.
+
+#### O que ele respondeu ao vivo
+
+Perguntado com a evidência mais generosa possível — verde, vinda de `test`,
+carregando o próprio documento ingerido no `apla-boot-01` —, com a configuração
+real do app:
+
+```
+promovido: false
+  x "prod" não está em deployable_environments (test).
+  x O token não declara permissão de deploy em "prod". Ele tem: PIPELINE:READ,
+    PIPELINE:CREATE, CONFIGURATION:READ, DEPLOYMENT:READ{ENV=TEST},
+    DEPLOYMENT:READ{ENV=PROD}, DEPLOYMENT:CREATE:REDEPLOY{ENV=TEST},
+    DEPLOYMENT:CREATE{ENV=TEST}.
+```
+
+Duas recusas reais, nenhuma escrita, e a ACL do token na tela. O detalhe que
+vale mais que as duas: **o drift NÃO acusou** — o `apla-boot-01` armazenado
+ainda bate com o documento ingerido depois da normalização, o que confirma em
+dado real que a comparação não produz falso positivo. Um portão que recusasse
+por drift toda vez seria indistinguível deste em qualquer teste com mock.
+
+#### Duas armadilhas de teste que este bloco pagou
+
+- **`Http::fake()` ACRESCENTA stubs, não substitui.** Um `'*'` registrado no
+  `beforeEach` casa primeiro e o `'*'` do teste nunca roda — então o teste de
+  drift passou pelo portão contra um pipeline que ele achava ter alterado. O
+  fake do realm é registrado por teste agora.
+- **Função declarada num arquivo de teste do Pest é GLOBAL.** `storedPipeline()`
+  já existia em `FlowspecIngestionTest.php` e a suíte inteira morreu com
+  `Cannot redeclare`. Os helpers deste arquivo levam prefixo próprio.
 
 ---
 
