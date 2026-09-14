@@ -82,11 +82,13 @@ class DeployPipeline
         $pipelineId = (string) ($pipeline['id'] ?? '');
 
         // A v0 row IS deployable — the canvas deployed one while this code
-        // was refusing to. What the platform answers 404 "No such entity" to
-        // is an OLD version row: every version is a document of its own, and
-        // the deployable one is the LATEST, which is exactly what
-        // latestByName() resolves. "All 111 deployments are v1" described the
-        // estate; reading it as a rule was the mistake.
+        // was refusing to. An OLD version row deploys too: v0.2 of `apla-probe`
+        // was accepted with a deployment id of its own while v1.0 was the
+        // latest (2026-09-14), so the 404 "No such entity" that this comment
+        // once blamed on the version was the `id`/`pipelineId` key mixup the
+        // deploy body section had already settled. latestByName() stays the
+        // resolution because the latest is what a lifecycle deploy means, not
+        // because the platform refuses the others.
 
         if (($pipeline['triggerSpec'] ?? []) === []) {
             $warnings[] = 'O pipeline não tem triggerSpec: ele sobe, mas não ganha URL — '
