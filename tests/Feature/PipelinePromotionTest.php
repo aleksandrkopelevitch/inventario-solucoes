@@ -311,3 +311,47 @@ it('reports a deploy that refused as a refusal of the promotion', function () {
     expect($report->promoted)->toBeFalse()
         ->and(implode(' ', $report->refusals))->toContain('Nenhuma configuração small');
 });
+
+/*
+|--------------------------------------------------------------------------
+| What a server gets when nobody configures anything
+|--------------------------------------------------------------------------
+*/
+
+it('ships with production closed, as a default rather than a setting to remember', function () {
+    // Read from the SHIPPED config file with the variable unset, because that
+    // is the state of a box where nobody added it — and the guardrail is only
+    // a guardrail if it holds there. Asserting `config()` instead would assert
+    // this test environment.
+    $keys = ['DIGIBEE_DEPLOYABLE_ENVIRONMENTS', 'DIGIBEE_MAX_HEALING_ROUNDS'];
+    $saved = [];
+
+    foreach ($keys as $key) {
+        $saved[$key] = [$_ENV[$key] ?? null, $_SERVER[$key] ?? null, getenv($key)];
+        unset($_ENV[$key], $_SERVER[$key]);
+        putenv($key);
+    }
+
+    try {
+        $services = require base_path('config/services.php');
+
+        expect($services['digibee']['design']['deployable_environments'])->toBe(['test'])
+            ->and($services['digibee']['design']['max_healing_rounds'])->toBe(3);
+    } finally {
+        foreach ($keys as $key) {
+            [$env, $server, $raw] = $saved[$key];
+
+            if ($env !== null) {
+                $_ENV[$key] = $env;
+            }
+
+            if ($server !== null) {
+                $_SERVER[$key] = $server;
+            }
+
+            if ($raw !== false) {
+                putenv("{$key}={$raw}");
+            }
+        }
+    }
+});
