@@ -24,7 +24,7 @@ sem descobrir quatro subsistemas depois que a premissa estava errada.
 | A″ — verificar os **verbos de escrita** | **feito, e agora com o token escopado** — cria, faz upsert e relê idêntico (§ O que o token escopado respondeu) |
 | B — modo de ingestão no normalizador/validador | **feito** — 36 testes em `tests/Feature/FlowspecIngestionTest.php` (§ O que a ingestão escreve) |
 | C — síntese de `triggerSpec` | **feito** — 19 testes em `tests/Feature/DigibeeTriggerSpecTest.php` (§ O que o triggerSpec sintetiza) |
-| D — runner de deploy (pela API) | **feito** — 16 testes em `tests/Feature/DigibeeDeployTest.php`; o corpo foi probado contra a plataforma e três coisas mudaram por causa disso (§ O que a verificação do corpo encontrou). Falta um deploy que COMPLETE. A versão publicada existe e não era isso: o engine recusa a configuração do `apla-probe` por algo invisível nas duas APIs, e as duas hipóteses de causa caíram (§ A escala em branco NÃO é a causa) |
+| D — runner de deploy (pela API) | **feito** — 16 testes em `tests/Feature/DigibeeDeployTest.php`; o corpo foi probado contra a plataforma e três coisas mudaram por causa disso (§ O que a verificação do corpo encontrou). **feito de ponta a ponta**: `apla-boot-01` foi escrito pelo ingest e subiu em `test` a 1/1 em 12 s, com URL atribuída pela plataforma (§ O ingest escreve pipeline que BOOTA) |
 | E — matriz de testes sintéticos + avaliador de asserções | **feito** — 41 testes em `tests/Feature/FlowspecTestMatrixTest.php`, as 201 do export constroem sem erro, e a bateria aparece na conversa do F8 (§ O que a matriz produz, § O contrato de resposta, § A bateria na tela) |
 | F — loop de auto-correção com evidência de runtime | não começado |
 | G — portão de promoção para `prod` | não começado |
@@ -1276,10 +1276,63 @@ temos.** O próximo passo honesto não é mais uma hipótese sobre o JSON — é
 de dentro do canvas, ou perguntar ao suporte da Digibee o que
 `fromJsonToPipelineConfiguration` lê além do flowSpec e da configuração.
 
+### O ingest escreve pipeline que BOOTA — e o `apla-probe` estava envenenado
+
+A pergunta que faltava não era sobre o `apla-probe`: era **se o que a gente
+escreve sobe**. Construir o Bloco F antes de responder isso seria o erro do §1
+um nível acima — um loop que corrige pipelines não vale nada se nada do que ele
+escreve boota.
+
+O teste foi uma casca nova (`apla-boot-01`) com **exatamente os dois passos do
+`apla-probe`**, escrita pelo nosso próprio `digibee:flowspec:ingest`, com
+`triggerSpec` sintetizado. Uma variável só: a identidade do pipeline.
+
+```
+flowSpec escrito e relido idêntico  (v0.0, draft)
+deploy   → ativo, 1/1, esperou 12s
+endpoint → https://test.godigibee.io/pipeline/leomadeiras/v0/apla-boot-01
+```
+
+**Subiu.** Logo: o ingest, a síntese de trigger, o corpo do deploy, a resolução
+de configuração por tamanho+ambiente e a espera com teto funcionam de ponta a
+ponta. O que quebra no `apla-probe` é do `apla-probe` — um pipeline que levou
+vários upserts e uma promoção pelo canvas — e não do que este app escreve. A
+investigação dele deixa de bloquear o roadmap e vira um item de canvas/suporte.
+
+**Uma regra caiu junto: `/v0/` endereça, sim.** `PipelineTestSuite::endpointUrl()`
+recusava `versionMajor < 1` ("um pipeline só é alcançável depois de publicar uma
+versão, e todo deployment do tenant é v1 ou acima") — de novo uma descrição do
+parque lida como regra, a mesma forma do "os 111 são v1". O `apla-boot-01` é
+v0.0 **draft** e a plataforma lhe deu `/v0/`, que responde. E a recusa mirava a
+metade errada da feature: **o nosso ingest cria justamente v0.0**, então o guard
+impedia a bateria de testar o pipeline que a feature acabara de escrever. O
+falso-verde que motivou a recusa continua coberto onde ele mora de verdade —
+`SuiteRun::nothingAnswered()` lê "todos os casos 404" como nada respondendo,
+seja qual for a versão que compôs o endereço.
+
+**E a bateria mentiu uma vez, pelo buraco que ela mesma existe para tapar.**
+Rodada ao vivo com `--auth=key` e Enter no prompt, ela reportou **três casos
+passando** contra um endpoint que nunca foi alcançado: todos voltaram 401, e
+`SuiteRun::refusedForCredentials()` — o guard escrito exatamente para esse muro
+— não disparou, porque `authenticated` era `$credential !== null` e uma chave
+vazia produz um `EndpointCredential` perfeitamente não-nulo. Escolher o MODO
+passou por ter credencial.
+
+Corrigido na origem e não no chamador, que é o ponto: um guard que depende de
+quem chama fazer a coisa certa não é guard. `EndpointCredential::isBlank()` é
+decidido na CONSTRUÇÃO, a partir dos inputs — porque o header não consegue
+responder isso sozinho: `base64_encode(':')` é `Og==`, um header não-vazio que
+não carrega nada. Verificado ao vivo depois do fix: `autenticado: não` e o erro
+na tela. Só o aviso final ("os negativos passaram, mas o caminho feliz não
+rodou") impediu que aquilo virasse um verde — o que é o guard certo funcionando
+por acaso, não o desenho.
+
 **Dívida deixada no realm.** Existem agora DUAS implantações do `apla-probe` em
 `test` em loop de boot — a v1 (`39c027ad`, 0/2) e a v0.2 (`9b8ded32`, 0/1) —, e o
 token escopado **não tem `DEPLOYMENT:DELETE`**, então nenhuma das duas sai daqui.
-Quem abrir o canvas pode removê-las. Vale como lembrete de que, nesta
+Some-se a isso o `apla-boot-01` (pipeline `667c3c44`, deployment `893c7d90`, no ar
+em 1/1), criado para o teste acima e igualmente permanente. Quem abrir o canvas
+pode remover os três. Vale como lembrete de que, nesta
 plataforma, todo experimento deixa rastro: nada apaga pipeline, e este token
 também não apaga deployment.
 
@@ -1304,10 +1357,10 @@ também não apaga deployment.
 - [x] Deploy verificado do lado da PLATAFORMA: o corpo
       `{pipelineId, runtimeConfigurationId}` com o ambiente na query é aceito, e
       a rota devolve um deployment com id próprio (duas vezes, v1.0 e v0.2).
-- [ ] Deploy que COMPLETA — um pipeline nosso de pé, com URL respondendo. O que
-      bloqueia não é mais o corpo nem a permissão: o engine recusa a
-      configuração do `apla-probe` por algo que nem o documento de design nem a
-      configuração de runtime expõem (§ A escala em branco NÃO é a causa).
+- [x] Deploy que COMPLETA. `apla-boot-01`, escrito pelo nosso ingest, subiu em
+      `test` a 1/1 em 12 s com URL atribuída pela plataforma
+      (§ O ingest escreve pipeline que BOOTA). O que o `apla-probe` tem é
+      defeito dele, e deixou de ser bloqueio de roadmap.
 - [x] Matriz de testes derivada do flowSpec, com o que não dá para derivar
       reportado como dívida de cobertura em vez de payload inventado.
 

@@ -200,6 +200,35 @@ it('does not flag a credential problem when a credential was given', function ()
     expect($run->refusedForCredentials())->toBeFalse();
 });
 
+it('treats a credential whose value was left empty as no credential at all', function () {
+    withRuntime();
+    Http::fake(['*' => Http::response(['message' => 'unauthorized'], 401)]);
+
+    // Found by running the battery against a live pipeline (2026-09-14):
+    // `--auth=key` plus Enter at the prompt built a well-formed credential
+    // carrying an empty key, so `authenticated` was true, the guard stood
+    // down, and a wall of 401s was reported as three cases passing.
+    $run = app(RunPipelineTestSuite::class)->handle(
+        suiteWith([okCase('A'), okCase('B')]),
+        EndpointCredential::apiKey(''),
+    );
+
+    expect($run->authenticated)->toBeFalse()
+        ->and($run->refusedForCredentials())->toBeTrue()
+        ->and($run->passed())->toBeFalse();
+});
+
+it('reads a blank Basic pair from the inputs, not from the header it builds', function () {
+    // base64_encode(':') is `Og==` — a non-empty header carrying nothing, so
+    // the headers cannot answer this on their own.
+    expect(EndpointCredential::basic('', '')->isBlank())->toBeTrue()
+        ->and(EndpointCredential::basic('leo', '')->isBlank())->toBeFalse()
+        ->and(EndpointCredential::apiKey('   ')->isBlank())->toBeTrue()
+        ->and(EndpointCredential::apiKey('k')->isBlank())->toBeFalse()
+        ->and(EndpointCredential::jwt('')->isBlank())->toBeTrue()
+        ->and(EndpointCredential::jwt('ey')->isBlank())->toBeFalse();
+});
+
 it('does not flag a credential problem when something actually ran', function () {
     withRuntime();
     $responses = [Http::response(['mensagem' => 'ok']), Http::response([], 401)];
@@ -397,16 +426,23 @@ it('rejects an auth mode it does not know, before calling the endpoint', functio
 | because a 404 is not a 5xx. Each of these is one link of that chain.
 */
 
-it('refuses to compose a URL for a pipeline with no released version', function () {
+it('composes a /v0/ URL, because a draft deployment has one', function () {
     withRuntime();
+    Http::fake(['*' => Http::response(['mensagem' => 'ok'])]);
 
+    // This used to refuse, on the reading that only a released version is
+    // reachable. Measured against the realm on 2026-09-14: a v0.0 draft
+    // deployed at 1/1 and the platform assigned it `/v0/<name>`. It matters
+    // because this app's own ingest writes v0.0 rows — the refusal blocked the
+    // battery from testing the pipelines the feature had just created.
     $suite = new PipelineTestSuite(
-        name: 'suite', pipelineName: 'apla-probe', environment: 'test',
+        name: 'suite', pipelineName: 'apla-boot-01', environment: 'test',
         cases: [okCase()], versionMajor: 0,
     );
 
-    expect(fn () => app(RunPipelineTestSuite::class)->handle($suite))
-        ->toThrow(DigibeeApiException::class, 'no released version');
+    $run = app(RunPipelineTestSuite::class)->handle($suite);
+
+    expect($run->url)->toContain('/v0/apla-boot-01');
 });
 
 it('does not call a 404 on every case a pass', function () {
@@ -454,26 +490,4 @@ it('does not call a suite green when only the negative cases ran', function () {
 
     expect($run->passed())->toBeTrue()            // nothing that ran failed
         ->and($run->provenByHappyPath())->toBeFalse(); // and nothing showed it works
-});
-
-it('reports an unreleased pipeline as a sentence, not a stack trace', function () {
-    withRuntime();
-    Http::fake(function (Request $request) {
-        if (str_contains($request->url(), '/runtime/')) {
-            return Http::response([['id' => 'dep-1', 'pipelineName' => 'apla-probe', 'status' => 'STARTING',
-                'pipelineMajorVersion'   => 0, 'deploymentStatus' => ['trigger' => null]]]);
-        }
-
-        $pipeline = ['id' => 'pid-1', 'name' => 'apla-probe', 'versionMajor' => 0, 'versionMinor' => 1,
-            'triggerSpec' => ['type' => 'rest'], 'flowSpec' => ['start' => []]];
-
-        // The DETAIL route answers one object; answering the list here let
-        // `versionMajor` fall back to its default of 1 and the refusal never
-        // fired.
-        return Http::response(str_contains($request->url(), '/pipelines/pid-1') ? $pipeline : [$pipeline]);
-    });
-
-    $this->artisan('digibee:pipeline:test', ['name' => 'apla-probe', '--auth' => 'none'])
-        ->expectsOutputToContain('no released version')
-        ->assertFailed();
 });
