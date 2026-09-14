@@ -26,7 +26,7 @@ sem descobrir quatro subsistemas depois que a premissa estava errada.
 | C — síntese de `triggerSpec` | **feito** — 19 testes em `tests/Feature/DigibeeTriggerSpecTest.php` (§ O que o triggerSpec sintetiza) |
 | D — runner de deploy (pela API) | **feito** — 16 testes em `tests/Feature/DigibeeDeployTest.php`; o corpo foi probado contra a plataforma e três coisas mudaram por causa disso (§ O que a verificação do corpo encontrou). **feito de ponta a ponta**: `apla-boot-01` foi escrito pelo ingest e subiu em `test` a 1/1 em 12 s, com URL atribuída pela plataforma (§ O ingest escreve pipeline que BOOTA) |
 | E — matriz de testes sintéticos + avaliador de asserções | **feito** — 41 testes em `tests/Feature/FlowspecTestMatrixTest.php`, as 201 do export constroem sem erro, e a bateria aparece na conversa do F8 (§ O que a matriz produz, § O contrato de resposta, § A bateria na tela) |
-| F — loop de auto-correção com evidência de runtime | não começado |
+| F — loop de auto-correção com evidência de runtime | **feito** — `PipelineHealingService` mais 17 testes em `tests/Feature/PipelineHealingTest.php`; o loop roda ao vivo, e a plataforma o limita a UM deploy por pipeline enquanto o token não puder chamar `/draft` (§ Bloco F) |
 | G — portão de promoção para `prod` | não começado |
 
 **A Fase 1 entrega uma constatação, não um comportamento.** Ela responde uma
@@ -547,10 +547,12 @@ em `test` antes.
    (403 para a credencial interativa, § Bloqueios), e num realm
    `CONSUMPTION_BASED_MODEL` os parâmetros de escala são os equivalentes de
    `--minReplicas`/`--maxReplicas`, não de `--replicas`.
-6. **F — loop de auto-correção.** É a única parte que já existe pela metade:
-   `FlowspecGenerationService` já normaliza, valida e re-prompta com os erros
-   concretos, até `max_attempts`. O que muda não é o loop, é o **sinal** —
-   hoje validação estática, aqui a resposta HTTP, o log e a métrica.
+6. ~~**F — loop de auto-correção.**~~ Feito. O que mudou foi mesmo só o
+   **sinal**, como este documento previu — mas o custo por tentativa mudou
+   junto, e é isso que o desenho teve de absorver: uma tentativa do loop
+   estático custa uma chamada de modelo, uma rodada aqui custa uma implantação
+   REAL num realm que não apaga nada. Daí a lista de vereditos: só duas das dez
+   maneiras de terminar entregam algo ao modelo (§ Bloco F).
 7. **G — portão de `prod`.** Só depois de tudo verde em `test`.
 
 ---
@@ -1335,6 +1337,105 @@ em 1/1), criado para o teste acima e igualmente permanente. Quem abrir o canvas
 pode remover os três. Vale como lembrete de que, nesta
 plataforma, todo experimento deixa rastro: nada apaga pipeline, e este token
 também não apaga deployment.
+
+### Bloco F — o loop com o sinal trocado, e o teto que a plataforma impõe
+
+`App\Services\Digibee\PipelineHealingService`. Quatro passos por rodada, em
+ordem estrita porque cada um é pré-condição do outro: escrever
+(`IngestFlowspec`), implantar (`DeployPipeline`), testar
+(`BuildPipelineTestMatrix` + `RunPipelineTestSuite`), julgar. Disparar a bateria
+num endereço cujo deploy foi recusado é como esta feature produziu o primeiro
+falso-verde dela.
+
+**O que ganha uma nova tentativa é o desenho inteiro.** Uma rodada termina de
+dez maneiras (`App\Enums\HealingVerdict`) e só DUAS entregam alguma coisa ao
+modelo: casos que rodaram e falharam, e um documento que a nossa validação
+recusou. Todo o resto é fato sobre ambiente, credencial, plataforma ou relógio —
+e re-promptar num desses gasta tentativa pedindo a um modelo que conserte o que
+ele não alcança, deixando mais uma implantação num realm que não apaga nada.
+
+| veredito | o que era | re-prompta? |
+|---|---|---|
+| `Green` | bateria rodou e o caminho feliz passou | — |
+| `Unproven` | nada falhou, e nada provou que funciona | **não** |
+| `StillFailing` | casos falharam (ou o engine subiu quebrado) | **sim** |
+| `NotIngested` | a nossa validação recusou o documento | **sim** |
+| `NotWritable` | a plataforma recusou a escrita | **não** |
+| `Refused` | ambiente, permissão, configuração | não |
+| `Unsettled` | o deploy não estabilizou no teto | não |
+| `NotAnswering` | todos os casos 404 | não |
+| `RefusedAtTheDoor` | todos 401/403 sem credencial | não |
+| `Stuck` | o modelo devolveu o mesmo documento, ou nenhum | não |
+
+`Stuck` é sobre o loop, não sobre o pipeline: a rodada seguinte escreveria os
+mesmos bytes e colheria a mesma evidência, então é um deploy gasto para não
+aprender nada. A comparação é do JSON canônico (chaves ordenadas), senão o mesmo
+pipeline com duas chaves trocadas de lugar lê como progresso e compra outro
+deploy.
+
+#### O deploy PUBLICA o pipeline, e é isso que limita o loop hoje
+
+Medido em 2026-09-14, e é a constatação que dá forma ao bloco. `apla-boot-01`
+nasceu `draft: true`, **aguentou dois upserts seguidos continuando rascunho**, e
+saiu do deploy com `draft: false` — a partir daí toda escrita responde
+`409 "You cannot update a pipeline that is not on draft mode"`. Ou seja: a
+rodada 1 escreve, implanta e testa, e a rodada 2 não consegue escrever no que
+acabou de implantar.
+
+O teste que separa as duas causas custou zero implantações: criar uma casca
+(`apla-draft-01`), dar dois upserts e nunca implantar — os dois passaram e o
+`draft` continuou `true`. Não é o upsert que publica; é o deploy.
+
+E existe saída, mas ela é permissão e não código. Sondando as rotas vizinhas com
+um `POST` de `text/plain` (nada é escrito: ou o content-type é recusado, ou a
+rota não existe):
+
+```
+/versions   405   não aceita POST
+/version    500   erro genérico do gateway ("Could not handle the request properly")
+/clone      500   idem
+/release    500   idem
+/unrelease  500   idem
+/draft      403   {"errorCode":"INSUFFICIENT_PERMISSIONS"} — formato de erro da PRÓPRIA Design API
+```
+
+**`/draft` é a única que responde no formato da Design API**, com `errorCode`
+próprio: a rota existe e é barrada por permissão, enquanto as outras cinco são o
+gateway dizendo que não há rota. O loop já está escrito para usá-la no dia em
+que o token puder chamá-la; até lá ele termina `NotWritable` — e termina como
+VEREDITO, não por exceção, porque um loop de várias rodadas que aborta na
+primeira resposta inesperada não reporta nada sobre as rodadas que já rodaram.
+
+(De passagem: o truque do `text/plain` do § do reconhecimento distingue 415 de
+405, mas nesta API a resposta de "rota inexistente" é um 500 genérico. É o
+FORMATO do erro que separa rota real de rota ausente aqui, não o status.)
+
+#### As duas corridas ao vivo, e o bug que a segunda revelou
+
+- **`apla-boot-01`** (já publicado): `NotWritable`, **0 implantações**, a
+  mensagem exata da plataforma na tela e o aviso de que nada ali conclui coisa
+  alguma sobre o pipeline.
+- **`apla-draft-01`** (rascunho, nunca implantado): escreveu, implantou, e o
+  deploy **não estabilizou** no teto — `Unsettled`, nenhuma chamada de modelo.
+  Minutos depois o mesmo deployment estava `SERVICE_ACTIVE` 1/1 com endpoint.
+  Isto é o terceiro resultado funcionando exatamente como desenhado: um deploy
+  lento não vira defeito de flowSpec.
+
+Essa segunda corrida expôs um bug real no Bloco D: `awaitSettled()` vigiava
+`$found[0]` da listagem e **descartava o id que o próprio POST devolve**. Um
+pipeline pode ter mais de uma linha de deployment ao mesmo tempo — o
+`apla-probe` tem duas — e um redeploy convive com o que está substituindo
+enquanto sobe, então `[0]` é uma escolha arbitrária entre linhas com status
+diferentes. Vigiar a errada reporta como quebrado um pipeline que está de pé, o
+que para o loop de cura é a diferença entre parar e reescrever algo que estava
+certo. Agora ele vigia a linha que criou, com `[0]` como fallback apenas
+enquanto a nova ainda não apareceu na listagem.
+
+#### Dívida
+
+`apla-draft-01` (pipeline e deployment, no ar em 1/1) soma-se ao `apla-boot-01`
+e às duas do `apla-probe`. Nada disso sai daqui: a plataforma não apaga
+pipeline, e o token não tem `DEPLOYMENT:DELETE`.
 
 ---
 

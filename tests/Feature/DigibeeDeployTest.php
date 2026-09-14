@@ -316,6 +316,58 @@ it('deploys with the configuration for that size AND environment', function () {
         && ($request->data()['runtimeConfigurationId'] ?? null) === 'cfg-medium-test');
 });
 
+it('watches the deployment it created, not whatever the listing puts first', function () {
+    withDeployConfig();
+
+    // A pipeline can hold more than one deployment row at a time — `apla-probe`
+    // holds two — and a redeploy lives beside the one it replaces while it
+    // starts. Reading `[0]` is an arbitrary choice among rows with different
+    // statuses, and for the healing loop the wrong one is the difference
+    // between stopping and rewriting a pipeline that was fine.
+    $stale = deploymentRow('SERVICE_ERROR');
+    $stale['id'] = 'dep-old';
+    $stale['deploymentStatus']['availableReplicas'] = '0/1';
+
+    fakeDeployApi([$stale, deploymentRow('SERVICE_ACTIVE')]);
+
+    $report = app(DeployPipeline::class)->handle('meu-pipeline');
+
+    expect($report->deploymentId)->toBe('dep-1')
+        ->and($report->status)->toBe(DeploymentStatus::Active)
+        ->and($report->live())->toBeTrue()
+        ->and($report->errors)->toBe([]);
+});
+
+it('falls back to the first row while the new deployment has not appeared yet', function () {
+    withDeployConfig();
+
+    // Until the platform lists it there is nothing to match on, so the
+    // fallback is the only answer available — not a shrug.
+    $pending = deploymentRow('STARTING');
+    $pending['id'] = 'dep-old';
+
+    $answers = [[$pending], [deploymentRow('SERVICE_ACTIVE')]];
+
+    Http::fake(function (Request $request) use (&$answers) {
+        if (str_contains($request->url(), '/runtime/')) {
+            return $request->method() === 'POST'
+                ? Http::response(['id' => 'dep-1'])
+                : Http::response(count($answers) > 1 ? array_shift($answers) : $answers[0]);
+        }
+
+        if (str_contains($request->url(), '/configurations')) {
+            return Http::response(deployConfigurations());
+        }
+
+        return Http::response([['id' => 'pid-1', 'name' => 'meu-pipeline', 'versionMajor' => 1, 'versionMinor' => 0, 'triggerSpec' => ['type' => 'rest']]]);
+    });
+
+    $report = app(DeployPipeline::class)->handle('meu-pipeline');
+
+    expect($report->deploymentId)->toBe('dep-1')
+        ->and($report->status)->toBe(DeploymentStatus::Active);
+});
+
 it('refuses when no configuration matches, instead of taking the first', function () {
     withDeployConfig();
     fakeDeployApi([deploymentRow()]);

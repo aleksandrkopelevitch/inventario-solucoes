@@ -152,6 +152,75 @@ class FlowspecPromptBuilder
     }
 
     /**
+     * The healing loop's prompt: the pipeline as DEPLOYED, plus what the
+     * platform and the battery said when it ran.
+     *
+     * It is deliberately not `correctionPrompt()` with different errors, and
+     * the difference is the whole of Bloco F. There, the document had never
+     * left this app and every line was a rule it broke; here the document is
+     * syntactically valid, the platform accepted it, the engine booted it, and
+     * what failed is BEHAVIOUR — a status nobody expected, a field missing from
+     * a response, a media type that did not match. A model handed runtime
+     * evidence under a static-validation framing tends to "fix" the syntax that
+     * was never wrong.
+     *
+     * Three rules carry most of the weight, and each one is a failure already
+     * paid for elsewhere in this app:
+     *
+     * - **Minimal change.** "Return the complete document" is a format
+     *   requirement, never an invitation to rewrite the pipeline — the same
+     *   sentence the Documentation Assistant needed after it deleted a figure
+     *   while answering a question about something else.
+     * - **Never invent an address.** An invented `global.*`, account label or
+     *   endpoint passes validation and dies at runtime, which is exactly the
+     *   failure class this loop is supposed to be closing rather than opening.
+     * - **Some evidence is not about the flowSpec at all.** The loop already
+     *   refuses to re-prompt on a credential wall or an empty environment, but
+     *   saying so here too keeps the model from inventing a pipeline-shaped
+     *   explanation for an infrastructure fact.
+     *
+     * @param  array<string, mixed>  $document  what is deployed right now
+     * @param  list<string>  $evidence  one re-promptable line per thing observed
+     */
+    public function runtimeCorrectionPrompt(
+        array $document,
+        array $evidence,
+        string $pipelineName,
+        string $environment,
+    ): string {
+        $json = json_encode($document, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $list = implode("\n", array_map(fn (string $line) => "- {$line}", $evidence));
+
+        return <<<PROMPT
+        # PIPELINE IMPLANTADO
+
+        O pipeline "{$pipelineName}" está IMPLANTADO no ambiente `{$environment}` com o
+        documento abaixo. Ele passou pela validação, foi aceito pela plataforma e o engine
+        subiu — então o que está errado é o COMPORTAMENTO dele, não a sintaxe.
+
+        ```json
+        {$json}
+        ```
+
+        # O QUE ACONTECEU QUANDO ELE RODOU
+
+        {$list}
+
+        # COMO CORRIGIR
+
+        1. MUDANÇA MÍNIMA: mexa apenas no que a evidência acima aponta. "Devolva o documento
+           completo" é uma exigência de FORMATO, nunca um convite para reescrever o pipeline.
+        2. NUNCA invente endereço: um `global.*`, um `accountLabel` ou uma URL que você não
+           viu passam na validação e morrem em execução. Se faltar um, diga qual falta em vez
+           de inventar.
+        3. Se alguma linha acima não for sobre o pipeline (credencial recusada, ambiente vazio,
+           nada respondendo), diga isso em texto e não mexa no documento por causa dela.
+
+        Responda com o JSON {"meta", "flowSpec"} COMPLETO e corrigido, numa única cerca de código.
+        PROMPT;
+    }
+
+    /**
      * What each connector in play actually takes, distilled from Digibee's own
      * published documentation (App\Support\Digibee\ConnectorCard).
      *

@@ -3,6 +3,7 @@
 namespace App\Services\Flowspec;
 
 use App\Models\FlowspecChat;
+use App\Support\Flowspec\FlowspecJson;
 use App\Models\FlowspecMessage;
 use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Responses\AgentResponse;
@@ -121,16 +122,16 @@ class FlowspecGenerationService
                 ],
             ]);
 
-            $fenced = $this->fencedJsonBlock($text);
+            $fenced = FlowspecJson::fencedBlock($text);
             $candidate = null;
             $brokenFlowspec = false;
 
             if ($fenced !== null) {
                 $decoded = json_decode($fenced, true);
 
-                if (is_array($decoded) && $this->isFlowspecShape($decoded)) {
+                if (is_array($decoded) && FlowspecJson::isFlowspecShape($decoded)) {
                     $candidate = $decoded; // a deliberate, well-formed flowSpec
-                } elseif (! is_array($decoded) && $this->mentionsFlowspecKeys($fenced)) {
+                } elseif (! is_array($decoded) && FlowspecJson::mentionsFlowspecKeys($fenced)) {
                     // The fence clearly INTENDS a flowSpec ("meta"/"flowSpec")
                     // but the JSON is malformed — a broken generation attempt to
                     // correct. A fenced fragment that is NOT a flowSpec (a
@@ -141,7 +142,7 @@ class FlowspecGenerationService
             }
 
             if ($candidate === null && ! $brokenFlowspec) {
-                $candidate = $this->heuristicJsonCandidate($text);
+                $candidate = FlowspecJson::heuristicCandidate($text);
             }
 
             if ($brokenFlowspec) {
@@ -253,67 +254,5 @@ class FlowspecGenerationService
             model: config('services.flowspec.model'),
             timeout: (int) config('services.flowspec.timeout'),
         );
-    }
-
-    /**
-     * JSON block inside a code fence (```json ... ```) — the model fenced the
-     * JSON deliberately, so a `json_decode` failure here is a real model
-     * error, not a misread on our end.
-     */
-    private function fencedJsonBlock(string $text): ?string
-    {
-        return preg_match('/```(?:json)?\s*(\{.*\})\s*```/s', $text, $match) === 1
-            ? $match[1]
-            : null;
-    }
-
-    /**
-     * With no code fence, scans from the first `{` to the last `}` — but only
-     * treats it as a flowSpec ATTEMPT if that decodes to an array with a
-     * `meta` or `flowSpec` key. The system prompt teaches a double-braces
-     * syntax (`{{ step.alias.field }}`), so a purely conversational response
-     * citing that syntax also contains `{`/`}` — without this filter, it
-     * would get extracted, fail `json_decode` and burn a correction-loop
-     * attempt on a meaningless "fix the JSON".
-     *
-     * @return array<string, mixed>|null
-     */
-    private function heuristicJsonCandidate(string $text): ?array
-    {
-        $start = strpos($text, '{');
-        $end = strrpos($text, '}');
-
-        if ($start === false || $end === false || $end <= $start) {
-            return null;
-        }
-
-        $candidate = json_decode(substr($text, $start, $end - $start + 1), true);
-
-        return is_array($candidate) && $this->isFlowspecShape($candidate)
-            ? $candidate
-            : null;
-    }
-
-    /**
-     * A decoded value is a flowSpec document (as opposed to some other JSON
-     * fragment the model cited in a conversational answer) only if it carries
-     * a `meta` or `flowSpec` key.
-     *
-     * @param  array<string, mixed>  $decoded
-     */
-    private function isFlowspecShape(array $decoded): bool
-    {
-        return array_key_exists('meta', $decoded) || array_key_exists('flowSpec', $decoded);
-    }
-
-    /**
-     * Cheap textual check that a malformed fenced block was MEANT to be a
-     * flowSpec — used to decide whether a JSON that failed to parse is a
-     * broken generation attempt (correct it) or just an illustrative snippet
-     * in a conversational answer (ignore it).
-     */
-    private function mentionsFlowspecKeys(string $json): bool
-    {
-        return str_contains($json, '"meta"') || str_contains($json, '"flowSpec"');
     }
 }

@@ -4,6 +4,7 @@ namespace App\Actions\Digibee;
 
 use App\Enums\DeploymentStatus;
 use App\Exceptions\DigibeeApiException;
+use App\Support\Digibee\Deployment;
 use App\Support\Digibee\DeploymentReport;
 use App\Support\Digibee\DigibeeAuthResolver;
 use App\Support\Digibee\DigibeeDesignClient;
@@ -138,9 +139,19 @@ class DeployPipeline
             );
         }
 
-        $this->client->deploy($payload, $environment);
+        $created = $this->client->deploy($payload, $environment);
 
-        return $this->awaitSettled($pipelineName, $environment, $pipelineId, $timeoutSeconds, $warnings);
+        // Watch the deployment this call CREATED, not whatever the listing
+        // happens to put first. A pipeline can hold more than one deployment
+        // row at a time — `apla-probe` holds two — and a redeploy lives beside
+        // the deployment it is replacing while it starts, so `[0]` is an
+        // arbitrary choice among rows with different statuses. Watching the
+        // wrong one reports a healthy pipeline as broken, which for the
+        // healing loop is the difference between stopping and rewriting
+        // something that was fine.
+        $deploymentId = is_string($created['id'] ?? null) ? $created['id'] : null;
+
+        return $this->awaitSettled($pipelineName, $environment, $pipelineId, $timeoutSeconds, $warnings, $deploymentId);
     }
 
     /**
@@ -233,6 +244,31 @@ class DeployPipeline
     }
 
     /**
+     * The deployment this run is watching: the one the POST reported, or the
+     * first row when it reported none.
+     *
+     * The fallback is not a shrug — a deployment takes a moment to appear in
+     * the listing, and until it does there is nothing to match, so `[0]` is
+     * the only answer available. What the id buys is the case where several
+     * rows DO exist: the row this call created, rather than a neighbour that
+     * settled long ago or a predecessor still being replaced.
+     *
+     * @param  list<Deployment>  $found
+     */
+    private function watched(array $found, ?string $deploymentId): ?Deployment
+    {
+        if ($deploymentId !== null) {
+            foreach ($found as $deployment) {
+                if ($deployment->id() === $deploymentId) {
+                    return $deployment;
+                }
+            }
+        }
+
+        return $found[0] ?? null;
+    }
+
+    /**
      * @param  list<string>  $warnings
      */
     private function awaitSettled(
@@ -241,13 +277,14 @@ class DeployPipeline
         string $pipelineId,
         int $timeoutSeconds,
         array $warnings,
+        ?string $deploymentId = null,
     ): DeploymentReport {
         $waited = 0;
         $deployment = null;
 
         while (true) {
             $found = $this->client->deployments($environment, $pipelineName);
-            $deployment = $found[0] ?? null;
+            $deployment = $this->watched($found, $deploymentId);
 
             if ($deployment?->status()->settled()) {
                 break;
