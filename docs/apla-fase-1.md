@@ -24,7 +24,7 @@ sem descobrir quatro subsistemas depois que a premissa estava errada.
 | A″ — verificar os **verbos de escrita** | **feito, e agora com o token escopado** — cria, faz upsert e relê idêntico (§ O que o token escopado respondeu) |
 | B — modo de ingestão no normalizador/validador | **feito** — 36 testes em `tests/Feature/FlowspecIngestionTest.php` (§ O que a ingestão escreve) |
 | C — síntese de `triggerSpec` | **feito** — 19 testes em `tests/Feature/DigibeeTriggerSpecTest.php` (§ O que o triggerSpec sintetiza) |
-| D — runner de deploy (pela API) | **feito** — 16 testes em `tests/Feature/DigibeeDeployTest.php`; o corpo foi probado contra a plataforma e três coisas mudaram por causa disso (§ O que a verificação do corpo encontrou). Falta um deploy que complete: o `apla-probe` precisa de uma versão publicada |
+| D — runner de deploy (pela API) | **feito** — 16 testes em `tests/Feature/DigibeeDeployTest.php`; o corpo foi probado contra a plataforma e três coisas mudaram por causa disso (§ O que a verificação do corpo encontrou). Falta um deploy que COMPLETE. A versão publicada existe e não era isso: o engine recusa a configuração do `apla-probe` por algo invisível nas duas APIs, e as duas hipóteses de causa caíram (§ A escala em branco NÃO é a causa) |
 | E — matriz de testes sintéticos + avaliador de asserções | **feito** — 41 testes em `tests/Feature/FlowspecTestMatrixTest.php`, as 201 do export constroem sem erro, e a bateria aparece na conversa do F8 (§ O que a matriz produz, § O contrato de resposta, § A bateria na tela) |
 | F — loop de auto-correção com evidência de runtime | não começado |
 | G — portão de promoção para `prod` | não começado |
@@ -1136,6 +1136,11 @@ v0.1 recém-salva.
 
 ### Por que o `apla-probe` não sobe — e o que NÃO é a causa
 
+**Esta seção diagnosticou errado, e a § seguinte tem a medição que a desmente.**
+O que está escrito abaixo é o registro de como o problema se apresentava: a
+correlação "configuração de escala em branco ↔ Jackson recusa" parecia exata e
+nove implantações vivas provam que não é. O resto do texto fica como estava.
+
 A v1.0 foi promovida e implantada pelo canvas, e o deployment fica em
 `STARTING` com 0/1 réplicas e "Pipeline Configuration is invalid
 … Node is expected to be an object node". Nada responde na URL, que é o que a
@@ -1175,6 +1180,109 @@ plataforma, e as nossas escritas não multiplicaram nada. O que difere é que as
 seis do `apla-probe` têm `cooldownPeriod: null` e as dos outros não — ou seja,
 elas nunca foram configuradas, não foram poluídas.
 
+### A escala em branco NÃO é a causa, e o `uris` vazio também não (2026-09-14)
+
+Duas hipóteses caíram no mesmo dia, a primeira por leitura do parque e a
+segunda por experimento. Vale registrar as duas porque a forma do erro é a
+mesma nos dois casos, e é exatamente a forma que convida a parar cedo demais.
+
+**A configuração de escala em branco está desmentida por nove implantações.**
+Agrupando as 112 implantações de `test` pela `activeConfiguration`:
+
+```
+autoscaling=false fallback=null cooldown=NULL | SERVICE_ACTIVE    9
+autoscaling=false fallback=null cooldown=NULL | SERVICE_ERROR     3
+autoscaling=false fallback=null cooldown=NULL | DELETING          1
+autoscaling=true  fallback=object cooldown=60 | SERVICE_ACTIVE   56
+autoscaling=true  fallback=object cooldown=300| SERVICE_ACTIVE   38
+autoscaling=true  fallback=object cooldown=90 | SERVICE_ACTIVE    3
+autoscaling=true  fallback=object cooldown=180| SERVICE_ACTIVE    2
+```
+
+Nove pipelines rodam com a configuração que a seção acima chama de defeito, e
+três deles com réplicas reais em vez de estacionados:
+`cortecloud-envia-links-arquivos-foundation` (1/1),
+`api-token-leia-freshservice` (1/1) e `api-transfere-anexos-freshworks` (2/2).
+A `activeConfiguration` do primeiro é idêntica à do `apla-probe` campo a campo.
+`fallback: null` casar com "Node is expected to be an object node" era uma
+coincidência de forma, não uma explicação — e a seção anterior tratou uma
+correlação de um caso como causa.
+
+**A segunda hipótese foi `uris: []`, e ela se testava.** O diff do documento
+contra um pipeline que sobe deixa só o `triggerSpec` diferente; e contra o
+`iam-pwd-reset`, que está de pé em 1/1 carregando os mesmos
+`rateLimitOptions: "[]"`, `rateLimitBy`, `rateLimitAggregateBy`,
+`removePrefixUri`, `requestSizeLimit: 5` e `keyAuth: true`, sobrava um único
+campo estrutural:
+
+| | `apla-probe` v1.0 | `iam-pwd-reset` (1/1) |
+|---|---|---|
+| `uris` | `[]` | `["/useraccount", "/accessrequest/passwordreset", …]` |
+
+No parque, `uris` é ausente em 32 triggers `rest` (sobem), preenchido em 6
+(sobem) e **vazio em 2 — e nenhum dos dois jamais bootou**. Nada disso é prova,
+mas era o único candidato sem contraexemplo. E o campo não saiu do nosso
+código: `SynthesizeTriggerSpec` só emite a chave quando a lista não é vazia
+(`is_array($uris) && $uris !== []`) — quem escreveu `uris: []` foi o canvas, ao
+promover a v1.0.
+
+**O experimento estava pronto na própria plataforma.** As quatro linhas de
+versão do `apla-probe` são:
+
+```
+v0.0  draft=false  uris=<absent>
+v0.1  draft=false  uris=<absent>
+v0.2  draft=false  uris=<absent>
+v1.0  draft=false  uris=[]        ← a implantada, a que quebra
+```
+
+A v0.2 tem o `flowSpec` **byte-idêntico** ao da v1.0 e não tem a chave. Implantar
+a v0.2 é portanto trocar uma variável só. Resultado: **a mesma parede** —
+`PipelineEngineConfigurationException: Pipeline Configuration is invalid`, com o
+deployment preso em `STARTING` a 0/1 e a contagem de erros subindo (5 → 9 em
+quatro minutos). `uris: []` está eliminado.
+
+**Duas coisas que o experimento ensinou de passagem.**
+
+1. **Uma linha de versão ANTIGA implanta.** `DeployPipeline` carregava o
+   comentário de que o 404 "No such entity" era a plataforma recusando uma
+   versão que não fosse a última; a v0.2 foi aceita com `200` e um id de
+   deployment. O 404 daquela vez era o `id` no lugar de `pipelineId`, que é o
+   que a § do corpo do POST já tinha concluído — a inferência sobre versão
+   antiga foi uma segunda leitura do mesmo sintoma.
+2. **O upsert exige rascunho.** `POST` com um documento cujo `draft` é `false`
+   responde **409 "You cannot update a pipeline that is not on draft mode"**.
+   Nenhuma das quatro linhas do `apla-probe` está em rascunho hoje, então não há
+   por onde a API corrigir o documento — publicar uma versão nova é gesto de
+   canvas, e nenhuma rota de `release` foi encontrada no binário.
+
+**Onde isso deixa o defeito.** Comparados com dois pipelines que sobem, o
+documento de design e a configuração de runtime do `apla-probe` são
+indistinguíveis:
+
+- todos os escalares batem (`triggerCategory`, `security`, `apiExposed`,
+  `canvasVersion: 2`, `disabled`, `projectName`), e os ausentes são ausentes dos
+  dois lados;
+- as sub-chaves de `metadata` têm as mesmas formas, `restApiTriggerRoutes: []` e
+  `isUsingApiTrigger: false` inclusive;
+- a linha `small`/`test` de configuração bate em tudo menos `actualConsumers`
+  (10 contra 5), que é contador, não estrutura;
+- os dois conectores usam os tipos do parque — `json-generator.json` é string em
+  886 passos reais, como no nosso, e `log-connector` não carrega
+  `doubleBracesAlias` em nenhum dos 1227.
+
+Ou seja: **o que o engine recusa não aparece em nenhuma das duas APIs que
+temos.** O próximo passo honesto não é mais uma hipótese sobre o JSON — é olhar
+de dentro do canvas, ou perguntar ao suporte da Digibee o que
+`fromJsonToPipelineConfiguration` lê além do flowSpec e da configuração.
+
+**Dívida deixada no realm.** Existem agora DUAS implantações do `apla-probe` em
+`test` em loop de boot — a v1 (`39c027ad`, 0/2) e a v0.2 (`9b8ded32`, 0/1) —, e o
+token escopado **não tem `DEPLOYMENT:DELETE`**, então nenhuma das duas sai daqui.
+Quem abrir o canvas pode removê-las. Vale como lembrete de que, nesta
+plataforma, todo experimento deixa rastro: nada apaga pipeline, e este token
+também não apaga deployment.
+
 ---
 
 ## Definição de pronto da Fase 1
@@ -1193,10 +1301,13 @@ elas nunca foram configuradas, não foram poluídas.
       aqui (§ O que o probe respondeu).
 - [x] Verbos de escrita de design verificados: cria, atualiza (upsert por
       `POST` na coleção) e o `flowSpec` sobrevive byte-idêntico.
-- [ ] Deploy verificado. **Não é mais bloqueio de permissão** — o token traz
-      `DEPLOYMENT:CREATE{ENV=TEST}` e o Bloco D está construído e testado; o que
-      falta provar é o CORPO do POST, que custa um deploy real em `test`
-      (§ O que o deploy ainda NÃO provou).
+- [x] Deploy verificado do lado da PLATAFORMA: o corpo
+      `{pipelineId, runtimeConfigurationId}` com o ambiente na query é aceito, e
+      a rota devolve um deployment com id próprio (duas vezes, v1.0 e v0.2).
+- [ ] Deploy que COMPLETA — um pipeline nosso de pé, com URL respondendo. O que
+      bloqueia não é mais o corpo nem a permissão: o engine recusa a
+      configuração do `apla-probe` por algo que nem o documento de design nem a
+      configuração de runtime expõem (§ A escala em branco NÃO é a causa).
 - [x] Matriz de testes derivada do flowSpec, com o que não dá para derivar
       reportado como dívida de cobertura em vez de payload inventado.
 
