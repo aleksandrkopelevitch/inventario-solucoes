@@ -54,15 +54,19 @@ final readonly class PipelineTestSuite
             throw DigibeeApiException::unknownEnvironment($this->environment);
         }
 
-        // `/v0/` addresses nothing: a pipeline is only reachable once a
-        // version is released, and every deployment in the tenant is v1 or
-        // above. Composing it anyway is worse than failing, because the URL
-        // answers 404 and a suite full of `!5xx` cases then PASSES against an
-        // endpoint that does not exist — which is the false green this whole
-        // matrix is built to avoid.
-        if ($this->versionMajor < 1) {
-            throw DigibeeApiException::unreleasedPipeline($this->pipelineName);
-        }
+        // `/v0/` used to be refused here, on the reading that a pipeline is
+        // reachable only once a version is released. That described the
+        // estate, not a rule — the same mistake as "all 111 deployments are
+        // v1". Measured 2026-09-14: `apla-boot-01`, a v0.0 DRAFT, deployed to
+        // `test` at 1/1 and the platform assigned
+        // `…/pipeline/leomadeiras/v0/apla-boot-01`, which answers.
+        //
+        // Refusing was also aimed at the wrong half of the feature: this app's
+        // own ingest creates v0.0 rows, so the guard blocked the battery from
+        // testing exactly the pipelines it had just written. The false green
+        // it was written against is covered where it actually lives —
+        // `SuiteRun::nothingAnswered()` reads "every case 404" as nothing
+        // answering, whatever version composed the address.
 
         return rtrim($host, '/') . "/pipeline/{$realm}/v{$this->versionMajor}/{$this->pipelineName}";
     }

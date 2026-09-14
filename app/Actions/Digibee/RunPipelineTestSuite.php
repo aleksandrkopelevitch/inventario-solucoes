@@ -87,7 +87,7 @@ class RunPipelineTestSuite
             url: $url,
             results: $results,
             skipped: $suite->blocked(),
-            authenticated: $credential !== null,
+            authenticated: $credential !== null && ! $credential->isBlank(),
         );
     }
 

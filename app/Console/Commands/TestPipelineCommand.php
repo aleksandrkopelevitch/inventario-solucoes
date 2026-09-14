@@ -156,8 +156,9 @@ class TestPipelineCommand extends Command
         // everything, and saying which it is costs one line.
         if ($run->refusedForCredentials()) {
             $this->components->error(
-                'Todos os casos voltaram 401/403 e nenhuma credencial foi passada — '
-                . 'isso é o endpoint recusando na porta, não o pipeline falhando. Use --auth.'
+                'Todos os casos voltaram 401/403 e nenhuma credencial chegou ao endpoint — '
+                . 'isso é o endpoint recusando na porta, não o pipeline falhando. '
+                . 'Use --auth e responda o valor: escolher o modo e deixar em branco não autentica nada.'
             );
 
             return;
