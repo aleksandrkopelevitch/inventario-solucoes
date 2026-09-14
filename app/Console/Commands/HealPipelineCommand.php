@@ -9,8 +9,8 @@ use App\Services\Digibee\PipelineHealingService;
 use App\Support\Digibee\Healing\HealingReport;
 use App\Support\Digibee\Testing\EndpointCredential;
 use App\Support\Digibee\TriggerSpec;
+use App\Support\Flowspec\FlowspecDocumentSource;
 use Illuminate\Console\Command;
-use JsonException;
 
 /**
  * Drives the healing loop by hand — write, deploy, test, correct, repeat.
@@ -33,6 +33,8 @@ class HealPipelineCommand extends Command
     protected $signature = 'digibee:pipeline:heal
         {name : The pipeline name in the realm}
         {--file= : Path to a generated {meta, flowSpec} JSON document}
+        {--chat= : Take the latest generated document from this conversation (the id in /flowspec/{id})}
+        {--message= : Take the document from this exact message}
         {--environment=test : Which environment to deploy to and call (must be allowed in config)}
         {--rounds= : Write/deploy/test cycles allowed (default: config)}
         {--create : Create the pipeline when the realm has no such name (permanent — nothing deletes a pipeline)}
@@ -134,26 +136,36 @@ class HealPipelineCommand extends Command
         };
     }
 
-    /** @return array<string, mixed>|null */
+    /**
+     * The document to write, from one of three sources.
+     *
+     * The rules live in `FlowspecDocumentSource` because all three lifecycle
+     * commands need the same ones — and because reading a file was once the
+     * only way in, which meant this could not be pointed at the documents the
+     * app itself generates without exporting JSON by hand.
+     *
+     * @return array<string, mixed>|null
+     */
     private function document(): ?array
     {
-        $path = (string) $this->option('file');
+        $source = FlowspecDocumentSource::resolve(
+            $this->option('file') === null ? null : (string) $this->option('file'),
+            $this->option('chat') === null ? null : (string) $this->option('chat'),
+            $this->option('message') === null ? null : (string) $this->option('message'),
+        );
 
-        if ($path === '' || ! is_file($path)) {
-            $this->components->error('Passe --file com o caminho de um documento {meta, flowSpec}.');
-
-            return null;
-        }
-
-        try {
-            $decoded = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException $e) {
-            $this->components->error("O arquivo não é JSON válido: {$e->getMessage()}");
+        if (! $source->ok()) {
+            $this->components->error((string) $source->error);
 
             return null;
         }
 
-        return is_array($decoded) ? $decoded : null;
+        // Which document this run took, said out loud: a command that writes
+        // into a real realm must not leave "pointed at the wrong conversation"
+        // invisible in its own report.
+        $this->line("  <fg=gray>documento:</> {$source->origin}");
+
+        return $source->document;
     }
 
     /** @return TriggerSpec|null|false false = the options are wrong, stop */
