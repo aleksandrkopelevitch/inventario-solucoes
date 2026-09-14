@@ -47,8 +47,15 @@ enum HealingVerdict: string
     case NotIngested = 'not-ingested';
 
     /**
-     * The platform would not accept a write at all — the pipeline is no longer
-     * a draft.
+     * The write was refused by something that is not the document: the realm,
+     * the pipeline's state, or the request itself.
+     *
+     * Two shapes reach here. The pipeline is no longer a draft (below), or the
+     * realm has no pipeline by that name and creating one was not asked for —
+     * the second being routine on the new screen, where the suggested name is
+     * a slug of the conversation's title. Neither is re-promptable: no rewrite
+     * the model produces changes either fact, and the evidence line says which
+     * one it was.
      *
      * Measured 2026-09-14, and it is the constraint that shapes this whole
      * block: **deploying PUBLISHES a pipeline**. `apla-boot-01` was created
@@ -111,7 +118,7 @@ enum HealingVerdict: string
             self::NotAnswering     => 'nada respondeu nessa URL',
             self::RefusedAtTheDoor => 'o endpoint recusou na porta, por credencial',
             self::NotIngested      => 'o documento não passou na validação',
-            self::NotWritable      => 'a plataforma recusou a escrita: o pipeline não está em modo rascunho',
+            self::NotWritable      => 'a escrita foi recusada por algo que não é o documento',
             self::Stuck            => 'o modelo devolveu o mesmo documento',
         };
     }

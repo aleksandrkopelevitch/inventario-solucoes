@@ -18,6 +18,8 @@ final readonly class IngestionReport
      * @param  list<string>  $changes  what this write actually changed
      * @param  list<string>  $warnings  what it left standing, and why that may matter
      * @param  list<string>  $errors  why nothing was written
+     * @param  bool  $documentRejected  whether those errors are about the DOCUMENT
+     *                                  rather than about the realm
      */
     public function __construct(
         public string $pipelineName,
@@ -34,6 +36,7 @@ final readonly class IngestionReport
         public array $changes = [],
         public array $warnings = [],
         public array $errors = [],
+        public bool $documentRejected = false,
     ) {}
 
     public function ok(): bool
@@ -48,5 +51,21 @@ final readonly class IngestionReport
     public function confirmed(): bool
     {
         return $this->wrote && $this->verified;
+    }
+
+    /**
+     * Whether this refusal is something a rewrite could fix.
+     *
+     * The healing loop needs the distinction and nothing else here did, which
+     * is why it did not exist: only OUR validation rejecting the flowSpec says
+     * anything about the document. "No pipeline called X exists in the realm"
+     * and "the triggerSpec you asked me to synthesize is missing a cron" are
+     * facts about the request and the realm — handing either to a model as
+     * evidence spends an attempt asking it to fix a document that is fine, and
+     * ends the run confused.
+     */
+    public function correctable(): bool
+    {
+        return ! $this->ok() && $this->documentRejected;
     }
 }

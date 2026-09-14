@@ -377,7 +377,10 @@ it('refuses to write an invalid flowSpec, and calls nothing', function () {
     $report = app(IngestFlowspec::class)->handle($document, 'meu-pipeline');
 
     expect($report->ok())->toBeFalse()
-        ->and(implode(' ', $report->errors))->toContain('fora do catálogo');
+        ->and(implode(' ', $report->errors))->toContain('fora do catálogo')
+        // The one refusal here that a rewrite could fix, and the only one the
+        // healing loop may hand back to the model.
+        ->and($report->correctable())->toBeTrue();
 
     Http::assertNothingSent();
 });
@@ -389,7 +392,10 @@ it('refuses to create a pipeline unless creating was asked for', function () {
     $report = app(IngestFlowspec::class)->handle(clipboardDocument(), 'nao-existe');
 
     expect($report->ok())->toBeFalse()
-        ->and(implode(' ', $report->errors))->toContain('nada na plataforma apaga pipeline');
+        ->and(implode(' ', $report->errors))->toContain('nada na plataforma apaga pipeline')
+        // A fact about the REALM, not about the document: no rewrite changes
+        // it, so the healing loop must not spend an attempt on it.
+        ->and($report->correctable())->toBeFalse();
 
     Http::assertNotSent(fn (Request $request) => $request->method() === 'POST');
 });
