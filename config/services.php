@@ -266,6 +266,17 @@ return [
                 'trim',
                 explode(',', (string) env('DIGIBEE_DEPLOYABLE_ENVIRONMENTS', 'test')),
             ))),
+
+            // How many write -> deploy -> test -> correct cycles the healing
+            // loop may run (App\Services\Digibee\PipelineHealingService).
+            //
+            // Low on purpose, and for a reason `max_attempts` does not have:
+            // an attempt of the static loop costs a model call, while a round
+            // here costs a REAL DEPLOYMENT in a shared realm — and nothing on
+            // this platform deletes a pipeline, while the scoped token cannot
+            // delete a deployment either. Every extra round is litter somebody
+            // has to clear by hand from the canvas.
+            'max_healing_rounds' => env('DIGIBEE_MAX_HEALING_ROUNDS', 3),
         ],
     ],
 
