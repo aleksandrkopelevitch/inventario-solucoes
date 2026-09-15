@@ -8,7 +8,6 @@ paths:
   - "app/Http/Controllers/Inventory/PersonController.php"
   - "app/Http/Controllers/Inventory/CompanyController.php"
   - "app/Http/Controllers/Inventory/SolutionController.php"
-  - "app/Http/Controllers/SolutionIntegrationController.php"
 ---
 
 ### Inline edit — a datum that links somewhere: the ↗ navigates, the text edits
