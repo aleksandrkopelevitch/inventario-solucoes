@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\UpdateSolutionMapPositionRequest;
 use App\Models\AttributeOption;
 use App\Models\Solution;
 use App\Services\DiagramGraphService;
@@ -45,21 +44,5 @@ class SolutionMapController extends Controller
         ]);
 
         return response()->json($graph);
-    }
-
-    /**
-     * Auto-save of a hub's position dragged on the canvas
-     * (`ecosystem-map.js::startHubDrag`) — no panel/save button, fires on
-     * every drag release. Persisted in `solutions.map_position` (global, not
-     * per-user) so it survives reloads and is the same for everyone who
-     * opens the map.
-     */
-    public function updatePosition(UpdateSolutionMapPositionRequest $request, Solution $solution): JsonResponse
-    {
-        $solution->update([
-            'map_position' => $request->validated(),
-        ]);
-
-        return response()->json(['message' => 'Posição salva.']);
     }
 }

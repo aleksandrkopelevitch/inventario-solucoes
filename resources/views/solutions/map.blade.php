@@ -1,45 +1,53 @@
-<x-layouts.layout title="Mapa de integrações">
-    {{-- Same gradient "glow" hero as Soluções/Detalhe — see [[radiant-protocol-redesign]].
-         The interactive map canvas below (<x-ecosystem-map>, its --viz-*
-         tokens) is intentionally NOT touched by this redesign pass. --}}
-    <x-ui.hero-panel class="mb-6 animate-ak-rise">
-        <span class="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[color:var(--color-glow-ink)]/70">
-            <span class="size-2 rounded-full" style="background: linear-gradient(115deg, var(--color-glow-a), var(--color-lime))"></span>
-            Ecossistema completo
-        </span>
-        <h1 class="mt-3 font-display text-[40px] font-bold leading-[0.98] tracking-tight text-[color:var(--color-glow-ink)]">Mapa de integrações</h1>
-        <p class="mt-3 max-w-lg text-[15px] leading-relaxed text-[color:var(--color-glow-ink)]/70">Soluções como nós, integrações como arestas — o grafo é derivado diretamente da tabela de integrações.</p>
-    </x-ui.hero-panel>
+{{-- The ecosystem map: a thin bar with the filters, and the canvas filling
+     everything below it.
 
-    {{-- Grid (not flex): x-forms.select wraps itself in a w-full wrapper, which
-         in a flex row would force each item to take 100% width and wrap. --}}
-    <div class="mb-4 grid animate-ak-rise grid-cols-2 gap-2 sm:grid-cols-4 sm:items-center" style="animation-delay: 70ms">
-        <x-forms.select data-ak-graph-filter="status">
-            <option value="all">Todos os status</option>
-            <option value="active">Ativas</option>
-            <option value="in_development">Em desenvolvimento</option>
-            <option value="planned">Planejadas</option>
-            <option value="deprecated">Descontinuadas</option>
-        </x-forms.select>
+     Fluid and full height, like `diagrams/show` and the documentation editor —
+     the canvas IS the content here, so it gets the viewport instead of a
+     reading column with a hero above it. It used to open with the standard
+     gradient hero, which cost the map its top 400px and pushed a graph of a
+     hundred systems below the fold on a laptop. The sentence that hero carried
+     is the one thing worth keeping from it, and it now sits where somebody
+     needs it: beside the filters, as the instruction for a screen you have to
+     click to read. --}}
+<x-layouts.layout title="Mapa de integrações" :fluid="true">
+    <div class="flex min-h-0 flex-1 flex-col">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-3 py-2">
+            <div class="flex min-w-0 items-center gap-3">
+                <h1 class="shrink-0 font-display text-[17px] font-bold tracking-tight text-ink">Mapa de integrações</h1>
+                <p class="hidden min-w-0 truncate text-[12px] text-muted lg:block">
+                    Clique em um sistema — ou na linha entre dois — para abrir os diagramas por trás; clique em um diagrama para desenhar o fluxo inteiro.
+                </p>
+            </div>
 
-        <x-forms.select data-ak-graph-filter="category">
-            <option value="">Todas as categorias</option>
-            @foreach ($categories as $option)
-                <option value="{{ $option->value }}">{{ $option->label }}</option>
-            @endforeach
-        </x-forms.select>
+            {{-- Grid (not flex): x-forms.select wraps itself in a w-full wrapper, which
+                 in a flex row would force each item to take 100% width and wrap. --}}
+            <div class="grid shrink-0 grid-cols-3 gap-2">
+                <x-forms.select data-ak-graph-filter="status" class="!py-1.5 !text-[13px]">
+                    <option value="all">Todos os status</option>
+                    <option value="active">Ativas</option>
+                    <option value="in_development">Em desenvolvimento</option>
+                    <option value="planned">Planejadas</option>
+                    <option value="deprecated">Descontinuadas</option>
+                </x-forms.select>
 
-        <x-forms.select data-ak-graph-filter="directorate">
-            <option value="">Todas as diretorias</option>
-            @foreach ($directorates as $option)
-                <option value="{{ $option->value }}">{{ $option->label }}</option>
-            @endforeach
-        </x-forms.select>
+                <x-forms.select data-ak-graph-filter="category" class="!py-1.5 !text-[13px]">
+                    <option value="">Todas as categorias</option>
+                    @foreach ($categories as $option)
+                        <option value="{{ $option->value }}">{{ $option->label }}</option>
+                    @endforeach
+                </x-forms.select>
 
-    </div>
+                <x-forms.select data-ak-graph-filter="directorate" class="!py-1.5 !text-[13px]">
+                    <option value="">Todas as diretorias</option>
+                    @foreach ($directorates as $option)
+                        <option value="{{ $option->value }}">{{ $option->label }}</option>
+                    @endforeach
+                </x-forms.select>
+            </div>
+        </div>
 
-    <div class="animate-ak-rise" style="animation-delay: 140ms">
-        <x-ecosystem-map id="global-map" :source-url="route('solutions.map.data')" height="620px" />
+        <x-ecosystem-map id="global-map" :source-url="route('solutions.map.data')"
+            height="100%" class="min-h-0 flex-1 !rounded-none !shadow-none !ring-0" />
     </div>
 
     {{-- Page glue: rebuilds the query string from the filters above and

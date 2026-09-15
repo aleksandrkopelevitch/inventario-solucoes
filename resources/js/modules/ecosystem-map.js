@@ -1,941 +1,1069 @@
-// Ecosystem map (read-only) — radial hub-and-spoke layout.
+// Ecosystem map — a canvas graph you drill into.
 //
-// Each solution becomes a hub (rounded card, same visual as the
-// diagram-viz block) positioned once in a compact grid that packs the
-// FOOTPRINTs (card + neighbor ring, when expanded) into rows, largest first.
-// No `dagre`/rank layout here: most pairs/clusters in this graph are small
-// and mostly disconnected from each other (many solutions with 0-2
-// neighbors, a few well-connected hubs) — a rank layout (left→right) pushes
-// everything that shares no edge into the same rank and collapses into a
-// single column (verified visually during implementation). The packed grid
-// gives genuine 2D layout regardless of connectivity.
+// Three levels of the same reading, on one surface:
 //
-// Neighbors (satellites) are the SAME card as the hub (avatar + name,
-// compact `.ak-eco-satellite-card` variant) — not an avatar alone — so the
-// name is always readable, both for the hub and for each satellite. The
-// ring radius is derived from the REAL measured size of each card (hub +
-// largest satellite + perimeter needed for the number of neighbors), not a
-// fixed constant — a degree-1 hub sits close to its single neighbor.
+//   1. MACRO — one block per Solution, one link per PAIR of solutions. The
+//      link says SAP and SVL talk to each other; it does not say how many
+//      ways, or through what.
+//   2. Clicking a system, or one of those links, unfolds the DIAGRAMS behind
+//      it — a link that carries three integrations turns into three named
+//      blocks instead of one anonymous line.
+//   3. Clicking a diagram unfolds its CHAIN, the drawing itself:
+//      SAP → Digibee → SVL → BigQuery, with each step's protocol.
 //
-// A solution can appear as a hub (its own position) AND as a satellite in
-// another hub's ring — intentional: avoids the canvas-spanning curves that
-// tangled up the old drawing (see CLAUDE.md/plan). Hubs with many neighbors
-// (degree > EXPAND_THRESHOLD) start collapsed (just the card + a badge with
-// the count); clicking the badge expands/collapses that hub's ring WITHOUT
-// touching the grid's `layout()` — no other hub moves, and the toggled hub
-// itself also stays where it was (only its ring appears/disappears around
-// it). Recalculating the whole grid on every toggle made the entire view
-// reposition unpredictably on every click — disorienting.
+// Everything is in one payload (see `DiagramGraphService`), so a level
+// costs no round trip and the search box can find a drawing nobody has
+// expanded yet.
 //
-// Clicking a card (hub or satellite) opens a popover with the solution's
-// attributes + a "See more" button (new tab) — it doesn't navigate directly.
-// Pan/zoom/fit/fullscreen follow the same pattern as chain-viz.js
-// (view.x/y/scale on a single #world transform, real Fullscreen API).
+// The renderer is adapted from the "Second Brain" workspace-graph visualizer
+// by Jay E / RoboNuggets, used under CC BY 4.0 — see NOTICE at the repo root.
+// `graph-canvas/` holds the parts of it that know nothing about this app.
+//
+// Two things here are deliberate and easy to undo:
+//
+// - **A child is born at its parent's position.** Every node eases from
+//   where it is toward a target, and a node that has just appeared starts at
+//   the block it came out of. That is the whole drill-down feeling: blocks
+//   grow out of what you clicked instead of materialising somewhere else.
+// - **Nothing is ever hidden, only dimmed.** Expanding a system dims the
+//   rest of the ecosystem to a quarter — it stays on screen, so you can see
+//   where in the map you are standing.
 
-import {fold} from './fold.js'
-
-const SVG_NS = 'http://www.w3.org/2000/svg'
-const MIN_SCALE = 0.15
-const MAX_SCALE = 2.5
-const FIT_PAD = 60
-const EXPAND_THRESHOLD = 6
-const RING_GAP = 8 // minimum spacing between neighboring satellites around the ring
-const HUB_MARGIN = 18 // footprint slack around the hub/ring, so the grid doesn't stick clusters together
-const HUB_EDGE_GAP = 4 // pulls the arrow tip away from the hub's edge
-const SAT_EDGE_GAP = 4 // pulls the arrow tip away from the satellite's edge
-const GRID_GAP = 12 // spacing between clusters (hub+ring) in the packed grid
-const DRAG_THRESHOLD = 4 // screen px — below this a mousedown+mouseup still counts as a click (opens popover), not a drag
-const FOCUS_SCALE = 1 // zoom applied when focusing a system via search — readable without zooming in too much
+import { fold } from './fold.js'
+import { mountCanvas } from './graph-canvas/camera.js'
+import { buildSimulation, chainLayout, ringsLayout, satelliteLayout } from './graph-canvas/layout.js'
+import { arrowHead, circle, glowSprite, hexToRgba, hexagon, linkCtrl, linkPoint, mix, orbSprite, roundedRect } from './graph-canvas/sprites.js'
 
 const mounted = new WeakSet()
-let uidCounter = 0
+
+const SOLUTION_R = 26
+const DIAGRAM_R = 17
+const STEP_R = 15
+const SATELLITE_GAP = 200
+const CHAIN_SPACING = 120
+const EASE = 0.14
+
+const KIND_LABEL = {
+    system: 'Sistema',
+    decision: 'Decisão',
+    actor: 'Ator',
+    start: 'Início',
+    end: 'Fim',
+    image: 'Imagem',
+}
 
 export function init() {
-    document.querySelectorAll('[data-ecosystem-map]').forEach(mount)
+    document.querySelectorAll('[data-ak-ecosystem-map]').forEach((shell) => {
+        if (mounted.has(shell)) return
+        mounted.add(shell)
+        mount(shell)
+    })
 }
 
-// Same fallback as the catalog (`x-ui.logo`), redone in plain DOM — this
-// map's nodes don't go through Blade (they arrive via fetch), same reason as
-// chain-viz.js.
-function buildAvatar(data) {
-    const avatar = document.createElement('span')
-    avatar.className = 'ak-viz-node-avatar'
-    if (data.logo) {
-        const img = document.createElement('img')
-        img.src = data.logo
-        img.alt = ''
-        avatar.appendChild(img)
-    } else {
-        avatar.classList.add('is-fallback')
-        avatar.textContent = (data.label ?? '').trim().charAt(0).toUpperCase() || '?'
-    }
-    return avatar
-}
+function mount(shell) {
+    const canvas = shell.querySelector('[data-ak-map-canvas]')
+    const tip = shell.querySelector('[data-ak-map-tip]')
+    const card = shell.querySelector('[data-ak-map-card]')
+    const crumb = shell.querySelector('[data-ak-map-crumb]')
+    const status = shell.querySelector('[data-ak-map-status]')
+    const searchInput = shell.querySelector('[data-ak-map-search]')
+    const results = shell.querySelector('[data-ak-map-results]')
 
-// Paints a card's content (avatar + name) — used for both the hub and the
-// satellite, the only difference between the two is the CSS class applied to
-// the root element (`.ak-eco-hub` vs `.ak-eco-satellite-card`).
-function paintCard(el, data) {
-    el.innerHTML = ''
-    const body = document.createElement('div')
-    body.className = 'ak-viz-node-body'
-    body.appendChild(buildAvatar(data))
-    const text = document.createElement('span')
-    text.textContent = data.label ?? '?'
-    body.appendChild(text)
-    el.appendChild(body)
-}
+    const palette = readPalette()
 
-function attrRow(label, value) {
-    const row = document.createElement('div')
-    row.className = 'ak-eco-popover-attr'
-    const l = document.createElement('span')
-    l.className = 'ak-eco-popover-attr-label'
-    l.textContent = label
-    const v = document.createElement('span')
-    v.className = 'ak-eco-popover-attr-value'
-    v.textContent = value || '—'
-    row.append(l, v)
-    return row
-}
-
-function mount(root) {
-    if (mounted.has(root)) return
-    mounted.add(root)
-
-    const viewport = root.querySelector('[data-eco-viewport]')
-    const world = root.querySelector('[data-eco-world]')
-    const edgesSvg = root.querySelector('[data-eco-edges]')
-    const statusEl = root.querySelector('[data-eco-status]')
-    const loadingEl = root.querySelector('[data-eco-loading]')
-    const emptyEl = root.querySelector('[data-eco-empty]')
-    const zoomLabel = root.querySelector('[data-eco-zoom-label]')
-    const markerEnd = root.querySelector('[data-eco-marker-end]')
-    const markerStart = root.querySelector('[data-eco-marker-start]')
-    const zoomInBtn = root.querySelector('[data-eco-zoom-in]')
-    const zoomOutBtn = root.querySelector('[data-eco-zoom-out]')
-    const fitBtn = root.querySelector('[data-eco-fit]')
-    const fullscreenBtn = root.querySelector('[data-eco-fullscreen]')
-    const fsOpenIcon = root.querySelector('[data-eco-fs-open]')
-    const fsCloseIcon = root.querySelector('[data-eco-fs-close]')
-    const searchOpenBtn = root.querySelector('[data-eco-search-open]')
-    const searchOverlay = root.querySelector('[data-eco-search-overlay]')
-    const searchInput = root.querySelector('[data-eco-search-input]')
-    const searchResultsEl = root.querySelector('[data-eco-search-results]')
-    const searchEmptyEl = root.querySelector('[data-eco-search-empty]')
-
-    const uid = 'akeco' + ++uidCounter
-    markerEnd.id = uid + '-end'
-    markerStart.id = uid + '-start'
-
-    const view = { x: FIT_PAD, y: FIT_PAD, scale: 1 }
-    const expandState = new Map() // nodeId -> bool, survives re-fetches (filter changes) within the same session
-    let hubs = []
-    let graphRef = null
-    let panning = false
-    let panStart = null
-    let popoverEl = null
-    let popoverAnchor = null
-    let searchMatches = []
-    let searchActiveIndex = -1
-    let focusTimer = null
-
-    function applyView() {
-        world.style.transform = `translate(${view.x}px,${view.y}px) scale(${view.scale})`
-        if (zoomLabel) zoomLabel.textContent = Math.round(view.scale * 100) + '%'
-        // The popover doesn't close on pan/zoom (only Esc/[X] — see
-        // `closePopover` callers), so it needs to follow the anchor so it
-        // doesn't end up floating disconnected from the card while the view
-        // moves.
-        if (popoverEl && popoverAnchor) positionPopover(popoverEl, popoverAnchor)
+    const state = {
+        url: shell.dataset.akMapUrl,
+        payload: null,
+        nodes: [],
+        nodeById: new Map(),
+        links: [],
+        expandedSolutions: new Set(),
+        expandedPairs: new Set(),
+        openDiagrams: new Set(),
+        selected: null,
+        hoverLink: null,
+        layout: 'rings',
+        orbit: false,
+        spin: 0,
+        sim: null,
     }
 
-    function screenToWorld(clientX, clientY) {
-        const r = viewport.getBoundingClientRect()
-        return { x: (clientX - r.left - view.x) / view.scale, y: (clientY - r.top - view.y) / view.scale }
-    }
-
-    function zoomBy(factor, aroundClientX, aroundClientY) {
-        const r = viewport.getBoundingClientRect()
-        const cx = aroundClientX ?? r.left + r.width / 2
-        const cy = aroundClientY ?? r.top + r.height / 2
-        const before = screenToWorld(cx, cy)
-        view.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, view.scale * factor))
-        view.x = cx - r.left - before.x * view.scale
-        view.y = cy - r.top - before.y * view.scale
-        applyView()
-    }
-
-    // ── attribute popover ────────────────────────────────────────
-    function closePopover() {
-        popoverEl?.remove()
-        popoverEl = null
-        popoverAnchor = null
-    }
-
-    function positionPopover(pop, anchorEl) {
-        const rootRect = root.getBoundingClientRect()
-        const anchorRect = anchorEl.getBoundingClientRect()
-        const pw = pop.offsetWidth
-        const ph = pop.offsetHeight
-
-        let left = anchorRect.left - rootRect.left + anchorRect.width / 2 - pw / 2
-        left = Math.max(8, Math.min(left, rootRect.width - pw - 8))
-
-        let top = anchorRect.top - rootRect.top + anchorRect.height + 10
-        if (top + ph > rootRect.height - 8) {
-            top = anchorRect.top - rootRect.top - ph - 10
-        }
-        top = Math.max(8, top)
-
-        pop.style.left = left + 'px'
-        pop.style.top = top + 'px'
-    }
-
-    function openPopover(node, anchorEl) {
-        closePopover()
-
-        const pop = document.createElement('div')
-        pop.className = 'ak-eco-popover'
-        pop.addEventListener('mousedown', (e) => e.stopPropagation())
-        pop.addEventListener('click', (e) => e.stopPropagation())
-
-        const head = document.createElement('div')
-        head.className = 'ak-eco-popover-head'
-
-        const title = document.createElement('div')
-        title.className = 'ak-eco-popover-title'
-        title.textContent = node.label ?? ''
-        head.appendChild(title)
-
-        const closeBtn = document.createElement('button')
-        closeBtn.type = 'button'
-        closeBtn.className = 'ak-eco-popover-close'
-        closeBtn.setAttribute('aria-label', 'Fechar')
-        closeBtn.textContent = '×'
-        closeBtn.addEventListener('click', (e) => {
-            e.stopPropagation()
-            closePopover()
-        })
-        head.appendChild(closeBtn)
-
-        pop.appendChild(head)
-
-        const grid = document.createElement('div')
-        grid.className = 'ak-eco-popover-grid'
-        grid.append(
-            attrRow('Categoria', node.categoryLabel),
-            attrRow('Status', node.statusLabel),
-            attrRow('Criticidade', node.criticalityLabel),
-            attrRow('Ambiente', node.environmentLabel),
-            attrRow('Hospedagem', node.cloudLabel),
-            attrRow('Contrato', node.contractLabel),
-            attrRow('Suporte', node.supportLabel),
-            attrRow('Diretoria', node.directorate)
-        )
-        pop.appendChild(grid)
-
-        const link = document.createElement('a')
-        link.className = 'ak-eco-popover-more'
-        link.href = node.url || '#'
-        link.target = '_blank'
-        link.rel = 'noopener'
-        link.textContent = 'Ver mais'
-        pop.appendChild(link)
-
-        root.appendChild(pop)
-        positionPopover(pop, anchorEl)
-        popoverEl = pop
-        popoverAnchor = anchorEl
-    }
-
-    // Only closes via [X] (button on the popover itself) or Esc — clicking
-    // outside (canvas, pan, zoom, sidebar, another filter) NEVER closes the
-    // popover on its own. This is deliberate only in this map: the user
-    // wants to be able to click/drag the canvas with the popover open to
-    // compare one card against another, without the popover disappearing
-    // mid-gesture.
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closePopover()
+    const view = mountCanvas(canvas, {
+        nodes: () => state.nodes,
+        hitRadius: (node) => node.radius,
+        draw: (ctx, frame, api) => draw(ctx, frame, api),
+        onHover: (node, event, point) => onHover(node, event, point),
+        onClick: (node, event, point) => onClick(node, event, point),
+        onDoubleClick: (node) => view.flyToNode(node, 1.4),
     })
 
-    function fit() {
-        if (!hubs.length) return
-        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
-        hubs.forEach((h) => {
-            const pad = ringPad(h)
-            x0 = Math.min(x0, h.x - pad)
-            y0 = Math.min(y0, h.y - pad)
-            x1 = Math.max(x1, h.x + h.w + pad)
-            y1 = Math.max(y1, h.y + h.h + pad)
-        })
-        const cw = Math.max(1, x1 - x0)
-        const ch = Math.max(1, y1 - y0)
-        const r = viewport.getBoundingClientRect()
-        const scale = Math.min(1.25, (r.width - FIT_PAD * 2) / cw, (r.height - FIT_PAD * 2) / ch)
-        view.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale || 1))
-        view.x = (r.width - cw * view.scale) / 2 - x0 * view.scale
-        view.y = (r.height - ch * view.scale) / 2 - y0 * view.scale
-        applyView()
+    load(state.url)
+    shell.__ecosystemMapReload = (url) => {
+        state.url = url
+        collapseAll(false)
+        load(url)
     }
 
-    // ── system search (Ctrl+K / Cmd+K or magnifier) ──────────────────
-    // Inline `display` (not the `hidden` class) for the same reason as the
-    // satellite above — avoids depending on who wins the specificity tie
-    // with this component's local CSS.
-    function openSearch() {
-        if (!hubs.length) return
-        searchOverlay.style.display = 'flex'
-        searchInput.value = ''
-        renderSearchResults('')
-        requestAnimationFrame(() => searchInput.focus())
-    }
+    // ---- data ----------------------------------------------------------
 
-    function closeSearch() {
-        searchOverlay.style.display = 'none'
-    }
+    async function load(url) {
+        setStatus('Carregando…')
+        const response = await fetch(url, { headers: { Accept: 'application/json' } })
+        if (! response.ok) {
+            setStatus('Não foi possível carregar o mapa.')
 
-    function setSearchActive(i) {
-        searchActiveIndex = i
-        ;[...searchResultsEl.children].forEach((el, idx) => el.classList.toggle('is-active', idx === i))
-    }
-
-    // Focuses (centered pan+zoom) and highlights the chosen hub for a few
-    // seconds — doesn't navigate to another page, just locates it within the
-    // map itself.
-    function focusHub(hub) {
-        const r = viewport.getBoundingClientRect()
-        view.scale = FOCUS_SCALE
-        view.x = r.width / 2 - (hub.x + hub.w / 2) * view.scale
-        view.y = r.height / 2 - (hub.y + hub.h / 2) * view.scale
-        applyView()
-
-        hub.el.classList.remove('is-focused')
-        void hub.el.offsetWidth // forces reflow — restarts the animation even if the hub was already focused
-        hub.el.classList.add('is-focused')
-        clearTimeout(focusTimer)
-        focusTimer = setTimeout(() => hub.el.classList.remove('is-focused'), 2200)
-    }
-
-    function selectSearchResult(hub) {
-        closeSearch()
-        focusHub(hub)
-    }
-
-    // Searches only among hubs (every graph node has its own position in the
-    // grid — "primary system" is any one of them), not among satellite
-    // cards (which are just the same solution redrawn inside another hub's
-    // ring, not a separate focus target).
-    function renderSearchResults(query) {
-        const q = fold(query.trim())
-        searchMatches = !q ? hubs : hubs.filter((h) => fold(h.label).includes(q))
-        searchMatches = searchMatches.slice(0, 30)
-        searchResultsEl.innerHTML = ''
-        searchEmptyEl.classList.toggle('hidden', searchMatches.length > 0)
-
-        searchMatches.forEach((hub, i) => {
-            const li = document.createElement('li')
-            li.className = 'ak-eco-search-item'
-            const body = document.createElement('div')
-            body.className = 'ak-viz-node-body'
-            body.appendChild(buildAvatar(hub))
-            const text = document.createElement('span')
-            text.className = 'ak-eco-search-item-label'
-            text.textContent = hub.label ?? '?'
-            body.appendChild(text)
-            li.appendChild(body)
-            if (hub.categoryLabel) {
-                const meta = document.createElement('span')
-                meta.className = 'ak-eco-search-item-meta'
-                meta.textContent = hub.categoryLabel
-                li.appendChild(meta)
-            }
-            li.addEventListener('mousedown', (e) => e.preventDefault())
-            li.addEventListener('mouseenter', () => setSearchActive(i))
-            li.addEventListener('click', () => selectSearchResult(hub))
-            searchResultsEl.appendChild(li)
-        })
-
-        setSearchActive(searchMatches.length ? 0 : -1)
-    }
-
-    searchOpenBtn?.addEventListener('click', () => {
-        if (searchOverlay.style.display === 'flex') closeSearch()
-        else openSearch()
-    })
-    searchInput?.addEventListener('input', () => renderSearchResults(searchInput.value))
-    searchInput?.addEventListener('keydown', (e) => {
-        if (e.key === 'ArrowDown') {
-            e.preventDefault()
-            if (searchMatches.length) setSearchActive((searchActiveIndex + 1) % searchMatches.length)
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault()
-            if (searchMatches.length) setSearchActive((searchActiveIndex - 1 + searchMatches.length) % searchMatches.length)
-        } else if (e.key === 'Enter') {
-            e.preventDefault()
-            if (searchActiveIndex >= 0) selectSearchResult(searchMatches[searchActiveIndex])
-        } else if (e.key === 'Escape') {
-            e.preventDefault()
-            closeSearch()
-        }
-    })
-    // Clicking the overlay outside the panel closes it (same pattern as the
-    // global side-panel) — clicking inside the panel (input, list) doesn't
-    // propagate since it has no close listener.
-    searchOverlay?.addEventListener('mousedown', (e) => {
-        if (e.target === searchOverlay) closeSearch()
-    })
-
-    // Doesn't intercept if the user is already typing into another text
-    // field on the page (e.g. a filter outside this component) — Ctrl+K is a
-    // "global" page shortcut, but it shouldn't steal keystrokes from someone
-    // else's input.
-    document.addEventListener('keydown', (e) => {
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-            const active = document.activeElement
-            const typingElsewhere =
-                active &&
-                active !== searchInput &&
-                (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)
-            if (typingElsewhere || root.offsetParent === null) return
-            e.preventDefault()
-            openSearch()
-        }
-    })
-
-    function toggleFullscreen() {
-        if (document.fullscreenElement === root) document.exitFullscreen?.()
-        else root.requestFullscreen?.()
-    }
-    root.addEventListener('fullscreenchange', () => {
-        const isFs = document.fullscreenElement === root
-        fsOpenIcon?.classList.toggle('hidden', isFs)
-        fsCloseIcon?.classList.toggle('hidden', !isFs)
-        requestAnimationFrame(() => requestAnimationFrame(fit))
-    })
-
-    viewport.addEventListener('mousedown', (e) => {
-        if (e.button !== 0) return
-        panning = true
-        panStart = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }
-        viewport.classList.add('is-panning')
-    })
-    window.addEventListener('mousemove', (e) => {
-        if (!panning || !panStart) return
-        view.x = panStart.vx + (e.clientX - panStart.x)
-        view.y = panStart.vy + (e.clientY - panStart.y)
-        applyView()
-    })
-    window.addEventListener('mouseup', () => {
-        panning = false
-        panStart = null
-        viewport.classList.remove('is-panning')
-    })
-    viewport.addEventListener(
-        'wheel',
-        (e) => {
-            e.preventDefault()
-            zoomBy(e.deltaY < 0 ? 1.08 : 0.926, e.clientX, e.clientY)
-        },
-        { passive: false }
-    )
-    zoomInBtn?.addEventListener('click', () => zoomBy(1.2))
-    zoomOutBtn?.addEventListener('click', () => zoomBy(0.833))
-    fitBtn?.addEventListener('click', fit)
-    fullscreenBtn?.addEventListener('click', toggleFullscreen)
-
-    // Degree above the threshold starts collapsed; at or below, expanded —
-    // unless the user has already toggled this hub in this session
-    // (preserves the choice across filter changes, which reload the graph).
-    function defaultExpanded(nodeId, degree) {
-        if (expandState.has(nodeId)) return expandState.get(nodeId)
-        return degree <= EXPAND_THRESHOLD
-    }
-
-    // Largest "radius" (half the diagonal) among the hub's satellite cards —
-    // used both for the ring's minimum radius and for the reserved footprint.
-    function maxNeighborRadius(hub) {
-        return hub.neighbors.reduce((m, n) => Math.max(m, Math.hypot(n.w, n.h) / 2), 0)
-    }
-
-    // Perimeter needed to fit all satellites side by side without
-    // overlapping (sum of each one's "width", not an average/fixed value —
-    // cards with long names take up a bigger slice of the circle).
-    function neighborCircumference(hub) {
-        return hub.neighbors.reduce((sum, n) => sum + Math.hypot(n.w, n.h) + RING_GAP, 0)
-    }
-
-    // Ring radius: anchored to the REAL measured size of the cards (hub +
-    // largest satellite + a small gap) — no longer a fixed constant
-    // disconnected from the content. A degree-1 hub sits close to its single
-    // neighbor; the perimeter-based floor only kicks in when there are
-    // enough neighbors to need more space around them.
-    function ringRadius(hub) {
-        if (!hub.expanded || hub.degree === 0) return 0
-        const base = Math.hypot(hub.w, hub.h) / 2 + RING_GAP + maxNeighborRadius(hub)
-        const byCircumference = neighborCircumference(hub) / (2 * Math.PI)
-        return Math.max(base, byCircumference)
-    }
-
-    function ringPad(hub) {
-        return hub.expanded && hub.degree > 0 ? ringRadius(hub) + maxNeighborRadius(hub) : 0
-    }
-
-    // Size reserved for the hub in the packed grid (`layout()`) — a square
-    // that fits the whole ring when expanded, or just the card when not.
-    function footprint(hub) {
-        if (hub.expanded && hub.degree > 0) {
-            const side = 2 * (ringRadius(hub) + maxNeighborRadius(hub)) + HUB_MARGIN
-            return { w: side, h: side }
-        }
-        return { w: hub.w + HUB_MARGIN, h: hub.h + HUB_MARGIN }
-    }
-
-    // Packed grid: largest footprints first (expanded hubs with a big ring
-    // become visual "anchors", the rest fills in around them) — independent
-    // of connectivity. The line-wrap width is NOT the viewport's literal
-    // width (that produced a tall, narrow column when the sum of footprints
-    // was large — `fit()` then had to zero out almost all the zoom to fit a
-    // vertical tower on a widescreen); instead, it targets the SAME aspect
-    // ratio as the viewport starting from the total occupied area
-    // (`width = sqrt(area * aspect)`), so the resulting rectangle is already
-    // shaped like the screen. Hubs with a saved `mapPosition` (dragged and
-    // persisted at some point — `saveHubPosition()`) skip automatic packing
-    // and go straight to their saved position; only the rest (`auto`) enter
-    // the packed grid, as if the manual ones didn't exist (may overlap a
-    // manual cluster — acceptable, it's the price of letting the user pin a
-    // position; they can drag again to make room).
-    function layout() {
-        const rect = viewport.getBoundingClientRect()
-        const aspect = rect.width && rect.height ? rect.width / rect.height : 16 / 9
-        const manual = hubs.filter((h) => h.mapPosition)
-        const auto = hubs.filter((h) => !h.mapPosition)
-
-        manual.forEach((h) => {
-            h.x = h.mapPosition.x
-            h.y = h.mapPosition.y
-        })
-
-        const sorted = [...auto].sort((a, b) => {
-            const fa = footprint(a)
-            const fb = footprint(b)
-
-            return fb.w * fb.h - fa.w * fa.h
-        })
-        const totalArea = sorted.reduce((sum, h) => {
-            const f = footprint(h)
-
-            return sum + f.w * f.h
-        }, 0)
-        const rowWidth = Math.max(600, Math.sqrt(totalArea * aspect))
-
-        let x = GRID_GAP
-        let y = GRID_GAP
-        let rowH = 0
-        sorted.forEach((h) => {
-            const f = footprint(h)
-            if (x > GRID_GAP && x + f.w > rowWidth) {
-                x = GRID_GAP
-                y += rowH + GRID_GAP
-                rowH = 0
-            }
-            h.x = x + (f.w - h.w) / 2
-            h.y = y + (f.h - h.h) / 2
-            x += f.w + GRID_GAP
-            rowH = Math.max(rowH, f.h)
-        })
-    }
-
-    function clearEdges() {
-        edgesSvg.querySelectorAll('.ak-eco-spoke, .ak-eco-halo').forEach((el) => el.remove())
-    }
-
-    // Expanding/collapsing NEVER moves anything: not the toggled hub, not
-    // the other hubs, not the view (pan/zoom). `layout()` (the packed grid)
-    // only runs on initial load/filter change — here it only redraws that
-    // hub's ring (shows/hides satellites, redoes spokes/halo) on top of the
-    // position that already existed. A growing ring may overlap a
-    // neighboring cluster's card — acceptable (the user can collapse it
-    // again), the alternative (repacking everything) is what made the whole
-    // screen jump on every click.
-    function toggleHub(hub) {
-        closePopover()
-        hub.expanded = !hub.expanded
-        expandState.set(hub.id, hub.expanded)
-        draw()
-        updateStatus()
-    }
-
-    // Drags a hub (primary system) to reposition it — just detaches the card
-    // from the packed grid's `layout()`, which doesn't run again afterward
-    // (only on initial load/filter change, same as `toggleHub`). The hub's
-    // own satellite ring (if expanded) and its spokes/halo follow along in
-    // real time because `draw()` derives their position from `hub.x/y` on
-    // every call — no other hub moves.
-    function startHubDrag(hub, downEvent) {
-        const startX = downEvent.clientX
-        const startY = downEvent.clientY
-        const startHubX = hub.x
-        const startHubY = hub.y
-        let dragging = false
-        let rafId = null
-
-        function apply() {
-            rafId = null
-            hub.el.style.left = hub.x + 'px'
-            hub.el.style.top = hub.y + 'px'
-            draw()
-            if (popoverEl && popoverAnchor === hub.el) positionPopover(popoverEl, popoverAnchor)
-        }
-
-        function onMove(e) {
-            if (!dragging) {
-                if (Math.hypot(e.clientX - startX, e.clientY - startY) < DRAG_THRESHOLD) return
-                dragging = true
-                hub.didDrag = true
-                hub.el.classList.add('is-dragging')
-            }
-            hub.x = startHubX + (e.clientX - startX) / view.scale
-            hub.y = startHubY + (e.clientY - startY) / view.scale
-            if (rafId == null) rafId = requestAnimationFrame(apply)
-        }
-
-        function onUp() {
-            window.removeEventListener('mousemove', onMove)
-            window.removeEventListener('mouseup', onUp)
-            hub.el.classList.remove('is-dragging')
-            if (rafId != null) {
-                cancelAnimationFrame(rafId)
-                apply()
-            }
-            // Only persists if the mousedown actually turned into a drag — a
-            // stationary click (opens popover) shouldn't fire a pointless PATCH.
-            if (dragging) {
-                hub.mapPosition = { x: hub.x, y: hub.y }
-                saveHubPosition(hub)
-            }
-        }
-
-        window.addEventListener('mousemove', onMove)
-        window.addEventListener('mouseup', onUp)
-    }
-
-    // Silent auto-save — no confirmation button/toast, it's a layout
-    // customization, not an action that needs feedback (same "auto-saves
-    // itself" pattern as `solution-attributes.js`). A failure only shows up
-    // in the status bar so it doesn't interrupt with a modal/toast mid-drag;
-    // the position is already correct on screen, it just wasn't persisted —
-    // the next drag tries again. `fetch()` only *rejects* on a network-level
-    // failure — it resolves normally for a non-2xx status (403, 419, 500),
-    // so `!res.ok` must be checked explicitly or a real failure (expired
-    // session, revoked permission) is swallowed with no feedback at all.
-    function saveHubPosition(hub) {
-        if (!hub.positionUrl) return
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-
-        fetch(hub.positionUrl, {
-            method: 'PATCH',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': csrfToken,
-            },
-            body: JSON.stringify({ x: hub.x, y: hub.y }),
-        }).then((res) => {
-            if (!res.ok) throw new Error(`Failed to save hub position (HTTP ${res.status})`)
-        }).catch(() => {
-            statusEl.textContent = 'Não foi possível salvar a posição do sistema.'
-        })
-    }
-
-    function drawBadge(hub) {
-        if (hub.degree === 0) return
-        const badge = document.createElement('button')
-        badge.type = 'button'
-        badge.className = 'ak-eco-badge' + (hub.expanded ? ' is-open' : '')
-        badge.textContent = hub.expanded ? '−' : String(hub.degree)
-        badge.title = hub.expanded
-            ? 'Recolher conexões'
-            : `${hub.degree} conexõ${hub.degree === 1 ? 'ão' : 'ões'} — clique para expandir`
-        badge.addEventListener('mousedown', (e) => e.stopPropagation())
-        badge.addEventListener('click', (e) => {
-            e.stopPropagation()
-            toggleHub(hub)
-        })
-        hub.el.appendChild(badge)
-        hub.badgeEl = badge
-    }
-
-    // Distance from the center to the real EDGE of a w×h rectangular card, in
-    // direction (nx,ny) — not the circumscribed circle's radius
-    // (`hypot(w,h)/2`, used before). For a card that's much wider than tall
-    // (the common case here), the circumscribed circle is much bigger than
-    // the real edge in the vertical/diagonal direction — the arrow tip
-    // stopped well before touching the card, floating loose partway there.
-    // This solves the line×rectangle intersection (min of the two axes) + a
-    // small gap, so the arrow actually touches the edge.
-    function edgeGapToward(w, h, nx, ny, extraGap) {
-        const toVertical = nx !== 0 ? w / 2 / Math.abs(nx) : Infinity
-        const toHorizontal = ny !== 0 ? h / 2 / Math.abs(ny) : Infinity
-        return Math.min(toVertical, toHorizontal) + extraGap
-    }
-
-    // Arrow from the hub's center to the satellite, with a gap on both ends
-    // (the line invades neither the hub's card nor the satellite's) and a
-    // marker following the observed direction of the PAIR (hub is
-    // source/target/both).
-    function drawSpoke(hub, neighbor) {
-        const cx = hub.x + hub.w / 2
-        const cy = hub.y + hub.h / 2
-        const dx = neighbor.sx - cx
-        const dy = neighbor.sy - cy
-        const dist = Math.hypot(dx, dy) || 1
-        const nx = dx / dist
-        const ny = dy / dist
-        const hubGap = edgeGapToward(hub.w, hub.h, nx, ny, HUB_EDGE_GAP)
-        const satGap = edgeGapToward(neighbor.w, neighbor.h, nx, ny, SAT_EDGE_GAP)
-        const x0 = cx + nx * hubGap
-        const y0 = cy + ny * hubGap
-        const x1 = neighbor.sx - nx * satGap
-        const y1 = neighbor.sy - ny * satGap
-
-        const path = document.createElementNS(SVG_NS, 'path')
-        path.setAttribute('class', 'ak-viz-edge ak-eco-spoke')
-        path.setAttribute('d', `M ${x0} ${y0} L ${x1} ${y1}`)
-
-        const edge = neighbor.edge
-        const isSource = edge.source === hub.id
-        const bidirectional = edge.direction === 'bidirectional'
-        if (bidirectional || isSource) path.setAttribute('marker-end', `url(#${markerEnd.id})`)
-        if (bidirectional || !isSource) path.setAttribute('marker-start', `url(#${markerStart.id})`)
-
-        if (edge.label) {
-            const title = document.createElementNS(SVG_NS, 'title')
-            title.textContent = edge.label
-            path.appendChild(title)
-        }
-
-        edgesSvg.appendChild(path)
-    }
-
-    // Only repositions/shows-hides the satellite cards (already created and
-    // measured in `render()`) and redraws the spokes — never recreates
-    // elements, so toggling expand/collapse doesn't cost a full DOM reflow.
-    function drawRing(hub) {
-        hub.badgeEl?.remove()
-        hub.badgeEl = null
-        drawBadge(hub)
-
-        if (hub.degree === 0) return
-
-        if (!hub.expanded) {
-            // `.hidden` (Tailwind) and `.ak-viz-node` (local rule, `display:
-            // flex`) tie in specificity (one class each) — whichever comes
-            // later in the cascade wins, and this component's `<style>` is
-            // injected AFTER the Tailwind bundle in the document, so
-            // `display:flex` beat `display:none` and the satellite stayed
-            // visible even with the class applied. Inline `style.display`
-            // always beats any class, so it genuinely forces it.
-            hub.neighbors.forEach((n) => {
-                n.el.style.display = 'none'
-            })
             return
         }
 
-        const cx = hub.x + hub.w / 2
-        const cy = hub.y + hub.h / 2
-        const radius = ringRadius(hub)
-
-        hub.neighbors.forEach((neighbor, i) => {
-            const angle = (i / hub.neighbors.length) * Math.PI * 2 - Math.PI / 2
-            neighbor.sx = cx + radius * Math.cos(angle)
-            neighbor.sy = cy + radius * Math.sin(angle)
-
-            neighbor.el.style.display = ''
-            neighbor.el.style.left = neighbor.sx + 'px'
-            neighbor.el.style.top = neighbor.sy + 'px'
-
-            drawSpoke(hub, neighbor)
-        })
-    }
-
-    // One color per group (hash of the hub's id, not its index in the list —
-    // so a group's color doesn't jump to another one on every filter change
-    // just because the node order changed) to tell neighboring clusters
-    // apart in the grid; without this, every halo came out the same shade
-    // and two clusters side by side read as a single blob.
-    const HALO_PALETTE = ['#C9D4F7', '#FBD6B0', '#B7EACD', '#F5C2DD', '#BFE3F5', '#E4D2F7', '#FFE49E', '#CFE0B8']
-    function haloColor(hub) {
-        const key = String(hub.id)
-        let hash = 0
-        for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) | 0
-        return HALO_PALETTE[Math.abs(hash) % HALO_PALETTE.length]
-    }
-
-    // Halo (a very subtle circle, behind the cards) drawn behind each
-    // expanded hub + its satellite ring — without it, a hub and its
-    // neighbors are just points floating loose in the grid, with nothing
-    // but the thin arrow line visually tying the group together. Since the
-    // `<svg>` is `world`'s first child (the cards, `<div>`s, are appended
-    // afterward), everything drawn here is automatically born BEHIND the
-    // cards — no z-index needed.
-    function drawHalo(hub) {
-        if (!hub.expanded || hub.degree === 0) return
-        const circle = document.createElementNS(SVG_NS, 'circle')
-        circle.setAttribute('class', 'ak-eco-halo')
-        circle.setAttribute('cx', hub.x + hub.w / 2)
-        circle.setAttribute('cy', hub.y + hub.h / 2)
-        circle.setAttribute('r', ringRadius(hub) + maxNeighborRadius(hub) + HUB_MARGIN / 2)
-        circle.style.fill = haloColor(hub)
-        edgesSvg.appendChild(circle)
-    }
-
-    function draw() {
-        clearEdges()
-        hubs.forEach(drawHalo)
-        hubs.forEach(drawRing)
-    }
-
-    function updateStatus() {
-        const pairs = graphRef?.edges?.length ?? 0
-        statusEl.textContent = `${hubs.length} soluções · ${pairs} ligaç${pairs === 1 ? 'ão' : 'ões'} · zoom ${Math.round(view.scale * 100)}%`
-    }
-
-    function clearWorld() {
-        closePopover()
-        hubs.forEach((h) => {
-            h.badgeEl?.remove()
-            h.neighbors.forEach((n) => n.el?.remove())
-            h.el.remove()
-        })
-        hubs = []
-        clearEdges()
-    }
-
-    function render(graph) {
-        clearWorld()
-        graphRef = graph
-
-        if (!graph || !Array.isArray(graph.nodes) || graph.nodes.length === 0) {
-            emptyEl.classList.remove('hidden')
-            return
+        const payload = await response.json()
+        state.payload = {
+            nodes: payload.nodes ?? [],
+            edges: payload.edges ?? [],
+            diagrams: payload.diagrams ?? [],
         }
-        emptyEl.classList.add('hidden')
+        state.diagramBySlug = new Map(state.payload.diagrams.map((d) => [d.slug, d]))
+        state.nodes = []
+        state.nodeById = new Map()
+        rebuild()
+        fitAll()
+    }
 
-        const byId = new Map(graph.nodes.map((n) => [n.id, n]))
-        const neighborsOf = new Map(graph.nodes.map((n) => [n.id, []]))
-        ;(graph.edges || []).forEach((edge) => {
-            if (!byId.has(edge.source) || !byId.has(edge.target)) return
-            neighborsOf.get(edge.source).push({ node: byId.get(edge.target), edge })
-            neighborsOf.get(edge.target).push({ node: byId.get(edge.source), edge })
-        })
+    /**
+     * Rebuilds the visible graph from the drill-down state. Node objects are
+     * reused by id, which is what keeps a block where it already was when
+     * something else expands beside it.
+     */
+    function rebuild() {
+        const previous = state.nodeById
+        const nodes = []
+        const links = []
+        const byId = new Map()
 
-        hubs = graph.nodes.map((data) => {
-            const el = document.createElement('div')
-            el.className = 'ak-viz-node ak-eco-hub' + (data.positionUrl ? '' : ' ak-eco-hub--readonly')
-            paintCard(el, data)
-            world.appendChild(el)
-
-            const neighbors = neighborsOf.get(data.id) || []
-            const degree = neighbors.length
-
-            const hub = {
-                ...data,
-                el,
-                neighbors,
-                degree,
-                expanded: defaultExpanded(data.id, degree),
-                badgeEl: null,
-                w: 0,
-                h: 0,
-                x: 0,
-                y: 0,
-                didDrag: false,
+        const put = (node) => {
+            const existing = previous.get(node.id)
+            const merged = existing ? Object.assign(existing, node) : node
+            if (! existing) {
+                const parent = node.parentId ? byId.get(node.parentId) : null
+                merged.x = parent?.x ?? 0
+                merged.y = parent?.y ?? 0
+                merged.born = true
             }
+            nodes.push(merged)
+            byId.set(merged.id, merged)
 
-            el.addEventListener('mousedown', (e) => {
-                e.stopPropagation()
-                if (e.button !== 0) return
-                // No `positionUrl` (a viewer — server never grants one, see
-                // DiagramGraphService::putNode()) — dragging can never
-                // persist, so skip it entirely rather than let the hub move
-                // for the length of the gesture and snap back on reload.
-                if (!hub.positionUrl) return
-                startHubDrag(hub, e)
+            return merged
+        }
+
+        for (const solution of state.payload.nodes) {
+            put({
+                id: solution.id,
+                type: 'solution',
+                label: solution.label,
+                radius: SOLUTION_R,
+                color: palette.family(solution.categoryFamily),
+                data: solution,
+                logo: logoFor(solution.logo),
             })
-            el.addEventListener('click', (e) => {
-                e.stopPropagation()
-                // A real drag also fires `click` (natural mouseup) —
-                // suppresses opening the popover in that case; only the
-                // next "stationary" click opens it again.
-                if (hub.didDrag) {
-                    hub.didDrag = false
-                    return
-                }
-                openPopover(data, el)
+        }
+
+        for (const edge of state.payload.edges) {
+            if (! byId.has(edge.source) || ! byId.has(edge.target)) continue
+            links.push({
+                id: edge.id,
+                kind: 'pair',
+                source: edge.source,
+                target: edge.target,
+                label: edge.label,
+                status: edge.status,
+                direction: edge.direction,
+                diagrams: edge.diagrams ?? [],
+            })
+        }
+
+        // A diagram shows up when a system it touches is expanded, when a pair
+        // it produces is expanded, or when it is itself open.
+        for (const diagram of state.payload.diagrams) {
+            const viaSolutions = diagram.solutions.filter((id) => state.expandedSolutions.has(id))
+            const viaPairs = state.payload.edges.filter(
+                (edge) => state.expandedPairs.has(edge.id) && (edge.diagrams ?? []).some((d) => d.slug === diagram.slug),
+            )
+            const open = state.openDiagrams.has(diagram.slug)
+
+            if (! viaSolutions.length && ! viaPairs.length && ! open) continue
+
+            // Anchored to the pair when it came from one — a diagram that
+            // explains SAP↔SVL belongs between them, not orbiting one side.
+            const anchor = viaPairs.length ? byId.get(viaPairs[0].source) : byId.get(viaSolutions[0])
+
+            const node = put({
+                id: diagram.id,
+                type: 'diagram',
+                label: diagram.label,
+                radius: DIAGRAM_R,
+                color: palette.status(diagram.status),
+                data: diagram,
+                parentId: anchor?.id,
+                viaPairs: viaPairs.map((edge) => edge.id),
+                viaSolutions,
+                open,
             })
 
-            return hub
-        })
-        hubs.forEach((h) => {
-            h.w = h.el.offsetWidth
-            h.h = h.el.offsetHeight
-        })
+            const owners = new Set(viaSolutions)
+            viaPairs.forEach((edge) => {
+                owners.add(edge.source)
+                owners.add(edge.target)
+            })
+            if (! owners.size) diagram.solutions.forEach((id) => owners.add(id))
 
-        // Satellites: one card per (hub, neighbor), created and measured
-        // once here — `drawRing()` only repositions/shows-hides afterward.
-        hubs.forEach((hub) => {
-            hub.neighbors.forEach((neighbor) => {
-                const el = document.createElement('div')
-                el.className = 'ak-viz-node ak-eco-satellite-card'
-                paintCard(el, neighbor.node)
-                if (neighbor.edge.label) el.title = neighbor.edge.label
-                el.addEventListener('mousedown', (e) => e.stopPropagation())
-                el.addEventListener('click', (e) => {
-                    e.stopPropagation()
-                    openPopover(neighbor.node, el)
+            owners.forEach((solutionId) => {
+                if (! byId.has(solutionId)) return
+                links.push({ id: `${diagram.id}~${solutionId}`, kind: 'owns', source: solutionId, target: diagram.id })
+            })
+
+            if (! open) continue
+
+            const stepIds = diagram.chain.nodes.map((step, i) => {
+                const id = `${diagram.id}#${i}`
+                put({
+                    id,
+                    type: 'step',
+                    label: step.label,
+                    radius: STEP_R,
+                    color: step.solutionId
+                        ? palette.family(state.payload.nodes.find((s) => s.id === step.solutionId)?.categoryFamily)
+                        : palette.neutral,
+                    data: step,
+                    nodeKind: step.kind,
+                    parentId: node.id,
+                    diagramId: diagram.id,
                 })
-                world.appendChild(el)
-                neighbor.el = el
-                neighbor.w = el.offsetWidth
-                neighbor.h = el.offsetHeight
+                links.push({ id: `${id}~member`, kind: 'member', source: diagram.id, target: id })
+
+                return id
             })
-        })
 
-        layout()
-        hubs.forEach((h) => {
-            h.el.style.left = h.x + 'px'
-            h.el.style.top = h.y + 'px'
-        })
+            diagram.chain.edges.forEach((edge, i) => {
+                const from = stepIds[edge.from]
+                const to = stepIds[edge.to]
+                if (! from || ! to) return
+                links.push({
+                    id: `${diagram.id}!${i}`,
+                    kind: 'flow',
+                    source: from,
+                    target: to,
+                    arrow: edge.arrow,
+                    label: edge.protocol,
+                })
+            })
+        }
 
-        draw()
-        updateStatus()
-        fit()
+        state.nodes = nodes
+        state.nodeById = byId
+        state.links = links.map((link) => ({
+            ...link,
+            sn: byId.get(link.source),
+            tn: byId.get(link.target),
+        })).filter((link) => link.sn && link.tn)
+
+        relayout()
+        renderCrumb()
+        setStatus(`${state.payload.nodes.length} sistemas · ${state.payload.edges.length} ligações · ${state.payload.diagrams.length} diagramas`)
     }
 
-    function fetchAndRender(url) {
-        loadingEl.classList.remove('hidden')
-        emptyEl.classList.add('hidden')
-        fetch(url, { headers: { Accept: 'application/json' } })
-            .then((r) => r.json())
-            .then((data) => render(data))
-            .catch(() => {
-                statusEl.textContent = 'Erro ao carregar o grafo.'
+    function relayout() {
+        const solutions = state.nodes.filter((n) => n.type === 'solution')
+        const pairs = state.links.filter((l) => l.kind === 'pair')
+
+        if (state.layout === 'force') {
+            state.sim?.stop()
+            state.sim = buildSimulation(state.nodes, state.links.map((l) => ({ ...l })), () => {})
+            state.sim.alpha(0.9).restart()
+
+            return
+        }
+
+        state.sim?.stop()
+        state.sim = null
+        ringsLayout(solutions, pairs)
+
+        // Diagrams hanging off one system fan out away from the centre; the
+        // ones explaining a pair sit on the pair's own midpoint.
+        for (const solution of solutions) {
+            const children = state.nodes.filter(
+                (n) => n.type === 'diagram' && ! n.viaPairs.length && n.viaSolutions.includes(solution.id),
+            )
+            if (children.length) satelliteLayout(solution, children, SATELLITE_GAP)
+        }
+
+        for (const link of pairs) {
+            const children = state.nodes.filter((n) => n.type === 'diagram' && n.viaPairs.includes(link.id))
+            if (! children.length) continue
+
+            const mx = (link.sn.tx + link.tn.tx) / 2
+            const my = (link.sn.ty + link.tn.ty) / 2
+            const angle = Math.atan2(link.tn.ty - link.sn.ty, link.tn.tx - link.sn.tx) + Math.PI / 2
+
+            children.forEach((child, i) => {
+                const offset = (i - (children.length - 1) / 2) * 92
+                child.tx = mx + Math.cos(angle) * offset
+                child.ty = my + Math.sin(angle) * offset
+                child.angle = angle
             })
-            .finally(() => loadingEl.classList.add('hidden'))
-    }
+        }
 
-    root.__ecosystemMapReload = fetchAndRender
-
-    function boot() {
-        if (root.dataset.sourceUrl) {
-            fetchAndRender(root.dataset.sourceUrl)
-        } else {
-            loadingEl.classList.add('hidden')
-            emptyEl.classList.remove('hidden')
+        for (const diagram of state.nodes.filter((n) => n.type === 'diagram' && n.open)) {
+            const steps = state.nodes.filter((n) => n.type === 'step' && n.diagramId === diagram.id)
+            chainLayout(diagram, steps, CHAIN_SPACING)
         }
     }
 
-    document.addEventListener('DOMContentLoaded', boot)
-    if (document.readyState !== 'loading') boot()
+    // ---- interaction ----------------------------------------------------
+
+    function onClick(node, event, point) {
+        if (! node) {
+            const link = linkAt(point)
+            if (link?.kind === 'pair') {
+                toggle(state.expandedPairs, link.id)
+                tip.hidden = true
+                rebuild()
+                focusOn(link.sn, link.tn, ...state.nodes.filter((n) => n.type === 'diagram' && n.viaPairs.includes(link.id)))
+            } else {
+                select(null)
+            }
+
+            return
+        }
+
+        if (node.type === 'solution') toggle(state.expandedSolutions, node.id)
+        if (node.type === 'diagram') toggle(state.openDiagrams, node.data.slug)
+
+        // The tooltip was answering a hover that the click has just made
+        // stale — left up, it sits exactly over whatever unfolded.
+        tip.hidden = true
+
+        select(node)
+        rebuild()
+
+        // Frame what just appeared. A cluster grows outward from the block
+        // that was clicked, so without this the third or fourth diagram of a
+        // system opens off-screen and the expansion reads as nothing having
+        // happened.
+        if (node.type === 'solution' && state.expandedSolutions.has(node.id)) {
+            focusOn(node, ...state.nodes.filter((n) => n.type === 'diagram' && n.viaSolutions.includes(node.id)))
+        }
+
+        if (node.type === 'diagram' && state.openDiagrams.has(node.data.slug)) {
+            focusOn(node, ...state.nodes.filter((n) => n.type === 'step' && n.diagramId === node.id))
+        }
+    }
+
+    function onHover(node, event, point) {
+        state.hoverLink = node ? null : linkAt(point)
+
+        const subject = node ?? state.hoverLink
+        if (! subject || ! point) {
+            tip.hidden = true
+
+            return
+        }
+
+        tip.innerHTML = node ? tipForNode(node) : tipForLink(state.hoverLink)
+        tip.hidden = false
+        const bounds = canvas.getBoundingClientRect()
+        tip.style.left = `${Math.min(point.px + 16, bounds.width - tip.offsetWidth - 12)}px`
+        tip.style.top = `${Math.min(point.py + 16, bounds.height - tip.offsetHeight - 12)}px`
+    }
+
+    /** Nearest pair link under the cursor — sampled along the curve it is drawn as. */
+    function linkAt(point) {
+        if (! point) return null
+        const [wx, wy] = view.s2w(point.px, point.py)
+        const tolerance = 10 / view.view.k
+        let best = null
+        let bestDistance = tolerance
+
+        state.links.forEach((link, i) => {
+            if (link.kind !== 'pair') return
+            for (let t = 0.1; t <= 0.9; t += 0.1) {
+                const [x, y] = linkPoint(link.sn, link.tn, i, t)
+                const d = Math.hypot(x - wx, y - wy)
+                if (d < bestDistance) {
+                    bestDistance = d
+                    best = link
+                }
+            }
+        })
+
+        return best
+    }
+
+    function toggle(set, key) {
+        set.has(key) ? set.delete(key) : set.add(key)
+    }
+
+    function collapseAll(refit = true) {
+        state.expandedSolutions.clear()
+        state.expandedPairs.clear()
+        state.openDiagrams.clear()
+        select(null)
+        if (state.payload) rebuild()
+        if (refit) fitAll()
+    }
+
+    /**
+     * Frames the graph by where the blocks are GOING, never by where they
+     * are. Every node eases toward its target and a fresh one starts at its
+     * parent's position, so measuring the live coordinates right after a
+     * layout frames a graph that has not been drawn yet — which is how the
+     * first paint ended up with half the ecosystem outside the viewport.
+     */
+    function fitAll() {
+        const placed = state.nodes.filter((n) => n.tx != null)
+        if (! placed.length) return
+
+        const pad = 70
+        const xs = placed.map((n) => targetOf(n)[0])
+        const ys = placed.map((n) => targetOf(n)[1])
+
+        view.fit({
+            x: Math.min(...xs) - pad,
+            y: Math.min(...ys) - pad,
+            w: Math.max(...xs) - Math.min(...xs) + pad * 2,
+            h: Math.max(...ys) - Math.min(...ys) + pad * 2,
+        })
+    }
+
+    /**
+     * Where a node is HEADED, in the world the camera sees — the layout's
+     * target, turned by however far the orbit has spun. Framing is the one
+     * place both have to be taken together: the spin rotates what is drawn
+     * without touching what was computed, so a fit that read the raw target
+     * would aim the camera at where the block was before the map turned.
+     */
+    function targetOf(node) {
+        const tx = node.tx ?? node.x
+        const ty = node.ty ?? node.y
+        if (! state.orbit || state.layout !== 'rings') return [tx, ty]
+
+        const r = Math.hypot(tx, ty)
+        const a = Math.atan2(ty, tx) + state.spin
+
+        return [Math.cos(a) * r, Math.sin(a) * r]
+    }
+
+    function focusOn(...nodes) {
+        const present = nodes.filter(Boolean)
+        if (! present.length) return
+
+        const xs = present.map((n) => targetOf(n)[0])
+        const ys = present.map((n) => targetOf(n)[1])
+        const pad = 170
+
+        view.fit({
+            x: Math.min(...xs) - pad,
+            y: Math.min(...ys) - pad,
+            w: Math.max(...xs) - Math.min(...xs) + pad * 2,
+            h: Math.max(...ys) - Math.min(...ys) + pad * 2,
+        })
+    }
+
+    function select(node) {
+        state.selected = node
+        if (! node) {
+            card.hidden = true
+
+            return
+        }
+        card.innerHTML = cardFor(node)
+        card.hidden = false
+    }
+
+    // ---- drawing --------------------------------------------------------
+
+    function draw(ctx, frame, api) {
+        const { width, height, tick } = frame
+
+        ctx.save()
+        drawBackdrop(ctx, width, height)
+
+        if (state.orbit) state.spin += 0.00035
+
+        for (const node of state.nodes) {
+            if (node.tx == null || node.pinned || state.layout === 'force') continue
+            const [tx, ty] = targetOf(node)
+            node.x += (tx - node.x) * EASE
+            node.y += (ty - node.y) * EASE
+            if (node.born && Math.hypot(tx - node.x, ty - node.y) < 1) node.born = false
+        }
+
+        ctx.translate(api.view.x, api.view.y)
+        ctx.scale(api.view.k, api.view.k)
+
+        const dimmed = focusSet()
+
+        state.links.forEach((link, i) => drawLink(ctx, link, i, api.view.k, dimmed, tick))
+        for (const node of state.nodes) drawNode(ctx, node, api.view.k, dimmed, tick)
+
+        ctx.restore()
+        drawLabels(ctx, api, dimmed)
+    }
+
+    function drawBackdrop(ctx, width, height) {
+        const grd = ctx.createLinearGradient(0, 0, 0, height)
+        grd.addColorStop(0, '#12161a')
+        grd.addColorStop(1, '#070a0c')
+        ctx.fillStyle = grd
+        ctx.fillRect(0, 0, width, height)
+
+        // A faint hex weave, the reference's own backdrop — it gives the pan
+        // gesture something to move against, which an empty field does not.
+        const size = 26
+        const hs = size * Math.sqrt(3)
+        const vs = size * 1.5
+        const cx = width / 2
+        const cy = height / 2
+        const maxD = Math.hypot(cx, cy)
+        ctx.strokeStyle = 'rgba(170,219,30,0.05)'
+        ctx.lineWidth = 1
+
+        for (let row = -1; row < height / vs + 2; row++) {
+            for (let col = -1; col < width / hs + 2; col++) {
+                const hx = col * hs + (row % 2 ? hs / 2 : 0)
+                const hy = row * vs
+                const fade = Math.max(0, 1 - (Math.hypot(hx - cx, hy - cy) / maxD) * 0.85)
+                if (fade < 0.12) continue
+                ctx.globalAlpha = fade
+                ctx.beginPath()
+                for (let i = 0; i < 6; i++) {
+                    const a = (Math.PI / 3) * i - Math.PI / 6
+                    const px = hx + size * Math.cos(a)
+                    const py = hy + size * Math.sin(a)
+                    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py)
+                }
+                ctx.closePath()
+                ctx.stroke()
+            }
+        }
+        ctx.globalAlpha = 1
+    }
+
+    /** null when nothing is expanded — then everything is at full strength. */
+    function focusSet() {
+        if (! state.expandedSolutions.size && ! state.expandedPairs.size && ! state.openDiagrams.size) return null
+
+        const ids = new Set()
+        for (const node of state.nodes) {
+            if (node.type === 'solution' && state.expandedSolutions.has(node.id)) ids.add(node.id)
+            if (node.type === 'diagram' || node.type === 'step') ids.add(node.id)
+        }
+        for (const link of state.links) {
+            if (link.kind === 'pair' && state.expandedPairs.has(link.id)) {
+                ids.add(link.source)
+                ids.add(link.target)
+            }
+            if (link.kind === 'owns') ids.add(link.source)
+        }
+
+        return ids
+    }
+
+    function alphaFor(node, dimmed) {
+        if (state.selected?.id === node.id) return 1
+
+        return dimmed && ! dimmed.has(node.id) ? 0.22 : 1
+    }
+
+    function drawLink(ctx, link, i, k, dimmed, tick) {
+        const a = link.sn
+        const b = link.tn
+        if (a.x == null || b.x == null) return
+
+        const lit = state.hoverLink?.id === link.id
+        const dim = dimmed && ! (dimmed.has(link.source) && dimmed.has(link.target))
+        ctx.globalAlpha = lit ? 1 : dim ? 0.12 : 1
+
+        const [cx, cy] = linkCtrl(a, b, i)
+
+        if (link.kind === 'pair') {
+            const grd = ctx.createLinearGradient(a.x, a.y, b.x, b.y)
+            grd.addColorStop(0, hexToRgba(a.color, lit ? 0.95 : 0.5))
+            grd.addColorStop(1, hexToRgba(b.color, lit ? 0.95 : 0.5))
+            ctx.strokeStyle = grd
+            ctx.lineWidth = (lit ? 2.6 : 1.7) / k
+        } else if (link.kind === 'flow') {
+            ctx.strokeStyle = hexToRgba(palette.lime, 0.75)
+            ctx.lineWidth = 1.6 / k
+        } else if (link.kind === 'member') {
+            ctx.strokeStyle = 'rgba(255,255,255,0.14)'
+            ctx.lineWidth = 0.8 / k
+            ctx.setLineDash([3 / k, 5 / k])
+        } else {
+            ctx.strokeStyle = hexToRgba(b.color, 0.42)
+            ctx.lineWidth = 1 / k
+            ctx.setLineDash([5 / k, 6 / k])
+            ctx.lineDashOffset = -tick * 0.18
+        }
+
+        ctx.beginPath()
+        ctx.moveTo(a.x, a.y)
+        ctx.quadraticCurveTo(cx, cy, b.x, b.y)
+        ctx.stroke()
+        ctx.setLineDash([])
+
+        if (link.kind === 'pair' || link.kind === 'flow') {
+            const forward = link.kind === 'flow' ? link.arrow !== '<-' : true
+            const backward = link.kind === 'flow'
+                ? link.arrow !== '->'
+                : link.direction === 'bidirectional'
+
+            ctx.fillStyle = link.kind === 'flow' ? hexToRgba(palette.lime, 0.9) : hexToRgba(b.color, 0.85)
+            if (forward) headAt(ctx, link, i, b, 1, k)
+            if (backward) {
+                ctx.fillStyle = link.kind === 'flow' ? hexToRgba(palette.lime, 0.9) : hexToRgba(a.color, 0.85)
+                headAt(ctx, link, i, a, 0, k)
+            }
+        }
+
+        ctx.globalAlpha = 1
+    }
+
+    /** Arrowhead parked just off the target block, pointing the way the flow runs. */
+    function headAt(ctx, link, i, node, end, k) {
+        const t = end === 1 ? 0.995 : 0.005
+        const near = end === 1 ? 0.93 : 0.07
+        const [x, y] = linkPoint(link.sn, link.tn, i, t)
+        const [px, py] = linkPoint(link.sn, link.tn, i, near)
+        const angle = Math.atan2(y - py, x - px)
+        const gap = node.radius + 5
+
+        arrowHead(ctx, x - Math.cos(angle) * gap, y - Math.sin(angle) * gap, angle, Math.max(7, 9 / k))
+    }
+
+    function drawNode(ctx, node, k, dimmed, tick) {
+        if (node.x == null) return
+        const alpha = alphaFor(node, dimmed)
+        const r = node.radius
+        ctx.globalAlpha = alpha
+
+        const glowR = r * 2.5
+        ctx.globalAlpha = alpha * 0.55
+        ctx.drawImage(glowSprite(node.color), node.x - glowR, node.y - glowR, glowR * 2, glowR * 2)
+        ctx.globalAlpha = alpha
+
+        if (node.type === 'solution') {
+            ctx.drawImage(orbSprite(node.color, 0.42), node.x - r, node.y - r, r * 2, r * 2)
+            ctx.strokeStyle = 'rgba(8,10,12,0.85)'
+            ctx.lineWidth = 2 / k + 0.4
+            circle(ctx, node.x, node.y, r)
+            ctx.stroke()
+
+            if (node.logo?.complete && node.logo.naturalWidth) {
+                const s = r * 1.05
+                ctx.save()
+                circle(ctx, node.x, node.y, r - 3)
+                ctx.clip()
+                ctx.drawImage(node.logo, node.x - s, node.y - s, s * 2, s * 2)
+                ctx.restore()
+            }
+
+            const count = countFor(node)
+            if (count) drawBadge(ctx, node, count, k, state.expandedSolutions.has(node.id))
+        } else if (node.type === 'diagram') {
+            hexagon(ctx, node.x, node.y, r)
+            ctx.fillStyle = node.open ? node.color : mix(node.color, '#0b0e11', 0.55)
+            ctx.fill()
+            ctx.strokeStyle = hexToRgba(node.color, 0.95)
+            ctx.lineWidth = 1.8 / k
+            ctx.stroke()
+        } else {
+            drawStep(ctx, node, r, k)
+        }
+
+        if (state.selected?.id === node.id) {
+            ctx.strokeStyle = hexToRgba(palette.lime, 0.9)
+            ctx.lineWidth = 2 / k
+            circle(ctx, node.x, node.y, r + 7 + Math.sin(tick * 0.08) * 1.5)
+            ctx.stroke()
+        }
+
+        ctx.globalAlpha = 1
+    }
+
+    /**
+     * A chain step keeps the F3 canvas's shape vocabulary, because it IS the
+     * same drawing: a decision is a hexagon, an actor and the two terminals
+     * are circles, everything else is a rounded block.
+     */
+    function drawStep(ctx, node, r, k) {
+        const kind = node.nodeKind
+        ctx.lineWidth = 1.6 / k
+
+        if (kind === 'decision') {
+            hexagon(ctx, node.x, node.y, r)
+        } else if (kind === 'actor' || kind === 'start' || kind === 'end') {
+            circle(ctx, node.x, node.y, r * 0.8)
+        } else {
+            roundedRect(ctx, node.x, node.y, r, 6)
+        }
+
+        ctx.fillStyle = kind === 'start'
+            ? hexToRgba(palette.lime, 0.9)
+            : kind === 'end'
+                ? hexToRgba(palette.crit, 0.9)
+                : mix(node.color, '#0b0e11', 0.5)
+        ctx.fill()
+        ctx.strokeStyle = hexToRgba(node.color, 0.9)
+        ctx.stroke()
+
+        if (node.data.logo) {
+            node.logoImage ??= logoFor(node.data.logo)
+            if (node.logoImage?.complete && node.logoImage.naturalWidth) {
+                ctx.save()
+                roundedRect(ctx, node.x, node.y, r - 3, 5)
+                ctx.clip()
+                ctx.drawImage(node.logoImage, node.x - r, node.y - r, r * 2, r * 2)
+                ctx.restore()
+            }
+        }
+    }
+
+    /** How many diagrams a system takes part in — the reason to click it. */
+    function countFor(node) {
+        return state.payload.diagrams.filter((d) => d.solutions.includes(node.id)).length
+    }
+
+    function drawBadge(ctx, node, count, k, open) {
+        const bx = node.x + node.radius * 0.82
+        const by = node.y - node.radius * 0.82
+        const r = 9
+
+        circle(ctx, bx, by, r)
+        ctx.fillStyle = open ? palette.lime : '#0f1215'
+        ctx.fill()
+        ctx.strokeStyle = open ? palette.lime : hexToRgba(node.color, 0.9)
+        ctx.lineWidth = 1.4 / k
+        ctx.stroke()
+
+        ctx.fillStyle = open ? '#0b0e11' : '#e7ecea'
+        ctx.font = '700 11px Inter, system-ui, sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(String(count), bx, by + 0.5)
+        ctx.textBaseline = 'alphabetic'
+    }
+
+    function drawLabels(ctx, api, dimmed) {
+        const k = api.view.k
+        ctx.textAlign = 'center'
+
+        for (const node of state.nodes) {
+            if (node.x == null) continue
+            const focused = api.hover?.id === node.id || state.selected?.id === node.id
+            if (node.type === 'diagram' && k < 0.42 && ! focused) continue
+            if (node.type === 'step' && k < 0.5 && ! focused) continue
+
+            const [sx, sy] = api.w2s(node.x, node.y)
+            if (sx < -80 || sy < -40 || sx > api.size.width + 80 || sy > api.size.height + 40) continue
+
+            const label = node.type === 'solution' ? node.label.toUpperCase() : node.label
+            ctx.font = node.type === 'solution'
+                ? '700 10.5px Inter, system-ui, sans-serif'
+                : '500 10px Inter, system-ui, sans-serif'
+            try {
+                ctx.letterSpacing = node.type === 'solution' ? '0.8px' : '0px'
+            } catch {
+                // letterSpacing is not everywhere yet; the label reads fine without it.
+            }
+
+            const y = sy + node.radius * k + 14
+            ctx.globalAlpha = alphaFor(node, dimmed)
+            ctx.fillStyle = 'rgba(6,9,11,0.85)'
+            ctx.fillText(label, sx + 1, y + 1)
+            ctx.fillStyle = focused ? '#ffffff' : node.type === 'solution' ? 'rgba(236,241,238,0.92)' : 'rgba(198,208,203,0.8)'
+            ctx.fillText(label, sx, y)
+            ctx.globalAlpha = 1
+        }
+
+        try {
+            ctx.letterSpacing = '0px'
+        } catch {
+            // as above
+        }
+    }
+
+    // ---- chrome ---------------------------------------------------------
+
+    function setStatus(text) {
+        if (status) status.textContent = text
+    }
+
+    function renderCrumb() {
+        if (! crumb) return
+
+        const chips = []
+        for (const id of state.expandedSolutions) {
+            const node = state.nodeById.get(id)
+            if (node) chips.push({ label: node.label, kind: 'solution', key: id })
+        }
+        for (const id of state.expandedPairs) {
+            const link = state.links.find((l) => l.id === id)
+            if (link) chips.push({ label: `${link.sn.label} ↔ ${link.tn.label}`, kind: 'pair', key: id })
+        }
+        for (const slug of state.openDiagrams) {
+            const diagram = state.diagramBySlug.get(slug)
+            if (diagram) chips.push({ label: diagram.label, kind: 'diagram', key: slug })
+        }
+
+        crumb.innerHTML = chips.length
+            ? chips.map((chip) => `
+                <button type="button" data-ak-map-crumb-drop="${chip.kind}:${escapeAttr(chip.key)}"
+                        class="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] text-white/80 transition hover:border-white/35 hover:text-white">
+                    ${escapeHtml(chip.label)}
+                    <span aria-hidden="true" class="text-white/45">×</span>
+                </button>`).join('')
+            : '<span class="text-[11px] text-white/35">Clique em um sistema ou em uma ligação para abrir os diagramas.</span>'
+    }
+
+    function tipForNode(node) {
+        if (node.type === 'solution') {
+            const count = countFor(node)
+
+            return `<strong>${escapeHtml(node.label)}</strong>
+                <span class="block text-white/55">${escapeHtml(node.data.categoryLabel ?? 'Sistema')}</span>
+                <span class="block text-white/40">${count} diagrama${count === 1 ? '' : 's'} · clique para ${state.expandedSolutions.has(node.id) ? 'recolher' : 'expandir'}</span>`
+        }
+
+        if (node.type === 'diagram') {
+            return `<strong>${escapeHtml(node.label)}</strong>
+                <span class="block text-white/55">${escapeHtml(node.data.statusLabel ?? '')}${node.data.protocolLabel ? ` · ${escapeHtml(node.data.protocolLabel)}` : ''}</span>
+                <span class="block text-white/40">Clique para ${node.open ? 'fechar' : 'abrir'} o fluxo</span>`
+        }
+
+        return `<strong>${escapeHtml(node.label)}</strong>
+            <span class="block text-white/55">${escapeHtml(KIND_LABEL[node.nodeKind] ?? 'Bloco')}</span>`
+    }
+
+    function tipForLink(link) {
+        const count = link.diagrams.length
+
+        return `<strong>${escapeHtml(link.sn.label)} ${link.direction === 'bidirectional' ? '↔' : '→'} ${escapeHtml(link.tn.label)}</strong>
+            ${link.label ? `<span class="block text-white/55">${escapeHtml(link.label)}</span>` : ''}
+            <span class="block text-white/40">${count} diagrama${count === 1 ? '' : 's'} · clique para ${state.expandedPairs.has(link.id) ? 'recolher' : 'expandir'}</span>`
+    }
+
+    function cardFor(node) {
+        const rows = []
+        const add = (label, value) => value && rows.push(
+            `<div class="flex items-baseline justify-between gap-3 border-t border-white/10 py-1.5">
+                <dt class="text-[10px] uppercase tracking-wider text-white/40">${label}</dt>
+                <dd class="text-right text-[12px] text-white/85">${escapeHtml(value)}</dd>
+            </div>`,
+        )
+
+        let title = node.label
+        let action = null
+
+        if (node.type === 'solution') {
+            const d = node.data
+            add('Categoria', d.categoryLabel)
+            add('Status', d.statusLabel)
+            add('Criticidade', d.criticalityLabel)
+            add('Ambiente', d.environmentLabel)
+            add('Nuvem', d.cloudLabel)
+            add('Contrato', d.contractLabel)
+            add('Suporte', d.supportLabel)
+            add('Diretoria', d.directorate)
+            action = { url: d.url, label: 'Ver solução' }
+        } else if (node.type === 'diagram') {
+            const d = node.data
+            add('Status', d.statusLabel)
+            add('Criticidade', d.criticalityLabel)
+            add('Sincronismo', d.syncModeLabel)
+            add('Protocolo', d.protocolLabel)
+            add('Blocos', String(d.chain.nodes.length))
+            action = { url: d.url, label: 'Abrir diagrama' }
+        } else {
+            add('Tipo', KIND_LABEL[node.nodeKind] ?? 'Bloco')
+            if (node.data.url) action = { url: node.data.url, label: 'Ver solução' }
+            title = node.label
+        }
+
+        return `
+            <div class="flex items-start justify-between gap-3">
+                <h3 class="text-[13px] font-semibold leading-snug text-white">${escapeHtml(title)}</h3>
+                <button type="button" data-ak-map-card-close class="-mr-1 -mt-1 rounded p-1 text-white/40 transition hover:text-white">×</button>
+            </div>
+            <dl class="mt-2">${rows.join('')}</dl>
+            ${action ? `<a href="${escapeAttr(action.url)}" target="_blank" rel="noopener"
+                class="mt-3 inline-flex w-full items-center justify-center rounded-lg bg-white/10 px-3 py-2 text-[12px] font-medium text-white transition hover:bg-white/20">${action.label} ↗</a>` : ''}`
+    }
+
+    // ---- search ---------------------------------------------------------
+
+    searchInput?.addEventListener('input', () => {
+        const term = fold(searchInput.value.trim())
+        if (! term || ! state.payload) {
+            results.hidden = true
+
+            return
+        }
+
+        const hits = [
+            ...state.payload.nodes
+                .filter((n) => fold(n.label).includes(term))
+                .map((n) => ({ id: n.id, label: n.label, hint: n.categoryLabel ?? 'Sistema', kind: 'solution' })),
+            ...state.payload.diagrams
+                .filter((d) => fold(d.label).includes(term))
+                .map((d) => ({ id: d.id, label: d.label, hint: 'Diagrama', kind: 'diagram', slug: d.slug })),
+        ].slice(0, 8)
+
+        results.innerHTML = hits.length
+            ? hits.map((hit) => `
+                <button type="button" data-ak-map-goto="${escapeAttr(hit.kind)}:${escapeAttr(hit.slug ?? hit.id)}"
+                        class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-[12px] text-white/85 transition hover:bg-white/10">
+                    <span class="truncate">${escapeHtml(hit.label)}</span>
+                    <span class="shrink-0 text-[10px] uppercase tracking-wide text-white/35">${escapeHtml(hit.hint)}</span>
+                </button>`).join('')
+            : '<p class="px-3 py-2 text-[12px] text-white/45">Nada encontrado.</p>'
+        results.hidden = false
+    })
+
+    /**
+     * Jumping to a diagram has to EXPAND it into view first — the search
+     * looks at the whole payload, including drawings nobody has unfolded, and
+     * flying the camera at a node that is not on the canvas shows an empty
+     * patch of map.
+     */
+    function goTo(kind, key) {
+        if (kind === 'diagram') {
+            const diagram = state.diagramBySlug.get(key)
+            if (! diagram) return
+            diagram.solutions.slice(0, 1).forEach((id) => state.expandedSolutions.add(id))
+            state.openDiagrams.add(key)
+            rebuild()
+            const node = state.nodeById.get(diagram.id)
+            select(node ?? null)
+            if (node) focusOn(node, ...state.nodes.filter((n) => n.type === 'step' && n.diagramId === node.id))
+
+            return
+        }
+
+        const node = state.nodeById.get(key)
+        if (! node) return
+        view.flyToNode(node, 1)
+        select(node)
+    }
+
+    shell.addEventListener('click', (event) => {
+        const goto = event.target.closest('[data-ak-map-goto]')
+        if (goto) {
+            const [kind, key] = goto.dataset.akMapGoto.split(/:(.+)/)
+            goTo(kind, key)
+            results.hidden = true
+            searchInput.value = ''
+
+            return
+        }
+
+        const drop = event.target.closest('[data-ak-map-crumb-drop]')
+        if (drop) {
+            const [kind, key] = drop.dataset.akMapCrumbDrop.split(/:(.+)/)
+            if (kind === 'solution') state.expandedSolutions.delete(key)
+            if (kind === 'pair') state.expandedPairs.delete(key)
+            if (kind === 'diagram') state.openDiagrams.delete(key)
+            rebuild()
+
+            return
+        }
+
+        if (event.target.closest('[data-ak-map-card-close]')) {
+            select(null)
+
+            return
+        }
+
+        const action = event.target.closest('[data-ak-map-action]')
+        if (! action) return
+
+        const kind = action.dataset.akMapAction
+        if (kind === 'fit') fitAll()
+        if (kind === 'zoom-in') view.zoomBy(1.25)
+        if (kind === 'zoom-out') view.zoomBy(0.8)
+        if (kind === 'collapse') collapseAll()
+        if (kind === 'orbit') {
+            state.orbit = ! state.orbit
+            action.dataset.akMapOn = String(state.orbit)
+        }
+        if (kind === 'layout') {
+            state.layout = state.layout === 'rings' ? 'force' : 'rings'
+            action.querySelector('[data-label]').textContent = state.layout === 'rings' ? 'Órbitas' : 'Força'
+            relayout()
+        }
+        if (kind === 'fullscreen') {
+            document.fullscreenElement ? document.exitFullscreen() : shell.requestFullscreen?.()
+        }
+    })
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape' || ! shell.isConnected) return
+        if (state.selected) select(null)
+        else collapseAll()
+    })
+}
+
+// ---- helpers ------------------------------------------------------------
+
+/**
+ * The map's colors are the app's colors: the eight category families and the
+ * semantic tones, read straight off the `@theme` tokens so nothing is
+ * restated here as a literal. They are lightened on the way in — the tokens
+ * are tuned for near-black text on white, and this canvas is the other way
+ * round.
+ */
+function readPalette() {
+    const styles = getComputedStyle(document.documentElement)
+    const token = (name, fallback) => (styles.getPropertyValue(name).trim() || fallback)
+    const onDark = (hex) => mix(hex, '#ffffff', 0.3)
+
+    const families = {}
+    for (const family of ['emerald', 'teal', 'blue', 'indigo', 'fuchsia', 'rose', 'amber', 'slate']) {
+        families[family] = onDark(token(`--color-cat-${family}`, '#64748b'))
+    }
+
+    const lime = onDark(token('--color-lime', '#AADB1E'))
+    const hot = onDark(token('--color-hot', '#b26a11'))
+    const crit = onDark(token('--color-crit', '#b23b3b'))
+    const neutral = families.slate
+
+    return {
+        lime,
+        hot,
+        crit,
+        neutral,
+        family: (name) => families[name] ?? neutral,
+        status: (value) => ({
+            active: lime,
+            in_development: hot,
+            planned: families.blue,
+            deprecated: crit,
+        })[value] ?? neutral,
+    }
+}
+
+function logoFor(url) {
+    if (! url) return null
+    const img = new Image()
+    img.src = url
+
+    return img
+}
+
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    })[c])
+}
+
+function escapeAttr(value) {
+    return escapeHtml(value).replace(/`/g, '&#96;')
 }
