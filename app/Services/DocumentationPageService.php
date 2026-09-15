@@ -29,16 +29,35 @@ use Illuminate\Support\Str;
 class DocumentationPageService
 {
     /**
-     * Static segments living under `notebooks/{notebook}/` — never allowed to
-     * become a page slug, since `notebooks/{notebook}/{page}` would otherwise
-     * be shadowed by them.
+     * Static segments living under `notebooks/{notebook}/` AND under
+     * `docs/{notebook}/` — never allowed to become a page slug, since both
+     * `notebooks/{notebook}/{page}` and `docs/{notebook}/{page}` would
+     * otherwise be shadowed by them.
+     *
+     * ONE list for TWO route families, deliberately: a page is the same page on
+     * both, so a slug that is unreachable on either is unreachable, and two
+     * lists are how the second one goes stale. Routes are matched in
+     * registration order, so a collision is silent — the static route simply
+     * wins and the page can never be opened.
      *
      * These are the REAL segments. The list used to be PT-BR (`paginas`,
      * `titulo`, `mover`, `midia`, `compartilhar`) and had been stale since the
      * paths were anglicised — it reserved five words no route used while
-     * leaving the five that mattered free to collide.
+     * leaving the five that mattered free to collide. Check it against
+     * `php artisan route:list --path=notebooks` and `--path=docs` when adding a
+     * segment to either.
+     *
+     * Only ever applied when a slug is GENERATED, so it cannot rescue a page
+     * that already carries one of these. Verified against the dev corpus when
+     * `/docs` landed (207 pages, 38 imported GitBook spaces): none of the four
+     * new words collides with an existing page.
      */
-    private const RESERVED_SLUGS = ['pages', 'share', 'context', 'context-pages', 'chat', 'solutions', 'panel', 'secret-code', 'link-targets'];
+    private const RESERVED_SLUGS = [
+        // notebooks/{notebook}/…
+        'pages', 'share', 'context', 'context-pages', 'chat', 'solutions', 'panel', 'secret-code', 'link-targets',
+        // docs/{notebook}/…
+        'search', 'file', 'diagram', 'secrets',
+    ];
 
     /**
      * A new page, at the end of its sibling list — a root by default, or a

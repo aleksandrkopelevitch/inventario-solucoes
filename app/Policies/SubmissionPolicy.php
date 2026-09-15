@@ -19,17 +19,17 @@ class SubmissionPolicy
 {
     public function viewAny(User $user): bool
     {
-        return true;
+        return $user->role->canReadInventory();
     }
 
     public function view(User $user, Submission $submission): bool
     {
-        return true;
+        return $user->role->canReadInventory();
     }
 
     public function create(User $user): bool
     {
-        return true;
+        return $user->role->canReadInventory();
     }
 
     public function update(User $user, Submission $submission): bool

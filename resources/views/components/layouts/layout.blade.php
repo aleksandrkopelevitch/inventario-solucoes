@@ -25,6 +25,11 @@
         ],
         'Governança' => [
             ['route' => 'notebooks.index', 'label' => 'Cadernos', 'icon' => 'book-open', 'active' => 'notebooks.*'],
+            // Admin only (`can`), because deciding what the whole company reads
+            // is `NotebookPolicy::administer`. `/docs` itself gets no entry: it
+            // is its own shell with its own top bar, reached from here and from
+            // the switcher inside it.
+            ['route' => 'docs.settings', 'label' => 'Base de conhecimento', 'icon' => 'building-library', 'active' => 'docs.settings', 'can' => 'administerAny'],
             ['route' => 'documentation.index', 'label' => 'Cobertura da documentação', 'icon' => 'chart-bar-square', 'active' => 'documentation.*'],
             ['route' => 'diagrams.index', 'label' => 'Diagramas', 'icon' => 'share', 'active' => 'diagrams.*'],
             ['route' => 'solutions.map', 'label' => 'Mapa do ecossistema', 'icon' => 'globe-alt', 'active' => 'solutions.map'],
@@ -52,7 +57,15 @@
                     @php
                         $has = \Illuminate\Support\Facades\Route::has($item['route']);
                         $on = $has && request()->routeIs(...(array) $item['active']);
+                        // An item may declare an ability it needs (`can`), checked
+                        // against Notebook — the only gated entry today is the
+                        // knowledge-base settings screen, which is admin-only. The
+                        // rail hides what an account cannot open rather than
+                        // offering a link that answers 403.
+                        $allowed = ! isset($item['can'])
+                            || (auth()->user()?->can($item['can'], \App\Models\Notebook::class) ?? false);
                     @endphp
+                    @continue (! $allowed)
                     <a href="{{ $has ? route($item['route']) : '#' }}"
                        @class([
                            'group relative flex h-10 w-full items-center justify-center rounded-field transition-colors',
@@ -245,7 +258,15 @@
                 @php
                     $has = \Illuminate\Support\Facades\Route::has($item['route']);
                     $on = $has && request()->routeIs(...(array) $item['active']);
+                    // An item may declare an ability it needs (`can`), checked
+                    // against Notebook — the only gated entry today is the
+                    // knowledge-base settings screen, which is admin-only. The
+                    // rail hides what an account cannot open rather than
+                    // offering a link that answers 403.
+                    $allowed = ! isset($item['can'])
+                        || (auth()->user()?->can($item['can'], \App\Models\Notebook::class) ?? false);
                 @endphp
+                @continue (! $allowed)
                 <a href="{{ $has ? route($item['route']) : '#' }}"
                    data-ak-mobile-nav-close
                    @class([

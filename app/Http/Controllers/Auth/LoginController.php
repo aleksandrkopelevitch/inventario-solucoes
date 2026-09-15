@@ -25,7 +25,12 @@ class LoginController extends Controller
         $request->session()->regenerate();
 
         return response()->json([
-            'redirect' => route('profile.show'),
+            // Where they can actually go. A `Reader` — the tier Entra SSO
+            // provisions, and one an admin can hand out by hand too — has no
+            // inventory to land on, and `profile.show` is inside it.
+            'redirect' => $request->user()->role->canReadInventory()
+                ? route('profile.show')
+                : route('docs.index'),
         ]);
     }
 

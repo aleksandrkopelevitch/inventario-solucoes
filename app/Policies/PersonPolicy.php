@@ -9,12 +9,12 @@ class PersonPolicy
 {
     public function viewAny(User $user): bool
     {
-        return true;
+        return $user->role->canReadInventory();
     }
 
     public function view(User $user, Person $person): bool
     {
-        return true;
+        return $user->role->canReadInventory();
     }
 
     public function create(User $user): bool

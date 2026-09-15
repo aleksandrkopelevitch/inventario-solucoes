@@ -36,6 +36,15 @@ class UserFactory extends Factory
     }
 
     /**
+     * The floor tier: the knowledge base (`/docs`) and nothing else — what
+     * Entra SSO provisions on a first sign-in.
+     */
+    public function reader(): static
+    {
+        return $this->state(fn (array $attributes) => ['role' => UserRole::Reader->value]);
+    }
+
+    /**
      * Indicate that the model's email address should be unverified.
      */
     public function unverified(): static

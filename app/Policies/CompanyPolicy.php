@@ -9,12 +9,12 @@ class CompanyPolicy
 {
     public function viewAny(User $user): bool
     {
-        return true;
+        return $user->role->canReadInventory();
     }
 
     public function view(User $user, Company $company): bool
     {
-        return true;
+        return $user->role->canReadInventory();
     }
 
     public function create(User $user): bool

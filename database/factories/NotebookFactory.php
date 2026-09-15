@@ -24,6 +24,17 @@ class NotebookFactory extends Factory
             // a factory that hands one out makes every "is this public?" test
             // pass for the wrong reason.
             'public_token' => null,
+            // Nor published to the internal knowledge base, for exactly the
+            // same reason: `/docs` shows what an admin chose to put there, and
+            // a factory that publishes by default makes every "is this on
+            // /docs?" test pass without testing anything.
+            'published_at' => null,
         ];
+    }
+
+    /** Published into the internal knowledge base (`/docs`). */
+    public function published(): static
+    {
+        return $this->state(fn (array $attributes) => ['published_at' => now()]);
     }
 }

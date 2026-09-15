@@ -12,6 +12,8 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\ServiceProvider;
+use SocialiteProviders\Azure\Provider as AzureProvider;
+use SocialiteProviders\Manager\SocialiteWasCalled;
 use Throwable;
 
 class AppServiceProvider extends ServiceProvider
@@ -33,6 +35,7 @@ class AppServiceProvider extends ServiceProvider
         Model::shouldBeStrict(! $this->app->isProduction());
 
         $this->bootSearchFolding();
+        $this->bootEntraSocialite();
 
         // GitBook's REST API — the only external HTTP service this app talks
         // to (read-only, `php artisan gitbook:import`). Explicit timeouts, as
@@ -132,6 +135,28 @@ class AppServiceProvider extends ServiceProvider
      * its own, which handles case and not accents; a macro can never shadow a
      * real method, so that name would simply be dead code.
      */
+    /**
+     * Registers the `azure` Socialite driver (Microsoft Entra ID).
+     *
+     * SocialiteProviders' packages hook themselves up by LISTENING for
+     * `SocialiteWasCalled` rather than by registering a driver — so without
+     * this line `Socialite::driver('azure')` throws "Driver [azure] not
+     * supported", at the moment somebody presses the login button and nowhere
+     * earlier.
+     *
+     * Registered unconditionally, even when SSO is switched off: the listener
+     * only teaches Socialite a name, and every route that could use it already
+     * refuses through `EntraSso::configured()`. Making the registration
+     * conditional would mean a `.env` change that only takes effect after a
+     * cache clear, which is the wrong kind of surprise for a login.
+     */
+    private function bootEntraSocialite(): void
+    {
+        Event::listen(function (SocialiteWasCalled $event) {
+            $event->extendSocialite('azure', AzureProvider::class);
+        });
+    }
+
     private function bootSearchFolding(): void
     {
         // SQLite has no `translate()` and an ASCII-only `lower()`, so the
