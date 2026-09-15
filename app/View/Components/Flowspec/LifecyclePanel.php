@@ -21,6 +21,12 @@ class LifecyclePanel extends Component
 {
     use Renderable;
 
+    /**
+     * Words kept from the conversation's title when suggesting a pipeline
+     * name. Four is what the tenant's own names use — three to five segments.
+     */
+    private const NAME_WORDS = 4;
+
     public function __construct(public FlowspecMessage $message, public ?string $chatTitle = null) {}
 
     /**
@@ -42,6 +48,34 @@ class LifecyclePanel extends Component
         return (new static($message))->toSlot(self::slotId($message));
     }
 
+    /**
+     * A starting point for the pipeline's name, from the conversation's title.
+     *
+     * Slugged because that is what the platform addresses a pipeline by and
+     * what lands in the endpoint URL — and cut to the first few words, because
+     * a chat title is a SENTENCE. The first real run in production suggested
+     * `crie-uma-integracao-digibee-da-secao-consultar-status-entrega-pedido-vamos-abri`,
+     * 79 characters, which validates fine and which nobody wants as a pipeline
+     * name: the tenant's own are `zfl-bloq-desbloq-cliente`, `get-token-cws`,
+     * `api-transfere-anexos-freshworks`.
+     *
+     * Whole segments only, never a character cut: a slug may not end in a
+     * hyphen (`App\Rules\AsciiSlug`), so trimming mid-word would suggest a
+     * name the form then refuses. And it stays a SUGGESTION — the field is
+     * free text, because only a person knows what the pipeline should be
+     * called, and on this platform the name is permanent.
+     */
+    private static function suggestName(?string $title): string
+    {
+        $slug = Str::slug((string) $title);
+
+        if ($slug === '') {
+            return 'pipeline';
+        }
+
+        return implode('-', array_slice(explode('-', $slug), 0, self::NAME_WORDS));
+    }
+
     public function render(): View
     {
         $run = PipelineRun::query()
@@ -55,11 +89,7 @@ class LifecyclePanel extends Component
             'domId' => self::slotId($this->message),
             'chat'  => $this->message->chat,
             'run'   => $run,
-            // The default name a person will almost always accept, derived the
-            // same way the test matrix already derives its suite name. It has
-            // to be a slug: it is what the platform addresses the pipeline by,
-            // and it lands in the endpoint URL.
-            'suggestedName' => Str::slug($this->chatTitle ?? $this->message->chat?->title ?? 'pipeline'),
+            'suggestedName' => self::suggestName($this->chatTitle ?? $this->message->chat?->title),
             'environments'  => (array) config('services.digibee.design.deployable_environments'),
         ]);
     }

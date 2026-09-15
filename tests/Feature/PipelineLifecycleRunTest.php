@@ -9,6 +9,7 @@ use App\Models\FlowspecChat;
 use App\Models\FlowspecMessage;
 use App\Models\PipelineRun;
 use App\Models\User;
+use App\View\Components\Flowspec\LifecyclePanel;
 use App\Services\Digibee\PipelineHealingService;
 use App\Support\Digibee\Healing\HealingReport;
 use App\Support\Digibee\Healing\HealingRound;
@@ -391,4 +392,44 @@ it('refuses to run a row somebody already settled', function () {
     (new RunPipelineLifecycle($run))->handle($healing, app(AssessPromotion::class));
 
     expect($healing->called)->toBeFalse();
+});
+
+/*
+|--------------------------------------------------------------------------
+| The name it suggests
+|--------------------------------------------------------------------------
+*/
+
+it('suggests a pipeline name from the first words of the title, not the whole sentence', function () {
+    // The first real run in production suggested the entire chat title slugged
+    // — 79 characters. It validates, and nobody wants it as a pipeline name;
+    // the tenant's own are `zfl-bloq-desbloq-cliente`, `get-token-cws`.
+    $chat = runChatFor(runEditor());
+    $chat->update(['title' => 'Crie uma integração Digibee da seção consultar status entrega pedido']);
+    $message = runMessageIn($chat);
+
+    $suggested = (new LifecyclePanel($message))->render()->getData()['suggestedName'];
+
+    expect($suggested)->toBe('crie-uma-integracao-digibee');
+});
+
+it('never suggests a name the form would then refuse', function () {
+    // Whole segments only: `AsciiSlug` forbids a trailing hyphen, so a cut
+    // mid-word would offer a name and reject it on submit.
+    $chat = runChatFor(runEditor());
+    $chat->update(['title' => 'Integração   —   ZFL']);
+    $message = runMessageIn($chat);
+
+    $suggested = (new LifecyclePanel($message))->render()->getData()['suggestedName'];
+
+    expect($suggested)->toBe('integracao-zfl')
+        ->and(validator(['n' => $suggested], ['n' => [new App\Rules\AsciiSlug]])->passes())->toBeTrue();
+});
+
+it('falls back to a usable name when the conversation has no title', function () {
+    $chat = runChatFor(runEditor());
+    $chat->update(['title' => '']);
+    $message = runMessageIn($chat);
+
+    expect((new LifecyclePanel($message))->render()->getData()['suggestedName'])->toBe('pipeline');
 });
