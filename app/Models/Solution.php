@@ -31,13 +31,11 @@ class Solution extends Model
         'criticality',
         'status',
         'logo_path',
-        'map_position',
     ];
 
     protected function casts(): array
     {
         return [
-            'map_position' => 'array',
         ];
     }
 

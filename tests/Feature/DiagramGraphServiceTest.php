@@ -1,10 +1,8 @@
 <?php
 
 use App\Enums\Direction;
-use App\Enums\UserRole;
 use App\Models\Diagram;
 use App\Models\Solution;
-use App\Models\User;
 use App\Services\DiagramGraphService;
 use Database\Seeders\AttributeOptionSeeder;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -71,39 +69,86 @@ it('includes the solution attribute labels and show url on each node, for the ma
         ->and($rootNode)->toHaveKeys(['criticalityLabel', 'environmentLabel', 'cloudLabel', 'contractLabel', 'supportLabel']);
 });
 
-it('exposes the saved hub map position and its auto-save url to an admin, null until the first drag', function () {
-    $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]));
+it('gives each node its category colour family and no stored position, which the map no longer has', function () {
     $service = new DiagramGraphService;
 
-    $root = Solution::factory()->create();
-    $target = Solution::factory()->create(['map_position' => ['x' => 123.4, 'y' => 56.7]]);
+    $root = Solution::factory()->create(['category' => 'erp']);
+    $target = Solution::factory()->create(['category' => 'ipaas']);
 
     $diagram = Diagram::factory()->active()->create(['source_solution_id' => $root->id, 'target_solution_id' => $target->id]);
     attachParticipants($diagram, [[$root, 0], [$target, 1]]);
 
-    $graph = $service->globalMap();
-    $rootNode = collect($graph['nodes'])->firstWhere('id', "sol-{$root->id}");
-    $targetNode = collect($graph['nodes'])->firstWhere('id', "sol-{$target->id}");
+    $rootNode = collect($service->globalMap()['nodes'])->firstWhere('id', "sol-{$root->id}");
 
-    expect($rootNode['mapPosition'])->toBeNull()
-        ->and($rootNode['positionUrl'])->toBe(route('solutions.map.position.update', $root))
-        ->and($targetNode['mapPosition'])->toBe(['x' => 123.4, 'y' => 56.7]);
+    expect($rootNode['categoryFamily'])->toBe('indigo')
+        ->and($rootNode)->not->toHaveKey('mapPosition')
+        ->and($rootNode)->not->toHaveKey('positionUrl');
 });
 
-it('withholds the auto-save url from a viewer, who can look but never persist a drag', function () {
-    $this->actingAs(User::factory()->create(['role' => UserRole::Viewer->value]));
+it('carries every diagram with the systems it names, so the map can unfold one without a second request', function () {
+    $this->seed(AttributeOptionSeeder::class);
+    $service = new DiagramGraphService;
+
+    $root = Solution::factory()->create();
+    $digibee = Solution::factory()->create(['category' => 'ipaas']);
+    $target = Solution::factory()->create();
+
+    $diagram = Diagram::factory()->active()->create([
+        'name'               => 'SAP -> BigQuery',
+        'source_solution_id' => $root->id,
+        'target_solution_id' => $target->id,
+    ]);
+    attachParticipants($diagram, [[$root, 0], [$digibee, 1], [$target, 2]]);
+
+    $drawing = collect($service->globalMap()['diagrams'])->firstWhere('slug', $diagram->slug);
+
+    expect($drawing['id'])->toBe("diag-{$diagram->slug}")
+        ->and($drawing['label'])->toBe('SAP -> BigQuery')
+        ->and($drawing['url'])->toBe(route('diagrams.show', $diagram))
+        ->and($drawing['statusLabel'])->toBe('Ativa')
+        // Every system it touches, so expanding EITHER end finds it.
+        ->and($drawing['solutions'])->toBe(["sol-{$root->id}", "sol-{$digibee->id}", "sol-{$target->id}"])
+        ->and($drawing['chain']['nodes'])->toHaveCount(3)
+        ->and($drawing['chain']['edges'])->toHaveCount(2)
+        ->and($drawing['chain']['nodes'][1]['solutionId'])->toBe("sol-{$digibee->id}")
+        ->and($drawing['chain']['nodes'][1]['url'])->toBe(route('solutions.show', $digibee));
+});
+
+it('draws a decision block in the chain and still refuses it as a participant', function () {
     $service = new DiagramGraphService;
 
     $root = Solution::factory()->create();
     $target = Solution::factory()->create();
 
-    $diagram = Diagram::factory()->active()->create(['source_solution_id' => $root->id, 'target_solution_id' => $target->id]);
-    attachParticipants($diagram, [[$root, 0], [$target, 1]]);
+    $diagram = Diagram::factory()->active()->create();
+    // A decision carrying a leftover `solution_id` — the trap
+    // `ChainNodeKind::referencesSolution()` exists for.
+    $diagram->chain = [
+        'nodes' => [
+            ['solution_id' => $root->id, 'label' => null, 'kind' => 'system'],
+            ['solution_id' => $target->id, 'label' => 'Tem estoque?', 'kind' => 'decision'],
+            ['solution_id' => $target->id, 'label' => null, 'kind' => 'system'],
+        ],
+        'edges' => [
+            ['from' => 0, 'to' => 1, 'arrow' => '->', 'protocol' => 'rest'],
+            ['from' => 1, 'to' => 2, 'arrow' => '->', 'protocol' => null],
+        ],
+    ];
+    $diagram->save();
+    $diagram->afterChainMutation();
 
     $graph = $service->globalMap();
-    $rootNode = collect($graph['nodes'])->firstWhere('id', "sol-{$root->id}");
+    $drawing = collect($graph['diagrams'])->firstWhere('slug', $diagram->slug);
 
-    expect($rootNode['positionUrl'])->toBeNull();
+    // The block is drawn, with its own text and kind...
+    expect($drawing['chain']['nodes'][1]['kind'])->toBe('decision')
+        ->and($drawing['chain']['nodes'][1]['label'])->toBe('Tem estoque?')
+        ->and($drawing['chain']['nodes'][1]['solutionId'])->toBeNull()
+        ->and($drawing['chain']['edges'][0]['protocol'])->toBe('REST')
+        // ...and it is not one of the systems this diagram hangs off, nor does
+        // it produce a link on the macro graph.
+        ->and($drawing['solutions'])->toBe(["sol-{$root->id}", "sol-{$target->id}"])
+        ->and($graph['edges'])->toBeEmpty();
 });
 
 it('draws a multi-hop chain in position order, not a single A<>B edge', function () {

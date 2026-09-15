@@ -290,7 +290,6 @@ Route::middleware(['auth', 'inventory'])->group(function () {
 
     Route::get('map', [SolutionMapController::class, 'index'])->name('solutions.map');
     Route::get('map/data', [SolutionMapController::class, 'data'])->name('solutions.map.data');
-    Route::patch('map/nodes/{solution}/position', [SolutionMapController::class, 'updatePosition'])->name('solutions.map.position.update');
 
     // F8 — Digibee flowSpec generator (chat). The reply is generated in a job
     // (GenerateFlowspecReply); `status` is the thread's polling endpoint.

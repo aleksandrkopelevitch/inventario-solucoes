@@ -1,0 +1,22 @@
+NOTICE — Attribution
+
+The ecosystem map's canvas renderer in this repository
+(`resources/js/modules/graph-canvas/*.js` and the drawing half of
+`resources/js/modules/ecosystem-map.js`) is adapted from the "Second Brain"
+workspace-graph visualizer by Jay E / RoboNuggets, used under the Creative
+Commons Attribution 4.0 International license (CC BY 4.0).
+
+Original author: Jay E / RoboNuggets — https://skool.com/robonuggets
+License: CC BY 4.0 — https://creativecommons.org/licenses/by/4.0/
+
+What was taken: the rendering technique — a 2D canvas with its own camera
+(device-pixel ratio, cursor-anchored zoom, drag to pan, eased fly-to),
+per-color cached glow and orb sprites, the deterministic bowed-link geometry,
+and the concentric-ring layout with its easing.
+
+What is ours: everything the map is ABOUT — solutions, the pair aggregation,
+the diagram drill-down, the chain's node kinds and their shapes, the category
+palette, the copy, and the payload behind all of it
+(`App\Services\DiagramGraphService`).
+
+The attribution is also shown to the reader, at the bottom of the map itself.
