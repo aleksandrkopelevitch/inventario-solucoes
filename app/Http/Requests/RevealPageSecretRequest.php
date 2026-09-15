@@ -6,15 +6,26 @@ use App\Models\Notebook;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * One attempt at revealing one protected value — from the authenticated reader
- * or from a magic link, which is why `authorize()` branches on which route is
- * being served (same shape as `SaveDocumentationRequest`).
+ * One attempt at revealing one protected value, from any of the THREE surfaces
+ * that render a page — which is why `authorize()` branches on which route is
+ * being served (same shape as `SaveDocumentationRequest`). Each of them
+ * authorizes a different way, and none of the three is the other's rule:
  *
- * On the public surface there is no user to authorize: the TOKEN is the
- * authorization, and it is checked in the controller against the caderno the
- * page belongs to. Returning true here would be a hole if the controller did
- * not do that — it does, exactly as `PublicDocumentationController::file()`
- * does for embedded media.
+ * - the **magic link** has no user at all: the TOKEN is the authorization, and
+ *   the controller checks it against the caderno the page belongs to. Returning
+ *   true here would be a hole if it did not — it does, exactly as
+ *   `PublicDocumentationController::file()` does for embedded media.
+ * - the **knowledge base** (`/docs`) authorizes by PUBLICATION. Deliberately
+ *   not by `NotebookPolicy::view`, which answers about the caderno as an object
+ *   of editing and says no to a `Reader` — the very tier this surface exists
+ *   for. Using it here would have made every lock on `/docs` refuse the
+ *   audience it was published to.
+ * - the **editor** is the caderno's own policy, unchanged.
+ *
+ * What none of them decides is whether the VALUE comes back: that is
+ * `RevealPageSecret`, identically on all three — an admin outright, everybody
+ * else with the caderno's secret code, five attempts per reader per twelve
+ * hours.
  */
 class RevealPageSecretRequest extends FormRequest
 {
@@ -24,6 +35,10 @@ class RevealPageSecretRequest extends FormRequest
 
         if (! $notebook instanceof Notebook) {
             return true;
+        }
+
+        if ($this->routeIs('docs.*')) {
+            return $notebook->isPublished();
         }
 
         return $this->user()?->can('view', $notebook) ?? false;

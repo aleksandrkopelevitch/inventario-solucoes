@@ -3,6 +3,7 @@
 use App\Http\Controllers\ApprovedTopologyController;
 use App\Http\Controllers\AttributeOptionController;
 use App\Http\Controllers\Auth\AccessLinkController;
+use App\Http\Controllers\Auth\EntraController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\ResetPasswordController;
@@ -19,6 +20,8 @@ use App\Http\Controllers\Inventory\CompanyController;
 use App\Http\Controllers\Inventory\PersonAccessController;
 use App\Http\Controllers\Inventory\PersonController;
 use App\Http\Controllers\Inventory\SolutionController;
+use App\Http\Controllers\KnowledgeBaseController;
+use App\Http\Controllers\KnowledgeBaseSettingsController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\NotebookContextDocumentController;
 use App\Http\Controllers\NotebookController;
@@ -60,8 +63,66 @@ Route::middleware('guest')->group(function () {
         ->name('password.update');
 });
 
-// Authenticated routes
-Route::middleware('auth')->group(function () {
+// Microsoft Entra ID SSO. Outside the `guest` group on purpose: `guest`
+// redirects an authenticated visitor to the app's home, and `callback` is the
+// one route here that can legitimately be reached with a session already in
+// hand (a second tab finishing a flow the first one started). Each action
+// refuses on its own terms instead — see EntraController.
+Route::get('auth/entra', [EntraController::class, 'redirect'])->name('entra.redirect');
+// `prompt=none`: started by AttemptEntraSilentSignOn, never by a person.
+Route::get('auth/entra/silent', [EntraController::class, 'silent'])->name('entra.silent');
+Route::get('auth/entra/callback', [EntraController::class, 'callback'])->name('entra.callback');
+
+/*
+|--------------------------------------------------------------------------
+| Base de conhecimento interna (`/docs`)
+|--------------------------------------------------------------------------
+|
+| SEMI-public: an account is required, but ANY account — including the `Reader`
+| tier Entra provisions, which reaches this and nothing else. That is why this
+| group carries `auth` WITHOUT `inventory`, and it is the only group in the file
+| that does.
+|
+| `entra.silent` runs FIRST, and the order is the feature: a guest is sent to
+| Entra with `prompt=none` and comes back signed in having seen nothing. Put
+| `auth` ahead of it and the guest meets the login screen before the silent
+| attempt ever runs.
+|
+| Static segments before the `{page}` wildcard, and every one of them is
+| reserved as a page slug (DocumentationPageService::RESERVED_SLUGS) — routes
+| match in registration order, so a page slugged `search` would simply never
+| open.
+*/
+Route::middleware(['entra.silent', 'auth'])->group(function () {
+    Route::get('docs', [KnowledgeBaseController::class, 'index'])->name('docs.index');
+
+    // Admin: which cadernos `/docs` shows. Before `docs/{notebook}` — same
+    // segment shape, and `settings` is reserved as a caderno slug.
+    Route::get('docs/settings', [KnowledgeBaseSettingsController::class, 'index'])->name('docs.settings');
+
+    Route::get('docs/{notebook}', [KnowledgeBaseController::class, 'notebook'])->name('docs.notebook');
+    Route::get('docs/{notebook}/search', [KnowledgeBaseController::class, 'search'])->name('docs.search');
+    // Media and diagram pictures get routes of their own rather than reusing
+    // `files.show` / `diagrams.picture.show`: those authorize by collection
+    // name and by `auth`, which a signed-in `Reader` satisfies — for every
+    // caderno in the app, published or not. See KnowledgeBaseController::file().
+    Route::get('docs/{notebook}/file/{media}', [KnowledgeBaseController::class, 'file'])->name('docs.file');
+    Route::get('docs/{notebook}/diagram/{diagram}', [KnowledgeBaseController::class, 'diagramPicture'])->name('docs.diagram');
+
+    Route::scopeBindings()->group(function () {
+        // `{page}` 404s unless it belongs to the `{notebook}` in the URL — a
+        // page slug is unique per caderno, never globally.
+        Route::post('docs/{notebook}/secrets/{page}/{index}', [KnowledgeBaseController::class, 'revealSecret'])
+            ->whereNumber('index')
+            ->name('docs.secrets');
+        Route::get('docs/{notebook}/{page}', [KnowledgeBaseController::class, 'page'])->name('docs.page');
+    });
+});
+
+// Authenticated routes — the INVENTORY. `inventory` is what keeps a `Reader`
+// out of it (App\Http\Middleware\EnsureInventoryAccess); the policies say the
+// same thing a second time, on purpose.
+Route::middleware(['auth', 'inventory'])->group(function () {
     Route::get('profile', [ProfileController::class, 'show'])->name('profile.show');
     Route::get('profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -494,6 +555,11 @@ Route::middleware('auth')->group(function () {
     // Which solutions this caderno documents — a full sync, never a toggle.
     Route::patch('notebooks/{notebook}/solutions', [NotebookController::class, 'syncSolutions'])->name('notebooks.solutions');
     // Public documentation link ("magic link"): generate/revoke (admin).
+    // Publication into the internal knowledge base. `administer` (admin), like
+    // the magic link beside it, and reachable from two screens: this caderno's
+    // share panel and the `/docs` settings list.
+    Route::patch('notebooks/{notebook}/publication', [KnowledgeBaseSettingsController::class, 'update'])->name('notebooks.publication');
+
     Route::post('notebooks/{notebook}/share', [NotebookController::class, 'share'])->name('notebooks.share');
     Route::delete('notebooks/{notebook}/share', [NotebookController::class, 'unshare'])->name('notebooks.unshare');
     // Rotates the caderno's secret code — the string that unlocks the protected
@@ -598,7 +664,11 @@ Route::post('public-docs/{token}/secrets/{slug}/{index}', [PublicDocumentationCo
 // cannot arise here (see § Caching in AGENTS.md).
 Route::get('public-docs/{token}/search', [PublicDocumentationController::class, 'search'])->name('public.docs.search');
 
+// The front door. A `Reader` is sent straight to `/docs` rather than to
+// `profile.show`, which sits inside the inventory: landing them there would
+// work — `EnsureInventoryAccess` catches it — but as a redirect they can watch
+// happen, on the app's very first screen.
 Route::get('/', fn () => auth()->check()
-    ? redirect()->route('profile.show')
+    ? redirect()->route(auth()->user()->role->canReadInventory() ? 'profile.show' : 'docs.index')
     : redirect()->route('login.create')
 );

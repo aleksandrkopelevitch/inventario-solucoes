@@ -4,6 +4,14 @@
     'nav' => null,
     'searchUrl' => null,
     'searchResults' => null,
+    // The caderno SWITCHER, and the one thing the two read-only surfaces do not
+    // share. Null on the magic link, where a token grants exactly one caderno
+    // and there is nothing to switch to; a collection of published cadernos on
+    // `/docs`, where the reader has an account and "what else is published" is
+    // a question that can honestly be answered.
+    'notebooks' => null,
+    'current' => null,
+    'homeUrl' => null,
 ])
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -29,10 +37,18 @@
         {{-- The caderno's name, and nothing over it. The "DOCUMENTAÇÃO"
              eyebrow that sat here said what the whole screen already is, and
              the word that actually earns a label — CADERNO — belongs next to
-             the page title, where it distinguishes the two names on screen. --}}
-        <div class="min-w-0">
-            <p class="truncate font-display text-base font-semibold leading-tight text-ink">{{ $heading }}</p>
-        </div>
+             the page title, where it distinguishes the two names on screen.
+
+             With a switcher it becomes a BUTTON carrying the same name plus a
+             chevron: the name stays exactly where it was and in the same type,
+             so the magic link and the knowledge base read as one screen. --}}
+        @if ($notebooks)
+            <x-docs.notebook-switcher :notebooks="$notebooks" :current="$current" :heading="$heading" :home-url="$homeUrl" />
+        @else
+            <div class="min-w-0">
+                <p class="truncate font-display text-base font-semibold leading-tight text-ink">{{ $heading }}</p>
+            </div>
+        @endif
 
         {{-- The search trigger, and nothing else: a field-shaped button that
              opens the palette. The facet rows that used to sit under it moved

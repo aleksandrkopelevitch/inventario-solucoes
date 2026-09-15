@@ -34,12 +34,13 @@ class NotebookController extends Controller
     use BuildsPagesNav;
 
     /**
-     * `panel` is refused for the same reason a page's slug refuses the segments
-     * under `notebooks/{notebook}/`: `notebooks/panel` is a real route (the
-     * create side panel), registered first, so a caderno slugged that way would
-     * be permanently unreachable at its own URL.
+     * `panel` and `settings` are refused for the same reason a page's slug
+     * refuses the segments under `notebooks/{notebook}/`: `notebooks/panel`
+     * (the create side panel) and `docs/settings` (the knowledge-base admin
+     * screen) are real routes, registered first, so a caderno slugged either
+     * way would be permanently unreachable at one of its own URLs.
      */
-    private const RESERVED_SLUGS = ['panel'];
+    private const RESERVED_SLUGS = ['panel', 'settings'];
 
     /** Characters in a freshly generated public link token — see share(). */
     public const TOKEN_LENGTH = 12;

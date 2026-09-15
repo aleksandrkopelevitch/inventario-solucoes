@@ -4,6 +4,8 @@ Catalog of Leo Madeiras' solutions/integrations: solution, people and company
 records, a documentation module (**cadernos** — a page tree per `Notebook`,
 each linked to 0..N solutions),
 a **diagrams** module (the graphical topology editor, one drawing at a time),
+an internal **knowledge base** (`/docs` — the cadernos an admin published, read
+by anybody with a Leo account, most of whom arrive through Entra SSO),
 and a read-only map of the ecosystem derived from those drawings. Fork of the
 generic infra from the
 **akop-pro** reference project (forms, slots, JS modules, layout shells) — that
@@ -377,6 +379,80 @@ with an indent class per depth — deliberately not a recursive partial, so ever
 row keeps a unique `$loop->index` for its hidden forms — and the indent steps
 are literal classes, because Tailwind only ships what it can see in the source
 (`ml-{{ $n }}` compiles to nothing).
+
+### Two read-only surfaces over the same pages, and only the URLs differ
+
+A caderno is READ in three places and the first one is not like the other two:
+the page EDITOR (`notebooks/{notebook}/{page}`), the magic link
+(`public-docs/{token}/…`) and the internal knowledge base (`docs/{notebook}/…`).
+The last two are the same screen — same shell, same rail, same ⌘K palette, same
+locks, same child-page cards — and they are the same screen in the CODE, not
+merely in appearance:
+
+- `App\Services\Documentation\DocumentationReader` builds the whole payload.
+- `App\Support\Documentation\ReaderUrls` is the only thing either controller
+  hands it that differs: where a page, a media file, a diagram picture, the
+  search endpoint and a lock's reveal endpoint live for THIS audience.
+- `x-documentation.reader-body` is the body both views render.
+
+That is deliberate and it is the requirement: the second copy is how "o mesmo
+layout" stops being true, on the day somebody fixes a bug on one of them. What
+the two surfaces genuinely do not share is one affordance — the caderno
+SWITCHER in the top bar — and the layout takes it as an optional prop
+(`:notebooks`), null on the magic link because a token grants exactly one
+caderno and there is nothing to switch to.
+
+**SEMI-public is the whole design of `/docs`.** The magic link carries no
+identity at all, which is what makes it right for a vendor and wrong for
+"everybody here"; `/docs` requires an account and accepts ANY account,
+including the `Reader` tier Entra provisions (§ Security). Publication is
+`notebooks.published_at` — a timestamp rather than a boolean, so the admin
+screen can answer "what is published, and since when", and `scopePublished()`
+is the one reading of it.
+
+Five rules that are easy to half-implement:
+
+- **Every endpoint re-asks whether the caderno is published**, including the
+  three reached by ID rather than by browsing — `file`, `diagramPicture`,
+  `search`. Those are the ones where the question is not "what should I list"
+  but "may this be served at all".
+- **It is NOT a policy.** `NotebookPolicy` answers about the caderno as an
+  object of EDITING and says `true` for every `Viewer`, including the two
+  hundred cadernos nobody published. The same trap bit
+  `RevealPageSecretRequest`, whose `authorize()` went through
+  `NotebookPolicy::view` — which refuses a `Reader`, so every lock on `/docs`
+  would have refused the exact audience the surface exists for.
+- **An unpublished caderno 404s for an ADMIN too.** `/docs` exists so that "what
+  has been published" is answerable by looking at it, and a surface that shows
+  more to whoever decides what is on it cannot answer that. Previewing before
+  publishing is what the editor is for.
+- **Media and diagram pictures need routes of their own**, and this is the
+  reason `/docs` differs from the magic link rather than reusing `files.show`: a
+  `Reader` IS authenticated, so `files.show` would answer them — with any
+  documentation media in the app. `MediaController::show()` authorizes by
+  COLLECTION NAME alone, which is the right rule for somebody who may read the
+  whole inventory and the wrong one for a reader of one published caderno.
+- **`linkDiagrams: false` on `/docs` as well.** The link COULD be rendered
+  conditionally — a reader who may reach `/diagrams/{slug}` exists — and
+  deliberately is not: the knowledge base would then be a screen whose content
+  changes with the viewer's tier, which is the property the search index gave up
+  `linkDiagrams` to avoid. The picture and the name are the documentation; the
+  link is an editing affordance.
+
+**Publishing is `NotebookPolicy::administer` (admin), and it is flipped from two
+screens.** `/docs/settings` lists every caderno with its switch and answers
+"what is published today"; the switch on each caderno's own share panel is how
+it is normally flipped, because that is where an admin already is when the
+question occurs to them. One column, one endpoint
+(`notebooks.publication`), and the response carries BOTH slots — forgetting one
+leaves the other screen showing a switch in the wrong position. `published_at`
+is deliberately outside `$fillable`, like `parent_id` on a page: the rename
+panel is `update` (editor) while publishing is `administer` (admin), and a
+fillable column is one posted field away from collapsing the two.
+
+The share panel states both audiences side by side on purpose. They are
+constantly mistaken for each other, and an admin reaching for "compartilhar"
+almost always means the internal one.
 
 ### Public documentation search — the corpus is an INDEX, not a query
 
@@ -1400,8 +1476,9 @@ Heading ANCHORS are a different construct and keep their accents on purpose
 re-derived, so they must match what commonmark emitted. Don't "fix" those.
 
 **URL paths in this app are in English** (`/solutions`, `/companies`,
-`/people`, `/notebooks`, `/documentation`, `/map`, `/flowspec`) even though every
-label the user reads is PT-BR — `/notebooks` is where a **caderno** lives. Keep
+`/people`, `/notebooks`, `/documentation`, `/docs`, `/map`, `/flowspec`) even
+though every label the user reads is PT-BR — `/notebooks` is where a **caderno**
+is edited and `/docs` is where a published one is read. Keep
 new paths English too, and always build URLs with `route()` rather than a
 literal. When you need a path, `php artisan route:list --path=<fragment>` is the
 only reliable source — this file has already drifted from reality once by citing
@@ -1420,10 +1497,19 @@ puts a wildcard where static segments also live:
   with `{page}` (same segment shape).
 - **Every one of them is reserved as a slug.** `DocumentationPageService::RESERVED_SLUGS`
   refuses `pages`/`share`/`context`/`chat`/`solutions`/`panel` for a page, and
-  `NotebookController::RESERVED_SLUGS` refuses `panel` for a caderno (there is a
-  real `notebooks/panel` route). That list was PT-BR and stale for months —
-  reserving five words no route used while leaving the five that mattered free
-  to collide — so check it against `route:list` when adding a segment.
+  `NotebookController::RESERVED_SLUGS` refuses `panel` and `settings` for a
+  caderno (there are real `notebooks/panel` and `docs/settings` routes). That
+  list was PT-BR and stale for months — reserving five words no route used while
+  leaving the five that mattered free to collide — so check it against
+  `route:list` when adding a segment.
+
+  **It is ONE list for TWO route families now.** `docs/{notebook}/{page}` has the
+  same shape as `notebooks/{notebook}/{page}`, so a page is only reachable if its
+  slug collides with neither — which is why `search`/`file`/`diagram`/`secrets`
+  are in the same constant rather than in a second one that goes stale. It is
+  only ever applied when a slug is GENERATED, so it cannot rescue a page that
+  already carries one; verified against the dev corpus when `/docs` landed (207
+  pages, 38 imported GitBook spaces, no collision).
 
 The **diagrams** routes are flat for the same reason `/notebooks` is:
 `diagrams/{diagram}/...` — a diagram is addressed by itself. Both used to be
@@ -1566,17 +1652,111 @@ Two things that go with it:
   `accountOf()`, so a person/account pair that is not actually linked 404s.
 
 
-### Three roles, and two predicates instead of thirteen comparisons
+### Entra SSO signs people in; it never decides what they may do
 
-`App\Enums\UserRole`: `Viewer` (Visualizador) reads, `Writer` (Editor) writes
+`/docs` is reachable by anybody at Leo, and the way most of them arrive is
+Microsoft Entra ID — OIDC authorization-code flow, through `laravel/socialite`
+plus the `azure` driver. `config/services.php` § `azure` documents the values;
+the feature ships OFF and stays off until the app registration exists, because
+`App\Support\Auth\EntraSso::configured()` gates every route AND the button, and
+a button that leads to a Microsoft error page is worse than no button.
+
+**The behaviour being copied is GitBook's, and it has two halves.** A guest
+reaching a knowledge-base page is sent to Entra with `prompt=none`
+(`AttemptEntraSilentSignOn` → `EntraController::silent()`): if their browser
+already holds a Microsoft session they come straight back signed in, having seen
+nothing. If not, Entra refuses without showing them anything either, and the
+callback puts them on the login screen with the button.
+
+**The silent attempt is spent at most ONCE per session, and that is the most
+important rule in the feature.** `prompt=none` fails by REDIRECTING back, so a
+failed attempt that leads to another attempt is an infinite loop between two
+hosts — the browser spins and the app looks down. The flag is written BEFORE the
+redirect leaves, never after the answer comes back (which is the version that
+loops when the answer never comes).
+
+Four more things, each of which was a way in that had to be closed:
+
+- **A tenant is not a payroll.** `ResolveEntraUser` checks the mailbox domain
+  again on the way back, exactly on the part after the last `@` — `str_ends_with`
+  on the whole address passes `@evil-leomadeiras.com.br`, which is a different
+  company. An empty allow-list refuses everybody: a mistyped
+  `ENTRA_ALLOWED_DOMAINS` should fail closed.
+- **A GUEST account is the case the domain check cannot see.** An external
+  person invited into the Leo tenant gets a UPN in a Leo domain, so the domain
+  check passes; `#EXT#` is the marker Entra puts in every one of them.
+- **A revoked account is never restored.** Revoking soft-deletes
+  (`GrantPersonAccess::revoke()`), and SSO that quietly brought it back would
+  make "remover acesso" mean nothing at all for anybody who still has a mailbox.
+- **The ROLE is never derived from a claim.** A first-time signer is a `Reader`
+  and an account we already hold keeps whatever it has — an admin who signs in
+  through SSO stays an admin, a reader promoted last week is not demoted by
+  their next sign-in. A permission this app derived from somebody else's
+  directory is a permission this app does not control. Matching is by `entra_id`
+  (the `oid`, which survives a rename) and by e-mail exactly ONCE, on the visit
+  that links the two — without that one match, an editor invited last year
+  arrives as a brand-new reader with their submissions stranded on the old row.
+
+Socialite owns the `state` parameter, which is the CSRF protection for the whole
+flow — `stateless()` is therefore never called here, since it would turn a login
+route into one anybody can make somebody else's browser complete.
+
+#### Route middleware is SORTED, so "listed first" is not "runs first"
+
+`entra.silent` has to run before `auth`, and putting it first in the group's
+middleware array does not achieve that. `Router::gatherRouteMiddleware()` sorts
+what it gathered through `$middlewarePriority`, and the authentication
+middleware is on that list while anything of ours is not — so `auth` was hoisted
+ahead of it, every guest met the login screen, and the silent sign-on never ran
+a single time. It failed **silently**, and from the outside it looked exactly
+like a middleware that had not been registered at all: `route:list` showed it on
+the route, the alias resolved, and `handle()` was simply never reached.
+
+`bootstrap/app.php` fixes it with `prependToPriorityList()`, and the anchor is
+the CONTRACT (`Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests`),
+not `Authenticate::class`. The priority list names the interface, and
+`prependToPriorityList()` given a class that is not literally in the list does
+not throw — it APPENDS, which puts the middleware last and reproduces the exact
+bug it was added to fix. Anything that must run before `auth` needs this, and
+needs a test that a guest is actually redirected somewhere other than the login
+screen.
+
+### Four roles, and four predicates instead of thirteen comparisons
+
+`App\Enums\UserRole`: `Reader` (Leitor) reads the knowledge base and nothing
+else, `Viewer` (Visualizador) reads the inventory, `Writer` (Editor) writes
 CONTENT, `Admin` (Administrador) does everything. Every policy decides through
-one of three predicates — `canWrite()` (admin or editor), `canDelete()` (admin)
-and `isAdmin()` (admin) — and never by comparing the case. That is the whole
-point of them: the same rule used to be written `$user->role === UserRole::Admin`
-in thirteen files, so adding a tier meant editing all thirteen and hoping.
+one of four predicates — `canReadInventory()` (everyone but a reader),
+`canWrite()` (admin or editor), `canDelete()` (admin) and `isAdmin()` (admin) —
+and never by comparing the case. That is the whole point of them: the same rule
+used to be written `$user->role === UserRole::Admin` in thirteen files, so adding
+a tier meant editing all thirteen and hoping.
+
+**`Reader` is the tier that changed what "logged in" means here.** Until it
+existed, holding an account and being able to read the whole inventory were the
+same thing: every `viewAny` answered `true`, so the `auth` middleware WAS the
+authorization for `/solutions`, `/people`, `/diagrams` and `/flowspec`. Entra
+SSO breaks that equivalence — an account stops being something an admin created
+one at a time and becomes something anybody with a Leo mailbox gets by visiting
+once. `canReadInventory()` is that seam, and it is drawn TWICE on purpose:
+
+- in every `viewAny`/`view`, which is what makes it true — an `authorize()` call
+  is supposed to answer correctly on its own;
+- once more at the route group (`App\Http\Middleware\EnsureInventoryAccess`,
+  aliased `inventory`), which is what makes it complete — a policy per
+  controller is a list somebody has to keep adding to, and the entry that gets
+  forgotten is a leak nobody sees.
+
+It answers a browser with a REDIRECT to `/docs` and a JSON caller with 403: for
+this audience it is not a refusal at all, it is somebody landing one screen away
+from the only thing they have. `/` and `LoginController::store()` route a reader
+to `/docs` directly for the same reason — landing them on `profile.show` works
+and is a redirect they can watch happen, on the app's first screen.
 
 Where the line falls, and why:
 
+- **A reader reads `/docs` and nothing else.** Not the catalog, not a person's
+  record, not a caderno that was never published.
 - **An editor creates and edits**: solutions, people, companies, cadernos and
   their pages, diagrams, the flowSpec corpus.
 - **DELETING is the admin's**, everywhere except a page (a page delete is part
@@ -1587,7 +1767,9 @@ Where the line falls, and why:
   (`UserPolicy::manage`), the attribute vocabulary (`AttributeOptionPolicy`,
   deliberately NARROWER than `SolutionPolicy` — a category invented while
   filling one form is a category every other form then offers), publishing a
-  caderno and its secret code (`NotebookPolicy::administer`).
+  caderno — to the magic link OR to `/docs` — and its secret code
+  (`NotebookPolicy::administer`, plus `administerAny` for the settings screen,
+  which asks the same question about the COLLECTION).
 - **`SubmissionPolicy` is untouched** and stays owner-based (admin OR the person
   who created it): a CATI submission is authored, not curated.
 

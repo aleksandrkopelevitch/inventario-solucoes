@@ -9,12 +9,12 @@ class SolutionPolicy
 {
     public function viewAny(User $user): bool
     {
-        return true;
+        return $user->role->canReadInventory();
     }
 
     public function view(User $user, Solution $solution): bool
     {
-        return true;
+        return $user->role->canReadInventory();
     }
 
     /** Creation and editing need write access (admin or editor). */

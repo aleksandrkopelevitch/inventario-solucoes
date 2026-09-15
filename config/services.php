@@ -28,6 +28,54 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Microsoft Entra ID (SSO for the knowledge base)
+    |--------------------------------------------------------------------------
+    |
+    | OIDC / authorization-code flow, through laravel/socialite and the
+    | `azure` driver (SocialiteProviders\Azure). The key is named `azure`
+    | because that is the name the driver reads; everything the APP calls it is
+    | "Entra", which is what the product is called now.
+    |
+    | `tenant` is a real tenant id and NEVER `common` or `organizations`. That
+    | is the difference between "somebody from Leo" and "somebody with any
+    | Microsoft account anywhere", and it is enforced twice on purpose: the
+    | authorize/token endpoints are tenant-scoped (so another tenant's user
+    | cannot even get a code), and `ResolveEntraUser` checks the mailbox domain
+    | again on the way back. The second check is what catches a GUEST account —
+    | an external person invited INTO the Leo tenant is a legitimate user of
+    | this tenant and is not a Leo employee.
+    |
+    | CLIENT SECRET: an encrypted environment variable in production
+    | (`php artisan env:encrypt`), like every other credential in this app. It
+    | is a bearer credential for the app's own identity at Entra, and Entra
+    | secrets are valid for up to 24 months.
+    |
+    | Turning `enabled` off leaves the password form as the only door, which is
+    | exactly the state this ships in until the app registration exists.
+    */
+    'azure' => [
+        'enabled'       => (bool) env('ENTRA_SSO_ENABLED', false),
+        'client_id'     => env('ENTRA_CLIENT_ID'),
+        'client_secret' => env('ENTRA_CLIENT_SECRET'),
+        'tenant'        => env('ENTRA_TENANT_ID'),
+        'redirect'      => env('ENTRA_REDIRECT_URI'),
+
+        /*
+        | The mailbox domains an SSO sign-in may carry. A tenant holds guests
+        | and service identities as well as employees, so "authenticated by our
+        | tenant" is not the same claim as "works at Leo Madeiras" — this is
+        | what makes it one. Comma-separated; matching is exact on the part
+        | after the `@`, folded to lowercase, and a subdomain does NOT match
+        | (`x@mail.leomadeiras.com.br` is not `@leomadeiras.com.br`).
+        */
+        'allowed_domains' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('ENTRA_ALLOWED_DOMAINS', 'leomadeiras.com.br')),
+        ))),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

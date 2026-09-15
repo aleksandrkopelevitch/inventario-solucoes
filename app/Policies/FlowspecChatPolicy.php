@@ -10,7 +10,7 @@ class FlowspecChatPolicy
 {
     public function viewAny(User $user): bool
     {
-        return true;
+        return $user->role->canReadInventory();
     }
 
     public function view(User $user, FlowspecChat $chat): bool
@@ -20,7 +20,7 @@ class FlowspecChatPolicy
 
     public function create(User $user): bool
     {
-        return true;
+        return $user->role->canReadInventory();
     }
 
     public function update(User $user, FlowspecChat $chat): bool

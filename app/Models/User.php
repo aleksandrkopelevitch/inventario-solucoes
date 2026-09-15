@@ -22,6 +22,12 @@ class User extends Authenticatable implements HasMedia
     /** @use HasFactory<UserFactory> */
     use HasFactory, InteractsWithMedia, Notifiable, SoftDeletes;
 
+    /**
+     * `entra_id` is deliberately absent: it is the account's identity at the
+     * identity provider, written only by App\Actions\Auth\ResolveEntraUser
+     * after Microsoft has attested it. Mass-assignable, it would be a posted
+     * field that says "I am this person at Entra".
+     */
     protected $fillable = ['role', 'name', 'email', 'password', 'preferences'];
 
     protected $hidden = ['password', 'remember_token'];

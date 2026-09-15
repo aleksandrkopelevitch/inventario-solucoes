@@ -10,12 +10,12 @@ class DiagramPolicy
     /** Any authenticated user can browse the diagram catalog. */
     public function viewAny(User $user): bool
     {
-        return true;
+        return $user->role->canReadInventory();
     }
 
     public function view(User $user, Diagram $diagram): bool
     {
-        return true;
+        return $user->role->canReadInventory();
     }
 
     /** Creation and editing need write access; DELETING a drawing does not

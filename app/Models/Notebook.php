@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Database\Factories\NotebookFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -28,6 +29,11 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  *
  * - **The magic link is the notebook's** (`public_token`), not a solution's.
  *   You share a caderno.
+ * - **So is publication to the internal knowledge base** (`published_at`,
+ *   `/docs`). The two are different audiences and neither implies the other: a
+ *   caderno can be handed to a vendor by magic link and still not be something
+ *   everybody at Leo should stumble into, and far more of them are the other
+ *   way round.
  * - **The AI context documents are the notebook's** (`CONTEXT_COLLECTION`).
  *   The Assiste IA chat is scoped to a notebook; the ATTRIBUTE half of its
  *   requirements checklist is what reaches back through `solutions()`.
@@ -74,6 +80,18 @@ class Notebook extends Model implements HasMedia
         'slug',
         'public_token',
     ];
+
+    /**
+     * `published_at` is deliberately absent above, like `parent_id` on a page
+     * and `user_id` on a person: publishing is `NotebookPolicy::administer`
+     * (admin), while `update` (editor) is what reaches the panel a caderno is
+     * renamed from. A fillable column is one posted field away from letting an
+     * editor publish the caderno they are editing.
+     */
+    protected function casts(): array
+    {
+        return ['published_at' => 'datetime'];
+    }
 
     public function getRouteKeyName(): string
     {
@@ -122,6 +140,33 @@ class Notebook extends Model implements HasMedia
         return $this->public_token
             ? route('public.docs.notebook', $this->public_token)
             : null;
+    }
+
+    /**
+     * Published into the internal knowledge base — visible at `/docs` to
+     * anybody signed in with a Leo account.
+     *
+     * A scope rather than a `where` written out at each call site, because
+     * "which cadernos does `/docs` show" is asked in six places (the landing,
+     * the switcher, every page render, the search, the media route and the
+     * diagram-picture route) and every one of them is an AUTHORISATION. The
+     * last three matter most: they are reached by id, so the question they ask
+     * is not "what should I list" but "may this be served at all".
+     */
+    public function scopePublished(Builder $query): void
+    {
+        $query->whereNotNull('published_at');
+    }
+
+    public function isPublished(): bool
+    {
+        return $this->published_at !== null;
+    }
+
+    /** URL of this caderno in the internal knowledge base. */
+    public function knowledgeBaseUrl(): string
+    {
+        return route('docs.notebook', $this);
     }
 
     /**

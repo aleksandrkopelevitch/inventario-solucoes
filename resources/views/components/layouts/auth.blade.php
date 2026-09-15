@@ -71,5 +71,28 @@
     </div>
 </div>
 
+{{-- Flash messages, through the app's own Toast — the same block
+     `layout.blade.php` carries, and it had to be here too the moment a redirect
+     could land on the LOGIN screen carrying one. Every Entra refusal does
+     exactly that (`Auth\EntraController`): without this, "essa conta não é uma
+     conta Leo Madeiras" was written and silently dropped, and the person was
+     bounced back to a login form that looked like nothing had happened.
+
+     Wrapped in `DOMContentLoaded` because `@vite` loads app.js as a MODULE
+     (deferred): an inline classic script runs while the document is still
+     parsing, so `Toast` doesn't exist yet at this point in the body. --}}
+@if (session('error') || session('status'))
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            @if (session('error'))
+                Toast.show(@json(session('error')), 'warning')
+            @endif
+            @if (session('status'))
+                Toast.show(@json(session('status')))
+            @endif
+        })
+    </script>
+@endif
+
 </body>
 </html>
