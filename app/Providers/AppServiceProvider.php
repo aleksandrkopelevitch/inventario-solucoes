@@ -2,15 +2,19 @@
 
 namespace App\Providers;
 
+use App\Models\McpToken;
 use App\Support\Digibee\DigibeeAuthResolver;
 use App\Support\Fold;
 use App\Support\Gitbook\TransientHttpFailure;
 use Carbon\Carbon;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Events\ConnectionEstablished;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use SocialiteProviders\Azure\Provider as AzureProvider;
 use SocialiteProviders\Manager\SocialiteWasCalled;
@@ -36,6 +40,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->bootSearchFolding();
         $this->bootEntraSocialite();
+        $this->bootMcpRateLimiter();
 
         // GitBook's REST API — the only external HTTP service this app talks
         // to (read-only, `php artisan gitbook:import`). Explicit timeouts, as
@@ -135,6 +140,33 @@ class AppServiceProvider extends ServiceProvider
      * its own, which handles case and not accents; a macro can never shadow a
      * real method, so that name would simply be dead code.
      */
+    /**
+     * The MCP endpoint's rate limit, keyed by the TOKEN rather than by the IP.
+     *
+     * The IP is the wrong key here and would be wrong in both directions: every
+     * request from a given chat product arrives from that product's egress
+     * range, so two unrelated tokens share a bucket, while one token used from a
+     * laptop and from a phone gets two. The token is the thing being spent.
+     *
+     * The fallback to the IP covers requests that never reached
+     * `AuthenticateMcpToken` — a wrong token, in other words — which is exactly
+     * the traffic worth limiting by origin: without it, guessing tokens is
+     * unthrottled.
+     *
+     * 120/minute is generous on purpose. A model exploring the catalog makes a
+     * burst of calls to answer one question, and a limit tuned to a human's
+     * clicking rate would break the ordinary case while doing nothing about the
+     * one it is here for.
+     */
+    private function bootMcpRateLimiter(): void
+    {
+        RateLimiter::for('mcp', fn (Request $request) => Limit::perMinute(120)->by(
+            ($request->attributes->get('mcp_token') instanceof McpToken)
+                ? 'mcp-token:' . $request->attributes->get('mcp_token')->getKey()
+                : 'mcp-ip:' . $request->ip(),
+        ));
+    }
+
     /**
      * Registers the `azure` Socialite driver (Microsoft Entra ID).
      *

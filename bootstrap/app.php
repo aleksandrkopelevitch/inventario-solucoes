@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AttemptEntraSilentSignOn;
+use App\Http\Middleware\AuthenticateMcpToken;
 use App\Http\Middleware\EnsureInventoryAccess;
 use App\Http\Middleware\PreventJsonResponseCaching;
 use Illuminate\Auth\AuthenticationException;
@@ -11,6 +12,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -20,12 +22,37 @@ return Application::configure(basePath: dirname(__DIR__))
         web: __DIR__ . '/../routes/web.php',
         commands: __DIR__ . '/../routes/console.php',
         health: '/up',
+        // The MCP endpoint, registered through `then` rather than as `api:`
+        // because `api:` would mount it under `/api` and inside the `api`
+        // middleware group. Neither is wanted: the path every MCP client's
+        // configuration help assumes is a bare one, and the `mcp` group below
+        // is the whole middleware stack this route needs.
+        then: function (): void {
+            Route::middleware('mcp')->group(__DIR__ . '/../routes/mcp.php');
+        },
     )
     ->withMiddleware(function (Middleware $middleware): void {
         // Override the default redirect so route('login') is never called
         $middleware->redirectGuestsTo(fn () => route('login.create'));
 
         $middleware->appendToGroup('web', PreventJsonResponseCaching::class);
+
+        // The MCP endpoint's whole stack, and the point of it is what is NOT
+        // here: no session, no cookies, no CSRF, no `Authenticate`. The caller
+        // is a program holding a bearer token, so a session it never had and a
+        // CSRF token it cannot obtain would only be ceremony — and CSRF exists
+        // to protect a browser that attaches a cookie without being asked,
+        // which is the one thing this caller never does.
+        //
+        // The order is load-bearing and, unlike the `entra.silent` case below,
+        // it holds: `$middlewarePriority` only reorders middleware it knows,
+        // and neither of these is on that list, so a group's array order is
+        // honoured. Authentication comes FIRST so the throttle can key on the
+        // token it resolved (see `AppServiceProvider::bootMcpRateLimiter()`).
+        $middleware->group('mcp', [
+            AuthenticateMcpToken::class,
+            'throttle:mcp',
+        ]);
 
         // Aliases, both used on route groups in `routes/web.php`:
         //
