@@ -5,7 +5,7 @@ paths:
   - "app/Support/GitbookRenderer.php"
   - "resources/js/modules/docs-markdown.js"
   - "app/Http/Requests/MoveDocumentationPageRequest.php"
-  - "app/Http/Requests/MoveDocumentationPageToContainerRequest.php"
+  - "app/Http/Requests/MoveDocumentationPageToNotebookRequest.php"
   - "app/Http/Requests/StoreDocumentationPageRequest.php"
   - "app/Services/DocumentationPageService.php"
   - "app/Models/DocumentationPage.php"
@@ -131,7 +131,7 @@ Three details that make that work, each easy to break:
   the same rule the rest of the module keeps — so a re-shaped page keeps the
   slug built from its old prefixed title. That is intentional, not an oversight.
 - **`position` is per sibling list**, one counter per parent, because that is
-  what `position` means since the tree gained depth (§ Cadernos in AGENTS.md). One counter for the whole space would scramble every level.
+  what `position` means since the tree gained depth (`.claude/rules/cadernos-notebooks.md`). One counter for the whole space would scramble every level.
 
 It is worth knowing this module exists for three reasons beyond GitBook:
 
@@ -140,8 +140,8 @@ It is worth knowing this module exists for three reasons beyond GitBook:
   only artisan command in the app; `routes/console.php` still holds only
   Laravel's `inspire` stub.
 - **It is the first `app/Exceptions/`.** `GitbookApiException` is
-  self-contained (it authors its own operator-facing message, per § Error
-  Handling) and is CAUGHT by the command rather than left to bubble — a stack
+  self-contained (it authors its own operator-facing message — see
+  `.claude/rules/errors-and-json-responses.md`) and is CAUGHT by the command rather than left to bubble — a stack
   trace tells an operator nothing the message doesn't. That is the exception to
   "never try/catch"; it applies to controllers, where exceptions must reach the
   central handler.
@@ -157,7 +157,7 @@ up as literal `{% … %}` text on screen, or quietly disappears from the editor.
 - **Only four of these `{% %}` constructs come from GitBook** — `hint`,
   `tabs`/`tab`, `file`, `embed` — and two more are ours: `diagram` (a citation
   of a drawing in the catalog, self-closing with a `slug`) and `secret` (a
-  protected value, the only INLINE one — see § Cadernos in AGENTS.md). They are
+  protected value, the only INLINE one — see `.claude/rules/cadernos-notebooks.md`). They are
   parsed TWICE, by `App\Support\GitbookRenderer` (read-only render) and by
   `resources/js/modules/docs-markdown.js` (the editor), with near-duplicate
   regexes that must stay in step — `secret` in the INLINE halves of both
@@ -272,7 +272,7 @@ Six things about it that are easy to get wrong:
   with its own policy, and a failure there must be a **403, not a 422** — so the
   controller resolves `$request->destination()` and calls
   `authorize('update', …)` on it. Don't fold that into a validation rule.
-- **`notebook_id` is not in `$fillable`** (§ Security), so
+- **`notebook_id` is not in `$fillable`** (see AGENTS.md § Security), so
   `DocumentationPageService::moveToNotebook()` uses
   `$page->notebook()->associate($destination)` — never `update()`, which would
   either be silently discarded or force widening mass assignment.

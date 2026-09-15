@@ -1,12 +1,12 @@
 ---
 paths:
-  - "resources/js/modules/integration-viz.js"
-  - "resources/views/components/solutions/integration-viz.blade.php"
+  - "resources/js/modules/chain-viz.js"
+  - "resources/views/components/chain/viz.blade.php"
 ---
 
-### F3 canvas gestures run on POINTER events — never add a `mouse*` listener
+### The chain canvas runs on POINTER events — never add a `mouse*` listener
 
-Every gesture in `integration-viz.js` (block drag, drag-an-arrow-out-of-a-port,
+Every gesture in `chain-viz.js` (block drag, drag-an-arrow-out-of-a-port,
 retarget an arrow tip, move/resize a swimlane, move a post-it, pan the canvas)
 is registered as `pointerdown`/`pointermove`/`pointerup`, which fire for mouse,
 touch and pen with one code path. There is exactly ONE drag dispatcher — two
@@ -59,4 +59,4 @@ don't exist on touch (ports are revealed by `.is-selected` too, which is why
 tap-to-select-then-drag works), and `dblclick` has no touch equivalent — so
 anything reachable only by double-click needs a second path, which is what
 `data-viz-toolbar-rename` is for. Precision targets get a bigger hit area via
-`@media (pointer: coarse)` in `integration-viz.blade.php`.
+`@media (pointer: coarse)` in `components/chain/viz.blade.php`.
