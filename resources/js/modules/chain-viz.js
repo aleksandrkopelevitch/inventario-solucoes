@@ -329,6 +329,13 @@ const EXPORT_PRESETS = {
     casual:      { bg: '#FFF7ED' },
     corporativo: { bg: '#F5F8F6' },
     tech:        { bg: '#132A45' },
+    // The two token themes: their canvas IS `--viz-bg`, so these two values
+    // must stay equal to the `.ak-viz-viewport[data-viz-preset="…"]` blocks in
+    // the component's <style>. Both keep the dotted grid live (they only
+    // retint it); a flat fill is all `toCanvas()` can take, so the export
+    // drops the dots the same way every other preset here does.
+    arquitetura: { bg: '#020617' },
+    blueprint:   { bg: '#EDF7FA' },
 }
 
 // Descobre até `PRESENT_MAX_PATHS` caminhos no grafo livre da chain, um por
