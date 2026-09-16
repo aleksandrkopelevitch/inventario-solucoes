@@ -8,7 +8,9 @@ use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 /**
  * The whole authentication of the MCP server — two credentials, one `Actor`.
@@ -82,7 +84,23 @@ class AuthenticateMcpRequest
         // simply answers null, which is the same 401 either way. Asked
         // unconditionally rather than only when a header is present, because the
         // guard is the one thing that knows what it accepts.
-        $user = Auth::guard('api')->user();
+        //
+        // The try/catch is not defensive habit, it is a production incident: with
+        // Passport's signing keys absent from the server, league/oauth2-server
+        // throws `LogicException: Invalid key supplied` while merely LOOKING at
+        // the request — so an anonymous probe, the first thing any connector
+        // sends, came back 500. A client reads that as "this is not an MCP
+        // server" and stops; it never reaches the 401 that would have told it
+        // where to sign in. A credential this server cannot verify is not a
+        // credential, and the honest answer is the same 401 an invalid one gets,
+        // with the operator's half of the problem written to the log.
+        try {
+            $user = Auth::guard('api')->user();
+        } catch (Throwable $e) {
+            Log::error('MCP OAuth guard unavailable — is the Passport key installed?', ['exception' => $e]);
+
+            return null;
+        }
 
         return $user instanceof User ? Actor::fromUser($user) : null;
     }

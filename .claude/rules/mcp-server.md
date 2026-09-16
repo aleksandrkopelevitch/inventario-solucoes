@@ -73,6 +73,16 @@ Four things the OAuth half decided, each reversible by accident:
   whose port a desktop client picks at runtime). A wildcard there re-opens
   exactly the hole the list closes.
 
+**A broken OAuth half must not 500 the endpoint.** `AuthenticateMcpRequest`
+catches whatever the guard throws and answers the ordinary 401. That is not
+defensive habit: on the first production deploy the Passport keys had never been
+generated, league/oauth2-server threw `Invalid key supplied` while merely LOOKING
+at the request, and the anonymous probe every connector opens with came back 500
+— which a client reads as "not an MCP server", stopping before it ever sees the
+401 that says where to sign in. The keys live on the server and not in the repo
+(`envoy run passport`, generated as www-data since Envoy connects as root), so
+"the key is missing" is a state this endpoint has to stay legible in.
+
 Passport carries the grant and nothing else: authorization code + PKCE (S256
 only), public clients, no password/implicit/device grant, no client-management
 API. One scope, `mcp`, and it is a LABEL — access is decided per request from the

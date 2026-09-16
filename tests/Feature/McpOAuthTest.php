@@ -4,7 +4,10 @@ use App\Enums\UserRole;
 use App\Mcp\OAuth;
 use App\Models\McpToken;
 use App\Models\User;
+use Illuminate\Auth\GuardHelpers;
+use Illuminate\Contracts\Auth\Guard;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Laravel\Passport\ClientRepository;
 use Laravel\Passport\Passport;
@@ -243,4 +246,65 @@ it('revokes one connection, and only the account own', function () {
         ->assertJsonPath('message', 'Conexão revogada.');
 
     expect($token->fresh()->revoked)->toBeTrue();
+});
+
+/* ------------------------------------------------------------------ */
+/*  When the OAuth half is broken */
+/* ------------------------------------------------------------------ */
+
+it('still answers 401 when the guard itself cannot run', function () {
+    // The production incident this test exists for: with Passport's signing keys
+    // absent from the server, league/oauth2-server throws while merely looking at
+    // the request, and the anonymous probe every connector sends came back 500.
+    // A client reads a 500 as "not an MCP server" and gives up before it ever
+    // sees the 401 that tells it where to sign in.
+    Auth::extend('exploding', fn () => new class implements Guard
+    {
+        use GuardHelpers;
+
+        public function user(): never
+        {
+            throw new LogicException('Invalid key supplied');
+        }
+
+        public function validate(array $credentials = []): bool
+        {
+            return false;
+        }
+    });
+    config(['auth.guards.api.driver' => 'exploding']);
+
+    $this->postJson(route('mcp.handle'), ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/list'])
+        ->assertStatus(401)
+        // And it still points at the metadata, which is the whole content of
+        // that answer: "sign in over there".
+        ->assertHeader('WWW-Authenticate', sprintf(
+            'Bearer resource_metadata="%s", error="invalid_token"',
+            route('mcp.oauth.protected-resource', ['path' => 'mcp']),
+        ))
+        ->assertJsonPath('error.code', -32001);
+});
+
+it('keeps the token half working while the OAuth half is broken', function () {
+    // The two credentials are independent: a minted token is checked BEFORE the
+    // guard is ever asked, so a missing key cannot take the programs down with it.
+    Auth::extend('exploding2', fn () => new class implements Guard
+    {
+        use GuardHelpers;
+
+        public function user(): never
+        {
+            throw new LogicException('Invalid key supplied');
+        }
+
+        public function validate(array $credentials = []): bool
+        {
+            return false;
+        }
+    });
+    config(['auth.guards.api.driver' => 'exploding2']);
+
+    $this->postJson(route('mcp.handle'), ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/list'], [
+        'Authorization' => 'Bearer ' . McpToken::mint('APLA')['plain'],
+    ])->assertOk();
 });

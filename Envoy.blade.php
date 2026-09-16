@@ -231,12 +231,20 @@
     Outside the 'deploy' story, like 'supervisor': run ONCE, by hand, when this
     app first gains its OAuth server or if the keys are ever lost.
 
-    `passport:keys` writes storage/oauth-private.key (0600) and its public half.
-    Two things to check on the first run, both about WHO runs what: the key has
-    to be readable by the user php-fpm serves as (www-data on this droplet), and
-    Envoy connects as whoever ~/.ssh/config's `akop` alias names — if those
-    differ, chown the pair to www-data afterwards, or Passport fails to read its
-    own key with a permissions error that names the file and not the reason.
+    `passport:keys` writes storage/oauth-private.key (0600) and its public half,
+    and WHO writes them is the whole difficulty: Envoy connects as root here,
+    php-fpm serves as www-data, and a 0600 key owned by root is a key the app
+    cannot read. Hence `sudo -u www-data` below rather than a plain artisan call
+    — generating as root and chowning afterwards works too, and is one more step
+    to forget.
+
+    This was learned the slow way on 2026-09-16: the keys were never generated
+    after the first deploy, league/oauth2-server threw `Invalid key supplied`
+    while merely looking at a request, and every anonymous probe answered 500.
+    Claude Desktop reads a 500 as "not an MCP server" and stops at "não foi
+    possível verificar o servidor". The middleware degrades to a 401 now, so the
+    same mistake is legible rather than fatal — but the connector still cannot
+    work until this task has run.
 
     Regenerating invalidates every access token already issued: everybody who
     connected a chat client has to authorize again. That is the intended way to
@@ -244,6 +252,6 @@
 --}}
 @task('passport', ['on' => 'web'])
     cd {{ $appDir }}
-    php artisan passport:keys
+    sudo -u www-data php artisan passport:keys
     ls -l storage/oauth-private.key storage/oauth-public.key
 @endtask
