@@ -115,6 +115,50 @@ it('reports the validator problems instead of swallowing them', function () {
     @unlink($path);
 });
 
+it('answers for itself when the binary cannot be launched', function () {
+    // Reported from production as a bare "Server Error": Symfony THROWS
+    // ProcessStartFailedException when a binary cannot be launched — no Node on
+    // the box, or not on the web user's PATH — so `available()`, whose whole job
+    // is to answer that question, exploded while answering it.
+    config(['services.archify.node' => '/nonexistent/definitely-not-node']);
+
+    $runner = app(ArchifyRunner::class);
+
+    expect($runner->available())->toBeFalse();
+
+    $result = $runner->validate('sequence', __FILE__);
+
+    expect($result->ok)->toBeFalse()
+        // "did not run" is a different fact from "your spec is invalid", and
+        // the services above branch on it.
+        ->and($result->ran)->toBeFalse();
+});
+
+it('turns a missing renderer into a message, never a 500', function () {
+    config(['services.archify.node' => '/nonexistent/definitely-not-node']);
+
+    $page = artifactPage();
+    app()->instance(PageArtifactService::class, fakeArtifactService(artifactJson(sequenceSpec())));
+
+    $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]))
+        ->postJson(route('notebooks.pages.artifacts.store', [$page->notebook, $page, 'sequence']))
+        ->assertStatus(422)
+        ->assertJsonPath('type', 'warning');
+
+    expect($page->fresh()->getMedia(DocumentationPage::ARTIFACTS_COLLECTION))->toBeEmpty();
+});
+
+it('answers for itself when the renderer runs out of time', function () {
+    // The other way Symfony throws instead of reporting: a process killed on
+    // timeout. It reached the browser as a 500 too.
+    config(['services.archify.timeout' => 0.001]);
+
+    $service = fakeArtifactService(artifactJson(sequenceSpec()));
+
+    expect(fn () => $service->render(artifactPage(), ArtifactDiagramType::Sequence))
+        ->toThrow(PageArtifactFailed::class, 'não está disponível');
+});
+
 // ---------------------------------------------------------------------------
 // Spec → artifact.
 // ---------------------------------------------------------------------------

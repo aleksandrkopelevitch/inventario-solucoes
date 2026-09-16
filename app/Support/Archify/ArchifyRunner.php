@@ -3,6 +3,7 @@
 namespace App\Support\Archify;
 
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\Process\Exception\ExceptionInterface as ProcessException;
 use Symfony\Component\Process\Process;
 
 /**
@@ -81,7 +82,25 @@ class ArchifyRunner
         );
 
         $process->setTimeout((float) config('services.archify.timeout'));
-        $process->run();
+
+        try {
+            $process->run();
+        } catch (ProcessException $e) {
+            // Symfony THROWS rather than returning a failing exit code for the
+            // two ways a process can fail to produce a verdict: it could not be
+            // launched (`ProcessStartFailedException` — no Node on the box, or
+            // not on the web user's PATH) and it was killed on timeout. Both
+            // reached the browser as a 500 before this, which is the one answer
+            // this class must never give: `available()` exists to ANSWER the
+            // question "can the sidecar run", so it cannot be allowed to
+            // explode while doing it.
+            Log::error('Archify: CLI could not run', [
+                'arguments' => $arguments,
+                'reason'    => $e->getMessage(),
+            ]);
+
+            return ArchifyResult::couldNotRun($e->getMessage());
+        }
 
         $stdout = trim($process->getOutput());
 
@@ -105,6 +124,12 @@ class ArchifyRunner
                 ok: $process->isSuccessful(),
                 problems: $process->isSuccessful() ? [] : [trim($process->getErrorOutput()) ?: 'archify: exit ' . $process->getExitCode()],
                 stderr: $process->getErrorOutput(),
+                // A FAILING exit with no JSON produced no verdict either, and
+                // that is the shape a missing binary actually takes: `proc_open`
+                // succeeds and the child exits 127, so nothing is thrown and the
+                // only evidence is on stderr. Reporting that as "your spec is
+                // invalid" sent an operator looking at the diagram.
+                ran: $process->isSuccessful(),
             );
         }
 

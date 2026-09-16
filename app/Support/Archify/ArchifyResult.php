@@ -17,13 +17,25 @@ final class ArchifyResult
     /**
      * @param  array<mixed>  $payload  the decoded `--json` envelope
      * @param  list<string>  $problems
+     * @param  bool  $ran  whether the CLI actually RAN. False means the process
+     *                     never produced a verdict — the binary could not be
+     *                     launched, or it was killed on timeout — which is an
+     *                     operator's problem and reads nothing like "your
+     *                     diagram is invalid".
      */
     public function __construct(
         public readonly bool $ok,
         public readonly array $payload = [],
         public readonly array $problems = [],
         public readonly string $stderr = '',
+        public readonly bool $ran = true,
     ) {}
+
+    /** The sidecar could not be executed at all. */
+    public static function couldNotRun(string $reason): self
+    {
+        return new self(ok: false, problems: [$reason], stderr: $reason, ran: false);
+    }
 
     /**
      * @param  array<mixed>  $payload

@@ -61,6 +61,13 @@ class CompareSubmissionTopologies
 
             $result = $this->archify->compare($basePath, $headPath, $outPath, $receiptPath);
 
+            // Same distinction the artifact service makes: a sidecar that never
+            // ran is an operator's problem, not a pair of drawings that cannot
+            // be compared.
+            if (! $result->ran) {
+                throw TopologyCompareFailed::rendererUnavailable();
+            }
+
             if (! $result->ok || ! is_file($outPath)) {
                 throw TopologyCompareFailed::rejected($result->problems);
             }

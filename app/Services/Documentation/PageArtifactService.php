@@ -120,6 +120,13 @@ class PageArtifactService
 
             $validation = $this->archify->validate($type->value, $specPath);
 
+            // A sidecar that never ran said nothing about the spec, so it must
+            // not be reported as a spec that failed validation — and there is
+            // nothing for the repair round to repair.
+            if (! $validation->ran) {
+                throw PageArtifactFailed::rendererUnavailable();
+            }
+
             if (! $validation->ok) {
                 $payload = $this->repair($type, $payload, $validation->problems);
                 file_put_contents($specPath, ModelJson::encode($payload));
@@ -132,6 +139,10 @@ class PageArtifactService
             }
 
             $delivery = $this->archify->deliver($type->value, $specPath, $outPath);
+
+            if (! $delivery->ran) {
+                throw PageArtifactFailed::rendererUnavailable();
+            }
 
             if (! $delivery->ok || ! is_file($outPath)) {
                 throw PageArtifactFailed::rejected($delivery->problems ?: ['a renderização falhou']);
