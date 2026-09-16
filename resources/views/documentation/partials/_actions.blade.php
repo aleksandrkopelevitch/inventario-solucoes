@@ -40,6 +40,28 @@
         </x-forms.button>
     @endif
 
+    {{-- "Desenhar esta página": the topology the prose describes, as an
+         ordinary Diagram in its own module. Guarded by the ability rather than
+         by `$canEdit`, because the two answer different questions — this reads
+         the page and writes a row somewhere else, so what matters is whether
+         this account may put a drawing in the catalog.
+
+         It sits in its own <form> for one reason: ajax-post.js builds a
+         FormData from the form the button names, and there is no form in this
+         bar to borrow. `class="contents"` keeps it out of the flex row's
+         geometry. No `type="button"` — a button carrying `data-ak-ajax` must
+         stay a submit, or Enter silently stops working (AGENTS.md). --}}
+    @isset($diagramDraftUrl)
+        @can('create', App\Models\Diagram::class)
+            <form id="docs-diagram-form" class="contents">
+                <x-forms.button variant="ghost" data-ak-ajax="docs-diagram-form" data-ak-action="{{ $diagramDraftUrl }}"
+                    class="!h-9 !w-9 !p-0" aria-label="Desenhar esta página" title="Desenhar esta página">
+                    <x-heroicon-o-rectangle-group class="size-5" />
+                </x-forms.button>
+            </form>
+        @endcan
+    @endisset
+
     @if ($canEdit)
         {{-- `data-ak-panel-dock` anchors the panel as `#docs-shell`'s right COLUMN
              (2026-08-29) — talking about the documentation while it disappeared

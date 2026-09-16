@@ -27,6 +27,7 @@ use App\Http\Controllers\MediaController;
 use App\Http\Controllers\NotebookContextDocumentController;
 use App\Http\Controllers\NotebookController;
 use App\Http\Controllers\NotebookPageController;
+use App\Http\Controllers\NotebookPageDiagramController;
 use App\Http\Controllers\PipelineRunController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicDocumentationController;
@@ -631,6 +632,11 @@ Route::middleware(['auth', 'inventory'])->group(function () {
         Route::post('notebooks/{notebook}/{page}/secrets/{index}', [NotebookPageController::class, 'revealSecret'])
             ->whereNumber('index')
             ->name('notebooks.pages.secrets');
+        // The drawing this page describes. Creates an ordinary Diagram in its
+        // own module and redirects to its canvas — the page is READ here and
+        // never written, and nothing links the two afterwards (prose reaches a
+        // drawing by citing it).
+        Route::post('notebooks/{notebook}/{page}/diagram', [NotebookPageDiagramController::class, 'store'])->name('notebooks.pages.diagram');
         // Documentation Assistant — a chat that helps write the page (job + polling per turn).
         Route::get('notebooks/{notebook}/{page}/chat', [NotebookPageController::class, 'chatPanel'])->name('notebooks.chat.panel');
         Route::post('notebooks/{notebook}/{page}/chat/messages', [NotebookPageController::class, 'sendMessage'])->name('notebooks.chat.messages.store');

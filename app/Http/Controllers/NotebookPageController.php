@@ -79,6 +79,8 @@ class NotebookPageController extends Controller
             'notebookEditable'  => auth()->user()?->can('update', $notebook) ?? false,
             'createPageUrl'     => route('notebooks.pages.store', $notebook),
             'chatPanelUrl'      => route('notebooks.chat.panel', [$notebook, $page]),
+            // "Desenhar esta página" — reads the page, writes a Diagram.
+            'diagramDraftUrl'   => route('notebooks.pages.diagram', [$notebook, $page]),
             // Where a lock posts its code. A TEMPLATE, with the ordinal as a
             // placeholder `docs-secret.js` substitutes: the reader holds many
             // locks and the module must not build a path of its own (same rule

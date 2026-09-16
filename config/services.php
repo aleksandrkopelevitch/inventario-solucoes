@@ -411,6 +411,12 @@ return [
         'provider' => env('DOCS_AI_PROVIDER', 'gemini'),
         'model'    => env('DOCS_AI_MODEL', 'gemini-3.6-flash'),
         'timeout'  => env('DOCS_AI_TIMEOUT', 180),
+        // The diagram draft (DiagramDraftService) gets its own, much shorter
+        // ceiling: it is the one model call in this app that answers INSIDE a
+        // request, with somebody watching a button spinner, so 180s is not a
+        // timeout there — it is a hung tab. Two calls at most (draft + one
+        // repair round) fit inside it.
+        'diagram_timeout' => env('DOCS_AI_DIAGRAM_TIMEOUT', 60),
         // Character budget for TEXT context documents embedded in the prompt
         // (PDF/image go as attachments, outside this limit).
         'doc_budget_chars'      => env('DOCS_AI_DOC_BUDGET_CHARS', 60000),
