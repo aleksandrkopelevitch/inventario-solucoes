@@ -62,6 +62,52 @@
                 <span class="hidden shrink-0 rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-[10px] sm:block">⌘K</span>
             </button>
         @endif
+
+        {{-- The account corner, and the only one a Reader ever sees: this shell
+             is the WHOLE app for somebody Entra SSO provisioned, so the two
+             things that are nowhere else on their screen — who they are signed
+             in as, and how to stop being signed in as them — belong here.
+
+             `@auth` because this same layout serves the magic link, which is a
+             TOKEN granting one caderno to a guest with no account at all. An
+             avatar there would name nobody and a "Sair" would end no session.
+             --}}
+        @auth
+            <div class="relative shrink-0 @if (! $searchUrl) ml-auto @endif">
+                <x-forms.button type="button" variant="ghost"
+                    data-ak-toggle="docs-user-dropdown" data-ak-toggle-classes="hidden" data-ak-toggle-blur="true"
+                    class="!gap-2 !rounded-field !px-1.5 !py-1"
+                    aria-label="Conta">
+                    <x-ui.avatar :name="auth()->user()->name" :src="auth()->user()->avatarUrl()" size="sm" />
+                    <x-heroicon-o-chevron-down class="size-3.5 shrink-0 text-faint" />
+                </x-forms.button>
+
+                <div id="docs-user-dropdown"
+                     class="hidden absolute right-0 top-full z-50 mt-1.5 w-max min-w-[220px] overflow-hidden rounded-field border border-line bg-surface py-1 shadow-xl">
+                    <div class="px-3 py-2">
+                        <p class="truncate text-[13px] font-semibold text-ink">{{ auth()->user()->name }}</p>
+                        <p class="truncate text-[11px] text-muted">{{ auth()->user()->email }}</p>
+                    </div>
+
+                    <div class="my-1 h-px bg-line"></div>
+
+                    {{-- The way back into the app, for the accounts that have
+                         one. A `Reader` has no inventory to return to — the
+                         route group would bounce them straight back here — so
+                         the entry is drawn by the same predicate that guards
+                         it (App\Http\Middleware\EnsureInventoryAccess) rather
+                         than offered to everybody and redirected away. --}}
+                    @if (auth()->user()->role->canReadInventory())
+                        <a href="{{ route('profile.show') }}"
+                           class="flex items-center gap-2 px-3 py-2 text-[13px] font-medium text-ink no-underline hover:bg-raised">
+                            <x-heroicon-o-squares-2x2 class="size-4 text-muted" /> Ir para o inventário
+                        </a>
+                    @endif
+
+                    <x-auth.logout class="!w-full !justify-start !rounded-none !px-3 !py-2 !text-[13px] !font-medium !text-ink hover:!bg-raised" />
+                </div>
+            </div>
+        @endauth
     </header>
 
     {{-- Three-pane docs shell (GitBook/Substack/Medium): pages rail pinned to
