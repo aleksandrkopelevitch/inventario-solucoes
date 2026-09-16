@@ -42,6 +42,14 @@ return [
             'driver'   => 'session',
             'provider' => 'users',
         ],
+
+        // The MCP server's OAuth half. Passport's guard reads a bearer access
+        // token off the request and resolves the account that consented to it;
+        // nothing in the browser uses it (see routes/mcp.php).
+        'api' => [
+            'driver'   => 'passport',
+            'provider' => 'users',
+        ],
     ],
 
     /*

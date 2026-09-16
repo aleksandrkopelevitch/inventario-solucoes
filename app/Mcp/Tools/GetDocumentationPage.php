@@ -40,6 +40,12 @@ class GetDocumentationPage implements Tool
         private readonly Presenter $presenter,
     ) {}
 
+    public function requiresInventory(): bool
+    {
+        // Documentação publicada: o que /docs entrega a qualquer conta Leo.
+        return false;
+    }
+
     public function name(): string
     {
         return 'get_documentation_page';

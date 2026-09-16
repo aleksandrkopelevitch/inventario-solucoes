@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mcp\Actor;
 use App\Mcp\JsonRpc;
 use App\Mcp\McpServer;
 use Illuminate\Http\JsonResponse;
@@ -61,7 +62,13 @@ class McpController extends Controller
             );
         }
 
-        $response = $this->server->handle($message);
+        // Put there by `AuthenticateMcpRequest`; the route never runs without
+        // it, so an absent one is a wiring mistake rather than a request to
+        // answer politely.
+        $actor = $request->attributes->get('mcp_actor');
+        abort_unless($actor instanceof Actor, 401);
+
+        $response = $this->server->handle($message, $actor);
 
         // A notification gets no body at all. 202 rather than 204 because the
         // spec names it, and because "aceito, não há resposta" is exactly what

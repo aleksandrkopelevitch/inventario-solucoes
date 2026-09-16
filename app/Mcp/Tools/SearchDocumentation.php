@@ -46,6 +46,12 @@ class SearchDocumentation implements Tool
         private readonly DocumentationSearchService $search,
     ) {}
 
+    public function requiresInventory(): bool
+    {
+        // Documentação publicada: o que /docs entrega a qualquer conta Leo.
+        return false;
+    }
+
     public function name(): string
     {
         return 'search_documentation';

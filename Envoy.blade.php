@@ -73,6 +73,19 @@
     php artisan migrate --force
 
     {{--
+        Passport's signing keys are NOT in the repository (storage/*.key is
+        gitignored) and cannot be, so a deploy can only check that the one-off
+        `envoy run passport` has been run. A missing key is not a broken deploy —
+        the whole app works without it except the MCP OAuth handshake — so this
+        warns rather than aborts. Nothing regenerates them here: a new key pair
+        invalidates every access token already issued, which would sign every
+        connected person out on a deploy that only meant to ship a view.
+    --}}
+    if [ ! -f storage/oauth-private.key ]; then
+        echo "==> WARNING: Passport keys missing — run 'envoy run passport'. MCP OAuth is down until then."
+    fi
+
+    {{--
         ONLY the flowSpec example corpus, and deliberately not `db:seed`.
 
         That corpus is derived data: database/data/digibee_flowspec_examples/
@@ -212,4 +225,25 @@
 
     echo "==> Supervisor updated"
     sudo supervisorctl status isol:*
+@endtask
+
+{{--
+    Outside the 'deploy' story, like 'supervisor': run ONCE, by hand, when this
+    app first gains its OAuth server or if the keys are ever lost.
+
+    `passport:keys` writes storage/oauth-private.key (0600) and its public half.
+    Two things to check on the first run, both about WHO runs what: the key has
+    to be readable by the user php-fpm serves as (www-data on this droplet), and
+    Envoy connects as whoever ~/.ssh/config's `akop` alias names — if those
+    differ, chown the pair to www-data afterwards, or Passport fails to read its
+    own key with a permissions error that names the file and not the reason.
+
+    Regenerating invalidates every access token already issued: everybody who
+    connected a chat client has to authorize again. That is the intended way to
+    cut all connections at once, and a bad accident otherwise.
+--}}
+@task('passport', ['on' => 'web'])
+    cd {{ $appDir }}
+    php artisan passport:keys
+    ls -l storage/oauth-private.key storage/oauth-public.key
 @endtask

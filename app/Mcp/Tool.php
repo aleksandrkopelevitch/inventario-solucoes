@@ -19,6 +19,19 @@ interface Tool
     /** Snake_case, stable — an MCP client stores it in a conversation's history. */
     public function name(): string;
 
+    /**
+     * Whether this tool reads the INVENTORY — the catalog, the diagrams, the
+     * people and their contacts. Everything the knowledge base is not.
+     *
+     * Declared rather than inferred, and declared on the narrow side: a
+     * connection made by a `Reader` (the tier Entra SSO provisions, which in the
+     * browser reaches `/docs` and nothing else) is shown only the tools that
+     * answer `false` here. A new tool that forgets to say is a new tool that
+     * does not compile, which is the only version of this check that survives
+     * somebody adding the thirteenth one (see App\Mcp\Actor).
+     */
+    public function requiresInventory(): bool;
+
     /** Human title for a client's tool picker. */
     public function title(): string;
 

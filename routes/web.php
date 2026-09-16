@@ -22,12 +22,13 @@ use App\Http\Controllers\Inventory\PersonController;
 use App\Http\Controllers\Inventory\SolutionController;
 use App\Http\Controllers\KnowledgeBaseController;
 use App\Http\Controllers\KnowledgeBaseSettingsController;
+use App\Http\Controllers\Mcp\ConnectController;
 use App\Http\Controllers\McpTokenController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\NotebookContextDocumentController;
 use App\Http\Controllers\NotebookController;
-use App\Http\Controllers\NotebookPageController;
 use App\Http\Controllers\NotebookPageArtifactController;
+use App\Http\Controllers\NotebookPageController;
 use App\Http\Controllers\NotebookPageDiagramController;
 use App\Http\Controllers\PipelineRunController;
 use App\Http\Controllers\ProfileController;
@@ -112,6 +113,13 @@ Route::get('auth/entra/callback', [EntraController::class, 'callback'])->name('e
 Route::middleware('auth')->delete('logout', [LoginController::class, 'destroy'])->name('login.destroy');
 
 Route::middleware(['entra.silent', 'auth'])->group(function () {
+    // Connecting a chat client. In THIS group and not in the inventory one
+    // below, because the account that most needs it is the tier the inventory
+    // group exists to keep out: a `Reader` connects for the knowledge base,
+    // which is exactly what its connection will reach (App\Mcp\Actor).
+    Route::get('mcp/connect', [ConnectController::class, 'index'])->name('mcp.connect');
+    Route::delete('mcp/connections/{token}', [ConnectController::class, 'destroy'])->name('mcp.connections.destroy');
+
     Route::get('docs', [KnowledgeBaseController::class, 'index'])->name('docs.index');
 
     // Admin: which cadernos `/docs` shows. Before `docs/{notebook}` — same

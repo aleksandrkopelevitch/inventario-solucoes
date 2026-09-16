@@ -34,10 +34,14 @@
             ['route' => 'diagrams.index', 'label' => 'Diagramas', 'icon' => 'share', 'active' => 'diagrams.*'],
             ['route' => 'solutions.map', 'label' => 'Mapa do ecossistema', 'icon' => 'globe-alt', 'active' => 'solutions.map'],
             ['route' => 'flowspec.index', 'label' => 'Especialista em Integrações', 'icon' => 'cpu-chip', 'active' => 'flowspec.*'],
-            // Admin only, like the knowledge-base settings above — a token hands
-            // out access to the whole catalog, so it answers to `McpTokenPolicy`
-            // rather than to `canWrite()`.
-            ['route' => 'mcp-tokens.index', 'label' => 'Conexão MCP', 'icon' => 'bolt', 'active' => 'mcp-tokens.*', 'can' => 'viewAny', 'canModel' => \App\Models\McpToken::class],
+            // Two entries, because they are two audiences. Connecting a chat
+            // client is ungated — any account does it for itself, with its own
+            // access (App\Mcp\Actor), a `Reader` included. Minting a TOKEN is
+            // still admin-only (`McpTokenPolicy`), because a token is not an
+            // account: it reads the whole catalog and belongs to whatever
+            // program holds it.
+            ['route' => 'mcp.connect', 'label' => 'Conexão MCP', 'icon' => 'bolt', 'active' => 'mcp.connect'],
+            ['route' => 'mcp-tokens.index', 'label' => 'Tokens MCP', 'icon' => 'key', 'active' => 'mcp-tokens.*', 'can' => 'viewAny', 'canModel' => \App\Models\McpToken::class],
             ['route' => 'submissions.index', 'label' => 'Comitê de Arquitetura', 'icon' => 'clipboard-document-check', 'active' => 'submissions.*'],
         ],
     ];

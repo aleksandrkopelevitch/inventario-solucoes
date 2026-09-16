@@ -5,9 +5,13 @@ paths:
   - "app/Policies/McpTokenPolicy.php"
   - "app/Http/Controllers/McpController.php"
   - "app/Http/Controllers/McpTokenController.php"
-  - "app/Http/Middleware/AuthenticateMcpToken.php"
+  - "app/Http/Controllers/Mcp/**"
+  - "app/Http/Middleware/AuthenticateMcpRequest.php"
   - "app/Http/Requests/StoreMcpTokenRequest.php"
   - "app/Http/Requests/DestroyMcpTokenRequest.php"
+  - "app/Http/Requests/RegisterOAuthClientRequest.php"
+  - "config/mcp.php"
+  - "config/passport.php"
   - "app/View/Components/Mcp/**"
   - "routes/mcp.php"
   - "resources/views/mcp/**"
@@ -21,28 +25,78 @@ paths:
 diagramas, pessoas, empresas and the published documentation, as twelve
 read-only tools (`App\Mcp\ToolRegistry`). It is the app's one non-browser
 surface — `routes/mcp.php`, the `mcp` middleware group, **no session, no CSRF,
-no `auth`** — and it is deliberately small: `App\Mcp\McpServer` speaks the four
+no `web` middleware** — and it is deliberately small: `App\Mcp\McpServer` speaks the four
 methods every client actually sends (`initialize`, `ping`, `tools/list`,
 `tools/call`), answers plain JSON rather than an SSE stream, and holds no state
 between requests.
 
-**The authentication is one bearer token and that was the requirement**, not a
-shortcut taken on the way to OAuth. MCP's own authorization spec is OAuth 2.1
-with dynamic client registration; what it buys — a consent screen, per-user
-identity, revocable grants — is bought more plainly here by a named row an admin
-creates and deletes on `/mcp-tokens`. Two consequences follow and both are easy
-to undo by accident:
+**Two credentials, one `Actor`, and the second one is why anybody who is not a
+programmer can connect.** A minted bearer token (`McpToken`) authenticates a
+PROGRAM — a script, a CI job, an agent with no browser to consent in. An OAuth
+2.1 access token authenticates a PERSON: they paste one URL into a connector
+dialog, sign in with the Leo account they already have, and authorize. Both
+arrive at `AuthenticateMcpRequest`, which turns either into an `App\Mcp\Actor`,
+and nothing downstream ever asks which one it was holding.
 
-- **The 401 carries a BARE `WWW-Authenticate: Bearer`.** Adding the spec's
-  `resource_metadata` parameter is how a client discovers an authorization
-  server and starts a flow this app does not implement — it turns a legible
-  "seu token está errado" into a client hanging on a discovery document that
-  404s.
-- **`McpToken` is not a `User`, and must not become one.** An account is a
-  person: it has a role, a password, a session, and `people.user_id` may point
-  at it. A token authenticates a PROGRAM. Modelling it as a fifth `UserRole`
-  would mean a tier nobody can log in as and `auth()->user()` returning
-  something that is not human in the half of the app that assumes it is.
+The token half came first and was the right call for its audience; what it could
+not do is be handed to a colleague. Copying a 49-character secret into a JSON
+file over Teams is the workflow OAuth exists to delete, and the deletion is the
+whole feature — not the protocol.
+
+Four things the OAuth half decided, each reversible by accident:
+
+- **The 401 now carries `resource_metadata`, and it is load-bearing.** It used
+  to be a bare `WWW-Authenticate: Bearer`, deliberately, because advertising a
+  flow the app did not implement left clients hanging on a document that 404s.
+  That reasoning inverted the moment the flow existed: the parameter is exactly
+  how a client discovers the authorization server, and without it a connector
+  goes back to asking for a token.
+- **`Actor::canReadInventory()` mirrors the APP, not the credential.** Before
+  OAuth, who could connect was "whoever an admin minted a token for", so what a
+  connection reached could be a constant. Signing in is a door every Leo account
+  already has, the `Reader` tier Entra SSO provisions included — and that tier
+  sees `/docs` and nothing else in the browser. So a Reader's connection reaches
+  the published cadernos, every other tier reaches the catalog, and a token stays
+  full-access because an admin minted it and can delete it. `Tool::requiresInventory()`
+  is how each tool declares its side of that line; a new tool that forgets to
+  declare does not compile, which is the only version of this check that survives
+  the thirteenth tool.
+- **A tool a Reader may not use is UNKNOWN, not refused.** `ToolRegistry::all()`
+  filters by actor, so `tools/list` never offers it and `tools/call` answers the
+  same sentence a typo gets. But `initialize` then has to SAY so — a model that
+  cannot see `search_solutions` concludes the catalog is empty and reports that
+  to somebody, so the instructions a Reader gets name the limit out loud.
+- **Registration is open, and the redirect allowlist is its entire security.**
+  RFC 7591 registration has to be callable by a client that holds nothing yet.
+  What stops that from minting a client that redirects somebody's authorization
+  code to a stranger is `config/mcp.php`'s `redirect_origins` (plus loopback,
+  whose port a desktop client picks at runtime). A wildcard there re-opens
+  exactly the hole the list closes.
+
+Passport carries the grant and nothing else: authorization code + PKCE (S256
+only), public clients, no password/implicit/device grant, no client-management
+API. One scope, `mcp`, and it is a LABEL — access is decided per request from the
+account's role, so a client asking for more gains nothing. `Passport::$deviceCodeGrantEnabled`
+is turned off in `AppServiceProvider::register()` rather than `boot()`, because
+Passport registers those routes in its own `boot()`, which runs first.
+
+**`/mcp/connect` is the screen a person is sent to, and `/mcp-tokens` is not.**
+The first answers to `auth` alone and lives OUTSIDE the `inventory` group, beside
+the `/docs` routes — a Reader connects for the knowledge base, which is what its
+connection will reach. The second still answers to `McpTokenPolicy` (admin), and
+is reached from inside the first, and from its own rail entry — the sidebar
+carries BOTH, because they are two audiences: "Conexão MCP" ungated, "Tokens
+MCP" gated by `McpTokenPolicy`. Collapsing them into one ungated entry is what
+broke `McpTokenAdminTest`: that entry is also the only consumer of the rail's
+generic `canModel` gate, so removing it leaves the mechanism with nothing
+exercising it.
+
+**`McpToken` is not a `User`, and must not become one.** An account is a person:
+it has a role, a password, a session, and `people.user_id` may point at it. A
+token authenticates a PROGRAM. Modelling it as a fifth `UserRole` would mean a
+tier nobody can log in as and `auth()->user()` returning something that is not
+human in the half of the app that assumes it is. OAuth did not change this — it
+added the other kind of caller beside it.
 
 Five rules the credential itself holds:
 
@@ -62,7 +116,7 @@ Five rules the credential itself holds:
   and then a call per turn, so an unthrottled touch makes every read of the
   catalog a write to this table — and "posso apagar este token?" is answered
   exactly as well by a minute-old timestamp.
-- **The rate limit keys on the TOKEN, falling back to the IP.** Every request
+- **The rate limit keys on the CREDENTIAL, falling back to the IP.** Every request
   from a given chat product arrives from that product's egress range, so an
   IP-keyed bucket is shared by unrelated tokens and split for one token used
   from two devices. The IP fallback covers requests that never reached the
