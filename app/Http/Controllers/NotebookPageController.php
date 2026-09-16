@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Documentation\RevealPageSecret;
+use App\Enums\ArtifactDiagramType;
 use App\Http\Controllers\Concerns\AssistsDocumentation;
 use App\Http\Controllers\Concerns\BuildsPagesNav;
 use App\Http\Controllers\Concerns\EditsDocumentation;
@@ -80,7 +81,13 @@ class NotebookPageController extends Controller
             'createPageUrl'     => route('notebooks.pages.store', $notebook),
             'chatPanelUrl'      => route('notebooks.chat.panel', [$notebook, $page]),
             // "Desenhar esta página" — reads the page, writes a Diagram.
-            'diagramDraftUrl'   => route('notebooks.pages.diagram', [$notebook, $page]),
+            'diagramDraftUrl' => route('notebooks.pages.diagram', [$notebook, $page]),
+            // The four rendered artifacts, in the same menu — one url per
+            // type, built here so the partial holds no route of its own.
+            'artifactUrls' => array_map(fn (ArtifactDiagramType $type) => [
+                'type' => $type,
+                'url'  => route('notebooks.pages.artifacts.store', [$notebook, $page, $type->value]),
+            ], ArtifactDiagramType::cases()),
             // Where a lock posts its code. A TEMPLATE, with the ordinal as a
             // placeholder `docs-secret.js` substitutes: the reader holds many
             // locks and the module must not build a path of its own (same rule

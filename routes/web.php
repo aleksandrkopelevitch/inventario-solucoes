@@ -27,6 +27,7 @@ use App\Http\Controllers\MediaController;
 use App\Http\Controllers\NotebookContextDocumentController;
 use App\Http\Controllers\NotebookController;
 use App\Http\Controllers\NotebookPageController;
+use App\Http\Controllers\NotebookPageArtifactController;
 use App\Http\Controllers\NotebookPageDiagramController;
 use App\Http\Controllers\PipelineRunController;
 use App\Http\Controllers\ProfileController;
@@ -637,6 +638,16 @@ Route::middleware(['auth', 'inventory'])->group(function () {
         // never written, and nothing links the two afterwards (prose reaches a
         // drawing by citing it).
         Route::post('notebooks/{notebook}/{page}/diagram', [NotebookPageDiagramController::class, 'store'])->name('notebooks.pages.diagram');
+        // The four Archify artifacts a page can be turned into (sequence, data
+        // flow, lifecycle, process). `{type}` is an implicit ENUM binding, so a
+        // type outside the four 404s before the controller runs; `{media}` is a
+        // plain id, and the controller checks its owner AND its collection,
+        // since a page's other collection holds the images embedded in its own
+        // Markdown. The two never collide — one is a word on POST, the other a
+        // number on GET/DELETE.
+        Route::post('notebooks/{notebook}/{page}/artifacts/{type}', [NotebookPageArtifactController::class, 'store'])->name('notebooks.pages.artifacts.store');
+        Route::get('notebooks/{notebook}/{page}/artifacts/{media}', [NotebookPageArtifactController::class, 'show'])->whereNumber('media')->name('notebooks.pages.artifacts.show');
+        Route::delete('notebooks/{notebook}/{page}/artifacts/{media}', [NotebookPageArtifactController::class, 'destroy'])->whereNumber('media')->name('notebooks.pages.artifacts.destroy');
         // Documentation Assistant — a chat that helps write the page (job + polling per turn).
         Route::get('notebooks/{notebook}/{page}/chat', [NotebookPageController::class, 'chatPanel'])->name('notebooks.chat.panel');
         Route::post('notebooks/{notebook}/{page}/chat/messages', [NotebookPageController::class, 'sendMessage'])->name('notebooks.chat.messages.store');

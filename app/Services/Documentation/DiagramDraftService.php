@@ -5,6 +5,7 @@ namespace App\Services\Documentation;
 use App\Exceptions\DiagramDraftFailed;
 use App\Models\DocumentationPage;
 use App\Support\Documentation\ChainDraft;
+use App\Support\Documentation\ModelJson;
 use Laravel\Ai\Responses\AgentResponse;
 
 use function Laravel\Ai\agent;
@@ -40,7 +41,7 @@ class DiagramDraftService
         }
 
         $raw = $this->prompt($this->prompts->userPrompt($page))->text;
-        $payload = $this->extractJson($raw);
+        $payload = ModelJson::extract($raw);
 
         if ($payload === null) {
             throw DiagramDraftFailed::noJson();
@@ -49,12 +50,9 @@ class DiagramDraftService
         $problems = ChainDraft::validate($payload);
 
         if ($problems !== []) {
-            $retry = $this->prompt($this->prompts->repairPrompt(
-                json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-                $problems,
-            ))->text;
+            $retry = $this->prompt($this->prompts->repairPrompt(ModelJson::encode($payload), $problems))->text;
 
-            $repaired = $this->extractJson($retry);
+            $repaired = ModelJson::extract($retry);
 
             if ($repaired === null) {
                 throw DiagramDraftFailed::invalidDraft($problems);
@@ -69,42 +67,6 @@ class DiagramDraftService
         }
 
         return ChainDraft::fromArray($payload);
-    }
-
-    /**
-     * The fenced block first, then the widest `{…}` in the text.
-     *
-     * The second pass is not the heuristic `FlowspecJson` needs — that one has
-     * to tell a flowSpec from a reply that merely mentions `{{ }}` syntax,
-     * because its prompt teaches that syntax. This prompt teaches none, and
-     * asks for JSON and nothing else, so anything brace-shaped in the answer
-     * IS the attempt. Decoding to a non-array still rules it out.
-     *
-     * @return array<mixed>|null
-     */
-    private function extractJson(string $text): ?array
-    {
-        $candidate = preg_match('/```(?:json)?\s*(\{.*\})\s*```/s', $text, $match) === 1
-            ? $match[1]
-            : $this->widestObject($text);
-
-        if ($candidate === null) {
-            return null;
-        }
-
-        $decoded = json_decode($candidate, true);
-
-        return is_array($decoded) ? $decoded : null;
-    }
-
-    private function widestObject(string $text): ?string
-    {
-        $start = strpos($text, '{');
-        $end = strrpos($text, '}');
-
-        return $start !== false && $end !== false && $end > $start
-            ? substr($text, $start, $end - $start + 1)
-            : null;
     }
 
     /** Protected so tests can substitute the real API call with a test double. */

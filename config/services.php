@@ -407,6 +407,36 @@ return [
         'deck_timeout'  => env('CATI_DECK_TIMEOUT', 120),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Archify (vendored renderer sidecar)
+    |--------------------------------------------------------------------------
+    |
+    | The Node CLI under `scripts/archify/` that compiles a typed JSON spec
+    | into a self-contained interactive HTML diagram. MIT, tt-a1i/archify,
+    | pinned rather than installed — see App\Support\Archify\ArchifyRunner.
+    |
+    */
+    'archify' => [
+        'node' => env('ARCHIFY_NODE', 'node'),
+        'bin'  => env('ARCHIFY_BIN', base_path('scripts/archify/bin/archify.mjs')),
+        // Two calls at most per artifact (validate + deliver), each a few
+        // seconds on a diagram of this size; the ceiling is for a Node that
+        // hangs rather than for normal work.
+        'timeout' => env('ARCHIFY_TIMEOUT', 60),
+        // `standard`, not `showcase`: the showcase profile runs nine artifact
+        // checks and demands zero warnings, which is the right bar for a human
+        // iterating in a terminal and the wrong one for a single generated
+        // pass — it would turn an honest diagram into a failed request over a
+        // label that sits two pixels close to a line.
+        'quality' => env('ARCHIFY_QUALITY', 'standard'),
+        // Archify's own visual preset, which is not our canvas theme: the
+        // artifact is its own page. `blueprint` is chosen for continuity with
+        // the canvas theme of the same name — the two came from the same
+        // palette.
+        'visual_preset' => env('ARCHIFY_VISUAL_PRESET', 'blueprint'),
+    ],
+
     'documentation_ai' => [
         'provider' => env('DOCS_AI_PROVIDER', 'gemini'),
         'model'    => env('DOCS_AI_MODEL', 'gemini-3.6-flash'),

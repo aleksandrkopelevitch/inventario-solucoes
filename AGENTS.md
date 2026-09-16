@@ -53,6 +53,7 @@ if a rule you expect is not here, it is in one of these:
 | `docs-secrets.md` | `{% secret %}`, the reveal action, the throttle |
 | `documentation-assistant.md` | the Assiste IA chat, its vaults and its prompt contract |
 | `page-to-diagram-draft.md` | drawing a page: the draft IR, exact name resolution, the one synchronous model call |
+| `archify-artifacts.md` | the vendored Archify sidecar, the four artifact types, the sandboxed response |
 | `digibee-knowledge-base.md` | the two Digibee corpora, redaction, `digibeectl` boundaries |
 | `flowspec-pipeline-write.md` | writing a flowSpec into a pipeline, deploy and the test matrix |
 | `mcp-server.md` | the MCP server, its bearer token and what a token may read |
