@@ -89,24 +89,22 @@
                     <span class="my-1 block h-px bg-line"></span>
                 @endcan
 
-                @if ($canEdit)
-                    @isset($artifactUrls)
-                    @foreach ($artifactUrls as $artifact)
-                        <form id="docs-artifact-form-{{ $artifact['type']->value }}" class="contents">
+                @isset($modelUrls)
+                    @foreach ($modelUrls as $entry)
+                        <form id="docs-model-form-{{ $entry['model']->value }}" class="contents">
                             <x-forms.button variant="ghost"
-                                data-ak-ajax="docs-artifact-form-{{ $artifact['type']->value }}"
-                                data-ak-action="{{ $artifact['url'] }}"
+                                data-ak-ajax="docs-model-form-{{ $entry['model']->value }}"
+                                data-ak-action="{{ $entry['url'] }}"
                                 class="!h-auto !w-full !justify-start !gap-2.5 !rounded-md !px-2 !py-1.5 !text-left">
-                                <x-dynamic-component :component="'heroicon-o-' . $artifact['type']->icon()" class="size-4 shrink-0 text-muted" />
+                                <x-dynamic-component :component="'heroicon-o-' . $entry['model']->icon()" class="size-4 shrink-0 text-muted" />
                                 <span class="min-w-0">
-                                    <span class="block truncate text-xs font-semibold text-ink">{{ $artifact['type']->label() }}</span>
-                                    <span class="block truncate text-[11px] text-muted">{{ $artifact['type']->hint() }}</span>
+                                    <span class="block truncate text-xs font-semibold text-ink">{{ $entry['model']->label() }}</span>
+                                    <span class="block truncate text-[11px] text-muted">{{ $entry['model']->hint() }}</span>
                                 </span>
                             </x-forms.button>
                         </form>
                     @endforeach
-                    @endisset
-                @endif
+                @endisset
             </div>
         </div>
     @endif

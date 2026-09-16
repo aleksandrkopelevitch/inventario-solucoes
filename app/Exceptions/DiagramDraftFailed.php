@@ -41,6 +41,17 @@ class DiagramDraftFailed extends RuntimeException
         );
     }
 
+    /**
+     * The model is explicitly allowed to answer "this page has no sequence in
+     * it", and that answer arrives as itself rather than as a failure. It is
+     * the most useful thing this feature can say about a page, and it is worth
+     * more than four blocks invented to satisfy the request.
+     */
+    public static function notDescribed(string $reason): self
+    {
+        return new self('Não dá para montar esse diagrama a partir desta página: ' . rtrim($reason, '.') . '.');
+    }
+
     public static function emptyPage(): self
     {
         return new self('Esta página ainda não tem conteúdo para desenhar.');

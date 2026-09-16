@@ -665,6 +665,10 @@ Route::middleware(['auth', 'inventory'])->group(function () {
         // never written, and nothing links the two afterwards (prose reaches a
         // drawing by citing it).
         Route::post('notebooks/{notebook}/{page}/diagram', [NotebookPageDiagramController::class, 'store'])->name('notebooks.pages.diagram');
+        // The same page, drawn as one of the four MODELS. `{model}` is an
+        // implicit enum binding, so a shape outside the four 404s before the
+        // controller runs.
+        Route::post('notebooks/{notebook}/{page}/diagram/{model}', [NotebookPageDiagramController::class, 'model'])->name('notebooks.pages.diagram.model');
         // The four Archify artifacts a page can be turned into (sequence, data
         // flow, lifecycle, process). `{type}` is an implicit ENUM binding, so a
         // type outside the four 404s before the controller runs; `{media}` is a

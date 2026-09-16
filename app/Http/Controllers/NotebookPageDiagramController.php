@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Documentation\CreateDiagramFromDraft;
+use App\Actions\Documentation\CreateDiagramFromModel;
+use App\Enums\DiagramModel;
 use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Services\Documentation\DiagramDraftService;
+use App\Services\Documentation\DiagramModelService;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -27,6 +30,8 @@ class NotebookPageDiagramController extends Controller
     public function __construct(
         private readonly DiagramDraftService $drafts,
         private readonly CreateDiagramFromDraft $creator,
+        private readonly DiagramModelService $models,
+        private readonly CreateDiagramFromModel $modelCreator,
     ) {}
 
     public function store(Notebook $notebook, DocumentationPage $page): JsonResponse
@@ -51,6 +56,35 @@ class NotebookPageDiagramController extends Controller
         // there — and it says "confira", because what was just created is a
         // reading of somebody's prose, not a fact.
         $message = 'Diagrama criado a partir de "' . $page->title . '". Confira os blocos antes de salvar.';
+
+        session()->flash('status', $message);
+
+        return response()->json([
+            'message'  => $message,
+            'redirect' => route('diagrams.show', $diagram),
+        ]);
+    }
+
+    /**
+     * The same walk, for one of the four MODELS — a sequence, a lifecycle, a
+     * data flow, a process.
+     *
+     * It shares this controller with the free-graph draft because it is the
+     * same gesture answering the same question ("draw what this page says"),
+     * and the same two abilities apply: the page is read, a diagram is written.
+     * What differs is only which shape the reading takes, and that arrives as
+     * an enum in the URL.
+     */
+    public function model(Notebook $notebook, DocumentationPage $page, DiagramModel $model): JsonResponse
+    {
+        $page->setRelation('notebook', $notebook);
+
+        $this->authorize('view', $page);
+        $this->authorize('create', Diagram::class);
+
+        $diagram = $this->modelCreator->handle($this->models->draft($page, $model));
+
+        $message = $model->label() . ' gerada a partir de "' . $page->title . '". Confira os blocos antes de salvar.';
 
         session()->flash('status', $message);
 

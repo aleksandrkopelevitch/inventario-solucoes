@@ -1731,6 +1731,18 @@
                 pointer-events: none;
             }
 
+            {{-- ETAPA (`ChainNodeKind::Step`) — o que ACONTECE, não quem faz.
+
+                 Existe porque uma etapa não é um sistema: escrita como texto
+                 livre de um bloco `system`, ela herdava o tracejado de "externo
+                 à Leo", o que é verdade sobre a API de um parceiro e não quer
+                 dizer nada sobre "Abre o chamado". Caixa sólida, igual à de um
+                 sistema do catálogo, porque é conteúdo do desenho do mesmo
+                 jeito — só não é um sistema. --}}
+            .ak-viz-node.is-step {
+                background: var(--viz-node);
+            }
+
             .ak-viz-node.is-free {
                 background: var(--viz-node);
                 border: 1px dashed var(--viz-line);

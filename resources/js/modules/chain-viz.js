@@ -638,6 +638,7 @@ function paintNode(el, data) {
     el.classList.toggle('is-end', kind === 'end')
     el.classList.toggle('is-image', kind === 'image')
     el.classList.toggle('is-lifeline', kind === 'lifeline')
+    el.classList.toggle('is-step', kind === 'step')
     el.classList.toggle('is-logo-only', logoOnly)
     el.classList.toggle('has-comment', !!data.comment)
     el.classList.toggle('is-dashed', !!data.dashed)

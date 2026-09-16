@@ -42,6 +42,7 @@ enum ChainNodeKind: string
     case End = 'end';
     case Image = 'image';
     case Lifeline = 'lifeline';
+    case Step = 'step';
 
     public function label(): string
     {
@@ -53,6 +54,7 @@ enum ChainNodeKind: string
             self::End      => 'Fim',
             self::Image    => 'Imagem',
             self::Lifeline => 'Participante (linha de vida)',
+            self::Step     => 'Etapa',
         };
     }
 
@@ -105,6 +107,7 @@ enum ChainNodeKind: string
             // A lifeline shows its participant's logo/initial in the header,
             // exactly like a system block does.
             self::Lifeline => null,
+            self::Step     => null,
         };
     }
 
@@ -126,6 +129,7 @@ enum ChainNodeKind: string
             self::End      => 'stop',
             self::Image    => 'photo',
             self::Lifeline => 'view-columns',
+            self::Step     => 'rectangle-stack',
         };
     }
 
@@ -144,6 +148,7 @@ enum ChainNodeKind: string
             self::End      => 'Fim',
             self::Image    => '',
             self::Lifeline => 'Nome do participante',
+            self::Step     => 'O que acontece nesta etapa',
         };
     }
 
