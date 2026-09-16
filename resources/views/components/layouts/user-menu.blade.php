@@ -33,5 +33,12 @@
                 <x-heroicon-o-key class="size-4 text-muted" /> Quem tem acesso
             </a>
         @endcan
+
+        {{-- Sair, under a divider: it is the one entry here that ENDS the
+             session rather than opening something, and the entry above it
+             ("Quem tem acesso") is an admin destination — a misfire between
+             the two is the difference between a page and a sign-out. --}}
+        <div class="my-1 h-px bg-line"></div>
+        <x-auth.logout class="!w-full !justify-start !rounded-none !px-3 !py-2 !text-[13px] !font-medium !text-ink hover:!bg-raised" />
     </div>
 </div>

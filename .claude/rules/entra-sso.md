@@ -76,3 +76,36 @@ not throw — it APPENDS, which puts the middleware last and reproduces the exac
 bug it was added to fix. Anything that must run before `auth` needs this, and
 needs a test that a guest is actually redirected somewhere other than the login
 screen.
+
+#### SSO made signing OUT a feature, and the first real sign-in proved it
+
+The `DELETE /logout` route (`login.destroy`) existed from the start and **no
+view in the app pointed at it** — a gap nobody could feel while every account
+was created by an admin and signed in with a password, because in that world
+nobody ever needed to become somebody else.
+
+The first production sign-in walked straight into it. The person signing in held
+an admin account here under `admin@leomadeiras.com.br` — a shared address, not
+their mailbox — so `ResolveEntraUser` matched nothing, correctly provisioned a
+`Reader`, and `EnsureInventoryAccess` then bounced every inventory route back to
+`/docs`. With no sign-out anywhere, the knowledge base was the entire
+application, with no way back to the login screen. Note that every part of that
+behaved as designed: the bug was the missing exit, not the tier.
+
+So `x-auth.logout` now renders in both shells — the sidebar dropdown
+(`x-layouts.user-menu`) and the knowledge base's own top bar, which is where it
+actually matters, since that top bar is the whole UI a `Reader` ever sees. It is
+a form, not a link: the route is a DELETE, and an `<a href="/logout">` 405s.
+
+Two things about the docs one. It is `@auth`-gated, because the same layout
+serves the magic link, where a token grants one caderno to a guest with no
+session to end. And "Ir para o inventário" beside it is drawn by
+`canReadInventory()` — the same predicate the middleware enforces — rather than
+offered to everybody and redirected away.
+
+**When a person already has an account here, expect the addresses not to match.**
+The e-mail link in `ResolveEntraUser` only fires when this app's copy of their
+address IS their mailbox; a shared or legacy address means their first SSO visit
+creates a SECOND row at the floor tier, and their existing one keeps their
+history. Promoting the new row is the admin's call on the Usuários panel — it is
+deliberately not something a claim can do.
