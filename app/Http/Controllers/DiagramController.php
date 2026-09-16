@@ -20,13 +20,13 @@ use App\Http\Requests\UpdateDiagramMetaRequest;
 use App\Models\Diagram;
 use App\Models\Solution;
 use App\Services\DiagramCatalogService;
+use App\Support\DiagramSlug;
 use App\View\Components\Diagrams\Index;
 use App\View\Components\Diagrams\Meta;
 use App\View\Components\Solutions\Diagrams as SolutionDiagrams;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 
 /**
  * Diagrams — the module. A diagram is a drawing of a flow, named and drawn on
@@ -86,7 +86,7 @@ class DiagramController extends Controller
 
         $diagram = Diagram::create([
             'name'        => $name,
-            'slug'        => $this->uniqueSlug($name),
+            'slug'        => DiagramSlug::unique($name),
             'status'      => DiagramStatus::Planned->value,
             'criticality' => 'medium',
             'direction'   => Direction::Unidirectional->value, // re-derived from the chain right below
@@ -314,18 +314,5 @@ class DiagramController extends Controller
     public function removeEdge(RemoveChainEdgeRequest $request, Diagram $diagram, int $edge): JsonResponse
     {
         return $this->removeChainEdge($diagram, $edge);
-    }
-
-    private function uniqueSlug(string $name): string
-    {
-        $base = Str::slug($name) ?: 'diagrama';
-        $slug = $base;
-        $suffix = 1;
-
-        while (Diagram::where('slug', $slug)->exists()) {
-            $slug = $base . '-' . (++$suffix);
-        }
-
-        return $slug;
     }
 }

@@ -84,11 +84,27 @@ class DocumentationPage extends Model implements Documentable
         return 'slug';
     }
 
+    /**
+     * Rendered Archify artifacts (`App\Enums\ArtifactDiagramType`) generated
+     * from this page's prose — a sequence, a data flow, a lifecycle, a process.
+     *
+     * A SECOND collection on this model, which the media rule says to justify
+     * rather than assume. It is not `docs`, and the difference is not filing:
+     * `MediaController::show()` authorizes `/files/{id}` by that collection name
+     * ALONE, and what is stored here is a full HTML document with its own
+     * scripts. Serving one from the app's origin through that route would hand
+     * every artifact the session's cookies. It has its own controller and its
+     * own sandboxing header instead — the same shape as `Notebook`'s
+     * `context_documents`, which is likewise never served by `files.show`.
+     */
+    public const ARTIFACTS_COLLECTION = 'artifacts';
+
     public function registerMediaCollections(): void
     {
         // See Solution/Diagram — documentation media, served by
         // `files.show`, referenced as /files/{id} in the Markdown.
         $this->addMediaCollection(self::DOCS_COLLECTION);
+        $this->addMediaCollection(self::ARTIFACTS_COLLECTION);
     }
 
     public function documentationTitle(): string

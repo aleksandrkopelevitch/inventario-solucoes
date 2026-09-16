@@ -204,7 +204,16 @@
     `<style>` (below — nested SVGs get raw-cloned wholesale on export, so
     that stylesheet has to be self-contained). Because the theme is live now,
     `captureDiagramCanvas()` doesn't toggle the attribute itself anymore —
-    whatever theme is showing IS what gets captured. A first attempt at this
+    whatever theme is showing IS what gets captured.
+
+    The last two themes ("Arquitetura", "Blueprint") shorten the first two of
+    those three: they redefine the `--viz-*` TOKENS on the viewport instead of
+    restating each rule, so the canvas ground, the edge stroke, the marker, the
+    pill's hairline, the free block's dashed border and the selection ring all
+    follow from five values. They still carry their own literals in the edges
+    SVG's internal `<style>`, and they must: that sheet is the only one the
+    export clone keeps, and a custom property set on an excluded ancestor
+    doesn't survive into it (see the note above that block). A first attempt at this
     "give it a different look" idea
     sent the exported PNG to Gemini for a visual restyle ("Estilizar com
     IA") — removed 2026-08-03 after it reliably garbled small text ("SAP
@@ -435,6 +444,28 @@
                         svg[data-viz-preset="tech"] .ak-viz-plabel-box { fill: #101E2E; stroke: #38BDF8; }
                         svg[data-viz-preset="tech"] .ak-viz-plabel-text { fill: #BFE3F5; }
                         svg[data-viz-preset="tech"] .ak-viz-plabel.is-empty .ak-viz-plabel-text { fill: #38BDF8; }
+
+                        {{-- "arquitetura" / "blueprint" — the token themes.
+                             Their edge and marker colors ARE `--viz-line`, and
+                             the outer stylesheet already paints those from the
+                             token, so these two rules look redundant while you
+                             are editing. They are not: this internal sheet is
+                             the only one that survives into the export clone,
+                             where the base rule's hardcoded `#94A3C4` would
+                             otherwise draw a light-canvas arrow across a
+                             near-black screenshot. Keep each value equal to
+                             the matching `--viz-*` token on the viewport. --}}
+                        svg[data-viz-preset="arquitetura"] path.ak-viz-edge { stroke: #64748B; }
+                        svg[data-viz-preset="arquitetura"] marker path { fill: #64748B; }
+                        svg[data-viz-preset="arquitetura"] .ak-viz-plabel-box { fill: #0F172A; stroke: #64748B; }
+                        svg[data-viz-preset="arquitetura"] .ak-viz-plabel-text { fill: #94A3B8; }
+                        svg[data-viz-preset="arquitetura"] .ak-viz-plabel.is-empty .ak-viz-plabel-text { fill: #64748B; }
+
+                        svg[data-viz-preset="blueprint"] path.ak-viz-edge { stroke: #6D93A5; }
+                        svg[data-viz-preset="blueprint"] marker path { fill: #6D93A5; }
+                        svg[data-viz-preset="blueprint"] .ak-viz-plabel-box { fill: #F9FDFF; stroke: #6D93A5; }
+                        svg[data-viz-preset="blueprint"] .ak-viz-plabel-text { fill: #4E7486; }
+                        svg[data-viz-preset="blueprint"] .ak-viz-plabel.is-empty .ak-viz-plabel-text { fill: #6D93A5; }
                     </style>
                     <defs>
                         <marker data-viz-marker-end viewBox="0 0 10 10" refX="9" refY="5"
@@ -552,6 +583,8 @@
                         <option value="casual">Casual</option>
                         <option value="corporativo">Corporativo</option>
                         <option value="tech">Tech</option>
+                        <option value="arquitetura">Arquitetura</option>
+                        <option value="blueprint">Blueprint</option>
                     </x-forms.select>
                 </div>
                 <span class="mx-0.5 h-5 w-px bg-line"></span>
@@ -1042,6 +1075,58 @@
                  reference (swimlane flowchart template / ER diagram tool),
                  not a neon/cyberpunk treatment. --}}
             .ak-viz-viewport[data-viz-preset="tech"] { background: #132A45; }
+            {{-- "arquitetura" (dark) and "blueprint" (light), 2026-09-16 — the
+                 two themes that theme by TOKEN instead of by rule. Every
+                 preset above overrides individual declarations (a background,
+                 a box-shadow, an edge stroke) and leaves the `--viz-*` values
+                 on `[data-ak-chain-viz]` standing; these two redefine the
+                 tokens themselves, here on the viewport, and the base rules —
+                 which already read `var(--viz-bg)`, `var(--viz-node)`,
+                 `var(--viz-line)`, `var(--viz-ink)` — repaint themselves. The
+                 dot grid, the edge stroke, the marker fill, the free block's
+                 dashed border and the selection ring all follow for free.
+                 What still needs a rule below is only what the base hardcodes
+                 for a LIGHT canvas (a dark drop shadow, a white pill, a
+                 near-black hairline) — which is exactly the list a dark theme
+                 has to undo.
+
+                 Defining them on the VIEWPORT and not on `[data-ak-chain-viz]`
+                 is deliberate: the toolbar, the sidebar and the empty-state
+                 legend are app chrome that happens to reuse these tokens, and
+                 a theme is a property of the drawing, not of the panel holding
+                 it. Everything that paints the diagram lives under the
+                 viewport and inherits; everything outside keeps the defaults.
+
+                 Palettes measured out of a rendered Archify artifact (MIT,
+                 tt-a1i/archify) — its "classic" dark and "blueprint" light
+                 presets. What is NOT borrowed is its color axis: Archify fills
+                 a block by what it technically is (frontend cyan, database
+                 violet, security rose), which is the per-kind pastel this
+                 canvas dropped on 2026-08-26 for the reason written on
+                 `--viz-node` above. Shape still says what a block is; these
+                 two only change the ground it stands on. --}}
+            .ak-viz-viewport[data-viz-preset="arquitetura"] {
+                --viz-bg: #020617;
+                --viz-grid: #1E293B;
+                --viz-line: #64748B;
+                {{-- Opaque, where Archify's equivalent block is translucent:
+                     its fills are `rgba(…, .4)` over an opaque `--mask` layer
+                     painted behind every node precisely so the arrows running
+                     underneath don't show through it. Our edges `<svg>` is a
+                     sibling BELOW the blocks, so translucency would need that
+                     same extra layer — and `#0F172A` is exactly what its
+                     `rgba(30, 41, 59, .5)` composites to over `#020617`. Same
+                     pixels, one layer fewer. --}}
+                --viz-node: #0F172A;
+                --viz-ink: #E2E8F0;
+            }
+            .ak-viz-viewport[data-viz-preset="blueprint"] {
+                --viz-bg: #EDF7FA;
+                --viz-grid: #B5D5E1;
+                --viz-line: #6D93A5;
+                --viz-node: #F9FDFF;
+                --viz-ink: #123344;
+            }
             .ak-viz-viewport.is-panning { cursor: grabbing; }
             .ak-viz-world {
                 position: absolute;
@@ -1399,6 +1484,134 @@
                  reference: light pastel cards, no border glow at all. --}}
             .ak-viz-world[data-viz-preset="tech"] .ak-viz-node {
                 box-shadow: 0 2px 8px rgba(0, 0, 0, .45), 0 0 0 1px rgba(148, 163, 184, .22);
+            }
+            {{-- The two token themes (see the viewport block above) need the
+                 same treatment stated four times, because the base stylesheet
+                 says "outline" in four different ways: a ring on the ordinary
+                 block, NO ring on the three kinds that draw their own outline
+                 (a free block's dashed border, a decision's clipped hexagon
+                 layer, a logo-only block's bare image), a plain lift on the
+                 two solid terminals, and a ring again on the actor's circle.
+                 Each of those is a `.ak-viz-node.is-*` rule of its own, and a
+                 theme rule is more specific than all of them — so a single
+                 generic override doesn't just retint them, it erases the
+                 distinction. --}}
+            {{-- The block's CATEGORY family, as one custom property.
+
+                 Set on every node in every theme and READ by only two of them
+                 (right below) — which is the point. "Original", "Casual",
+                 "Corporativo" and "Tech" go on saying a block is a block; the
+                 two token themes add a SECOND axis on top of the one this
+                 canvas already has. Shape still carries the KIND (chamfered
+                 hexagon = decision, circle = actor, dashed = external), and
+                 the hue carries what the system IS — the same hue the solution
+                 tile, the category chip and the ecosystem map already use, so
+                 somebody who has learned the catalog's colors reads the drawing
+                 with them instead of with a legend.
+
+                 Only a registered Solution has one: `ChainGraph::resolveNode()`
+                 sends null for everything else and `paintNode()` removes the
+                 attribute, so a decision, an actor, a terminal and a free-text
+                 system stay deliberately uncolored. That is what keeps the axis
+                 meaning something — a colored block is a system in the catalog,
+                 filed under that family.
+
+                 The values come straight from `@theme` in app.css
+                 (`--color-cat-*`), which is what stops them drifting from
+                 `App\Support\CategoryPalette`. These are real CSS rules rather
+                 than Tailwind utilities, so the JIT's `@source` scan of that
+                 class is not involved here. --}}
+            .ak-viz-node[data-category-family="emerald"] { --viz-node-accent: var(--color-cat-emerald); }  /* manufatura, TMS, infraestrutura */
+            .ak-viz-node[data-category-family="teal"] { --viz-node-accent: var(--color-cat-teal); }  /* e-commerce, CRM, atendimento */
+            .ak-viz-node[data-category-family="blue"] { --viz-node-accent: var(--color-cat-blue); }  /* dados/BI, iPaaS */
+            .ak-viz-node[data-category-family="indigo"] { --viz-node-accent: var(--color-cat-indigo); }  /* plataforma interna, ERP, ITSM */
+            .ak-viz-node[data-category-family="fuchsia"] { --viz-node-accent: var(--color-cat-fuchsia); }  /* marketing, HCM */
+            .ak-viz-node[data-category-family="rose"] { --viz-node-accent: var(--color-cat-rose); }  /* segurança, IAM, jurídico */
+            .ak-viz-node[data-category-family="amber"] { --viz-node-accent: var(--color-cat-amber); }  /* pagamentos, fiscal */
+            .ak-viz-node[data-category-family="slate"] { --viz-node-accent: var(--color-cat-slate); }  /* outros */
+
+            {{-- A block whose system has a category wears its family's hue: a
+                 solid 1px stroke, and the same hue folded into the fill at low
+                 strength. `color-mix` is dropped whole by a browser that lacks
+                 it, leaving the plain `--viz-node` fill from the base rule —
+                 which is why the mix is written against an OPAQUE base and not
+                 against `transparent`: a fallback that let the arrows
+                 underneath show through the block would be worse than no tint.
+                 Archify's treatment, over our own axis. --}}
+            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node {
+                box-shadow: 0 2px 10px rgba(2, 6, 23, .55), 0 0 0 1px rgba(148, 163, 184, .28);
+            }
+            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node[data-category-family] {
+                background: color-mix(in oklab, var(--viz-node-accent) 16%, var(--viz-node));
+                box-shadow: 0 2px 10px rgba(2, 6, 23, .55), 0 0 0 1px var(--viz-node-accent);
+            }
+            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-free,
+            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-decision,
+            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-logo-only {
+                box-shadow: none;
+            }
+            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-start,
+            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-end {
+                box-shadow: 0 2px 10px rgba(2, 6, 23, .6);
+            }
+            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-actor {
+                box-shadow: 0 2px 10px rgba(2, 6, 23, .55), 0 0 0 1px rgba(148, 163, 184, .28);
+            }
+            {{-- The hexagon's outline is the 1px of this layer left showing
+                 around the fill layer inset into it (see `.is-decision::before`
+                 below) — a near-black wash on a near-black canvas is no
+                 outline at all. --}}
+            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-decision::before {
+                background: rgba(148, 163, 184, .38);
+            }
+            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-dashed,
+            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-decision.is-dashed::after {
+                border-color: rgba(148, 163, 184, .45);
+            }
+            {{-- The chip under a round block, and the resize handle's hover
+                 wash: both are a fixed light-canvas color, not a token. --}}
+            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node-endcap-label {
+                background: #0F172A;
+            }
+            [data-ak-chain-viz][data-editable] .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-lane-resize:hover,
+            [data-ak-chain-viz][data-editable] .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-lane-resize.is-resizing {
+                background: rgba(226, 232, 240, .22);
+            }
+            {{-- "blueprint" is a light theme, so the base shadows already read
+                 correctly; what it changes is their tint — a drafting-paper
+                 canvas wants a blue-grey contact shadow, not the neutral
+                 near-black one. --}}
+            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node {
+                box-shadow: 0 1px 2px rgba(18, 51, 68, .10), 0 0 0 1px rgba(120, 170, 189, .55);
+            }
+            {{-- Lighter mix than the dark theme's: the same 16% over a white
+                 card reads as a colored card, not a tinted one, and blueprint
+                 is meant to stay drafting paper. --}}
+            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node[data-category-family] {
+                background: color-mix(in oklab, var(--viz-node-accent) 8%, var(--viz-node));
+                box-shadow: 0 1px 2px rgba(18, 51, 68, .10), 0 0 0 1px var(--viz-node-accent);
+            }
+            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-free,
+            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-decision,
+            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-logo-only {
+                box-shadow: none;
+            }
+            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-start,
+            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-end {
+                box-shadow: 0 2px 8px rgba(18, 51, 68, .22);
+            }
+            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-actor {
+                box-shadow: 0 2px 8px rgba(18, 51, 68, .12), 0 0 0 1px rgba(120, 170, 189, .55);
+            }
+            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-decision::before {
+                background: rgba(120, 170, 189, .75);
+            }
+            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-dashed,
+            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-decision.is-dashed::after {
+                border-color: rgba(109, 147, 165, .6);
+            }
+            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node-endcap-label {
+                background: #F9FDFF;
             }
             /* Block body: avatar (logo or initial) + name. `position: relative`
                so it paints ABOVE the `::before` shape layer of a decision
@@ -1839,13 +2052,22 @@
                 width: 16px;
                 height: 16px;
             }
-            /* Selected: highlighted blue ring. */
-            .ak-viz-node.is-selected {
+            /* Selected: highlighted blue ring.
+
+               The `[data-ak-chain-viz]` prefix on both state rules is
+               load-bearing, not tidiness: a theme paints its ring through
+               `.ak-viz-world[data-viz-preset="…"] .ak-viz-node`, which is one
+               class MORE specific than a bare `.ak-viz-node.is-selected` — so
+               without the prefix, picking any theme but "Original" replaced
+               the selection ring with the theme's resting shadow and selecting
+               a block stopped showing at all. Being later in the file doesn't
+               help: specificity is decided before source order. */
+            [data-ak-chain-viz] .ak-viz-node.is-selected {
                 box-shadow: 0 0 0 2px var(--viz-bg), 0 0 0 4px var(--viz-select), 0 4px 14px rgba(16, 24, 40, .14);
             }
             /* Block under the pointer while an arrow is being dragged out of
                another block's port — the drop target of the new link. */
-            .ak-viz-node.is-link-target {
+            [data-ak-chain-viz] .ak-viz-node.is-link-target {
                 box-shadow: 0 0 0 2px var(--viz-bg), 0 0 0 4px var(--viz-highlight), 0 4px 14px rgba(16, 24, 40, .14);
             }
             /* Comment badge — node's top-right corner. */

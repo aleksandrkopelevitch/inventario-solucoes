@@ -10,8 +10,11 @@ use Illuminate\Support\Facades\Blade;
 uses(LazilyRefreshDatabase::class);
 
 it('embeds a resolved graph (labels, per-step protocol, arrow direction) on the workspace row', function () {
-    $a = Solution::factory()->create(['name' => 'Alpha ERP']);
-    $b = Solution::factory()->create(['name' => 'Bravo iPaaS']);
+    // Categories pinned rather than left to the factory: the payload carries
+    // the block's color FAMILY, and two categories of the same family would
+    // make the assertion below agree by accident.
+    $a = Solution::factory()->create(['name' => 'Alpha ERP', 'category' => 'erp']);
+    $b = Solution::factory()->create(['name' => 'Bravo iPaaS', 'category' => 'ipaas']);
 
     $diagram = Diagram::factory()->create([
         'name'  => 'Alpha <-> Bravo',
@@ -43,9 +46,9 @@ it('embeds a resolved graph (labels, per-step protocol, arrow direction) on the 
     // `kind` defaults to system on nodes stored before kinds existed (no
     // `kind` key at all, as written above), and only a non-system kind has an icon.
     expect($graph['nodes'])->toBe([
-        ['label' => 'Alpha ERP', 'kind' => 'system', 'icon' => null, 'solution' => true, 'solutionId' => $a->id, 'url' => route('solutions.show', $a), 'comment' => null, 'logo' => null, 'environment' => null, 'cloud' => null, 'mediaUrl' => null],
-        ['label' => 'Bravo iPaaS', 'kind' => 'system', 'icon' => null, 'solution' => true, 'solutionId' => $b->id, 'url' => route('solutions.show', $b), 'comment' => null, 'logo' => null, 'environment' => null, 'cloud' => null, 'mediaUrl' => null],
-        ['label' => 'Sistema externo', 'kind' => 'system', 'icon' => null, 'solution' => false, 'solutionId' => null, 'url' => null, 'comment' => null, 'logo' => null, 'environment' => null, 'cloud' => null, 'mediaUrl' => null], // free-text node
+        ['label' => 'Alpha ERP', 'kind' => 'system', 'icon' => null, 'solution' => true, 'solutionId' => $a->id, 'url' => route('solutions.show', $a), 'comment' => null, 'logo' => null, 'categoryFamily' => 'indigo', 'environment' => null, 'cloud' => null, 'mediaUrl' => null],
+        ['label' => 'Bravo iPaaS', 'kind' => 'system', 'icon' => null, 'solution' => true, 'solutionId' => $b->id, 'url' => route('solutions.show', $b), 'comment' => null, 'logo' => null, 'categoryFamily' => 'blue', 'environment' => null, 'cloud' => null, 'mediaUrl' => null],
+        ['label' => 'Sistema externo', 'kind' => 'system', 'icon' => null, 'solution' => false, 'solutionId' => null, 'url' => null, 'comment' => null, 'logo' => null, 'categoryFamily' => null, 'environment' => null, 'cloud' => null, 'mediaUrl' => null], // free-text node
     ]);
     expect($graph['edges'])->toBe([
         ['from' => 0, 'to' => 1, 'arrow' => '<->', 'protocol' => ['value' => 'rest', 'label' => 'REST']],

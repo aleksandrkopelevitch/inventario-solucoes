@@ -96,7 +96,7 @@ class ChainGraph
      * @param  array{solution_id?: int|null, label?: string|null, kind?: string|null, media_id?: int|null}  $node
      * @param  Collection<int, Solution>  $solutions
      * @param  Collection<int, Media>|null  $mediaById
-     * @return array{label: string, kind: string, icon: string|null, solution: bool, solutionId: int|null, url: string|null, comment: string|null, logo: string|null, environment: array{label: string, icon: string|null}|null, cloud: array{label: string, icon: string|null}|null, mediaUrl: string|null}
+     * @return array{label: string, kind: string, icon: string|null, solution: bool, solutionId: int|null, url: string|null, comment: string|null, logo: string|null, categoryFamily: string|null, environment: array{label: string, icon: string|null}|null, cloud: array{label: string, icon: string|null}|null, mediaUrl: string|null}
      */
     public static function resolveNode(array $node, Collection $solutions, ?string $comment = null, ?Collection $mediaById = null): array
     {
@@ -105,17 +105,25 @@ class ChainGraph
         $media = $kind === ChainNodeKind::Image ? self::resolveMedia($node['media_id'] ?? null, $mediaById) : null;
 
         return [
-            'label'       => (new ChainLabeler)->nodeLabel($node, $solutions),
-            'kind'        => $kind->value,
-            'icon'        => Heroicons::outlineSvg($kind->icon()),
-            'solution'    => (bool) $solution,
-            'solutionId'  => $solution?->id,
-            'url'         => $solution ? route('solutions.show', $solution) : null,
-            'comment'     => $comment,
-            'logo'        => $solution?->logo_path ? Storage::disk('public')->url($solution->logo_path) : null,
-            'environment' => self::attributeBadge($solution?->environment_label, $solution?->environment_icon),
-            'cloud'       => self::attributeBadge($solution?->cloud_label, $solution?->cloud_icon),
-            'mediaUrl'    => $media ? route('files.show', $media) : null,
+            'label'      => (new ChainLabeler)->nodeLabel($node, $solutions),
+            'kind'       => $kind->value,
+            'icon'       => Heroicons::outlineSvg($kind->icon()),
+            'solution'   => (bool) $solution,
+            'solutionId' => $solution?->id,
+            'url'        => $solution ? route('solutions.show', $solution) : null,
+            'comment'    => $comment,
+            'logo'       => $solution?->logo_path ? Storage::disk('public')->url($solution->logo_path) : null,
+            // Which of the 8 color families this block belongs to, for the
+            // themes that tint a block by what its system IS (see the
+            // `--viz-node-accent` block in components/chain/viz.blade.php).
+            // Null for everything that is not a registered Solution — a
+            // decision, an actor, a terminal and a free-text system have no
+            // category, and a default that pretended otherwise would color
+            // them all alike.
+            'categoryFamily' => $solution ? CategoryPalette::family($solution->category) : null,
+            'environment'    => self::attributeBadge($solution?->environment_label, $solution?->environment_icon),
+            'cloud'          => self::attributeBadge($solution?->cloud_label, $solution?->cloud_icon),
+            'mediaUrl'       => $media ? route('files.show', $media) : null,
         ];
     }
 

@@ -71,7 +71,7 @@ class SaveChainLayoutRequest extends FormRequest
      * size), applied live on the canvas (not just at export time) and
      * persisted here so it's remembered per diagram.
      */
-    public const THEMES = ['original', 'casual', 'corporativo', 'tech'];
+    public const THEMES = ['original', 'casual', 'corporativo', 'tech', 'arquitetura', 'blueprint'];
 
     /**
      * @return array<string, mixed>

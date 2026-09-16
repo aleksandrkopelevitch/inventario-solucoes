@@ -40,6 +40,78 @@
         </x-forms.button>
     @endif
 
+    {{-- "Desenhar esta página" — one menu, five pictures.
+
+         The first item is the only one that produces something EDITABLE: a
+         Diagram in its own module, drawn on the F3 canvas, feeding the
+         ecosystem map like any other. The four below it are rendered artifacts
+         (Archify), and they answer the questions a topology cannot — in what
+         order the calls happen, where the data comes to rest, what the states
+         of a run are, who approves what. They are not chains and never become
+         one, which is why they are stored as media on the page and read in a
+         tab of their own.
+
+         Two different abilities, deliberately: drawing a chain writes a row in
+         another module (`create` on Diagram), while an artifact belongs to this
+         page (`update` on it, which is what `$canEdit` already answered).
+
+         Each item is its own <form class="contents">: ajax-post.js builds a
+         FormData from the form a button names, and there is no form in this bar
+         to borrow. No `type="button"` on any of them — a button carrying
+         `data-ak-ajax` must stay a submit, or Enter silently stops working
+         (AGENTS.md). --}}
+    {{-- The trigger appears only when the menu would have something in it.
+         Without this a Viewer got the button and an EMPTY popover — an
+         affordance for two things they may not do. The two conditions are the
+         two halves of the menu, in the same order. --}}
+    @isset($diagramDraftUrl)
+    @if ($canEdit || (auth()->user()?->can('create', App\Models\Diagram::class) ?? false))
+        <div class="relative">
+            <x-forms.button type="button" variant="ghost" data-ak-toggle="docs-draw-menu"
+                data-ak-toggle-classes="hidden" data-ak-toggle-blur="true"
+                class="!h-9 !w-9 !p-0" aria-label="Desenhar esta página" title="Desenhar esta página">
+                <x-heroicon-o-rectangle-group class="size-5" />
+            </x-forms.button>
+
+            <div id="docs-draw-menu" class="hidden absolute right-0 top-full z-20 mt-1.5 w-72 rounded-field border border-line bg-surface p-1.5 shadow-xl">
+                @can('create', App\Models\Diagram::class)
+                    <form id="docs-diagram-form" class="contents">
+                        <x-forms.button variant="ghost" data-ak-ajax="docs-diagram-form" data-ak-action="{{ $diagramDraftUrl }}"
+                            class="!h-auto !w-full !justify-start !gap-2.5 !rounded-md !px-2 !py-1.5 !text-left">
+                            <x-heroicon-o-share class="size-4 shrink-0 text-muted" />
+                            <span class="min-w-0">
+                                <span class="block truncate text-xs font-semibold text-ink">Fluxo, no canvas</span>
+                                <span class="block truncate text-[11px] text-muted">Um diagrama editável, com os sistemas do catálogo</span>
+                            </span>
+                        </x-forms.button>
+                    </form>
+
+                    <span class="my-1 block h-px bg-line"></span>
+                @endcan
+
+                @if ($canEdit)
+                    @isset($artifactUrls)
+                    @foreach ($artifactUrls as $artifact)
+                        <form id="docs-artifact-form-{{ $artifact['type']->value }}" class="contents">
+                            <x-forms.button variant="ghost"
+                                data-ak-ajax="docs-artifact-form-{{ $artifact['type']->value }}"
+                                data-ak-action="{{ $artifact['url'] }}"
+                                class="!h-auto !w-full !justify-start !gap-2.5 !rounded-md !px-2 !py-1.5 !text-left">
+                                <x-dynamic-component :component="'heroicon-o-' . $artifact['type']->icon()" class="size-4 shrink-0 text-muted" />
+                                <span class="min-w-0">
+                                    <span class="block truncate text-xs font-semibold text-ink">{{ $artifact['type']->label() }}</span>
+                                    <span class="block truncate text-[11px] text-muted">{{ $artifact['type']->hint() }}</span>
+                                </span>
+                            </x-forms.button>
+                        </form>
+                    @endforeach
+                    @endisset
+                @endif
+            </div>
+        </div>
+    @endif
+    @endisset
+
     @if ($canEdit)
         {{-- `data-ak-panel-dock` anchors the panel as `#docs-shell`'s right COLUMN
              (2026-08-29) — talking about the documentation while it disappeared
