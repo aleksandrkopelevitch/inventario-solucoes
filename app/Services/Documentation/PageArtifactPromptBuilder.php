@@ -161,6 +161,9 @@ class PageArtifactPromptBuilder
             - `stages` são as COLUNAS, da esquerda para a direita; `stage` é o
               índice da coluna (0, 1, 2…) e `row` a linha dentro dela (0, 1, 2…).
             - Dois blocos nunca compartilham o mesmo par `stage`+`row`.
+            - LIMITES DO RENDERIZADOR: no máximo 5 colunas (`stages`) e `row` de
+              0 a 4. Um pipeline mais largo do que isso vira um diagrama de
+              cinco etapas com o que importa em cada uma, não um sexto `stage`.
             TXT,
 
             ArtifactDiagramType::Lifecycle => <<<'TXT'

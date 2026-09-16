@@ -56,6 +56,18 @@ Five things to keep:
   thing this feature can say about a page, and it is worth more than four boxes
   invented to satisfy the request. Verified against a real page: "Logs de
   integrações" describes where to find logs, not a call sequence, and said so.
+- **A fixed canvas is OUR bug, not the model's.** Each renderer has a default
+  viewBox and validates against it, so content that outgrows it is refused —
+  and the repair round cannot help, because the model is never shown a canvas
+  and every attempt is normalized back to the same numbers. `normalize()`
+  therefore sizes the canvas to the content: a sequence grows taller with its
+  messages (the default 760 fits exactly NINE, and the tenth was refused in
+  production) and wider with its participants; a dataflow grows wider with its
+  stages (the default 940 overflows at FIVE, which is the most its schema
+  allows — so the widest legal diagram did not fit the default canvas). Reserve
+  150px below the last message: the legend grows UPWARD from the floor, one
+  22px row at a time, and at 83 the last message landed one pixel inside it.
+  Lifecycle needs none of this; it is bounded by `col` 0..4 and four lanes.
 - **One repair round, against Archify's own diagnostics** — which name the node
   and suggest a fix ("labelAt [171, 202] or labelDy +55"). A spec still refused
   after that is not converging.

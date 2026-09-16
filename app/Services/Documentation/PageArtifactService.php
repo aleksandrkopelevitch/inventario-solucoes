@@ -32,6 +32,50 @@ class PageArtifactService
 
     private const SEQUENCE_STEP = 56;
 
+    /**
+     * The sequence renderer's own geometry, which decides how much room a given
+     * canvas has: the timeline runs from `lifelineTop` (142) to
+     * `viewBox[1] - 65`, and a message must sit 18px inside both ends. So the
+     * usable floor is 160 and the ceiling is `viewBox[1] - 83` — which is where
+     * the default 760-high canvas gets its 677.
+     *
+     * Horizontally the same: with the default `column_fit` the lanes sit at a
+     * fixed 108px pitch starting 62px in, each 86px wide.
+     */
+    private const SEQUENCE_DEFAULT_VIEWBOX = [920, 760];
+
+    /**
+     * How much canvas to keep below the last message.
+     *
+     * The timeline's own floor needs 83 (see above), and the LEGEND takes the
+     * rest: it grows upward from `viewBox[1] - 54`, one 22px row at a time, so
+     * its top is `viewBox[1] - 84` for a single row and higher for every row
+     * after that. At 83 the last message landed one pixel inside a one-row
+     * legend — "path 14 crosses legend Legend".
+     *
+     * 150 clears a three-row legend, which is more than the five relationship
+     * variants a sequence can use will ever need. It is deliberately generous
+     * rather than computed: this geometry is OURS, and the repair round cannot
+     * save a mistake in it — the model is never shown the canvas, and every
+     * attempt would be normalized back to the same numbers.
+     */
+    private const SEQUENCE_BOTTOM_RESERVE = 150;
+
+    private const SEQUENCE_COL_PITCH = 108;
+
+    private const SEQUENCE_SIDE_RESERVE = 145;
+
+    /**
+     * The dataflow canvas has the same shape of problem on its other axis: the
+     * stages are columns at a fixed pitch, and the renderer's default 940-wide
+     * canvas already overflows at FIVE of them — which is the most its schema
+     * allows, so the maximum legal diagram did not fit the default canvas.
+     * Measured against the CLI: 5 stages need 1068 and validate at 1120.
+     */
+    private const DATAFLOW_DEFAULT_VIEWBOX = [940, 720];
+
+    private const DATAFLOW_STAGE_WIDTH = 230;
+
     public function __construct(
         private readonly PageArtifactPromptBuilder $prompts,
         private readonly ArchifyRunner $archify,
@@ -156,14 +200,65 @@ class PageArtifactService
         unset($payload['meta']['output']);
 
         if ($type === ArtifactDiagramType::Sequence && is_array($payload['messages'] ?? null)) {
-            $payload['messages'] = array_values(array_map(
-                fn (mixed $message, int $i) => is_array($message)
-                    ? array_merge($message, ['y' => self::SEQUENCE_Y0 + $i * self::SEQUENCE_STEP])
-                    : $message,
-                array_values($payload['messages']),
-                array_keys(array_values($payload['messages'])),
-            ));
+            $payload = $this->layOutSequence($payload);
         }
+
+        if ($type === ArtifactDiagramType::Dataflow) {
+            $stages = count(array_filter((array) ($payload['stages'] ?? []), 'is_array'));
+
+            $payload['meta']['viewBox'] = [
+                max(self::DATAFLOW_DEFAULT_VIEWBOX[0], $stages * self::DATAFLOW_STAGE_WIDTH),
+                self::DATAFLOW_DEFAULT_VIEWBOX[1],
+            ];
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Stacks the messages down the timeline AND grows the canvas to hold them.
+     *
+     * The second half is the one that was missing, and production found it: a
+     * fixed `y` step against the renderer's default 760-high canvas fits
+     * exactly nine messages, and the tenth was refused with "sits outside the
+     * readable timeline". Squeezing the step to fit would have been the wrong
+     * repair — a sequence diagram is SUPPOSED to get taller as the exchange
+     * gets longer, and the renderer says so itself: "a taller viewBox gains
+     * message room". So the spacing stays readable and the canvas follows the
+     * content.
+     *
+     * The width follows the participant count for the same reason: the lanes
+     * are laid out at a fixed pitch, so a dozen of them run off the side of a
+     * default-width canvas exactly as a dozen messages ran off the bottom.
+     *
+     * A viewBox the MODEL supplied is ignored rather than merged. Geometry is
+     * this class's half of the contract (the prompt never mentions a canvas),
+     * and half-honouring one would reintroduce the same failure through a
+     * different door.
+     *
+     * @param  array<mixed>  $payload
+     * @return array<mixed>
+     */
+    private function layOutSequence(array $payload): array
+    {
+        $messages = array_values(array_filter($payload['messages'], 'is_array'));
+
+        $payload['messages'] = array_map(
+            fn (array $message, int $i) => array_merge($message, ['y' => self::SEQUENCE_Y0 + $i * self::SEQUENCE_STEP]),
+            $messages,
+            array_keys($messages),
+        );
+
+        $lastY = self::SEQUENCE_Y0 + max(0, count($messages) - 1) * self::SEQUENCE_STEP;
+        $participants = count(array_filter((array) ($payload['participants'] ?? []), 'is_array'));
+
+        $payload['meta']['viewBox'] = [
+            max(
+                self::SEQUENCE_DEFAULT_VIEWBOX[0],
+                max(0, $participants - 1) * self::SEQUENCE_COL_PITCH + self::SEQUENCE_SIDE_RESERVE,
+            ),
+            max(self::SEQUENCE_DEFAULT_VIEWBOX[1], $lastY + self::SEQUENCE_BOTTOM_RESERVE),
+        ];
 
         return $payload;
     }

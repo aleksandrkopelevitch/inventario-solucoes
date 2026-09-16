@@ -152,6 +152,98 @@ it('assigns the vertical position of a sequence itself', function () {
     @unlink($path);
 });
 
+it('grows the canvas instead of running a long exchange off the bottom', function () {
+    // Reported from production: the renderer's default 760-high canvas fits
+    // exactly NINE messages, and the tenth came back "sits outside the readable
+    // timeline — keep y between 160 and 677". A sequence diagram is supposed to
+    // get taller as the exchange gets longer, so the spacing stays readable and
+    // the canvas follows.
+    $messages = [];
+
+    // Every variant, so the legend is at its tallest — it grows upward from the
+    // canvas floor and is what the last message actually has to clear.
+    $variants = ['default', 'return', 'security', 'dashed', 'emphasis'];
+
+    for ($i = 1; $i <= 14; $i++) {
+        $messages[] = [
+            'from'    => $i % 2 === 0 ? 'api' : 'loja',
+            'to'      => $i % 2 === 0 ? 'loja' : 'api',
+            'label'   => 'passo ' . $i,
+            'variant' => $variants[$i % 5],
+        ];
+    }
+
+    $service = fakeArtifactService(artifactJson(sequenceSpec(['messages' => $messages])));
+
+    ['path' => $path] = $service->render(artifactPage(), ArtifactDiagramType::Sequence);
+
+    expect(is_file($path))->toBeTrue()
+        ->and(file_get_contents($path))->toContain('passo 14')
+        // One model call: the spec was valid the first time, not repaired into
+        // shape afterwards.
+        ->and($service->capturedPrompts)->toHaveCount(1);
+
+    @unlink($path);
+});
+
+it('widens the canvas for a wide cast, for the same reason', function () {
+    // The lanes sit at a fixed pitch, so a dozen participants run off the side
+    // exactly as a dozen messages ran off the bottom — and the prompt allows up
+    // to twelve blocks.
+    $participants = [];
+    $messages = [];
+
+    for ($i = 1; $i <= 11; $i++) {
+        $participants[] = ['id' => 'p' . $i, 'type' => 'backend', 'label' => 'Sistema ' . $i];
+
+        if ($i > 1) {
+            $messages[] = ['from' => 'p' . ($i - 1), 'to' => 'p' . $i, 'label' => 'passo ' . $i];
+        }
+    }
+
+    $service = fakeArtifactService(artifactJson(sequenceSpec([
+        'participants' => $participants,
+        'messages'     => $messages,
+    ])));
+
+    ['path' => $path] = $service->render(artifactPage(), ArtifactDiagramType::Sequence);
+
+    expect(is_file($path))->toBeTrue()
+        ->and(file_get_contents($path))->toContain('Sistema 11');
+
+    @unlink($path);
+});
+
+it('widens a data flow to its widest legal shape', function () {
+    // The schema allows five stages and the renderer's default canvas fits
+    // four — so the widest LEGAL dataflow did not fit the default canvas. Same
+    // bug as the sequence one, on the other axis.
+    $nodes = [];
+    $flows = [];
+
+    for ($i = 0; $i < 5; $i++) {
+        $nodes[] = ['id' => 'n' . $i, 'type' => 'backend', 'label' => 'Etapa ' . $i, 'stage' => $i, 'row' => 0];
+
+        if ($i > 0) {
+            $flows[] = ['from' => 'n' . ($i - 1), 'to' => 'n' . $i, 'label' => 'passo'];
+        }
+    }
+
+    $service = fakeArtifactService(artifactJson([
+        'meta'   => ['title' => 'Carga completa'],
+        'stages' => [['label' => 'A'], ['label' => 'B'], ['label' => 'C'], ['label' => 'D'], ['label' => 'E']],
+        'nodes'  => $nodes,
+        'flows'  => $flows,
+    ]));
+
+    ['path' => $path] = $service->render(artifactPage(), ArtifactDiagramType::Dataflow);
+
+    expect(is_file($path))->toBeTrue()
+        ->and($service->capturedPrompts)->toHaveCount(1);
+
+    @unlink($path);
+});
+
 it('repairs once against the renderer own diagnostics, then gives up', function () {
     $broken = artifactJson(sequenceSpec(['messages' => [['from' => 'loja', 'to' => 'fantasma', 'label' => 'x']]]));
 
