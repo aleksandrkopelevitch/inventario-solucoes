@@ -552,6 +552,13 @@ function paintNode(el, data) {
     el.classList.toggle('is-logo-only', logoOnly)
     el.classList.toggle('has-comment', !!data.comment)
     el.classList.toggle('is-dashed', !!data.dashed)
+    // A família de cor da CATEGORIA da Solução (`ChainGraph::resolveNode()`),
+    // lida só pelos temas que tingem o bloco pelo que o sistema É — ver o
+    // bloco `--viz-node-accent` no <style> do componente. Removido (em vez de
+    // ficar vazio) quando o bloco não é uma Solução cadastrada: o seletor é
+    // `[data-category-family]`, então um valor vazio ainda casaria.
+    if (data.categoryFamily) el.dataset.categoryFamily = data.categoryFamily
+    else delete el.dataset.categoryFamily
     el.innerHTML = ''
     // Zerado junto com o conteúdo: só os blocos redondos escrevem `title`
     // (rótulo completo, já que a chip abaixo do círculo trunca), e converter um

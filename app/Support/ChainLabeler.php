@@ -34,7 +34,11 @@ class ChainLabeler
 
         return $ids->isEmpty()
             ? collect()
-            : Solution::whereIn('id', $ids)->get(['id', 'name', 'slug', 'environment', 'cloud', 'logo_path'])->keyBy('id');
+            // `category` is read by ChainGraph::resolveNode() for the block's
+            // color family. Adding a column here rather than lazy-loading one:
+            // a constrained select plus strict mode throws MissingAttribute on
+            // access, which is the failure that named this line.
+            : Solution::whereIn('id', $ids)->get(['id', 'name', 'slug', 'category', 'environment', 'cloud', 'logo_path'])->keyBy('id');
     }
 
     /**

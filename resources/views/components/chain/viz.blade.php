@@ -1496,8 +1496,54 @@
                  theme rule is more specific than all of them — so a single
                  generic override doesn't just retint them, it erases the
                  distinction. --}}
+            {{-- The block's CATEGORY family, as one custom property.
+
+                 Set on every node in every theme and READ by only two of them
+                 (right below) — which is the point. "Original", "Casual",
+                 "Corporativo" and "Tech" go on saying a block is a block; the
+                 two token themes add a SECOND axis on top of the one this
+                 canvas already has. Shape still carries the KIND (chamfered
+                 hexagon = decision, circle = actor, dashed = external), and
+                 the hue carries what the system IS — the same hue the solution
+                 tile, the category chip and the ecosystem map already use, so
+                 somebody who has learned the catalog's colors reads the drawing
+                 with them instead of with a legend.
+
+                 Only a registered Solution has one: `ChainGraph::resolveNode()`
+                 sends null for everything else and `paintNode()` removes the
+                 attribute, so a decision, an actor, a terminal and a free-text
+                 system stay deliberately uncolored. That is what keeps the axis
+                 meaning something — a colored block is a system in the catalog,
+                 filed under that family.
+
+                 The values come straight from `@theme` in app.css
+                 (`--color-cat-*`), which is what stops them drifting from
+                 `App\Support\CategoryPalette`. These are real CSS rules rather
+                 than Tailwind utilities, so the JIT's `@source` scan of that
+                 class is not involved here. --}}
+            .ak-viz-node[data-category-family="emerald"] { --viz-node-accent: var(--color-cat-emerald); }  /* manufatura, TMS, infraestrutura */
+            .ak-viz-node[data-category-family="teal"] { --viz-node-accent: var(--color-cat-teal); }  /* e-commerce, CRM, atendimento */
+            .ak-viz-node[data-category-family="blue"] { --viz-node-accent: var(--color-cat-blue); }  /* dados/BI, iPaaS */
+            .ak-viz-node[data-category-family="indigo"] { --viz-node-accent: var(--color-cat-indigo); }  /* plataforma interna, ERP, ITSM */
+            .ak-viz-node[data-category-family="fuchsia"] { --viz-node-accent: var(--color-cat-fuchsia); }  /* marketing, HCM */
+            .ak-viz-node[data-category-family="rose"] { --viz-node-accent: var(--color-cat-rose); }  /* segurança, IAM, jurídico */
+            .ak-viz-node[data-category-family="amber"] { --viz-node-accent: var(--color-cat-amber); }  /* pagamentos, fiscal */
+            .ak-viz-node[data-category-family="slate"] { --viz-node-accent: var(--color-cat-slate); }  /* outros */
+
+            {{-- A block whose system has a category wears its family's hue: a
+                 solid 1px stroke, and the same hue folded into the fill at low
+                 strength. `color-mix` is dropped whole by a browser that lacks
+                 it, leaving the plain `--viz-node` fill from the base rule —
+                 which is why the mix is written against an OPAQUE base and not
+                 against `transparent`: a fallback that let the arrows
+                 underneath show through the block would be worse than no tint.
+                 Archify's treatment, over our own axis. --}}
             .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node {
                 box-shadow: 0 2px 10px rgba(2, 6, 23, .55), 0 0 0 1px rgba(148, 163, 184, .28);
+            }
+            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node[data-category-family] {
+                background: color-mix(in oklab, var(--viz-node-accent) 16%, var(--viz-node));
+                box-shadow: 0 2px 10px rgba(2, 6, 23, .55), 0 0 0 1px var(--viz-node-accent);
             }
             .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-free,
             .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-decision,
@@ -1537,6 +1583,13 @@
                  near-black one. --}}
             .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node {
                 box-shadow: 0 1px 2px rgba(18, 51, 68, .10), 0 0 0 1px rgba(120, 170, 189, .55);
+            }
+            {{-- Lighter mix than the dark theme's: the same 16% over a white
+                 card reads as a colored card, not a tinted one, and blueprint
+                 is meant to stay drafting paper. --}}
+            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node[data-category-family] {
+                background: color-mix(in oklab, var(--viz-node-accent) 8%, var(--viz-node));
+                box-shadow: 0 1px 2px rgba(18, 51, 68, .10), 0 0 0 1px var(--viz-node-accent);
             }
             .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-free,
             .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-decision,
