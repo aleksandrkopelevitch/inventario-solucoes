@@ -94,6 +94,20 @@ Route::get('auth/entra/callback', [EntraController::class, 'callback'])->name('e
 | match in registration order, so a page slugged `search` would simply never
 | open.
 */
+// Signing out belongs to EVERY account, so it is `auth` and nothing else.
+//
+// It sat inside the `inventory` group below until this was found in production:
+// `EnsureInventoryAccess` runs before the controller and redirects a `Reader`
+// to `/docs`, so submitting the form logged nobody out and landed them back
+// where they started, still signed in. Nothing failed and nothing was logged —
+// the button simply did nothing. It was unreachable only for the one tier that
+// most needs it: `/docs` is a reader's entire application, and before SSO no
+// reader existed to walk into it.
+//
+// The rule this is an instance of: a route the `inventory` gate is allowed to
+// answer for is a route ABOUT the inventory. Session and account routes are not.
+Route::middleware('auth')->delete('logout', [LoginController::class, 'destroy'])->name('login.destroy');
+
 Route::middleware(['entra.silent', 'auth'])->group(function () {
     Route::get('docs', [KnowledgeBaseController::class, 'index'])->name('docs.index');
 
@@ -127,8 +141,6 @@ Route::middleware(['auth', 'inventory'])->group(function () {
     Route::get('profile', [ProfileController::class, 'show'])->name('profile.show');
     Route::get('profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('profile', [ProfileController::class, 'update'])->name('profile.update');
-
-    Route::delete('logout', [LoginController::class, 'destroy'])->name('login.destroy');
 
     // F1 — solutions catalog (Stage 2). Static routes before the wildcard.
     Route::get('solutions', [SolutionController::class, 'index'])->name('solutions.index');

@@ -109,3 +109,23 @@ address IS their mailbox; a shared or legacy address means their first SSO visit
 creates a SECOND row at the floor tier, and their existing one keeps their
 history. Promoting the new row is the admin's call on the Usuários panel — it is
 deliberately not something a claim can do.
+
+#### A session route is not an inventory route
+
+Shipping the button was only half of it: `login.destroy` was registered inside
+the `['auth', 'inventory']` group, so `EnsureInventoryAccess` answered the
+request before `LoginController::destroy` could. A `Reader` pressing Sair was
+redirected to `/docs` and stayed signed in — the button did nothing, silently,
+for the exact tier whose whole application is the screen it had just been added
+to. Nothing failed, nothing was logged, and the feature tests passed, because
+they signed out a user whose default role CAN read the inventory.
+
+The gate did what it says on the tin. The mistake was filing a session action
+under the inventory: `inventory` answers for routes ABOUT the catalog, and
+logging out is about the session. Anything an account must be able to do
+REGARDLESS of tier — signing out, and whatever account-level routes come next —
+takes `auth` and nothing else.
+
+**Test every tier for anything a `Reader` must be able to reach.** One dataset
+per role, and it is the `Reader` row that carries the test: a fixture built with
+`User::factory()->create()` lands above the floor and never touches the gate.

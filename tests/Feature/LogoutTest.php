@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\UserRole;
 use App\Models\Notebook;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -30,7 +31,7 @@ it('offers a way out from inside the knowledge base, which is a reader’s whole
 });
 
 it('offers the same way out from the inventory shell', function () {
-    $this->actingAs(User::factory()->create(['role' => App\Enums\UserRole::Admin]))
+    $this->actingAs(User::factory()->create(['role' => UserRole::Admin]))
         ->get(route('profile.show'))
         ->assertOk()
         ->assertSee(route('login.destroy'))
@@ -57,15 +58,37 @@ it('sends a reader back to the knowledge base until their role changes', functio
 
     $this->actingAs($user)->get(route('profile.show'))->assertRedirect(route('docs.index'));
 
-    $user->update(['role' => App\Enums\UserRole::Admin]);
+    $user->update(['role' => UserRole::Admin]);
 
     $this->actingAs($user->fresh())->get(route('profile.show'))->assertOk();
 });
 
-it('ends the session and returns to the login screen', function () {
-    $this->actingAs(User::factory()->create())
+/**
+ * Every tier, and the `Reader` is the one this test exists for.
+ *
+ * `login.destroy` sat inside the `inventory` route group, so
+ * `EnsureInventoryAccess` answered it before the controller ever did: a reader
+ * submitting the form was redirected to `/docs` and stayed signed in. The
+ * button did nothing, silently, for the only tier whose entire application is
+ * the screen it was added to. Signing out is not an inventory action — it is
+ * `auth` and nothing else.
+ */
+it('ends the session and returns to the login screen, whatever the account may read', function (UserRole $role) {
+    $this->actingAs(User::factory()->create(['role' => $role]))
         ->delete(route('login.destroy'))
         ->assertRedirect(route('login.create'));
 
     $this->assertGuest();
+})->with([
+    'reader' => UserRole::Reader,
+    'viewer' => UserRole::Viewer,
+    'writer' => UserRole::Writer,
+    'admin'  => UserRole::Admin,
+]);
+
+/** The gate that used to swallow it still guards everything it should. */
+it('keeps the inventory itself closed to a reader', function () {
+    $this->actingAs(User::factory()->reader()->create())
+        ->get(route('solutions.index'))
+        ->assertRedirect(route('docs.index'));
 });
