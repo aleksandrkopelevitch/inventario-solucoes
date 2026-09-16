@@ -25,6 +25,12 @@ class ListNotebooks implements Tool
         private readonly Presenter $presenter,
     ) {}
 
+    public function requiresInventory(): bool
+    {
+        // Documentação publicada: o que /docs entrega a qualquer conta Leo.
+        return false;
+    }
+
     public function name(): string
     {
         return 'list_notebooks';

@@ -35,15 +35,30 @@ class ToolRegistry
 
     public function __construct(private readonly Container $container) {}
 
-    /** @return list<Tool> */
-    public function all(): array
+    /**
+     * The tools this caller may use.
+     *
+     * Filtering here rather than at the call site is what makes a `Reader`'s
+     * connection coherent: `tools/list` shows only the documentation tools, so
+     * the model never chooses one it would be refused, and `find()` answers null
+     * for the rest — which `McpServer` reports as an unknown tool, the same
+     * sentence a typo gets. There is no second, quieter error to write.
+     *
+     * @return list<Tool>
+     */
+    public function all(Actor $actor): array
     {
-        return array_map(fn (string $tool) => $this->container->make($tool), self::TOOLS);
+        $tools = array_map(fn (string $tool) => $this->container->make($tool), self::TOOLS);
+
+        return array_values(array_filter(
+            $tools,
+            fn (Tool $tool) => $actor->canReadInventory || ! $tool->requiresInventory(),
+        ));
     }
 
-    public function find(string $name): ?Tool
+    public function find(string $name, Actor $actor): ?Tool
     {
-        foreach ($this->all() as $tool) {
+        foreach ($this->all($actor) as $tool) {
             if ($tool->name() === $name) {
                 return $tool;
             }
@@ -63,7 +78,7 @@ class ToolRegistry
      *
      * @return list<array<string, mixed>>
      */
-    public function describe(): array
+    public function describe(Actor $actor): array
     {
         return array_map(fn (Tool $tool) => [
             'name'        => $tool->name(),
@@ -77,6 +92,6 @@ class ToolRegistry
                 'idempotentHint'  => true,
                 'openWorldHint'   => false,
             ],
-        ], $this->all());
+        ], $this->all($actor));
     }
 }

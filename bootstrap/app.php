@@ -1,7 +1,7 @@
 <?php
 
 use App\Http\Middleware\AttemptEntraSilentSignOn;
-use App\Http\Middleware\AuthenticateMcpToken;
+use App\Http\Middleware\AuthenticateMcpRequest;
 use App\Http\Middleware\EnsureInventoryAccess;
 use App\Http\Middleware\PreventJsonResponseCaching;
 use Illuminate\Auth\AuthenticationException;
@@ -28,7 +28,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // configuration help assumes is a bare one, and the `mcp` group below
         // is the whole middleware stack this route needs.
         then: function (): void {
-            Route::middleware('mcp')->group(__DIR__ . '/../routes/mcp.php');
+            // No group middleware: the file applies `mcp` to the endpoint
+            // itself and leaves the OAuth discovery documents public.
+            Route::group([], __DIR__ . '/../routes/mcp.php');
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
@@ -50,7 +52,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // honoured. Authentication comes FIRST so the throttle can key on the
         // token it resolved (see `AppServiceProvider::bootMcpRateLimiter()`).
         $middleware->group('mcp', [
-            AuthenticateMcpToken::class,
+            AuthenticateMcpRequest::class,
             'throttle:mcp',
         ]);
 

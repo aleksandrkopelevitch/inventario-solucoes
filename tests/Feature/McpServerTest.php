@@ -47,10 +47,17 @@ function mcpCall(string $tool, array $arguments = [], ?string $token = null): ar
 /*  Authentication */
 /* ------------------------------------------------------------------ */
 
-it('refuses a request with no token', function () {
+it('refuses a request with no credential, pointing at the OAuth metadata', function () {
+    // The `resource_metadata` parameter is how a spec-aware client discovers
+    // the authorization server and starts the flow — it is the difference
+    // between a connector that asks somebody to sign in and one that asks for
+    // a token. It was deliberately ABSENT before this app implemented OAuth.
     $this->postJson(route('mcp.handle'), ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/list'])
         ->assertStatus(401)
-        ->assertHeader('WWW-Authenticate', 'Bearer')
+        ->assertHeader('WWW-Authenticate', sprintf(
+            'Bearer resource_metadata="%s", error="invalid_token"',
+            route('mcp.oauth.protected-resource', ['path' => 'mcp']),
+        ))
         ->assertJsonPath('error.code', -32001);
 });
 

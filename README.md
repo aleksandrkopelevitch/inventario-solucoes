@@ -1089,13 +1089,23 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   (`App\Mcp\ToolRegistry`). É a única rota do app fora do grupo `web`: sem
   sessão, sem CSRF, sem `auth`.
 
-  A autenticação é **um bearer token e nada mais** — sem OAuth, sem
-  consentimento. Um admin cria e apaga tokens em `/mcp-tokens`, que é também
-  onde estão o endereço do servidor e as duas linhas de configuração que se
-  colam num cliente. O token aparece em texto claro **uma única vez**, no
-  momento em que é criado: o app guarda só o `sha256` e os quatro últimos
-  caracteres, então um token perdido se substitui, não se recupera. Apagar a
-  linha É revogar, na próxima requisição.
+  São **duas credenciais para dois tipos de chamador**. Uma PESSOA conecta pelo
+  OAuth 2.1: em `/mcp/connect` ela copia um endereço, cola no conector do Claude
+  Desktop (ou do ChatGPT), entra com a conta Leo e autoriza — nenhum token
+  circula, e a conexão lê exatamente o que a conta dela lê no app (um Leitor,
+  o perfil que o SSO cria, alcança só a documentação publicada). O app é o
+  próprio servidor de autorização: Passport carrega o grant (authorization code
+  + PKCE), o registro dinâmico de cliente (RFC 7591) é aberto mas limitado pela
+  lista de origens em `config/mcp.php`, e cada pessoa revoga suas conexões na
+  mesma tela.
+
+  Um PROGRAMA sem navegador — um script, um job de CI, um agente — continua com
+  o **bearer token**, que um admin cria e apaga em `/mcp-tokens`. O token aparece
+  em texto claro **uma única vez**, no momento em que é criado: o app guarda só o
+  `sha256` e os quatro últimos caracteres, então um token perdido se substitui,
+  não se recupera. Apagar a linha É revogar, na próxima requisição. Diferente de
+  uma conta, ele lê o catálogo inteiro — é uma chave entregue a um programa, não
+  um perfil.
 
   O que ele alcança é deliberadamente estreito. Do catálogo, tudo; da
   documentação, **só os cadernos publicados em `/docs`** — a mesma regra que

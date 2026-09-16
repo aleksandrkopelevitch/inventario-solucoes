@@ -49,7 +49,7 @@ class McpServer
      * @param  array<string, mixed>  $message
      * @return array<string, mixed>|null null for a notification — nothing to answer
      */
-    public function handle(array $message): ?array
+    public function handle(array $message, Actor $actor): ?array
     {
         $id = $message['id'] ?? null;
         $method = $message['method'] ?? null;
@@ -70,10 +70,10 @@ class McpServer
 
         try {
             return match ($method) {
-                'initialize' => JsonRpc::result($id, $this->initialize($params)),
+                'initialize' => JsonRpc::result($id, $this->initialize($params, $actor)),
                 'ping'       => JsonRpc::result($id, []),
-                'tools/list' => JsonRpc::result($id, ['tools' => $this->tools->describe()]),
-                'tools/call' => JsonRpc::result($id, $this->call($params)),
+                'tools/list' => JsonRpc::result($id, ['tools' => $this->tools->describe($actor)]),
+                'tools/call' => JsonRpc::result($id, $this->call($params, $actor)),
                 default      => JsonRpc::error($id, JsonRpc::METHOD_NOT_FOUND, "Método \"{$method}\" não suportado."),
             };
         } catch (InvalidToolArguments $e) {
@@ -82,14 +82,18 @@ class McpServer
             // Logged in full, answered in outline. The client is a chat app that
             // prints `error.message` into somebody's conversation, so a stack
             // trace there is both useless and a disclosure.
-            Log::error('MCP tool failed', ['method' => $method, 'exception' => $e]);
+            Log::error('MCP tool failed', [
+                'method'    => $method,
+                'caller'    => $actor->label(),
+                'exception' => $e,
+            ]);
 
             return JsonRpc::error($id, JsonRpc::INTERNAL_ERROR, 'Erro interno ao executar a chamada MCP.');
         }
     }
 
     /** @param array<string, mixed> $params */
-    private function initialize(array $params): array
+    private function initialize(array $params, Actor $actor): array
     {
         $requested = $params['protocolVersion'] ?? null;
 
@@ -108,7 +112,7 @@ class McpServer
                 'title'   => 'Inventário de Soluções — Leo Madeiras',
                 'version' => '1.0.0',
             ],
-            'instructions' => $this->instructions(),
+            'instructions' => $this->instructions($actor),
         ];
     }
 
@@ -122,8 +126,28 @@ class McpServer
      * the difference between "não está documentado" and "não foi publicado" —
      * two answers a person acts on very differently.
      */
-    private function instructions(): string
+    private function instructions(Actor $actor): string
     {
+        // A connection that reaches only the knowledge base is told so HERE,
+        // once, rather than being left to infer it from a short tool list. A
+        // model that cannot see `search_solutions` does not conclude "não tenho
+        // acesso ao catálogo"; it concludes the catalog is empty, and says so.
+        if (! $actor->canReadInventory) {
+            return <<<'TXT'
+            Base de conhecimento da Leo Madeiras: os cadernos de documentação publicados
+            internamente.
+
+            Os dados são em português. Busque pelos termos como estão escritos e não
+            traduza um termo antes de pesquisar.
+
+            Esta conexão alcança SOMENTE a documentação publicada. O catálogo de soluções,
+            os diagramas, as pessoas e as empresas existem no app e não estão disponíveis
+            aqui — é o mesmo alcance que esta conta tem no navegador, não uma falha.
+
+            Todo o acesso é somente leitura.
+            TXT;
+        }
+
         return <<<'TXT'
         Inventário de Soluções da Leo Madeiras: o catálogo de sistemas e integrações,
         os diagramas de topologia e a base de conhecimento interna.
@@ -145,7 +169,7 @@ class McpServer
      * @param  array<string, mixed>  $params
      * @return array<string, mixed>
      */
-    private function call(array $params): array
+    private function call(array $params, Actor $actor): array
     {
         $name = $params['name'] ?? null;
 
@@ -153,7 +177,7 @@ class McpServer
             throw new InvalidToolArguments('Chamada sem o nome da ferramenta.');
         }
 
-        $tool = $this->tools->find($name);
+        $tool = $this->tools->find($name, $actor);
 
         if (! $tool) {
             throw new InvalidToolArguments("Ferramenta \"{$name}\" não existe.");

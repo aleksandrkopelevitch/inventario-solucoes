@@ -96,7 +96,7 @@
                     <div>
                         <p class="text-sm font-medium text-ink">Nenhum token criado</p>
                         <p class="mx-auto mt-1 max-w-xs text-xs leading-relaxed text-muted">
-                            Crie um token para conectar o Claude, o ChatGPT ou o Gemini ao inventário.
+                            Crie um token para dar acesso a um programa sem navegador.
                         </p>
                     </div>
                 </div>

@@ -22,6 +22,12 @@ class GetSolution implements Tool
 {
     public function __construct(private readonly Presenter $presenter) {}
 
+    public function requiresInventory(): bool
+    {
+        // Catálogo: fechado para quem não lê o inventário no app.
+        return true;
+    }
+
     public function name(): string
     {
         return 'get_solution';

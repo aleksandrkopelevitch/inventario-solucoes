@@ -2,7 +2,8 @@
 
 namespace App\Providers;
 
-use App\Models\McpToken;
+use App\Mcp\Actor;
+use App\Mcp\OAuth;
 use App\Support\Digibee\DigibeeAuthResolver;
 use App\Support\Fold;
 use App\Support\Gitbook\TransientHttpFailure;
@@ -16,6 +17,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Passport\Passport;
 use SocialiteProviders\Azure\Provider as AzureProvider;
 use SocialiteProviders\Manager\SocialiteWasCalled;
 use Throwable;
@@ -27,7 +29,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Passport ships the device authorization grant ON, which registers
+        // three routes and expects an `oauth_device_codes` table and two views
+        // this app has neither of. It is the grant for a TV or a CLI with no
+        // browser; every MCP client here has one. Turned off in `register()`
+        // rather than in `boot()` because Passport registers those routes in
+        // its own `boot()`, which runs first.
+        Passport::$deviceCodeGrantEnabled = false;
     }
 
     /**
@@ -41,6 +49,7 @@ class AppServiceProvider extends ServiceProvider
         $this->bootSearchFolding();
         $this->bootEntraSocialite();
         $this->bootMcpRateLimiter();
+        $this->bootPassport();
 
         // GitBook's REST API — the only external HTTP service this app talks
         // to (read-only, `php artisan gitbook:import`). Explicit timeouts, as
@@ -149,7 +158,7 @@ class AppServiceProvider extends ServiceProvider
      * laptop and from a phone gets two. The token is the thing being spent.
      *
      * The fallback to the IP covers requests that never reached
-     * `AuthenticateMcpToken` — a wrong token, in other words — which is exactly
+     * `AuthenticateMcpRequest` — a wrong or absent credential — which is exactly
      * the traffic worth limiting by origin: without it, guessing tokens is
      * unthrottled.
      *
@@ -161,10 +170,52 @@ class AppServiceProvider extends ServiceProvider
     private function bootMcpRateLimiter(): void
     {
         RateLimiter::for('mcp', fn (Request $request) => Limit::perMinute(120)->by(
-            ($request->attributes->get('mcp_token') instanceof McpToken)
-                ? 'mcp-token:' . $request->attributes->get('mcp_token')->getKey()
+            ($request->attributes->get('mcp_actor') instanceof Actor)
+                ? $request->attributes->get('mcp_actor')->rateLimitKey()
                 : 'mcp-ip:' . $request->ip(),
         ));
+
+        // Client registration is open by necessity (RFC 7591 — the caller has no
+        // credential yet), so it is the one MCP route a stranger can reach. The
+        // allowlist in `config/mcp.php` decides what a registration may DO; this
+        // decides how many rows one origin may create. Ten a minute is far above
+        // a real client, which registers once per person per product and then
+        // holds the id forever.
+        RateLimiter::for('mcp-register', fn (Request $request) => Limit::perMinute(10)->by((string) $request->ip()));
+    }
+
+    /**
+     * Passport, configured for the ONE thing it does here: letting a person
+     * connect an MCP client by signing in.
+     *
+     * No personal access tokens, no password grant, no implicit grant, no
+     * device grant (see `register()`), no client management API — Passport's
+     * JSON routes for that are off by default and stay off. What is left is the
+     * authorization code grant with PKCE, which is what the MCP spec requires
+     * and all any connector uses.
+     *
+     * **One scope, and it is a label.** `mcp` exists so the consent screen has
+     * something to name and the token has something to carry. What a connection
+     * actually reaches is decided from the account's role, per request, by
+     * `App\Mcp\Actor` — so a client that asks for a scope it should not have
+     * gains nothing by asking.
+     *
+     * The lifetimes are short on the access token and long on the refresh token
+     * on purpose: revoking someone's access means deleting their refresh token,
+     * and everything still valid after that is bounded by the access token's own
+     * week. A year-long access token would be a credential nobody can call back.
+     */
+    private function bootPassport(): void
+    {
+        Passport::tokensCan([OAuth::SCOPE => OAuth::SCOPE_DESCRIPTION]);
+        Passport::setDefaultScope(OAuth::SCOPE);
+
+        Passport::tokensExpireIn(now()->addWeek());
+        Passport::refreshTokensExpireIn(now()->addMonths(6));
+
+        // The consent screen. Passport ships none, and the default would be a
+        // 500 the first time somebody clicks "Connect".
+        Passport::authorizationView('mcp.authorize');
     }
 
     /**
