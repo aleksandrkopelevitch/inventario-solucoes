@@ -34,9 +34,33 @@
             ['route' => 'diagrams.index', 'label' => 'Diagramas', 'icon' => 'share', 'active' => 'diagrams.*'],
             ['route' => 'solutions.map', 'label' => 'Mapa do ecossistema', 'icon' => 'globe-alt', 'active' => 'solutions.map'],
             ['route' => 'flowspec.index', 'label' => 'Especialista em Integrações', 'icon' => 'cpu-chip', 'active' => 'flowspec.*'],
+            // Admin only, like the knowledge-base settings above — a token hands
+            // out access to the whole catalog, so it answers to `McpTokenPolicy`
+            // rather than to `canWrite()`.
+            ['route' => 'mcp-tokens.index', 'label' => 'Conexão MCP', 'icon' => 'bolt', 'active' => 'mcp-tokens.*', 'can' => 'viewAny', 'canModel' => \App\Models\McpToken::class],
             ['route' => 'submissions.index', 'label' => 'Comitê de Arquitetura', 'icon' => 'clipboard-document-check', 'active' => 'submissions.*'],
         ],
     ];
+
+    // The `can` gate, applied ONCE, here — not in each loop that draws the rail.
+    // It used to live in both (the desktop rail and the mobile drawer) as two
+    // copies of the same three lines, each hard-coding `Notebook` as the model
+    // to ask about. That was invisible while the knowledge-base settings were
+    // the only gated entry, because `NotebookPolicy::viewAny` says yes to every
+    // Viewer: a second entry with a policy of its own was offered to everybody
+    // in the drawer while being correctly hidden in the rail.
+    //
+    // `canModel` is how an item names the model its ability belongs to; the
+    // default stays `Notebook` for the entry that was already here.
+    $sections = array_map(
+        fn (array $items) => array_values(array_filter($items, fn (array $item) => ! isset($item['can'])
+            || (auth()->user()?->can($item['can'], $item['canModel'] ?? \App\Models\Notebook::class) ?? false))),
+        $sections,
+    );
+
+    // A section whose every item was gated away would still draw its divider
+    // (desktop) and its heading (mobile) — a label over nothing.
+    $sections = array_filter($sections);
 @endphp
 
 <div class="grid min-h-screen md:grid-cols-[72px_1fr]">
@@ -62,10 +86,7 @@
                         // knowledge-base settings screen, which is admin-only. The
                         // rail hides what an account cannot open rather than
                         // offering a link that answers 403.
-                        $allowed = ! isset($item['can'])
-                            || (auth()->user()?->can($item['can'], \App\Models\Notebook::class) ?? false);
                     @endphp
-                    @continue (! $allowed)
                     <a href="{{ $has ? route($item['route']) : '#' }}"
                        @class([
                            'group relative flex h-10 w-full items-center justify-center rounded-field transition-colors',
@@ -258,15 +279,7 @@
                 @php
                     $has = \Illuminate\Support\Facades\Route::has($item['route']);
                     $on = $has && request()->routeIs(...(array) $item['active']);
-                    // An item may declare an ability it needs (`can`), checked
-                    // against Notebook — the only gated entry today is the
-                    // knowledge-base settings screen, which is admin-only. The
-                    // rail hides what an account cannot open rather than
-                    // offering a link that answers 403.
-                    $allowed = ! isset($item['can'])
-                        || (auth()->user()?->can($item['can'], \App\Models\Notebook::class) ?? false);
                 @endphp
-                @continue (! $allowed)
                 <a href="{{ $has ? route($item['route']) : '#' }}"
                    data-ak-mobile-nav-close
                    @class([

@@ -6,7 +6,8 @@ each linked to 0..N solutions),
 a **diagrams** module (the graphical topology editor, one drawing at a time),
 an internal **knowledge base** (`/docs` — the cadernos an admin published, read
 by anybody with a Leo account, most of whom arrive through Entra SSO),
-and a read-only map of the ecosystem derived from those drawings. Fork of the
+a read-only map of the ecosystem derived from those drawings, and an **MCP
+server** (`POST /mcp`) that lets a chat client read all of it. Fork of the
 generic infra from the
 **akop-pro** reference project (forms, slots, JS modules, layout shells) — that
 project's legacy domain (CRM, DISC, multi-tenancy) is not part of this one.
@@ -53,6 +54,7 @@ if a rule you expect is not here, it is in one of these:
 | `documentation-assistant.md` | the Assiste IA chat, its vaults and its prompt contract |
 | `digibee-knowledge-base.md` | the two Digibee corpora, redaction, `digibeectl` boundaries |
 | `flowspec-pipeline-write.md` | writing a flowSpec into a pipeline, deploy and the test matrix |
+| `mcp-server.md` | the MCP server, its bearer token and what a token may read |
 | `eloquent-strict-and-search.md` | strict mode's blind spot, `whereFolded()` |
 | `slugs-and-routing.md` | a slug is lowercase ASCII, reserved segments, scoped bindings |
 | `access-people-accounts.md` | `people.user_id`, access links, grant/revoke/unlink |
@@ -436,6 +438,16 @@ item needs to light up on several routes (e.g. "Soluções" lists
 page too). A page that got its own top-level section — `/diagrams` did — should
 LEAVE the borrowed patterns behind: "Soluções" listing `diagrams.*` would light
 two rail items at once.
+
+An item an account may not open declares the ability it needs (`can`) and the
+model that ability belongs to (`canModel`, defaulting to `Notebook`) — the rail
+hides what would answer 403 rather than offering it. **The check runs ONCE, in
+the `$sections` block**, because the desktop rail and the mobile drawer are two
+loops over the same array: it used to live in both, each hard-coding `Notebook`,
+so an entry gated by a policy of its own was correctly hidden in one and offered
+to everybody in the other. `NotebookPolicy::viewAny` says yes to every `Viewer`,
+which is why that stayed invisible while the knowledge-base settings were the
+only gated entry.
 
 > The dynamic `#dashboard-bg` (gradient/photo by user preference) from the
 > akop-pro reference project was **removed** when applying the Leo identity

@@ -1083,6 +1083,28 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   REFLETIDA ("o catálogo já estava certo"). As quatro fases e o raciocínio de
   cada uma estão em `docs/cati-fase-{1,2,3,4}.md`.
 
+- **Servidor MCP** (`POST /mcp`): deixa o Claude, o ChatGPT e o Gemini
+  consultarem o inventário como ferramentas — doze tools somente leitura sobre
+  soluções, diagramas, pessoas, empresas e a documentação publicada
+  (`App\Mcp\ToolRegistry`). É a única rota do app fora do grupo `web`: sem
+  sessão, sem CSRF, sem `auth`.
+
+  A autenticação é **um bearer token e nada mais** — sem OAuth, sem
+  consentimento. Um admin cria e apaga tokens em `/mcp-tokens`, que é também
+  onde estão o endereço do servidor e as duas linhas de configuração que se
+  colam num cliente. O token aparece em texto claro **uma única vez**, no
+  momento em que é criado: o app guarda só o `sha256` e os quatro últimos
+  caracteres, então um token perdido se substitui, não se recupera. Apagar a
+  linha É revogar, na próxima requisição.
+
+  O que ele alcança é deliberadamente estreito. Do catálogo, tudo; da
+  documentação, **só os cadernos publicados em `/docs`** — a mesma regra que
+  aquela tela responde, e um caderno não publicado é invisível inclusive para
+  quem tem o token. Valores protegidos (`{% secret %}`) saem mascarados como
+  em toda página que este app entrega a alguém, e não existe ferramenta que
+  revele um: o texto claro continua tendo uma porta só. Nada é criado,
+  alterado ou apagado por ali.
+
 ## Notas técnicas não óbvias
 
 - **Erros de validação não seguem o shape padrão do Laravel.** `bootstrap/app.php`

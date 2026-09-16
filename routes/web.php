@@ -22,6 +22,7 @@ use App\Http\Controllers\Inventory\PersonController;
 use App\Http\Controllers\Inventory\SolutionController;
 use App\Http\Controllers\KnowledgeBaseController;
 use App\Http\Controllers\KnowledgeBaseSettingsController;
+use App\Http\Controllers\McpTokenController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\NotebookContextDocumentController;
 use App\Http\Controllers\NotebookController;
@@ -287,6 +288,21 @@ Route::middleware(['auth', 'inventory'])->group(function () {
     // only on a person's Acesso card: an account does not need a Person, so an
     // orphan had its role changeable and no way to be switched off at all.
     Route::delete('users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+
+    // The MCP server's admin: the tokens a chat client authenticates with, and
+    // the address it points at. Admin only (`McpTokenPolicy`), like inviting an
+    // account and for the same reason — both hand out access.
+    //
+    // The ENDPOINT these tokens are spent on is not here: it lives in
+    // `routes/mcp.php`, outside the `web` group entirely (no session, no CSRF).
+    // This group is the screen that mints them, which is an ordinary browser
+    // surface like any other.
+    //
+    // `/mcp-tokens` and not `/mcp/tokens`, so nothing in this file can ever
+    // collide with the endpoint's own bare `/mcp`.
+    Route::get('mcp-tokens', [McpTokenController::class, 'index'])->name('mcp-tokens.index');
+    Route::post('mcp-tokens', [McpTokenController::class, 'store'])->name('mcp-tokens.store');
+    Route::delete('mcp-tokens/{mcpToken}', [McpTokenController::class, 'destroy'])->name('mcp-tokens.destroy');
 
     Route::get('map', [SolutionMapController::class, 'index'])->name('solutions.map');
     Route::get('map/data', [SolutionMapController::class, 'data'])->name('solutions.map.data');
