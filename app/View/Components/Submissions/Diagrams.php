@@ -38,11 +38,27 @@ class Diagrams extends Component
 
         $byKind = $this->submission->diagrams()->with('media')->get()->keyBy(fn (SubmissionDiagram $d) => $d->kind->value);
 
+        // `isFilled()`, not "has nodes": `SubmissionDiagram::open()` seeds a
+        // root block, so every canvas anybody ever opened has one node and
+        // would otherwise read as drawn — the same trap the committee's
+        // checklist already avoids.
+        $drawn = collect(SubmissionDiagramKind::cases())
+            ->filter(fn (SubmissionDiagramKind $kind) => $kind->isDrawn())
+            ->every(fn (SubmissionDiagramKind $kind) => (bool) $byKind->get($kind->value)?->isFilled());
+
+        $delta = $this->submission->getFirstMedia(Submission::TOPOLOGY_DELTA_COLLECTION);
+
         return view('components.submissions.diagrams', [
             'domId'      => self::DOM_ID,
             'submission' => $this->submission,
             'canEdit'    => auth()->user()?->can('update', $this->submission) ?? false,
-            'rows'       => collect(SubmissionDiagramKind::cases())->map(function (SubmissionDiagramKind $kind) use ($byKind) {
+            // The comparison is offered only once BOTH canvases hold something:
+            // an empty AS IS is a legitimate state, and "everything was added"
+            // is what the TO BE already says on its own.
+            'canCompare'  => $drawn,
+            'delta'       => $delta,
+            'deltaCounts' => is_array($delta?->getCustomProperty('counts')) ? $delta->getCustomProperty('counts') : [],
+            'rows'        => collect(SubmissionDiagramKind::cases())->map(function (SubmissionDiagramKind $kind) use ($byKind) {
                 $diagram = $byKind->get($kind->value);
 
                 return [

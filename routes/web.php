@@ -40,6 +40,7 @@ use App\Http\Controllers\SubmissionDiagramController;
 use App\Http\Controllers\SubmissionExportController;
 use App\Http\Controllers\SubmissionSectionController;
 use App\Http\Controllers\SubmissionSourceController;
+use App\Http\Controllers\SubmissionTopologyDeltaController;
 use App\Http\Controllers\UserController;
 use App\Models\Solution;
 use Illuminate\Support\Facades\Route;
@@ -391,6 +392,12 @@ Route::middleware(['auth', 'inventory'])->group(function () {
         Route::delete('submissions/{submission}/sources/{source}', [SubmissionSourceController::class, 'destroy'])->name('submissions.sources.destroy');
 
         Route::get('submissions/{submission}/chat/{chat}/status', [SubmissionChatController::class, 'status'])->name('submissions.chat.status');
+
+        // AS IS x TO BE, as a Before/Delta/After artifact. No `{media}` in the
+        // path: the collection is singleFile, so a submission has one delta and
+        // regenerating replaces it — there is nothing to address.
+        Route::post('submissions/{submission}/topology-delta', [SubmissionTopologyDeltaController::class, 'store'])->name('submissions.topology-delta.store');
+        Route::get('submissions/{submission}/topology-delta', [SubmissionTopologyDeltaController::class, 'show'])->name('submissions.topology-delta.show');
 
         /*
          | The submission's four drawings. `{diagram}` resolves through

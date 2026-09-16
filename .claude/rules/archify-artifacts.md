@@ -8,6 +8,9 @@ paths:
   - "app/Exceptions/PageArtifactFailed.php"
   - "app/View/Components/Documentation/PageArtifacts.php"
   - "resources/views/components/documentation/page-artifacts.blade.php"
+  - "app/Actions/Cati/CompareSubmissionTopologies.php"
+  - "app/Http/Controllers/SubmissionTopologyDeltaController.php"
+  - "app/Exceptions/TopologyCompareFailed.php"
   - "scripts/archify/**"
 ---
 
@@ -71,6 +74,39 @@ stays interactive, and `document.cookie` inside it throws `SecurityError`
 (verified in a browser, not asserted). `show()` checks the owner AND the
 collection, because `{media}` is an id in a URL and nothing about an id is
 scoped.
+
+### AS IS × TO BE is the one architecture Archify draws here
+
+`CompareSubmissionTopologies` is the exception to "architecture is not among
+the types", and it earns it by not drawing an architecture at all: it COMPARES
+two drawings the app already holds. `SubmissionDiagramKind`'s own docblock says
+the AS IS and TO BE are drawn rather than uploaded because a picture is
+"diffable against nothing" — this is that diff, and no model is involved, so
+the same two canvases produce the same answer every time.
+
+`ArchitectureIr::fromCanvas()` is the mapper, and three of its choices are
+load-bearing:
+
+- **Grid placement, never free `pos`.** Canvas coordinates are pixels somebody
+  dragged blocks to, and two blocks left overlapping is an ordinary state of a
+  working canvas — Archify's geometry check refuses that, so passing the pixels
+  through would fail a comparison on somebody's drawing habits. Rows and
+  columns keep the drawing's READING (what is left of what) and cannot collide.
+- **Node identity is the chain INDEX** (`n0`, `n1`, …), because `compare`
+  matches components by id and the canvas has no stable identity of its own
+  (`removeNode()` reindexes). A block that kept its index reads as moved or
+  relabelled; one that did not reads as removed plus added. Anything cleverer
+  would be inventing an identity the data does not have.
+- **Gaps are widened to 120/80 and connection labels capped at 14 characters.**
+  A label is painted at the middle of its line: between two columns that is the
+  gap, but between two cells of the SAME column it lands on the blocks, so a
+  vertical connection's label carries `labelDx`. All three numbers came from
+  the validator refusing the defaults.
+
+`isFilled()` — not "has nodes" — decides whether a canvas counts as drawn, on
+both the panel and the action. `SubmissionDiagram::open()` seeds a root block,
+so an untouched canvas has one node and would otherwise compare as a drawing of
+one box.
 
 ### The sidecar's timeout is wall-clock, and this box's clock steps
 
