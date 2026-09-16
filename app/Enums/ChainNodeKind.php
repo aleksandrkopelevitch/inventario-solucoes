@@ -41,6 +41,7 @@ enum ChainNodeKind: string
     case Start = 'start';
     case End = 'end';
     case Image = 'image';
+    case Lifeline = 'lifeline';
 
     public function label(): string
     {
@@ -51,6 +52,7 @@ enum ChainNodeKind: string
             self::Start    => 'Início',
             self::End      => 'Fim',
             self::Image    => 'Imagem',
+            self::Lifeline => 'Participante (linha de vida)',
         };
     }
 
@@ -67,10 +69,19 @@ enum ChainNodeKind: string
         return $this !== self::Image;
     }
 
-    /** Only a system node can point at a registered Solution. */
+    /**
+     * Which kinds can point at a registered Solution.
+     *
+     * `Lifeline` joined `System` here because a sequence's participants ARE
+     * the catalog's systems — a call between SAP and Digibee is the same
+     * relationship whether it is drawn as two boxes or as two lifelines, and
+     * `SyncDiagramFromChain` should derive it either way. A decision, an
+     * actor or a terminal still cannot: those are free text about the flow,
+     * not systems in it.
+     */
     public function referencesSolution(): bool
     {
-        return $this === self::System;
+        return $this === self::System || $this === self::Lifeline;
     }
 
     /**
@@ -91,6 +102,9 @@ enum ChainNodeKind: string
             // `media_id` and draws the picture itself instead — this only
             // shows up if the underlying media is ever missing.
             self::Image => 'photo',
+            // A lifeline shows its participant's logo/initial in the header,
+            // exactly like a system block does.
+            self::Lifeline => null,
         };
     }
 
@@ -111,6 +125,7 @@ enum ChainNodeKind: string
             self::Start    => 'play',
             self::End      => 'stop',
             self::Image    => 'photo',
+            self::Lifeline => 'view-columns',
         };
     }
 
@@ -128,6 +143,7 @@ enum ChainNodeKind: string
             self::Start    => 'Início',
             self::End      => 'Fim',
             self::Image    => '',
+            self::Lifeline => 'Nome do participante',
         };
     }
 

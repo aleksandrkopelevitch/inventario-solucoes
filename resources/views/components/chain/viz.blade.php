@@ -1541,10 +1541,27 @@
             .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node {
                 box-shadow: 0 2px 10px rgba(2, 6, 23, .55), 0 0 0 1px rgba(148, 163, 184, .28);
             }
-            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node[data-category-family] {
+            {{-- `:not(.is-lifeline)`: numa linha de vida quem carrega a cor
+                 é o CABEÇALHO, não a coluna. Tingir a caixa inteira pintava
+                 uma faixa vertical do tamanho do diagrama atrás das
+                 mensagens — o corpo de uma linha de vida é espaço vazio de
+                 propósito, é por ele que as setas passam. --}}
+            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node[data-category-family]:not(.is-lifeline) {
                 background: color-mix(in oklab, var(--viz-node-accent) 16%, var(--viz-node));
                 box-shadow: 0 2px 10px rgba(2, 6, 23, .55), 0 0 0 1px var(--viz-node-accent);
             }
+            {{-- O cartão da linha de vida carrega a sombra/aro que o bloco
+                 comum carrega; o bloco em si é transparente, então a regra
+                 genérica do tema não o alcança. --}}
+            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-lifeline .ak-viz-node-body {
+                background: var(--viz-node);
+                box-shadow: 0 2px 10px rgba(2, 6, 23, .55), 0 0 0 1px rgba(148, 163, 184, .28);
+            }
+            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-lifeline[data-category-family] .ak-viz-node-body {
+                background: color-mix(in oklab, var(--viz-node-accent) 16%, var(--viz-node));
+                box-shadow: 0 2px 10px rgba(2, 6, 23, .55), 0 0 0 1px var(--viz-node-accent);
+            }
+            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-lifeline,
             .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-free,
             .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-decision,
             .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-logo-only {
@@ -1587,10 +1604,27 @@
             {{-- Lighter mix than the dark theme's: the same 16% over a white
                  card reads as a colored card, not a tinted one, and blueprint
                  is meant to stay drafting paper. --}}
-            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node[data-category-family] {
+            {{-- `:not(.is-lifeline)`: numa linha de vida quem carrega a cor
+                 é o CABEÇALHO, não a coluna. Tingir a caixa inteira pintava
+                 uma faixa vertical do tamanho do diagrama atrás das
+                 mensagens — o corpo de uma linha de vida é espaço vazio de
+                 propósito, é por ele que as setas passam. --}}
+            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node[data-category-family]:not(.is-lifeline) {
                 background: color-mix(in oklab, var(--viz-node-accent) 8%, var(--viz-node));
                 box-shadow: 0 1px 2px rgba(18, 51, 68, .10), 0 0 0 1px var(--viz-node-accent);
             }
+            {{-- O cartão da linha de vida carrega a sombra/aro que o bloco
+                 comum carrega; o bloco em si é transparente, então a regra
+                 genérica do tema não o alcança. --}}
+            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-lifeline .ak-viz-node-body {
+                background: var(--viz-node);
+                box-shadow: 0 1px 2px rgba(18, 51, 68, .10), 0 0 0 1px rgba(120, 170, 189, .55);
+            }
+            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-lifeline[data-category-family] .ak-viz-node-body {
+                background: color-mix(in oklab, var(--viz-node-accent) 8%, var(--viz-node));
+                box-shadow: 0 1px 2px rgba(18, 51, 68, .10), 0 0 0 1px var(--viz-node-accent);
+            }
+            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-lifeline,
             .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-free,
             .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-decision,
             .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-logo-only {
@@ -1652,6 +1686,51 @@
                told apart by the DASHED border. The border replaces the ring the
                base rule paints, hence `box-shadow: none` — two outlines on the
                same edge read as a rendering bug, not as emphasis. */
+            {{-- LINHA DE VIDA (`ChainNodeKind::Lifeline`) — o participante de um
+                 diagrama de sequência.
+
+                 O bloco inteiro é a COLUNA: o cabeçalho é o conteúdo normal
+                 (avatar + nome, igual a um bloco de sistema) e o corpo é o
+                 espaço vazio embaixo dele, atravessado pela linha tracejada do
+                 `::after`. É por isso que esta é a única espécie de bloco com
+                 altura guardada em `viz_layout` — nas outras o tamanho vem do
+                 que está escrito dentro.
+
+                 `align-items: flex-start` + `height` inline: o conteúdo fica
+                 colado no topo e o resto da altura é a linha. A caixa continua
+                 retangular, então toda a matemática de âncora/aresta do
+                 chain-viz.js segue valendo sem exceção — uma mensagem encosta
+                 na lateral na altura que o `fromT`/`toT` da aresta disser. --}}
+            .ak-viz-node.is-lifeline {
+                justify-content: flex-start;
+                padding: 10px 14px 0;
+                min-width: 120px;
+                background: transparent;
+                box-shadow: none;
+            }
+            {{-- O cabeçalho é o único pedaço com fundo: desenhado como um
+                 cartão dentro do bloco, para a linha tracejada abaixo nascer da
+                 borda dele e não do nada. --}}
+            .ak-viz-node.is-lifeline .ak-viz-node-body {
+                width: 100%;
+                justify-content: center;
+                border-radius: 10px;
+                padding: 8px 12px;
+                background: var(--viz-node);
+                box-shadow: 0 1px 2px rgba(16, 24, 40, .08), 0 0 0 1px rgba(16, 24, 40, .14);
+            }
+            .ak-viz-node.is-lifeline::after {
+                content: '';
+                position: absolute;
+                left: 50%;
+                top: 52px;
+                bottom: 0;
+                width: 0;
+                border-left: 1.5px dashed var(--viz-line);
+                transform: translateX(-50%);
+                pointer-events: none;
+            }
+
             .ak-viz-node.is-free {
                 background: var(--viz-node);
                 border: 1px dashed var(--viz-line);

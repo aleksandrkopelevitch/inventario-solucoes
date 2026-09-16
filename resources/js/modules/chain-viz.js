@@ -637,6 +637,7 @@ function paintNode(el, data) {
     el.classList.toggle('is-start', kind === 'start')
     el.classList.toggle('is-end', kind === 'end')
     el.classList.toggle('is-image', kind === 'image')
+    el.classList.toggle('is-lifeline', kind === 'lifeline')
     el.classList.toggle('is-logo-only', logoOnly)
     el.classList.toggle('has-comment', !!data.comment)
     el.classList.toggle('is-dashed', !!data.dashed)
@@ -1091,9 +1092,25 @@ function mount(root) {
         }
     }
 
-    function anchorPoint(node, key) {
+    /**
+     * Onde uma seta encosta num bloco.
+     *
+     * `t` (0..1) desloca a âncora ao longo do LADO, e existe por causa da
+     * linha de vida: as 8 âncoras sabem dizer "à direita", não "à direita, na
+     * altura do terceiro passo" — que é exatamente o que uma mensagem num
+     * instante do tempo precisa. Só vale para os lados verticais (`l`/`r`),
+     * onde deslizar significa descer; nos horizontais não há o que deslizar
+     * que não seja a própria escolha de âncora.
+     */
+    function anchorPoint(node, key, t = null) {
         const a = ANCHORS[key] ?? ANCHORS.r
-        return { x: node.x + node.w * a.fx, y: node.y + node.h * a.fy, nx: a.nx, ny: a.ny }
+        const slide = t !== null && Number.isFinite(t) && a.nx !== 0
+        return {
+            x: node.x + node.w * a.fx,
+            y: node.y + node.h * (slide ? Math.min(1, Math.max(0, t)) : a.fy),
+            nx: a.nx,
+            ny: a.ny,
+        }
     }
 
     function clearWorld() {
@@ -1299,6 +1316,10 @@ function mount(root) {
         // guardado por `kind` pra nunca escrever um `border` inline nos
         // outros tipos, cujo contorno é só CSS de classe (`.is-dashed` etc.).
         if (n.kind === 'image') n.el.style.border = n.imageBorderColor ? `1.5px solid ${n.imageBorderColor}` : ''
+        // A altura da linha de vida é o único tamanho que vem do layout em vez
+        // do conteúdo: o corpo do bloco É o espaço vazio embaixo do cabeçalho,
+        // e é ele que as mensagens atravessam.
+        if (n.kind === 'lifeline') n.el.style.height = Number.isFinite(n.height) ? `${n.height}px` : ''
     }
 
     // Layout padrão esquerda→direita, centros na linha y=0.
@@ -1353,11 +1374,22 @@ function mount(root) {
                 if (p && typeof p.dashed === 'boolean') n.dashed = p.dashed
                 if (isHex(p?.imageBorderColor)) n.imageBorderColor = p.imageBorderColor
                 if (p && typeof p.logoOnly === 'boolean') n.logoOnly = p.logoOnly
+                // Só a linha de vida tem altura guardada — ver o comentário em
+                // SaveChainLayoutRequest.
+                if (p && Number.isFinite(p.height)) n.height = p.height
             })
         }
         if (Array.isArray(layout.edges) && layout.edges.length === edgeAnchors.length) {
             layout.edges.forEach((e, i) => {
-                if (e && ANCHORS[e.from] && ANCHORS[e.to]) edgeAnchors[i] = { from: e.from, to: e.to, dashed: !!e.dashed }
+                if (e && ANCHORS[e.from] && ANCHORS[e.to]) {
+                    edgeAnchors[i] = {
+                        from: e.from,
+                        to: e.to,
+                        dashed: !!e.dashed,
+                        fromT: Number.isFinite(e.fromT) ? e.fromT : null,
+                        toT: Number.isFinite(e.toT) ? e.toT : null,
+                    }
+                }
             })
         }
         if (Array.isArray(layout.comments) && layout.comments.length === nodes.length) {
@@ -2048,8 +2080,8 @@ function mount(root) {
             if (!fromNode || !toNode) return
 
             const anchors = edgeAnchors[i] || { from: 'r', to: 'l', dashed: false }
-            const a0 = anchorPoint(fromNode, anchors.from)
-            const a3 = anchorPoint(toNode, anchors.to)
+            const a0 = anchorPoint(fromNode, anchors.from, anchors.fromT)
+            const a3 = anchorPoint(toNode, anchors.to, anchors.toT)
             // afasta as pontas da linha do centro do handle, para a seta não invadir o círculo
             const p0 = { x: a0.x + a0.nx * EDGE_GAP, y: a0.y + a0.ny * EDGE_GAP, nx: a0.nx, ny: a0.ny }
             const p3 = { x: a3.x + a3.nx * EDGE_GAP, y: a3.y + a3.ny * EDGE_GAP, nx: a3.nx, ny: a3.ny }
@@ -4221,8 +4253,18 @@ function mount(root) {
                 dashed: !!n.dashed,
                 imageBorderColor: n.imageBorderColor || null,
                 logoOnly: !!n.logoOnly,
+                // Só a linha de vida guarda altura; para os outros isso vai
+                // null e o servidor aceita (nullable) sem gravar tamanho
+                // nenhum — o bloco continua do tamanho do que está escrito nele.
+                height: n.kind === 'lifeline' && Number.isFinite(n.height) ? Math.round(n.height) : null,
             })),
-            edges: edgeAnchors.map((a) => ({ from: a.from, to: a.to, dashed: !!a.dashed })),
+            edges: edgeAnchors.map((a) => ({
+                from: a.from,
+                to: a.to,
+                dashed: !!a.dashed,
+                fromT: Number.isFinite(a.fromT) ? a.fromT : null,
+                toT: Number.isFinite(a.toT) ? a.toT : null,
+            })),
             comments: nodes.map((n) => n.comment || null),
             // `rounded`/`dashed`/`opacity`/`orientation`/`showTitle`/`fontSize`
             // were silently missing from this payload before — editable live
