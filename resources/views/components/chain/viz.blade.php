@@ -381,7 +381,24 @@
                          is safe; if that ever stops being true, this needs a
                          real fix, not another hardcode. Keep this in sync by
                          hand if the outer rules change — there is no build
-                         step sharing the two. --}}
+                         step sharing the two.
+
+                         NEVER write a `<` inside this stylesheet, not even in
+                         a CSS comment. An inline SVG's `<style>` is NOT raw
+                         text the way an HTML one is: the parser reads its
+                         content as MARKUP, so a `<` opens a tag. A comment
+                         here that mentioned `<style>` and `<svg>` by name cost
+                         us the arrowheads — the parser opened two elements
+                         mid-CSS, the real `</style>` closed the one they had
+                         nested, and everything after it (rules 9+ AND the
+                         whole `<defs>`, markers included) ended up INSIDE the
+                         style element, which never renders. The lines still
+                         drew, because the outer stylesheet duplicates their
+                         rules; the arrowheads had no second home and simply
+                         vanished, silently, with valid-looking markup in view
+                         source. `ChainVizMarkupTest` guards this now. A Blade
+                         comment like this one is safe: it is gone before the
+                         browser sees it. --}}
                     <style>
                         .ak-viz-edges path.ak-viz-edge { fill: none; stroke: #94A3C4; stroke-width: 2; }
                         .ak-viz-edges path.ak-viz-edge.is-dashed { stroke-dasharray: 7 5; }
@@ -400,10 +417,10 @@
 
                         /* Destaque da seleção (`highlightLinkedEdges()`): as
                            ligações do bloco escolhido acendem e o resto
-                           esmaece. Mora AQUI, no <style> interno do <svg>,
-                           porque é aqui que as regras das arestas moram — e
-                           porque assim o destaque sai igual no PNG exportado,
-                           que raw-clona este subtree. */
+                           esmaece. Mora AQUI, na folha interna, porque é aqui
+                           que as regras das arestas moram — e porque assim o
+                           destaque sai igual no PNG exportado, que raw-clona
+                           este subtree. */
                         .ak-viz-edges.has-selection path.ak-viz-edge { opacity: .22; }
                         .ak-viz-edges.has-selection path.ak-viz-edge.is-linked {
                             opacity: 1;
