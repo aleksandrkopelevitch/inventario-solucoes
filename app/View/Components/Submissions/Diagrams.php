@@ -5,6 +5,8 @@ namespace App\View\Components\Submissions;
 use App\Enums\SubmissionDiagramKind;
 use App\Models\Submission;
 use App\Models\SubmissionDiagram;
+use App\Support\ChainLabeler;
+use App\Support\Diagrams\TopologyDiff;
 use App\View\Components\Concerns\Renderable;
 use Illuminate\Contracts\View\View;
 use Illuminate\View\Component;
@@ -46,7 +48,14 @@ class Diagrams extends Component
             ->filter(fn (SubmissionDiagramKind $kind) => $kind->isDrawn())
             ->every(fn (SubmissionDiagramKind $kind) => (bool) $byKind->get($kind->value)?->isFilled());
 
-        $delta = $this->submission->getFirstMedia(Submission::TOPOLOGY_DELTA_COLLECTION);
+        $asIs = $byKind->get(SubmissionDiagramKind::AsIs->value)?->chainData();
+        $toBe = $byKind->get(SubmissionDiagramKind::ToBe->value)?->chainData();
+
+        // Computed when the tab is READ, never generated and stored: a
+        // comparison of two drawings cannot go stale if it is never kept.
+        $diff = $drawn
+            ? TopologyDiff::between($asIs, $toBe, (new ChainLabeler)->resolveSolutions(collect([$asIs, $toBe])))
+            : null;
 
         return view('components.submissions.diagrams', [
             'domId'      => self::DOM_ID,
@@ -55,10 +64,8 @@ class Diagrams extends Component
             // The comparison is offered only once BOTH canvases hold something:
             // an empty AS IS is a legitimate state, and "everything was added"
             // is what the TO BE already says on its own.
-            'canCompare'  => $drawn,
-            'delta'       => $delta,
-            'deltaCounts' => is_array($delta?->getCustomProperty('counts')) ? $delta->getCustomProperty('counts') : [],
-            'rows'        => collect(SubmissionDiagramKind::cases())->map(function (SubmissionDiagramKind $kind) use ($byKind) {
+            'diff' => $diff,
+            'rows' => collect(SubmissionDiagramKind::cases())->map(function (SubmissionDiagramKind $kind) use ($byKind) {
                 $diagram = $byKind->get($kind->value);
 
                 return [

@@ -42,18 +42,14 @@
 
     {{-- "Desenhar esta página" — one menu, five pictures.
 
-         The first item is the only one that produces something EDITABLE: a
-         Diagram in its own module, drawn on the F3 canvas, feeding the
-         ecosystem map like any other. The four below it are rendered artifacts
-         (Archify), and they answer the questions a topology cannot — in what
-         order the calls happen, where the data comes to rest, what the states
-         of a run are, who approves what. They are not chains and never become
-         one, which is why they are stored as media on the page and read in a
-         tab of their own.
+         The first item is the free graph — what talks to what. The four below
+         it are the other questions a page asks: in what order the calls
+         happen, what the states of a run are, where the data comes to rest,
+         who does what. All five produce the same thing, an ordinary Diagram on
+         the canvas, which is why they sit in one menu instead of two.
 
-         Two different abilities, deliberately: drawing a chain writes a row in
-         another module (`create` on Diagram), while an artifact belongs to this
-         page (`update` on it, which is what `$canEdit` already answered).
+         Every item needs the same ability, because every item writes a row in
+         the diagrams module: `create` on Diagram.
 
          Each item is its own <form class="contents">: ajax-post.js builds a
          FormData from the form a button names, and there is no form in this bar
@@ -89,24 +85,22 @@
                     <span class="my-1 block h-px bg-line"></span>
                 @endcan
 
-                @if ($canEdit)
-                    @isset($artifactUrls)
-                    @foreach ($artifactUrls as $artifact)
-                        <form id="docs-artifact-form-{{ $artifact['type']->value }}" class="contents">
+                @isset($modelUrls)
+                    @foreach ($modelUrls as $entry)
+                        <form id="docs-model-form-{{ $entry['model']->value }}" class="contents">
                             <x-forms.button variant="ghost"
-                                data-ak-ajax="docs-artifact-form-{{ $artifact['type']->value }}"
-                                data-ak-action="{{ $artifact['url'] }}"
+                                data-ak-ajax="docs-model-form-{{ $entry['model']->value }}"
+                                data-ak-action="{{ $entry['url'] }}"
                                 class="!h-auto !w-full !justify-start !gap-2.5 !rounded-md !px-2 !py-1.5 !text-left">
-                                <x-dynamic-component :component="'heroicon-o-' . $artifact['type']->icon()" class="size-4 shrink-0 text-muted" />
+                                <x-dynamic-component :component="'heroicon-o-' . $entry['model']->icon()" class="size-4 shrink-0 text-muted" />
                                 <span class="min-w-0">
-                                    <span class="block truncate text-xs font-semibold text-ink">{{ $artifact['type']->label() }}</span>
-                                    <span class="block truncate text-[11px] text-muted">{{ $artifact['type']->hint() }}</span>
+                                    <span class="block truncate text-xs font-semibold text-ink">{{ $entry['model']->label() }}</span>
+                                    <span class="block truncate text-[11px] text-muted">{{ $entry['model']->hint() }}</span>
                                 </span>
                             </x-forms.button>
                         </form>
                     @endforeach
-                    @endisset
-                @endif
+                @endisset
             </div>
         </div>
     @endif

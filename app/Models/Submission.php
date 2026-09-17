@@ -81,23 +81,9 @@ class Submission extends Model implements HasMedia
         return 'slug';
     }
 
-    /**
-     * The Before/Delta/After artifact comparing this submission's AS IS with
-     * its TO BE (`CompareSubmissionTopologies`). `singleFile()` because it is
-     * DERIVED: regenerating replaces it, and a history of deltas would be a
-     * history of drawings the canvas already holds.
-     *
-     * A collection of its own rather than `submission_sources`: that one is
-     * material somebody gathered, this is output, and it is served through a
-     * sandboxing response of its own — see NotebookPageArtifactController for
-     * why an HTML artifact never shares a route with anything else.
-     */
-    public const TOPOLOGY_DELTA_COLLECTION = 'topology_delta';
-
     public function registerMediaCollections(): void
     {
         $this->addMediaCollection(self::SOURCES_COLLECTION);
-        $this->addMediaCollection(self::TOPOLOGY_DELTA_COLLECTION)->singleFile();
     }
 
     public function solution(): BelongsTo

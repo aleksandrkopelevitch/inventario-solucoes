@@ -182,6 +182,94 @@ const ANCHORS = {
     br: { fx: 0.75, fy: 1,   nx: 0,  ny: 1 },  // intermediária base
 }
 const ANCHOR_KEYS = Object.keys(ANCHORS)
+
+// ── roteamento ortogonal das setas ───────────────────────────────────
+// Uma ligação sai perpendicular à face onde nasce, vira em ângulo reto e
+// chega perpendicular à face de destino — o desenho que um diagrama técnico
+// usa, no lugar da curva de Bézier que estava aqui antes.
+//
+// Duas medidas fazem o desenho: o TRECHO RETO antes da primeira curva (sem
+// ele a seta viraria colada no bloco, e o canto arredondado comeria a ponta
+// da flecha) e o RAIO do canto, que é só um arredondamento leve — o ângulo
+// tem que continuar lendo como 90°, não como uma curva.
+const EDGE_STUB = 22
+const EDGE_CORNER = 10
+
+/** Vértices da rota entre duas âncoras, já com os trechos retos das pontas. */
+function orthogonalPoints(p0, p3, stub = EDGE_STUB) {
+    const s0 = { x: p0.x + p0.nx * stub, y: p0.y + p0.ny * stub }
+    const s3 = { x: p3.x + p3.nx * stub, y: p3.y + p3.ny * stub }
+    // As normais deste canvas são todas axiais (ver ANCHORS), então "sai na
+    // horizontal" é a pergunta inteira: não existe âncora diagonal para a
+    // qual o eixo da saída fosse ambíguo.
+    const fromHoriz = p0.nx !== 0
+    const toHoriz = p3.nx !== 0
+
+    let mids
+    if (fromHoriz && toHoriz) {
+        const mx = (s0.x + s3.x) / 2
+        mids = [{ x: mx, y: s0.y }, { x: mx, y: s3.y }]
+    } else if (!fromHoriz && !toHoriz) {
+        const my = (s0.y + s3.y) / 2
+        mids = [{ x: s0.x, y: my }, { x: s3.x, y: my }]
+    } else if (fromHoriz) {
+        mids = [{ x: s3.x, y: s0.y }]
+    } else {
+        mids = [{ x: s0.x, y: s3.y }]
+    }
+
+    return [p0, s0, ...mids, s3, p3]
+}
+
+/**
+ * Polilinha com os cantos arredondados, como `d` de um `<path>`.
+ *
+ * O raio de cada canto é limitado à METADE do menor dos dois segmentos que
+ * ele une: sem isso, dois blocos quase encostados produzem uma curva maior
+ * que o próprio segmento e o traço volta para trás sozinho.
+ */
+function roundedPath(points, radius = EDGE_CORNER) {
+    const pts = []
+
+    points.forEach((point) => {
+        const last = pts[pts.length - 1]
+        if (!last || Math.abs(last.x - point.x) > 0.01 || Math.abs(last.y - point.y) > 0.01) {
+            pts.push({ x: point.x, y: point.y })
+        }
+    })
+
+    // Vértice colinear não é canto — some, senão vira uma curva no meio de um
+    // trecho reto (o caso de dois blocos perfeitamente alinhados).
+    for (let i = pts.length - 2; i > 0; i--) {
+        const [a, b, c] = [pts[i - 1], pts[i], pts[i + 1]]
+        if (Math.abs((b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x)) < 0.01) pts.splice(i, 1)
+    }
+
+    if (pts.length < 2) return ''
+
+    const n = (value) => Math.round(value * 100) / 100
+    let d = `M ${n(pts[0].x)} ${n(pts[0].y)}`
+
+    for (let i = 1; i < pts.length - 1; i++) {
+        const [prev, cur, next] = [pts[i - 1], pts[i], pts[i + 1]]
+        const inLen = Math.hypot(cur.x - prev.x, cur.y - prev.y)
+        const outLen = Math.hypot(next.x - cur.x, next.y - cur.y)
+        const r = Math.min(radius, inLen / 2, outLen / 2)
+
+        if (r < 0.5) {
+            d += ` L ${n(cur.x)} ${n(cur.y)}`
+            continue
+        }
+
+        const t1 = { x: cur.x + ((prev.x - cur.x) / inLen) * r, y: cur.y + ((prev.y - cur.y) / inLen) * r }
+        const t2 = { x: cur.x + ((next.x - cur.x) / outLen) * r, y: cur.y + ((next.y - cur.y) / outLen) * r }
+        d += ` L ${n(t1.x)} ${n(t1.y)} Q ${n(cur.x)} ${n(cur.y)}, ${n(t2.x)} ${n(t2.y)}`
+    }
+
+    const end = pts[pts.length - 1]
+
+    return `${d} L ${n(end.x)} ${n(end.y)}`
+}
 // Lados que ganham uma porta de ligação no bloco (as 4 âncoras principais —
 // as intermediárias do topo/base existem só pra grudar ponta de seta).
 const ANCHOR_SIDES = ['t', 'r', 'b', 'l']
@@ -549,6 +637,8 @@ function paintNode(el, data) {
     el.classList.toggle('is-start', kind === 'start')
     el.classList.toggle('is-end', kind === 'end')
     el.classList.toggle('is-image', kind === 'image')
+    el.classList.toggle('is-lifeline', kind === 'lifeline')
+    el.classList.toggle('is-step', kind === 'step')
     el.classList.toggle('is-logo-only', logoOnly)
     el.classList.toggle('has-comment', !!data.comment)
     el.classList.toggle('is-dashed', !!data.dashed)
@@ -1003,9 +1093,25 @@ function mount(root) {
         }
     }
 
-    function anchorPoint(node, key) {
+    /**
+     * Onde uma seta encosta num bloco.
+     *
+     * `t` (0..1) desloca a âncora ao longo do LADO, e existe por causa da
+     * linha de vida: as 8 âncoras sabem dizer "à direita", não "à direita, na
+     * altura do terceiro passo" — que é exatamente o que uma mensagem num
+     * instante do tempo precisa. Só vale para os lados verticais (`l`/`r`),
+     * onde deslizar significa descer; nos horizontais não há o que deslizar
+     * que não seja a própria escolha de âncora.
+     */
+    function anchorPoint(node, key, t = null) {
         const a = ANCHORS[key] ?? ANCHORS.r
-        return { x: node.x + node.w * a.fx, y: node.y + node.h * a.fy, nx: a.nx, ny: a.ny }
+        const slide = t !== null && Number.isFinite(t) && a.nx !== 0
+        return {
+            x: node.x + node.w * a.fx,
+            y: node.y + node.h * (slide ? Math.min(1, Math.max(0, t)) : a.fy),
+            nx: a.nx,
+            ny: a.ny,
+        }
     }
 
     function clearWorld() {
@@ -1211,6 +1317,10 @@ function mount(root) {
         // guardado por `kind` pra nunca escrever um `border` inline nos
         // outros tipos, cujo contorno é só CSS de classe (`.is-dashed` etc.).
         if (n.kind === 'image') n.el.style.border = n.imageBorderColor ? `1.5px solid ${n.imageBorderColor}` : ''
+        // A altura da linha de vida é o único tamanho que vem do layout em vez
+        // do conteúdo: o corpo do bloco É o espaço vazio embaixo do cabeçalho,
+        // e é ele que as mensagens atravessam.
+        if (n.kind === 'lifeline') n.el.style.height = Number.isFinite(n.height) ? `${n.height}px` : ''
     }
 
     // Layout padrão esquerda→direita, centros na linha y=0.
@@ -1265,11 +1375,22 @@ function mount(root) {
                 if (p && typeof p.dashed === 'boolean') n.dashed = p.dashed
                 if (isHex(p?.imageBorderColor)) n.imageBorderColor = p.imageBorderColor
                 if (p && typeof p.logoOnly === 'boolean') n.logoOnly = p.logoOnly
+                // Só a linha de vida tem altura guardada — ver o comentário em
+                // SaveChainLayoutRequest.
+                if (p && Number.isFinite(p.height)) n.height = p.height
             })
         }
         if (Array.isArray(layout.edges) && layout.edges.length === edgeAnchors.length) {
             layout.edges.forEach((e, i) => {
-                if (e && ANCHORS[e.from] && ANCHORS[e.to]) edgeAnchors[i] = { from: e.from, to: e.to, dashed: !!e.dashed }
+                if (e && ANCHORS[e.from] && ANCHORS[e.to]) {
+                    edgeAnchors[i] = {
+                        from: e.from,
+                        to: e.to,
+                        dashed: !!e.dashed,
+                        fromT: Number.isFinite(e.fromT) ? e.fromT : null,
+                        toT: Number.isFinite(e.toT) ? e.toT : null,
+                    }
+                }
             })
         }
         if (Array.isArray(layout.comments) && layout.comments.length === nodes.length) {
@@ -1960,21 +2081,14 @@ function mount(root) {
             if (!fromNode || !toNode) return
 
             const anchors = edgeAnchors[i] || { from: 'r', to: 'l', dashed: false }
-            const a0 = anchorPoint(fromNode, anchors.from)
-            const a3 = anchorPoint(toNode, anchors.to)
+            const a0 = anchorPoint(fromNode, anchors.from, anchors.fromT)
+            const a3 = anchorPoint(toNode, anchors.to, anchors.toT)
             // afasta as pontas da linha do centro do handle, para a seta não invadir o círculo
             const p0 = { x: a0.x + a0.nx * EDGE_GAP, y: a0.y + a0.ny * EDGE_GAP, nx: a0.nx, ny: a0.ny }
             const p3 = { x: a3.x + a3.nx * EDGE_GAP, y: a3.y + a3.ny * EDGE_GAP, nx: a3.nx, ny: a3.ny }
-            const dist = Math.hypot(p3.x - p0.x, p3.y - p0.y)
-            const d = Math.max(30, dist * 0.4)
-            const c1x = p0.x + p0.nx * d
-            const c1y = p0.y + p0.ny * d
-            const c2x = p3.x + p3.nx * d
-            const c2y = p3.y + p3.ny * d
-
             const path = document.createElementNS(SVG_NS, 'path')
             path.setAttribute('class', 'ak-viz-edge' + (anchors.dashed ? ' is-dashed' : ''))
-            path.setAttribute('d', `M ${p0.x} ${p0.y} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p3.x} ${p3.y}`)
+            path.setAttribute('d', roundedPath(orthogonalPoints(p0, p3)))
             const arrow = edge.arrow || '->'
             if (arrow === '->' || arrow === '<->') path.setAttribute('marker-end', `url(#${markerEnd.id})`)
             if (arrow === '<-' || arrow === '<->') path.setAttribute('marker-start', `url(#${markerStart.id})`)
@@ -1987,9 +2101,13 @@ function mount(root) {
             // ao comportamento antigo).
             const proto = edge.protocol
             if (proto || editable) {
-                const mx = 0.125 * p0.x + 0.375 * c1x + 0.375 * c2x + 0.125 * p3.x
-                const my = 0.125 * p0.y + 0.375 * c1y + 0.375 * c2y + 0.125 * p3.y
-                drawProtocolPill(mx, my, i, proto)
+                // O meio do traço, medido no próprio `<path>` em vez de
+                // calculado: a fórmula que estava aqui era a da Bézier que não
+                // existe mais, e uma rota ortogonal tem um número variável de
+                // segmentos. `getPointAtLength()` responde para qualquer forma,
+                // e o path já está no DOM neste ponto.
+                const mid = path.getPointAtLength(path.getTotalLength() / 2)
+                drawProtocolPill(mid.x, mid.y, i, proto)
             }
 
             if (editable) {
@@ -3938,18 +4056,23 @@ function mount(root) {
         if (!from) return
 
         const a0 = anchorPoint(from, src.side)
-        const p0 = { x: a0.x + a0.nx * EDGE_GAP, y: a0.y + a0.ny * EDGE_GAP }
-        let p1 = { x: src.wx, y: src.wy }
+        const p0 = { x: a0.x + a0.nx * EDGE_GAP, y: a0.y + a0.ny * EDGE_GAP, nx: a0.nx, ny: a0.ny }
+        let p1 = { x: src.wx, y: src.wy, nx: 0, ny: 0 }
         // Sobre um bloco: a prévia gruda na âncora onde a seta vai nascer, não
         // no ponteiro — é exatamente o que será salvo em `viz_layout`.
         if (src.targetNode !== null && nodes[src.targetNode]) {
             const a1 = anchorPoint(nodes[src.targetNode], src.toSide)
-            p1 = { x: a1.x + a1.nx * EDGE_GAP, y: a1.y + a1.ny * EDGE_GAP }
+            p1 = { x: a1.x + a1.nx * EDGE_GAP, y: a1.y + a1.ny * EDGE_GAP, nx: a1.nx, ny: a1.ny }
         }
 
         const path = document.createElementNS(SVG_NS, 'path')
         path.setAttribute('class', 'ak-viz-edge is-preview')
-        path.setAttribute('d', `M ${p0.x} ${p0.y} L ${p1.x} ${p1.y}`)
+        // Grudada num bloco, a prévia já mostra a rota que vai ser desenhada;
+        // solta no vazio continua uma reta até o ponteiro, que é o que o gesto
+        // está dizendo naquele instante.
+        path.setAttribute('d', src.targetNode !== null && nodes[src.targetNode]
+            ? roundedPath(orthogonalPoints(p0, p1))
+            : `M ${p0.x} ${p0.y} L ${p1.x} ${p1.y}`)
         path.setAttribute('marker-end', `url(#${markerEnd.id})`)
         edges.appendChild(path)
     }
@@ -4131,8 +4254,18 @@ function mount(root) {
                 dashed: !!n.dashed,
                 imageBorderColor: n.imageBorderColor || null,
                 logoOnly: !!n.logoOnly,
+                // Só a linha de vida guarda altura; para os outros isso vai
+                // null e o servidor aceita (nullable) sem gravar tamanho
+                // nenhum — o bloco continua do tamanho do que está escrito nele.
+                height: n.kind === 'lifeline' && Number.isFinite(n.height) ? Math.round(n.height) : null,
             })),
-            edges: edgeAnchors.map((a) => ({ from: a.from, to: a.to, dashed: !!a.dashed })),
+            edges: edgeAnchors.map((a) => ({
+                from: a.from,
+                to: a.to,
+                dashed: !!a.dashed,
+                fromT: Number.isFinite(a.fromT) ? a.fromT : null,
+                toT: Number.isFinite(a.toT) ? a.toT : null,
+            })),
             comments: nodes.map((n) => n.comment || null),
             // `rounded`/`dashed`/`opacity`/`orientation`/`showTitle`/`fontSize`
             // were silently missing from this payload before — editable live
