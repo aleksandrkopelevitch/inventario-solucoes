@@ -168,6 +168,7 @@ const MAX_SCALE = 2.2
 const LEVEL_GAP = 90 // espaço horizontal entre nós consecutivos
 const FIT_PAD = 60
 const EDGE_GAP = 8   // afastamento da linha em relação ao centro do handle (evita invadir o círculo)
+const EDGE_GAP_LIFELINE = 15 // idem, do lado de uma linha de vida — ver o comentário em draw()
 const MOVE_TOLERANCE = 3 // distância (px, espaço do mundo) para distinguir clique de arraste
 
 // 8 âncoras por nó (fração da largura/altura + normal de saída da curva).
@@ -196,7 +197,7 @@ const EDGE_STUB = 22
 const EDGE_CORNER = 10
 
 /** Vértices da rota entre duas âncoras, já com os trechos retos das pontas. */
-function orthogonalPoints(p0, p3, stub = EDGE_STUB) {
+function orthogonalPoints(p0, p3, stub = EDGE_STUB, offset = 0) {
     const s0 = { x: p0.x + p0.nx * stub, y: p0.y + p0.ny * stub }
     const s3 = { x: p3.x + p3.nx * stub, y: p3.y + p3.ny * stub }
     // As normais deste canvas são todas axiais (ver ANCHORS), então "sai na
@@ -207,10 +208,10 @@ function orthogonalPoints(p0, p3, stub = EDGE_STUB) {
 
     let mids
     if (fromHoriz && toHoriz) {
-        const mx = (s0.x + s3.x) / 2
+        const mx = (s0.x + s3.x) / 2 + offset
         mids = [{ x: mx, y: s0.y }, { x: mx, y: s3.y }]
     } else if (!fromHoriz && !toHoriz) {
-        const my = (s0.y + s3.y) / 2
+        const my = (s0.y + s3.y) / 2 + offset
         mids = [{ x: s0.x, y: my }, { x: s3.x, y: my }]
     } else if (fromHoriz) {
         mids = [{ x: s3.x, y: s0.y }]
@@ -219,6 +220,26 @@ function orthogonalPoints(p0, p3, stub = EDGE_STUB) {
     }
 
     return [p0, s0, ...mids, s3, p3]
+}
+
+/**
+ * Quanto afastar o corredor do meio de uma ligação, para que duas entre o
+ * MESMO par de blocos não se desenhem uma sobre a outra.
+ *
+ * O deslocamento é simétrico em torno do eixo (0, +18, −18, +36, …), então um
+ * par com uma ligação só continua exatamente onde estava — o caso comum não
+ * paga nada pela correção do caso denso.
+ */
+function parallelOffset(edges, index) {
+    const key = (e) => [e.from, e.to].slice().sort().join('~')
+    const mine = key(edges[index])
+    const peers = edges.map((e, i) => (key(e) === mine ? i : -1)).filter((i) => i >= 0)
+
+    if (peers.length < 2) return 0
+
+    const rank = peers.indexOf(index)
+
+    return (rank % 2 === 0 ? 1 : -1) * Math.ceil((rank + 1) / 2) * 18 - (peers.length % 2 === 0 ? 9 : 0)
 }
 
 /**
@@ -1106,8 +1127,14 @@ function mount(root) {
     function anchorPoint(node, key, t = null) {
         const a = ANCHORS[key] ?? ANCHORS.r
         const slide = t !== null && Number.isFinite(t) && a.nx !== 0
+        // Numa LINHA DE VIDA a mensagem encosta na linha tracejada, que é
+        // desenhada no centro do bloco — não na borda do cartão. Sem isto a
+        // seta nasce e morre no vazio entre duas colunas, tocando nenhuma das
+        // duas: foi assim que a sequência gerada pareceu "sem setas".
+        const onLifeline = node.kind === 'lifeline' && a.nx !== 0
+
         return {
-            x: node.x + node.w * a.fx,
+            x: node.x + node.w * (onLifeline ? 0.5 : a.fx),
             y: node.y + node.h * (slide ? Math.min(1, Math.max(0, t)) : a.fy),
             nx: a.nx,
             ny: a.ny,
@@ -2084,11 +2111,25 @@ function mount(root) {
             const a0 = anchorPoint(fromNode, anchors.from, anchors.fromT)
             const a3 = anchorPoint(toNode, anchors.to, anchors.toT)
             // afasta as pontas da linha do centro do handle, para a seta não invadir o círculo
-            const p0 = { x: a0.x + a0.nx * EDGE_GAP, y: a0.y + a0.ny * EDGE_GAP, nx: a0.nx, ny: a0.ny }
-            const p3 = { x: a3.x + a3.nx * EDGE_GAP, y: a3.y + a3.ny * EDGE_GAP, nx: a3.nx, ny: a3.ny }
+            // Numa linha de vida a âncora fica SOBRE a linha tracejada, no
+            // mesmo ponto onde a alça de conexão é desenhada — e a alça é
+            // pintada depois, escondendo a ponta da seta. Um afastamento maior
+            // desse lado põe a ponta onde ela se vê, sem mexer no resto dos
+            // blocos, onde 8px continua certo.
+            const gap0 = fromNode.kind === 'lifeline' ? EDGE_GAP_LIFELINE : EDGE_GAP
+            const gap3 = toNode.kind === 'lifeline' ? EDGE_GAP_LIFELINE : EDGE_GAP
+            const p0 = { x: a0.x + a0.nx * gap0, y: a0.y + a0.ny * gap0, nx: a0.nx, ny: a0.ny }
+            const p3 = { x: a3.x + a3.nx * gap3, y: a3.y + a3.ny * gap3, nx: a3.nx, ny: a3.ny }
             const path = document.createElementNS(SVG_NS, 'path')
             path.setAttribute('class', 'ak-viz-edge' + (anchors.dashed ? ' is-dashed' : ''))
-            path.setAttribute('d', roundedPath(orthogonalPoints(p0, p3)))
+            // Duas ligações entre o mesmo par de blocos compartilhavam o mesmo
+            // corredor e viravam um traço só. `lanePass` afasta cada uma do
+            // eixo do meio, então elas correm em paralelo e dá para seguir cada
+            // uma com o olho — e para pegar a certa com o mouse.
+            path.setAttribute('d', roundedPath(orthogonalPoints(p0, p3, EDGE_STUB, parallelOffset(edgeList, i))))
+            // Qual bloco está em cada ponta, para o destaque da seleção.
+            path.dataset.from = String(fromIndex)
+            path.dataset.to = String(toIndex)
             const arrow = edge.arrow || '->'
             if (arrow === '->' || arrow === '<->') path.setAttribute('marker-end', `url(#${markerEnd.id})`)
             if (arrow === '<-' || arrow === '<->') path.setAttribute('marker-start', `url(#${markerStart.id})`)
@@ -2123,6 +2164,9 @@ function mount(root) {
         // claro enquanto o usuário escolhe o tipo/Solução no painel.
         if (drag?.type === 'connect' || quickAddOrigin) drawConnectPreview()
         inlineProtocolReposition?.()
+        // `draw()` recria todos os <path>, então o destaque da seleção tem de
+        // ser repintado — senão ele some no primeiro arraste.
+        highlightLinkedEdges(selectedIndex)
     }
 
     // ── modo apresentação ────────────────────────────────────────────
@@ -2540,6 +2584,9 @@ function mount(root) {
 
         const g = document.createElementNS(SVG_NS, 'g')
         g.setAttribute('class', 'ak-viz-plabel' + (isEmpty ? ' is-empty' : '') + (editable ? ' is-editable' : ''))
+        // De qual ligação esta pill é — o destaque da seleção acende as duas
+        // juntas, senão a seta acesa fica com o rótulo apagado.
+        g.dataset.edgeIndex = String(edgeIndex)
 
         const rect = document.createElementNS(SVG_NS, 'rect')
         rect.setAttribute('class', 'ak-viz-plabel-box')
@@ -2605,12 +2652,37 @@ function mount(root) {
     }
 
     // ── seleção + toolbar contextual ───────────────────────────────
+    /**
+     * Acende as ligações do bloco selecionado e apaga o resto.
+     *
+     * É a resposta barata para "qual linha é essa" num desenho cheio: em vez de
+     * colorir toda seta o tempo todo — o que rouba contraste dos blocos e, com
+     * a paleta por categoria, pinta de azul justo os três blocos que mais se
+     * cruzam —, o desenho responde quando alguém pergunta, clicando.
+     */
+    function highlightLinkedEdges(index) {
+        edges.classList.toggle('has-selection', index !== null)
+        const linkedEdges = new Set()
+
+        edges.querySelectorAll('path.ak-viz-edge').forEach((path) => {
+            const linked = index !== null
+                && (path.dataset.from === String(index) || path.dataset.to === String(index))
+            path.classList.toggle('is-linked', linked)
+            if (linked) linkedEdges.add(path.dataset.edgeIndex)
+        })
+
+        edges.querySelectorAll('.ak-viz-plabel').forEach((pill) => {
+            pill.classList.toggle('is-linked', linkedEdges.has(pill.dataset.edgeIndex))
+        })
+    }
+
     function selectNode(index) {
         closeProtocolEditor()
         closeAddEditor()
         closeLaneToolbar()
         if (selectedIndex !== null && nodes[selectedIndex]) nodes[selectedIndex].el.classList.remove('is-selected')
         selectedIndex = index
+        highlightLinkedEdges(index)
 
         if (index !== null && nodes[index]) {
             nodes[index].el.classList.add('is-selected')
@@ -3921,6 +3993,68 @@ function mount(root) {
         }
     })
 
+    /**
+     * O layout AO VIVO, na forma que `SaveChainLayoutRequest` valida.
+     *
+     * Extraído de "Salvar" porque a EXCLUSÃO de um bloco precisa dele também:
+     * ela redesenha o canvas a partir do grafo que o servidor devolve, e sem
+     * isto tudo que ainda não foi salvo — posição arrastada, tema, cor de
+     * bloco, raia, anotação — voltava ao que estava gravado. Um payload
+     * montado em dois lugares seria duas listas de campos para esquecer de
+     * atualizar, que é como `rounded`/`opacity`/`orientation` já ficaram de
+     * fora uma vez.
+     */
+    function layoutPayload() {
+        return {
+            nodes: nodes.map((n) => ({
+                x: Math.round(n.x),
+                y: Math.round(n.y),
+                color: n.color || null,
+                textColor: n.textColor || null,
+                font: n.font || 'sans',
+                fontSize: n.fontSize || 'sm',
+                dashed: !!n.dashed,
+                imageBorderColor: n.imageBorderColor || null,
+                logoOnly: !!n.logoOnly,
+                // Só a linha de vida guarda altura; para os outros isso vai
+                // null e o servidor aceita (nullable) sem gravar tamanho
+                // nenhum — o bloco continua do tamanho do que está escrito nele.
+                height: n.kind === 'lifeline' && Number.isFinite(n.height) ? Math.round(n.height) : null,
+            })),
+            edges: edgeAnchors.map((a) => ({
+                from: a.from,
+                to: a.to,
+                dashed: !!a.dashed,
+                fromT: Number.isFinite(a.fromT) ? a.fromT : null,
+                toT: Number.isFinite(a.toT) ? a.toT : null,
+            })),
+            comments: nodes.map((n) => n.comment || null),
+            // `rounded`/`dashed`/`opacity`/`orientation`/`showTitle`/`fontSize`
+            // were silently missing from this payload before — editable live
+            // in the lane toolbar and validated server-side, but never
+            // actually reaching "Salvar" (a viewer reloading the page always
+            // saw them reset to default). Sending the full style now that
+            // `headerColor`/`fontSize` need it too.
+            lanes: lanes.map((l) => ({
+                label: l.label,
+                color: l.color,
+                headerColor: l.headerColor || null,
+                x: l.x,
+                y: l.y,
+                width: l.width,
+                height: l.height,
+                rounded: !!l.rounded,
+                dashed: !!l.dashed,
+                opacity: l.opacity,
+                orientation: l.orientation || 'horizontal',
+                showTitle: l.showTitle !== false,
+                fontSize: l.fontSize || 'sm',
+            })),
+            notes: notes.map((n) => ({ x: Math.round(n.x), y: Math.round(n.y), text: n.text || '' })),
+            theme: currentTheme,
+        }
+    }
+
     // ── excluir bloco ──────────────────────────────────────────────
     // Diferente de tudo o mais que edita a chain, aqui NÃO existe patch local
     // possível: tirar um nó reindexa `chain.nodes`, e com ela todo `from`/`to`
@@ -3934,8 +4068,13 @@ function mount(root) {
 
         const index = selectedIndex
         const label = nodes[index]?.label || 'este bloco'
-        // Quantas ligações vão embora junto — o usuário decide sabendo disso.
-        const linked = (graphRef?.edges || []).filter((e) => e.from === index || e.to === index).length
+        // Quais ligações vão embora junto: a CONTAGEM avisa o usuário, e os
+        // ÍNDICES reindexam o layout vivo depois da exclusão (ver abaixo).
+        const linkedEdges = (graphRef?.edges || [])
+            .map((e, i) => (e.from === index || e.to === index ? i : -1))
+            .filter((i) => i >= 0)
+        const linked = linkedEdges.length
+        const wasDirty = dirty
         const warning = linked
             ? `\n\n${linked} ${linked === 1 ? 'ligação será removida' : 'ligações serão removidas'} junto.`
             : ''
@@ -3957,12 +4096,30 @@ function mount(root) {
             const data = await res.json().catch(() => null)
             if (!res.ok) throw new Error(data?.message || 'Não foi possível excluir o bloco.')
 
-            // O layout salvo na sessão está indexado pela contagem ANTIGA de
-            // nós; deixá-lo no cache faria `render()` reaplicá-lo por cima do
-            // layout já reindexado que veio do servidor.
-            savedLayouts.delete(slug)
+            // `render()` redesenha a partir do grafo do servidor, e o layout
+            // que ele reaplica é o que estiver em `savedLayouts` — que só é
+            // escrito no "Salvar". Jogar a entrada fora (o que este trecho
+            // fazia) significava perder TUDO que ainda não tinha sido salvo:
+            // posição arrastada, tema escolhido, cor de bloco, raia. Apagar um
+            // bloco desmanchava o desenho inteiro.
+            //
+            // Em vez disso, o estado vivo é reindexado aqui do mesmo jeito que
+            // o servidor reindexou o dele: fora o nó removido, fora as âncoras
+            // das ligações que morreram com ele. Os índices são conhecidos
+            // localmente — `linkedEdges` foi calculado ANTES do fetch, sobre o
+            // grafo que ainda tinha o nó.
+            const carried = layoutPayload()
+            carried.nodes.splice(index, 1)
+            carried.comments.splice(index, 1)
+            carried.edges = carried.edges.filter((_, i) => !linkedEdges.includes(i))
+            savedLayouts.set(slug, carried)
+
             patchRowGraphReplace(slug, data.graph, data.summary)
             render(data.graph, currentName, slug)
+            // O desenho na tela deixou de coincidir com o que está gravado no
+            // servidor no instante em que carregamos o estado vivo por cima —
+            // então continua havendo o que salvar.
+            if (wasDirty) setDirty(true)
             window.Toast?.show?.(data.message || 'Bloco excluído.')
         } catch (err) {
             window.Toast?.show?.(err.message || 'Não foi possível excluir o bloco.', 'error')
@@ -4243,54 +4400,7 @@ function mount(root) {
 
     async function save() {
         if (!editable || !saveUrl || !dirty) return
-        const payload = {
-            nodes: nodes.map((n) => ({
-                x: Math.round(n.x),
-                y: Math.round(n.y),
-                color: n.color || null,
-                textColor: n.textColor || null,
-                font: n.font || 'sans',
-                fontSize: n.fontSize || 'sm',
-                dashed: !!n.dashed,
-                imageBorderColor: n.imageBorderColor || null,
-                logoOnly: !!n.logoOnly,
-                // Só a linha de vida guarda altura; para os outros isso vai
-                // null e o servidor aceita (nullable) sem gravar tamanho
-                // nenhum — o bloco continua do tamanho do que está escrito nele.
-                height: n.kind === 'lifeline' && Number.isFinite(n.height) ? Math.round(n.height) : null,
-            })),
-            edges: edgeAnchors.map((a) => ({
-                from: a.from,
-                to: a.to,
-                dashed: !!a.dashed,
-                fromT: Number.isFinite(a.fromT) ? a.fromT : null,
-                toT: Number.isFinite(a.toT) ? a.toT : null,
-            })),
-            comments: nodes.map((n) => n.comment || null),
-            // `rounded`/`dashed`/`opacity`/`orientation`/`showTitle`/`fontSize`
-            // were silently missing from this payload before — editable live
-            // in the lane toolbar and validated server-side, but never
-            // actually reaching "Salvar" (a viewer reloading the page always
-            // saw them reset to default). Sending the full style now that
-            // `headerColor`/`fontSize` need it too.
-            lanes: lanes.map((l) => ({
-                label: l.label,
-                color: l.color,
-                headerColor: l.headerColor || null,
-                x: l.x,
-                y: l.y,
-                width: l.width,
-                height: l.height,
-                rounded: !!l.rounded,
-                dashed: !!l.dashed,
-                opacity: l.opacity,
-                orientation: l.orientation || 'horizontal',
-                showTitle: l.showTitle !== false,
-                fontSize: l.fontSize || 'sm',
-            })),
-            notes: notes.map((n) => ({ x: Math.round(n.x), y: Math.round(n.y), text: n.text || '' })),
-            theme: currentTheme,
-        }
+        const payload = layoutPayload()
         saveBtn.disabled = true
         if (saveLabel) saveLabel.textContent = 'Salvando…'
         try {
