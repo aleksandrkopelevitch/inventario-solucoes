@@ -76,72 +76,61 @@
     @endforeach
 </div>
 
-{{-- "O que muda" — the AS IS compared with the TO BE.
+{{-- "O que muda" — o AS IS comparado com o TO BE.
 
-     `SubmissionDiagramKind`'s docblock says these two are DRAWN rather than
-     uploaded because a picture is "diffable against nothing". This is that
-     diff: two validated specs walked by `archify compare`, which reports what
-     was added, removed, changed, moved and rerouted. No model is involved and
-     none should be — the same two canvases must produce the same answer every
-     time, which is the only reason it is worth putting in front of a committee.
+     O docblock de `SubmissionDiagramKind` diz que esses dois são DESENHADOS em
+     vez de enviados como imagem porque uma figura é "diffable against nothing".
+     Isto é esse diff, e ele é calculado na hora de ler: não existe botão de
+     gerar, não existe arquivo guardado e, portanto, não existe o momento em que
+     o painel descreve dois desenhos que já mudaram.
 
-     Offered only once both canvases hold something (`$canCompare`): an empty
-     AS IS is a legitimate state, and "everything was added" is what the TO BE
-     already says on its own. --}}
-@if ($canCompare || $delta)
+     Some inteiro enquanto faltar um dos dois. Um AS IS em branco é um estado
+     legítimo ("nada disso existe ainda"), só não é comparável — e o TO BE
+     sozinho já diz o que vai passar a existir. --}}
+@if ($diff)
     <article class="flex flex-col gap-3 rounded-card border border-line bg-surface p-5 shadow-card">
-        <header class="flex flex-wrap items-center gap-2">
+        <header class="flex flex-wrap items-baseline gap-2">
             <h3 class="font-display text-sm font-bold text-ink">O que muda</h3>
             <span class="text-xs text-muted">AS IS × TO BE, bloco a bloco</span>
         </header>
 
-        @if ($delta)
-            @php($blocks = $deltaCounts['components'] ?? [])
-            @php($links = $deltaCounts['connections'] ?? [])
+        @if (! $diff['changed'])
+            <p class="text-xs text-muted">Os dois desenhos dizem a mesma coisa — nenhuma diferença de topologia.</p>
+        @else
+            <div class="grid gap-4 sm:grid-cols-2">
+                @foreach ([['Blocos', $diff['blocks']], ['Ligações', $diff['links']]] as [$family, $set])
+                    @if ($set['added'] || $set['removed'])
+                        <div class="flex flex-col gap-1.5">
+                            <p class="text-[11px] font-semibold uppercase tracking-wide text-muted">{{ $family }}</p>
 
-            {{-- The receipt's own counts, stated rather than implied. An
-                 unchanged pair says so in words instead of showing an empty
-                 row of zeros. --}}
-            @if ($blocks || $links)
-                <ul class="flex flex-wrap gap-1.5">
-                    @foreach ([['Blocos', $blocks], ['Ligações', $links]] as [$family, $counts])
-                        @foreach ($counts as $kind => $count)
-                            <li class="rounded-full bg-raised px-2.5 py-1 text-[11px] font-semibold text-ink">
-                                {{ $family }}: {{ $count }} {{ ['added' => 'a mais', 'removed' => 'a menos', 'changed' => 'alterado(s)', 'moved' => 'movido(s)', 'rerouted' => 'com rota nova'][$kind] ?? $kind }}
-                            </li>
-                        @endforeach
-                    @endforeach
-                </ul>
-            @else
-                <p class="text-xs text-muted">Os dois desenhos dizem a mesma coisa — nenhuma diferença de topologia.</p>
-            @endif
-        @endif
+                            <ul class="flex flex-col gap-1">
+                                @foreach ($set['added'] as $item)
+                                    <li class="flex items-start gap-1.5 text-xs text-ink">
+                                        <span class="mt-0.5 shrink-0 text-cat-emerald-ink">+</span>
+                                        <span class="min-w-0">{{ $item }}</span>
+                                    </li>
+                                @endforeach
 
-        <div class="flex flex-wrap items-center gap-2">
-            @if ($delta)
-                <a href="{{ route('submissions.topology-delta.show', $submission) }}" target="_blank" rel="noopener"
-                   class="inline-flex items-center gap-1.5 rounded-field border border-line px-3 py-1.5 text-xs font-semibold text-ink hover:bg-accent-soft">
-                    <x-heroicon-o-arrows-right-left class="size-4" /> Abrir comparação
-                </a>
-            @endif
+                                @foreach ($set['removed'] as $item)
+                                    <li class="flex items-start gap-1.5 text-xs text-muted">
+                                        <span class="mt-0.5 shrink-0 text-cat-rose-ink">−</span>
+                                        <span class="min-w-0 line-through">{{ $item }}</span>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+                @endforeach
+            </div>
 
-            @if ($canEdit && $canCompare)
-                <form id="submission-topology-delta" class="contents">
-                    <x-forms.button variant="{{ $delta ? 'ghost' : 'glass' }}" class="!px-3 !py-1.5 !text-xs"
-                        data-ak-ajax="submission-topology-delta"
-                        data-ak-action="{{ route('submissions.topology-delta.store', $submission) }}">
-                        <x-heroicon-o-arrow-path class="size-4" />
-                        {{ $delta ? 'Gerar de novo' : 'Comparar os dois desenhos' }}
-                    </x-forms.button>
-                </form>
-            @endif
-        </div>
-
-        @if ($delta)
+            {{-- O que SOBREVIVEU é metade do argumento do comitê: uma proposta
+                 que mantém doze blocos e troca um não é a mesma conversa que uma
+                 que troca tudo. --}}
             <p class="text-[11px] text-muted">
-                Gerado em
-                {{ \Illuminate\Support\Carbon::parse($delta->getCustomProperty('generated_at'))->timezone(config('app.timezone'))->format('d/m/Y H:i') }}
-                — os desenhos podem ter mudado desde então.
+                Continuam iguais: {{ $diff['blocks']['kept'] }}
+                {{ \Illuminate\Support\Str::plural('bloco', $diff['blocks']['kept']) }}
+                e {{ $diff['links']['kept'] }}
+                {{ \Illuminate\Support\Str::plural('ligação', $diff['links']['kept']) }}.
             </p>
         @endif
     </article>

@@ -1097,9 +1097,11 @@
                  it. Everything that paints the diagram lives under the
                  viewport and inherits; everything outside keeps the defaults.
 
-                 Palettes measured out of a rendered Archify artifact (MIT,
-                 tt-a1i/archify) — its "classic" dark and "blueprint" light
-                 presets. What is NOT borrowed is its color axis: Archify fills
+                 Palettes measured out of a rendered artifact from Archify
+                 (MIT, tt-a1i/archify) — its "classic" dark and "blueprint"
+                 light presets. The credit is all that is left of it: the
+                 renderer itself was removed once this canvas could draw the
+                 four models on its own, and no code of theirs ships here. What is NOT borrowed is its color axis: Archify fills
                  a block by what it technically is (frontend cyan, database
                  violet, security rose), which is the per-kind pastel this
                  canvas dropped on 2026-08-26 for the reason written on

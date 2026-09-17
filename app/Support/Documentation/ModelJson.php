@@ -6,7 +6,8 @@ namespace App\Support\Documentation;
  * Pulls the JSON object out of a reply that was asked for nothing else.
  *
  * Shared by the two generators that ask a model for a typed object — the chain
- * draft and the Archify artifact. It is deliberately NOT `FlowspecJson`, which
+ * free-graph draft and the four diagram models. It is deliberately NOT
+ * `FlowspecJson`, which
  * has to tell a flowSpec from a reply that merely MENTIONS `{{ }}` syntax,
  * because its prompt teaches that syntax. Neither prompt here teaches any, and
  * both ask for JSON and nothing else, so anything brace-shaped in the answer is

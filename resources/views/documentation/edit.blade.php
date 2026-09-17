@@ -167,15 +167,6 @@
                             <x-notebooks.documented-systems :notebook="$notebook" />
                         @endisset
 
-                        {{-- The diagrams generated from this page's prose. A
-                             FACT about the page, so the rail; the menu that
-                             generates one is an ACTION, so the top bar. Renders
-                             nothing at all while there are none — see the
-                             component. --}}
-                        @isset($titlePage)
-                            <x-documentation.page-artifacts :page="$titlePage" :can-edit="$canEdit" />
-                        @endisset
-
                         {{-- "Nesta página" headings navigator (H1–H3). Reads the
                              live Editor.js headings while editing, and the
                              .html-content permalinks when read-only. Built by

@@ -42,18 +42,14 @@
 
     {{-- "Desenhar esta página" — one menu, five pictures.
 
-         The first item is the only one that produces something EDITABLE: a
-         Diagram in its own module, drawn on the F3 canvas, feeding the
-         ecosystem map like any other. The four below it are rendered artifacts
-         (Archify), and they answer the questions a topology cannot — in what
-         order the calls happen, where the data comes to rest, what the states
-         of a run are, who approves what. They are not chains and never become
-         one, which is why they are stored as media on the page and read in a
-         tab of their own.
+         The first item is the free graph — what talks to what. The four below
+         it are the other questions a page asks: in what order the calls
+         happen, what the states of a run are, where the data comes to rest,
+         who does what. All five produce the same thing, an ordinary Diagram on
+         the canvas, which is why they sit in one menu instead of two.
 
-         Two different abilities, deliberately: drawing a chain writes a row in
-         another module (`create` on Diagram), while an artifact belongs to this
-         page (`update` on it, which is what `$canEdit` already answered).
+         Every item needs the same ability, because every item writes a row in
+         the diagrams module: `create` on Diagram.
 
          Each item is its own <form class="contents">: ajax-post.js builds a
          FormData from the form a button names, and there is no form in this bar

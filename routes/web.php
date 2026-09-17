@@ -27,7 +27,6 @@ use App\Http\Controllers\McpTokenController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\NotebookContextDocumentController;
 use App\Http\Controllers\NotebookController;
-use App\Http\Controllers\NotebookPageArtifactController;
 use App\Http\Controllers\NotebookPageController;
 use App\Http\Controllers\NotebookPageDiagramController;
 use App\Http\Controllers\PipelineRunController;
@@ -41,7 +40,6 @@ use App\Http\Controllers\SubmissionDiagramController;
 use App\Http\Controllers\SubmissionExportController;
 use App\Http\Controllers\SubmissionSectionController;
 use App\Http\Controllers\SubmissionSourceController;
-use App\Http\Controllers\SubmissionTopologyDeltaController;
 use App\Http\Controllers\UserController;
 use App\Models\Solution;
 use Illuminate\Support\Facades\Route;
@@ -413,12 +411,6 @@ Route::middleware(['auth', 'inventory'])->group(function () {
 
         Route::get('submissions/{submission}/chat/{chat}/status', [SubmissionChatController::class, 'status'])->name('submissions.chat.status');
 
-        // AS IS x TO BE, as a Before/Delta/After artifact. No `{media}` in the
-        // path: the collection is singleFile, so a submission has one delta and
-        // regenerating replaces it — there is nothing to address.
-        Route::post('submissions/{submission}/topology-delta', [SubmissionTopologyDeltaController::class, 'store'])->name('submissions.topology-delta.store');
-        Route::get('submissions/{submission}/topology-delta', [SubmissionTopologyDeltaController::class, 'show'])->name('submissions.topology-delta.show');
-
         /*
          | The submission's four drawings. `{diagram}` resolves through
          | Submission::diagrams(), so a diagram belonging to another submission
@@ -669,16 +661,6 @@ Route::middleware(['auth', 'inventory'])->group(function () {
         // implicit enum binding, so a shape outside the four 404s before the
         // controller runs.
         Route::post('notebooks/{notebook}/{page}/diagram/{model}', [NotebookPageDiagramController::class, 'model'])->name('notebooks.pages.diagram.model');
-        // The four Archify artifacts a page can be turned into (sequence, data
-        // flow, lifecycle, process). `{type}` is an implicit ENUM binding, so a
-        // type outside the four 404s before the controller runs; `{media}` is a
-        // plain id, and the controller checks its owner AND its collection,
-        // since a page's other collection holds the images embedded in its own
-        // Markdown. The two never collide — one is a word on POST, the other a
-        // number on GET/DELETE.
-        Route::post('notebooks/{notebook}/{page}/artifacts/{type}', [NotebookPageArtifactController::class, 'store'])->name('notebooks.pages.artifacts.store');
-        Route::get('notebooks/{notebook}/{page}/artifacts/{media}', [NotebookPageArtifactController::class, 'show'])->whereNumber('media')->name('notebooks.pages.artifacts.show');
-        Route::delete('notebooks/{notebook}/{page}/artifacts/{media}', [NotebookPageArtifactController::class, 'destroy'])->whereNumber('media')->name('notebooks.pages.artifacts.destroy');
         // Documentation Assistant — a chat that helps write the page (job + polling per turn).
         Route::get('notebooks/{notebook}/{page}/chat', [NotebookPageController::class, 'chatPanel'])->name('notebooks.chat.panel');
         Route::post('notebooks/{notebook}/{page}/chat/messages', [NotebookPageController::class, 'sendMessage'])->name('notebooks.chat.messages.store');
