@@ -398,6 +398,20 @@
                         .ak-viz-edges .ak-viz-plabel.is-empty .ak-viz-plabel-text { fill: #94A3C4; }
                         .ak-viz-dot { filter: drop-shadow(0 0 4px currentColor) drop-shadow(0 0 8px currentColor); }
 
+                        /* Destaque da seleção (`highlightLinkedEdges()`): as
+                           ligações do bloco escolhido acendem e o resto
+                           esmaece. Mora AQUI, no <style> interno do <svg>,
+                           porque é aqui que as regras das arestas moram — e
+                           porque assim o destaque sai igual no PNG exportado,
+                           que raw-clona este subtree. */
+                        .ak-viz-edges.has-selection path.ak-viz-edge { opacity: .22; }
+                        .ak-viz-edges.has-selection path.ak-viz-edge.is-linked {
+                            opacity: 1;
+                            stroke-width: 2.6;
+                        }
+                        .ak-viz-edges.has-selection .ak-viz-plabel { opacity: .3; }
+                        .ak-viz-edges.has-selection .ak-viz-plabel.is-linked { opacity: 1; }
+
                         {{-- Screenshot style presets ("Estilo do screenshot",
                              bottom bar export menu) — the `data-viz-preset`
                              attribute is set on THIS <svg> element itself right

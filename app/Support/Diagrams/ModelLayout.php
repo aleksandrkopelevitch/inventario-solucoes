@@ -173,9 +173,14 @@ final class ModelLayout
         $nodes = [];
         $positions = [];
 
+        // Onde cada item caiu, para o roteamento das setas logo abaixo saber se
+        // uma ligação anda ao longo da raia ou salta de uma para outra.
+        $cells = [];
+
         foreach ($items as $item) {
             $lane = $laneOrder[$item[$laneKey]] ?? 0;
             $slot = $seen[$lane] = ($seen[$lane] ?? -1) + 1;
+            $cells[] = ['lane' => $lane, 'slot' => $slot];
 
             $nodes[] = self::node($item, self::kindFor($item), $solutions);
             $positions[] = $vertical
@@ -196,12 +201,18 @@ final class ModelLayout
                 'arrow'    => '->',
                 'protocol' => self::text($link['label'] ?? null),
             ];
-            // The arrow leaves on the axis the flow travels: down a column for
-            // a data flow, along a row for a process. Where the two ends sit in
-            // different lanes the canvas's own routing takes the corner.
-            $anchors[] = $vertical
-                ? ['from' => 'b', 'to' => 't', 'dashed' => false]
-                : ['from' => 'r', 'to' => 'l', 'dashed' => false];
+            // The arrow leaves on the axis it actually TRAVELS, which is not the
+            // same for every link in the drawing. In a data flow the stages
+            // advance sideways, so a link between two of them goes right-to-left
+            // and only a link INSIDE one stage goes down; a process is the same
+            // sentence with the axes swapped. Routing every link down a column
+            // was what piled five lines into one horizontal band and painted
+            // them across the labels.
+            $anchors[] = ['dashed' => false] + self::route(
+                $cells[$from],
+                $cells[$to],
+                alongLane: $vertical ? 'vertical' : 'horizontal',
+            );
         }
 
         $span = max(1, count($seen) ? max($seen) + 1 : 1);
@@ -295,6 +306,35 @@ final class ModelLayout
         }
 
         return self::assemble($nodes, $edges, $positions, $anchors, []);
+    }
+
+    /**
+     * Which sides two blocks should be joined by.
+     *
+     * Same container: the flow runs ALONG it — down a stage, across a lane.
+     * Different containers: it crosses, so it leaves on the crossing axis. In
+     * both cases the side is chosen by direction, so a link that goes back up
+     * the drawing does not leave through the same face as one going forward,
+     * and the canvas's own orthogonal routing gets a corner it can turn.
+     *
+     * @param  array{lane: int, slot: int}  $from
+     * @param  array{lane: int, slot: int}  $to
+     * @return array{from: string, to: string}
+     */
+    private static function route(array $from, array $to, string $alongLane): array
+    {
+        $sameLane = $from['lane'] === $to['lane'];
+        $downwards = $alongLane === 'vertical' ? $to['slot'] >= $from['slot'] : $to['lane'] >= $from['lane'];
+        $rightwards = $alongLane === 'vertical' ? $to['lane'] >= $from['lane'] : $to['slot'] >= $from['slot'];
+
+        $vertical = ['from' => $downwards ? 'b' : 't', 'to' => $downwards ? 't' : 'b'];
+        $horizontal = ['from' => $rightwards ? 'r' : 'l', 'to' => $rightwards ? 'l' : 'r'];
+
+        if ($alongLane === 'vertical') {
+            return $sameLane ? $vertical : $horizontal;
+        }
+
+        return $sameLane ? $horizontal : $vertical;
     }
 
     /**
