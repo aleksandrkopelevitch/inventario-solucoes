@@ -31,17 +31,34 @@
 
 import { fold } from './fold.js'
 import { mountCanvas } from './graph-canvas/camera.js'
-import { buildSimulation, chainLayout, ringsLayout, satelliteLayout } from './graph-canvas/layout.js'
+import { buildSimulation, chainLayout, groupsLayout, ringsLayout, satelliteLayout } from './graph-canvas/layout.js'
 import { arrowHead, circle, glowSprite, hexToRgba, hexagon, linkCtrl, linkPoint, mix, orbSprite, roundedRect } from './graph-canvas/sprites.js'
 
 const mounted = new WeakSet()
 
 const SOLUTION_R = 26
+const GROUP_R = 40
 const DIAGRAM_R = 17
 const STEP_R = 15
 const SATELLITE_GAP = 200
 const CHAIN_SPACING = 120
 const EASE = 0.14
+
+// Como o rodapé conta os hubs, por eixo — "em 6 diretorias" lê melhor que
+// "em 6 grupos", e é a única frase da tela que nomeia o agrupamento.
+const AXIS_LABEL = {
+    directorate: 'Diretoria',
+    owner: 'Responsável',
+    company: 'Fornecedor',
+    category: 'Categoria',
+}
+
+const AXIS_NOUN = {
+    directorate: 'diretorias',
+    owner: 'responsáveis',
+    company: 'fornecedores',
+    category: 'categorias',
+}
 
 const KIND_LABEL = {
     system: 'Sistema',
@@ -120,6 +137,12 @@ function mount(shell) {
             nodes: payload.nodes ?? [],
             edges: payload.edges ?? [],
             diagrams: payload.diagrams ?? [],
+            // A leitura por agrupamento manda `groups` e deixa as duas listas
+            // acima vazias. A normalização aqui é uma lista branca, então uma
+            // chave nova do servidor não chega ao renderizador sem passar por
+            // esta linha — de propósito, mas é fácil esquecer dela.
+            groups: payload.groups ?? [],
+            groupAxis: payload.groupAxis ?? null,
         }
         state.diagramBySlug = new Map(state.payload.diagrams.map((d) => [d.slug, d]))
         state.nodes = []
@@ -164,6 +187,31 @@ function mount(shell) {
                 data: solution,
                 logo: logoFor(solution.logo),
             })
+        }
+
+        // Uma LEITURA por agrupamento (`SolutionGraphService`): os mesmos
+        // blocos, em volta de um hub por diretoria / responsável / fornecedor
+        // / categoria, em vez de ligados a quem trocam mensagem. Chega no
+        // mesmo contrato, com `edges` e `diagrams` vazios — então tudo abaixo
+        // simplesmente não encontra o que desenhar, e nada precisou de um
+        // "se estiver no outro modo".
+        for (const group of state.payload.groups ?? []) {
+            put({
+                id: group.id,
+                type: 'group',
+                label: group.label,
+                radius: GROUP_R,
+                color: palette.family(group.family),
+                data: group,
+            })
+
+            for (const solutionId of group.solutions) {
+                const member = byId.get(solutionId)
+                if (! member) continue
+                // Nasce no hub de onde saiu, como todo filho neste canvas.
+                member.parentId = group.id
+                links.push({ id: `${group.id}~${solutionId}`, kind: 'member', source: group.id, target: solutionId })
+            }
         }
 
         for (const edge of state.payload.edges) {
@@ -267,7 +315,9 @@ function mount(shell) {
 
         relayout()
         renderCrumb()
-        setStatus(`${state.payload.nodes.length} sistemas · ${state.payload.edges.length} ligações · ${state.payload.diagrams.length} diagramas`)
+        setStatus(state.payload.groups?.length
+            ? `${state.payload.nodes.length} sistemas em ${state.payload.groups.length} ${AXIS_NOUN[state.payload.groupAxis] ?? 'grupos'}`
+            : `${state.payload.nodes.length} sistemas · ${state.payload.edges.length} ligações · ${state.payload.diagrams.length} diagramas`)
     }
 
     function relayout() {
@@ -284,6 +334,15 @@ function mount(shell) {
 
         state.sim?.stop()
         state.sim = null
+
+        const groups = state.nodes.filter((n) => n.type === 'group')
+
+        if (groups.length) {
+            groupsLayout(groups, (group) => solutions.filter((n) => n.parentId === group.id))
+
+            return
+        }
+
         ringsLayout(solutions, pairs)
 
         // Diagrams hanging off one system fan out away from the centre; the
@@ -330,6 +389,15 @@ function mount(shell) {
             } else {
                 select(null)
             }
+
+            return
+        }
+
+        // Um hub não desdobra nada: os membros dele já estão na tela. Clicar
+        // nele é enquadrá-lo — que é o que se quer de um agrupamento com 40
+        // sistemas numa tela com seis agrupamentos.
+        if (node.type === 'group') {
+            focusOn(node, ...state.nodes.filter((n) => n.parentId === node.id))
 
             return
         }
@@ -668,6 +736,22 @@ function mount(shell) {
 
             const count = countFor(node)
             if (count) drawBadge(ctx, node, count, k, state.expandedSolutions.has(node.id))
+        } else if (node.type === 'group') {
+            // Anel, não disco: o hub é um continente, não mais um sistema —
+            // e o que importa nele é o número que carrega.
+            ctx.fillStyle = hexToRgba(node.color, 0.14)
+            circle(ctx, node.x, node.y, r)
+            ctx.fill()
+            ctx.strokeStyle = hexToRgba(node.color, 0.95)
+            ctx.lineWidth = 2.4 / k
+            circle(ctx, node.x, node.y, r)
+            ctx.stroke()
+
+            ctx.fillStyle = 'rgba(255,255,255,0.92)'
+            ctx.font = `600 ${Math.round(r * 0.62)}px ui-sans-serif, system-ui, sans-serif`
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'middle'
+            ctx.fillText(String(node.data.count), node.x, node.y)
         } else if (node.type === 'diagram') {
             hexagon(ctx, node.x, node.y, r)
             ctx.fillStyle = node.open ? node.color : mix(node.color, '#0b0e11', 0.55)
@@ -761,16 +845,22 @@ function mount(shell) {
             const focused = api.hover?.id === node.id || state.selected?.id === node.id
             if (node.type === 'diagram' && k < 0.42 && ! focused) continue
             if (node.type === 'step' && k < 0.5 && ! focused) continue
+            // Na leitura por agrupamento a visão de longe é a dos HUBS: 109
+            // nomes de sistema espalhados por 41 discos se sobrepõem até não
+            // sobrar uma palavra legível. De perto (ou sob o ponteiro) os
+            // nomes voltam, que é quando se está lendo um agrupamento e não o
+            // conjunto deles.
+            if (node.type === 'solution' && state.payload.groups.length && k < 0.62 && ! focused) continue
 
             const [sx, sy] = api.w2s(node.x, node.y)
             if (sx < -80 || sy < -40 || sx > api.size.width + 80 || sy > api.size.height + 40) continue
 
-            const label = node.type === 'solution' ? node.label.toUpperCase() : node.label
+            const label = node.type === 'solution' || node.type === 'group' ? node.label.toUpperCase() : node.label
             ctx.font = node.type === 'solution'
                 ? '700 10.5px Inter, system-ui, sans-serif'
                 : '500 10px Inter, system-ui, sans-serif'
             try {
-                ctx.letterSpacing = node.type === 'solution' ? '0.8px' : '0px'
+                ctx.letterSpacing = node.type === 'solution' || node.type === 'group' ? '0.8px' : '0px'
             } catch {
                 // letterSpacing is not everywhere yet; the label reads fine without it.
             }
@@ -779,7 +869,9 @@ function mount(shell) {
             ctx.globalAlpha = alphaFor(node, dimmed)
             ctx.fillStyle = 'rgba(6,9,11,0.85)'
             ctx.fillText(label, sx + 1, y + 1)
-            ctx.fillStyle = focused ? '#ffffff' : node.type === 'solution' ? 'rgba(236,241,238,0.92)' : 'rgba(198,208,203,0.8)'
+            ctx.fillStyle = focused || node.type === 'group'
+                ? '#ffffff'
+                : node.type === 'solution' ? 'rgba(236,241,238,0.92)' : 'rgba(198,208,203,0.8)'
             ctx.fillText(label, sx, y)
             ctx.globalAlpha = 1
         }
@@ -833,6 +925,12 @@ function mount(shell) {
                 <span class="block text-white/40">${count} diagrama${count === 1 ? '' : 's'} · clique para ${state.expandedSolutions.has(node.id) ? 'recolher' : 'expandir'}</span>`
         }
 
+        if (node.type === 'group') {
+            return `<strong>${escapeHtml(node.label)}</strong>
+                <span class="block text-white/55">${escapeHtml(AXIS_LABEL[node.data.axis] ?? 'Agrupamento')}</span>
+                <span class="block text-white/40">${node.data.count} sistema${node.data.count === 1 ? '' : 's'} · clique para enquadrar</span>`
+        }
+
         if (node.type === 'diagram') {
             return `<strong>${escapeHtml(node.label)}</strong>
                 <span class="block text-white/55">${escapeHtml(node.data.statusLabel ?? '')}${node.data.protocolLabel ? ` · ${escapeHtml(node.data.protocolLabel)}` : ''}</span>
@@ -874,6 +972,9 @@ function mount(shell) {
             add('Suporte', d.supportLabel)
             add('Diretoria', d.directorate)
             action = { url: d.url, label: 'Ver solução' }
+        } else if (node.type === 'group') {
+            add(AXIS_LABEL[node.data.axis] ?? 'Agrupamento', node.label)
+            add('Sistemas', String(node.data.count))
         } else if (node.type === 'diagram') {
             const d = node.data
             add('Status', d.statusLabel)

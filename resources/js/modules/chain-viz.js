@@ -195,6 +195,12 @@ const ANCHOR_KEYS = Object.keys(ANCHORS)
 // tem que continuar lendo como 90°, não como uma curva.
 const EDGE_STUB = 22
 const EDGE_CORNER = 10
+// Quanto dois corredores que se sobrepõem se afastam um do outro, e quão
+// perto dois precisam estar para contarem como o mesmo corredor.
+const EDGE_CORRIDOR_STEP = 18
+const EDGE_CORRIDOR_BUCKET = 14
+// Distância entre duas pontas que disputam a MESMA face de um bloco.
+const ANCHOR_FAN_STEP = 16
 
 /** Vértices da rota entre duas âncoras, já com os trechos retos das pontas. */
 function orthogonalPoints(p0, p3, stub = EDGE_STUB, offset = 0) {
@@ -223,23 +229,112 @@ function orthogonalPoints(p0, p3, stub = EDGE_STUB, offset = 0) {
 }
 
 /**
- * Quanto afastar o corredor do meio de uma ligação, para que duas entre o
- * MESMO par de blocos não se desenhem uma sobre a outra.
+ * O CORREDOR de uma rota: o trecho longo do meio, onde ela atravessa o vazio
+ * entre os dois blocos. `null` quando a rota faz uma cotovelada só (sai na
+ * horizontal e chega na vertical, ou o contrário) — aí não há trecho do meio
+ * para disputar com ninguém.
  *
- * O deslocamento é simétrico em torno do eixo (0, +18, −18, +36, …), então um
- * par com uma ligação só continua exatamente onde estava — o caso comum não
- * paga nada pela correção do caso denso.
+ * `from`/`to` são as pontas do corredor no OUTRO eixo, para saber se dois
+ * deles realmente se cruzam ou se apenas calharam da mesma coordenada em
+ * pedaços diferentes do desenho.
  */
-function parallelOffset(edges, index) {
-    const key = (e) => [e.from, e.to].slice().sort().join('~')
-    const mine = key(edges[index])
-    const peers = edges.map((e, i) => (key(e) === mine ? i : -1)).filter((i) => i >= 0)
+function corridorOf(p0, p3, stub = EDGE_STUB) {
+    const s0 = { x: p0.x + p0.nx * stub, y: p0.y + p0.ny * stub }
+    const s3 = { x: p3.x + p3.nx * stub, y: p3.y + p3.ny * stub }
+    const fromHoriz = p0.nx !== 0
+    const toHoriz = p3.nx !== 0
 
-    if (peers.length < 2) return 0
+    if (fromHoriz && toHoriz) return { axis: 'x', coord: (s0.x + s3.x) / 2, from: s0.y, to: s3.y }
+    if (!fromHoriz && !toHoriz) return { axis: 'y', coord: (s0.y + s3.y) / 2, from: s0.x, to: s3.x }
 
-    const rank = peers.indexOf(index)
+    return null
+}
 
-    return (rank % 2 === 0 ? 1 : -1) * Math.ceil((rank + 1) / 2) * 18 - (peers.length % 2 === 0 ? 9 : 0)
+/**
+ * Quanto afastar cada corredor, para que dois que correriam um EM CIMA do
+ * outro corram lado a lado.
+ *
+ * Isto valia antes só para duas ligações entre o MESMO par de blocos. Mas o
+ * emaranhado de um desenho grande não vem daí: vem de ligações sem relação
+ * nenhuma entre si cujo meio calhou na mesma altura — num desenho em raias
+ * isso é o caso comum, porque todo mundo atravessa a mesma faixa de vazio
+ * entre duas raias. Agrupar por COORDENADA em vez de por par cobre os dois,
+ * e o par repetido é só o caso particular em que o corredor coincide inteiro.
+ *
+ * Só desvia quem de fato se sobrepõe: dois corredores na mesma altura em
+ * pedaços distantes do canvas continuam exatamente onde estavam. O
+ * deslocamento é simétrico em torno do eixo, então um corredor sozinho não
+ * paga nada — o caso comum não se mexe.
+ */
+function corridorOffsets(corridors) {
+    const offsets = corridors.map(() => 0)
+    const groups = new Map()
+
+    corridors.forEach((corridor, i) => {
+        if (!corridor) return
+        const key = corridor.axis + ':' + Math.round(corridor.coord / EDGE_CORRIDOR_BUCKET)
+        if (!groups.has(key)) groups.set(key, [])
+        groups.get(key).push(i)
+    })
+
+    groups.forEach((members) => {
+        if (members.length < 2) return
+
+        const span = (i) => {
+            const c = corridors[i]
+
+            return { lo: Math.min(c.from, c.to), hi: Math.max(c.from, c.to) }
+        }
+        const clusters = []
+
+        members
+            .slice()
+            .sort((a, b) => span(a).lo - span(b).lo)
+            .forEach((i) => {
+                const { lo, hi } = span(i)
+                const touching = clusters.find((c) => lo <= c.hi && hi >= c.lo)
+
+                if (touching) {
+                    touching.lo = Math.min(touching.lo, lo)
+                    touching.hi = Math.max(touching.hi, hi)
+                    touching.members.push(i)
+                } else {
+                    clusters.push({ lo, hi, members: [i] })
+                }
+            })
+
+        clusters.forEach(({ members: overlapping }) => {
+            if (overlapping.length < 2) return
+            overlapping.forEach((i, rank) => {
+                offsets[i] = (rank - (overlapping.length - 1) / 2) * EDGE_CORRIDOR_STEP
+            })
+        })
+    })
+
+    return offsets
+}
+
+/**
+ * Onde pousar o rótulo de uma rota: no MEIO DO MAIOR TRECHO RETO dela.
+ *
+ * Era no meio geométrico do traço, que numa rota ortogonal cai com frequência
+ * em cima de uma curva — o rótulo saía torto sobre o cotovelo, mordendo os
+ * dois trechos. Empate favorece o trecho deitado: texto deitado sobre linha
+ * deitada ocupa a mesma direção, e cobre menos desenho que a mesma caixa
+ * atravessada num trecho em pé.
+ */
+function labelAnchor(points) {
+    let best = null
+
+    for (let i = 1; i < points.length; i++) {
+        const [a, b] = [points[i - 1], points[i]]
+        const horiz = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y)
+        const score = (horiz ? Math.abs(b.x - a.x) * 1.35 : Math.abs(b.y - a.y))
+
+        if (!best || score > best.score) best = { score, horiz, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+    }
+
+    return best
 }
 
 /**
@@ -1038,6 +1133,7 @@ function mount(root) {
     let drag = null         // {type:'handle'|'node', ...} — 'handle' carrega edge/end/origNode/otherNode/targetNode
     let dirty = false
     let selectedIndex = null
+    let hoveredEdge = null  // índice da ligação sob o ponteiro (`drawEdgeHit()`) — revela o pill vazio dela
     let commentIndex = null
     let selectedEdge = null // índice em chain.edges com o editor de protocolo aberto
     let edgeLabelEls = []   // <g> de cada pill de protocolo desenhada no draw() atual — base p/ ancorar o input inline de edição de protocolo
@@ -1141,6 +1237,68 @@ function mount(root) {
         }
     }
 
+    /**
+     * Quanto deslocar cada ponta AO LONGO da face onde ela nasce, para que
+     * várias ligações na mesma face não nasçam todas no mesmo ponto.
+     *
+     * Era o defeito mais visível de um desenho cheio: três setas entrando pelo
+     * topo de um bloco viravam um tridente com um vértice só, e no vértice não
+     * dava para dizer qual seta ia para onde — nem pegar a certa com o mouse.
+     * Agora elas repartem a face.
+     *
+     * A ordem dentro da face é a do OUTRO extremo, não a da lista de ligações:
+     * quem vem da esquerda encosta à esquerda. Sem isso as setas se cruzariam
+     * bem no ponto em que acabaram de se separar, que é pior que o tridente.
+     *
+     * Uma ponta com `t` explícito (mensagem posicionada numa linha de vida)
+     * fica fora: ali a altura é conteúdo, escolhida por quem gerou o desenho.
+     */
+    function fanOffsets(edgeList) {
+        const slots = edgeList.map(() => ({ from: 0, to: 0 }))
+        const faces = new Map()
+
+        const claim = (nodeIndex, key, i, end) => {
+            if (!nodes[nodeIndex]) return
+            const id = nodeIndex + '|' + key
+            if (!faces.has(id)) faces.set(id, { nodeIndex, key, ends: [] })
+            faces.get(id).ends.push({ i, end })
+        }
+
+        edgeList.forEach((edge, i) => {
+            const a = edgeAnchors[i] || {}
+            if (a.fromT == null) claim(edge.from, a.from ?? 'r', i, 'from')
+            if (a.toT == null) claim(edge.to, a.to ?? 'l', i, 'to')
+        })
+
+        faces.forEach(({ nodeIndex, key, ends }) => {
+            if (ends.length < 2) return
+
+            const node = nodes[nodeIndex]
+            const alongY = (ANCHORS[key] ?? ANCHORS.r).nx !== 0
+            const other = ({ i, end }) => {
+                const peer = nodes[end === 'from' ? edgeList[i].to : edgeList[i].from]
+
+                if (!peer) return 0
+
+                return alongY ? peer.y + peer.h / 2 : peer.x + peer.w / 2
+            }
+            // A face não pode ser repartida além do próprio tamanho, e as
+            // pontas ficam longe dos cantos: uma seta saindo da quina de um
+            // bloco arredondado lê como se estivesse solta.
+            const room = (alongY ? node.h : node.w) - 28
+            const step = Math.min(ANCHOR_FAN_STEP, Math.max(0, room) / (ends.length - 1))
+
+            ends
+                .slice()
+                .sort((a, b) => other(a) - other(b))
+                .forEach(({ i, end }, rank) => {
+                    slots[i][end] = (rank - (ends.length - 1) / 2) * step
+                })
+        })
+
+        return slots
+    }
+
     function clearWorld() {
         nodes.forEach((n) => n.el.remove())
         nodes = []
@@ -1160,7 +1318,7 @@ function mount(root) {
     }
 
     function clearOverlays() {
-        edges.querySelectorAll('.ak-viz-edge, .ak-viz-plabel').forEach((el) => el.remove())
+        edges.querySelectorAll('.ak-viz-edge, .ak-viz-edge-hit, .ak-viz-plabel').forEach((el) => el.remove())
         world.querySelectorAll('.ak-viz-handle, .ak-viz-anchor').forEach((el) => el.remove())
     }
 
@@ -2096,7 +2254,13 @@ function mount(root) {
         edgeLabelEls = []
         const edgeList = graphRef.edges || []
 
-        edgeList.forEach((edge, i) => {
+        // As duas correções de legibilidade abaixo são COLETIVAS: uma ponta só
+        // sabe para onde se afastar depois de saber quantas outras disputam a
+        // mesma face, e um corredor só sabe que precisa desviar depois de
+        // saber quem mais passa por ali. Então a geometria toda vem primeiro,
+        // e o desenho depois.
+        const fan = fanOffsets(edgeList)
+        const ends = edgeList.map((edge, i) => {
             // Enquanto essa ligação está sendo arrastada, desenha a ponta
             // solta no nó sob o ponteiro (`drag.targetNode`), não no nó
             // persistido em `edge.from`/`edge.to` — é a pré-visualização da
@@ -2105,11 +2269,17 @@ function mount(root) {
             const toIndex = (drag?.type === 'handle' && drag.edge === i && drag.end === 'to') ? drag.targetNode : edge.to
             const fromNode = nodes[fromIndex]
             const toNode = nodes[toIndex]
-            if (!fromNode || !toNode) return
+            if (!fromNode || !toNode) return null
 
             const anchors = edgeAnchors[i] || { from: 'r', to: 'l', dashed: false }
             const a0 = anchorPoint(fromNode, anchors.from, anchors.fromT)
             const a3 = anchorPoint(toNode, anchors.to, anchors.toT)
+            // Reparte a face entre as ligações que a disputam: o deslocamento
+            // é AO LONGO dela, perpendicular à normal.
+            if (a0.nx !== 0) a0.y += fan[i].from
+            else a0.x += fan[i].from
+            if (a3.nx !== 0) a3.y += fan[i].to
+            else a3.x += fan[i].to
             // afasta as pontas da linha do centro do handle, para a seta não invadir o círculo
             // Numa linha de vida a âncora fica SOBRE a linha tracejada, no
             // mesmo ponto onde a alça de conexão é desenhada — e a alça é
@@ -2118,15 +2288,38 @@ function mount(root) {
             // blocos, onde 8px continua certo.
             const gap0 = fromNode.kind === 'lifeline' ? EDGE_GAP_LIFELINE : EDGE_GAP
             const gap3 = toNode.kind === 'lifeline' ? EDGE_GAP_LIFELINE : EDGE_GAP
-            const p0 = { x: a0.x + a0.nx * gap0, y: a0.y + a0.ny * gap0, nx: a0.nx, ny: a0.ny }
-            const p3 = { x: a3.x + a3.nx * gap3, y: a3.y + a3.ny * gap3, nx: a3.nx, ny: a3.ny }
+
+            return {
+                fromIndex,
+                toIndex,
+                anchors,
+                a0,
+                a3,
+                p0: { x: a0.x + a0.nx * gap0, y: a0.y + a0.ny * gap0, nx: a0.nx, ny: a0.ny },
+                p3: { x: a3.x + a3.nx * gap3, y: a3.y + a3.ny * gap3, nx: a3.nx, ny: a3.ny },
+            }
+        })
+
+        const detour = corridorOffsets(ends.map((e) => (e ? corridorOf(e.p0, e.p3) : null)))
+
+        edgeList.forEach((edge, i) => {
+            const end = ends[i]
+            if (!end) return
+
+            const { fromIndex, toIndex, anchors, a0, a3, p0, p3 } = end
+            const route = orthogonalPoints(p0, p3, EDGE_STUB, detour[i])
+            const d = roundedPath(route)
+
+            // Alvo largo e invisível, por baixo do traço. Um traço de 2px é
+            // quase impossível de acertar com o mouse, e era o único jeito de
+            // pegar uma ligação: o SVG inteiro tem `pointer-events: none` e só
+            // o pill reabria eventos — numa ligação sem protocolo, o pill
+            // vazio era a única porta de entrada, e ele agora só aparece aqui.
+            if (editable) drawEdgeHit(d, i)
+
             const path = document.createElementNS(SVG_NS, 'path')
             path.setAttribute('class', 'ak-viz-edge' + (anchors.dashed ? ' is-dashed' : ''))
-            // Duas ligações entre o mesmo par de blocos compartilhavam o mesmo
-            // corredor e viravam um traço só. `lanePass` afasta cada uma do
-            // eixo do meio, então elas correm em paralelo e dá para seguir cada
-            // uma com o olho — e para pegar a certa com o mouse.
-            path.setAttribute('d', roundedPath(orthogonalPoints(p0, p3, EDGE_STUB, parallelOffset(edgeList, i))))
+            path.setAttribute('d', d)
             // Qual bloco está em cada ponta, para o destaque da seleção.
             path.dataset.from = String(fromIndex)
             path.dataset.to = String(toIndex)
@@ -2141,21 +2334,15 @@ function mount(root) {
             // "+ protocolo" para quem pode editar (viewer não vê nada, igual
             // ao comportamento antigo).
             const proto = edge.protocol
-            if (proto || editable) {
-                // O meio do traço, medido no próprio `<path>` em vez de
-                // calculado: a fórmula que estava aqui era a da Bézier que não
-                // existe mais, e uma rota ortogonal tem um número variável de
-                // segmentos. `getPointAtLength()` responde para qualquer forma,
-                // e o path já está no DOM neste ponto.
-                const mid = path.getPointAtLength(path.getTotalLength() / 2)
-                drawProtocolPill(mid.x, mid.y, i, proto)
-            }
+            if (proto || editable) drawProtocolPill(labelAnchor(route), i, proto)
 
             if (editable) {
                 drawHandle(a0, i, 'from')
                 drawHandle(a3, i, 'to')
             }
         })
+
+        spreadProtocolPills()
 
         if (drag?.type === 'handle' && nodes[drag.targetNode]) drawAnchorDots(drag.targetNode, edgeAnchors[drag.edge][drag.end])
         // Também desenha a prévia enquanto o quick-add está aberto (soltou a
@@ -2164,9 +2351,10 @@ function mount(root) {
         // claro enquanto o usuário escolhe o tipo/Solução no painel.
         if (drag?.type === 'connect' || quickAddOrigin) drawConnectPreview()
         inlineProtocolReposition?.()
-        // `draw()` recria todos os <path>, então o destaque da seleção tem de
-        // ser repintado — senão ele some no primeiro arraste.
+        // `draw()` recria todos os <path>, então o destaque da seleção e o do
+        // hover têm de ser repintados — senão somem no primeiro arraste.
         highlightLinkedEdges(selectedIndex)
+        setHoveredEdge(hoveredEdge)
     }
 
     // ── modo apresentação ────────────────────────────────────────────
@@ -2577,16 +2765,22 @@ function mount(root) {
     // protocolo ainda — só chega aqui quando `editable`, ver `draw()`).
     // Clicável só quando `editable`: abre o editor de protocolo do segmento
     // (`selectEdge()`), mesmo espírito do lápis de título do nó.
-    function drawProtocolPill(mx, my, edgeIndex, proto) {
+    function drawProtocolPill(spot, edgeIndex, proto) {
+        if (!spot) return
+
         const isEmpty = !proto
         const text = proto ? proto.label : '+ protocolo'
         const w = text.length * 6.6 + 14
+        const [mx, my] = [spot.x, spot.y]
 
         const g = document.createElementNS(SVG_NS, 'g')
         g.setAttribute('class', 'ak-viz-plabel' + (isEmpty ? ' is-empty' : '') + (editable ? ' is-editable' : ''))
         // De qual ligação esta pill é — o destaque da seleção acende as duas
         // juntas, senão a seta acesa fica com o rótulo apagado.
         g.dataset.edgeIndex = String(edgeIndex)
+        // Em que direção corre o trecho onde ela pousou: `spreadProtocolPills()`
+        // separa dois rótulos empilhados PERPENDICULARMENTE ao traço deles.
+        g.dataset.labelAxis = spot.horiz ? 'h' : 'v'
 
         const rect = document.createElementNS(SVG_NS, 'rect')
         rect.setAttribute('class', 'ak-viz-plabel-box')
@@ -2610,7 +2804,9 @@ function mount(root) {
         g.appendChild(rect)
         g.appendChild(label)
 
-        if (editable) {
+        if (editable && !isEmpty) {
+            g.addEventListener('pointerenter', () => setHoveredEdge(edgeIndex))
+            g.addEventListener('pointerleave', () => setHoveredEdge(null))
             g.addEventListener('pointerdown', (e) => e.stopPropagation())
             g.addEventListener('click', (e) => {
                 e.stopPropagation()
@@ -2626,6 +2822,92 @@ function mount(root) {
 
         edgeLabelEls[edgeIndex] = g
         edges.appendChild(g)
+    }
+
+    /**
+     * Dois rótulos que caíram um sobre o outro se separam.
+     *
+     * Só os ESCRITOS entram: o pill vazio é convite, não conteúdo, e aparece
+     * um de cada vez (no hover da ligação) — deixá-lo empurrar um rótulo de
+     * verdade seria mover o desenho por causa de algo invisível.
+     */
+    function spreadProtocolPills() {
+        const hits = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+        const placed = []
+
+        edgeLabelEls.forEach((g) => {
+            if (!g || g.classList.contains('is-empty')) return
+
+            const rect = g.querySelector('.ak-viz-plabel-box')
+            const label = g.querySelector('.ak-viz-plabel-text')
+            const [w, h] = [Number(rect.getAttribute('width')), Number(rect.getAttribute('height'))]
+            const [x0, y0] = [Number(rect.getAttribute('x')), Number(rect.getAttribute('y'))]
+            let box = { x: x0, y: y0, w, h }
+
+            // Afasta perpendicular ao traço, alternando para os dois lados: um
+            // rótulo empurrado ao longo da própria linha continuaria na frente
+            // de quem já estava lá, e mais longe do trecho que ele nomeia.
+            for (let step = 1; step <= 4 && placed.some((other) => hits(other, box)); step++) {
+                const shift = (step % 2 ? 1 : -1) * Math.ceil(step / 2) * (h + 6)
+                box = g.dataset.labelAxis === 'v'
+                    ? { x: x0 + shift * 1.8, y: y0, w, h }
+                    : { x: x0, y: y0 + shift, w, h }
+            }
+
+            if (box.x !== x0 || box.y !== y0) {
+                rect.setAttribute('x', box.x)
+                rect.setAttribute('y', box.y)
+                label.setAttribute('x', box.x + w / 2)
+                label.setAttribute('y', box.y + h / 2 + 1)
+            }
+
+            placed.push(box)
+        })
+    }
+
+    /**
+     * Alvo invisível e largo por cima de uma ligação — hover, clique e duplo
+     * clique dela passam por aqui.
+     *
+     * O `<svg>` das arestas tem `pointer-events: none` de propósito (não pode
+     * comer o clique que dá pan), então nada nele era clicável a não ser o
+     * pill. Numa ligação sem protocolo o pill era o tracejado "+ protocolo",
+     * que agora só aparece no hover — sem este alvo não haveria como pegá-la.
+     */
+    function drawEdgeHit(d, edgeIndex) {
+        const hit = document.createElementNS(SVG_NS, 'path')
+        hit.setAttribute('class', 'ak-viz-edge-hit')
+        hit.setAttribute('d', d)
+        hit.dataset.edgeIndex = String(edgeIndex)
+
+        let downAt = null
+
+        hit.addEventListener('pointerenter', () => setHoveredEdge(edgeIndex))
+        hit.addEventListener('pointerleave', () => setHoveredEdge(null))
+        // NÃO engole o pointerdown: arrastar a partir daqui tem de continuar
+        // dando pan, e o alvo é largo o bastante para cair debaixo do ponteiro
+        // sem querer. Por isso o clique confirma que o ponteiro ficou parado —
+        // senão todo pan começado perto de um traço selecionaria a ligação.
+        hit.addEventListener('pointerdown', (e) => { downAt = { x: e.clientX, y: e.clientY } })
+        hit.addEventListener('click', (e) => {
+            if (!downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 4) return
+            e.stopPropagation()
+            selectEdge(edgeIndex)
+        })
+        hit.addEventListener('dblclick', (e) => {
+            e.stopPropagation()
+            startInlineProtocolEdit(edgeIndex)
+        })
+
+        edges.appendChild(hit)
+    }
+
+    /** Acende a ligação sob o ponteiro e revela o pill vazio dela. */
+    function setHoveredEdge(index) {
+        hoveredEdge = index
+        edges.querySelectorAll('path.ak-viz-edge, .ak-viz-plabel').forEach((el) => {
+            el.classList.toggle('is-hovered', index !== null && el.dataset.edgeIndex === String(index))
+        })
     }
 
     function drawHandle(point, edgeIndex, end) {

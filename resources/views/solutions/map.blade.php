@@ -20,8 +20,24 @@
             </div>
 
             {{-- Grid (not flex): x-forms.select wraps itself in a w-full wrapper, which
-                 in a flex row would force each item to take 100% width and wrap. --}}
-            <div class="grid shrink-0 grid-cols-3 gap-2">
+                 in a flex row would force each item to take 100% width and wrap.
+
+                 The four controls are one row on purpose: "Ver por" is a
+                 filter like the others as far as this page is concerned — the
+                 glue below rebuilds the query string from every
+                 `data-ak-graph-filter` it finds, so it needed no wiring of its
+                 own. --}}
+            <div class="grid shrink-0 grid-cols-2 gap-2 lg:grid-cols-4">
+                {{-- The reading, not a filter on the data: empty keeps the
+                     topology map (who talks to whom), a value regroups the
+                     same solutions around a hub. --}}
+                <x-forms.select data-ak-graph-filter="group" class="!py-1.5 !text-[13px]">
+                    <option value="">Ver por ligações</option>
+                    @foreach ($axes as $value => $label)
+                        <option value="{{ $value }}">Ver por {{ mb_strtolower($label) }}</option>
+                    @endforeach
+                </x-forms.select>
+
                 <x-forms.select data-ak-graph-filter="status" class="!py-1.5 !text-[13px]">
                     <option value="all">Todos os status</option>
                     <option value="active">Ativas</option>

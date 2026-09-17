@@ -27,4 +27,15 @@ class SolutionPolicy
     {
         return $user->role->canWrite();
     }
+
+    /**
+     * Deleting is admin-only, one tier above editing: it is how a record
+     * created by mistake leaves the catalog, and what goes with it (the
+     * owners' links, the cadernos' links, a block's identity inside every
+     * drawing that used it) is not recoverable from the screen that asked.
+     */
+    public function delete(User $user, Solution $solution): bool
+    {
+        return $user->role->canDelete();
+    }
 }

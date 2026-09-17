@@ -5,12 +5,16 @@ namespace App\Http\Controllers;
 use App\Models\AttributeOption;
 use App\Models\Solution;
 use App\Services\DiagramGraphService;
+use App\Services\SolutionGraphService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class SolutionMapController extends Controller
 {
-    public function __construct(private readonly DiagramGraphService $graph) {}
+    public function __construct(
+        private readonly DiagramGraphService $graph,
+        private readonly SolutionGraphService $groups,
+    ) {}
 
     /**
      * Global ecosystem map page — renders the graph container that
@@ -29,13 +33,31 @@ class SolutionMapController extends Controller
         return view('solutions.map', [
             'categories'   => AttributeOption::options('category'),
             'directorates' => AttributeOption::options('directorate'),
+            'axes'         => SolutionGraphService::AXES,
         ]);
     }
 
-    /** Neutral contract for the global map, with filters via query string. */
+    /**
+     * Neutral contract for the global map, with filters via query string.
+     *
+     * `group` switches the READING, not the screen: with it the same blocks
+     * come back arranged around a hub per directorate, owner, vendor or
+     * category instead of linked to whoever they exchange messages with. The
+     * filters apply to both.
+     */
     public function data(Request $request): JsonResponse
     {
         $this->authorize('viewAny', Solution::class);
+
+        $filters = [
+            'status'      => $request->query('status'),
+            'category'    => $request->query('category'),
+            'directorate' => $request->query('directorate'),
+        ];
+
+        if ($axis = $request->query('group')) {
+            return response()->json($this->groups->groupedBy((string) $axis, $filters));
+        }
 
         $graph = $this->graph->globalMap(filters: [
             'status'      => $request->query('status'),
