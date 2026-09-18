@@ -116,6 +116,29 @@ it('deploys and reports the endpoint the platform assigned', function () {
         ->and($report->status)->toBe(DeploymentStatus::Active);
 });
 
+it('refuses a pipeline with no trigger instead of letting the platform answer 500', function () {
+    // The platform's own answer is
+    //
+    //     500 Could not redeploy this pipeline due to an invalid trigger spec
+    //     - missing type
+    //
+    // which names a field of a spec that does not exist at all. Twelve
+    // automatic runs in production died on it, and the message pointed
+    // nowhere. This used to be a warning that said the pipeline "goes up, it
+    // just gets no URL" — it does not go up.
+    withDeployConfig();
+    fakeDeployApi([], ['id' => 'pid-1', 'name' => 'meu-pipeline', 'versionMajor' => 1, 'versionMinor' => 0, 'triggerSpec' => []]);
+
+    $report = app(DeployPipeline::class)->handle('meu-pipeline');
+
+    expect($report->errors)->toHaveCount(1)
+        ->and($report->errors[0])->toContain('não tem gatilho')
+        ->and($report->live())->toBeFalse();
+
+    Http::assertNotSent(fn ($request) => $request->method() === 'POST'
+        && str_contains($request->url(), '/deployments'));
+});
+
 it('refuses an environment outside the configured list, before any call', function () {
     withDeployConfig();
     Http::fake();
@@ -205,13 +228,6 @@ it('reports a deployment that came up broken as an error, with the engine messag
         ->and(implode(' ', $report->warnings))->toContain('connection refused');
 });
 
-it('warns when the pipeline has no trigger, since nothing can call it', function () {
-    withDeployConfig();
-    fakeDeployApi([deploymentRow()], ['id' => 'pid-1', 'name' => 'meu-pipeline', 'versionMajor' => 1, 'triggerSpec' => []]);
-
-    expect(implode(' ', app(DeployPipeline::class)->handle('meu-pipeline')->warnings))
-        ->toContain('não tem triggerSpec');
-});
 
 it('does not treat a parked replica count as a failure', function () {
     withDeployConfig();

@@ -7,6 +7,9 @@ use App\Enums\PipelineRunStatus;
 use App\Models\PipelineRun;
 use App\Services\Digibee\PipelineHealingService;
 use App\Support\Digibee\Healing\HealingRound;
+use App\Actions\Flowspec\SynthesizeTriggerSpec;
+use App\Enums\DigibeeTriggerKind;
+use App\Support\Digibee\TriggerSpec;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
@@ -93,7 +96,11 @@ class RunPipelineLifecycle implements ShouldQueue
         ];
     }
 
-    public function handle(PipelineHealingService $healing, AssessPromotion $assess): void
+    public function handle(
+        PipelineHealingService $healing,
+        AssessPromotion $assess,
+        SynthesizeTriggerSpec $triggers,
+    ): void
     {
         // A run someone already reaped (or that a second dispatch resurrected)
         // must not deploy anything: the row is the record of intent, and
@@ -121,6 +128,12 @@ class RunPipelineLifecycle implements ShouldQueue
             document: $document,
             pipelineName: $this->run->pipeline_name,
             environment: $this->run->environment,
+            // The link that was missing: this job never passed a trigger, so
+            // every pipeline it created was born with an empty `triggerSpec`
+            // and the deploy was refused by the platform. `null` still means
+            // "leave whatever the pipeline already has", which is right for a
+            // run against an existing pipeline.
+            trigger: $this->trigger($triggers),
             // Cast, because the column's default lives in the DATABASE: a row
             // created without the attribute carries null in memory until it is
             // refreshed, and the service's `bool` parameter refuses that.
@@ -154,6 +167,29 @@ class RunPipelineLifecycle implements ShouldQueue
      * `DeploymentReport` carries the engine's raw log tail, which on a real
      * integration is whatever the pipeline was logging when it died.
      */
+    /**
+     * The trigger this run was asked to write, or `null` for "leave the
+     * pipeline's own alone".
+     *
+     * The two values beside the kind are the ones `SynthesizeTriggerSpec`
+     * refuses to invent — a scheduler's cron and an event's name — and the form
+     * makes each one required with its kind, so a kind that reaches here is
+     * already complete.
+     */
+    private function trigger(SynthesizeTriggerSpec $triggers): ?TriggerSpec
+    {
+        $kind = DigibeeTriggerKind::tryFrom((string) $this->run->trigger_kind);
+
+        if ($kind === null) {
+            return null;
+        }
+
+        return $triggers->handle($kind, array_filter([
+            'cron'      => $this->run->trigger_cron,
+            'eventName' => $this->run->trigger_event,
+        ]));
+    }
+
     private function appendRound(HealingRound $round): void
     {
         $this->run->update([

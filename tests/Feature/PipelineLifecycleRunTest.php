@@ -1,6 +1,8 @@
 <?php
 
 use App\Actions\Digibee\AssessPromotion;
+use App\Actions\Flowspec\SynthesizeTriggerSpec;
+use App\Enums\DigibeeTriggerKind;
 use App\Enums\HealingVerdict;
 use App\Enums\PipelineRunStatus;
 use App\Enums\UserRole;
@@ -343,7 +345,7 @@ it('persists each round as it finishes, not all of them at the end', function ()
         }
     };
 
-    (new RunPipelineLifecycle($run))->handle($healing, $assess);
+    (new RunPipelineLifecycle($run))->handle($healing, $assess, app(SynthesizeTriggerSpec::class));
 
     expect($seenWhileRunning)->toBe([1, 2])   // written as each finished
         ->and($run->refresh()->status)->toBe(PipelineRunStatus::Done)
@@ -389,7 +391,7 @@ it('refuses to run a row somebody already settled', function () {
         }
     };
 
-    (new RunPipelineLifecycle($run))->handle($healing, app(AssessPromotion::class));
+    (new RunPipelineLifecycle($run))->handle($healing, app(AssessPromotion::class), app(SynthesizeTriggerSpec::class));
 
     expect($healing->called)->toBeFalse();
 });
@@ -432,4 +434,127 @@ it('falls back to a usable name when the conversation has no title', function ()
     $message = runMessageIn($chat);
 
     expect((new LifecyclePanel($message))->render()->getData()['suggestedName'])->toBe('pipeline');
+});
+
+/*
+|--------------------------------------------------------------------------
+| The trigger the run writes
+|--------------------------------------------------------------------------
+|
+| Every automatic run against a pipeline the lifecycle had created died at the
+| deploy — twelve times in production — with `DigibeeApiException: invalid
+| trigger spec - missing type`, a message naming a field of a spec that did not
+| exist at all. Nothing on the path from this form to the platform ever asked
+| for a trigger, so the pipeline was born with `triggerSpec: []`.
+*/
+
+it('records the trigger the form asked for', function () {
+    Queue::fake();
+    $user = runEditor();
+    $chat = runChatFor($user);
+    $message = runMessageIn($chat);
+
+    $this->actingAs($user)
+        ->postJson(route('flowspec.lifecycle.store', [$chat, $message]), runPayload([
+            'trigger_kind'  => 'scheduler',
+            'trigger_cron'  => '0 0 3 * * *',
+        ]))
+        ->assertOk();
+
+    $run = PipelineRun::sole();
+
+    expect($run->trigger_kind)->toBe('scheduler')
+        ->and($run->trigger_cron)->toBe('0 0 3 * * *')
+        ->and($run->trigger_event)->toBeNull();
+});
+
+it('asks for the cron a scheduler needs and the name an event needs', function () {
+    Queue::fake();
+    $user = runEditor();
+    $chat = runChatFor($user);
+    $message = runMessageIn($chat);
+
+    // Neither can be invented from a flowSpec, and neither fails loudly if it
+    // is: a guessed cron runs at the wrong time, an invented event name
+    // subscribes to a topic nobody publishes.
+    $this->actingAs($user)
+        ->postJson(route('flowspec.lifecycle.store', [$chat, $message]), runPayload(['trigger_kind' => 'scheduler']))
+        ->assertStatus(422)
+        ->assertJson(['type' => 'warning'])
+        ->assertJsonFragment(['message' => 'Um agendamento precisa do cron: ele não sai do flowSpec, e um cron chutado não falha — roda na hora errada.']);
+
+    $this->actingAs($user)
+        ->postJson(route('flowspec.lifecycle.store', [$chat, $message]), runPayload(['trigger_kind' => 'event']))
+        ->assertStatus(422)
+        ->assertJson(['type' => 'warning'])
+        ->assertJsonFragment(['message' => 'Um gatilho de evento precisa do nome do evento: um nome inventado escuta um tópico que ninguém publica, sem erro nenhum.']);
+
+    expect(PipelineRun::count())->toBe(0);
+});
+
+it('drops a value typed against a kind that has no use for it', function () {
+    Queue::fake();
+    $user = runEditor();
+    $chat = runChatFor($user);
+    $message = runMessageIn($chat);
+
+    $this->actingAs($user)
+        ->postJson(route('flowspec.lifecycle.store', [$chat, $message]), runPayload([
+            'trigger_kind' => 'rest',
+            'trigger_cron' => '0 * * * * *',
+        ]))
+        ->assertOk();
+
+    expect(PipelineRun::sole()->trigger_cron)->toBeNull();
+});
+
+it('leaves the pipeline own trigger alone when none is chosen', function () {
+    Queue::fake();
+    $user = runEditor();
+    $chat = runChatFor($user);
+    $message = runMessageIn($chat);
+
+    $this->actingAs($user)
+        ->postJson(route('flowspec.lifecycle.store', [$chat, $message]), runPayload())
+        ->assertOk();
+
+    // `null` is what `PipelineHealingService::heal()` reads as "write nothing",
+    // which is right for a run against a pipeline that already has a trigger.
+    expect(PipelineRun::sole()->trigger_kind)->toBeNull();
+});
+
+it('synthesizes a complete spec from what the run recorded', function () {
+    $spec = app(SynthesizeTriggerSpec::class)->handle(
+        DigibeeTriggerKind::Scheduler,
+        ['cron' => '0 0 3 * * *'],
+    );
+
+    expect($spec->usable())->toBeTrue()
+        ->and($spec->toArray()['type'])->toBe('scheduler')
+        ->and($spec->toArray()['cronExpression'])->toBe('0 0 3 * * *');
+});
+
+it('reports the two unguessable values as missing rather than inventing them', function () {
+    $triggers = app(SynthesizeTriggerSpec::class);
+
+    expect($triggers->handle(DigibeeTriggerKind::Scheduler)->usable())->toBeFalse()
+        ->and($triggers->handle(DigibeeTriggerKind::Event)->usable())->toBeFalse()
+        // A web-protocol trigger needs nothing beyond its kind, which is why it
+        // is the one shape that could be deployed before any of this.
+        ->and($triggers->handle(DigibeeTriggerKind::Rest)->usable())->toBeTrue();
+});
+
+it('offers the trigger on the panel', function () {
+    $user = runEditor();
+    $chat = runChatFor($user);
+    $message = runMessageIn($chat);
+
+    $this->actingAs($user);
+    $html = (string) (new LifecyclePanel($message, $chat->title))->render()->with(
+        (new LifecyclePanel($message, $chat->title))->data()
+    )->render();
+
+    expect($html)->toContain('trigger_kind')
+        ->and($html)->toContain('trigger_cron')
+        ->and($html)->toContain('trigger_event');
 });

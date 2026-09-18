@@ -40,6 +40,8 @@ class HealPipelineCommand extends Command
         {--create : Create the pipeline when the realm has no such name (permanent — nothing deletes a pipeline)}
         {--trigger= : Synthesize a triggerSpec to write: rest|http|http-file|scheduler|event}
         {--trigger-auth= : basic|key|jwt|none — how the WRITTEN endpoint will authenticate its callers}
+        {--cron= : Cron expression, required by --trigger=scheduler}
+        {--event= : Event name, required by --trigger=event}
         {--endpoint-auth=none : basic|key|jwt|none — how THIS command authenticates when calling it}
         {--key-header=x-api-key : Header name for --endpoint-auth=key}
         {--force : Skip the confirmation}';
@@ -200,7 +202,16 @@ class HealPipelineCommand extends Command
             return false;
         }
 
-        return $triggers->handle($resolved, array_filter(['auth' => $resolvedAuth]));
+        // `cron` and `eventName` are the two values `SynthesizeTriggerSpec`
+        // refuses to invent, so without them a `--trigger=scheduler` or
+        // `--trigger=event` came back incomplete and the run stopped as
+        // NotWritable — the two kinds had no reachable path at all. The names
+        // match `digibee:flowspec:ingest`, which has carried them all along.
+        return $triggers->handle($resolved, array_filter([
+            'auth'      => $resolvedAuth,
+            'cron'      => (string) $this->option('cron') ?: null,
+            'eventName' => (string) $this->option('event') ?: null,
+        ]));
     }
 
     /** @return EndpointCredential|null|false false = the options are wrong, stop */

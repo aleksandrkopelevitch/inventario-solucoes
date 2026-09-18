@@ -92,9 +92,28 @@ class DeployPipeline
         // resolution because the latest is what a lifecycle deploy means, not
         // because the platform refuses the others.
 
+        // A REFUSAL, not a warning. This said "it goes up, it just gets no URL"
+        // and that was wrong: the platform answers
+        //
+        //     500 Could not redeploy this pipeline due to an invalid trigger
+        //     spec - missing type
+        //
+        // which reaches the operator as a `DigibeeApiException` naming a `type`
+        // field, in a spec that does not exist at all — every APLA run against
+        // a pipeline created without a trigger died there, twelve times, with
+        // nothing in the message pointing at the cause. Stopping here costs the
+        // run nothing it would not have lost anyway, and says what to supply.
         if (($pipeline['triggerSpec'] ?? []) === []) {
-            $warnings[] = 'O pipeline não tem triggerSpec: ele sobe, mas não ganha URL — '
-                . 'a bateria de testes não vai ter o que chamar.';
+            return new DeploymentReport(
+                pipelineName: $pipelineName,
+                environment: $environment,
+                pipelineId: $pipelineId,
+                errors: ['O pipeline não tem gatilho (triggerSpec vazio), e a Digibee recusa publicar '
+                    . 'assim — o erro que ela devolve ("invalid trigger spec - missing type") fala de '
+                    . 'um campo que não existe. Escolha o tipo de gatilho antes de executar: um REST/HTTP '
+                    . 'se resolve sozinho, um agendamento precisa do cron e um evento precisa do nome.'],
+                warnings: $warnings,
+            );
         }
 
         $existing = $this->client->deployments($environment, $pipelineName);

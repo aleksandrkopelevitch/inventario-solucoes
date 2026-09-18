@@ -59,6 +59,11 @@ class PipelineRunController extends Controller
             'pipeline_name'       => $request->validated('pipeline_name'),
             'environment'         => $request->validated('environment'),
             'creates'             => (bool) $request->validated('creates', false),
+            // The trigger the run writes. Kept on the row rather than resolved
+            // at dispatch so a failed run says what it was asked for.
+            'trigger_kind'        => $request->validated('trigger_kind') ?: null,
+            'trigger_cron'        => $request->validated('trigger_cron') ?: null,
+            'trigger_event'       => $request->validated('trigger_event') ?: null,
             'status'              => PipelineRunStatus::Pending,
         ]);
 

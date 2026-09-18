@@ -40,6 +40,8 @@ class PipelineReadinessCommand extends Command
         {--environment=test : Which environment to produce the evidence in}
         {--rounds= : Healing cycles allowed}
         {--trigger= : Synthesize a triggerSpec to write: rest|http|http-file|scheduler|event}
+        {--cron= : Cron expression, required by --trigger=scheduler}
+        {--event= : Event name, required by --trigger=event}
         {--endpoint-auth=none : basic|key|jwt|none — how the battery authenticates when calling}
         {--key-header=x-api-key : Header name for --endpoint-auth=key}
         {--force : Skip the confirmation}';
@@ -176,7 +178,12 @@ class PipelineReadinessCommand extends Command
             return false;
         }
 
-        return $triggers->handle($resolved, []);
+        // See `HealPipelineCommand::trigger()`: without these two, a scheduler
+        // or an event trigger is reported incomplete and nothing is written.
+        return $triggers->handle($resolved, array_filter([
+            'cron'      => (string) $this->option('cron') ?: null,
+            'eventName' => (string) $this->option('event') ?: null,
+        ]));
     }
 
     /** @return EndpointCredential|null|false false = the options are wrong, stop */
