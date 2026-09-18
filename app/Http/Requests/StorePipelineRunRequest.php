@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\DigibeeTriggerKind;
 use App\Rules\AsciiSlug;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -36,6 +37,28 @@ class StorePipelineRunRequest extends FormRequest
             // Creating one is permanent on this platform, so it is never a
             // default: the form asks, and the row records the answer.
             'creates' => ['sometimes', 'boolean'],
+
+            // The trigger the run will write. Optional, because a pipeline that
+            // already has one in the realm needs nothing here — but a pipeline
+            // being CREATED without one cannot be deployed at all, which is
+            // what `DeployPipeline` now refuses instead of discovering as a
+            // 500 from the platform.
+            'trigger_kind' => ['nullable', Rule::enum(DigibeeTriggerKind::class)],
+            // The two values a flowSpec cannot yield. Required with their kind
+            // and rejected without it: a cron typed against a REST trigger is
+            // a misunderstanding worth answering, not a field to ignore.
+            'trigger_cron' => [
+                'exclude_unless:trigger_kind,scheduler',
+                'required',
+                'string',
+                'max:120',
+            ],
+            'trigger_event' => [
+                'exclude_unless:trigger_kind,event',
+                'required',
+                'string',
+                'max:255',
+            ],
         ];
     }
 
@@ -43,7 +66,10 @@ class StorePipelineRunRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'environment.in' => 'Esse ambiente não está liberado para implantação.',
+            'environment.in'         => 'Esse ambiente não está liberado para implantação.',
+            'trigger_kind.enum'      => 'Esse tipo de gatilho não existe na plataforma.',
+            'trigger_cron.required'  => 'Um agendamento precisa do cron: ele não sai do flowSpec, e um cron chutado não falha — roda na hora errada.',
+            'trigger_event.required' => 'Um gatilho de evento precisa do nome do evento: um nome inventado escuta um tópico que ninguém publica, sem erro nenhum.',
         ];
     }
 }

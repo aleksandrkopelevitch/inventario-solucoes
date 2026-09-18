@@ -2,6 +2,7 @@
 
 namespace App\View\Components\Flowspec;
 
+use App\Enums\DigibeeTriggerKind;
 use App\Models\FlowspecMessage;
 use App\Models\PipelineRun;
 use App\View\Components\Concerns\Renderable;
@@ -91,6 +92,10 @@ class LifecyclePanel extends Component
             'run'   => $run,
             'suggestedName' => self::suggestName($this->chatTitle ?? $this->message->chat?->title),
             'environments'  => (array) config('services.digibee.design.deployable_environments'),
+            // The five the platform has. The form offers them because the
+            // lifecycle used to write none, which is what left every pipeline
+            // it created undeployable.
+            'triggerKinds'  => DigibeeTriggerKind::cases(),
         ]);
     }
 }

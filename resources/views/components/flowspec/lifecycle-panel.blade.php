@@ -62,14 +62,73 @@
                         </x-forms.select>
                     </x-forms.field>
 
-                    <x-forms.checkbox name="creates" value="1" label="Criar se não existir" />
+                    {{-- O gatilho. Sem ele o pipeline nasce com `triggerSpec`
+                         vazio e a Digibee recusa publicar — o erro que ela
+                         devolve fala de um campo `type` que não existe, e foi
+                         onde toda execução automática morreu até aqui.
 
-                    <x-forms.button
-                        form="{{ $formId }}"
-                        data-ak-ajax="{{ $formId }}"
-                        data-ak-action="{{ route('flowspec.lifecycle.store', ['chat' => $chat, 'message' => $message]) }}"
-                    >Executar</x-forms.button>
+                         Os dois campos ao lado são os únicos valores que não
+                         saem do flowSpec: um cron chutado não falha, roda na
+                         hora errada; um nome de evento inventado escuta um
+                         tópico que ninguém publica. Cada um aparece só com o
+                         seu tipo, e o Form Request exige o par. --}}
+                    <x-forms.field label="Gatilho">
+                        <x-forms.select name="trigger_kind" data-ak-trigger-kind>
+                            <option value="">Manter o do pipeline</option>
+                            @foreach ($triggerKinds as $kind)
+                                <option value="{{ $kind->value }}">{{ $kind->label() }}</option>
+                            @endforeach
+                        </x-forms.select>
+                    </x-forms.field>
+
+                    <x-forms.field label="Cron" class="min-w-[10rem]" data-ak-trigger-when="scheduler" hidden>
+                        <x-forms.input name="trigger_cron" placeholder="0 */15 * * * *" />
+                    </x-forms.field>
+
+                    <x-forms.field label="Evento" class="min-w-[10rem]" data-ak-trigger-when="event" hidden>
+                        <x-forms.input name="trigger_event" placeholder="pedido.criado" />
+                    </x-forms.field>
+
+                    {{-- A caixa e o botão numa linha própria: com os campos de
+                         gatilho o formulário passou a quebrar, e `items-end`
+                         numa linha só deixava o rótulo do checkbox atrás do
+                         botão. --}}
+                    <div class="flex w-full items-center justify-between gap-3 pt-1">
+                        <label class="flex items-center gap-2 text-xs text-body">
+                            <x-forms.checkbox name="creates" value="1" />
+                            Criar se não existir
+                        </label>
+
+                        <x-forms.button
+                            form="{{ $formId }}"
+                            data-ak-ajax="{{ $formId }}"
+                            data-ak-action="{{ route('flowspec.lifecycle.store', ['chat' => $chat, 'message' => $message]) }}"
+                        >Executar</x-forms.button>
+                    </div>
                 </form>
+
+                {{-- Mostra o campo do tipo escolhido e esconde o outro. O
+                     escondido sai do formulário junto (`disabled`), senão um
+                     cron digitado e depois trocado para evento ainda seria
+                     enviado — e a validação, que rejeita um cron sem o seu
+                     tipo, recusaria a execução por um campo invisível. --}}
+                <script>
+                    (function () {
+                        const form = document.getElementById(@js($formId));
+                        const kind = form.querySelector('[data-ak-trigger-kind]');
+
+                        function sync() {
+                            form.querySelectorAll('[data-ak-trigger-when]').forEach((field) => {
+                                const wanted = field.dataset.akTriggerWhen === kind.value;
+                                field.hidden = ! wanted;
+                                field.querySelectorAll('input').forEach((input) => { input.disabled = ! wanted; });
+                            });
+                        }
+
+                        kind.addEventListener('change', sync);
+                        sync();
+                    })();
+                </script>
             @else
                 <p class="text-[11px] text-faint">
                     Executar o ciclo de vida exige perfil de editor.
