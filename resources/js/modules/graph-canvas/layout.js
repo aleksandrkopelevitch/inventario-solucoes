@@ -82,14 +82,14 @@ export function ringsLayout(nodes, edges) {
 }
 
 /**
- * Um agrupamento por vez: cada hub num anel grande, e os membros dele em
- * anéis concêntricos em volta do próprio hub.
+ * One group at a time: each hub on a large ring, and its members in concentric
+ * rings around that hub.
  *
- * `satelliteLayout` não serve aqui: ela abre os filhos num leque de um raio
- * só, o que é certo para os 2-3 diagramas de um sistema e vira uma fileira
- * sobreposta nos 40 sistemas de uma diretoria. E o anel dos hubs é
- * dimensionado pelo tamanho dos agrupamentos, não por uma constante — senão
- * o maior deles engole os vizinhos.
+ * `satelliteLayout` does not serve here — it fans the children out on a single
+ * radius, which is right for the 2-3 diagrams of one system and becomes an
+ * overlapping row for the 40 systems of a directorate. And the hubs' ring is
+ * sized by how big the groups are rather than by a constant, or the largest of
+ * them swallows its neighbours.
  */
 export function groupsLayout(groups, membersOf, inner = 130, gap = 82) {
     if (! groups.length) return
@@ -111,17 +111,17 @@ export function groupsLayout(groups, membersOf, inner = 130, gap = 82) {
 
     const radii = groups.map(outerRadius)
     const total = radii.reduce((sum, r) => sum + r, 0)
-    // O anel precisa de circunferência para a soma dos diâmetros dos
-    // agrupamentos, e de raio suficiente para o maior deles não cruzar o
-    // centro. O que for maior manda.
+    // The ring needs circumference for the sum of the groups' diameters, and
+    // radius enough that the largest of them does not cross the centre.
+    // Whichever is bigger wins.
     const ring = groups.length === 1
         ? 0
         : Math.max(Math.max(...radii) * 1.7, (total * 2.4) / (2 * Math.PI))
 
-    // Cada agrupamento ocupa um ARCO PROPORCIONAL ao próprio tamanho, não uma
-    // fatia igual: eles chegam ordenados do maior para o menor, então fatias
-    // iguais punham os maiores lado a lado com a mesma folga dos menores, e
-    // eles se sobrepunham — era a única coisa ilegível na visão de longe.
+    // Each group takes an ARC PROPORTIONAL to its own size, not an equal
+    // slice: they arrive ordered largest first, so equal slices put the big
+    // ones side by side with the same clearance as the small ones, and they
+    // overlapped — the one thing that was illegible in the far view.
     let walked = 0
 
     groups.forEach((group, i) => {

@@ -137,19 +137,20 @@ function mount(shell) {
             nodes: payload.nodes ?? [],
             edges: payload.edges ?? [],
             diagrams: payload.diagrams ?? [],
-            // A leitura por agrupamento manda `groups` e deixa as duas listas
-            // acima vazias. A normalização aqui é uma lista branca, então uma
-            // chave nova do servidor não chega ao renderizador sem passar por
-            // esta linha — de propósito, mas é fácil esquecer dela.
+            // The grouped reading sends `groups` and leaves the two lists
+            // above empty. This normalisation is an allow-list, so a new key
+            // from the server never reaches the renderer without passing
+            // through this line — deliberate, and easy to forget.
             groups: payload.groups ?? [],
             groupAxis: payload.groupAxis ?? null,
         }
         state.diagramBySlug = new Map(state.payload.diagrams.map((d) => [d.slug, d]))
         state.nodes = []
         state.nodeById = new Map()
-        // Trocar de leitura recomeça a navegação. Sem isto, um sistema
-        // expandido antes da troca continuava no conjunto e apagava o mapa
-        // novo inteiro — a expansão é sobre nós que a outra leitura nem tem.
+        // Switching reading starts the navigation over. Without this, a
+        // system expanded before the switch stayed in the set and dimmed the
+        // whole new map — an expansion is about nodes the other reading does
+        // not even have.
         state.expandedSolutions.clear()
         state.expandedPairs.clear()
         state.openDiagrams.clear()
@@ -196,12 +197,12 @@ function mount(shell) {
             })
         }
 
-        // Uma LEITURA por agrupamento (`SolutionGraphService`): os mesmos
-        // blocos, em volta de um hub por diretoria / responsável / fornecedor
-        // / categoria, em vez de ligados a quem trocam mensagem. Chega no
-        // mesmo contrato, com `edges` e `diagrams` vazios — então tudo abaixo
-        // simplesmente não encontra o que desenhar, e nada precisou de um
-        // "se estiver no outro modo".
+        // A grouped READING (`SolutionGraphService`): the same blocks, around
+        // one hub per directorate / owner / vendor / category instead of
+        // linked to whoever they exchange messages with. It arrives in the
+        // same contract, with `edges` and `diagrams` empty — so everything
+        // below simply finds nothing to draw, and none of it needed an "if we
+        // are in the other mode".
         for (const group of state.payload.groups ?? []) {
             put({
                 id: group.id,
@@ -400,24 +401,25 @@ function mount(shell) {
             return
         }
 
-        // Um hub não desdobra nada: os membros dele já estão na tela. Clicar
-        // nele é enquadrá-lo — que é o que se quer de um agrupamento com 40
-        // sistemas numa tela com seis agrupamentos.
+        // A hub unfolds nothing: its members are already on screen. Clicking
+        // one frames it — which is what you want from a group of 40 systems on
+        // a screen holding six groups.
         if (node.type === 'group') {
             tip.hidden = true
-            // `select()` também: sem ele o cartão do hub — com o eixo e a
-            // contagem — nunca abria, e o ramo que o monta era código morto.
+            // `select()` too: without it the hub's card — carrying the axis
+            // and the count — never opened, and the branch that builds it was
+            // dead code.
             select(node)
             focusOn(node, ...state.nodes.filter((n) => n.parentId === node.id))
 
             return
         }
 
-        // Na leitura por agrupamento o payload não traz diagrama nenhum para
-        // desdobrar, então alternar a expansão não revelava nada e ainda
-        // apagava o mapa inteiro: `focusSet()` passava a conter um nó só e
-        // todo o resto caía para 22%. Aqui clicar num sistema é abrir o
-        // cartão dele, que é a única coisa que havia para mostrar.
+        // In the grouped reading the payload carries no diagram to unfold, so
+        // toggling the expansion revealed nothing and dimmed the whole map on
+        // top of that: `focusSet()` came back holding a single node and
+        // everything else dropped to 22%. Here, clicking a system opens its
+        // card, which is all there was to show.
         if (node.type === 'solution' && ! state.payload.groups.length) toggle(state.expandedSolutions, node.id)
         if (node.type === 'diagram') toggle(state.openDiagrams, node.data.slug)
 
@@ -861,11 +863,11 @@ function mount(shell) {
             const focused = api.hover?.id === node.id || state.selected?.id === node.id
             if (node.type === 'diagram' && k < 0.42 && ! focused) continue
             if (node.type === 'step' && k < 0.5 && ! focused) continue
-            // Na leitura por agrupamento a visão de longe é a dos HUBS: 109
-            // nomes de sistema espalhados por 41 discos se sobrepõem até não
-            // sobrar uma palavra legível. De perto (ou sob o ponteiro) os
-            // nomes voltam, que é quando se está lendo um agrupamento e não o
-            // conjunto deles.
+            // In the grouped reading the far view is the one of the HUBS: 109
+            // system names spread over 41 discs overlap until not one word is
+            // legible. Up close (or under the pointer) the names come back,
+            // which is when you are reading one group rather than the set of
+            // them.
             if (node.type === 'solution' && state.payload.groups.length && k < 0.62 && ! focused) continue
 
             const [sx, sy] = api.w2s(node.x, node.y)
