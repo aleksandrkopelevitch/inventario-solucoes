@@ -212,12 +212,19 @@ function orthogonalPoints(p0, p3, stub = EDGE_STUB, offset = 0) {
     const fromHoriz = p0.nx !== 0
     const toHoriz = p3.nx !== 0
 
+    // O desvio não pode empurrar o corredor para FORA do vão entre as duas
+    // pontas: com dois blocos próximos, um desvio de 18px punha o corredor
+    // atrás do bloco de origem e a seta saía, voltava por cima de si mesma e
+    // entrava de novo. Preso ao vão, o caso denso perde um pouco da separação
+    // em vez de desenhar errado.
+    const between = (value, a, b) => Math.min(Math.max(value, Math.min(a, b)), Math.max(a, b))
+
     let mids
     if (fromHoriz && toHoriz) {
-        const mx = (s0.x + s3.x) / 2 + offset
+        const mx = between((s0.x + s3.x) / 2 + offset, s0.x, s3.x)
         mids = [{ x: mx, y: s0.y }, { x: mx, y: s3.y }]
     } else if (!fromHoriz && !toHoriz) {
-        const my = (s0.y + s3.y) / 2 + offset
+        const my = between((s0.y + s3.y) / 2 + offset, s0.y, s3.y)
         mids = [{ x: s0.x, y: my }, { x: s3.x, y: my }]
     } else if (fromHoriz) {
         mids = [{ x: s3.x, y: s0.y }]
@@ -1011,6 +1018,7 @@ function mount(root) {
     const viewport = root.querySelector('[data-viz-viewport]')
     const world = root.querySelector('[data-viz-world]')
     const edges = root.querySelector('[data-viz-edges]')
+    const hits = root.querySelector('[data-viz-hits]')
     const empty = root.querySelector('[data-viz-empty]')
     const emptyTitle = root.querySelector('[data-viz-empty-title]')
     const emptyHint = root.querySelector('[data-viz-empty-hint]')
@@ -1318,7 +1326,8 @@ function mount(root) {
     }
 
     function clearOverlays() {
-        edges.querySelectorAll('.ak-viz-edge, .ak-viz-edge-hit, .ak-viz-plabel').forEach((el) => el.remove())
+        edges.querySelectorAll('.ak-viz-edge, .ak-viz-plabel').forEach((el) => el.remove())
+        hits.replaceChildren()
         world.querySelectorAll('.ak-viz-handle, .ak-viz-anchor').forEach((el) => el.remove())
     }
 
@@ -2878,6 +2887,12 @@ function mount(root) {
         const hit = document.createElementNS(SVG_NS, 'path')
         hit.setAttribute('class', 'ak-viz-edge-hit')
         hit.setAttribute('d', d)
+        // Atributos de apresentação, além da regra CSS: o CSS ganha deles no
+        // DOM vivo (traço transparente de 16px que captura), e num clone de
+        // export, que não leva folha nenhuma, sobram eles — em vez do
+        // `fill: black` padrão, que já pintou um borrão sobre cada seta.
+        hit.setAttribute('fill', 'none')
+        hit.setAttribute('stroke', 'none')
         hit.dataset.edgeIndex = String(edgeIndex)
 
         let downAt = null
@@ -2899,7 +2914,7 @@ function mount(root) {
             startInlineProtocolEdit(edgeIndex)
         })
 
-        edges.appendChild(hit)
+        hits.appendChild(hit)
     }
 
     /** Acende a ligação sob o ponteiro e revela o pill vazio dela. */

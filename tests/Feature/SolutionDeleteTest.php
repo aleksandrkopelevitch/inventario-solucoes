@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Models\ApprovedTopology;
 use App\Models\Company;
 use App\Models\Diagram;
 use App\Models\Notebook;
@@ -103,6 +104,28 @@ it('cleans a CATI submission drawing the same way it cleans a catalog one', func
 
     expect($chain['nodes'][0]['solution_id'])->toBeNull()
         ->and($chain['nodes'][0]['label'])->toBe('Sistema Fantasma');
+});
+
+it('says out loud that an approved topology went with the solution', function () {
+    // `approved_topologies.solution_id` is NOT NULL and cascades, so the row
+    // cannot be kept — but a committee decision vanishing without a word is
+    // how somebody later asks where it went.
+    $solution = Solution::factory()->create(['name' => 'Fantasma']);
+    $submission = Submission::factory()->create(['solution_id' => $solution->id]);
+    ApprovedTopology::create([
+        'submission_id' => $submission->id,
+        'solution_id'   => $solution->id,
+        'chain'         => ['nodes' => [], 'edges' => []],
+        'approved_at'   => now(),
+    ]);
+
+    $this->actingAs(solutionAdmin())
+        ->deleteJson(route('solutions.destroy', $solution))
+        ->assertOk()
+        ->assertJsonPath('message', 'Solução "Fantasma" excluída. 1 topologia(s) aprovada(s) para ela também foram removidas.');
+
+    // The submission itself is a record of its own and survives (SET NULL).
+    $this->assertModelExists($submission);
 });
 
 it('shows the delete control only to an admin', function () {

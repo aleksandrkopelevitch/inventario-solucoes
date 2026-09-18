@@ -82,11 +82,6 @@ export function ringsLayout(nodes, edges) {
 }
 
 /**
- * Satellites around one parent: the diagrams a system takes part in, on an
- * arc that opens AWAY from the centre of the map, so a cluster never grows
- * back over the graph it came from.
- */
-/**
  * Um agrupamento por vez: cada hub num anel grande, e os membros dele em
  * anéis concêntricos em volta do próprio hub.
  *
@@ -161,6 +156,11 @@ export function groupsLayout(groups, membersOf, inner = 130, gap = 82) {
     })
 }
 
+/**
+ * Satellites around one parent: the diagrams a system takes part in, on an
+ * arc that opens AWAY from the centre of the map, so a cluster never grows
+ * back over the graph it came from.
+ */
 export function satelliteLayout(parent, children, radius) {
     const away = Math.atan2(parent.ty ?? parent.y ?? 0, parent.tx ?? parent.x ?? 0) || 0
     const spread = Math.min(Math.PI * 1.6, 0.5 + children.length * 0.42)

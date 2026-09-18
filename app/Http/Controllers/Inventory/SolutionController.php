@@ -168,14 +168,6 @@ class SolutionController extends Controller
     }
 
     /**
-     * The solution's owners (the `person_solution` pivot), linked / unlinked in
-     * place on the header's owners grid. Mirror of
-     * `PersonController::storeSolution/destroySolution` on the other side of the
-     * same pivot — the role decides which of the three columns the person lands
-     * in, and re-roling stays on the person's page, where the role is a badge
-     * of its own.
-     */
-    /**
      * Removes the solution from the catalog. Admin-only (`SolutionPolicy`),
      * and it always navigates away: staying on the page of a deleted record
      * is a 404 on the next click.
@@ -185,15 +177,31 @@ class SolutionController extends Controller
         $this->authorize('delete', $solution);
 
         $name = $solution->name;
-        $action->handle($solution);
+        $removed = $action->handle($solution);
+
+        // An approved topology cascades with the solution (its FK is NOT
+        // NULL), so the one thing left to do about it is say so: a committee
+        // decision disappearing without a word is how somebody later asks
+        // where it went.
+        $note = $removed['topologies'] > 0
+            ? ' ' . $removed['topologies'] . ' topologia(s) aprovada(s) para ela também foram removidas.'
+            : '';
 
         return response()->json([
             'type'     => 'success',
-            'message'  => 'Solução "' . $name . '" excluída.',
+            'message'  => 'Solução "' . $name . '" excluída.' . $note,
             'redirect' => route('solutions.index'),
         ]);
     }
 
+    /**
+     * The solution's owners (the `person_solution` pivot), linked / unlinked in
+     * place on the header's owners grid. Mirror of
+     * `PersonController::storeSolution/destroySolution` on the other side of the
+     * same pivot — the role decides which of the three columns the person lands
+     * in, and re-roling stays on the person's page, where the role is a badge
+     * of its own.
+     */
     public function attachPerson(StoreSolutionPersonRequest $request, Solution $solution): JsonResponse
     {
         $solution->people()->attach($request->validated('person_id'), ['role' => $request->validated('role')]);

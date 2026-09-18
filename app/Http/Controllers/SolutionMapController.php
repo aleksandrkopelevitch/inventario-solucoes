@@ -33,6 +33,9 @@ class SolutionMapController extends Controller
         return view('solutions.map', [
             'categories'   => AttributeOption::options('category'),
             'directorates' => AttributeOption::options('directorate'),
+            // The SOLUTION status vocabulary, for the grouped reading's own
+            // status select — the four hardcoded next to it are a DIAGRAM's.
+            'statuses'     => AttributeOption::options('status'),
             'axes'         => SolutionGraphService::AXES,
         ]);
     }

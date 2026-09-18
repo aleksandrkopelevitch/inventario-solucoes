@@ -354,6 +354,25 @@
     <div data-viz-stage class="relative min-h-0 flex-1">
         <div data-viz-viewport class="ak-viz-viewport">
             <div data-viz-world class="ak-viz-world">
+                {{-- Alvos de ponteiro das ligações (`drawEdgeHit()`), numa
+                     camada SÓ deles. Eles moravam no <svg> das arestas, que é
+                     irmão das raias e vem DEPOIS delas (`rebuildLanes()`
+                     insere cada raia no início de `world`, para uma raia
+                     pintar atrás de todo bloco) — então uma faixa invisível de
+                     16px acompanhando cada seta ficava por cima das alças de
+                     redimensionar raia e comia o arrasto delas onde uma
+                     ligação cruzava a borda de uma raia, que num desenho em
+                     raias é o tempo todo.
+
+                     `z-index: -1` resolve porque `world` É um contexto de
+                     empilhamento de verdade (tem `transform`), então o -1 não
+                     escapa para trás do fundo do componente — a armadilha
+                     descrita no comentário das raias, que vale para elas
+                     porque elas não têm z-index nenhum. Aqui o alvo passa a
+                     ser a ÚLTIMA opção: bloco, alça de raia e etiqueta de raia
+                     ganham dele, e ele só pega o clique onde de fato só há
+                     linha. --}}
+                <svg data-viz-hits class="ak-viz-hits" xmlns="http://www.w3.org/2000/svg"></svg>
                 <svg data-viz-edges class="ak-viz-edges" xmlns="http://www.w3.org/2000/svg">
                     {{-- Duplicates (deliberately) the edge/marker/pill rules from
                          the component's OUTER <style> block below, scoped the
@@ -1195,6 +1214,27 @@
                 overflow: visible;
                 pointer-events: none;
             }
+            /* Ver o comentário na marcação. O traço é `transparent` aqui e
+               `none` como ATRIBUTO de apresentação em cada path
+               (`drawEdgeHit()`): CSS ganha do atributo no DOM vivo, e num
+               clone de export — que não leva esta folha — sobra o atributo, em
+               vez do `fill: black` padrão do navegador que já pintou um borrão
+               por cima de cada seta uma vez. */
+            .ak-viz-hits {
+                position: absolute;
+                top: 0;
+                left: 0;
+                overflow: visible;
+                pointer-events: none;
+                z-index: -1;
+            }
+            .ak-viz-hits path.ak-viz-edge-hit {
+                fill: none;
+                stroke: transparent;
+                stroke-width: 16;
+                pointer-events: stroke;
+                cursor: pointer;
+            }
             /* Lane (`viz_layout.lanes`) — a free rectangle drawn behind the
                canvas, child of `#world` (real WORLD-space position, like a
                node): `x`/`y`/`width`/`height` become `left`/`top`/`width`/
@@ -1488,19 +1528,6 @@
             }
             .ak-viz-edges .ak-viz-plabel.is-empty.is-hovered,
             .ak-viz-edges .ak-viz-plabel.is-empty.is-linked { opacity: 1; }
-            /* Alvo de ponteiro da ligação (`drawEdgeHit()`): invisível, largo,
-               e o único descendente do SVG das arestas que recebe eventos além
-               do pill escrito. `pointer-events: stroke` limita o alvo à faixa
-               do próprio traço — com `visiblePainted` um traço transparente não
-               receberia nada, e com `all` a área FECHADA da rota viraria alvo
-               junto, engolindo cliques no vazio entre dois cotovelos. */
-            .ak-viz-edges path.ak-viz-edge-hit {
-                fill: none;
-                stroke: transparent;
-                stroke-width: 16;
-                pointer-events: stroke;
-                cursor: pointer;
-            }
             .ak-viz-edges path.ak-viz-edge.is-hovered { stroke-width: 3; }
             /* Presentation-mode dot (`chain-viz.js::startPresentAnimation()`)
                — a plain <circle>, sibling of the .ak-viz-edge <path>s inside

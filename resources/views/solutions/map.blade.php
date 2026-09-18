@@ -38,13 +38,35 @@
                     @endforeach
                 </x-forms.select>
 
-                <x-forms.select data-ak-graph-filter="status" class="!py-1.5 !text-[13px]">
-                    <option value="all">Todos os status</option>
-                    <option value="active">Ativas</option>
-                    <option value="in_development">Em desenvolvimento</option>
-                    <option value="planned">Planejadas</option>
-                    <option value="deprecated">Descontinuadas</option>
-                </x-forms.select>
+                {{-- DOIS selects de status, um por leitura, e só o visível
+                     entra na query (ver o glue abaixo). O status de um
+                     DIAGRAMA e o de uma SOLUÇÃO são vocabulários diferentes
+                     que por acaso compartilham três valores: o mapa de
+                     topologia filtra diagramas, e "Em desenvolvimento" não
+                     existe como status de solução — na leitura agrupada ele
+                     devolvia um mapa vazio, enquanto "Em avaliação", que
+                     existe, não tinha como ser pedido. --}}
+                {{-- O `hidden` vai no WRAPPER, não no próprio select: o
+                     componente já se embrulha numa div, e esconder só o
+                     select deixava a div vazia ocupando a coluna. --}}
+                <div data-ak-graph-when="links">
+                    <x-forms.select data-ak-graph-filter="status" class="!py-1.5 !text-[13px]">
+                        <option value="all">Todos os status</option>
+                        <option value="active">Ativas</option>
+                        <option value="in_development">Em desenvolvimento</option>
+                        <option value="planned">Planejadas</option>
+                        <option value="deprecated">Descontinuadas</option>
+                    </x-forms.select>
+                </div>
+
+                <div data-ak-graph-when="groups" hidden>
+                    <x-forms.select data-ak-graph-filter="status" class="!py-1.5 !text-[13px]">
+                        <option value="all">Todos os status</option>
+                        @foreach ($statuses as $option)
+                            <option value="{{ $option->value }}">{{ $option->label }}</option>
+                        @endforeach
+                    </x-forms.select>
+                </div>
 
                 <x-forms.select data-ak-graph-filter="category" class="!py-1.5 !text-[13px]">
                     <option value="">Todas as categorias</option>
@@ -75,9 +97,22 @@
             const filters = document.querySelectorAll('[data-ak-graph-filter]');
             const baseUrl = @js(route('solutions.map.data'));
 
+            // Mostra o select de status da leitura escolhida e esconde o
+            // outro. Os dois mandam a MESMA chave `status`, e o escondido não
+            // entra na query — então o servidor continua recebendo um campo
+            // só, que quer dizer "o status daquilo que esta leitura lê".
+            function syncStatusControls() {
+                const grouped = !!document.querySelector('[data-ak-graph-filter="group"]').value;
+                document.querySelectorAll('[data-ak-graph-when]').forEach((wrap) => {
+                    wrap.hidden = (wrap.dataset.akGraphWhen === 'groups') !== grouped;
+                });
+            }
+
             function reload() {
+                syncStatusControls();
                 const params = new URLSearchParams();
                 filters.forEach((el) => {
+                    if (el.closest('[hidden]')) return;
                     const key = el.dataset.akGraphFilter;
                     if (el.type === 'checkbox') {
                         if (el.checked) params.set(key, '1');
@@ -90,6 +125,7 @@
             }
 
             filters.forEach((el) => el.addEventListener('change', reload));
+            syncStatusControls();
         })();
     </script>
 </x-layouts.layout>

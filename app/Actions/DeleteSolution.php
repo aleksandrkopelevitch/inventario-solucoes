@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Contracts\ChainCanvas;
+use App\Models\ApprovedTopology;
 use App\Models\Diagram;
 use App\Models\Solution;
 use App\Models\SubmissionDiagram;
@@ -31,9 +32,19 @@ use Illuminate\Support\Facades\DB;
  */
 class DeleteSolution
 {
-    public function handle(Solution $solution): void
+    /**
+     * @return array{drawings: int, topologies: int} what the caller should say
+     *                                               out loud — see below
+     */
+    public function handle(Solution $solution): array
     {
         $drawings = $this->drawingsMentioning($solution);
+        // `approved_topologies.solution_id` is NOT NULL and cascades, so a
+        // committee's approval goes with the solution and there is no way to
+        // keep it — an approval to apply a topology TO this solution means
+        // nothing once the solution is gone. What there IS a way to avoid is
+        // doing it in silence, which is why the count comes back.
+        $topologies = ApprovedTopology::where('solution_id', $solution->id)->count();
 
         DB::transaction(function () use ($solution, $drawings) {
             foreach ($drawings as $canvas) {
@@ -60,6 +71,8 @@ class DeleteSolution
 
             $solution->delete();
         });
+
+        return ['drawings' => $drawings->count(), 'topologies' => $topologies];
     }
 
     /**

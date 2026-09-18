@@ -147,6 +147,13 @@ function mount(shell) {
         state.diagramBySlug = new Map(state.payload.diagrams.map((d) => [d.slug, d]))
         state.nodes = []
         state.nodeById = new Map()
+        // Trocar de leitura recomeça a navegação. Sem isto, um sistema
+        // expandido antes da troca continuava no conjunto e apagava o mapa
+        // novo inteiro — a expansão é sobre nós que a outra leitura nem tem.
+        state.expandedSolutions.clear()
+        state.expandedPairs.clear()
+        state.openDiagrams.clear()
+        select(null)
         rebuild()
         fitAll()
     }
@@ -397,12 +404,21 @@ function mount(shell) {
         // nele é enquadrá-lo — que é o que se quer de um agrupamento com 40
         // sistemas numa tela com seis agrupamentos.
         if (node.type === 'group') {
+            tip.hidden = true
+            // `select()` também: sem ele o cartão do hub — com o eixo e a
+            // contagem — nunca abria, e o ramo que o monta era código morto.
+            select(node)
             focusOn(node, ...state.nodes.filter((n) => n.parentId === node.id))
 
             return
         }
 
-        if (node.type === 'solution') toggle(state.expandedSolutions, node.id)
+        // Na leitura por agrupamento o payload não traz diagrama nenhum para
+        // desdobrar, então alternar a expansão não revelava nada e ainda
+        // apagava o mapa inteiro: `focusSet()` passava a conter um nó só e
+        // todo o resto caía para 22%. Aqui clicar num sistema é abrir o
+        // cartão dele, que é a única coisa que havia para mostrar.
+        if (node.type === 'solution' && ! state.payload.groups.length) toggle(state.expandedSolutions, node.id)
         if (node.type === 'diagram') toggle(state.openDiagrams, node.data.slug)
 
         // The tooltip was answering a hover that the click has just made
