@@ -26,8 +26,15 @@ class AttributeOption extends Model
      * outlive the transaction a test rolls back — options created by one test
      * would still be answering in the next one, which is exactly how this
      * arrived (`DiagramVizGraphTest` passed alone and failed in the suite).
-     * A container instance dies with the app, which is one request in
-     * production and one test in the suite.
+     *
+     * Registered SCOPED, not as a plain instance. `forgetScopedInstances()`
+     * — which `QueueServiceProvider` runs between jobs — unsets only the keys
+     * listed in `$scopedInstances` (Container.php:1719), so a plain
+     * `instance()` binding would live as long as the WORKER PROCESS: an admin
+     * renaming an attribute clears the cache in the web process, and every
+     * queued job would keep answering with the old label until supervisor
+     * restarted the worker. Scoped, the memo is one request in production, one
+     * job in a worker, and one test in the suite.
      */
     private const MEMO_KEY = 'attribute_options.memo';
 
@@ -80,10 +87,16 @@ class AttributeOption extends Model
      */
     private static function cached(): Collection
     {
-        if (app()->bound(self::MEMO_KEY)) {
-            return app(self::MEMO_KEY);
+        if (! app()->bound(self::MEMO_KEY)) {
+            app()->scoped(self::MEMO_KEY, fn () => self::build());
         }
 
+        return app(self::MEMO_KEY);
+    }
+
+    /** @return Collection<string, Collection<int, self>> */
+    private static function build(): Collection
+    {
         // `memo()` on top of the day-long entry, not instead of it: without it
         // this ran one cache READ per call, which on the `database` store is
         // one query per call — and every solution asks 5 times (category,
@@ -100,17 +113,13 @@ class AttributeOption extends Model
             ->map(fn (Collection $options) => $options->map->only(['id', 'group', 'value', 'label', 'icon'])->all())
             ->all());
 
-        $built = collect($raw)->map(fn (array $options) => collect($options)->map(function (array $attrs) {
+        return collect($raw)->map(fn (array $options) => collect($options)->map(function (array $attrs) {
             $option = new self(['group' => $attrs['group'], 'value' => $attrs['value'], 'label' => $attrs['label'], 'icon' => $attrs['icon']]);
             $option->id = $attrs['id'];
             $option->exists = true;
 
             return $option;
         }));
-
-        app()->instance(self::MEMO_KEY, $built);
-
-        return $built;
     }
 
     protected static function booted(): void

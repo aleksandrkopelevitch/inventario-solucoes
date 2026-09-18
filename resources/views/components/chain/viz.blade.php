@@ -437,7 +437,18 @@
                            protocolo. Sem exceção aqui de propósito: nem a
                            ligação que estava sob o ponteiro na hora da captura
                            vaza para a imagem. */
+                        .ak-viz-edges.has-selection .ak-viz-plabel.is-empty,
                         .ak-viz-edges .ak-viz-plabel.is-empty { opacity: 0; }
+
+                        /* O alvo de ponteiro de cada ligação (`drawEdgeHit()`).
+                           Ele tem `fill: none; stroke: transparent` na folha
+                           EXTERNA — que não viaja no export: o clone traz só
+                           esta, e sem regra aqui o path saía com o `fill:
+                           black` padrão do navegador, ou seja, um borrão preto
+                           seguindo a rota de cada seta. É a mesma armadilha que
+                           o comentário acima descreve, e caiu nela a primeira
+                           classe nova de path criada depois dele. */
+                        .ak-viz-edges path.ak-viz-edge-hit { fill: none; stroke: none; }
 
                         {{-- Screenshot style presets ("Estilo do screenshot",
                              bottom bar export menu) — the `data-viz-preset`

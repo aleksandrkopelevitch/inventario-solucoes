@@ -2,8 +2,10 @@
 
 namespace App\Actions;
 
+use App\Contracts\ChainCanvas;
 use App\Models\Diagram;
 use App\Models\Solution;
+use App\Models\SubmissionDiagram;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -29,15 +31,13 @@ use Illuminate\Support\Facades\DB;
  */
 class DeleteSolution
 {
-    public function __construct(private readonly SyncDiagramFromChain $sync) {}
-
     public function handle(Solution $solution): void
     {
         $drawings = $this->drawingsMentioning($solution);
 
         DB::transaction(function () use ($solution, $drawings) {
-            foreach ($drawings as $diagram) {
-                $chain = $diagram->chain ?? [];
+            foreach ($drawings as $canvas) {
+                $chain = $canvas->chainData() ?? [];
 
                 $chain['nodes'] = array_map(function (array $node) use ($solution) {
                     if (($node['solution_id'] ?? null) !== $solution->id) {
@@ -50,11 +50,12 @@ class DeleteSolution
                     return $node;
                 }, array_values($chain['nodes'] ?? []));
 
-                $diagram->chain = $chain;
-                $diagram->save();
-                // Re-derives `source_solution_id`/`target_solution_id` (whose
-                // cascade is what this is all for) and the participants pivot.
-                $this->sync->handle($diagram);
+                $canvas->writeChain(chain: $chain);
+                // A catalog drawing re-derives `source_solution_id` /
+                // `target_solution_id` here — the cascade this is all for —
+                // and its participants pivot. A submission's drawing derives
+                // nothing, and says so with an empty body.
+                $canvas->afterChainMutation();
             }
 
             $solution->delete();
@@ -71,23 +72,45 @@ class DeleteSolution
      * still match solution 50. The scan reads two columns, and a solution is
      * deleted by hand, once.
      *
-     * @return Collection<int, Diagram>
+     * @return Collection<int, ChainCanvas>
      */
     private function drawingsMentioning(Solution $solution): Collection
     {
-        $ids = Diagram::query()
-            ->select(['id', 'chain', 'source_solution_id', 'target_solution_id'])
+        return $this->canvasesMentioning($solution, Diagram::class, ['source_solution_id', 'target_solution_id'])
+            ->concat($this->canvasesMentioning($solution, SubmissionDiagram::class, []));
+    }
+
+    /**
+     * The same scan against either owner of a chain.
+     *
+     * A CATI submission's AS IS / TO BE is the SAME canvas with a different
+     * owner — both implement `ChainCanvas` — and stores the same
+     * `{solution_id, label, kind}` node. It has no foreign key to this row, so
+     * nothing cascades and nothing complained; the node simply went on
+     * pointing at a solution that no longer exists, which `ChainLabeler`
+     * renders as `?`. Sweeping only `diagrams` left exactly that.
+     *
+     * @param  class-string<ChainCanvas&\Illuminate\Database\Eloquent\Model>  $model
+     * @param  list<string>  $derived  columns holding the same reference
+     * @return Collection<int, ChainCanvas>
+     */
+    private function canvasesMentioning(Solution $solution, string $model, array $derived): Collection
+    {
+        $ids = $model::query()
+            ->select(array_merge(['id', 'chain'], $derived))
             ->cursor()
-            ->filter(function (Diagram $diagram) use ($solution) {
-                if (in_array($solution->id, [$diagram->source_solution_id, $diagram->target_solution_id], true)) {
-                    return true;
+            ->filter(function (ChainCanvas $canvas) use ($solution, $derived) {
+                foreach ($derived as $column) {
+                    if ($canvas->{$column} === $solution->id) {
+                        return true;
+                    }
                 }
 
-                return collect($diagram->chain['nodes'] ?? [])
+                return collect($canvas->chainData()['nodes'] ?? [])
                     ->contains(fn (mixed $node) => is_array($node) && ($node['solution_id'] ?? null) === $solution->id);
             })
             ->pluck('id');
 
-        return $ids->isEmpty() ? collect() : Diagram::whereKey($ids)->get();
+        return $ids->isEmpty() ? collect() : $model::whereKey($ids)->get();
     }
 }
