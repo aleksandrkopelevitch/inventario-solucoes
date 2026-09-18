@@ -18,6 +18,27 @@ class AttributeOption extends Model
 
     protected $fillable = ['group', 'value', 'label', 'icon'];
 
+    /**
+     * Where the rebuilt options live for the length of one request.
+     *
+     * In the CONTAINER, not in a static and not in the cache: the cache store
+     * cannot hand Eloquent models back (see `cached()`), and a static would
+     * outlive the transaction a test rolls back — options created by one test
+     * would still be answering in the next one, which is exactly how this
+     * arrived (`DiagramVizGraphTest` passed alone and failed in the suite).
+     * A container instance dies with the app, which is one request in
+     * production and one test in the suite.
+     */
+    private const MEMO_KEY = 'attribute_options.memo';
+
+    /** Drops the day-long entry AND everything in front of it. */
+    public static function forgetCache(): void
+    {
+        app()->forgetInstance(self::MEMO_KEY);
+        Cache::memo()->forget(self::CACHE_KEY);
+        Cache::forget(self::CACHE_KEY);
+    }
+
     /** All options for a group, ordered by label — no extra query (reads from cache). */
     public static function options(string $group): Collection
     {
@@ -59,25 +80,44 @@ class AttributeOption extends Model
      */
     private static function cached(): Collection
     {
-        $raw = Cache::remember(self::CACHE_KEY, now()->addDay(), fn () => static::query()
+        if (app()->bound(self::MEMO_KEY)) {
+            return app(self::MEMO_KEY);
+        }
+
+        // `memo()` on top of the day-long entry, not instead of it: without it
+        // this ran one cache READ per call, which on the `database` store is
+        // one query per call — and every solution asks 5 times (category,
+        // status, criticality, environment, cloud, …). Rendering the catalog
+        // or the map therefore cost hundreds of queries to answer from a cache
+        // that already held the answer: 545 of them for the 109 blocks of the
+        // grouped map, against 0 now. The memo layer lives for the request, so
+        // a `Cache::forget()` from the attributes screen is still seen by the
+        // next one.
+        $raw = Cache::memo()->remember(self::CACHE_KEY, now()->addDay(), fn () => static::query()
             ->orderBy('label')
             ->get(['id', 'group', 'value', 'label', 'icon'])
             ->groupBy('group')
             ->map(fn (Collection $options) => $options->map->only(['id', 'group', 'value', 'label', 'icon'])->all())
             ->all());
 
-        return collect($raw)->map(fn (array $options) => collect($options)->map(function (array $attrs) {
+        $built = collect($raw)->map(fn (array $options) => collect($options)->map(function (array $attrs) {
             $option = new self(['group' => $attrs['group'], 'value' => $attrs['value'], 'label' => $attrs['label'], 'icon' => $attrs['icon']]);
             $option->id = $attrs['id'];
             $option->exists = true;
 
             return $option;
         }));
+
+        app()->instance(self::MEMO_KEY, $built);
+
+        return $built;
     }
 
     protected static function booted(): void
     {
-        static::saved(fn () => Cache::forget(self::CACHE_KEY));
-        static::deleted(fn () => Cache::forget(self::CACHE_KEY));
+        // Both layers: `Cache::forget()` alone would leave the request that
+        // just saved reading its own stale memo.
+        static::saved(fn () => self::forgetCache());
+        static::deleted(fn () => self::forgetCache());
     }
 }

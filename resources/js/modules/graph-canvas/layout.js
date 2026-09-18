@@ -86,6 +86,81 @@ export function ringsLayout(nodes, edges) {
  * arc that opens AWAY from the centre of the map, so a cluster never grows
  * back over the graph it came from.
  */
+/**
+ * Um agrupamento por vez: cada hub num anel grande, e os membros dele em
+ * anéis concêntricos em volta do próprio hub.
+ *
+ * `satelliteLayout` não serve aqui: ela abre os filhos num leque de um raio
+ * só, o que é certo para os 2-3 diagramas de um sistema e vira uma fileira
+ * sobreposta nos 40 sistemas de uma diretoria. E o anel dos hubs é
+ * dimensionado pelo tamanho dos agrupamentos, não por uma constante — senão
+ * o maior deles engole os vizinhos.
+ */
+export function groupsLayout(groups, membersOf, inner = 130, gap = 82) {
+    if (! groups.length) return
+
+    const outerRadius = (group) => {
+        const total = membersOf(group).length
+        let placed = 0
+        let ring = 0
+        let radius = inner
+
+        while (placed < total) {
+            ring++
+            radius = inner + (ring - 1) * gap
+            placed += Math.max(5, Math.floor((2 * Math.PI * radius) / gap))
+        }
+
+        return total ? radius : inner * 0.5
+    }
+
+    const radii = groups.map(outerRadius)
+    const total = radii.reduce((sum, r) => sum + r, 0)
+    // O anel precisa de circunferência para a soma dos diâmetros dos
+    // agrupamentos, e de raio suficiente para o maior deles não cruzar o
+    // centro. O que for maior manda.
+    const ring = groups.length === 1
+        ? 0
+        : Math.max(Math.max(...radii) * 1.7, (total * 2.4) / (2 * Math.PI))
+
+    // Cada agrupamento ocupa um ARCO PROPORCIONAL ao próprio tamanho, não uma
+    // fatia igual: eles chegam ordenados do maior para o menor, então fatias
+    // iguais punham os maiores lado a lado com a mesma folga dos menores, e
+    // eles se sobrepunham — era a única coisa ilegível na visão de longe.
+    let walked = 0
+
+    groups.forEach((group, i) => {
+        const share = total ? radii[i] / total : 1 / groups.length
+        const angle = (walked + share / 2) * Math.PI * 2 - Math.PI / 2
+        walked += share
+        group.tx = Math.cos(angle) * ring
+        group.ty = Math.sin(angle) * ring
+        group.angle = angle
+
+        const members = membersOf(group)
+        let placed = 0
+        let level = 0
+
+        while (placed < members.length) {
+            level++
+            const radius = inner + (level - 1) * gap
+            const capacity = Math.max(5, Math.floor((2 * Math.PI * radius) / gap))
+            const slice = members.slice(placed, placed + capacity)
+
+            slice.forEach((child, j) => {
+                // Cada anel gira um pouco, senão os raios se alinham e o
+                // agrupamento lê como uma estrela em vez de um disco.
+                const a = level * 0.6 + (j / slice.length) * Math.PI * 2
+                child.tx = group.tx + Math.cos(a) * radius
+                child.ty = group.ty + Math.sin(a) * radius
+                child.angle = a
+            })
+
+            placed += slice.length
+        }
+    })
+}
+
 export function satelliteLayout(parent, children, radius) {
     const away = Math.atan2(parent.ty ?? parent.y ?? 0, parent.tx ?? parent.x ?? 0) || 0
     const spread = Math.min(Math.PI * 1.6, 0.5 + children.length * 0.42)

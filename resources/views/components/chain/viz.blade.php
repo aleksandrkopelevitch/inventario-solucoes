@@ -429,6 +429,16 @@
                         .ak-viz-edges.has-selection .ak-viz-plabel { opacity: .3; }
                         .ak-viz-edges.has-selection .ak-viz-plabel.is-linked { opacity: 1; }
 
+                        /* O convite tracejado "+ protocolo" sai do desenho: a
+                           folha externa o traz de volta no hover da ligação.
+                           Esta cópia existe para o EXPORT, que raw-clona este
+                           subtree e leva só ela — um PNG nunca deve mostrar
+                           afordância, e antes mostrava uma por ligação sem
+                           protocolo. Sem exceção aqui de propósito: nem a
+                           ligação que estava sob o ponteiro na hora da captura
+                           vaza para a imagem. */
+                        .ak-viz-edges .ak-viz-plabel.is-empty { opacity: 0; }
+
                         {{-- Screenshot style presets ("Estilo do screenshot",
                              bottom bar export menu) — the `data-viz-preset`
                              attribute is set on THIS <svg> element itself right
@@ -1450,6 +1460,37 @@
             }
             .ak-viz-edges .ak-viz-plabel.is-editable:hover .ak-viz-plabel-box { stroke: var(--viz-select); }
             .ak-viz-edges .ak-viz-plabel.is-editable:hover .ak-viz-plabel-text { fill: var(--viz-select); }
+            /* O pill vazio é um convite a clicar — um por ligação sem
+               protocolo, o tempo todo, era a maior fonte de ruído num desenho
+               grande: num fluxo em raias eles caíam em cima dos rótulos de
+               verdade e das próprias setas. Ele passa a aparecer só quando a
+               ligação está sob o ponteiro (`drawEdgeHit()`) ou acesa pela
+               seleção de um bloco — e nunca recebe ponteiro, para não brigar
+               com o alvo largo que o revelou: ao entrar nele o alvo receberia
+               `pointerleave`, o pill sumiria, o ponteiro voltaria ao alvo e
+               ele reapareceria, em loop. Clique e duplo clique da ligação sem
+               protocolo chegam pelo alvo. */
+            .ak-viz-edges .ak-viz-plabel.is-empty {
+                opacity: 0;
+                pointer-events: none;
+                transition: opacity .12s ease;
+            }
+            .ak-viz-edges .ak-viz-plabel.is-empty.is-hovered,
+            .ak-viz-edges .ak-viz-plabel.is-empty.is-linked { opacity: 1; }
+            /* Alvo de ponteiro da ligação (`drawEdgeHit()`): invisível, largo,
+               e o único descendente do SVG das arestas que recebe eventos além
+               do pill escrito. `pointer-events: stroke` limita o alvo à faixa
+               do próprio traço — com `visiblePainted` um traço transparente não
+               receberia nada, e com `all` a área FECHADA da rota viraria alvo
+               junto, engolindo cliques no vazio entre dois cotovelos. */
+            .ak-viz-edges path.ak-viz-edge-hit {
+                fill: none;
+                stroke: transparent;
+                stroke-width: 16;
+                pointer-events: stroke;
+                cursor: pointer;
+            }
+            .ak-viz-edges path.ak-viz-edge.is-hovered { stroke-width: 3; }
             /* Presentation-mode dot (`chain-viz.js::startPresentAnimation()`)
                — a plain <circle>, sibling of the .ak-viz-edge <path>s inside
                this same <svg data-viz-edges>, positioned every frame via

@@ -380,8 +380,24 @@ class DiagramGraphService
             return;
         }
 
-        $nodes[$id] = [
-            'id'               => $id,
+        $nodes[$id] = $this->solutionNode($solution);
+    }
+
+    /**
+     * One solution as the map's renderer expects it.
+     *
+     * Public because the same block is drawn by a second reading of the same
+     * catalog — `SolutionGraphService` groups solutions by directorate, owner
+     * or vendor instead of by who talks to whom, and a block that changed
+     * shape between the two readings would be a different thing on screen for
+     * no reason the user could name.
+     *
+     * @return array<string, mixed>
+     */
+    public function solutionNode(Solution $solution): array
+    {
+        return [
+            'id'               => "sol-{$solution->id}",
             'label'            => $solution->name,
             'slug'             => $solution->slug,
             'category'         => $solution->category,

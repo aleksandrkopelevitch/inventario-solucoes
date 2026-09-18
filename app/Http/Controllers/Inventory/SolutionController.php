@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Inventory;
 
+use App\Actions\DeleteSolution;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreSolutionPersonRequest;
 use App\Http\Requests\StoreSolutionRequest;
@@ -174,6 +175,25 @@ class SolutionController extends Controller
      * in, and re-roling stays on the person's page, where the role is a badge
      * of its own.
      */
+    /**
+     * Removes the solution from the catalog. Admin-only (`SolutionPolicy`),
+     * and it always navigates away: staying on the page of a deleted record
+     * is a 404 on the next click.
+     */
+    public function destroy(Solution $solution, DeleteSolution $action): JsonResponse
+    {
+        $this->authorize('delete', $solution);
+
+        $name = $solution->name;
+        $action->handle($solution);
+
+        return response()->json([
+            'type'     => 'success',
+            'message'  => 'Solução "' . $name . '" excluída.',
+            'redirect' => route('solutions.index'),
+        ]);
+    }
+
     public function attachPerson(StoreSolutionPersonRequest $request, Solution $solution): JsonResponse
     {
         $solution->people()->attach($request->validated('person_id'), ['role' => $request->validated('role')]);

@@ -177,6 +177,11 @@ Route::middleware(['auth', 'inventory'])->group(function () {
     // `people.solutions.destroy`: the person is a first-class record here, not a
     // child of the solution, and `detach` no-ops harmlessly on someone who isn't
     // linked — there's no mutation for a 404 to protect.
+    // Removing a solution from the catalog (admin-only, see `SolutionPolicy`).
+    // Its owners and its vendor company are NOT children of it and survive —
+    // only the links go. See `App\Actions\DeleteSolution` for what a drawing
+    // that used it looks like afterwards.
+    Route::delete('solutions/{solution}', [SolutionController::class, 'destroy'])->name('solutions.destroy');
     Route::post('solutions/{solution}/people', [SolutionController::class, 'attachPerson'])->name('solutions.people.store');
     // Re-points one row of the owners grid at another person. Scoped, unlike
     // its two neighbours: this one READS the link it's replacing (it carries

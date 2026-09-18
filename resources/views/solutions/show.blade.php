@@ -1,8 +1,27 @@
 <x-layouts.layout :title="$solution->name">
-    <div class="mb-6 animate-ak-fade">
+    <div class="mb-6 flex items-center justify-between gap-3 animate-ak-fade">
         <a href="{{ route('solutions.index') }}" class="group inline-flex items-center gap-1 text-sm text-accent hover:underline">
             <x-heroicon-o-arrow-left class="size-4 transition-transform duration-150 group-hover:-translate-x-0.5" /> Soluções
         </a>
+
+        {{-- Admin-only (`SolutionPolicy::delete`). Here, next to the back
+             link, rather than inside the header slot: the response navigates
+             away, and a control that removes the page shouldn't sit in a
+             region that re-renders itself on every inline edit. --}}
+        @can('delete', $solution)
+            <x-forms.button type="button" variant="ghost"
+                data-ak-ajax="solution-page-delete"
+                data-ak-action="{{ route('solutions.destroy', $solution) }}"
+                data-ak-confirm="Excluir a solução &quot;{{ $solution->name }}&quot;? As pessoas e as empresas ligadas a ela continuam existindo — só o vínculo acaba. Nos diagramas em que ela aparece, o bloco continua no lugar e com o mesmo nome, como texto livre."
+                title="Excluir solução"
+                class="!p-1.5 text-muted hover:!text-crit">
+                <x-heroicon-o-trash class="size-4" />
+            </x-forms.button>
+            <form id="solution-page-delete" class="hidden">
+                @csrf
+                @method('DELETE')
+            </form>
+        @endcan
     </div>
 
     {{-- 1/2. Header + "Operation" block (Solutions\DetailHeader, updatable) --}}
