@@ -48,20 +48,7 @@ class DeleteSolution
 
         DB::transaction(function () use ($solution, $drawings) {
             foreach ($drawings as $canvas) {
-                $chain = $canvas->chainData() ?? [];
-
-                $chain['nodes'] = array_map(function (array $node) use ($solution) {
-                    if (($node['solution_id'] ?? null) !== $solution->id) {
-                        return $node;
-                    }
-
-                    $node['label'] = $node['label'] ?? $solution->name;
-                    $node['solution_id'] = null;
-
-                    return $node;
-                }, array_values($chain['nodes'] ?? []));
-
-                $canvas->writeChain(chain: $chain);
+                $canvas->writeChain(chain: $this->sweptChain($canvas->chainData(), $solution));
                 // A catalog drawing re-derives `source_solution_id` /
                 // `target_solution_id` here — the cascade this is all for —
                 // and its participants pivot. A submission's drawing derives
@@ -69,10 +56,64 @@ class DeleteSolution
                 $canvas->afterChainMutation();
             }
 
+            // The THIRD store of `{solution_id, label, kind}` nodes, and the one
+            // with no owner sweeping it: an approved topology's chain is a
+            // snapshot, and `ApprovedTopology` is not a `ChainCanvas`. The rows
+            // approved FOR this solution cascade away with it; one approved for
+            // ANOTHER solution whose chain happens to name this one survives,
+            // and applying it later writes the dead id straight into
+            // `diagram_solution` through `SyncDiagramFromChain` — a foreign key
+            // violation the admin meets as a 500, arbitrarily long after the
+            // delete that caused it.
+            foreach ($this->topologiesNaming($solution) as $topology) {
+                $topology->chain = $this->sweptChain($topology->chain, $solution);
+                $topology->save();
+            }
+
             $solution->delete();
         });
 
         return ['drawings' => $drawings->count(), 'topologies' => $topologies];
+    }
+
+    /**
+     * One chain with every mention of this solution turned into free text.
+     *
+     * @param  array<mixed>|null  $chain
+     * @return array<mixed>
+     */
+    private function sweptChain(?array $chain, Solution $solution): array
+    {
+        $chain ??= [];
+
+        $chain['nodes'] = array_map(function (array $node) use ($solution) {
+            if (($node['solution_id'] ?? null) !== $solution->id) {
+                return $node;
+            }
+
+            $node['label'] = $node['label'] ?? $solution->name;
+            $node['solution_id'] = null;
+
+            return $node;
+        }, array_values($chain['nodes'] ?? []));
+
+        return $chain;
+    }
+
+    /**
+     * Approved topologies that NAME this solution without belonging to it. The
+     * ones that belong to it are not here: their foreign key cascades, and an
+     * approval to apply a topology to a solution that is gone means nothing.
+     *
+     * @return Collection<int, ApprovedTopology>
+     */
+    private function topologiesNaming(Solution $solution): Collection
+    {
+        return ApprovedTopology::query()
+            ->where('solution_id', '!=', $solution->id)
+            ->get()
+            ->filter(fn (ApprovedTopology $topology) => collect($topology->chain['nodes'] ?? [])
+                ->contains(fn (mixed $node) => is_array($node) && ($node['solution_id'] ?? null) === $solution->id));
     }
 
     /**

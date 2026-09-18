@@ -128,6 +128,60 @@ it('says out loud that an approved topology went with the solution', function ()
     $this->assertModelExists($submission);
 });
 
+it('keeps a drawing whose only trace of the solution is a derived column', function () {
+    // Both columns are ON DELETE CASCADE, so a diagram the scan misses is not
+    // left stale — it is deleted outright by the database, silently. The chain
+    // is null here on purpose: the derived column is the only finder that can
+    // reach these.
+    $solution = Solution::factory()->create();
+    $byTarget = Diagram::factory()->create(['chain' => null, 'source_solution_id' => null, 'target_solution_id' => $solution->id]);
+    $bySource = Diagram::factory()->create(['chain' => null, 'target_solution_id' => null, 'source_solution_id' => $solution->id]);
+
+    $this->actingAs(solutionAdmin())->deleteJson(route('solutions.destroy', $solution))->assertOk();
+
+    $this->assertModelExists($byTarget);
+    $this->assertModelExists($bySource);
+    expect($byTarget->fresh()->target_solution_id)->toBeNull()
+        ->and($bySource->fresh()->source_solution_id)->toBeNull();
+});
+
+it('does not leave a dead system inside a topology another solution is waiting on', function () {
+    // The third store of `{solution_id}` nodes. The topologies approved FOR the
+    // deleted solution cascade away with it; one approved for ANOTHER solution
+    // whose chain merely names it survives — and applying it later wrote the
+    // dead id into `diagram_solution`, which is a foreign key violation the
+    // admin met as a 500 long after the delete that caused it.
+    $ghost = Solution::factory()->create(['name' => 'Sistema Fantasma']);
+    $kept = Solution::factory()->create();
+    $topology = ApprovedTopology::create([
+        'submission_id' => Submission::factory()->create(['solution_id' => $kept->id])->id,
+        'solution_id'   => $kept->id,
+        'chain'         => ['nodes' => [
+            ['solution_id' => $ghost->id, 'label' => null, 'kind' => 'system'],
+            ['solution_id' => $kept->id, 'label' => null, 'kind' => 'system'],
+        ], 'edges' => [['from' => 0, 'to' => 1, 'arrow' => '->', 'protocol' => null]]],
+        'approved_at'   => now(),
+    ]);
+
+    $this->actingAs(solutionAdmin())->deleteJson(route('solutions.destroy', $ghost))->assertOk();
+
+    $chain = $topology->fresh()->chain;
+    expect($chain['nodes'][0]['solution_id'])->toBeNull()
+        ->and($chain['nodes'][0]['label'])->toBe('Sistema Fantasma');
+
+    // And the handoff the committee approved still resolves.
+    $diagram = app(\App\Actions\Cati\ApplyApprovedTopology::class)->handle($topology->fresh(), solutionAdmin());
+    expect($diagram->participants()->pluck('solutions.id')->all())->toBe([$kept->id]);
+});
+
+it('says nothing about topologies when there were none', function () {
+    $solution = Solution::factory()->create(['name' => 'Fantasma']);
+
+    $this->actingAs(solutionAdmin())
+        ->deleteJson(route('solutions.destroy', $solution))
+        ->assertJsonPath('message', 'Solução "Fantasma" excluída.');
+});
+
 it('shows the delete control only to an admin', function () {
     $solution = Solution::factory()->create();
 

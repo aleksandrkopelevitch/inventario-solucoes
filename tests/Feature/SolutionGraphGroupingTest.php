@@ -34,14 +34,76 @@ it('files a solution under its primary owner', function () {
     $primary = Person::factory()->create(['name' => 'Ana']);
     $second = Person::factory()->create(['name' => 'Bruno']);
     $solution = Solution::factory()->create();
-    $solution->people()->attach($second, ['role' => 'owner', 'is_primary' => false]);
-    $solution->people()->attach($primary, ['role' => 'owner', 'is_primary' => true]);
+    $solution->people()->attach($second, ['role' => 'technical', 'is_primary' => false]);
+    $solution->people()->attach($primary, ['role' => 'technical', 'is_primary' => true]);
 
     $groups = app(SolutionGraphService::class)->groupedBy('owner')['groups'];
 
     expect($groups)->toHaveCount(1)
         ->and($groups[0]['label'])->toBe('Ana')
         ->and($groups[0]['solutions'])->toBe(['sol-' . $solution->id]);
+});
+
+it('files two solutions the same way when nobody is primary', function () {
+    // The normal case, not the exotic one: `attachPerson` never writes
+    // `is_primary`, so most solutions carry several or none — and the pick used
+    // to be whichever row the database returned first, which could move a
+    // solution between hubs across two page loads.
+    $ana = Person::factory()->create(['name' => 'Ana']);
+    $bruno = Person::factory()->create(['name' => 'Bruno']);
+
+    $first = Solution::factory()->create();
+    $first->people()->attach($ana, ['role' => 'technical']);
+    $first->people()->attach($bruno, ['role' => 'manager']);
+
+    $second = Solution::factory()->create();
+    $second->people()->attach($bruno, ['role' => 'manager']);
+    $second->people()->attach($ana, ['role' => 'technical']);
+
+    $groups = collect(app(SolutionGraphService::class)->groupedBy('owner')['groups']);
+
+    // A manager answers for a system before a technical contact does, whichever
+    // order the links were made in.
+    expect($groups)->toHaveCount(1)
+        ->and($groups->first()['label'])->toBe('Bruno')
+        ->and($groups->first()['count'])->toBe(2);
+});
+
+it('does not make a vendor contact the responsible one', function () {
+    // They work for the supplier. A screen titled "Responsável" naming them
+    // would say something false about who to ask inside Leo.
+    $solution = Solution::factory()->create();
+    $solution->people()->attach(Person::factory()->create(['name' => 'Contato Fornecedor']), [
+        'role' => 'vendor_contact', 'is_primary' => true,
+    ]);
+
+    $groups = app(SolutionGraphService::class)->groupedBy('owner')['groups'];
+
+    expect($groups)->toHaveCount(1)->and($groups[0]['label'])->toBe('Sem responsável');
+});
+
+it('answers the grouped reading with the solution status vocabulary', function () {
+    // A diagram's status and a solution's share three values and disagree on
+    // two. "Em desenvolvimento" is a diagram status and matches no solution;
+    // "Em avaliação" is a solution status the topology reading cannot ask for.
+    Solution::factory()->create(['status' => 'evaluating', 'directorate' => null]);
+
+    $service = app(SolutionGraphService::class);
+
+    expect($service->groupedBy('directorate', ['status' => 'evaluating'])['groups'])->toHaveCount(1)
+        ->and($service->groupedBy('directorate', ['status' => 'in_development'])['groups'])->toBeEmpty()
+        ->and($service->groupedBy('directorate', ['status' => 'in_development'])['groupAxis'])->toBe('directorate');
+});
+
+it('applies a filter alongside an axis', function () {
+    AttributeOption::create(['group' => 'directorate', 'value' => 'ti', 'label' => 'TI']);
+    Solution::factory()->create(['directorate' => 'ti']);
+    Solution::factory()->create(['directorate' => null]);
+
+    $graph = app(SolutionGraphService::class)->groupedBy('owner', ['directorate' => 'ti']);
+
+    expect($graph['nodes'])->toHaveCount(1)
+        ->and(collect($graph['groups'])->sum('count'))->toBe(1);
 });
 
 it('keeps the ones with nothing to group by instead of dropping them', function () {

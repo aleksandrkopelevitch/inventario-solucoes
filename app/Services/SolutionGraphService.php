@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AttributeOption;
+use App\Models\Person;
 use App\Models\Solution;
 use App\Support\CategoryPalette;
 use Illuminate\Database\Eloquent\Builder;
@@ -54,10 +55,7 @@ class SolutionGraphService
             ->when($filters['directorate'] ?? null, fn (Builder $q) => $q->where('directorate', $filters['directorate']))
             ->with([
                 'vendor:id,name',
-                // The owners grid stores who is primary on the pivot; the hub
-                // uses that one, so a solution belongs to exactly one person
-                // and a block is never drawn twice.
-                'people' => fn ($q) => $q->select('people.id', 'people.name')->withPivot('is_primary'),
+                'people' => fn ($q) => $q->select('people.id', 'people.name')->withPivot(['is_primary', 'role']),
             ])
             ->orderBy('name')
             ->get();
@@ -103,6 +101,43 @@ class SolutionGraphService
     }
 
     /**
+     * Roles that can answer for a solution, best first.
+     *
+     * `vendor_contact` is deliberately absent: that person works for the
+     * supplier, and a screen titled "Responsável" naming them would say
+     * something false about who to ask inside Leo. A solution whose only links
+     * are vendor contacts belongs in "Sem responsável", which is the true
+     * answer.
+     */
+    private const RESPONSIBLE_ROLES = ['manager', 'business', 'technical', 'key_user', 'support'];
+
+    /**
+     * The one person a solution is filed under on the owner axis.
+     *
+     * `is_primary` alone could not do this: 78 of the 109 solutions in the
+     * catalog carry more than one, because `SolutionController::attachPerson`
+     * never sets the flag at all — the only writer is the seeder, once per
+     * role. So the pick was "whichever row the database happened to return
+     * first", and a solution could change hubs between two page loads.
+     *
+     * The order is: a primary link first, then the role that best answers for a
+     * system, then the lowest person id — every step total, so the same catalog
+     * always draws the same map.
+     */
+    private function responsibleFor(Solution $solution): ?Person
+    {
+        return $solution->people
+            ->filter(fn (Person $person) => in_array($person->pivot->role, self::RESPONSIBLE_ROLES, true))
+            ->sortBy([
+                fn (Person $a, Person $b) => ($b->pivot->is_primary ? 1 : 0) <=> ($a->pivot->is_primary ? 1 : 0),
+                fn (Person $a, Person $b) => array_search($a->pivot->role, self::RESPONSIBLE_ROLES, true)
+                    <=> array_search($b->pivot->role, self::RESPONSIBLE_ROLES, true),
+                fn (Person $a, Person $b) => $a->id <=> $b->id,
+            ])
+            ->first();
+    }
+
+    /**
      * Which bucket a solution falls in, and what that bucket is called.
      *
      * A blank value is a bucket of its own rather than a dropped row: "12
@@ -115,7 +150,7 @@ class SolutionGraphService
     {
         return match ($axis) {
             'owner' => (function () use ($solution) {
-                $person = $solution->people->firstWhere('pivot.is_primary', true) ?? $solution->people->first();
+                $person = $this->responsibleFor($solution);
 
                 return $person ? ['owner-' . $person->id, $person->name] : ['owner-none', 'Sem responsável'];
             })(),

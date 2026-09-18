@@ -1233,6 +1233,11 @@
                 pointer-events: none;
                 z-index: -1;
             }
+            /* `pointer-events: stroke` limits the target to the band of the
+               stroke itself, and it is neither a typo nor a preference:
+               `visiblePainted` would give a transparent stroke nothing at all,
+               and `all` would make the route's CLOSED area a target too,
+               swallowing clicks in the empty space between two elbows. */
             .ak-viz-hits path.ak-viz-edge-hit {
                 fill: none;
                 stroke: transparent;

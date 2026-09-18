@@ -106,7 +106,10 @@ it('404s a page that belongs to another caderno', function () {
 it('keeps a reader out of the whole inventory and sends them to /docs', function () {
     $reader = reader();
 
-    foreach (['solutions.index', 'people.index', 'companies.index', 'notebooks.index', 'diagrams.index', 'flowspec.index', 'submissions.index', 'profile.show'] as $route) {
+    // `solutions.map` and its data endpoint included: with `?group=owner` that
+    // endpoint answers with every internal owner's name as plain JSON, so it
+    // drifting out of the `inventory` group is not a cosmetic mistake.
+    foreach (['solutions.index', 'people.index', 'companies.index', 'notebooks.index', 'diagrams.index', 'flowspec.index', 'submissions.index', 'solutions.map', 'solutions.map.data', 'profile.show'] as $route) {
         $this->actingAs($reader)
             ->get(route($route))
             ->assertRedirect(route('docs.index'));
