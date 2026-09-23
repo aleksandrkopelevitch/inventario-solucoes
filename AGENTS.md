@@ -99,7 +99,8 @@ never loads, and fails silently.
   - `dd()` committed
   - raw queries
   - heavy logic in Blade
-  - raw `<button>` tags (use `<x-forms.button>` always)
+  - raw `<button>` tags (use `<x-forms.button>` — see § Blade components for
+    the two things that legitimately emit the element)
 - `env()` only inside `config/*.php` files — never call it directly in application code
 - Sensitive env values must use Laravel's encrypted environment variables
 
@@ -209,7 +210,7 @@ Route::get('/proposals/{proposal}/analyses/{analysis}', ...)
 
 - Every model must define `$fillable` — no `$guarded = []` shortcuts
 - Every controller action that mutates data must call `$this->authorize()` or use a Policy
-- Validate all input via Form Request classes — no inline `$request->validate()` in controllers:
+- Validate all input via Form Request classes — no inline `$request->validate()` in controllers. **This one has no exception**, and the loophole to refuse is the plausible-sounding "it is one rule over a payload the client generated": the canvas posting its own rendered PNG is exactly that, and it has `StoreDiagramPictureRequest` (which is also where the reasoning lives — PNG only, deliberately not the app's shared image rule). A second endpoint doing the same thing inline is drift, not a judgement call:
 
 ```php
 class StoreProposalRequest extends FormRequest
@@ -345,7 +346,20 @@ Two traps live in that macro, both found the hard way on the first real import:
 ## Error Handling
 
 - All exception renderers (`ValidationException`, `NotFoundHttpException`, etc.) are registered in `bootstrap/app.php` — both JSON (`wantsJson()`) and HTML responses are handled there
-- **Never use try/catch in controllers** — exceptions bubble up and are handled centrally
+- **Never use try/catch in controllers** — exceptions bubble up and are handled centrally.
+
+  **One exception, and it is the only one:** the Entra OAuth callback
+  (`Auth\EntraController::callback`). It is the one action in the app with no
+  authenticated shell to render an error into — the central renderer would
+  answer an unsigned-in person with the app's own error page — so every way
+  the round trip can fail has to become a redirect to `login.create` carrying
+  a flash, and the three catches are three DIFFERENT outcomes: a refusal this
+  app decided (`EntraSignInRejected`, shown even on a silent attempt, because
+  the person is going to press the button next and would otherwise get the
+  same silence twice), a lost session state (`InvalidStateException` — a stale
+  tab or somebody else's callback, where starting over is the honest answer)
+  and anything else, which is `report()`ed and generalised. A new catch there
+  keeps that shape; a catch anywhere else in a controller does not get one.
 - Define `report()` and `render()` directly on custom Exception classes for domain-specific handling
 - Application exceptions should be self-contained
 - Custom error PAGES live in `resources/views/errors/{status}.blade.php` (403, 404). They are deliberately self-contained (own `<html>`, no `x-layouts.layout`): the app shell renders a sidebar with `auth()->user()`, and a 404 also serves the one unauthenticated surface in the app — an expired public-documentation magic link
@@ -409,7 +423,14 @@ All fields optional. `Toast` and `Modal` are global singletons — no import nee
 
 ## Blade components
 
-Use custom form components instead of raw HTML — **never write a raw `<button>`, `<input>`, `<select>`, `<textarea>`, or `<label>`**:
+Use custom form components instead of raw HTML — **never write a raw `<button>`, `<input>`, `<select>`, `<textarea>`, or `<label>`**. The rule is about the app's CONTROLS, not about the elements: what it forbids is hand-rolling a second `<x-forms.button>` (relief, spinner/label spans, padding, focus ring) next to the real one. Two places legitimately emit the raw element:
+
+- **The form components themselves** (`components/forms/*.blade.php`) — they are the primitives the rule points at; `chips` and `image-upload` build their own controls for the same reason.
+- **A control that is accessibly a button but is not one of the app's buttons**: a link-styled action (`text-accent hover:underline`, driven by `data-ak-ajax` over a hidden bodyless form), a disclosure or dropdown trigger, a sortable `<th>`, a row that jumps to a section, the fake search field that opens the palette, a `data-close` ×. Giving one of those `<x-forms.button>` chrome would be the mistake, not the fix.
+
+The line is whether the thing READS as a button — and when it does, use the component even for an icon: `components/notebooks/index.blade.php` uses `<x-forms.button variant="ghost">` for the pencil precisely so the trash beside it would not become a second exception. Standing exceptions, all of the second kind — under `resources/views/components/`: `docs/notebook-switcher`, `documentation/pages-nav`, `documentation/search-panel`, `layouts/public-docs`, `notebooks/share-panel`, `people/access`, `people/accounts`, `solutions/notebooks`, `solutions/sortable-th`, `submissions/progress`; plus `resources/views/profile/edit.blade.php`.
+
+The components:
 `<x-forms.input>`, `<x-forms.select>`, `<x-forms.textarea>`, `<x-forms.button>`, `<x-forms.label>`, `<x-forms.file>`, `<x-forms.checkbox>`, `<x-forms.radio-group>`, `<x-forms.radio>`, `<x-forms.field>` (label+hint+error wrapper), `<x-forms.toggle>` (boolean switch), `<x-forms.image-upload>`, `<x-forms.chips>` (multi-select with role)
 
 The `<x-forms.button>` component emits the `data-spinner` / `data-label` spans
