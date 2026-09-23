@@ -99,7 +99,8 @@ never loads, and fails silently.
   - `dd()` committed
   - raw queries
   - heavy logic in Blade
-  - raw `<button>` tags (use `<x-forms.button>` always)
+  - raw `<button>` tags (use `<x-forms.button>` — see § Blade components for
+    the two things that legitimately emit the element)
 - `env()` only inside `config/*.php` files — never call it directly in application code
 - Sensitive env values must use Laravel's encrypted environment variables
 
