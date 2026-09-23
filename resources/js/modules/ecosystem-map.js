@@ -396,9 +396,26 @@ function mount(shell) {
 
         // A hub unfolds nothing: its members are already on screen. Clicking
         // it frames it — which is what you want from a grouping of 40 systems
-        // on a screen holding six groupings.
+        // on a screen holding six groupings. It still SELECTS, or the detail
+        // card has nothing to read and the tooltip stays up over the area the
+        // camera just flew to.
         if (node.type === 'group') {
+            tip.hidden = true
+            select(node)
             focusOn(node, ...state.nodes.filter((n) => n.parentId === node.id))
+
+            return
+        }
+
+        // A system in the grouped reading has nothing to unfold either: that
+        // payload carries no diagrams. Toggling `expandedSolutions` there only
+        // turned `focusSet()` on — greying every other block, hubs included, to
+        // alpha 0.22 — and hard-zoomed the camera onto a block that had not
+        // changed. Reading one system is what a click means here, so it selects
+        // and leaves the camera alone.
+        if (state.payload?.groups?.length && node.type === 'solution') {
+            tip.hidden = true
+            select(node)
 
             return
         }
@@ -851,7 +868,7 @@ function mount(shell) {
             // legible. Up close (or under the pointer) the names come back,
             // which is when you are reading one grouping rather than the set
             // of them.
-            if (node.type === 'solution' && state.payload.groups.length && k < 0.62 && ! focused) continue
+            if (node.type === 'solution' && state.payload?.groups?.length && k < 0.62 && ! focused) continue
 
             const [sx, sy] = api.w2s(node.x, node.y)
             if (sx < -80 || sy < -40 || sx > api.size.width + 80 || sy > api.size.height + 40) continue

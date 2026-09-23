@@ -62,14 +62,21 @@ class SolutionMapController extends Controller
     {
         $this->authorize('viewAny', Solution::class);
 
+        // A query string can make any of these an ARRAY (`?group[]=x`), and
+        // every one of them ends up in a `where()` or a `(string)` cast. The
+        // cast answered "Array to string conversion" — a 500 out of a read
+        // endpoint any signed-in account can call — so a non-string is read as
+        // absent here rather than defended against four times downstream.
+        $only = fn (string $key) => is_string($value = $request->query($key)) ? $value : null;
+
         $filters = [
-            'status'      => $request->query('status'),
-            'category'    => $request->query('category'),
-            'directorate' => $request->query('directorate'),
+            'status'      => $only('status'),
+            'category'    => $only('category'),
+            'directorate' => $only('directorate'),
         ];
 
-        if ($axis = $request->query('group')) {
-            return response()->json($this->groups->groupedBy((string) $axis, $filters));
+        if ($axis = $only('group')) {
+            return response()->json($this->groups->groupedBy($axis, $filters));
         }
 
         return response()->json($this->graph->globalMap(filters: $filters));

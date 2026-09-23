@@ -82,8 +82,11 @@ it('leaves the drawing standing, with the block as free text', function () {
         ->and($chain['nodes'][0]['label'])->toBe('Sistema Fantasma')
         ->and($chain['edges'])->toHaveCount(1)
         // Re-derived from what is LEFT in the chain, not blanked: the other
-        // block is still a solution, so it becomes the source.
-        ->and($diagram->fresh()->source_solution_id)->not->toBe($solution->id);
+        // block is still a solution, so it becomes the source. Asserted by
+        // NAME, not by `not->toBe($solution->id)` — `null` satisfies that too,
+        // so the weaker form passed whether the column was re-derived or
+        // wiped, which is the one distinction this line exists to make.
+        ->and($diagram->fresh()->source_solution_id)->toBe($other->id);
 });
 
 it('cleans a CATI submission drawing the same way it cleans a catalog one', function () {

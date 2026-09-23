@@ -289,6 +289,15 @@ function corridorOffsets(corridors) {
 
         members
             .slice()
+            // A ordenação por `lo` é LOAD-BEARING, não cosmética: é ela que
+            // torna o `clusters.find()` abaixo — que pega o primeiro que
+            // encontra — equivalente a uma fusão de intervalos correta. Com a
+            // entrada ordenada, todo span novo tem `lo` maior ou igual ao de
+            // todos os clusters, os clusters nascem disjuntos e nunca voltam a
+            // se sobrepor, então no máximo UM candidato casa e o "primeiro"
+            // nunca escolhe de verdade (medido: 2.147.981 buscas, zero com
+            // mais de um candidato). Tire o sort e a mesma entrada deixa dois
+            // clusters sobrepostos com escadas de offset independentes.
             .sort((a, b) => span(a).lo - span(b).lo)
             .forEach((i) => {
                 const { lo, hi } = span(i)
@@ -2368,6 +2377,17 @@ function mount(root) {
                 drawHandle(a3, i, 'to')
             }
         })
+
+        // Todo alvo de clique vai para BAIXO de tudo que é desenhado. Eles são
+        // criados dentro do laço, então o alvo da ligação N+1 era anexado
+        // depois da pill da ligação N — e o SVG testa o clique de cima para
+        // baixo, pelo fim do documento. Onde duas rotas se cruzam (rotina num
+        // desenho em raias), a faixa invisível de 16px da segunda cobria o
+        // rótulo escrito da primeira e engolia o clique: abria o editor da
+        // ligação errada. Mover é suficiente porque o traço visível herda
+        // `pointer-events: none` do SVG e a pill reabre o seu (`is-editable`),
+        // então a ordem entre pill e alvo é a única que decide.
+        edges.querySelectorAll('.ak-viz-edge-hit').forEach((hit) => edges.insertBefore(hit, edges.firstChild))
 
         spreadProtocolPills()
 
