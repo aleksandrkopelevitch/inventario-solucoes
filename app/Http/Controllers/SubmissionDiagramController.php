@@ -10,6 +10,7 @@ use App\Http\Requests\RemoveChainEdgeRequest;
 use App\Http\Requests\RemoveChainNodeRequest;
 use App\Http\Requests\RetargetChainEdgeRequest;
 use App\Http\Requests\SaveChainLayoutRequest;
+use App\Http\Requests\StoreDiagramPictureRequest;
 use App\Http\Requests\StoreSubmissionDiagramUploadRequest;
 use App\Http\Requests\UpdateChainNodeRequest;
 use App\Http\Requests\UpdateChainProtocolRequest;
@@ -146,12 +147,9 @@ class SubmissionDiagramController extends Controller
      * browser in the loop, which is what keeps the canvas the one place a
      * diagram is edited.
      */
-    public function storePicture(Request $request, Submission $submission, SubmissionDiagram $diagram): JsonResponse
+    public function storePicture(StoreDiagramPictureRequest $request, Submission $submission, SubmissionDiagram $diagram): JsonResponse
     {
-        $this->authorize('update', $diagram);
         abort_unless($diagram->kind->isDrawn(), 404);
-
-        $request->validate(['image' => ['required', 'image', 'mimes:png', 'max:8192']]);
 
         $diagram->addMediaFromRequest('image')->toMediaCollection($diagram->chainDiagramCollection());
 
