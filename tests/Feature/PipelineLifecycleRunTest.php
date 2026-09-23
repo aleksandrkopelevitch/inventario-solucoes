@@ -558,3 +558,153 @@ it('offers the trigger on the panel', function () {
         ->and($html)->toContain('trigger_cron')
         ->and($html)->toContain('trigger_event');
 });
+
+it('refuses to create a pipeline with no trigger, instead of creating an undeployable one', function () {
+    Queue::fake();
+    $user = runEditor();
+    $chat = runChatFor($user);
+    $message = runMessageIn($chat);
+
+    // Without this the form could still reproduce the condition the trigger
+    // work exists to remove: the run creates the pipeline (permanent — nothing
+    // on this platform deletes one), `DeployPipeline` then refuses it for an
+    // empty `triggerSpec`, and the realm keeps an undeployable name forever.
+    $this->actingAs($user)
+        ->postJson(route('flowspec.lifecycle.store', [$chat, $message]), runPayload(['creates' => true]))
+        ->assertStatus(422)
+        ->assertJson(['type' => 'warning'])
+        ->assertJsonFragment(['message' => 'Um pipeline novo precisa de gatilho: sem ele a Digibee recusa publicar, e o pipeline criado fica para sempre — nada aqui apaga um.']);
+
+    expect(PipelineRun::count())->toBe(0);
+});
+
+it('still lets a run against an existing pipeline keep the trigger it already has', function () {
+    Queue::fake();
+    $user = runEditor();
+    $chat = runChatFor($user);
+    $message = runMessageIn($chat);
+
+    // `required_if` is about CREATION only: an existing pipeline has a trigger
+    // of its own, and null still means "leave it alone".
+    $this->actingAs($user)
+        ->postJson(route('flowspec.lifecycle.store', [$chat, $message]), runPayload())
+        ->assertOk();
+
+    expect(PipelineRun::sole()->trigger_kind)->toBeNull();
+});
+
+it('hides keeping the pipeline own trigger once creating is on the table', function () {
+    $user = runEditor();
+    $chat = runChatFor($user);
+    $message = runMessageIn($chat);
+
+    // The rule above is server-side; this is the form telling the same truth,
+    // so a refusal is not the first the operator hears of it.
+    $this->actingAs($user)->get(route('flowspec.show', $chat))
+        ->assertSee('data-ak-trigger-keep', false)
+        ->assertSee('data-ak-trigger-creates', false);
+});
+
+it('hands the healing service the trigger the run recorded', function () {
+    // The one line #118 exists to add. Every test around it builds a run with
+    // no trigger columns, so `trigger()` returns null before it does anything
+    // and no double ever inspected the argument it declares — deleting
+    // `trigger: $this->trigger($triggers)` from handle() left 86 tests green.
+    $user = runEditor();
+    $chat = runChatFor($user);
+    $message = runMessageIn($chat);
+
+    $run = PipelineRun::create([
+        'flowspec_message_id' => $message->id, 'user_id' => $user->id,
+        'pipeline_name' => 'zfl-teste', 'environment' => 'test',
+        'trigger_kind' => 'scheduler', 'trigger_cron' => '0 0 6 ? * * *',
+        'status' => PipelineRunStatus::Pending,
+    ]);
+
+    $received = new stdClass;
+    $received->trigger = 'never called';
+
+    $healing = new class($received) extends PipelineHealingService
+    {
+        public function __construct(private stdClass $received) {}
+
+        public function heal(
+            array $document,
+            string $pipelineName,
+            string $environment = 'test',
+            ?App\Support\Digibee\TriggerSpec $trigger = null,
+            ?App\Support\Digibee\Testing\EndpointCredential $credential = null,
+            bool $create = false,
+            ?int $maxRounds = null,
+            ?callable $onRound = null,
+            ?int $deployTimeoutSeconds = null,
+        ): HealingReport {
+            $this->received->trigger = $trigger;
+
+            return new HealingReport(
+                pipelineName: $pipelineName, environment: $environment,
+                verdict: HealingVerdict::Green, document: $document,
+            );
+        }
+    };
+
+    $assess = new class extends AssessPromotion
+    {
+        public function __construct() {}
+
+        public function handle(HealingReport $evidence): PromotionReadiness
+        {
+            return new PromotionReadiness(
+                pipelineName: $evidence->pipelineName, testedIn: $evidence->environment,
+                ready: true, version: 'v1.0',
+            );
+        }
+    };
+
+    (new RunPipelineLifecycle($run))->handle($healing, $assess, app(SynthesizeTriggerSpec::class));
+
+    expect($received->trigger)->toBeInstanceOf(App\Support\Digibee\TriggerSpec::class)
+        ->and($received->trigger->kind)->toBe(DigibeeTriggerKind::Scheduler)
+        // The cron the form asked for reaches the platform, not a synthesized guess.
+        ->and($received->trigger->spec['cronExpression'] ?? null)->toBe('0 0 6 ? * * *')
+        ->and($received->trigger->missing)->toBe([]);
+});
+
+it('offers the form again once a run has settled, so a wrong trigger can be corrected', function () {
+    $user = runEditor();
+    $chat = runChatFor($user);
+    $message = runMessageIn($chat);
+
+    // `PipelineRunController::store()` accepts another run the moment one
+    // settles — it only refuses while a run is unsettled. The panel hid the
+    // form for good, so the most likely mistake (a cron or an event name, both
+    // of which only fail by RUNNING) had no way back from the UI.
+    PipelineRun::create([
+        'flowspec_message_id' => $message->id, 'user_id' => $user->id,
+        'pipeline_name' => 'zfl-ja-existe', 'environment' => 'test',
+        'trigger_kind' => 'scheduler', 'trigger_cron' => '0 0 6 ? * * *',
+        'status' => PipelineRunStatus::Done, 'verdict' => HealingVerdict::StillFailing,
+        'finished_at' => now(),
+    ]);
+
+    $this->actingAs($user)->get(route('flowspec.show', $chat))
+        ->assertSee('data-ak-trigger-kind', false)
+        // Pointing at the pipeline that already exists, not a fresh suggestion:
+        // creating a second one is permanent on this platform.
+        ->assertSee('value="zfl-ja-existe"', false);
+});
+
+it('keeps the form away while a run is still going', function () {
+    $user = runEditor();
+    $chat = runChatFor($user);
+    $message = runMessageIn($chat);
+
+    PipelineRun::create([
+        'flowspec_message_id' => $message->id, 'user_id' => $user->id,
+        'pipeline_name' => 'zfl-rodando', 'environment' => 'test',
+        'status' => PipelineRunStatus::Running,
+    ]);
+
+    $this->actingAs($user)->get(route('flowspec.show', $chat))
+        ->assertDontSee('data-ak-trigger-kind', false);
+});

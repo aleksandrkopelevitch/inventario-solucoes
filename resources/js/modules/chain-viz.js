@@ -289,6 +289,15 @@ function corridorOffsets(corridors) {
 
         members
             .slice()
+            // A ordenação por `lo` é LOAD-BEARING, não cosmética: é ela que
+            // torna o `clusters.find()` abaixo — que pega o primeiro que
+            // encontra — equivalente a uma fusão de intervalos correta. Com a
+            // entrada ordenada, todo span novo tem `lo` maior ou igual ao de
+            // todos os clusters, os clusters nascem disjuntos e nunca voltam a
+            // se sobrepor, então no máximo UM candidato casa e o "primeiro"
+            // nunca escolhe de verdade (medido: 2.147.981 buscas, zero com
+            // mais de um candidato). Tire o sort e a mesma entrada deixa dois
+            // clusters sobrepostos com escadas de offset independentes.
             .sort((a, b) => span(a).lo - span(b).lo)
             .forEach((i) => {
                 const { lo, hi } = span(i)
@@ -324,14 +333,41 @@ function corridorOffsets(corridors) {
  * atravessada num trecho em pé.
  */
 function labelAnchor(points) {
-    let best = null
+    // Funde os trechos colineares ANTES de medir, porque é isso que se vê:
+    // `roundedPath()` desenha a rota já fundida, mas `orthogonalPoints()`
+    // ainda a entrega em vértices crus — numa seta reta são cinco pontos, dois
+    // deles no mesmo lugar. Pontuando vértice a vértice, o maior "trecho" de
+    // uma reta era METADE do corredor, e o rótulo pousava no ponto de 25% do
+    // traço que o usuário enxerga (64px fora do centro num vão de 256px).
+    const runs = []
 
     for (let i = 1; i < points.length; i++) {
         const [a, b] = [points[i - 1], points[i]]
-        const horiz = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y)
-        const score = (horiz ? Math.abs(b.x - a.x) * 1.35 : Math.abs(b.y - a.y))
 
-        if (!best || score > best.score) best = { score, horiz, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+        // O vértice repetido do meio de uma rota reta.
+        if (a.x === b.x && a.y === b.y) continue
+
+        const horiz = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y)
+        const last = runs[runs.length - 1]
+
+        // Mesmo eixo e mesma linha: é a continuação do traço anterior.
+        if (last && last.horiz === horiz && (horiz ? last.a.y === b.y : last.a.x === b.x)) {
+            last.b = b
+            continue
+        }
+
+        runs.push({ horiz, a, b })
+    }
+
+    let best = null
+
+    for (const run of runs) {
+        const length = run.horiz ? Math.abs(run.b.x - run.a.x) : Math.abs(run.b.y - run.a.y)
+        const score = run.horiz ? length * 1.35 : length
+
+        if (!best || score > best.score) {
+            best = { score, horiz: run.horiz, x: (run.a.x + run.b.x) / 2, y: (run.a.y + run.b.y) / 2 }
+        }
     }
 
     return best
@@ -2341,6 +2377,17 @@ function mount(root) {
                 drawHandle(a3, i, 'to')
             }
         })
+
+        // Todo alvo de clique vai para BAIXO de tudo que é desenhado. Eles são
+        // criados dentro do laço, então o alvo da ligação N+1 era anexado
+        // depois da pill da ligação N — e o SVG testa o clique de cima para
+        // baixo, pelo fim do documento. Onde duas rotas se cruzam (rotina num
+        // desenho em raias), a faixa invisível de 16px da segunda cobria o
+        // rótulo escrito da primeira e engolia o clique: abria o editor da
+        // ligação errada. Mover é suficiente porque o traço visível herda
+        // `pointer-events: none` do SVG e a pill reabre o seu (`is-editable`),
+        // então a ordem entre pill e alvo é a única que decide.
+        edges.querySelectorAll('.ak-viz-edge-hit').forEach((hit) => edges.insertBefore(hit, edges.firstChild))
 
         spreadProtocolPills()
 

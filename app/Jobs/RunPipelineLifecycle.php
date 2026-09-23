@@ -160,14 +160,6 @@ class RunPipelineLifecycle implements ShouldQueue
     }
 
     /**
-     * One finished round, persisted immediately.
-     *
-     * Only what a screen needs: the round's verdict, how far it got, and the
-     * evidence lines. The reports themselves are NOT stored — a
-     * `DeploymentReport` carries the engine's raw log tail, which on a real
-     * integration is whatever the pipeline was logging when it died.
-     */
-    /**
      * The trigger this run was asked to write, or `null` for "leave the
      * pipeline's own alone".
      *
@@ -190,6 +182,14 @@ class RunPipelineLifecycle implements ShouldQueue
         ]));
     }
 
+    /**
+     * One finished round, persisted immediately.
+     *
+     * Only what a screen needs: the round's verdict, how far it got, and the
+     * evidence lines. The reports themselves are NOT stored — a
+     * `DeploymentReport` carries the engine's raw log tail, which on a real
+     * integration is whatever the pipeline was logging when it died.
+     */
     private function appendRound(HealingRound $round): void
     {
         $this->run->update([

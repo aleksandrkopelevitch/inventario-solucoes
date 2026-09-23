@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Contracts\ChainCanvas;
+use App\Models\ApprovedTopology;
 use App\Models\Diagram;
 use App\Models\Solution;
 use App\Models\SubmissionDiagram;
@@ -28,29 +29,28 @@ use Illuminate\Support\Facades\DB;
  *   Dropping only the id leaves the block where it was, named the same, as
  *   free text — what a drawing of a system that left the catalog should look
  *   like. Deleting the block instead would renumber every edge after it.
+ *
+ * **Three tables store that node shape, not two.** `approved_topologies.chain`
+ * is a SNAPSHOT of a committee's TO BE, so it is not a `ChainCanvas` (nothing
+ * draws or edits it, and the contract's media/URL half would be dead weight) —
+ * but it holds the same `{solution_id, label, kind}` and its own foreign key
+ * only covers the solution the submission was ABOUT. A solution that merely
+ * APPEARS inside an approved chain used to survive the delete as a dangling
+ * id, and `ApplyApprovedTopology` then died on it: `SyncDiagramFromChain`
+ * attaches the participants it reads from the chain, so the apply answered
+ * `FOREIGN KEY constraint failed` on `diagram_solution` — a 500 for whoever
+ * approved it, months after the delete that caused it.
  */
 class DeleteSolution
 {
     public function handle(Solution $solution): void
     {
         $drawings = $this->drawingsMentioning($solution);
+        $snapshots = $this->snapshotsMentioning($solution);
 
-        DB::transaction(function () use ($solution, $drawings) {
+        DB::transaction(function () use ($solution, $drawings, $snapshots) {
             foreach ($drawings as $canvas) {
-                $chain = $canvas->chainData() ?? [];
-
-                $chain['nodes'] = array_map(function (array $node) use ($solution) {
-                    if (($node['solution_id'] ?? null) !== $solution->id) {
-                        return $node;
-                    }
-
-                    $node['label'] = $node['label'] ?? $solution->name;
-                    $node['solution_id'] = null;
-
-                    return $node;
-                }, array_values($chain['nodes'] ?? []));
-
-                $canvas->writeChain(chain: $chain);
+                $canvas->writeChain(chain: $this->withoutSolution($canvas->chainData() ?? [], $solution));
                 // A catalog drawing re-derives `source_solution_id` /
                 // `target_solution_id` here — the cascade this is all for —
                 // and its participants pivot. A submission's drawing derives
@@ -58,8 +58,50 @@ class DeleteSolution
                 $canvas->afterChainMutation();
             }
 
+            // A snapshot derives nothing at rest: `ApplyApprovedTopology`
+            // writes it into a `Diagram` and lets THAT re-derive. So the chain
+            // is the whole record here, and rewriting it is the whole fix.
+            foreach ($snapshots as $snapshot) {
+                $snapshot->update(['chain' => $this->withoutSolution($snapshot->chain ?? [], $solution)]);
+            }
+
             $solution->delete();
         });
+    }
+
+    /**
+     * The same chain, with every block that pointed at this solution turned
+     * into free text.
+     *
+     * `is_array` only so this method agrees with `canvasesMentioning()` below,
+     * which already guards it when deciding whether a chain matches — the two
+     * halves of one scan disagreeing about the shape they walk is its own bug.
+     * It does NOT make a malformed chain survivable: `SyncDiagramFromChain`
+     * type-hints the same node `array` and dies on it a moment later, and the
+     * dev corpus holds 33 nodes and no such entry. Don't read this guard as a
+     * promise the rest of the pipeline does not make.
+     *
+     * The label falls back on blank as well as null, and that half is real: a
+     * block stored with `''` survived as an unnamed rectangle, which is the
+     * outcome this method exists to avoid.
+     *
+     * @param  array<string, mixed>  $chain
+     * @return array<string, mixed>
+     */
+    private function withoutSolution(array $chain, Solution $solution): array
+    {
+        $chain['nodes'] = array_map(function (mixed $node) use ($solution) {
+            if (! is_array($node) || ($node['solution_id'] ?? null) !== $solution->id) {
+                return $node;
+            }
+
+            $node['label'] = ($node['label'] ?? '') !== '' ? $node['label'] : $solution->name;
+            $node['solution_id'] = null;
+
+            return $node;
+        }, array_values($chain['nodes'] ?? []));
+
+        return $chain;
     }
 
     /**
@@ -78,6 +120,39 @@ class DeleteSolution
     {
         return $this->canvasesMentioning($solution, Diagram::class, ['source_solution_id', 'target_solution_id'])
             ->concat($this->canvasesMentioning($solution, SubmissionDiagram::class, []));
+    }
+
+    /**
+     * Every approved TO BE whose snapshot names this solution.
+     *
+     * Scanned in PHP for the same reason the drawings are, and kept apart from
+     * them because an `ApprovedTopology` is not a canvas: it has no
+     * `afterChainMutation()` to run and no media to keep, so the contract the
+     * other two share would be a costume on this one.
+     *
+     * Applied rows are swept too. An applied snapshot is history, but
+     * `ApplyApprovedTopology::handle()` takes an optional target and can write
+     * it again into a different diagram — history that can still be replayed
+     * has to be replayable.
+     *
+     * @return Collection<int, ApprovedTopology>
+     */
+    private function snapshotsMentioning(Solution $solution): Collection
+    {
+        $ids = ApprovedTopology::query()
+            ->select(['id', 'chain'])
+            ->cursor()
+            ->filter(fn (ApprovedTopology $topology) => $this->chainMentions($topology->chain ?? [], $solution))
+            ->pluck('id');
+
+        return $ids->isEmpty() ? collect() : ApprovedTopology::whereKey($ids)->get();
+    }
+
+    /** Whether any node in this chain points at the solution. */
+    private function chainMentions(?array $chain, Solution $solution): bool
+    {
+        return collect($chain['nodes'] ?? [])
+            ->contains(fn (mixed $node) => is_array($node) && ($node['solution_id'] ?? null) === $solution->id);
     }
 
     /**
@@ -106,8 +181,7 @@ class DeleteSolution
                     }
                 }
 
-                return collect($canvas->chainData()['nodes'] ?? [])
-                    ->contains(fn (mixed $node) => is_array($node) && ($node['solution_id'] ?? null) === $solution->id);
+                return $this->chainMentions($canvas->chainData() ?? [], $solution);
             })
             ->pluck('id');
 

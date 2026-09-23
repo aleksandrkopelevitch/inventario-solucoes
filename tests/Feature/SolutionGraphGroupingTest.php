@@ -7,6 +7,7 @@ use App\Models\Person;
 use App\Models\Solution;
 use App\Models\User;
 use App\Services\SolutionGraphService;
+use App\Support\CategoryPalette;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 
 uses(LazilyRefreshDatabase::class);
@@ -80,4 +81,66 @@ it('ignores an axis nobody defined rather than failing', function () {
     Solution::factory()->create();
 
     expect(app(SolutionGraphService::class)->groupedBy('inventado')['groupAxis'])->toBe('directorate');
+});
+
+it('filters the grouped reading by a status a solution can actually have', function () {
+    // The two readings filter DIFFERENT things by status: the topology map
+    // filters the DIAGRAMS it draws as edges, this one filters the SOLUTIONS.
+    // One shared option list made the control lie — "Em desenvolvimento" is a
+    // diagram status, so grouped it matched nothing and blanked the map with
+    // no message, while `evaluating` was not offered at all.
+    Solution::factory()->create(['status' => 'active', 'directorate' => 'Financeiro']);
+    Solution::factory()->create(['status' => 'evaluating', 'directorate' => 'Financeiro']);
+
+    $graph = app(SolutionGraphService::class);
+
+    expect($graph->groupedBy('directorate', ['status' => 'evaluating'])['nodes'])->toHaveCount(1)
+        ->and($graph->groupedBy('directorate', ['status' => 'active'])['nodes'])->toHaveCount(1)
+        ->and($graph->groupedBy('directorate', ['status' => 'all'])['nodes'])->toHaveCount(2);
+});
+
+it('offers each reading its own status vocabulary on the filter bar', function () {
+    AttributeOption::create(['group' => 'status', 'value' => 'evaluating', 'label' => 'Em avaliação']);
+
+    $this->actingAs(mapReader())->get(route('solutions.map'))
+        ->assertOk()
+        // The diagram vocabulary, for the topology reading...
+        ->assertSee('data-ak-status-for="links"', false)
+        ->assertSee('in_development', false)
+        // ...and the solution one, for the grouped reading.
+        ->assertSee('data-ak-status-for="groups"', false)
+        ->assertSee('Em avaliação');
+});
+
+it('does not 500 when a filter arrives as an array', function () {
+    // Every one of these reaches a `where()`, and `group` also reached a
+    // `(string)` cast that answered "Array to string conversion" — a 500 out
+    // of a read endpoint any signed-in account can call with `?group[]=x`.
+    Solution::factory()->create(['directorate' => 'Financeiro']);
+
+    foreach (['group', 'status', 'category', 'directorate'] as $key) {
+        $this->actingAs(mapReader())
+            ->getJson(route('solutions.map.data', [$key => ['directorate']]))
+            ->assertOk();
+    }
+});
+
+it('colours a category hub from the category palette, not the rotation', function () {
+    // `category` is the only axis with a branch of its own — it is the single
+    // call site of CategoryPalette::family() for a hub, while the other three
+    // take a colour by position from FAMILIES. It was also the only axis with
+    // no test.
+    // `solutions.category` is NOT NULL, so the 'Sem categoria' bucket in
+    // `bucket()` is unreachable through this column — unlike directorate,
+    // which the sibling test covers as a blank.
+    AttributeOption::create(['group' => 'category', 'value' => 'erp', 'label' => 'ERP']);
+    Solution::factory()->count(2)->create(['category' => 'erp']);
+
+    $graph = app(SolutionGraphService::class)->groupedBy('category', []);
+    $labels = collect($graph['groups'])->pluck('label')->all();
+
+    expect($labels)->toContain('ERP')
+        ->and(collect($graph['groups'])->firstWhere('label', 'ERP')['count'])->toBe(2)
+        ->and(collect($graph['groups'])->firstWhere('label', 'ERP')['family'])
+        ->toBe(CategoryPalette::family('erp'));
 });

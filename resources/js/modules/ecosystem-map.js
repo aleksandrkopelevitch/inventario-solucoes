@@ -44,8 +44,9 @@ const SATELLITE_GAP = 200
 const CHAIN_SPACING = 120
 const EASE = 0.14
 
-// Como o rodapé conta os hubs, por eixo — "em 6 diretorias" lê melhor que
-// "em 6 grupos", e é a única frase da tela que nomeia o agrupamento.
+// How the footer counts the hubs, per axis — "em 6 diretorias" reads better
+// than "em 6 grupos", and it is the only sentence on screen that names the
+// grouping.
 const AXIS_LABEL = {
     directorate: 'Diretoria',
     owner: 'Responsável',
@@ -137,10 +138,10 @@ function mount(shell) {
             nodes: payload.nodes ?? [],
             edges: payload.edges ?? [],
             diagrams: payload.diagrams ?? [],
-            // A leitura por agrupamento manda `groups` e deixa as duas listas
-            // acima vazias. A normalização aqui é uma lista branca, então uma
-            // chave nova do servidor não chega ao renderizador sem passar por
-            // esta linha — de propósito, mas é fácil esquecer dela.
+            // The grouped reading sends `groups` and leaves the two lists
+            // above empty. This normalisation is an allow-list, so a new key
+            // from the server does not reach the renderer without passing
+            // through this line — deliberate, but easy to forget.
             groups: payload.groups ?? [],
             groupAxis: payload.groupAxis ?? null,
         }
@@ -189,12 +190,12 @@ function mount(shell) {
             })
         }
 
-        // Uma LEITURA por agrupamento (`SolutionGraphService`): os mesmos
-        // blocos, em volta de um hub por diretoria / responsável / fornecedor
-        // / categoria, em vez de ligados a quem trocam mensagem. Chega no
-        // mesmo contrato, com `edges` e `diagrams` vazios — então tudo abaixo
-        // simplesmente não encontra o que desenhar, e nada precisou de um
-        // "se estiver no outro modo".
+        // A grouped READING (`SolutionGraphService`): the same blocks, around
+        // one hub per directorate / owner / vendor / category, instead of
+        // linked to whoever they exchange messages with. It arrives on the
+        // same contract, with `edges` and `diagrams` empty — so everything
+        // below simply finds nothing to draw, and none of it needed an "if we
+        // are in the other mode".
         for (const group of state.payload.groups ?? []) {
             put({
                 id: group.id,
@@ -208,7 +209,7 @@ function mount(shell) {
             for (const solutionId of group.solutions) {
                 const member = byId.get(solutionId)
                 if (! member) continue
-                // Nasce no hub de onde saiu, como todo filho neste canvas.
+                // Born at the hub it came out of, like every child on this canvas.
                 member.parentId = group.id
                 links.push({ id: `${group.id}~${solutionId}`, kind: 'member', source: group.id, target: solutionId })
             }
@@ -393,11 +394,28 @@ function mount(shell) {
             return
         }
 
-        // Um hub não desdobra nada: os membros dele já estão na tela. Clicar
-        // nele é enquadrá-lo — que é o que se quer de um agrupamento com 40
-        // sistemas numa tela com seis agrupamentos.
+        // A hub unfolds nothing: its members are already on screen. Clicking
+        // it frames it — which is what you want from a grouping of 40 systems
+        // on a screen holding six groupings. It still SELECTS, or the detail
+        // card has nothing to read and the tooltip stays up over the area the
+        // camera just flew to.
         if (node.type === 'group') {
+            tip.hidden = true
+            select(node)
             focusOn(node, ...state.nodes.filter((n) => n.parentId === node.id))
+
+            return
+        }
+
+        // A system in the grouped reading has nothing to unfold either: that
+        // payload carries no diagrams. Toggling `expandedSolutions` there only
+        // turned `focusSet()` on — greying every other block, hubs included, to
+        // alpha 0.22 — and hard-zoomed the camera onto a block that had not
+        // changed. Reading one system is what a click means here, so it selects
+        // and leaves the camera alone.
+        if (state.payload?.groups?.length && node.type === 'solution') {
+            tip.hidden = true
+            select(node)
 
             return
         }
@@ -737,8 +755,8 @@ function mount(shell) {
             const count = countFor(node)
             if (count) drawBadge(ctx, node, count, k, state.expandedSolutions.has(node.id))
         } else if (node.type === 'group') {
-            // Anel, não disco: o hub é um continente, não mais um sistema —
-            // e o que importa nele é o número que carrega.
+            // A ring, not a disc: the hub is a continent rather than one more
+            // system — and what matters about it is the number it carries.
             ctx.fillStyle = hexToRgba(node.color, 0.14)
             circle(ctx, node.x, node.y, r)
             ctx.fill()
@@ -845,12 +863,12 @@ function mount(shell) {
             const focused = api.hover?.id === node.id || state.selected?.id === node.id
             if (node.type === 'diagram' && k < 0.42 && ! focused) continue
             if (node.type === 'step' && k < 0.5 && ! focused) continue
-            // Na leitura por agrupamento a visão de longe é a dos HUBS: 109
-            // nomes de sistema espalhados por 41 discos se sobrepõem até não
-            // sobrar uma palavra legível. De perto (ou sob o ponteiro) os
-            // nomes voltam, que é quando se está lendo um agrupamento e não o
-            // conjunto deles.
-            if (node.type === 'solution' && state.payload.groups.length && k < 0.62 && ! focused) continue
+            // In the grouped reading the far view is the HUBS': 109 system
+            // names spread over 41 discs overlap until not one word is
+            // legible. Up close (or under the pointer) the names come back,
+            // which is when you are reading one grouping rather than the set
+            // of them.
+            if (node.type === 'solution' && state.payload?.groups?.length && k < 0.62 && ! focused) continue
 
             const [sx, sy] = api.w2s(node.x, node.y)
             if (sx < -80 || sy < -40 || sx > api.size.width + 80 || sy > api.size.height + 40) continue
