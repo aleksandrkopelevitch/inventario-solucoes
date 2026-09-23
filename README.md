@@ -1345,6 +1345,25 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   regra duplicada lá dentro, o alvo de clique transparente das ligações caiu
   no `fill: black` padrão do UA e pintou um borrão preto ao longo de cada seta
   no PNG exportado.
+- **O PNG de um diagrama é DERIVADO, e quem o produz é o navegador.** O cliente
+  captura o canvas depois de cada salvamento de layout bem-sucedido e posta o
+  arquivo (fire-and-forget) numa coleção `singleFile` — só a imagem atual
+  interessa. Nada nesse caminho toca `chain` ou `viz_layout`: ele existe para
+  o deck do CATI imprimir a arquitetura **sem um navegador no meio**, que é o
+  que mantém o canvas como o único lugar onde um diagrama se edita.
+
+  A regra de validação é **PNG e só PNG** (`StoreDiagramPictureRequest`), e
+  isso é deliberado em vez de descuido: não é um upload que alguém escolheu, é
+  um arquivo que o próprio canvas produziu (`captureDiagramCanvas()`, lado
+  maior de 1600px), então aceitar jpg/webp/svg aqui só alargaria o que um
+  request feito à mão consegue colocar na coleção. **Os dois canvas passam
+  pela mesma classe** — o do catálogo e o AS IS/TO BE de uma submissão —, como
+  os nove requests de chain ao lado dela: a carga é idêntica e só o dono muda,
+  então `AuthorizesChainOwner` resolve o dono **por tipo**. Por nome de
+  parâmetro não dá: os dois grupos de rota escrevem `{diagram}` e ligam
+  modelos diferentes nele, e o `authorize()` que olhasse o parâmetro errado
+  acharia `null` e responderia 403 no caminho que funciona — o que se lê como
+  canvas quebrado, não como permissão.
 - **Erros de validação não seguem o shape padrão do Laravel.** `bootstrap/app.php`
   reformata `ValidationException` para `{message, title, type}` (sem `errors`),
   para casar com o padrão de Toast/Modal do frontend. `assertJsonValidationErrors()`
