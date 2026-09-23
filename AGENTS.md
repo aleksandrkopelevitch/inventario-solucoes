@@ -6,8 +6,12 @@ each linked to 0..N solutions),
 a **diagrams** module (the graphical topology editor, one drawing at a time),
 an internal **knowledge base** (`/docs` — the cadernos an admin published, read
 by anybody with a Leo account, most of whom arrive through Entra SSO),
-a read-only map of the ecosystem derived from those drawings, and an **MCP
-server** (`POST /mcp`) that lets a chat client read all of it. Fork of the
+a read-only map of the ecosystem derived from those drawings, the **Comitê de
+Arquitetura** module (`/submissions` — a proposal prepared, interviewed,
+rendered as a deck and deliberated), an **Especialista em Integrações**
+(`/flowspec` — generates a Digibee flowSpec, and writes it into a pipeline,
+deploys, tests and corrects it in rounds), and an **MCP server** (`POST /mcp`)
+that lets a chat client read all of it. Fork of the
 generic infra from the
 **akop-pro** reference project (forms, slots, JS modules, layout shells) — that
 project's legacy domain (CRM, DISC, multi-tenancy) is not part of this one.
@@ -54,6 +58,7 @@ if a rule you expect is not here, it is in one of these:
 | `documentation-assistant.md` | the Assiste IA chat, its vaults and its prompt contract |
 | `page-to-diagram-draft.md` | drawing a page: the draft IR, exact name resolution, the one synchronous model call |
 | `diagram-models.md` | the four diagram models, the semantics/geometry split, the lifeline and the AS IS × TO BE diff |
+| `cati-submissions.md` | the committee module: stages, the checklist, the interview, the deck, the approved topology |
 | `digibee-knowledge-base.md` | the two Digibee corpora, redaction, `digibeectl` boundaries |
 | `flowspec-pipeline-write.md` | writing a flowSpec into a pipeline, deploy and the test matrix |
 | `mcp-server.md` | the MCP server, its bearer token and what a token may read |
