@@ -52,13 +52,18 @@ class SolutionGraphService
             )
             ->when($filters['category'] ?? null, fn (Builder $q) => $q->where('category', $filters['category']))
             ->when($filters['directorate'] ?? null, fn (Builder $q) => $q->where('directorate', $filters['directorate']))
-            ->with([
-                'vendor:id,name',
+            // Only what THIS axis reads. `solutionNode()` touches no relation
+            // at all — every field it builds is a column or a `*_label`
+            // accessor — so the two loads below exist purely for `bucket()`,
+            // and loading both on all four axes hydrated a Person plus a pivot
+            // model per owner link on the reading that opens the screen.
+            ->when($axis === 'company', fn (Builder $q) => $q->with('vendor:id,name'))
+            ->when($axis === 'owner', fn (Builder $q) => $q->with([
                 // The owners grid stores who is primary on the pivot; the hub
                 // uses that one, so a solution belongs to exactly one person
                 // and a block is never drawn twice.
-                'people' => fn ($q) => $q->select('people.id', 'people.name')->withPivot('is_primary'),
-            ])
+                'people' => fn ($p) => $p->select('people.id', 'people.name')->withPivot('is_primary'),
+            ]))
             ->orderBy('name')
             ->get();
 

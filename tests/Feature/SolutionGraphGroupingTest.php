@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\SolutionGraphService;
 use App\Support\CategoryPalette;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 uses(LazilyRefreshDatabase::class);
 
@@ -143,4 +144,36 @@ it('colours a category hub from the category palette, not the rotation', functio
         ->and(collect($graph['groups'])->firstWhere('label', 'ERP')['count'])->toBe(2)
         ->and(collect($graph['groups'])->firstWhere('label', 'ERP')['family'])
         ->toBe(CategoryPalette::family('erp'));
+});
+
+it('loads only the relation the chosen axis actually reads', function () {
+    // `DiagramGraphService::solutionNode()` touches no relation — every field
+    // it builds is a column or a `*_label` accessor — so the eager loads exist
+    // purely for `bucket()`. Loading both on all four axes hydrated a Person
+    // plus a pivot model per owner link on the reading the screen opens with.
+    $person = Person::factory()->create();
+    $company = Company::factory()->create();
+    Solution::factory()->count(3)->create([
+        'directorate' => 'Financeiro', 'vendor_company_id' => $company->id,
+    ])->each(fn ($s) => $s->people()->attach($person, ['role' => 'manager', 'is_primary' => true]));
+
+    $graph = app(SolutionGraphService::class);
+
+    $count = function (string $axis) use ($graph) {
+        AttributeOption::forgetCache();
+        $graph->groupedBy($axis, []);            // warm the attribute cache first
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $graph->groupedBy($axis, []);
+        $queries = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        return $queries;
+    };
+
+    // One query for the solutions, and one more only where the bucket needs it.
+    expect($count('directorate'))->toBe(1)
+        ->and($count('category'))->toBe(1)
+        ->and($count('owner'))->toBe(2)
+        ->and($count('company'))->toBe(2);
 });
