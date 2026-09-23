@@ -324,14 +324,41 @@ function corridorOffsets(corridors) {
  * atravessada num trecho em pé.
  */
 function labelAnchor(points) {
-    let best = null
+    // Funde os trechos colineares ANTES de medir, porque é isso que se vê:
+    // `roundedPath()` desenha a rota já fundida, mas `orthogonalPoints()`
+    // ainda a entrega em vértices crus — numa seta reta são cinco pontos, dois
+    // deles no mesmo lugar. Pontuando vértice a vértice, o maior "trecho" de
+    // uma reta era METADE do corredor, e o rótulo pousava no ponto de 25% do
+    // traço que o usuário enxerga (64px fora do centro num vão de 256px).
+    const runs = []
 
     for (let i = 1; i < points.length; i++) {
         const [a, b] = [points[i - 1], points[i]]
-        const horiz = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y)
-        const score = (horiz ? Math.abs(b.x - a.x) * 1.35 : Math.abs(b.y - a.y))
 
-        if (!best || score > best.score) best = { score, horiz, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+        // O vértice repetido do meio de uma rota reta.
+        if (a.x === b.x && a.y === b.y) continue
+
+        const horiz = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y)
+        const last = runs[runs.length - 1]
+
+        // Mesmo eixo e mesma linha: é a continuação do traço anterior.
+        if (last && last.horiz === horiz && (horiz ? last.a.y === b.y : last.a.x === b.x)) {
+            last.b = b
+            continue
+        }
+
+        runs.push({ horiz, a, b })
+    }
+
+    let best = null
+
+    for (const run of runs) {
+        const length = run.horiz ? Math.abs(run.b.x - run.a.x) : Math.abs(run.b.y - run.a.y)
+        const score = run.horiz ? length * 1.35 : length
+
+        if (!best || score > best.score) {
+            best = { score, horiz: run.horiz, x: (run.a.x + run.b.x) / 2, y: (run.a.y + run.b.y) / 2 }
+        }
     }
 
     return best

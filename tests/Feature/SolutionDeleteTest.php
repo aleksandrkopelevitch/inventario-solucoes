@@ -1,6 +1,8 @@
 <?php
 
+use App\Actions\Cati\ApplyApprovedTopology;
 use App\Enums\UserRole;
+use App\Models\ApprovedTopology;
 use App\Models\Company;
 use App\Models\Diagram;
 use App\Models\Notebook;
@@ -114,4 +116,49 @@ it('shows the delete control only to an admin', function () {
     $this->actingAs(User::factory()->create(['role' => UserRole::Writer->value]))
         ->get(route('solutions.show', $solution))
         ->assertDontSee('solution-page-delete');
+});
+
+it('cleans an approved TO BE snapshot, so applying it later still works', function () {
+    // `approved_topologies.chain` is the THIRD table storing the same node
+    // shape, and the one the sweep missed. Its own foreign key only covers the
+    // solution the submission was ABOUT, so a solution that merely appears
+    // inside the approved chain survived the delete as a dangling id — and
+    // `ApplyApprovedTopology` then died on it, because `SyncDiagramFromChain`
+    // attaches the participants it reads from the chain.
+    $subject = Solution::factory()->create(['name' => 'Assunto']);
+    $mentioned = Solution::factory()->create(['name' => 'Sistema Citado']);
+
+    $topology = ApprovedTopology::factory()->create([
+        'solution_id' => $subject->id,
+        'chain'       => ['nodes' => [
+            ['solution_id' => $subject->id, 'label' => 'Assunto', 'kind' => 'system'],
+            ['solution_id' => $mentioned->id, 'label' => 'Sistema Citado', 'kind' => 'system'],
+        ], 'edges' => [['from' => 0, 'to' => 1, 'arrow' => '->', 'protocol' => 'rest']]],
+    ]);
+
+    $this->actingAs(solutionAdmin())->deleteJson(route('solutions.destroy', $mentioned))->assertOk();
+
+    $chain = $topology->fresh()->chain;
+
+    expect($chain['nodes'][1]['solution_id'])->toBeNull()
+        ->and($chain['nodes'][1]['label'])->toBe('Sistema Citado');
+
+    // The point of the sweep: the snapshot is still appliable.
+    $diagram = app(ApplyApprovedTopology::class)->handle($topology->fresh(), solutionAdmin());
+
+    expect($diagram->participants->pluck('id')->all())->toBe([$subject->id]);
+});
+
+it('names a block whose label was blank rather than leaving it nameless', function () {
+    // `?? ` only substitutes on null, so a node stored with an empty string
+    // kept it and rendered as an unnamed rectangle — the outcome the sweep
+    // exists to avoid.
+    $solution = Solution::factory()->create(['name' => 'Sem Rotulo']);
+    $diagram = Diagram::factory()->create([
+        'chain' => ['nodes' => [['solution_id' => $solution->id, 'label' => '', 'kind' => 'system']], 'edges' => []],
+    ]);
+
+    $this->actingAs(solutionAdmin())->deleteJson(route('solutions.destroy', $solution))->assertOk();
+
+    expect($diagram->fresh()->chain['nodes'][0]['label'])->toBe('Sem Rotulo');
 });

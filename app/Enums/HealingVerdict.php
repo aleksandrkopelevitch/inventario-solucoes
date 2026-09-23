@@ -37,6 +37,24 @@ enum HealingVerdict: string
     /** The deploy never settled inside the ceiling — neither up nor broken. */
     case Unsettled = 'unsettled';
 
+    /**
+     * Up, healthy, and there is nothing to call: the trigger has no URL.
+     *
+     * A scheduler fires on a cron and an event on a name — `DigibeeTriggerKind::
+     * isWebProtocol()` is false for both — so `DeploymentReport::testable()` is
+     * false while `live()` is true. That is a SUCCESSFUL deploy of a pipeline
+     * this runner cannot exercise, and it used to be reported as `Unsettled`,
+     * whose label says "o deploy não estabilizou no tempo limite" — a specific
+     * claim that is simply untrue of an engine sitting at 1/1.
+     *
+     * Reachable since the panel started offering the trigger: before that the
+     * lifecycle only ever wrote web protocols, so `live() && ! testable()` was
+     * a state nothing could produce. It is exactly the collapse this enum's
+     * docblock warns about — the run is not a failure and not a judgement, and
+     * saying "it timed out" is worse than saying nothing.
+     */
+    case NotCallable = 'not-callable';
+
     /** Every case answered 404: nothing is there, which says nothing about the flowSpec. */
     case NotAnswering = 'not-answering';
 
@@ -115,6 +133,7 @@ enum HealingVerdict: string
             self::StillFailing     => 'ainda falhando depois de esgotar as rodadas',
             self::Refused          => 'a plataforma recusou',
             self::Unsettled        => 'o deploy não estabilizou no tempo limite',
+            self::NotCallable      => 'subiu e está saudável, mas esse gatilho não tem URL para chamar',
             self::NotAnswering     => 'nada respondeu nessa URL',
             self::RefusedAtTheDoor => 'o endpoint recusou na porta, por credencial',
             self::NotIngested      => 'o documento não passou na validação',

@@ -81,3 +81,32 @@ it('ignores an axis nobody defined rather than failing', function () {
 
     expect(app(SolutionGraphService::class)->groupedBy('inventado')['groupAxis'])->toBe('directorate');
 });
+
+it('filters the grouped reading by a status a solution can actually have', function () {
+    // The two readings filter DIFFERENT things by status: the topology map
+    // filters the DIAGRAMS it draws as edges, this one filters the SOLUTIONS.
+    // One shared option list made the control lie — "Em desenvolvimento" is a
+    // diagram status, so grouped it matched nothing and blanked the map with
+    // no message, while `evaluating` was not offered at all.
+    Solution::factory()->create(['status' => 'active', 'directorate' => 'Financeiro']);
+    Solution::factory()->create(['status' => 'evaluating', 'directorate' => 'Financeiro']);
+
+    $graph = app(SolutionGraphService::class);
+
+    expect($graph->groupedBy('directorate', ['status' => 'evaluating'])['nodes'])->toHaveCount(1)
+        ->and($graph->groupedBy('directorate', ['status' => 'active'])['nodes'])->toHaveCount(1)
+        ->and($graph->groupedBy('directorate', ['status' => 'all'])['nodes'])->toHaveCount(2);
+});
+
+it('offers each reading its own status vocabulary on the filter bar', function () {
+    AttributeOption::create(['group' => 'status', 'value' => 'evaluating', 'label' => 'Em avaliação']);
+
+    $this->actingAs(mapReader())->get(route('solutions.map'))
+        ->assertOk()
+        // The diagram vocabulary, for the topology reading...
+        ->assertSee('data-ak-status-for="links"', false)
+        ->assertSee('in_development', false)
+        // ...and the solution one, for the grouped reading.
+        ->assertSee('data-ak-status-for="groups"', false)
+        ->assertSee('Em avaliação');
+});

@@ -38,13 +38,37 @@
                     @endforeach
                 </x-forms.select>
 
-                <x-forms.select data-ak-graph-filter="status" class="!py-1.5 !text-[13px]">
-                    <option value="all">Todos os status</option>
-                    <option value="active">Ativas</option>
-                    <option value="in_development">Em desenvolvimento</option>
-                    <option value="planned">Planejadas</option>
-                    <option value="deprecated">Descontinuadas</option>
-                </x-forms.select>
+                {{-- Dois vocabulários, um lugar só na barra. Na leitura por
+                     ligações o status filtra os DIAGRAMAS (é deles que as
+                     setas são feitas); na leitura por agrupamento não existe
+                     diagrama nenhum, e o status filtra as SOLUÇÕES. As listas
+                     se parecem, mas não coincidem: solução nunca é "em
+                     desenvolvimento" e diagrama nunca é "em avaliação".
+                     Oferecer uma só para as duas fazia o mesmo controle
+                     mentir — "Em desenvolvimento" agrupado devolvia zero e
+                     apagava o mapa sem dizer nada. O desabilitado sai da query
+                     string (a cola abaixo pula `disabled`). --}}
+                {{-- O `hidden` vai no WRAPPER, não no `<select>`: o componente
+                     se embrulha numa div própria, então esconder só o controle
+                     deixaria a célula do grid ocupada por uma seta solta. --}}
+                <div data-ak-status-for="links">
+                    <x-forms.select data-ak-graph-filter="status" class="!py-1.5 !text-[13px]">
+                        <option value="all">Todos os status</option>
+                        <option value="active">Ativas</option>
+                        <option value="in_development">Em desenvolvimento</option>
+                        <option value="planned">Planejadas</option>
+                        <option value="deprecated">Descontinuadas</option>
+                    </x-forms.select>
+                </div>
+
+                <div data-ak-status-for="groups" hidden>
+                    <x-forms.select data-ak-graph-filter="status" class="!py-1.5 !text-[13px]" disabled>
+                        <option value="all">Todos os status</option>
+                        @foreach ($statuses as $option)
+                            <option value="{{ $option->value }}">{{ $option->label }}</option>
+                        @endforeach
+                    </x-forms.select>
+                </div>
 
                 <x-forms.select data-ak-graph-filter="category" class="!py-1.5 !text-[13px]">
                     <option value="">Todas as categorias</option>
@@ -75,9 +99,25 @@
             const filters = document.querySelectorAll('[data-ak-graph-filter]');
             const baseUrl = @js(route('solutions.map.data'));
 
+            const axis = document.querySelector('[data-ak-graph-filter="group"]');
+
+            // Qual dos dois selects de status vale agora. O que sobra fica
+            // `disabled`, e o laço abaixo pula desabilitado — senão os dois
+            // escreveriam a mesma chave e o último ganharia, mandando um
+            // status de diagrama para a leitura que filtra soluções.
+            function syncStatusVocabulary() {
+                const wanted = axis?.value ? 'groups' : 'links';
+                document.querySelectorAll('[data-ak-status-for]').forEach((box) => {
+                    const active = box.dataset.akStatusFor === wanted;
+                    box.hidden = ! active;
+                    box.querySelectorAll('select').forEach((el) => { el.disabled = ! active; });
+                });
+            }
+
             function reload() {
                 const params = new URLSearchParams();
                 filters.forEach((el) => {
+                    if (el.disabled) return;
                     const key = el.dataset.akGraphFilter;
                     if (el.type === 'checkbox') {
                         if (el.checked) params.set(key, '1');
@@ -89,7 +129,12 @@
                 shell.__ecosystemMapReload?.(qs ? `${baseUrl}?${qs}` : baseUrl);
             }
 
-            filters.forEach((el) => el.addEventListener('change', reload));
+            filters.forEach((el) => el.addEventListener('change', () => {
+                syncStatusVocabulary();
+                reload();
+            }));
+
+            syncStatusVocabulary();
         })();
     </script>
 </x-layouts.layout>

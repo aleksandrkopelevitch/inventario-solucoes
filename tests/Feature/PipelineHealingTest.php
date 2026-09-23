@@ -491,3 +491,27 @@ it('ends as not-writable when the platform refuses the write, instead of throwin
         ->and($service->calls)->toBe(1)          // the one correction it did ask for
         ->and($report->finalEvidence()[0])->toContain('not on draft mode');
 });
+
+it('does not call a healthy scheduler deploy a timeout just because it has no URL', function () {
+    // A scheduler fires on a cron and an event on a name, so neither has an
+    // endpoint — `testable()` is false while `live()` is true. That branch
+    // reused `Unsettled`, whose label is "o deploy não estabilizou no tempo
+    // limite": a specific, false claim about an engine sitting at 1/1. It only
+    // became reachable when the panel started offering the trigger, since
+    // every pipeline this wrote before then was a web protocol.
+    $scheduled = new DeploymentReport(
+        pipelineName: 'p', environment: 'test', pipelineId: 'pid', deploymentId: 'did',
+        status: DeploymentStatus::Active, endpoint: null,
+        engine: ['replicas' => '1/1', 'errors' => 0, 'oom' => 0, 'lastError' => null],
+        deployed: true, waitedSeconds: 10,
+    );
+
+    $service = healingService([$scheduled], []);
+    $report = $service->heal(healingDocument(), 'p');
+
+    expect($report->verdict)->toBe(HealingVerdict::NotCallable)
+        // Not a judgement about the flowSpec, and not worth a model call.
+        ->and($report->verdict->judgedThePipeline())->toBeFalse()
+        ->and($service->calls)->toBe(0)
+        ->and($report->verdict->label())->not->toContain('não estabilizou');
+});

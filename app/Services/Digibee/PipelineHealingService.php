@@ -286,8 +286,13 @@ class PipelineHealingService
             );
         }
 
+        // Live but with nothing to call. Not `Unsettled`: the deploy settled
+        // perfectly, and a scheduler or an event simply has no URL — reusing
+        // the timeout verdict told an operator whose engine was up 1/1 that it
+        // had timed out. Reachable only since the panel started offering the
+        // trigger; before that every pipeline this wrote was a web protocol.
         if (! $deployment->testable()) {
-            return new HealingRound($round, HealingVerdict::Unsettled, $ingestion, $deployment);
+            return new HealingRound($round, HealingVerdict::NotCallable, $ingestion, $deployment);
         }
 
         $suite = $this->matrix->handle($document, $pipelineName, $environment);

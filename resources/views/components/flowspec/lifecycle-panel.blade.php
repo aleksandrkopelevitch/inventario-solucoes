@@ -74,7 +74,14 @@
                          seu tipo, e o Form Request exige o par. --}}
                     <x-forms.field label="Gatilho">
                         <x-forms.select name="trigger_kind" data-ak-trigger-kind>
-                            <option value="">Manter o do pipeline</option>
+                            {{-- Só faz sentido contra um pipeline que já
+                                 existe: um recém-criado não tem gatilho
+                                 "próprio" para manter, e o Form Request
+                                 recusa o par (`required_if:creates,1`). A
+                                 cola abaixo tira esta opção quando "Criar"
+                                 está marcado, para o erro não ser a primeira
+                                 notícia. --}}
+                            <option value="" data-ak-trigger-keep>Manter o do pipeline</option>
                             @foreach ($triggerKinds as $kind)
                                 <option value="{{ $kind->value }}">{{ $kind->label() }}</option>
                             @endforeach
@@ -94,10 +101,10 @@
                          numa linha só deixava o rótulo do checkbox atrás do
                          botão. --}}
                     <div class="flex w-full items-center justify-between gap-3 pt-1">
-                        <label class="flex items-center gap-2 text-xs text-body">
-                            <x-forms.checkbox name="creates" value="1" />
+                        <x-forms.label class="!flex cursor-pointer items-center gap-2 !text-xs">
+                            <x-forms.checkbox name="creates" value="1" data-ak-trigger-creates />
                             Criar se não existir
-                        </label>
+                        </x-forms.label>
 
                         <x-forms.button
                             form="{{ $formId }}"
@@ -111,13 +118,26 @@
                      escondido sai do formulário junto (`disabled`), senão um
                      cron digitado e depois trocado para evento ainda seria
                      enviado — e a validação, que rejeita um cron sem o seu
-                     tipo, recusaria a execução por um campo invisível. --}}
+                     tipo, recusaria a execução por um campo invisível.
+
+                     Marcar "Criar se não existir" também tira "Manter o do
+                     pipeline" da lista: não existe gatilho a manter num
+                     pipeline que ainda não existe, e criar um sem gatilho
+                     deixa na realm um nome indeployável que nada apaga. --}}
                 <script>
                     (function () {
                         const form = document.getElementById(@js($formId));
                         const kind = form.querySelector('[data-ak-trigger-kind]');
+                        const creates = form.querySelector('[data-ak-trigger-creates]');
+                        const keep = kind.querySelector('[data-ak-trigger-keep]');
 
                         function sync() {
+                            keep.hidden = creates.checked;
+                            keep.disabled = creates.checked;
+                            // Um pipeline novo não pode ficar sem tipo: se
+                            // "Manter" estava escolhido, cai no primeiro real.
+                            if (creates.checked && kind.value === '') kind.selectedIndex = 1;
+
                             form.querySelectorAll('[data-ak-trigger-when]').forEach((field) => {
                                 const wanted = field.dataset.akTriggerWhen === kind.value;
                                 field.hidden = ! wanted;
@@ -126,6 +146,7 @@
                         }
 
                         kind.addEventListener('change', sync);
+                        creates.addEventListener('change', sync);
                         sync();
                     })();
                 </script>

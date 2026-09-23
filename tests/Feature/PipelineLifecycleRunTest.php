@@ -558,3 +558,49 @@ it('offers the trigger on the panel', function () {
         ->and($html)->toContain('trigger_cron')
         ->and($html)->toContain('trigger_event');
 });
+
+it('refuses to create a pipeline with no trigger, instead of creating an undeployable one', function () {
+    Queue::fake();
+    $user = runEditor();
+    $chat = runChatFor($user);
+    $message = runMessageIn($chat);
+
+    // Without this the form could still reproduce the condition the trigger
+    // work exists to remove: the run creates the pipeline (permanent — nothing
+    // on this platform deletes one), `DeployPipeline` then refuses it for an
+    // empty `triggerSpec`, and the realm keeps an undeployable name forever.
+    $this->actingAs($user)
+        ->postJson(route('flowspec.lifecycle.store', [$chat, $message]), runPayload(['creates' => true]))
+        ->assertStatus(422)
+        ->assertJson(['type' => 'warning'])
+        ->assertJsonFragment(['message' => 'Um pipeline novo precisa de gatilho: sem ele a Digibee recusa publicar, e o pipeline criado fica para sempre — nada aqui apaga um.']);
+
+    expect(PipelineRun::count())->toBe(0);
+});
+
+it('still lets a run against an existing pipeline keep the trigger it already has', function () {
+    Queue::fake();
+    $user = runEditor();
+    $chat = runChatFor($user);
+    $message = runMessageIn($chat);
+
+    // `required_if` is about CREATION only: an existing pipeline has a trigger
+    // of its own, and null still means "leave it alone".
+    $this->actingAs($user)
+        ->postJson(route('flowspec.lifecycle.store', [$chat, $message]), runPayload())
+        ->assertOk();
+
+    expect(PipelineRun::sole()->trigger_kind)->toBeNull();
+});
+
+it('hides keeping the pipeline own trigger once creating is on the table', function () {
+    $user = runEditor();
+    $chat = runChatFor($user);
+    $message = runMessageIn($chat);
+
+    // The rule above is server-side; this is the form telling the same truth,
+    // so a refusal is not the first the operator hears of it.
+    $this->actingAs($user)->get(route('flowspec.show', $chat))
+        ->assertSee('data-ak-trigger-keep', false)
+        ->assertSee('data-ak-trigger-creates', false);
+});
