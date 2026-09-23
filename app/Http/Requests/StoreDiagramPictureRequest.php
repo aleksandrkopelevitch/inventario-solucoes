@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Diagram;
+use App\Http\Requests\Concerns\AuthorizesChainOwner;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -12,16 +12,18 @@ use Illuminate\Foundation\Http\FormRequest;
  * user-chosen upload but a file the canvas produced itself
  * (`captureDiagramCanvas()`, long side 1600px), so accepting jpg/webp/svg here
  * would only widen what a hand-rolled request could put in the collection.
+ *
+ * Shared by BOTH canvases, like the nine chain requests beside it: the
+ * submission's AS IS / TO BE is the same canvas capturing itself, so the
+ * payload is the same file under the same rule and only the owner differs.
+ * Its twin used to validate this inline, which is how a second idea of what
+ * may enter a diagram collection starts — the reasoning above lives in one
+ * place, and `AuthorizesChainOwner` resolves the owner by TYPE (see that
+ * trait for why a name-based lookup fails open here).
  */
 class StoreDiagramPictureRequest extends FormRequest
 {
-    public function authorize(): bool
-    {
-        $diagram = $this->route('diagram');
-
-        return $diagram instanceof Diagram
-            && ($this->user()?->can('update', $diagram) ?? false);
-    }
+    use AuthorizesChainOwner;
 
     /** @return array<string, mixed> */
     public function rules(): array

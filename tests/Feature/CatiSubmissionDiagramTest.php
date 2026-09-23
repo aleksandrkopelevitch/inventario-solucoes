@@ -248,6 +248,33 @@ it('accepts an uploaded c4 image and reports it everywhere it shows', function (
         ->toBe(['submission-diagrams-slot', 'submission-checklist-slot', 'submission-stage-strip-slot']);
 });
 
+it('holds a submission capture to the same png rule as the catalog canvas', function () {
+    Storage::fake('public');
+
+    $submission = diagramSubmission();
+
+    // Both canvases publish through `StoreDiagramPictureRequest`: the file is
+    // one the canvas produced itself, so widening this to the app's shared
+    // image rule on ONE of the two owners is the drift the shared class
+    // exists to prevent.
+    $this->postJson(route('submissions.diagrams.picture.store', [$submission, $submission->diagram(SubmissionDiagramKind::AsIs)]), [
+        'image' => UploadedFile::fake()->image('canvas.jpg'),
+    ])->assertStatus(422)->assertJson(['type' => 'warning']);
+});
+
+it('refuses a viewer publishing a submission capture', function () {
+    Storage::fake('public');
+
+    $submission = diagramSubmission();
+    $diagram = $submission->diagram(SubmissionDiagramKind::AsIs);
+
+    $this->actingAs(User::factory()->create(['role' => UserRole::Viewer]));
+
+    $this->postJson(route('submissions.diagrams.picture.store', [$submission, $diagram]), [
+        'image' => UploadedFile::fake()->image('canvas.png'),
+    ])->assertForbidden();
+});
+
 it('refuses an upload onto a drawn slot, and a canvas capture onto a c4 one', function () {
     Storage::fake('public');
 
