@@ -6,9 +6,11 @@ Madeiras: cadastro de soluções/pessoas/empresas, um módulo de **Diagramas**
 ecossistema derivado desses desenhos, documentação rica (estilo GitBook) em
 árvore de páginas — com um assistente de IA que gera rascunhos e com valores
 sensíveis atrás de cadeado —, um hub que reúne a cobertura dessa documentação,
-um Especialista em Integrações que gera flowSpec Digibee em formato de chat e o
-módulo do **Comitê de Arquitetura**, onde uma proposta é preparada, entrevistada,
-vira deck e volta para o catálogo depois de deliberada.
+um Especialista em Integrações que gera flowSpec Digibee em formato de chat — e
+que sabe **escrever** esse documento num pipeline, implantá-lo em `test`,
+testá-lo e corrigi-lo em rodadas — e o módulo do **Comitê de Arquitetura**,
+onde uma proposta é preparada, entrevistada, vira deck e volta para o catálogo
+depois de deliberada.
 
 Uma página de documentação pode apontar para um diagrama, e é assim que texto e
 desenho se relacionam: um diagrama explica 1..N páginas (e, por elas, 1..N
@@ -235,10 +237,12 @@ ajax-slot.js troca o card inteiro → o editor some junto com o HTML antigo
 O ↗ ao lado de um valor que aponta para outro registro é o único alvo de
 navegação: as palavras pertencem ao editor. Ver `AGENTS.md` § "Inline edit".
 
-**Assíncrono: job + polling, nunca broadcasting.** As duas features de IA
-seguem o mesmo desenho, e ele existe por uma razão específica — uma geração
-leva minutos, então a resposta HTTP não pode esperá-la, e um WebSocket seria
-infraestrutura nova para um evento por usuário a cada vários minutos:
+**Assíncrono: job + polling, nunca broadcasting.** Toda feature de IA — hoje
+são quatro módulos de polling (`docs-chat`, `flowspec-chat`, `cati-chat` e
+`lifecycle-poll`) sobre seis jobs — segue o mesmo desenho, e ele existe por uma
+razão específica: uma geração leva minutos, então a resposta HTTP não pode
+esperá-la, e um WebSocket seria infraestrutura nova para um evento por usuário
+a cada vários minutos:
 
 ```
 POST  → cria o registro em `pending`, despacha o job
@@ -566,6 +570,28 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   tudo ali é editável na própria página (ver abaixo). Abaixo do cabeçalho,
   um card único reúne os diagramas em que a solução aparece e as páginas de
   documentação dela, lado a lado (ver "Diagramas").
+
+  **Excluir uma solução é do admin** (`SolutionPolicy::delete`), e o que está
+  em volta dela sobrevive: dono e fornecedor são registros de primeira classe
+  aqui — uma pessoa não é filha da solução, e a empresa a solução aponta
+  (`vendor_company_id`) em vez de possuir —, então só os vínculos vão junto.
+  Duas referências precisam de trabalho antes da linha sair, e são a mesma
+  vista duas vezes: `diagrams.source_solution_id`/`target_solution_id`
+  cascateiam, e o banco apagaria **o desenho inteiro** em vez da referência
+  (as duas são derivadas da chain, então re-derivar resolve); e um nó da chain
+  guarda o `solution_id` ao lado do `label` com que foi desenhado — largar só
+  o id deixa o bloco onde estava, com o mesmo nome, como texto livre, que é
+  exatamente a cara que um sistema que saiu do catálogo deve ter (apagar o
+  bloco renumeraria todas as arestas depois dele).
+
+  **Três tabelas guardam aquele formato de nó, não duas.** `Diagram`,
+  `SubmissionDiagram` e `approved_topologies.chain` — essa última é um
+  *snapshot* do TO BE de um comitê, então não é um `ChainCanvas` (nada a
+  desenha ou edita), e a FK dela só cobre a solução de que a submissão
+  **tratava**. Uma solução que apenas **aparece** dentro de uma chain
+  aprovada sobrevivia à exclusão como id pendurado, e `ApplyApprovedTopology`
+  morria nela meses depois: `FOREIGN KEY constraint failed` em
+  `diagram_solution`, um 500 para quem aprovou.
 - **Edição in place nas três páginas de detalhe** (solução, pessoa, empresa):
   a página é de leitura, e cada dado vira editor sob **duplo clique** — ou um
   clique no lápis ao lado, que é o caminho do teclado e do toque. O side panel
@@ -658,15 +684,18 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   Diagram.chain (json)  ←  ÚNICA fonte de verdade da topologia
     nodes: [{ kind, solution_id?, label }]
             kind = system | decision | actor | start | end | image
-    edges: [{ from, to, arrow, protocol }]
+                 | lifeline | step
+    edges: [{ from, to, arrow, protocol, fromT?, toT? }]
             from/to = índices em nodes (não posições consecutivas)
             arrow   = ->  |  <-  |  <->
+            fromT/toT = onde na LATERAL a seta encosta (fração da altura),
+                        só para lifeline — ver "modelos de diagrama"
        │
        │  toda mutação da chain (store · add/update/removeNode ·
        │  add/retarget/removeEdge · updateProtocol) chama, em seguida:
        ▼
   App\Actions\SyncDiagramFromChain  ← o único que escreve as colunas abaixo
-       ├─ diagram_solution (pivot, com position)       ← só nós kind=system
+       ├─ diagram_solution (pivot, com position)    ← kind=system|lifeline
        ├─ source_solution_id / target_solution_id
        ├─ direction
        └─ protocol   (o 1º protocolo não-nulo, como resumo escalar)
@@ -676,12 +705,17 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
     saveLayout() nunca toca a chain, e nada daqui entra no cálculo acima
   ```
 
-  **Só `kind: system` referencia uma Solution** — decision/actor/start/end/
-  image são texto livre (ou imagem) e por isso nunca viram participantes,
-  mesmo que um `solution_id` antigo tenha sobrado no nó. É um **grafo livre
-  de verdade**, não uma cadeia linear: um bloco pode ficar sem nenhuma
-  ligação (nasce isolado — ligar é um gesto à parte), e cada ligação carrega
-  seu próprio sentido (`->`/`<-`/`<->`) e protocolo.
+  **Só `system` e `lifeline` referenciam uma Solution** — decision/actor/
+  start/end/step/image são texto livre (ou imagem) e por isso nunca viram
+  participantes, mesmo que um `solution_id` antigo tenha sobrado no nó. A
+  linha de vida entra nessa lista porque os participantes de uma sequência
+  **são** os sistemas do catálogo: uma chamada entre SAP e Digibee é a mesma
+  relação desenhada como duas caixas ou como duas colunas, e derivar só num
+  dos dois desenhos seria o catálogo enxergar metade do que foi dito.
+
+  É um **grafo livre de verdade**, não uma cadeia linear: um bloco pode ficar
+  sem nenhuma ligação (nasce isolado — ligar é um gesto à parte), e cada
+  ligação carrega seu próprio sentido (`->`/`<-`/`<->`) e protocolo.
 
   Editável direto no canvas: título e tipo de um nó (exceto o raiz),
   sentido/protocolo de uma ligação, adicionar um bloco novo (ligado ou
@@ -717,6 +751,37 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
     do lado (preso dentro do canvas: perto da borda ele dobra pra dentro), em
     vez de mandar você atravessar a tela até um canto. O "+" da topbar, que não
     tem ponto nenhum pra ancorar, segue abrindo no canto fixo.
+
+  E quatro coisas que só apareceram quando os desenhos ficaram **grandes** —
+  os primeiros gerados a partir de uma página trouxeram dezenas de blocos de
+  uma vez, e a maior parte do ruído não era densidade:
+
+  - **A ligação sai perpendicular e vira em ângulo reto.** Era uma Bézier
+    cúbica, que nenhum diagrama técnico desenha assim. O trecho reto antes da
+    primeira curva existe para a seta não começar a dobrar ainda encostada no
+    bloco, e o raio do canto é limitado à metade do menor dos dois segmentos
+    que ele une — sem isso, dois blocos quase colados ganham uma curva mais
+    larga que o próprio segmento. O rótulo pousa no **maior trecho reto** da
+    rota, não no meio geométrico, que numa rota ortogonal costuma ser um canto.
+  - **O pill "+ protocolo" some até você chegar perto.** Toda ligação sem
+    protocolo desenhava um pill tracejado, sempre, em tamanho cheio: num
+    desenho com raias é um por ligação, em cima dos rótulos de verdade e uns
+    dos outros. Agora só aparece sob o ponteiro ou aceso por um bloco
+    selecionado, e nunca entra no PNG. Esconder tirou o único jeito de agarrar
+    uma ligação (o SVG das arestas é `pointer-events: none`), então cada uma
+    ganhou um **alvo transparente de 16px** — uma linha de 2px finalmente é
+    algo em que se acerta o clique.
+  - **Selecionar um bloco acende as ligações dele** e apaga o resto. A
+    alternativa óbvia era colorir cada seta pela origem, e ela funcionaria mal
+    aqui: num desenho em que três blocos são Digibee, as linhas que mais se
+    cruzam sairiam todas do mesmo azul — e linha colorida custa contraste o
+    tempo todo, para responder uma pergunta que só se faz às vezes.
+  - **Apagar um bloco não joga fora o que não foi salvo.** Remover um nó
+    reindexa a chain, então o servidor devolve o grafo inteiro e o cliente
+    re-renderiza — e o layout reaplicado vinha de `savedLayouts`, escrito só
+    pelo "Salvar". Arrastar blocos, escolher um tema e então apagar um deles
+    revertia o desenho para o último estado gravado. O estado vivo agora é
+    reindexado do mesmo jeito que o servidor reindexou o dele.
 - **Mapa do ecossistema** (`/map`): derivado (somente leitura), layout radial
   hub-and-spoke — cada solução é um hub com seus vizinhos diretos num círculo
   ao redor (`<x-ecosystem-map>`, DOM+SVG, mesmo visual do canvas de diagrama
@@ -726,6 +791,26 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   (`DiagramGraphService`); hubs com muitas conexões nascem colapsados
   (badge com a contagem, clique expande/colapsa). Filtros por status/
   categoria/diretoria.
+
+  A mesma tela tem uma **segunda leitura**: `?group[]=` troca a pergunta, não
+  o desenho. O mapa responde "quem conversa com quem"; agrupado por
+  **diretoria, responsável, fornecedor ou categoria**
+  (`SolutionGraphService::AXES`) ele responde as perguntas que se fazem ao
+  lado dela e que a topologia não mostra — quantos sistemas cada diretoria
+  tem, de quem é a responsabilidade, de qual fornecedor o catálogo mais
+  depende. O serviço
+  devolve **o mesmo contrato** do `DiagramGraphService` com um campo a mais
+  (`groups`) e os dois do drill-down vazios, então o renderer desenha hub e
+  raio com o código que já tinha, em vez de a tela virar um segundo mapa
+  parecido com o primeiro.
+
+  **O `status` das duas leituras não é o mesmo vocabulário**, e foi assim que
+  o filtro chegou a mentir: o mapa filtra os **diagramas** que ele desenha
+  como aresta (`DiagramStatus`), a leitura agrupada filtra as **soluções**.
+  Uma solução nunca é `in_development` e um diagrama nunca é `evaluating` —
+  medido no catálogo de dev, "Em desenvolvimento" devolvia 0 de 109 e apagava
+  o mapa sem dizer nada. Cada leitura tem sua própria lista de opções agora, e
+  a inativa fica `disabled`, o que a tira da query string.
 - **Documentação rica (estilo GitBook)**: editor Editor.js persistido como
   Markdown + notação estendida GitBook (`hint`, `tabs`, `embed`, imagens com
   preset de largura) numa coluna `documentation` só de texto — sem tabela de
@@ -970,6 +1055,36 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   nunca reinserido (um marcador apagado não tem mais posição para onde voltar), e
   a resposta avisa em PT-BR: remover uma imagem é legítimo quando foi pedido,
   então o aviso diz o que falta e deixa o julgamento com quem aperta "Aplicar".
+- **"Desenhar esta página"**: um menu, cinco desenhos. A prosa de uma página
+  vira um `Diagram` comum — o **grafo livre** (`ChainDraft`, "o que conversa
+  com o quê") ou um dos quatro **modelos** (`DiagramModel`), que são as outras
+  quatro perguntas que uma página costuma fazer:
+
+  | modelo | a pergunta | como é desenhado |
+  |---|---|---|
+  | Sequência | em que **ordem** as chamadas acontecem | uma linha de vida por participante, cada mensagem encostando na altura do seu passo |
+  | Ciclo de vida | quais são os **estados** de uma execução | o curso numa linha e tudo que falhou numa segunda abaixo — um retry desce e volta tracejado |
+  | Fluxo de dados | onde o dado **descansa** | uma raia vertical por estágio, blocos empilhados |
+  | Processo | **quem** faz o quê | uma raia horizontal por ator, passos avançando nela |
+
+  `architecture` está ausente de propósito: o grafo livre que o canvas já
+  desenha **é** isso, e um segundo jeito de responder a mesma pergunta é a
+  segunda verdade que o módulo de Diagramas foi colapsado para evitar.
+
+  **A divisão entre semântica e geometria é o projeto inteiro.** `ModelSpec`
+  não carrega uma coordenada — quem participa, em que raia, em que ordem — e
+  `ModelLayout` transforma isso em posições. Um modelo de linguagem a quem se
+  entrega um canvas devolve coordenadas plausíveis que se sobrepõem; a quem se
+  entrega uma ordem devolve uma ordem. Os prompts dizem isso em voz alta ("NÃO
+  escreva posição, coordenada, largura, altura ou ordem numérica"), e o layout
+  é determinístico, testável sem browser e o mesmo toda vez.
+
+  O resultado é um diagrama **editável no mesmo canvas de sempre**, não um
+  artefato: a primeira coisa que alguém faz com um desenho gerado é arrastar
+  algo. Uma chamada de modelo, no máximo uma rodada de reparo contra as frases
+  do nosso próprio validador, e o prompt dá ao modelo como dizer "esta página
+  não tem sequência nenhuma" — resposta que vale mais que quatro caixas
+  inventadas para satisfazer o pedido.
 - **Especialista em Integrações** (`/flowspec`): chat que gera o JSON de
   flowSpec Digibee a partir de um pedido em linguagem natural. Contexto **sem
   RAG** — Solutions citadas (explícitas via chips, ou inferidas casando o nome
@@ -995,6 +1110,79 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   validado por `DigibeeFlowspecValidator`) é curado à mão a partir do que é
   usado de verdade nos pipelines Digibee da Leo Madeiras — ver "Notas
   técnicas" para a ferramenta que audita esse catálogo contra produção.
+- **Ciclo de vida do pipeline** (o painel na mensagem que gerou um flowSpec):
+  escrever → implantar → testar → corrigir, em rodadas, com a tela
+  acompanhando. É **a primeira coisa do app que alcança o realm da Digibee a
+  partir de uma requisição web**, e quase tudo que está escrito aqui existe
+  para isso continuar defensável.
+
+  O painel pede o nome do pipeline (sugerido a partir do título da conversa),
+  o ambiente, se pode **criar** um que não existe, e o **gatilho** —
+  `DigibeeTriggerKind` mais os dois valores que um flowSpec não tem como
+  fornecer: o cron de um scheduler e o nome do evento de um `event`. Nenhum
+  dos dois é adivinhável e nenhum falha alto se for chutado (um cron errado
+  roda na hora errada, um evento inventado assina um tópico que ninguém
+  publica), então o Form Request exige cada um junto do seu tipo e
+  `exclude_unless` descarta o que foi digitado contra um tipo que não o usa.
+  Sem gatilho a plataforma **recusa o deploy** — foram doze runs em produção
+  morrendo num 500 sobre "invalid trigger spec" até essa ser a conclusão.
+
+  `RunPipelineLifecycle` é o job, `PipelineRun` a linha que a tela lê. As
+  rodadas são **anexadas durante** a execução, não gravadas no fim: cada ciclo
+  é um deployment de verdade no realm, e quem está olhando merece vê-los
+  acontecer em vez de um spinner que resolve minutos depois.
+
+  **O que ganha uma re-prompta é o projeto inteiro.** Uma rodada pode terminar
+  de onze jeitos (`HealingVerdict`) e só **dois** entregam alguma coisa ao
+  modelo: casos que rodaram e falharam, e um documento que não passou na nossa
+  própria validação. Todo o resto é fato sobre o ambiente, a credencial, a
+  plataforma ou o relógio — re-promptar num desses gasta uma tentativa pedindo
+  a um modelo de linguagem que conserte o que ele não alcança, e deixa mais um
+  deployment para trás num realm onde nada apaga um pipeline e este token não
+  apaga um deployment. Por isso as recusas são tão estruturais quanto as
+  correções: `Refused` (a requisição nunca chegou a um pipeline), `Unsettled`
+  (o deploy não estabilizou no teto — colapsar isso em "quebrado" é como um
+  loop começa a reescrever um pipeline que estava só lento), `NotAnswering`
+  (404 em tudo), `RefusedAtTheDoor` (401/403 sem credencial dada — a porta,
+  não o pipeline), `NotCallable` (subiu saudável, mas um scheduler e um evento
+  não têm URL para chamar), `Unproven` (nada falhou e nada provou que
+  funciona) e `Stuck` (o modelo devolveu o mesmo documento, então a próxima
+  rodada seria um deploy gasto para não aprender nada).
+
+  Três coisas medidas que moldam o formato:
+
+  - **Implantar PUBLICA o pipeline.** `apla-boot-01` nasceu `draft: true`,
+    sobreviveu a dois upserts como rascunho e saiu do deploy `draft: false` —
+    depois disso a API de design responde `409` a toda escrita. Então o loop
+    tem **um deploy por pipeline** hoje, e a saída é uma permissão de token
+    (`POST .../pipelines/{id}/draft` é rota real), não código.
+  - **O `verdict` fala do PIPELINE; o `status` fala da RUN.** Uma run que
+    termina `Done` com veredito `StillFailing` fez o trabalho dela inteiro;
+    `Failed` é o job que estourou ou o worker que morreu segurando ele.
+    Juntar os dois reportaria fila quebrada como pipeline quebrado.
+  - **O agente para no teste, de propósito.** A promoção para produção é uma
+    pessoa clicando no painel da Digibee. `AssessPromotion` (Bloco G) não
+    promove: ele responde se promover é seguro — exige evidência **verde** (o
+    caminho feliz rodou e passou, não uma lista de falhas vazia) e que o que
+    está gravado seja **o que foi testado**, porque entre a run verde e o
+    clique o canvas pode reescrever o pipeline. E nomeia a **versão**, já que
+    um veredito que não diz qual linha promover é um veredito em que ninguém
+    consegue agir.
+
+  Uma run que fica sem dono (um `composer dev` reiniciado basta) é reapeada
+  por **obsolescência** (`STALE_AFTER_SECONDS`, 30 min) na criação e a cada
+  poll — a mesma regra que o chat do flowSpec precisou, pelo mesmo motivo: o
+  job que a terminaria não existe mais. E uma run que **assentou** devolve o
+  formulário, com o pipeline que já existe como padrão: o erro que este
+  trabalho torna mais provável é um cron ou um nome de evento, e nenhum dos
+  dois falha antes de **rodar**.
+
+  Pela linha de comando, sem browser: `digibee:pipeline:heal` e
+  `digibee:pipeline:readiness` (ambos com `--trigger`, `--cron` e `--event`,
+  iguais aos de `digibee:flowspec:ingest`). Nenhum dos dois está em
+  `routes/console.php` — ver `.claude/rules/flowspec-pipeline-write.md` para a
+  fronteira da credencial e a matriz de teste, e `docs/apla-fase-1.md` para o
+  reconhecimento que produziu tudo isso.
 - **Cadernos** (`/notebooks`): o catálogo. Um card por caderno com quanto dele
   está escrito e as soluções que ele documenta (chips clicáveis); busca por
   caderno, por título de página **ou** por nome de solução vinculada — é o que
@@ -1063,6 +1251,28 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   de propósito: proposta não escreve no catálogo, porque proposta pode ser
   reprovada.
 
+  **O AS IS × TO BE é comparado, e a comparação não é guardada em lugar
+  nenhum.** `TopologyDiff::between()` é função pura das duas chains, calculada
+  quando a aba Comitê é lida — sem modelo, sem renderer, sem artefato. É
+  justamente isso que a faz valer: uma comparação que nunca é armazenada não
+  tem como descrever dois desenhos que já andaram, então não existe botão de
+  "gerar de novo" nem momento em que o painel está mentindo. O painel diz o
+  que **sobreviveu** junto com o que mudou, porque uma proposta que mantém
+  doze blocos e troca um não é a mesma conversa que uma que troca tudo.
+
+  Identidade é o desenho inteiro: um bloco é o mesmo bloco quando nomeia a
+  mesma **Solution** — tenham digitado o que tiverem por cima — ou, em texto
+  livre, quando os rótulos **dobram** para a mesma coisa (acento não é
+  mudança). O **índice** da chain nunca é usado: `removeNode()` reindexa,
+  então dois canvas desenhados em separado não compartilham índice nenhum e
+  casar por ele reportaria todo bloco como adicionado e removido ao mesmo
+  tempo. E uma ligação é identificada pelo **par** que ela une, não pelo
+  sentido nem pelo protocolo — virar a seta é mudar uma ligação que já existe,
+  e chamar isso de uma remoção mais uma adição enterra os blocos que de fato
+  entraram e saíram. O painel só aparece com os **dois** canvas preenchidos
+  (`isFilled()`, não "tem nós": `open()` semeia um bloco raiz, e um canvas
+  intocado compararia como o desenho de uma caixa).
+
   As saídas são três: o documento em Markdown, o texto pronto do chamado no Leo
   Resolve e o **deck `.pptx`** (`resources/cati/cati-template.pptx` +
   `scripts/render_deck.py`, um sidecar em python-pptx). Diagrama entra no deck
@@ -1117,6 +1327,24 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
 
 ## Notas técnicas não óbvias
 
+- **Dentro de um SVG inline, `<style>` é lido como MARKUP.** Não é texto cru
+  como o `<style>` do HTML: um `<` ali dentro — mesmo num comentário de CSS —
+  abre um elemento de verdade, o `</style>` legítimo fecha o que aquilo
+  aninhou, e **tudo escrito depois vira filho do style**. Custou as pontas das
+  setas e o realce de seleção de uma vez só: o `<defs>` inteiro foi parar
+  dentro da folha de estilo, então `marker-end` apontava para um elemento que
+  estava no documento, com o id certo e o `fill` certo, sem pintar nada. As
+  linhas sobreviveram só porque a folha externa do componente duplica as
+  regras delas; os markers não tinham segunda casa. Antes de culpar o
+  elemento, **conte os filhos do `<svg>`**. `ChainVizMarkupTest` trava isso:
+  a folha interna não pode conter `<`, e os markers têm que parsear fora dela.
+
+  A folha interna existe porque `html-to-image` **clona cru** o SVG aninhado e
+  nenhuma regra de fora alcança o clone — que é o mesmo motivo de a primeira
+  classe de path adicionada depois disso ter caído na armadilha vizinha: sem a
+  regra duplicada lá dentro, o alvo de clique transparente das ligações caiu
+  no `fill: black` padrão do UA e pintou um borrão preto ao longo de cada seta
+  no PNG exportado.
 - **Erros de validação não seguem o shape padrão do Laravel.** `bootstrap/app.php`
   reformata `ValidationException` para `{message, title, type}` (sem `errors`),
   para casar com o padrão de Toast/Modal do frontend. `assertJsonValidationErrors()`
@@ -1189,8 +1417,10 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
 - **Busca e filtros de Soluções/Pessoas/Empresas** rodam via
   `execute-filters.js`/`execute-search.js` sobre `ajax.js` (contrato Promise
   baseado em `fetch`, não `XMLHttpRequest`) — ver `AGENTS.md` § `ajax.js`.
-- **As duas features de IA (Assiste IA e Especialista em Integrações) refletem o job por
-  polling, nunca broadcasting.** O front dispara a geração, recebe uma URL de
+- **Toda superfície de IA reflete o job por polling, nunca broadcasting**
+  (Assiste IA, Especialista em Integrações, a entrevista e a prévia
+  adversarial do CATI, e o ciclo de vida do pipeline).
+  O front dispara a geração, recebe uma URL de
   status e faz polling até o registro sair de `pending` (com teto de tentativas
   + Toast de desistência). O endpoint de status fica barato enquanto pende:
   só monta o slot/resultado quando a resposta chegou, não a cada tick. Ver
@@ -1346,4 +1576,23 @@ blocos arrancados e o que não coube no orçamento),
 (a importação, o snapshot datado e a poda que só ele faz) e a família
 `Cati*Test` (o Comitê de Arquitetura: modelo, ingestão de material, checklist,
 entrevista, deck, desenhos próprios, conformidade, prévia adversarial e a
-topologia aprovada).
+topologia aprovada), `CatiTopologyDiffTest` (AS IS × TO BE: identidade por
+Solution e por rótulo dobrado, seta virada como mudança de uma ligação só).
+
+Do que é mais novo: `SolutionDeleteTest` (o que sobrevive à exclusão, e as
+**três** tabelas que guardam nó de chain), `SolutionGraphGroupingTest` (os
+quatro eixos do mapa agrupado — mesmos grupos e nós em todos, com a contagem
+de queries fixada), `DiagramModelGeneratorTest` (os quatro modelos: spec sem
+geometria, layout determinístico e a recusa quando a página não descreve
+aquilo), `ChainVizMarkupTest` (a folha de estilo interna do SVG **não** pode
+conter `<`, e os markers precisam ficar fora dela — ver "Notas técnicas"),
+`AttributeOptionCacheTest` (o memo: contagem de queries, rename visível na
+mesma requisição, e que `forgetScopedInstances()` o derruba),
+`PipelineLifecycleRunTest`/`PipelineHealingTest`/`PipelineReadinessTest`/
+`PipelineTestRunnerTest`/`DigibeeDeployTest` (o ciclo de vida: o `TriggerSpec`
+que o job entrega ao serviço, os vereditos que **não** viram re-prompta, a
+matriz de teste e as guardas do deploy), `HealPipelineCommandTest` (a metade
+do ciclo que roda por linha de comando, com `--cron` e `--event`) e
+`McpServerTest`/`McpToolsTest`/`McpTokenAdminTest`/`McpOAuthTest` (o servidor
+MCP: protocolo, o que cada token pode ler, a administração dos tokens e o
+fluxo OAuth — inclusive o 401 quando o guard não roda).
