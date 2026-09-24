@@ -30,137 +30,137 @@ async function resolveGifWorkerUrl() {
     return gifWorkerBlobUrl
 }
 
-// Visualização gráfica da integração — aba "Diagrama" da página unificada da
-// integração (Diagrams\Workspace; a página também tem a aba
-// "Documentação"). Desenha a cadeia (`chain`) da integração como um grafo —
-// nós ligados por setas cujo sentido segue o segmento (`->` ida, `<-`
-// volta, `<->` ambos) e cujo rótulo é o protocolo. Cada nó tem um TIPO
-// (`kind`, ver `App\Enums\ChainNodeKind`): `system` (uma Solução cadastrada ou
-// um sistema externo em texto livre), `decision` (a bifurcação do fluxo,
-// desenhada como hexágono chanfrado), `actor` (pessoa/área, desenhada como
-// badge arredondado com ícone) ou `start`/`end` (início/fim do fluxo,
-// desenhados como um círculo de cor sólida — verde/vermelho — com o ícone do
-// tipo dentro e o rótulo escrito ABAIXO do círculo, não ao lado). O tipo vem
-// resolvido no grafo (`nodes[i].kind` + `nodes[i].icon`, SVG já renderizado no
-// servidor); nós salvos antes dos tipos existirem chegam como `system`.
+// The integration's graphical view — the "Diagrama" tab of the integration's
+// unified page (Diagrams\Workspace; the page also has a "Documentação" tab).
+// It draws the integration's chain (`chain`) as a graph: nodes joined by arrows
+// whose direction follows the segment (`->` forward, `<-` back, `<->` both) and
+// whose label is the protocol. Every node has a KIND (`kind`, see
+// `App\Enums\ChainNodeKind`): `system` (a registered solution or an external
+// system as free text), `decision` (a fork in the flow, drawn as a chamfered
+// hexagon), `actor` (a person or an area, drawn as a rounded badge with an
+// icon) or `start`/`end` (the beginning and the end of the flow, drawn as a
+// solid-coloured circle — green/red — with the kind's icon inside and the label
+// written BELOW the circle rather than beside it). The kind arrives resolved in
+// the graph (`nodes[i].kind` plus `nodes[i].icon`, SVG already rendered on the
+// server); nodes saved before kinds existed arrive as `system`.
 //
-// Nós em <div> com sombra + arestas em SVG dentro de um #world com transform.
-// Os dados vêm resolvidos no `data-ak-chain-graph` da única linha (oculta,
-// auto-selecionada) que `diagrams/workspace.blade.php` renderiza
-// (`chain-select.js` emite `ak:diagram-selected`). Nós que
-// referenciam uma Solução também trazem `logo`, `environment` e `cloud`
-// (rótulo + SVG de ícone já renderizado no servidor) — exibidos como avatar
-// e chips discretos em cima do bloco.
+// Nodes are <div>s with a shadow, edges are SVG, both inside a #world carrying
+// a transform. The data arrives resolved in the `data-ak-chain-graph` of the
+// single (hidden, auto-selected) row that `diagrams/workspace.blade.php`
+// renders (`chain-select.js` emits `ak:diagram-selected`). Nodes referencing a
+// solution also carry `logo`, `environment` and `cloud` (label plus an icon SVG
+// already rendered on the server) — shown as an avatar and discreet chips on
+// top of the block.
 //
-// Duas camadas são puramente visuais (`viz_layout`, nunca `chain`): a borda
-// de um bloco e uma seta podem ser marcadas tracejadas independentemente uma
-// da outra (um botão-ícone em cada toolbar — nunca um checkbox), e raias
-// (`lanes`) — retângulos de fundo livres e coloridos, com uma etiqueta
-// vertical de altura cheia na borda esquerda, num tom mais escuro pra se
-// destacar (`darkenHex()`) — marcam uma área do fluxo; uma raia nunca
-// referencia um nó, o usuário só arrasta os blocos pra dentro da área
-// desejada como já faz em qualquer lugar do canvas. O botão "Raias" da
-// topbar cria uma na hora (centrada no viewport atual, sem painel/diálogo no
-// caminho) e já a seleciona. Posição/tamanho se editam direto no canvas
-// (`rebuildLanes()`): arrastar o CORPO da raia (etiqueta inclusa) move
-// (`drag.type === 'lane-move'`), arrastar uma de suas 3 alças redimensiona —
-// direita (só largura), embaixo (só altura) ou o canto (ambas, `drag.type
-// === 'lane-resize'`). Só um clique SEM arraste NA ETIQUETA (`drag.onLabel`)
-// abre o toolbar de cor/nome/remover (`selectLane()`) — clicar sem arrastar
-// no resto do corpo não faz nada, de propósito: a etiqueta escura é o único
-// alvo de seleção.
+// Two layers are purely visual (`viz_layout`, never `chain`): a block's border
+// and an arrow can each be marked dashed independently of the other (an icon
+// button in each toolbar — never a checkbox), and lanes (`lanes`) — free,
+// coloured background rectangles with a full-height vertical label on the left
+// edge, in a darker shade so it stands out (`darkenHex()`) — mark an area of
+// the flow. A lane never references a node; the user simply drags the blocks
+// into the area they want, as they already do anywhere on the canvas. The
+// topbar's "Raias" button creates one on the spot (centred on the current
+// viewport, with no panel or dialog in the way) and selects it. Position and
+// size are edited on the canvas itself (`rebuildLanes()`): dragging the lane's
+// BODY (label included) moves it (`drag.type === 'lane-move'`), dragging one of
+// its 3 handles resizes it — right (width only), bottom (height only) or the
+// corner (both, `drag.type === 'lane-resize'`). Only a click WITHOUT a drag ON
+// THE LABEL (`drag.onLabel`) opens the colour/name/remove toolbar
+// (`selectLane()`) — clicking without dragging anywhere else on the body does
+// nothing, on purpose: the dark label is the only selection target.
 //
-// Clicar (sem arrastar) um nó seleciona e abre a toolbar contextual (título /
-// comentário / abrir solução) num painel flutuante fixo no canto superior
-// esquerdo do canvas — estilo excalidraw.com, nunca ancorado ao bloco —, que
-// some assim que o bloco é desselecionado. Funciona com ou sem `editable`.
-// Edição de posição (quando `editable`): arraste um bloco para reposicioná-lo;
-// arraste o handle de uma ponta de seta para grudá-la numa das 8 âncoras do nó
-// (4 principais + 2 no topo + 2 na base). "Organizar" recalcula o layout
-// padrão esquerda→direita. O botão "Salvar" persiste layout + âncoras +
-// comentários (`viz_layout`) no servidor — é só apresentação, não mexe na
-// topologia.
+// Clicking (without dragging) a node selects it and opens the contextual
+// toolbar (title / comment / open solution) in a floating panel pinned to the
+// canvas's top-left corner — excalidraw.com style, never anchored to the block
+// — which disappears as soon as the block is deselected. It works with or
+// without `editable`. Editing position (when `editable`): drag a block to
+// reposition it; drag an arrow end's handle to stick it to one of the node's 8
+// anchors (4 main ones plus 2 on the top and 2 on the bottom). "Organizar"
+// recomputes the default left-to-right layout. The "Salvar" button persists
+// layout, anchors and comments (`viz_layout`) on the server — it is
+// presentation only and never touches the topology.
 //
-// TIPO de um bloco já existente (indisponível no nó raiz, índice 0) troca na
-// SEGUNDA LINHA da própria toolbar — ícones só (`refreshKindRow()`/
-// `changeNodeKind()`, a partir de `[data-ak-node-kinds]`), aplicando na hora
-// (PATCH em `graph.nodeUpdateUrl`, sem "Salvar" separado — o servidor
-// rederiva participants/source/target/direction, resposta já resolvida, ver
-// `Solutions\ChainGraph::resolveNode`). Texto/Solução do bloco são
-// editados direto na FORMA, por duplo clique (`startInlineLabelEdit()`): num
-// bloco `system` isso também é a busca de Solução (autocomplete inline);
-// decisão/ator/início/fim são só texto livre, início/fim com um padrão
-// próprio ("Início"/"Fim") que o servidor preenche quando fica em branco.
+// The KIND of an existing block (unavailable on the root node, index 0) is
+// changed on the toolbar's SECOND ROW — icons only
+// (`refreshKindRow()`/`changeNodeKind()`, from `[data-ak-node-kinds]`), applied
+// immediately (a PATCH to `graph.nodeUpdateUrl`, with no separate "Salvar" —
+// the server re-derives participants/source/target/direction and answers
+// already resolved, see `Solutions\ChainGraph::resolveNode`). A block's
+// text/solution is edited on the SHAPE itself, by double click
+// (`startInlineLabelEdit()`): on a `system` block that is also the solution
+// search (inline autocomplete); decision/actor/start/end are free text only,
+// start and end with a default of their own ("Início"/"Fim") that the server
+// fills in when they are left blank.
 //
-// A pill de protocolo em cima de cada seta segue o mesmo espírito: clicável
-// quando `editable` (inclusive a pill tracejada "+ protocolo" de um passo sem
-// protocolo ainda), abre um painel compacto, uma linha só de ÍCONES
-// (`selectEdge()`/`openProtocolEditor()`, mesmo painel fixo à esquerda que a
-// toolbar do bloco usa — não mora dentro dela, os dois só se excluem
-// mutuamente): sentido (dois toggles
-// independentes, `->`/`<-`/`<->`), tracejado (outro ícone-toggle) e
-// "Desligar" (remove só a ligação — os blocos continuam existindo, é assim
-// que um bloco pode acabar sem nenhuma interligação); sentido e tracejado
-// aplicam na hora, sem "Salvar". O protocolo em si não tem campo NESSE
-// painel — duplo clique na própria pill vira um `<input>` no lugar
-// (`startInlineProtocolEdit()`), texto livre com autocomplete do enum
-// `Protocol` como sugestão. PATCH em `graph.edgeUpdateUrl` (sentido ou
-// protocolo) ou DELETE em `graph.edgeRemoveUrl` (desligar); não há ligação
-// "raiz" protegida aqui, qualquer edge pode ser editada/removida.
+// The protocol pill on top of each arrow follows the same spirit: clickable
+// when `editable` (including the dashed "+ protocolo" pill of a step with no
+// protocol yet), opening a compact panel of a single row of ICONS
+// (`selectEdge()`/`openProtocolEditor()`, the same panel pinned on the left
+// that the block toolbar uses — it does not live inside it, the two merely
+// exclude each other): direction (two independent toggles, `->`/`<-`/`<->`),
+// dashed (another icon toggle) and "Desligar" (which removes the link only —
+// the blocks go on existing, which is how a block can end up with no connection
+// at all); direction and dashed apply immediately, with no "Salvar". The
+// protocol itself has no field in THAT panel — a double click on the pill turns
+// it into an `<input>` in place (`startInlineProtocolEdit()`), free text with
+// the `Protocol` enum offered as autocomplete. A PATCH to `graph.edgeUpdateUrl`
+// (direction or protocol) or a DELETE to `graph.edgeRemoveUrl` (disconnect);
+// there is no protected "root" link here, any edge can be edited or removed.
 //
-// O botão "+" da topbar (`openAddEditor()`) acrescenta um bloco NOVO E PURO:
-// uma linha horizontal de ÍCONES de tipo (`buildAddKindIcons()`, mesma lista
-// de `refreshKindRow()` mas sem seleção persistente) — sem seta e sem
-// protocolo, e sem Solução/texto livre pra preencher aqui. Clicar um ícone já
-// cria o bloco (`createNodeFromKind()`, POST em `graph.nodeAddUrl` com o
-// próprio nome do tipo como texto inicial), que `appendNode()` desenha e
-// posiciona à direita do último bloco, e o passo seguinte é
-// `startInlineLabelEdit()` nele — nomear (ou, pra `system`, buscar a Solução)
-// acontece direto no bloco recém-criado, mesmo gesto de renomear um bloco já
-// existente. O MESMO painel reabre (`openQuickAddEditor()`), no mesmo canto
-// fixo, quando uma seta puxada de uma porta é solta em espaço vazio (ver a
-// forma 1 abaixo) — nesse caso o bloco nasce NO PONTO onde a seta foi
-// solta (não à direita do último) e já liga automaticamente com a porta de
-// origem, no mesmo clique do ícone; só a posição do bloco novo usa esse
-// ponto, o painel em si sempre abre no canto.
+// The topbar's "+" button (`openAddEditor()`) adds a NEW, BARE block: a
+// horizontal row of kind ICONS (`buildAddKindIcons()`, the same list as
+// `refreshKindRow()` but with no persistent selection) — with no arrow, no
+// protocol, and no solution or free text to fill in here. Clicking an icon
+// creates the block (`createNodeFromKind()`, a POST to `graph.nodeAddUrl` with
+// the kind's own name as the initial text), which `appendNode()` draws and
+// positions to the right of the last block, and the next step is
+// `startInlineLabelEdit()` on it — naming it (or, for `system`, searching for
+// the solution) happens on the newly created block, the same gesture as
+// renaming an existing one. The SAME panel reopens (`openQuickAddEditor()`), in
+// the same fixed corner, when an arrow pulled from a port is dropped on empty
+// space (see form 1 below) — in that case the block is born AT THE POINT where
+// the arrow was dropped (not to the right of the last one) and links itself to
+// the originating port automatically, in the same click on the icon; only the
+// new block's position uses that point, the panel itself always opens in the
+// corner.
 //
-// A chain é um GRAFO LIVRE, não uma linha reta, e não exige que todo bloco
-// esteja ligado a algo: `graph.edges[i]` traz `{from, to, arrow, protocol}`
-// com índices de nó explícitos, e o número de edges é independente do número
-// de nós. Duas formas de ligar/religar blocos, ambas disponíveis em TODOS os
-// nós (inclusive o raiz):
-//   1. Arrastar uma seta pra fora de uma das 4 PORTAS de um bloco (os
-//      circulinhos que aparecem no hover, filhos do nó — ver `paintNode()` e
-//      `startPortDrag()`) e soltar sobre qualquer outro bloco cria uma ligação
-//      NOVA na hora: POST em `graph.edgeAddUrl` com `->` e sem protocolo,
-//      sem diálogo nenhum no caminho — sentido/protocolo se ajustam depois na
-//      pill. Durante o arraste, `drag.type === 'connect'` desenha uma prévia
-//      tracejada até o ponteiro e destaca o bloco sob ele; soltar sobre o
-//      próprio bloco de origem cancela, mas soltar em CANVAS VAZIO abre o
-//      painel "Adicionar bloco" ali mesmo (`openQuickAddEditor()`, ver acima)
-//      — puxar uma seta pro vazio ganha um bloco novo já ligado, em vez de
-//      simplesmente não fazer nada.
-//   2. Arrastar o handle de uma ponta de seta JÁ EXISTENTE para dentro de
-//      OUTRO bloco (não só pra outra âncora do mesmo par de nós) religa
-//      aquela ligação pra esse bloco — `nodeAtPoint()` decide, durante o
-//      arraste, se o ponteiro está sobre um nó diferente do nó original
-//      daquela ponta; ao soltar, `retargetEdge()` faz o PATCH em
-//      `graph.edgeRetargetUrl` (aplicado otimista antes da resposta, pra não
-//      "voltar" visualmente enquanto o request está em voo — reverte em caso
-//      de erro). Um bloco não pode se ligar a ele mesmo: soltar sobre a
-//      ponta oposta da MESMA ligação é ignorado, mantendo o nó original.
-// Entre as duas formas de ligar + o bloco puro do painel de adicionar +
-// "Desligar" no editor de ligação, a topologia é um grafo livre de verdade —
-// nós e ligações são criados independentemente, sem forçar todo bloco a estar
-// conectado.
+// The chain is a FREE GRAPH, not a straight line, and it does not require every
+// block to be connected to something: `graph.edges[i]` carries `{from, to,
+// arrow, protocol}` with explicit node indices, and the number of edges is
+// independent of the number of nodes. There are two ways to connect and
+// reconnect blocks, both available on EVERY node (the root included):
+//   1. Dragging an arrow out of one of a block's 4 PORTS (the small circles
+//      that appear on hover, children of the node — see `paintNode()` and
+//      `startPortDrag()`) and dropping it on any other block creates a NEW link
+//      on the spot: a POST to `graph.edgeAddUrl` with `->` and no protocol,
+//      with no dialog in the way — direction and protocol are adjusted
+//      afterwards on the pill. During the drag, `drag.type === 'connect'` draws
+//      a dashed preview to the pointer and highlights the block under it;
+//      dropping on the originating block cancels, but dropping on EMPTY CANVAS
+//      opens the "Adicionar bloco" panel right there (`openQuickAddEditor()`,
+//      see above) — pulling an arrow into the void earns a new block already
+//      linked, instead of simply doing nothing.
+//   2. Dragging the handle of an EXISTING arrow end into ANOTHER block (not
+//      merely onto another anchor of the same pair of nodes) reconnects that
+//      link to that block — `nodeAtPoint()` decides, during the drag, whether
+//      the pointer is over a node different from that end's original one; on
+//      release, `retargetEdge()` sends the PATCH to `graph.edgeRetargetUrl`
+//      (applied optimistically before the response, so it does not visually
+//      "snap back" while the request is in flight — it reverts on error). A
+//      block cannot link to itself: dropping on the opposite end of the SAME
+//      link is ignored, keeping the original node.
+// Between the two ways of connecting, the bare block from the add panel and
+// "Desligar" in the link editor, the topology is a genuinely free graph — nodes
+// and links are created independently, with nothing forcing every block to be
+// connected.
 //
-// Nome e status da integração — o único metadado que não mora num nó/aresta
-// da chain — NÃO são editados aqui: vivem na barra superior da página
-// (`Diagrams\Meta`, edição in-line), visível também na aba
-// Documentação. Este módulo tinha um painel próprio pra isso até 2026-08-17;
-// dois editores do mesmo campo dessincronizam na primeira edição. Criar uma
-// Diagram nova é o form "Nova" da lista da solução
-// (o formulário "Novo diagrama"), que já entrega a chain com só o nó raiz.
+// The integration's name and status — the only metadata that does not live on a
+// node or an edge of the chain — are NOT edited here: they live in the page's
+// top bar (`Diagrams\Meta`, inline editing), visible on the Documentação tab
+// too. This module had a panel of its own for that until 2026-08-17; two
+// editors of the same field desynchronise on the first edit. Creating a new
+// Diagram is the solution list's "Nova" form (the "Novo diagrama" form), which
+// already delivers the chain with the root node alone.
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
 const MIN_SCALE = 0.3
@@ -184,15 +184,15 @@ const ANCHORS = {
 }
 const ANCHOR_KEYS = Object.keys(ANCHORS)
 
-// ── roteamento ortogonal das setas ───────────────────────────────────
-// Uma ligação sai perpendicular à face onde nasce, vira em ângulo reto e
-// chega perpendicular à face de destino — o desenho que um diagrama técnico
-// usa, no lugar da curva de Bézier que estava aqui antes.
+// ── orthogonal arrow routing ─────────────────────────────────────────
+// A link leaves perpendicular to the face it is born on, turns at a right
+// angle and arrives perpendicular to the destination face — the drawing a
+// technical diagram uses, in place of the Bézier curve that was here before.
 //
-// Duas medidas fazem o desenho: o TRECHO RETO antes da primeira curva (sem
-// ele a seta viraria colada no bloco, e o canto arredondado comeria a ponta
-// da flecha) e o RAIO do canto, que é só um arredondamento leve — o ângulo
-// tem que continuar lendo como 90°, não como uma curva.
+// Two measurements make the drawing: the STRAIGHT RUN before the first curve
+// (without it the arrow would turn while still touching the block, and the
+// rounded corner would eat the arrowhead) and the corner RADIUS, which is only
+// a light rounding — the angle has to go on reading as 90°, not as a curve.
 const EDGE_STUB = 22
 const EDGE_CORNER = 10
 // Quanto dois corredores que se sobrepõem se afastam um do outro, e quão
@@ -202,13 +202,13 @@ const EDGE_CORRIDOR_BUCKET = 14
 // Distância entre duas pontas que disputam a MESMA face de um bloco.
 const ANCHOR_FAN_STEP = 16
 
-/** Vértices da rota entre duas âncoras, já com os trechos retos das pontas. */
+/** The route's vertices between two anchors, straight end runs included. */
 function orthogonalPoints(p0, p3, stub = EDGE_STUB, offset = 0) {
     const s0 = { x: p0.x + p0.nx * stub, y: p0.y + p0.ny * stub }
     const s3 = { x: p3.x + p3.nx * stub, y: p3.y + p3.ny * stub }
-    // As normais deste canvas são todas axiais (ver ANCHORS), então "sai na
-    // horizontal" é a pergunta inteira: não existe âncora diagonal para a
-    // qual o eixo da saída fosse ambíguo.
+    // This canvas's normals are all axial (see ANCHORS), so "does it leave
+    // horizontally" is the whole question: there is no diagonal anchor whose
+    // exit axis would be ambiguous.
     const fromHoriz = p0.nx !== 0
     const toHoriz = p3.nx !== 0
 
@@ -236,14 +236,14 @@ function orthogonalPoints(p0, p3, stub = EDGE_STUB, offset = 0) {
 }
 
 /**
- * O CORREDOR de uma rota: o trecho longo do meio, onde ela atravessa o vazio
- * entre os dois blocos. `null` quando a rota faz uma cotovelada só (sai na
- * horizontal e chega na vertical, ou o contrário) — aí não há trecho do meio
- * para disputar com ninguém.
+ * A route's CORRIDOR: the long middle run, where it crosses the empty space
+ * between the two blocks. `null` when the route makes a single elbow (leaving
+ * horizontally and arriving vertically, or the other way round) — there is no
+ * middle run there for anyone to contend over.
  *
- * `from`/`to` são as pontas do corredor no OUTRO eixo, para saber se dois
- * deles realmente se cruzam ou se apenas calharam da mesma coordenada em
- * pedaços diferentes do desenho.
+ * `from`/`to` are the corridor's ends on the OTHER axis, so we can tell whether
+ * two of them really cross or merely happened to land on the same coordinate in
+ * different parts of the drawing.
  */
 function corridorOf(p0, p3, stub = EDGE_STUB) {
     const s0 = { x: p0.x + p0.nx * stub, y: p0.y + p0.ny * stub }
@@ -258,20 +258,21 @@ function corridorOf(p0, p3, stub = EDGE_STUB) {
 }
 
 /**
- * Quanto afastar cada corredor, para que dois que correriam um EM CIMA do
- * outro corram lado a lado.
+ * How far to push each corridor aside, so that two that would run ON TOP of
+ * each other run side by side instead.
  *
- * Isto valia antes só para duas ligações entre o MESMO par de blocos. Mas o
- * emaranhado de um desenho grande não vem daí: vem de ligações sem relação
- * nenhuma entre si cujo meio calhou na mesma altura — num desenho em raias
- * isso é o caso comum, porque todo mundo atravessa a mesma faixa de vazio
- * entre duas raias. Agrupar por COORDENADA em vez de por par cobre os dois,
- * e o par repetido é só o caso particular em que o corredor coincide inteiro.
+ * This used to apply only to two links between the SAME pair of blocks. But the
+ * tangle in a large drawing does not come from there: it comes from links with
+ * no relation to one another whose middle happened to land at the same height —
+ * in a lane drawing that is the common case, because everybody crosses the same
+ * band of empty space between two lanes. Grouping by COORDINATE rather than by
+ * pair covers both, and the repeated pair is just the particular case where the
+ * corridor coincides entirely.
  *
- * Só desvia quem de fato se sobrepõe: dois corredores na mesma altura em
- * pedaços distantes do canvas continuam exatamente onde estavam. O
- * deslocamento é simétrico em torno do eixo, então um corredor sozinho não
- * paga nada — o caso comum não se mexe.
+ * Only the ones that actually overlap move: two corridors at the same height in
+ * distant parts of the canvas stay exactly where they were. The offset is
+ * symmetric around the axis, so a corridor on its own pays nothing — the common
+ * case does not shift.
  */
 function corridorOffsets(corridors) {
     const offsets = corridors.map(() => 0)
@@ -331,13 +332,13 @@ function corridorOffsets(corridors) {
 }
 
 /**
- * Onde pousar o rótulo de uma rota: no MEIO DO MAIOR TRECHO RETO dela.
+ * Where to land a route's label: in the MIDDLE OF ITS LONGEST STRAIGHT RUN.
  *
- * Era no meio geométrico do traço, que numa rota ortogonal cai com frequência
- * em cima de uma curva — o rótulo saía torto sobre o cotovelo, mordendo os
- * dois trechos. Empate favorece o trecho deitado: texto deitado sobre linha
- * deitada ocupa a mesma direção, e cobre menos desenho que a mesma caixa
- * atravessada num trecho em pé.
+ * It used to be the stroke's geometric middle, which on an orthogonal route
+ * frequently falls on a curve — the label came out askew over the elbow, biting
+ * into both runs. A tie favours the horizontal run: horizontal text over a
+ * horizontal line occupies the same direction, and covers less of the drawing
+ * than the same box laid across a vertical one.
  */
 function labelAnchor(points) {
     // Funde os trechos colineares ANTES de medir, porque é isso que se vê:
@@ -381,11 +382,11 @@ function labelAnchor(points) {
 }
 
 /**
- * Polilinha com os cantos arredondados, como `d` de um `<path>`.
+ * A polyline with rounded corners, as a `<path>`'s `d`.
  *
- * O raio de cada canto é limitado à METADE do menor dos dois segmentos que
- * ele une: sem isso, dois blocos quase encostados produzem uma curva maior
- * que o próprio segmento e o traço volta para trás sozinho.
+ * Each corner's radius is capped at HALF of the shorter of the two segments it
+ * joins: without that, two blocks almost touching produce a curve larger than
+ * the segment itself and the stroke doubles back on its own.
  */
 function roundedPath(points, radius = EDGE_CORNER) {
     const pts = []
@@ -397,8 +398,8 @@ function roundedPath(points, radius = EDGE_CORNER) {
         }
     })
 
-    // Vértice colinear não é canto — some, senão vira uma curva no meio de um
-    // trecho reto (o caso de dois blocos perfeitamente alinhados).
+    // A collinear vertex is not a corner — it goes, or it becomes a curve in
+    // the middle of a straight run (the case of two perfectly aligned blocks).
     for (let i = pts.length - 2; i > 0; i--) {
         const [a, b, c] = [pts[i - 1], pts[i], pts[i + 1]]
         if (Math.abs((b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x)) < 0.01) pts.splice(i, 1)
@@ -433,30 +434,29 @@ function roundedPath(points, radius = EDGE_CORNER) {
 // as intermediárias do topo/base existem só pra grudar ponta de seta).
 const ANCHOR_SIDES = ['t', 'r', 'b', 'l']
 
-// Paleta de cor de bloco (mesma lógica do mapa mental de referência: presets
-// + cor personalizada) e famílias de fonte selecionáveis por bloco. Tons bem
-// claros de propósito (2026-07-28: a paleta anterior tinha cores fortes
-// demais) + branco puro como primeira opção — o texto permanece escuro em
-// todas (ver `textColorFor()`), já que a luminância de qualquer uma delas é
-// alta.
+// The block colour palette (the same logic as the reference mind map: presets
+// plus a custom colour) and the font families selectable per block. Very light
+// shades on purpose (2026-07-28: the previous palette's colours were too
+// strong) plus pure white as the first option — the text stays dark on all of
+// them (see `textColorFor()`), since every one of them is high in luminance.
 const PALETTE = ['#FFFFFF', '#E9EDFB', '#E6F1FC', '#E3F4EA', '#FCF1D4', '#FBE7EC', '#EFE7FB', '#EDF1F5']
 const FONTS = {
     sans: "'Space Grotesk', 'Inter', system-ui, sans-serif",
     serif: "Georgia, 'Times New Roman', serif",
     mono: "ui-monospace, 'SF Mono', Menlo, Consolas, monospace",
 }
-// `sm` é o tamanho de hoje (13px, ver `.ak-viz-node` no CSS) — mantido aqui
-// como valor explícito (em vez de "ausente = padrão do CSS") pra caber no
-// mesmo padrão do <select> de fonte, com um valor sempre selecionado.
+// `sm` is today's size (13px, see `.ak-viz-node` in the CSS) — kept here as an
+// explicit value (rather than "absent = the CSS default") so it fits the same
+// pattern as the font <select>, which always has a value selected.
 const FONT_SIZES = { sm: '13px', md: '15px', lg: '17px' }
 
-// Cores padrão de uma raia nova (ciclo, uma por `lanes.length` no momento da
-// criação) e tamanho inicial (px de mundo) — ambos só sugestões, editáveis
-// depois arrastando a raia/suas alças, ou pelo painel "Raias". Mesma lista
-// serve os dois seletores de cor (corpo e cabeçalho, ver
-// `buildLaneSwatches()`/`buildLaneHeaderSwatches()`) — preto/branco/bege/
-// cinza cobrem os casos neutros que as 6 cores "de marca" originais não
-// cobriam (um cabeçalho preto/branco puro, por exemplo).
+// A new lane's default colours (cycled, one per `lanes.length` at creation
+// time) and its initial size (world px) — both only suggestions, editable
+// afterwards by dragging the lane or its handles, or through the "Raias" panel.
+// The same list serves both colour pickers (body and header, see
+// `buildLaneSwatches()`/`buildLaneHeaderSwatches()`) — black/white/beige/grey
+// cover the neutral cases the original 6 "brand" colours did not (a pure
+// black or white header, for instance).
 const LANE_COLORS = ['#2F6FED', '#7C3AED', '#16A34A', '#EA580C', '#DB2777', '#0891B2', '#000000', '#FFFFFF', '#E8DCC4', '#9CA3AF']
 const LANE_DEFAULT_WIDTH = 420
 const LANE_DEFAULT_HEIGHT = 240
@@ -467,24 +467,23 @@ const LANE_DEFAULT_HEIGHT = 240
 const LANE_MIN_SIZE = 100
 const LANE_MAX_SIZE = 6000
 
-// Anotação básica ("post-it") — largura fixa, sem redimensionar (ver
-// `rebuildNotes()`); a altura cresce sozinha com o texto
-// (`contenteditable`), então não há um valor fixo equivalente pra ela.
+// A basic note ("post-it") — fixed width, no resizing (see `rebuildNotes()`);
+// the height grows on its own with the text (`contenteditable`), so there is no
+// equivalent fixed value for it.
 const NOTE_DEFAULT_WIDTH = 190
 const NOTE_MIN_HEIGHT = 90
 
-// Estilo padrão de uma raia nova — cantos retos, borda sólida, preenchimento
-// liso, orientação horizontal (etiqueta vertical na borda esquerda, como
-// sempre foi), etiqueta visível e texto pequeno. Uma raia salva antes de
-// qualquer um destes campos existir não traz a chave (`applyLayout()` faz o
-// backfill lendo este mesmo objeto), então mudar um destes defaults muda
-// também a leitura de raias antigas — não faça isso sem pensar na
-// retrocompatibilidade. `headerColor` fica de fora deste objeto de
-// propósito: ausente (não `null` explícito) é o sinal de "ainda não
-// customizado" que `laneHeaderColor()` usa pra decidir entre o valor
-// explícito e o escurecido automático da cor do corpo — colocá-lo aqui como
-// `null` fixo funcionaria igual, mas o objeto já teria a chave, obscurecendo
-// esse contrato.
+// A new lane's default style — square corners, solid border, flat fill,
+// horizontal orientation (vertical label on the left edge, as it has always
+// been), a visible label and small text. A lane saved before any of these
+// fields existed carries no such key (`applyLayout()` backfills by reading this
+// very object), so changing one of these defaults also changes how old lanes
+// are read — do not do it without thinking about backward compatibility.
+// `headerColor` is left out of this object on purpose: absent (not an explicit
+// `null`) is the "not customised yet" signal `laneHeaderColor()` uses to decide
+// between the explicit value and the automatic darkening of the body colour —
+// putting it here as a fixed `null` would work the same, but the object would
+// already carry the key, obscuring that contract.
 const LANE_STYLE_DEFAULTS = {
     rounded: false,
     dashed: false,
@@ -497,33 +496,33 @@ const LANE_STYLE_DEFAULTS = {
 // `SaveChainLayoutRequest`.
 const LANE_OPACITY_MIN = 0.03
 const LANE_OPACITY_MAX = 0.5
-// Tamanhos de texto do rótulo da raia — escala própria (menor que a dos
-// blocos, `FONT_SIZES`), já que a etiqueta é uma faixa estreita; `sm` (11px)
-// é o tamanho de sempre, mantido como default explícito pela mesma razão de
-// `FONT_SIZES` acima.
+// The lane label's text sizes — a scale of its own (smaller than the blocks'
+// `FONT_SIZES`), since the label is a narrow strip; `sm` (11px) is the size it
+// has always been, kept as an explicit default for the same reason as
+// `FONT_SIZES` above.
 const LANE_FONT_SIZES = { sm: '11px', md: '13px', lg: '15px' }
 
-// ── modo apresentação — bolinhas viajando pelas setas ───────────────────
-// Até 5 bolinhas simultâneas, uma por "ramo" do fluxo — ver
-// `computePresentationPaths()`. Paleta vibrante e bem espalhada no círculo
-// cromático (roxo, o lima da própria marca, amarelo, laranja, ciano) pra
-// que as 5 bolinhas fiquem sempre fáceis de distinguir entre si — separada
-// de `LANE_COLORS` de propósito, já que ali a cor precisa combinar com o
-// fundo translúcido de uma raia inteira, enquanto aqui é só um pontinho
-// brilhante sobre a aresta. Teto de segurança contra ciclo patológico
-// (nunca deve ser atingido na prática — a proteção de ciclo de verdade é
-// por nó já visitado NO MESMO caminho, não por contagem).
+// ── presentation mode — dots travelling along the arrows ─────────────────
+// Up to 5 dots at once, one per "branch" of the flow — see
+// `computePresentationPaths()`. A vibrant palette, well spread around the
+// colour wheel (purple, the brand's own lime, yellow, orange, cyan) so the 5
+// dots always stay easy to tell apart — kept separate from `LANE_COLORS` on
+// purpose, since there the colour has to work as the translucent background of
+// a whole lane, while here it is only a bright dot on an edge. The ceiling is a
+// safety net against a pathological cycle (it should never be reached in
+// practice — the real cycle protection is per node already visited ON THE SAME
+// path, not a count).
 const PRESENT_MAX_PATHS = 5
 const PRESENT_HARD_CAP_EDGES = 200
 const PRESENT_DOT_COLORS = ['#A855F7', '#AADB1E', '#FACC15', '#FB923C', '#22D3EE']
 
-// ── Exportar diagrama (imagem/GIF) — ver `captureDiagramCanvas()` ──────────
-// Recorta exatamente ao redor do conteúdo (nós ∪ raias), nunca ao viewport
-// aberto no navegador — é isso que evita a "moldura" de espaço em branco que
-// `fit()` deixa de propósito (letterbox contain, pensado pra edição, onde o
-// viewport tem lá seu próprio formato). `EXPORT_LONG_SIDE` é o lado mais
-// comprido da imagem final; o outro lado é derivado da proporção real do
-// conteúdo, então a saída SEMPRE preenche o quadro por completo.
+// ── exporting the diagram (image/GIF) — see `captureDiagramCanvas()` ──────
+// It crops exactly around the content (nodes ∪ lanes), never to the viewport
+// open in the browser — which is what avoids the "frame" of white space `fit()`
+// leaves on purpose (letterbox contain, designed for editing, where the
+// viewport has a shape of its own). `EXPORT_LONG_SIDE` is the final image's
+// longest side; the other side is derived from the content's real aspect ratio,
+// so the output ALWAYS fills the frame completely.
 const EXPORT_PAD = 48
 const EXPORT_LONG_SIDE = 1600
 // Frames capture back-to-back — no artificial delay between them (see
@@ -585,32 +584,32 @@ const EXPORT_PRESETS = {
     blueprint:   { bg: '#EDF7FA' },
 }
 
-// Descobre até `PRESENT_MAX_PATHS` caminhos no grafo livre da chain, um por
-// ramificação — função pura, sem tocar em DOM/estado do módulo, só em
-// `graph.nodes`/`graph.edges` (mesmo formato de `graphRef`). Cada aresta
-// contribui uma única direção de "saída" (`outgoing[node]`): `'->'` sai de
-// `from`; `'<-'` sai de `to` (a caminhada amostra o `<path>` de trás pra
-// frente — ver `reversed` no consumidor); `'<->'` só sai de `from`, nunca
-// cria a entrada reversa — assim uma ligação bidirecional é percorrida numa
-// única direção, por no máximo uma bolinha, sem precisar de exclusão
-// nenhuma depois. Raiz = nó sem nenhuma entrada nesse mesmo sentido; uma
-// raiz sem NENHUMA saída (nó isolado) é ignorada — não haveria o que animar,
-// e não vale gastar uma das 5 vagas com ela.
+// Discovers up to `PRESENT_MAX_PATHS` paths through the chain's free graph, one
+// per branch — a pure function, touching neither the DOM nor the module's
+// state, only `graph.nodes`/`graph.edges` (the same shape as `graphRef`). Each
+// edge contributes a single "outgoing" direction (`outgoing[node]`): `'->'`
+// leaves `from`; `'<-'` leaves `to` (the walk samples the `<path>` back to
+// front — see `reversed` in the consumer); `'<->'` leaves `from` only and never
+// creates the reverse entry — so a bidirectional link is walked in one
+// direction, by at most one dot, with no exclusion needed afterwards. A root is
+// a node with no entry in that same direction; a root with NO outgoing edge at
+// all (an isolated node) is ignored — there would be nothing to animate, and it
+// is not worth one of the 5 slots.
 //
-// Fila FIFO de "sementes" (`{startNode, forcedEdge}`): as raízes entram
-// primeiro, em ordem de índice — cada caminhada segue sempre a saída de
-// MENOR índice do nó atual, e a primeira vez que QUALQUER caminhada passa
-// por um nó com 2+ saídas, as demais saem como sementes novas no fim da
-// fila (`branchSpawned`, global — um nó de merge não gera ramos duplicados
-// só porque um segundo caminho também passou por ele depois). Isso também
-// dá a ordem de descoberta "por ramificação, largura primeiro" pedida: os
-// ramos do primeiro caminho vêm antes dos ramos do segundo.
+// A FIFO queue of "seeds" (`{startNode, forcedEdge}`): the roots go in first,
+// in index order — each walk always follows the LOWEST-index outgoing edge of
+// the current node, and the first time ANY walk passes through a node with 2 or
+// more outgoing edges, the rest leave as new seeds at the back of the queue
+// (`branchSpawned`, global — a merge node does not spawn duplicate branches just
+// because a second path came through it later). That also gives the
+// "branch-first, breadth-first" discovery order asked for: the first path's
+// branches come before the second's.
 //
-// Proteção de ciclo: cada caminhada tem seu próprio `visited` (nós); ao
-// tentar avançar para um nó já visitado NESSA caminhada, a aresta que fecha
-// o ciclo ainda entra na lista — é ela que faz a volta da bolinha ler como
-// um loop contínuo de verdade — e a caminhada para ali (não greda em loop
-// infinito reprocessando o mesmo trecho).
+// Cycle protection: each walk has its own `visited` (nodes); when it tries to
+// advance to a node already visited ON THAT WALK, the edge closing the cycle
+// still enters the list — it is what makes the dot's return read as a genuinely
+// continuous loop — and the walk stops there (rather than spinning forever
+// reprocessing the same stretch).
 function computePresentationPaths(graph) {
     const nodeCount = graph?.nodes?.length || 0
     const edgeList = graph?.edges || []
@@ -672,13 +671,13 @@ function computePresentationPaths(graph) {
     return paths.map((p, k) => ({ ...p, color: PRESENT_DOT_COLORS[k % PRESENT_DOT_COLORS.length] }))
 }
 
-// Nós sem NENHUMA aresta tocando-os (nem `from` nem `to`, de qualquer
-// `arrow`) nunca entram em `computePresentationPaths()` — não há bolinha
-// que algum dia os alcance, então não faz sentido deixá-los esperando o
-// "sweep" de segurança de `onDotFirstLoopComplete()` (que só dispara depois
-// de TODA bolinha fechar sua 1ª volta, o que pode demorar). Função pura, à
-// parte de `computePresentationPaths()` porque a regra é outra: aqui é só
-// grau zero, sem nenhuma noção de caminho/direção.
+// Nodes with NO edge touching them (neither `from` nor `to`, whatever the
+// `arrow`) never enter `computePresentationPaths()` — no dot will ever reach
+// them, so there is no sense leaving them waiting for the safety sweep in
+// `onDotFirstLoopComplete()` (which only fires once EVERY dot has closed its
+// first loop, and that can take a while). A pure function, kept apart from
+// `computePresentationPaths()` because the rule is a different one: this is
+// degree zero, with no notion of path or direction at all.
 function computeIsolatedNodes(graphRef) {
     const nodeCount = graphRef?.nodes?.length || 0
     const connected = new Array(nodeCount).fill(false)
@@ -705,9 +704,9 @@ function hexToRgba(hex, alpha) {
     const b = parseInt(h.substr(4, 2), 16)
     return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
-// Mesma cor, um tom mais escuro — o AUTOMÁTICO do cabeçalho da raia (a
-// faixa/etiqueta com o título) quando o usuário nunca escolheu uma cor de
-// cabeçalho própria, ver `laneHeaderColor()` logo abaixo.
+// The same colour, one shade darker — the AUTOMATIC value for a lane's header
+// (the strip/label carrying the title) when the user has never chosen a header
+// colour of their own, see `laneHeaderColor()` just below.
 function darkenHex(hex, amount) {
     const h = hex.replace('#', '')
     const scale = (v) => Math.max(0, Math.min(255, Math.round(v * (1 - amount))))
@@ -717,28 +716,29 @@ function darkenHex(hex, amount) {
     return `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`
 }
 
-// `background` CSS do CORPO de uma raia — sempre sólido (a cor com alpha na
-// opacidade escolhida); os padrões diagonal/trançado que existiam aqui foram
-// removidos (só sólido agora), ver `LANE_STYLE_DEFAULTS`.
+// The CSS `background` of a lane's BODY — always solid (the colour with alpha
+// at the chosen opacity); the diagonal and woven patterns that used to be here
+// were removed (solid only now), see `LANE_STYLE_DEFAULTS`.
 function laneBackgroundCss(lane) {
     const opacity = Number.isFinite(lane.opacity) ? lane.opacity : LANE_STYLE_DEFAULTS.opacity
     return hexToRgba(lane.color, opacity)
 }
 
-// Cor do CABEÇALHO (etiqueta/faixa com o título) — independente da cor do
-// corpo (`lane.color`) quando o usuário escolheu uma explicitamente
-// (`lane.headerColor`, `setLaneHeaderColor()`); sem escolha explícita, cai
-// automaticamente pro escurecido de sempre da cor do corpo, então uma raia
-// que nunca mexeu nisso continua com a aparência de sempre.
+// The HEADER's colour (the label/strip carrying the title) — independent of the
+// body colour (`lane.color`) once the user has chosen one explicitly
+// (`lane.headerColor`, `setLaneHeaderColor()`); with no explicit choice it falls
+// back automatically to the usual darkening of the body colour, so a lane that
+// never touched this looks exactly as it always did.
 function laneHeaderColor(lane) {
     return isHex(lane.headerColor) ? lane.headerColor : darkenHex(lane.color, 0.35)
 }
 
-// Avatar do bloco: logo da solução, ou (sem logo) um badge com a inicial do
-// nome — mesmo fallback do catálogo (`x-ui.logo`), refeito aqui em DOM puro
-// porque os nós do data-viz não passam por Blade. Em bloco de decisão/ator,
-// o lugar do logo é ocupado pelo ícone do tipo (`data.icon`, heroicon já
-// renderizado no servidor — ver `ChainNodeKind::icon()`).
+// The block's avatar: the solution's logo, or (with no logo) a badge carrying
+// the name's initial — the catalog's own fallback (`x-ui.logo`), rebuilt here in
+// plain DOM because the data-viz nodes never go through Blade. On a
+// decision/actor block the logo's place is taken by the kind's icon
+// (`data.icon`, a heroicon already rendered on the server — see
+// `ChainNodeKind::icon()`).
 function buildAvatar(data) {
     const avatar = document.createElement('span')
     avatar.className = 'ak-viz-node-avatar'
@@ -782,10 +782,10 @@ function buildPorts(el) {
 // divergirem na montagem do DOM do bloco.
 function paintNode(el, data) {
     const kind = data.kind || 'system'
-    // Só um bloco de sistema com uma Solução cadastrada (logo real) pode
-    // virar "somente logo" — texto livre/decisão/ator não têm imagem
-    // nenhuma pra mostrar sozinha, e uma Solução sem logo cairia no
-    // fallback de inicial, que não faz sentido "sozinho" no lugar do cartão.
+    // Only a system block carrying a registered solution (a real logo) can
+    // become "logo only" — free text, decision and actor have no image at all
+    // to show on its own, and a solution with no logo would fall back to the
+    // initial badge, which makes no sense "alone" in place of the card.
     const logoOnly = kind === 'system' && !!data.solution && !!data.logo && !!data.logoOnly
     // `is-free` (tracejado de "externo à Leo") é só do bloco de sistema sem
     // Solução — decisão/ator/início/fim têm forma/cor próprias, ver as
@@ -801,23 +801,25 @@ function paintNode(el, data) {
     el.classList.toggle('is-logo-only', logoOnly)
     el.classList.toggle('has-comment', !!data.comment)
     el.classList.toggle('is-dashed', !!data.dashed)
-    // A família de cor da CATEGORIA da Solução (`ChainGraph::resolveNode()`),
-    // lida só pelos temas que tingem o bloco pelo que o sistema É — ver o
-    // bloco `--viz-node-accent` no <style> do componente. Removido (em vez de
-    // ficar vazio) quando o bloco não é uma Solução cadastrada: o seletor é
-    // `[data-category-family]`, então um valor vazio ainda casaria.
+    // The colour family of the solution's CATEGORY
+    // (`ChainGraph::resolveNode()`), read only by the themes that tint a block
+    // by what the system IS — see the `--viz-node-accent` block in the
+    // component's <style>. Removed (rather than left empty) when the block is
+    // not a registered solution: the selector is `[data-category-family]`, so
+    // an empty value would still match.
     if (data.categoryFamily) el.dataset.categoryFamily = data.categoryFamily
     else delete el.dataset.categoryFamily
     el.innerHTML = ''
-    // Zerado junto com o conteúdo: só os blocos redondos escrevem `title`
-    // (rótulo completo, já que a chip abaixo do círculo trunca), e converter um
-    // ator em sistema deixaria o tooltip antigo grudado no bloco novo.
+    // Cleared along with the content: only the round blocks write a `title`
+    // (the full label, since the chip below the circle truncates), and turning
+    // an actor into a system would leave the old tooltip stuck to the new
+    // block.
     el.title = ''
 
-    // "Somente logo": o cartão inteiro (avatar + nome) some, sobra só a
-    // imagem da Solução em tamanho real — mesmo espírito de uma imagem
-    // colada (`kind === 'image'` acima), mas aqui é uma Solução do catálogo,
-    // não uma mídia própria do nó.
+    // "Somente logo": the whole card (avatar + name) goes and only the
+    // solution's image at full size is left — the same spirit as a pasted image
+    // (`kind === 'image'` above), except that here it is a catalog solution
+    // rather than media belonging to the node.
     if (logoOnly) {
         const img = document.createElement('img')
         img.src = data.logo
@@ -832,11 +834,11 @@ function paintNode(el, data) {
         return
     }
 
-    // Imagem colada (Ctrl+V): só a própria imagem, sem avatar/rótulo — o
-    // conteúdo já É a imagem. Continua um bloco como qualquer outro (porta,
-    // badge de comentário), então pode enviar/receber setas normalmente.
-    // `data.mediaUrl` ausente (mídia removida por fora, ou um nó `image` mal
-    // formado) cai num quadro vazio com o ícone de fallback em vez de quebrar.
+    // A pasted image (Ctrl+V): the image alone, with no avatar and no label —
+    // the content already IS the image. It stays a block like any other (port,
+    // comment badge), so it can send and receive arrows normally. A missing
+    // `data.mediaUrl` (media removed elsewhere, or a malformed `image` node)
+    // lands on an empty frame with the fallback icon instead of breaking.
     if (kind === 'image') {
         if (data.mediaUrl) {
             const img = document.createElement('img')
@@ -859,19 +861,19 @@ function paintNode(el, data) {
         return
     }
 
-    // Os três blocos REDONDOS — Início, Fim e Ator: só o ícone dentro do
-    // círculo + o rótulo escrito ABAIXO dele
-    // (`.ak-viz-node-endcap-label`), nunca ao lado. Layout totalmente
-    // diferente dos demais tipos, ver CSS (`.is-start`/`.is-end`/`.is-actor`).
+    // The three ROUND blocks — start, end and actor: the icon inside the
+    // circle and the label written BELOW it (`.ak-viz-node-endcap-label`),
+    // never beside it. A layout entirely different from the other kinds, see
+    // the CSS (`.is-start`/`.is-end`/`.is-actor`).
     //
-    // O ator entrou aqui em 2026-08-26: era uma pílula com o ícone ao lado do
-    // texto, e por isso se lia como mais uma caixa do fluxo. Ele não é um
-    // passo — é quem o fluxo acontece com, e a mesma silhueta dos terminais diz
-    // isso sem legenda. O rótulo fora da forma também é o que impede um nome
-    // longo de esticar o círculo.
+    // The actor joined them on 2026-08-26: it used to be a pill with the icon
+    // next to the text, and therefore read as one more box in the flow. It is
+    // not a step — it is who the flow happens to, and the terminals' own
+    // silhouette says so without a legend. The label outside the shape is also
+    // what stops a long name from stretching the circle.
     //
-    // O `title` guarda o rótulo inteiro: a chip abaixo do círculo é limitada em
-    // largura (CSS) e um nome comprido aparece truncado nela.
+    // The `title` keeps the whole label: the chip below the circle is capped in
+    // width (CSS) and a long name shows up truncated in it.
     if (kind === 'start' || kind === 'end' || kind === 'actor') {
         if (data.icon) el.appendChild(buildKindIcon(data.icon))
         const label = document.createElement('span')
@@ -888,9 +890,9 @@ function paintNode(el, data) {
         return
     }
 
-    // Corpo do bloco: avatar (logo da solução, ou inicial do nome quando não
-    // há logo; ícone do tipo em decisão/ator) + nome. Nó de sistema em texto
-    // livre não tem avatar nenhum.
+    // The block's body: avatar (the solution's logo, or the name's initial when
+    // there is no logo; the kind's icon on decision/actor) plus the name. A
+    // free-text system node has no avatar at all.
     const body = document.createElement('div')
     body.className = 'ak-viz-node-body'
     if (data.solution) body.appendChild(buildAvatar(data))
@@ -938,9 +940,9 @@ function getProtocolsList() {
     return protocolsListCache
 }
 
-// Tipos de bloco (`App\Enums\ChainNodeKind`) — resolvidos no servidor, nunca
-// hardcoded aqui: `system` é o único que aceita Solução cadastrada, e cada
-// tipo traz o placeholder do input de texto livre.
+// Block kinds (`App\Enums\ChainNodeKind`) — resolved on the server, never
+// hardcoded here: `system` is the only one that accepts a registered solution,
+// and each kind carries the placeholder for the free-text input.
 function getNodeKindsList() {
     if (kindsListCache) return kindsListCache
     const raw = document.querySelector('[data-ak-node-kinds]')?.getAttribute('data-ak-node-kinds')
@@ -1066,10 +1068,10 @@ function mount(root) {
     const saveBtn = root.querySelector('[data-viz-save]')
     const saveSep = root.querySelector('[data-viz-save-sep]')
     const saveLabel = root.querySelector('[data-viz-save-label]')
-    // Nome da integração desenhada agora — o canvas não o EXIBE mais (a barra
-    // superior da página faz isso, com o status junto), mas o rótulo do estado
-    // vazio ainda o usa, e o re-render de `removeNode()` precisa dele sem
-    // depender de lê-lo de volta do DOM.
+    // The name of the integration being drawn — the canvas no longer DISPLAYS
+    // it (the page's top bar does, with the status next to it), but the empty
+    // state's label still uses it, and `removeNode()`'s re-render needs it
+    // without having to read it back out of the DOM.
     let currentName = ''
     const organizeBtn = root.querySelector('[data-viz-organize]')
     const addNodeBtn = root.querySelector('[data-viz-add-node]')
@@ -1183,36 +1185,36 @@ function mount(root) {
     let commentIndex = null
     let selectedEdge = null // índice em chain.edges com o editor de protocolo aberto
     let edgeLabelEls = []   // <g> de cada pill de protocolo desenhada no draw() atual — base p/ ancorar o input inline de edição de protocolo
-    // Espelho local dos dois botões-toggle de sentido do editor de ligação
-    // (`data-viz-protocol-arrow-left/right`) — `left` = cabeça de seta na
-    // origem (`<-`), `right` = cabeça de seta no destino (`->`); ambos juntos
-    // formam `<->`. Nunca fica com os dois desligados: '->'/'<-'/'<->' são os
-    // únicos valores válidos, então `toggleArrowSide()` ignora o clique que
-    // desligaria o último ativo — ver `currentArrowValue()`/`setArrowUI()`.
+    // A local mirror of the link editor's two direction toggles
+    // (`data-viz-protocol-arrow-left/right`) — `left` = arrowhead at the origin
+    // (`<-`), `right` = arrowhead at the destination (`->`); both together make
+    // `<->`. It never ends up with both off: '->'/'<-'/'<->' are the only valid
+    // values, so `toggleArrowSide()` ignores the click that would turn off the
+    // last active one — see `currentArrowValue()`/`setArrowUI()`.
     let arrowState = { left: false, right: true }
     let pastingImage = false // uma imagem colada por vez — ver handlePasteImage()
-    // true quando o `render()` mais recente aplicou posições SALVAS
-    // (`viz_layout`) em vez de `layoutDefault()` — o `ResizeObserver` de
-    // "hidden tab" abaixo só reflowa (`layoutDefault()` de novo) quando isto
-    // é false; um layout salvo não é dele pra reposicionar.
+    // true when the most recent `render()` applied SAVED positions
+    // (`viz_layout`) rather than `layoutDefault()` — the "hidden tab"
+    // `ResizeObserver` below only reflows (`layoutDefault()` again) when this is
+    // false; a saved layout is not its to reposition.
     let usedCustomLayout = false
-    // Preenchidos só quando o painel "Adicionar bloco" abre a partir de
-    // soltar uma seta no CANVAS VAZIO (não no botão "+" da topbar) — ver
-    // `openQuickAddEditor()`. `quickAddOrigin` é a porta de onde a seta
-    // saiu (pra `createEdgeFrom()` depois de criar o bloco); `quickAddPos`
-    // é o ponto de MUNDO onde soltar, pra o bloco novo nascer ali (em vez de
-    // à direita do último bloco, como o "+" da topbar faz) — o painel em si
-    // não usa esse ponto, ele sempre abre no canto fixo do canvas. Os dois
-    // voltam a `null` juntos em `closeAddEditor()`.
+    // Filled in only when the "Adicionar bloco" panel opens from dropping an
+    // arrow on EMPTY CANVAS (not from the topbar's "+") — see
+    // `openQuickAddEditor()`. `quickAddOrigin` is the port the arrow left from
+    // (for `createEdgeFrom()` once the block exists); `quickAddPos` is the WORLD
+    // point of the drop, so the new block is born there (instead of to the right
+    // of the last block, which is what the topbar's "+" does) — the panel itself
+    // does not use that point, it always opens in the canvas's fixed corner.
+    // Both go back to `null` together in `closeAddEditor()`.
     let quickAddOrigin = null
     let quickAddPos = null
-    // Edição inline do protocolo direto no rótulo da seta
-    // (`startInlineProtocolEdit()`) — `inlineProtocolInput` é o `<input>`
-    // flutuante ativo (ou `null`), `inlineProtocolReposition` a função que o
-    // reancora (junto da sugestão) toda vez que o canvas roda `applyView()`/
-    // `draw()`, já que este input (diferente do painel de contexto da seta)
-    // continua vivendo colado à própria pill, em espaço de TELA, não de
-    // `world`.
+    // Inline protocol editing on the arrow's label itself
+    // (`startInlineProtocolEdit()`) — `inlineProtocolInput` is the active
+    // floating `<input>` (or `null`), `inlineProtocolReposition` the function
+    // that re-anchors it (along with the suggestion box) every time the canvas
+    // runs `applyView()`/`draw()`, since this input (unlike the arrow's context
+    // panel) goes on living stuck to the pill itself, in SCREEN space rather
+    // than in `world`'s.
     let inlineProtocolInput = null
     let inlineProtocolReposition = null
     let inlineProtocolEditIndex = null // índice do edge em edição inline, ou null — `drawProtocolPill()` esconde o texto estático dele
@@ -1222,30 +1224,31 @@ function mount(root) {
 
     function applyView() {
         world.style.transform = `translate(${view.x}px,${view.y}px) scale(${view.scale})`
-        // Contra-escala das AFFORDANCES (portas do bloco, alças da ponta da
-        // seta, âncoras, o pill vazio de protocolo): elas vivem dentro de
-        // `world`, então a transform acima as engordaria junto com o desenho
-        // — a 220% uma porta de 11px vira 24px e passa a dominar o bloco que
-        // deveria só apontar. Multiplicando por `1/scale` elas mantêm o mesmo
-        // tamanho EM TELA em qualquer zoom, que é o que se espera de um
-        // controle (o desenho em si — blocos, texto, traço, seta, pill com
-        // protocolo escrito — continua escalando, porque é conteúdo).
+        // Counter-scaling for the AFFORDANCES (a block's ports, the arrow-end
+        // handles, the anchors, the empty protocol pill): they live inside
+        // `world`, so the transform above would fatten them along with the
+        // drawing — at 220% an 11px port becomes 24px and starts dominating the
+        // block it is only supposed to point at. Multiplied by `1/scale` they
+        // keep the same ON-SCREEN size at any zoom, which is what one expects
+        // of a control (the drawing itself — blocks, text, stroke, arrow, a pill
+        // with a protocol written in it — goes on scaling, because it is
+        // content).
         root.style.setProperty('--viz-inv-scale', String(1 / view.scale))
         if (zoomLabel) zoomLabel.textContent = Math.round(view.scale * 100) + '%'
-        // O painel "Adicionar bloco" aberto por um drop está ancorado num
-        // ponto de MUNDO (`quickAddPos`), então segue esse ponto no zoom —
-        // como o `<input>` de protocolo logo abaixo. Um pan fecha o painel
-        // antes (o pointerdown no fundo passa por `selectNode(null)`), o
-        // zoom pela roda/pelos botões não.
+        // The "Adicionar bloco" panel opened by a drop is anchored to a WORLD
+        // point (`quickAddPos`), so it follows that point through a zoom — like
+        // the protocol `<input>` just below. A pan closes the panel first (the
+        // pointerdown on the background goes through `selectNode(null)`); a zoom
+        // from the wheel or the buttons does not.
         if (quickAddPos) positionAddEditorAt(quickAddPos.x, quickAddPos.y)
         inlineProtocolReposition?.()
         inlineLaneLabelReposition?.()
-        // A raia/o bloco/a seta em si não precisam de nada aqui: são filhos
-        // de `world` (espaço de mundo), então pan/zoom já os move/escala de
-        // graça via a própria transform CSS acima. Os painéis de contexto
-        // (toolbar do bloco, da raia, editor de protocolo) não reancoram mais
-        // — são fixos no canto do `stage` (estilo excalidraw.com), então pan/
-        // zoom nunca precisa movê-los.
+        // The lane, the block and the arrow themselves need nothing here: they
+        // are children of `world` (world space), so pan and zoom already move
+        // and scale them for free through the CSS transform above. The context
+        // panels (the block's toolbar, the lane's, the protocol editor) no
+        // longer re-anchor — they are pinned to `stage`'s corner
+        // (excalidraw.com style), so pan and zoom never have to move them.
     }
 
     function screenToWorld(clientX, clientY) {
@@ -1257,22 +1260,22 @@ function mount(root) {
     }
 
     /**
-     * Onde uma seta encosta num bloco.
+     * Where an arrow touches a block.
      *
-     * `t` (0..1) desloca a âncora ao longo do LADO, e existe por causa da
-     * linha de vida: as 8 âncoras sabem dizer "à direita", não "à direita, na
-     * altura do terceiro passo" — que é exatamente o que uma mensagem num
-     * instante do tempo precisa. Só vale para os lados verticais (`l`/`r`),
-     * onde deslizar significa descer; nos horizontais não há o que deslizar
-     * que não seja a própria escolha de âncora.
+     * `t` (0..1) slides the anchor along the SIDE, and exists because of the
+     * lifeline: the 8 anchors can say "on the right", not "on the right, at the
+     * height of the third step" — which is exactly what a message at one
+     * instant in time needs. It applies to the vertical sides (`l`/`r`) only,
+     * where sliding means going down; on the horizontal ones there is nothing to
+     * slide that is not the choice of anchor itself.
      */
     function anchorPoint(node, key, t = null) {
         const a = ANCHORS[key] ?? ANCHORS.r
         const slide = t !== null && Number.isFinite(t) && a.nx !== 0
-        // Numa LINHA DE VIDA a mensagem encosta na linha tracejada, que é
-        // desenhada no centro do bloco — não na borda do cartão. Sem isto a
-        // seta nasce e morre no vazio entre duas colunas, tocando nenhuma das
-        // duas: foi assim que a sequência gerada pareceu "sem setas".
+        // On a LIFELINE the message touches the dashed line, which is drawn
+        // down the block's centre — not the card's edge. Without this the arrow
+        // is born and dies in the empty space between two columns, touching
+        // neither: that is how the generated sequence looked "arrowless".
         const onLifeline = node.kind === 'lifeline' && a.nx !== 0
 
         return {

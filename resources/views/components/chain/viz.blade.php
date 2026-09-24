@@ -259,14 +259,14 @@
                 class="!rounded-md !p-1.5 !text-faint hover:!bg-accent-soft hover:!text-ink">
                 <x-heroicon-o-question-mark-circle class="size-4" />
             </x-forms.button>
-            {{-- Duas listas, uma por tipo de ponteiro: os gestos são os mesmos
-                 (tudo roda em eventos de PONTEIRO desde a passada de suporte a
-                 toque), mas o vocabulário e as ressalvas não. Num aparelho de
-                 toque não existe hover — a bolinha de ligar só aparece depois
-                 de tocar o bloco —, nem roda do mouse, nem Ctrl+V; dizer
-                 "roda do mouse dá zoom" pra quem está num tablet é pior que
-                 não dizer nada. `(pointer: coarse)` é a mesma consulta que
-                 aumenta os alvos de toque no CSS abaixo. --}}
+            {{-- Two lists, one per pointer kind: the gestures are the same
+                 (everything has run on POINTER events since the touch-support
+                 pass), the vocabulary and the caveats are not. A touch device
+                 has no hover — the connection dot only appears after you tap
+                 the block — no mouse wheel and no Ctrl+V; telling somebody on
+                 a tablet that "the mouse wheel zooms" is worse than saying
+                 nothing. `(pointer: coarse)` is the same query that grows the
+                 touch targets in the CSS below. --}}
             <div id="viz-hint-popover" class="hidden absolute right-0 top-full z-30 mt-1.5 w-64 rounded-field border border-line bg-surface p-3 text-xs text-ink shadow-xl">
                 <ul class="flex flex-col gap-1.5 [@media(pointer:coarse)]:hidden">
                     <li><strong class="font-semibold">Clique</strong> seleciona um bloco ou uma seta</li>
@@ -430,12 +430,12 @@
                         .ak-viz-edges .ak-viz-plabel.is-empty .ak-viz-plabel-text { fill: #94A3C4; }
                         .ak-viz-dot { filter: drop-shadow(0 0 4px currentColor) drop-shadow(0 0 8px currentColor); }
 
-                        /* Destaque da seleção (`highlightLinkedEdges()`): as
-                           ligações do bloco escolhido acendem e o resto
-                           esmaece. Mora AQUI, na folha interna, porque é aqui
-                           que as regras das arestas moram — e porque assim o
-                           destaque sai igual no PNG exportado, que raw-clona
-                           este subtree. */
+                        /* The selection highlight (`highlightLinkedEdges()`):
+                           the chosen block's links light up and the rest fade.
+                           It lives HERE, in the internal sheet, because this is
+                           where the edge rules live — and because that way the
+                           highlight comes out the same in the exported PNG,
+                           which raw-clones this subtree. */
                         .ak-viz-edges.has-selection path.ak-viz-edge { opacity: .22; }
                         .ak-viz-edges.has-selection path.ak-viz-edge.is-linked {
                             opacity: 1;
@@ -444,14 +444,15 @@
                         .ak-viz-edges.has-selection .ak-viz-plabel { opacity: .3; }
                         .ak-viz-edges.has-selection .ak-viz-plabel.is-linked { opacity: 1; }
 
-                        /* O convite tracejado "+ protocolo" sai do desenho: a
-                           folha externa o traz de volta no hover da ligação.
-                           Esta cópia existe para o EXPORT, que raw-clona este
-                           subtree e leva só ela — um PNG nunca deve mostrar
-                           afordância, e antes mostrava uma por ligação sem
-                           protocolo. Sem exceção aqui de propósito: nem a
-                           ligação que estava sob o ponteiro na hora da captura
-                           vaza para a imagem. */
+                        /* The dashed "+ protocolo" invitation leaves the
+                           drawing: the outer sheet brings it back when a link
+                           is hovered. This copy exists for the EXPORT, which
+                           raw-clones this subtree and carries only this sheet —
+                           a PNG should never show an affordance, and it used to
+                           show one per link with no protocol. No exception here
+                           on purpose: not even the link that happened to be
+                           under the pointer at capture time leaks into the
+                           image. */
                         .ak-viz-edges.has-selection .ak-viz-plabel.is-empty,
                         .ak-viz-edges .ak-viz-plabel.is-empty { opacity: 0; }
 
@@ -600,12 +601,12 @@
                 <x-heroicon-o-arrows-pointing-in data-viz-fs-close class="hidden size-4" />
             </x-forms.button>
             <span class="mx-0.5 h-5 w-px bg-line"></span>
-            {{-- Modo apresentação: liga/desliga as bolinhas animadas
+            {{-- Presentation mode: turns the animated dots on and off
                  (`chain-viz.js::enterPresentation()`/`exitPresentation()`).
-                 Sempre visível, inclusive pra quem não pode editar — é um
-                 recurso de visualização, não de autoria. O ícone alterna
-                 entre "apresentar"/"parar" no mesmo padrão de
-                 `data-viz-fs-open`/`data-viz-fs-close` logo acima. --}}
+                 Always visible, including to somebody who may not edit — it is
+                 a viewing feature, not an authoring one. The icon alternates
+                 between "present" and "stop" on the same pattern as
+                 `data-viz-fs-open`/`data-viz-fs-close` just above. --}}
             <x-forms.button type="button" variant="ghost" data-viz-present-toggle title="Modo apresentação"
                 class="!rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
                 <x-heroicon-o-presentation-chart-line data-viz-present-icon-start class="size-4" />
@@ -630,18 +631,18 @@
                 </div>
             </span>
             <span class="mx-0.5 h-5 w-px bg-line"></span>
-            {{-- Tema do canvas (Original/Casual/Corporativo/Tech) — ao vivo,
-                 não só no export: `chain-viz.js::applyTheme()` liga o
-                 `data-viz-preset` no `world`/`edges` e as MESMAS regras CSS
-                 que o export usa (bloco/aresta/pill, no <style> deste
-                 componente) já pintam a edição normal. Persistido em
-                 `viz_layout.theme` — muda o estado do "Salvar" igual mover um
-                 bloco faria, não salva sozinho. Visível pra qualquer um (nem
-                 só quem edita) — é uma preferência de visualização, mesmo
-                 espírito do Modo apresentação. Sem classe `hidden` aqui —
-                 igual `data-viz-export-toggle`/`data-viz-present-toggle`,
-                 visível por padrão; `showEmpty()`/`render()` alternam
-                 `!hidden` (nunca `hidden` puro) quando não há chain. --}}
+            {{-- The canvas theme (Original/Casual/Corporativo/Tech) — live,
+                 not only in the export: `chain-viz.js::applyTheme()` sets
+                 `data-viz-preset` on `world`/`edges` and the SAME CSS rules the
+                 export uses (block/edge/pill, in this component's <style>)
+                 already paint ordinary editing. Persisted in
+                 `viz_layout.theme` — it makes "Salvar" dirty the way moving a
+                 block would, it does not save by itself. Visible to anyone (not
+                 only to whoever edits) — it is a viewing preference, in the
+                 same spirit as presentation mode. No `hidden` class here —
+                 like `data-viz-export-toggle`/`data-viz-present-toggle`, it is
+                 visible by default; `showEmpty()`/`render()` toggle `!hidden`
+                 (never bare `hidden`) when there is no chain. --}}
             <span data-viz-theme-wrap class="flex items-center gap-1">
                 <div class="w-[104px] shrink-0">
                     <x-forms.select data-viz-theme title="Tema do diagrama"
@@ -656,19 +657,20 @@
                 </div>
                 <span class="mx-0.5 h-5 w-px bg-line"></span>
             </span>
-            {{-- Exportar: imagem (PNG) ou vídeo (GIF animado) do diagrama —
-                 100% client-side (`html-to-image` + `gif.js`, ver
+            {{-- Export: an image (PNG) or a video (animated GIF) of the
+                 diagram — 100% client-side (`html-to-image` + `gif.js`, see
                  `chain-viz.js::captureDiagramCanvas()`/`exportImage()`/
-                 `exportVideo()`), sem endpoint novo nem job em fila: a
-                 exportação captura o DOM já renderizado no próprio navegador
-                 do usuário, recortado exatamente ao redor do conteúdo (nós ∪
-                 raias) — nunca ao formato do viewport aberto, que é o motivo
-                 de `fit()` (pensado pra edição) deixar sobra em branco dos
-                 lados quando a proporção do conteúdo não bate com a da janela.
-                 O vídeo entra em Modo apresentação sozinho (se ainda não
-                 estiver) e volta ao estado anterior ao terminar. Popover
-                 mesmo padrão do "?" de atalhos no topbar, só que abrindo pra
-                 CIMA (`bottom-full`) por estar perto do rodapé do canvas. --}}
+                 `exportVideo()`), with no new endpoint and no queued job: the
+                 export captures the DOM already rendered in the user's own
+                 browser, cropped exactly around the content (nodes ∪ lanes) —
+                 never to the shape of the open viewport, which is why `fit()`
+                 (designed for editing) leaves white margins at the sides when
+                 the content's aspect ratio does not match the window's. The
+                 video enters presentation mode on its own (if it is not in it
+                 already) and returns to the previous state when it finishes.
+                 The popover follows the same pattern as the topbar's "?"
+                 shortcut list, except that it opens UPWARD (`bottom-full`),
+                 being near the canvas's bottom edge. --}}
             <div class="relative shrink-0">
                 <x-forms.button type="button" variant="ghost" data-viz-export-toggle
                     data-ak-toggle="viz-export-menu" data-ak-toggle-classes="hidden" data-ak-toggle-blur="true"
@@ -809,18 +811,18 @@
                     </div>
                 </div>
 
-                {{-- Tipo do bloco (sistema / decisão / ator / início / fim) —
-                     ícones só, com `title` como tooltip
-                     (`chain-viz.js::refreshKindRow()`), aplicando a
-                     troca na hora (PATCH em `graphRef.nodeUpdateUrl`), sem um
-                     botão "Salvar" separado. Escondido fora do nó raiz/numa
-                     imagem colada (`ChainNodeKind::pickable()`), mesma regra
-                     de antes — o `hidden`/`flex` de `selectNode()` alterna a
-                     SEÇÃO INTEIRA (rótulo incluso) por isto não deixar
-                     título solto quando some. Sem campo de Solução/texto
-                     aqui — os dois são editados direto na forma (duplo
-                     clique no texto do bloco, `startInlineLabelEdit()`), com
-                     autocomplete de Solução num bloco `system`. --}}
+                {{-- The block's kind (system / decision / actor / start /
+                     end) — icons only, with `title` as the tooltip
+                     (`chain-viz.js::refreshKindRow()`), applying the change
+                     immediately (a PATCH to `graphRef.nodeUpdateUrl`), with no
+                     separate "Salvar" button. Hidden on anything but the root
+                     node and on a pasted image (`ChainNodeKind::pickable()`),
+                     the same rule as before — `selectNode()`'s `hidden`/`flex`
+                     toggles the WHOLE SECTION (label included) so this leaves
+                     no orphan heading behind when it goes. No solution/text
+                     field here: both are edited on the shape itself (double
+                     click on the block's text, `startInlineLabelEdit()`), with
+                     solution autocomplete on a `system` block. --}}
                 <div data-viz-toolbar-kind class="hidden flex-col gap-1">
                     <p class="text-[11px] font-semibold uppercase tracking-wide text-faint">Tipo</p>
                     <div data-viz-toolbar-kind-icons class="flex flex-wrap items-center gap-1"></div>
@@ -829,10 +831,11 @@
                 <div>
                     <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-faint">Ações</p>
                     <div class="flex items-center gap-1.5">
-                        {{-- Editar o texto/Solução do bloco. Mesmo
-                             `startInlineLabelEdit()` do duplo clique na forma
-                             — que era o ÚNICO caminho e por isso inalcançável
-                             num aparelho de toque, onde não existe duplo
+                        {{-- Edit the block's text/solution. The same
+                             `startInlineLabelEdit()` as the double click on the
+                             shape — which was the ONLY path and therefore
+                             unreachable on a touch device, where there is no
+                             double
                              clique: renomear um bloco (e, num bloco `system`,
                              trocar a Solução ligada) era simplesmente
                              impossível de um tablet. Raia e pill de protocolo
@@ -1363,13 +1366,13 @@
             [data-ak-chain-viz][data-editable] .ak-viz-lane-resize.is-resizing {
                 background: rgba(16, 24, 40, .18);
             }
-            /* Anotação "post-it" (`chain-viz.js::rebuildNotes()`) —
-               texto livre multilinha, sempre amarelo (sem paleta
-               configurável, ao contrário do bloco/raia — é uma anotação
-               BÁSICA de propósito). Filha de `world` como um bloco/raia
-               (pan/zoom de graça via a transform de `world`), mas entra
-               DEPOIS dos nós em ordem de documento — um post-it é colado
-               por CIMA do diagrama, não atrás dele. */
+            /* A "post-it" note (`chain-viz.js::rebuildNotes()`) — free
+               multi-line text, always yellow (no configurable palette, unlike a
+               block or a lane — it is a BASIC annotation on purpose). A child
+               of `world` like a block or a lane (pan/zoom for free through
+               `world`'s transform), but it enters AFTER the nodes in document
+               order: a post-it is stuck ON TOP of the diagram, not behind
+               it. */
             .ak-viz-note {
                 position: absolute;
                 width: 190px;
@@ -1380,10 +1383,10 @@
                 box-shadow: 0 6px 16px rgba(120, 90, 10, .18), 0 1px 2px rgba(120, 90, 10, .15);
                 font-family: 'Inter', system-ui, sans-serif;
             }
-            /* Faixinha do topo — única parte que arrasta (mover) e carrega o
-               botão de remover; o corpo abaixo é todo texto editável (ver
-               `rebuildNotes()`), por isso precisa de uma área "neutra" pra
-               servir de alça, mesmo espírito da etiqueta da raia. */
+            /* The top strip — the only part that drags (to move) and the one
+               carrying the remove button; the body below is all editable text
+               (see `rebuildNotes()`), so it needs a "neutral" area to serve as
+               a handle, in the same spirit as a lane's label. */
             .ak-viz-note-handle {
                 display: flex;
                 justify-content: flex-end;
@@ -1469,16 +1472,17 @@
                 stroke-dasharray: 3 2;
             }
             .ak-viz-edges .ak-viz-plabel.is-empty .ak-viz-plabel-text { fill: var(--viz-line); }
-            /* O pill VAZIO ("+ protocolo") é um convite a clicar, não conteúdo
-               do desenho — e só quem edita o vê (ver `drawProtocolPill()`:
-               viewer sem protocolo definido não recebe pill nenhum). Então ele
-               segue a mesma contra-escala das portas/alças e mantém o tamanho
-               em tela em qualquer zoom, em vez de virar a coisa mais gorda da
-               seta a 220%. O pill COM protocolo escrito não entra aqui: aquilo
-               é conteúdo, escala com o diagrama e sai no screenshot.
-               `transform-box: fill-box` é o que faz o `transform-origin:
-               center` valer o centro da própria pill (num <g> de SVG, o
-               default seria a origem do sistema de coordenadas). */
+            /* The EMPTY pill ("+ protocolo") is an invitation to click, not
+               content of the drawing — and only somebody who edits sees it (see
+               `drawProtocolPill()`: a viewer gets no pill at all on a link with
+               no protocol). So it follows the same counter-scaling as the
+               ports and handles and keeps its on-screen size at any zoom,
+               instead of becoming the fattest thing on the arrow at 220%. The
+               pill WITH a protocol written in it does not belong here: that is
+               content, it scales with the diagram and it goes into the
+               screenshot. `transform-box: fill-box` is what makes
+               `transform-origin: center` mean the pill's own centre (inside an
+               SVG <g> the default would be the coordinate system's origin). */
             .ak-viz-edges .ak-viz-plabel.is-empty {
                 transform-box: fill-box;
                 transform-origin: center;
@@ -1486,16 +1490,17 @@
             }
             .ak-viz-edges .ak-viz-plabel.is-editable:hover .ak-viz-plabel-box { stroke: var(--viz-select); }
             .ak-viz-edges .ak-viz-plabel.is-editable:hover .ak-viz-plabel-text { fill: var(--viz-select); }
-            /* O pill vazio é um convite a clicar — um por ligação sem
-               protocolo, o tempo todo, era a maior fonte de ruído num desenho
-               grande: num fluxo em raias eles caíam em cima dos rótulos de
-               verdade e das próprias setas. Ele passa a aparecer só quando a
-               ligação está sob o ponteiro (`drawEdgeHit()`) ou acesa pela
-               seleção de um bloco — e nunca recebe ponteiro, para não brigar
-               com o alvo largo que o revelou: ao entrar nele o alvo receberia
-               `pointerleave`, o pill sumiria, o ponteiro voltaria ao alvo e
-               ele reapareceria, em loop. Clique e duplo clique da ligação sem
-               protocolo chegam pelo alvo. */
+            /* The empty pill is an invitation to click — one per link with no
+               protocol, all the time, was the biggest source of noise in a
+               large drawing: in a lane flow they landed on the real labels and
+               on the arrows themselves. It now appears only when the link is
+               under the pointer (`drawEdgeHit()`) or lit by a block's
+               selection — and it never takes pointer events, so it cannot
+               fight the wide target that revealed it: entering it would give
+               the target a `pointerleave`, the pill would vanish, the pointer
+               would be back over the target and it would reappear, in a loop.
+               Click and double click on a protocol-less link arrive through
+               the target. */
             .ak-viz-edges .ak-viz-plabel.is-empty {
                 opacity: 0;
                 pointer-events: none;
@@ -1797,19 +1802,20 @@
                told apart by the DASHED border. The border replaces the ring the
                base rule paints, hence `box-shadow: none` — two outlines on the
                same edge read as a rendering bug, not as emphasis. */
-            {{-- LINHA DE VIDA (`ChainNodeKind::Lifeline`) — o participante de um
-                 diagrama de sequência.
+            {{-- LIFELINE (`ChainNodeKind::Lifeline`) — a sequence diagram's
+                 participant.
 
-                 O bloco inteiro é a COLUNA: o cabeçalho é o conteúdo normal
-                 (avatar + nome, igual a um bloco de sistema) e o corpo é o
-                 espaço vazio embaixo dele, atravessado pela linha tracejada do
-                 `::after`. É por isso que esta é a única espécie de bloco com
-                 altura guardada em `viz_layout` — nas outras o tamanho vem do
-                 que está escrito dentro.
+                 The whole block is the COLUMN: the header is ordinary content
+                 (avatar + name, like a system block) and the body is the empty
+                 space below it, crossed by the `::after`'s dashed line. That is
+                 why this is the only kind of block with a height stored in
+                 `viz_layout` — on the others the size comes from what is
+                 written inside.
 
-                 `align-items: flex-start` + `height` inline: o conteúdo fica
-                 colado no topo e o resto da altura é a linha. A caixa continua
-                 retangular, então toda a matemática de âncora/aresta do
+                 `align-items: flex-start` plus an inline `height`: the content
+                 stays at the top and the rest of the height is the line. The
+                 box is still rectangular, so all the anchor/edge arithmetic
+                 of
                  chain-viz.js segue valendo sem exceção — uma mensagem encosta
                  na lateral na altura que o `fromT`/`toT` da aresta disser. --}}
             .ak-viz-node.is-lifeline {
@@ -1819,9 +1825,9 @@
                 background: transparent;
                 box-shadow: none;
             }
-            {{-- O cabeçalho é o único pedaço com fundo: desenhado como um
-                 cartão dentro do bloco, para a linha tracejada abaixo nascer da
-                 borda dele e não do nada. --}}
+            {{-- The header is the only part with a background: drawn as a
+                 card inside the block, so the dashed line below starts at its
+                 edge rather than out of nowhere. --}}
             .ak-viz-node.is-lifeline .ak-viz-node-body {
                 width: 100%;
                 justify-content: center;
@@ -1842,14 +1848,14 @@
                 pointer-events: none;
             }
 
-            {{-- ETAPA (`ChainNodeKind::Step`) — o que ACONTECE, não quem faz.
+            {{-- STEP (`ChainNodeKind::Step`) — what HAPPENS, not who does it.
 
-                 Existe porque uma etapa não é um sistema: escrita como texto
-                 livre de um bloco `system`, ela herdava o tracejado de "externo
-                 à Leo", o que é verdade sobre a API de um parceiro e não quer
-                 dizer nada sobre "Abre o chamado". Caixa sólida, igual à de um
-                 sistema do catálogo, porque é conteúdo do desenho do mesmo
-                 jeito — só não é um sistema. --}}
+                 It exists because a step is not a system: written as the free
+                 text of a `system` block, it inherited the dashed border that
+                 means "outside Leo", which is true of a partner's API and says
+                 nothing at all about "Abre o chamado". A solid box, like a
+                 catalog system's, because it is content of the drawing just the
+                 same — it simply is not a system. --}}
             .ak-viz-node.is-step {
                 background: var(--viz-node);
             }
@@ -1999,14 +2005,14 @@
                 color: var(--viz-ink);
                 pointer-events: none;
             }
-            /* Edição inline do rótulo (duplo clique no texto do bloco —
-               `startInlineLabelEdit()`): o `<input>` que substitui o
-               `<span>` herda a classe original (`.ak-viz-node-text` ou
-               `.ak-viz-node-endcap-label`) + esta — reseta a aparência
-               padrão de input e troca o contorno pontilhado por uma pista
-               visual de edição. `pointer-events: auto` desfaz o `none` do
-               rótulo de início/fim (ver acima) — sem isso o clique do mouse
-               pra reposicionar o cursor não chegaria nele. */
+            /* Inline label editing (double click on the block's text —
+               `startInlineLabelEdit()`): the `<input>` that replaces the
+               `<span>` inherits the original class (`.ak-viz-node-text` or
+               `.ak-viz-node-endcap-label`) plus this one — it resets the
+               default input look and swaps the dotted outline for a visual cue
+               that this is being edited. `pointer-events: auto` undoes the
+               `none` on the start/end label (see above) — without it the mouse
+               click that repositions the caret would never reach it. */
             .ak-viz-node-text-input {
                 border: none;
                 background: transparent;
@@ -2019,12 +2025,12 @@
                 border-radius: 3px;
                 pointer-events: auto;
             }
-            /* Autocomplete de Solução da edição inline, só em bloco `system`
-               — filho do próprio nó (`n.el`), então herda de graça o mesmo
-               `transform` de pan/zoom do `.ak-viz-world`, sem precisar de
-               nenhuma conta de posição própria (ao contrário da toolbar/
-               editor de protocolo, que são filhos de `stage` e por isso
-               calculam a posição a partir de `getBoundingClientRect()`). */
+            /* The inline edit's solution autocomplete, on a `system` block
+               only — a child of the node itself (`n.el`), so it inherits
+               `.ak-viz-world`'s pan/zoom `transform` for free and needs no
+               position arithmetic of its own (unlike the toolbar and the
+               protocol editor, which are children of `stage` and therefore
+               compute their position from `getBoundingClientRect()`). */
             .ak-viz-inline-suggest {
                 position: absolute;
                 top: 100%;
@@ -2121,14 +2127,15 @@
                 background: var(--viz-select);
                 color: #fff;
             }
-            /* Renomear raia inline (`chain-viz.js::startInlineLaneLabelEdit()`)
-               — filho de `stage` (espaço de TELA) centrado na etiqueta via
-               `transform`, não um filho da própria etiqueta: a faixa da raia
-               tem só 26px de largura/altura e (orientação horizontal) texto
-               em `writing-mode` vertical — nem o espaço nem a orientação
-               servem pra digitar direto ali, ao contrário do rótulo de um
-               bloco. Tamanho fixo e sempre horizontal, então digitar aqui é
-               igual não importa a orientação/tamanho da raia por baixo. */
+            /* Inline lane renaming
+               (`chain-viz.js::startInlineLaneLabelEdit()`) — a child of `stage`
+               (SCREEN space) centred on the label through a `transform`, not a
+               child of the label itself: a lane's strip is only 26px wide/tall
+               and (in the horizontal orientation) its text is vertical
+               `writing-mode` — neither the room nor the orientation is any good
+               for typing straight into, unlike a block's label. Fixed size and
+               always horizontal, so typing here is the same whatever the
+               orientation or size of the lane underneath. */
             .ak-viz-lane-label-input {
                 position: absolute;
                 z-index: 21;
@@ -2147,16 +2154,16 @@
                 font-weight: 600;
                 text-align: center;
             }
-            /* Imagem colada (Ctrl+V, `ChainNodeKind::Image`): moldura mínima
-               (a foto já é o conteúdo), sem o padding/largura mínima dos
-               demais blocos — `max-width` casa com o `max-width` padrão do
-               bloco (240px) pra não destoar de tamanho no meio do grafo. SEM
-               fundo forçado — uma imagem com transparência real (PNG/SVG
-               com alfa) deve deixar o grid pontilhado do canvas aparecer por
-               trás dela, não ganhar uma chapa branca imposta; quem quiser uma
-               moldura visível usa a borda opcional do toolbar
-               (`imageBorderColor`, ver `.ak-viz-node.is-image` inline style
-               em `applyNodeStyle()`), não este `background`. */
+            /* A pasted image (Ctrl+V, `ChainNodeKind::Image`): minimal frame
+               (the picture already is the content), without the padding and
+               minimum width of the other blocks — `max-width` matches a block's
+               default `max-width` (240px) so it does not stand out in size in
+               the middle of the graph. NO forced background — an image with
+               real transparency (PNG/SVG with alpha) should let the canvas's
+               dotted grid show through it rather than be given an imposed white
+               slab; whoever wants a visible frame uses the toolbar's optional
+               border (`imageBorderColor`, see the `.ak-viz-node.is-image`
+               inline style in `applyNodeStyle()`), not this `background`. */
             .ak-viz-node.is-image {
                 padding: 4px;
                 min-width: 0;
@@ -2178,14 +2185,14 @@
                 height: auto;
                 border-radius: 6px;
                 object-fit: contain;
-                pointer-events: none; /* o drag do bloco já é tratado no `mousedown` do próprio nó */
+                pointer-events: none; /* the block's drag is already handled by the node's own `mousedown` */
             }
-            /* "Somente logo" (`viz_layout.nodes[i].logoOnly`): troca o cartão
-               (avatar + nome) pela imagem da Solução em tamanho real, sem
-               moldura/fundo — mesmo raciocínio de `.is-image` acima (uma
-               imagem com transparência real deve deixar o canvas aparecer
-               por trás dela), só que aqui a imagem é o logo do catálogo, não
-               uma mídia própria do nó. */
+            /* "Somente logo" (`viz_layout.nodes[i].logoOnly`): swaps the card
+               (avatar + name) for the solution's image at full size, with no
+               frame and no background — the same reasoning as `.is-image`
+               above (an image with real transparency should let the canvas show
+               through it), except that here the image is the catalog's logo
+               rather than media belonging to the node. */
             .ak-viz-node.is-logo-only {
                 padding: 4px;
                 min-width: 0;
@@ -2326,12 +2333,12 @@
                 border-radius: 50%;
                 background: #fff;
                 border: 1.5px solid var(--viz-select);
-                /* `scale(1/zoom)`: a porta é um CONTROLE, não desenho — tem
-                   que medir o mesmo em tela a 60% e a 300%. `--viz-inv-scale`
-                   é escrito por `applyView()` a cada pan/zoom; o
-                   `translate(-50%,-50%)` continua centrando no ponto de
-                   ancoragem (a escala é em torno do centro do próprio
-                   elemento), então nada da matemática de âncora muda. */
+                /* `scale(1/zoom)`: a port is a CONTROL, not drawing — it has
+                   to measure the same on screen at 60% and at 300%.
+                   `--viz-inv-scale` is written by `applyView()` on every
+                   pan/zoom; the `translate(-50%,-50%)` still centres on the
+                   anchor point (the scaling happens around the element's own
+                   centre), so none of the anchor arithmetic changes. */
                 transform: translate(-50%, -50%) scale(var(--viz-inv-scale, 1));
                 opacity: 0;
                 /* Invisible until hover/selection (below) — MUST also ignore
@@ -2390,18 +2397,20 @@
                 cursor: grabbing;
                 transform: translate(-50%, -50%) scale(calc(1.3 * var(--viz-inv-scale, 1)));
             }
-            /* Alvos de precisão num aparelho de toque. A porta (11px) e a alça
-               da ponta da seta (9px) são confortáveis com um mouse e
-               praticamente inacertáveis com o dedo, que cobre ~40px. Só
-               cresce a área — `translate(-50%, -50%)` continua centralizando
-               nas mesmas coordenadas, então nada na matemática de ancoragem
-               (`screenToWorld()`, anchors) muda. A porta segue com
-               `pointer-events: none` enquanto invisível, então a área maior
-               não volta a roubar cliques (ver o comentário em `.ak-viz-port`).
+            /* Precision targets on a touch device. The port (11px) and the
+               arrow-end handle (9px) are comfortable with a mouse and close to
+               unhittable with a finger, which covers ~40px. Only the area
+               grows — `translate(-50%, -50%)` still centres on the same
+               coordinates, so nothing in the anchoring arithmetic
+               (`screenToWorld()`, anchors) changes. The port keeps
+               `pointer-events: none` while invisible, so the larger area does
+               not go back to stealing clicks (see the comment on
+               `.ak-viz-port`).
 
-               Num aparelho de toque a porta só aparece pelo caminho
-               `.is-selected`: não existe hover, então é preciso TOCAR o bloco
-               antes de puxar a ligação — está dito no popover de ajuda. */
+               On a touch device the port only appears through the
+               `.is-selected` path: there is no hover, so the block has to be
+               TAPPED before the link can be pulled — the help popover says
+               so. */
             @media (pointer: coarse) {
                 .ak-viz-port { width: 22px; height: 22px; }
                 .ak-viz-handle { width: 20px; height: 20px; }

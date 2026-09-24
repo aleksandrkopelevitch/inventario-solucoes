@@ -1,5 +1,5 @@
 // top-nav.js
-// Toggle "shadow-xl" em elementos com o atributo [data-ak-top-nav] quando houver scroll
+// Toggles "shadow-xl" on elements carrying [data-ak-top-nav] once the page scrolls
 function applyShadowState() {
     const targets = document.querySelectorAll('[data-ak-top-nav]')
     if (!targets[0]) return
