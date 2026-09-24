@@ -36,3 +36,23 @@ it('defines the arrow markers outside the stylesheet', function () {
         expect($at)->toBeGreaterThan($styleEnd, "{$marker} was parsed into the stylesheet, so it never renders");
     }
 });
+
+it('keeps the links pointer targets out of the edges SVG', function () {
+    // They are 16px wide and follow every route; inside the edges SVG — a
+    // LATER sibling of the lanes — they sat on top of the 10px strip a lane is
+    // resized by, and killed the drag wherever a link crossed a lane boundary.
+    $html = Blade::render('<x-chain.viz />');
+
+    $hits = strpos($html, '<svg data-viz-hits');
+    $edges = strpos($html, '<svg data-viz-edges');
+
+    expect($hits)->not->toBeFalse('the pointer-target layer is gone from the component')
+        ->and($hits)->toBeLessThan($edges, 'the targets layer must be its own sibling, not a child of the edges SVG');
+
+    expect(chainVizEdgesSvg())->not->toContain('data-viz-hits');
+
+    // The rule that makes the 16px band catch the pointer has to follow the
+    // layer: left scoped to `.ak-viz-edges`, it matches nothing and a 2px line
+    // becomes unclickable again.
+    expect($html)->toContain('.ak-viz-hits path.ak-viz-edge-hit');
+});

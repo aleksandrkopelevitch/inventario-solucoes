@@ -165,3 +165,29 @@ it('names a block whose label was blank rather than leaving it nameless', functi
 
     expect($diagram->fresh()->chain['nodes'][0]['label'])->toBe('Sem Rotulo');
 });
+
+it('says how many approved topologies went with the solution', function () {
+    // `approved_topologies.solution_id` is NOT NULL and cascades, so these rows
+    // cannot be kept: an approval to apply a topology TO a system means nothing
+    // once the system is gone. What it can stop doing is going in silence — a
+    // committee decision disappearing without a word is how somebody goes
+    // looking for a pendência weeks later and finds nothing.
+    $solution = Solution::factory()->create(['name' => 'Portal']);
+    ApprovedTopology::factory()->count(2)->create(['solution_id' => $solution->id]);
+
+    $this->actingAs(solutionAdmin())
+        ->deleteJson(route('solutions.destroy', $solution))
+        ->assertOk()
+        ->assertJsonPath('message', 'Solução "Portal" excluída. 2 topologia(s) aprovada(s) para ela também foram removidas.');
+
+    expect(ApprovedTopology::count())->toBe(0);
+});
+
+it('says nothing extra when no approved topology was involved', function () {
+    $solution = Solution::factory()->create(['name' => 'Portal']);
+
+    $this->actingAs(solutionAdmin())
+        ->deleteJson(route('solutions.destroy', $solution))
+        ->assertOk()
+        ->assertJsonPath('message', 'Solução "Portal" excluída.');
+});

@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Enums\PersonSolutionRole;
 use App\Models\AttributeOption;
+use App\Models\Person;
 use App\Models\Solution;
 use App\Support\CategoryPalette;
 use Illuminate\Database\Eloquent\Builder;
@@ -59,10 +61,10 @@ class SolutionGraphService
             // model per owner link on the reading that opens the screen.
             ->when($axis === 'company', fn (Builder $q) => $q->with('vendor:id,name'))
             ->when($axis === 'owner', fn (Builder $q) => $q->with([
-                // The owners grid stores who is primary on the pivot; the hub
-                // uses that one, so a solution belongs to exactly one person
-                // and a block is never drawn twice.
-                'people' => fn ($p) => $p->select('people.id', 'people.name')->withPivot('is_primary'),
+                // Both pivot columns are read by `responsibleFor()`: a solution
+                // belongs to exactly one hub, so a block is never drawn twice,
+                // and WHICH one cannot be left to the database's row order.
+                'people' => fn ($p) => $p->select('people.id', 'people.name')->withPivot(['is_primary', 'role']),
             ]))
             ->orderBy('name')
             ->get();
@@ -108,6 +110,60 @@ class SolutionGraphService
     }
 
     /**
+     * Roles that can answer FOR a solution, best first.
+     *
+     * `VendorContact` is deliberately absent: that person works for the
+     * supplier, and a screen titled "Responsável" naming them would say
+     * something false about who to ask inside Leo. A solution whose only links
+     * are vendor contacts belongs under "Sem responsável", which is the true
+     * answer.
+     */
+    private const RESPONSIBLE_ROLES = [
+        PersonSolutionRole::Manager,
+        PersonSolutionRole::Business,
+        PersonSolutionRole::Technical,
+        PersonSolutionRole::KeyUser,
+        PersonSolutionRole::Support,
+    ];
+
+    /**
+     * The one person a solution is filed under on the owner axis.
+     *
+     * `is_primary` alone could not decide it. `SolutionController::attachPerson`
+     * never writes the flag — the only writer is the seeder, once per role — so
+     * the old pick fell through to `people->first()` on a relation with no
+     * ordering, which is whichever row the database happened to return: a
+     * solution could change hubs between two page loads, and the ambiguous case
+     * is the normal one here (78 of the 109 solutions in the dev catalog carry
+     * more than one link).
+     *
+     * Three steps, each total, so the same catalog always draws the same map: a
+     * primary link, then the role that best answers for a system, then the
+     * lowest person id.
+     */
+    private function responsibleFor(Solution $solution): ?Person
+    {
+        $rank = array_map(fn (PersonSolutionRole $role) => $role->value, self::RESPONSIBLE_ROLES);
+
+        // Only the vendor contact is EXCLUDED; a role this list does not know
+        // still answers, ranked last. Filtering to the known list instead would
+        // make a role added to the enum later disappear from the map silently,
+        // which is the failure this whole method exists to stop.
+        $order = fn (Person $person) => ($i = array_search($person->pivot->role, $rank, true)) === false
+            ? count($rank)
+            : $i;
+
+        return $solution->people
+            ->reject(fn (Person $person) => $person->pivot->role === PersonSolutionRole::VendorContact->value)
+            ->sortBy([
+                fn (Person $a, Person $b) => ($b->pivot->is_primary ? 1 : 0) <=> ($a->pivot->is_primary ? 1 : 0),
+                fn (Person $a, Person $b) => $order($a) <=> $order($b),
+                fn (Person $a, Person $b) => $a->id <=> $b->id,
+            ])
+            ->first();
+    }
+
+    /**
      * Which bucket a solution falls in, and what that bucket is called.
      *
      * A blank value is a bucket of its own rather than a dropped row: "12
@@ -120,7 +176,7 @@ class SolutionGraphService
     {
         return match ($axis) {
             'owner' => (function () use ($solution) {
-                $person = $solution->people->firstWhere('pivot.is_primary', true) ?? $solution->people->first();
+                $person = $this->responsibleFor($solution);
 
                 return $person ? ['owner-' . $person->id, $person->name] : ['owner-none', 'Sem responsável'];
             })(),

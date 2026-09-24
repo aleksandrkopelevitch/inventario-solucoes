@@ -177,11 +177,19 @@ class SolutionController extends Controller
         $this->authorize('delete', $solution);
 
         $name = $solution->name;
-        $action->handle($solution);
+        $approved = $action->handle($solution);
+
+        // An approved topology cascades with the solution (its FK is NOT NULL),
+        // so the only thing left to decide is whether the Toast admits it. A
+        // committee decision disappearing without a word is how somebody finds
+        // out weeks later, looking for a pendência that is no longer there.
+        $note = $approved > 0
+            ? ' ' . $approved . ' topologia(s) aprovada(s) para ela também foram removidas.'
+            : '';
 
         return response()->json([
             'type'     => 'success',
-            'message'  => 'Solução "' . $name . '" excluída.',
+            'message'  => 'Solução "' . $name . '" excluída.' . $note,
             'redirect' => route('solutions.index'),
         ]);
     }
