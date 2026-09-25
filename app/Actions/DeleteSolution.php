@@ -43,10 +43,22 @@ use Illuminate\Support\Facades\DB;
  */
 class DeleteSolution
 {
-    public function handle(Solution $solution): void
+    /**
+     * @return int how many approved topologies went with it — see below
+     */
+    public function handle(Solution $solution): int
     {
         $drawings = $this->drawingsMentioning($solution);
         $snapshots = $this->snapshotsMentioning($solution);
+
+        // `approved_topologies.solution_id` is NOT NULL and cascades, so a row
+        // approved FOR this solution cannot be kept: an approval to apply a
+        // topology TO a system means nothing once the system is gone. What it
+        // can stop doing is going in silence — a committee decision disappears
+        // here, and the count is what lets the Toast say so. (These are NOT the
+        // `$snapshots` above: those are approvals for OTHER solutions whose
+        // chain merely names this one, and they survive, swept.)
+        $cascading = ApprovedTopology::where('solution_id', $solution->id)->count();
 
         DB::transaction(function () use ($solution, $drawings, $snapshots) {
             foreach ($drawings as $canvas) {
@@ -67,6 +79,8 @@ class DeleteSolution
 
             $solution->delete();
         });
+
+        return $cascading;
     }
 
     /**

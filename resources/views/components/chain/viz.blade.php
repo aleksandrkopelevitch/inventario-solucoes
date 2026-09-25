@@ -354,6 +354,21 @@
     <div data-viz-stage class="relative min-h-0 flex-1">
         <div data-viz-viewport class="ak-viz-viewport">
             <div data-viz-world class="ak-viz-world">
+                {{-- The links' pointer targets (`chain-viz.js::drawEdgeHit()`), in a
+                     layer of their own rather than inside the edges SVG below.
+                     They are 16px wide and follow every route, and the edges SVG
+                     is a LATER sibling of the lanes — so in a lane drawing they
+                     sat on top of the 10px strip you drag a lane's edge by, and
+                     killed the resize wherever a link crossed a lane boundary,
+                     which is everywhere. Here they are the LAST thing to claim a
+                     click: block, lane handle and lane label all win, and a link
+                     answers only where there is nothing but line.
+
+                     `z-index: -1` is safe in THIS parent and would not be on the
+                     lanes: `.ak-viz-world` carries a transform, so it is a real
+                     stacking context and the negative layer cannot escape behind
+                     the viewport. --}}
+                <svg data-viz-hits class="ak-viz-hits" xmlns="http://www.w3.org/2000/svg"></svg>
                 <svg data-viz-edges class="ak-viz-edges" xmlns="http://www.w3.org/2000/svg">
                     {{-- Duplicates (deliberately) the edge/marker/pill rules from
                          the component's OUTER <style> block below, scoped the
@@ -440,15 +455,15 @@
                         .ak-viz-edges.has-selection .ak-viz-plabel.is-empty,
                         .ak-viz-edges .ak-viz-plabel.is-empty { opacity: 0; }
 
-                        /* O alvo de ponteiro de cada ligação (`drawEdgeHit()`).
-                           Ele tem `fill: none; stroke: transparent` na folha
-                           EXTERNA — que não viaja no export: o clone traz só
-                           esta, e sem regra aqui o path saía com o `fill:
-                           black` padrão do navegador, ou seja, um borrão preto
-                           seguindo a rota de cada seta. É a mesma armadilha que
-                           o comentário acima descreve, e caiu nela a primeira
-                           classe nova de path criada depois dele. */
-                        .ak-viz-edges path.ak-viz-edge-hit { fill: none; stroke: none; }
+                        {{-- The pointer targets used to need a rule here too: they
+                             lived in this SVG, the clone arrives with no outer
+                             sheet, and without one they fell back to the UA's
+                             `fill: black` and painted a blob along every route.
+                             They are in their own layer now and carry
+                             `fill="none" stroke="none"` as presentation
+                             ATTRIBUTES, which no clone can leave behind — so the
+                             trap is closed at the element instead of by a rule
+                             that has to be remembered in two stylesheets. --}}
 
                         {{-- Screenshot style presets ("Estilo do screenshot",
                              bottom bar export menu) — the `data-viz-preset`
@@ -1488,13 +1503,24 @@
             }
             .ak-viz-edges .ak-viz-plabel.is-empty.is-hovered,
             .ak-viz-edges .ak-viz-plabel.is-empty.is-linked { opacity: 1; }
+            /* The links' pointer-target layer (see the markup for why it is not
+               inside the edges SVG). It paints nothing and catches nothing
+               itself — only its paths do. */
+            .ak-viz-hits {
+                position: absolute;
+                top: 0;
+                left: 0;
+                overflow: visible;
+                pointer-events: none;
+                z-index: -1;
+            }
             /* Alvo de ponteiro da ligação (`drawEdgeHit()`): invisível, largo,
-               e o único descendente do SVG das arestas que recebe eventos além
-               do pill escrito. `pointer-events: stroke` limita o alvo à faixa
+               e o único elemento desta camada que recebe eventos.
+               `pointer-events: stroke` limita o alvo à faixa
                do próprio traço — com `visiblePainted` um traço transparente não
                receberia nada, e com `all` a área FECHADA da rota viraria alvo
                junto, engolindo cliques no vazio entre dois cotovelos. */
-            .ak-viz-edges path.ak-viz-edge-hit {
+            .ak-viz-hits path.ak-viz-edge-hit {
                 fill: none;
                 stroke: transparent;
                 stroke-width: 16;

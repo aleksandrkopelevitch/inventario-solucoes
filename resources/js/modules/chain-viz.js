@@ -212,12 +212,19 @@ function orthogonalPoints(p0, p3, stub = EDGE_STUB, offset = 0) {
     const fromHoriz = p0.nx !== 0
     const toHoriz = p3.nx !== 0
 
+    // The detour must not push the corridor OUTSIDE the gap between the two
+    // ends. With two blocks close together, an 18px step put the corridor
+    // behind the source block: the line left it, doubled back over itself and
+    // came in again. Clamped to the gap, the dense case loses a little
+    // separation instead of drawing something wrong.
+    const between = (value, a, b) => Math.min(Math.max(value, Math.min(a, b)), Math.max(a, b))
+
     let mids
     if (fromHoriz && toHoriz) {
-        const mx = (s0.x + s3.x) / 2 + offset
+        const mx = between((s0.x + s3.x) / 2 + offset, s0.x, s3.x)
         mids = [{ x: mx, y: s0.y }, { x: mx, y: s3.y }]
     } else if (!fromHoriz && !toHoriz) {
-        const my = (s0.y + s3.y) / 2 + offset
+        const my = between((s0.y + s3.y) / 2 + offset, s0.y, s3.y)
         mids = [{ x: s0.x, y: my }, { x: s3.x, y: my }]
     } else if (fromHoriz) {
         mids = [{ x: s3.x, y: s0.y }]
@@ -1047,6 +1054,9 @@ function mount(root) {
     const viewport = root.querySelector('[data-viz-viewport]')
     const world = root.querySelector('[data-viz-world]')
     const edges = root.querySelector('[data-viz-edges]')
+    // The pointer targets' own layer — see the markup for why they are not in
+    // the edges SVG.
+    const hits = root.querySelector('[data-viz-hits]')
     const empty = root.querySelector('[data-viz-empty]')
     const emptyTitle = root.querySelector('[data-viz-empty-title]')
     const emptyHint = root.querySelector('[data-viz-empty-hint]')
@@ -1354,7 +1364,8 @@ function mount(root) {
     }
 
     function clearOverlays() {
-        edges.querySelectorAll('.ak-viz-edge, .ak-viz-edge-hit, .ak-viz-plabel').forEach((el) => el.remove())
+        edges.querySelectorAll('.ak-viz-edge, .ak-viz-plabel').forEach((el) => el.remove())
+        hits.replaceChildren()
         world.querySelectorAll('.ak-viz-handle, .ak-viz-anchor').forEach((el) => el.remove())
     }
 
@@ -2378,16 +2389,12 @@ function mount(root) {
             }
         })
 
-        // Todo alvo de clique vai para BAIXO de tudo que é desenhado. Eles são
-        // criados dentro do laço, então o alvo da ligação N+1 era anexado
-        // depois da pill da ligação N — e o SVG testa o clique de cima para
-        // baixo, pelo fim do documento. Onde duas rotas se cruzam (rotina num
-        // desenho em raias), a faixa invisível de 16px da segunda cobria o
-        // rótulo escrito da primeira e engolia o clique: abria o editor da
-        // ligação errada. Mover é suficiente porque o traço visível herda
-        // `pointer-events: none` do SVG e a pill reabre o seu (`is-editable`),
-        // então a ordem entre pill e alvo é a única que decide.
-        edges.querySelectorAll('.ak-viz-edge-hit').forEach((hit) => edges.insertBefore(hit, edges.firstChild))
+        // Nothing to reorder: the targets are drawn into their own layer, which
+        // sits under everything. This used to walk the edges SVG moving each
+        // target to the front, because a target created in the loop landed
+        // after the previous link's written pill and swallowed clicks on it
+        // where two routes crossed. A layer answers that case and the lane
+        // handles at once, instead of ordering siblings against one of them.
 
         spreadProtocolPills()
 
@@ -2925,6 +2932,13 @@ function mount(root) {
         const hit = document.createElementNS(SVG_NS, 'path')
         hit.setAttribute('class', 'ak-viz-edge-hit')
         hit.setAttribute('d', d)
+        // Presentation ATTRIBUTES, on top of the CSS rule: the rule wins in the
+        // live DOM (the transparent 16px stroke that catches the pointer), and
+        // in an export clone — which arrives with no stylesheet at all — these
+        // are what is left, instead of the UA's default `fill: black`, which
+        // once painted a blob along every arrow.
+        hit.setAttribute('fill', 'none')
+        hit.setAttribute('stroke', 'none')
         hit.dataset.edgeIndex = String(edgeIndex)
 
         let downAt = null
@@ -2946,7 +2960,7 @@ function mount(root) {
             startInlineProtocolEdit(edgeIndex)
         })
 
-        edges.appendChild(hit)
+        hits.appendChild(hit)
     }
 
     /** Acende a ligação sob o ponteiro e revela o pill vazio dela. */

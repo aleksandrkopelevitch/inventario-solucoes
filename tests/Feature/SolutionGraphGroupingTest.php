@@ -177,3 +177,32 @@ it('loads only the relation the chosen axis actually reads', function () {
         ->and($count('owner'))->toBe(2)
         ->and($count('company'))->toBe(2);
 });
+
+it('picks the same owner hub every time, and never a vendor contact', function () {
+    // The ambiguous case is the normal one: `attachPerson` never writes
+    // `is_primary`, so most solutions carry several links and none of them
+    // flagged — the old pick fell through to `people->first()` on an unordered
+    // relation and could move between two page loads.
+    $manager = Person::factory()->create(['name' => 'Gerente']);
+    $technical = Person::factory()->create(['name' => 'Técnico']);
+    $solution = Solution::factory()->create();
+
+    // Attached technical FIRST, so a pick that trusts row order gets it wrong.
+    $solution->people()->attach($technical, ['role' => 'technical', 'is_primary' => false]);
+    $solution->people()->attach($manager, ['role' => 'manager', 'is_primary' => false]);
+
+    $groups = collect(app(SolutionGraphService::class)->groupedBy('owner', [])['groups']);
+
+    expect($groups->pluck('label'))->toContain('Gerente')->not->toContain('Técnico');
+});
+
+it('files a solution whose only links are vendor contacts under "Sem responsável"', function () {
+    // They work for the supplier: a hub titled "Responsável" naming them says
+    // something false about who to ask inside Leo.
+    $solution = Solution::factory()->create();
+    $solution->people()->attach(Person::factory()->create(), ['role' => 'vendor_contact', 'is_primary' => true]);
+
+    $groups = collect(app(SolutionGraphService::class)->groupedBy('owner', [])['groups']);
+
+    expect($groups->pluck('label'))->toContain('Sem responsável');
+});
