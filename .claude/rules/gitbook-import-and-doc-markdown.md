@@ -3,6 +3,7 @@ paths:
   - "app/Console/Commands/ImportGitbookCommand.php"
   - "app/Support/Gitbook/**"
   - "app/Support/GitbookRenderer.php"
+  - "app/Http/Controllers/MediaController.php"
   - "resources/js/modules/docs-markdown.js"
   - "app/Http/Requests/MoveDocumentationPageRequest.php"
   - "app/Http/Requests/MoveDocumentationPageToNotebookRequest.php"
@@ -61,6 +62,46 @@ Four things it is easy to get wrong:
 Verified against the live API 2026-09-02 (`Integrações Cobmais`, 7 pages, 4
 assets): first run created the dated caderno, a stray page plus its subpage
 added by hand were removed on the second run the same day and reported as 2.
+
+### In production it MUST run as `www-data` — root breaks the assets, silently
+
+```bash
+sudo -u www-data php artisan gitbook:import --space=<id>
+```
+
+Production sets `MEDIA_DISK=local`, so re-hosted assets land on the PRIVATE
+disk (`storage/app/private`), and Flysystem creates a private directory at
+`0700` with the file inside at `0644`. Run the import as root and every media
+directory ends up `drwx------ root:root`, which php-fpm — `www-data` — cannot
+even traverse. The failure has no symptom anywhere it would be noticed:
+
+- the download really happened (the bytes are on disk, the `media` row exists,
+  `getPath()` resolves) and the command reports "Assets re-hosted: 300";
+- `MediaController::show()` serves `response()->file($media->getPath())`, so
+  every `/files/{id}` — internal and public-docs alike — answers permission
+  denied on a file that is demonstrably there;
+- and the same `0700` is CORRECT for everything uploaded through the app,
+  because there the owner already is `www-data`. So the directory listing is
+  the tell: the rows that work and the rows that don't have identical modes and
+  different owners.
+
+Real incident, 2026-09-25, importing "Dados • BigQuery • GCP" on the droplet:
+150 pages, 300 assets, 0 missing on disk, all 300 unreachable. The ownership
+split said it outright — `300 drwx------ root:root` beside
+`33 drwx------ www-data:www-data`.
+
+It is not specific to this command, only worst here (nothing else writes
+hundreds of files). Any artisan run as root also leaves `storage/framework/views`
+and `bootstrap/cache` root-owned, where `www-data` can still READ but can no
+longer rewrite — so the breakage surfaces at the next deploy's view recompile or
+`config:cache` instead of immediately. The repair is
+`chown -R www-data:www-data storage bootstrap/cache`; the prevention is the
+`sudo -u www-data` above.
+
+Worth knowing when diagnosing this class of bug: `MediaController` serves an
+absolute path, so the `public/storage` symlink is irrelevant and
+`storage:link` fixes nothing here. Check the OWNER of the media directory
+before anything else.
 
 ### The space's shape comes across, clamped at `MAX_DEPTH`
 

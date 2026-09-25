@@ -84,6 +84,28 @@ onde gente também escreve à mão, e uma página que alguém acrescentou ali n�
 sobra. `--dated` recusa `--notebook=` (os dois nomeiam o caderno) e compõe com
 `--all` (o nome é derivado por space).
 
+> **Em produção, rode como `www-data` — nunca como root.**
+>
+> ```bash
+> sudo -u www-data php artisan gitbook:import --space=<id>
+> ```
+>
+> O import baixa as imagens e anexos do space e os re-hospeda como mídia da
+> página. Em produção `MEDIA_DISK=local`, ou seja `storage/app/private`, que é
+> um disco **privado** — o Flysystem cria pasta privada com `0700`. Rodado como
+> root, cada pasta de mídia fica `drwx------ root:root`, e o php-fpm (que é
+> `www-data`) não consegue nem entrar nela: o arquivo existe, a linha no banco
+> existe, a importação relata sucesso, e todo `/files/{id}` responde permission
+> denied. Pela aplicação o mesmo `0700` funciona, porque ali o dono já é o
+> `www-data` — por isso o problema só aparece no que veio pela linha de comando.
+>
+> Vale para **qualquer** artisan rodado em produção, não só este: o mesmo root
+> deixa `storage/framework/views` e `bootstrap/cache` com dono errado, e aí o
+> `www-data` até lê, mas não consegue reescrever no próximo deploy. Se já
+> aconteceu, o conserto é `chown -R www-data:www-data storage bootstrap/cache`
+> (incidente real em 2026-09-25, importando "Dados • BigQuery • GCP": 150
+> páginas e 300 anexos baixados corretamente e inacessíveis até o chown).
+
 ## Papéis de usuário
 
 `App\Enums\UserRole`: **viewer** (Visualizador), **writer** (Editor) e
