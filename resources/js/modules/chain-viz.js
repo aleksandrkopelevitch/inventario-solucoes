@@ -169,9 +169,9 @@ const LEVEL_GAP = 90 // espaço horizontal entre nós consecutivos
 const FIT_PAD = 60
 const EDGE_GAP = 8   // afastamento da linha em relação ao centro do handle (evita invadir o círculo)
 const EDGE_GAP_LIFELINE = 15 // idem, do lado de uma linha de vida — ver o comentário em draw()
-const MOVE_TOLERANCE = 3 // distância (px, espaço do mundo) para distinguir clique de arraste
+const MOVE_TOLERANCE = 3 // distance (px, world space) that tells a click from a drag
 
-// 8 âncoras por nó (fração da largura/altura + normal de saída da curva).
+// 8 anchors per node (fraction of the width/height + the outgoing normal).
 const ANCHORS = {
     l:  { fx: 0,    fy: 0.5, nx: -1, ny: 0 },
     r:  { fx: 1,    fy: 0.5, nx: 1,  ny: 0 },
@@ -195,11 +195,11 @@ const ANCHOR_KEYS = Object.keys(ANCHORS)
 // a light rounding — the angle has to go on reading as 90°, not as a curve.
 const EDGE_STUB = 22
 const EDGE_CORNER = 10
-// Quanto dois corredores que se sobrepõem se afastam um do outro, e quão
-// perto dois precisam estar para contarem como o mesmo corredor.
+// How far two overlapping corridors step apart from each other, and how
+// close two have to be to count as the same corridor.
 const EDGE_CORRIDOR_STEP = 18
 const EDGE_CORRIDOR_BUCKET = 14
-// Distância entre duas pontas que disputam a MESMA face de um bloco.
+// Distance between two ends competing for the SAME face of a block.
 const ANCHOR_FAN_STEP = 16
 
 /** The route's vertices between two anchors, straight end runs included. */
@@ -297,15 +297,15 @@ function corridorOffsets(corridors) {
 
         members
             .slice()
-            // A ordenação por `lo` é LOAD-BEARING, não cosmética: é ela que
-            // torna o `clusters.find()` abaixo — que pega o primeiro que
-            // encontra — equivalente a uma fusão de intervalos correta. Com a
-            // entrada ordenada, todo span novo tem `lo` maior ou igual ao de
-            // todos os clusters, os clusters nascem disjuntos e nunca voltam a
-            // se sobrepor, então no máximo UM candidato casa e o "primeiro"
-            // nunca escolhe de verdade (medido: 2.147.981 buscas, zero com
-            // mais de um candidato). Tire o sort e a mesma entrada deixa dois
-            // clusters sobrepostos com escadas de offset independentes.
+            // Sorting by `lo` is LOAD-BEARING, not cosmetic: it is what makes
+            // the `clusters.find()` below — which takes the first match it
+            // finds — equivalent to a correct interval merge. With the input
+            // sorted, every new span has a `lo` at or above every cluster's,
+            // clusters are born disjoint and never overlap again, so at most
+            // ONE candidate matches and "first" never really chooses
+            // (measured: 2,147,981 lookups, none with more than one
+            // candidate). Drop the sort and the same input leaves two
+            // overlapping clusters with independent offset ladders.
             .sort((a, b) => span(a).lo - span(b).lo)
             .forEach((i) => {
                 const { lo, hi } = span(i)
@@ -341,24 +341,25 @@ function corridorOffsets(corridors) {
  * than the same box laid across a vertical one.
  */
 function labelAnchor(points) {
-    // Funde os trechos colineares ANTES de medir, porque é isso que se vê:
-    // `roundedPath()` desenha a rota já fundida, mas `orthogonalPoints()`
-    // ainda a entrega em vértices crus — numa seta reta são cinco pontos, dois
-    // deles no mesmo lugar. Pontuando vértice a vértice, o maior "trecho" de
-    // uma reta era METADE do corredor, e o rótulo pousava no ponto de 25% do
-    // traço que o usuário enxerga (64px fora do centro num vão de 256px).
+    // Merge the collinear runs BEFORE measuring, because merged is what you
+    // SEE: `roundedPath()` draws the route already merged, while
+    // `orthogonalPoints()` still hands it over as raw vertices — a straight
+    // arrow is five points, two of them in the same place. Scored vertex by
+    // vertex, the longest "run" of a straight line was HALF the corridor, and
+    // the label landed at the 25% mark of the stroke the user actually sees
+    // (64px off centre across a 256px gap).
     const runs = []
 
     for (let i = 1; i < points.length; i++) {
         const [a, b] = [points[i - 1], points[i]]
 
-        // O vértice repetido do meio de uma rota reta.
+        // The repeated middle vertex of a straight route.
         if (a.x === b.x && a.y === b.y) continue
 
         const horiz = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y)
         const last = runs[runs.length - 1]
 
-        // Mesmo eixo e mesma linha: é a continuação do traço anterior.
+        // Same axis and same line: this continues the previous run.
         if (last && last.horiz === horiz && (horiz ? last.a.y === b.y : last.a.x === b.x)) {
             last.b = b
             continue
@@ -430,8 +431,8 @@ function roundedPath(points, radius = EDGE_CORNER) {
 
     return `${d} L ${n(end.x)} ${n(end.y)}`
 }
-// Lados que ganham uma porta de ligação no bloco (as 4 âncoras principais —
-// as intermediárias do topo/base existem só pra grudar ponta de seta).
+// The sides that get a connection port on the block (the 4 main anchors — the
+// intermediate top/bottom ones exist only for an arrow tip to stick to).
 const ANCHOR_SIDES = ['t', 'r', 'b', 'l']
 
 // The block colour palette (the same logic as the reference mind map: presets
@@ -460,10 +461,9 @@ const FONT_SIZES = { sm: '13px', md: '15px', lg: '17px' }
 const LANE_COLORS = ['#2F6FED', '#7C3AED', '#16A34A', '#EA580C', '#DB2777', '#0891B2', '#000000', '#FFFFFF', '#E8DCC4', '#9CA3AF']
 const LANE_DEFAULT_WIDTH = 420
 const LANE_DEFAULT_HEIGHT = 240
-// Tamanho mínimo/máximo (px de mundo) de uma raia em qualquer dimensão —
-// mesmo clamp aplicado tanto ao redimensionar arrastando uma alça
-// (`drag.type === 'lane-resize'`) quanto na validação do servidor
-// (`SaveChainLayoutRequest`).
+// Minimum/maximum size (world px) of a lane in either dimension — the same
+// clamp applied while resizing by a handle (`drag.type === 'lane-resize'`) and
+// in the server's own validation (`SaveChainLayoutRequest`).
 const LANE_MIN_SIZE = 100
 const LANE_MAX_SIZE = 6000
 
@@ -492,8 +492,8 @@ const LANE_STYLE_DEFAULTS = {
     showTitle: true,
     fontSize: 'sm',
 }
-// Faixa do slider de opacidade — mesmo range validado em
-// `SaveChainLayoutRequest`.
+// Range of the opacity slider — the same range `SaveChainLayoutRequest`
+// validates.
 const LANE_OPACITY_MIN = 0.03
 const LANE_OPACITY_MAX = 0.5
 // The lane label's text sizes — a scale of its own (smaller than the blocks'
@@ -761,11 +761,12 @@ function buildKindIcon(icon) {
     return avatar
 }
 
-// 4 portas de ligação por bloco (topo/direita/base/esquerda) — o "puxe uma
-// seta daqui". São filhas do nó (acompanham posição/tamanho sem conta
-// nenhuma) e não têm listener próprio: `startNodePointer()` reconhece o
-// `[data-viz-port]` no alvo do mousedown e inicia o arraste de ligação em vez
-// do arraste do bloco. Visíveis só no hover/seleção e só quando editável (CSS).
+// 4 connection ports per block (top/right/bottom/left) — the "pull an arrow
+// out of here". They are children of the node (so they follow its position and
+// size with no maths at all) and have no listener of their own:
+// `startNodePointer()` recognises a `[data-viz-port]` in the pointerdown's
+// target and starts a link drag instead of a block drag. Visible only on
+// hover/selection and only when editable (CSS).
 function buildPorts(el) {
     ANCHOR_SIDES.forEach((side) => {
         const port = document.createElement('span')
@@ -776,10 +777,10 @@ function buildPorts(el) {
     })
 }
 
-// (Re)desenha o conteúdo de um bloco a partir dos dados resolvidos do nó —
-// usado tanto ao montar o grafo inteiro (`render()`) quanto após editar o
-// título de um nó pontualmente (`applyNodeData()`), para as duas rotas nunca
-// divergirem na montagem do DOM do bloco.
+// (Re)draws a block's content from the node's resolved data — used both when
+// mounting the whole graph (`render()`) and after editing one node's title
+// (`applyNodeData()`), so the two paths can never build the block's DOM
+// differently.
 function paintNode(el, data) {
     const kind = data.kind || 'system'
     // Only a system block carrying a registered solution (a real logo) can
@@ -787,9 +788,9 @@ function paintNode(el, data) {
     // to show on its own, and a solution with no logo would fall back to the
     // initial badge, which makes no sense "alone" in place of the card.
     const logoOnly = kind === 'system' && !!data.solution && !!data.logo && !!data.logoOnly
-    // `is-free` (tracejado de "externo à Leo") é só do bloco de sistema sem
-    // Solução — decisão/ator/início/fim têm forma/cor próprias, ver as
-    // classes abaixo.
+    // `is-free` (the "outside Leo" dashed border) belongs only to a system
+    // block with no Solution — decision/actor/start/end have shapes and
+    // colours of their own, see the classes below.
     el.classList.toggle('is-free', kind === 'system' && !data.solution)
     el.classList.toggle('is-decision', kind === 'decision')
     el.classList.toggle('is-actor', kind === 'actor')
@@ -971,7 +972,7 @@ function csrfToken() {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? ''
 }
 
-// ── markdown (parser enxuto, sem dependências) ────────────────────
+// ── markdown (a lean parser, no dependencies) ────────────────────
 function escapeHtml(s) {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
@@ -1097,12 +1098,12 @@ function mount(root) {
     const laneToolbarOrientationBtns = root.querySelectorAll('[data-viz-lane-toolbar-orientation]')
     const laneToolbarFontSize = root.querySelector('[data-viz-lane-toolbar-font-size]')
     const laneToolbarOpacity = root.querySelector('[data-viz-lane-toolbar-opacity]')
-    // O componente `<x-forms.toggle>` renderiza o `<input type=checkbox>` real
-    // DENTRO do `<label>` que recebe `data-viz-lane-toolbar-title` (o
-    // `$attributes` do componente só chega no elemento raiz) — por isso o
-    // hook aponta pro wrapper, e o checkbox de verdade se pega com
-    // `.querySelector('input')` nele, mesma ideia de `viz-text-color-input`
-    // ter um `id` próprio além do `data-viz-text-color` do componente.
+    // The `x-forms.toggle` component renders the real `<input type=checkbox>`
+    // INSIDE the `<label>` that carries `data-viz-lane-toolbar-title` (a
+    // component's `$attributes` only reaches its root element) — so the hook
+    // points at the wrapper and the checkbox itself is reached with
+    // `.querySelector('input')` on it, the same idea as `viz-text-color-input`
+    // having an `id` of its own besides the component's `data-viz-text-color`.
     const laneToolbarTitleWrap = root.querySelector('[data-viz-lane-toolbar-title]')
     const laneToolbarTitleInput = laneToolbarTitleWrap?.querySelector('input') ?? null
     const addEditor = root.querySelector('[data-viz-add-editor]')
@@ -1111,9 +1112,9 @@ function mount(root) {
     const bottomBar = root.querySelector('[data-viz-bottombar]')
     const toolbar = root.querySelector('[data-viz-toolbar]')
     const toolbarStyle = root.querySelector('[data-viz-toolbar-style]')
-    // Segunda linha: tracejado, borda leve de imagem/"somente logo"
-    // (condicionais), tipo do bloco (ícones — ver `refreshKindRow()`/
-    // `changeNodeKind()`) e as ações (comentário/excluir), tudo junto.
+    // Second row: dashed, the light border of an image / "logo only" (both
+    // conditional), the block's kind (icons — see `refreshKindRow()` /
+    // `changeNodeKind()`) and the actions (comment/delete), all together.
     const toolbarRow2 = root.querySelector('[data-viz-toolbar-row2]')
     const toolbarSwatches = root.querySelector('[data-viz-swatches]')
     const toolbarCustomColor = root.querySelector('[data-viz-custom-color]')
@@ -1156,16 +1157,16 @@ function mount(root) {
     let laneEls = []        // [{wrap, label, handles:{e,s,se}}] — elementos DOM das raias, paralelos a `lanes`
     let notes = []          // [{x, y, text}] — anotações "post-it" (viz_layout.notes), puramente visuais como as raias
     let noteEls = []        // [{wrap, body}] — elementos DOM das anotações, paralelos a `notes`
-    let selectedLane = null // índice da raia com o toolbar (cor/nome/remover) aberto, ou null
-    let creatingEdge = false // POST de ligação nova em voo — ver `appendEdgeLocally()`
+    let selectedLane = null // index of the lane whose toolbar (colour/name/remove) is open, or null
+    let creatingEdge = false // a new link's POST is in flight — see `appendEdgeLocally()`
     let slug = ''
     let editable = false
     let saveUrl = null
-    // Onde o canvas publica a própria imagem depois de salvar (ver
-    // `publishDiagram()` no fim de `save()`).
+    // Where the canvas publishes its own picture after a save (see
+    // `publishDiagram()` at the end of `save()`).
     let diagramUrl = null
-    let currentTheme = 'original' // ver applyTheme() — persistido em viz_layout.theme, ao vivo no canvas E no export
-    // ── modo apresentação — ver `enterPresentation()`/`presentTick()` ──
+    let currentTheme = 'original' // see applyTheme() — persisted in viz_layout.theme, live on the canvas AND in the export
+    // ── presentation mode — see `enterPresentation()`/`presentTick()` ──
     let presenting = false
     let savedEditableBeforePresenting = false // valor real de `editable` (vindo do servidor), restaurado ao sair
     let presentPaths = []             // computePresentationPaths() do graphRef atual
@@ -1217,9 +1218,9 @@ function mount(root) {
     // than in `world`'s.
     let inlineProtocolInput = null
     let inlineProtocolReposition = null
-    let inlineProtocolEditIndex = null // índice do edge em edição inline, ou null — `drawProtocolPill()` esconde o texto estático dele
-    // Mesma ideia pro renomear inline de uma raia (`startInlineLaneLabelEdit()`)
-    // — reancora o input flutuante da etiqueta a cada `applyView()`.
+    let inlineProtocolEditIndex = null // index of the edge being edited inline, or null — `drawProtocolPill()` hides its static text
+    // Same idea for renaming a lane inline (`startInlineLaneLabelEdit()`) —
+    // it re-anchors the label's floating input on every `applyView()`.
     let inlineLaneLabelReposition = null
 
     function applyView() {
@@ -1287,20 +1288,22 @@ function mount(root) {
     }
 
     /**
-     * Quanto deslocar cada ponta AO LONGO da face onde ela nasce, para que
-     * várias ligações na mesma face não nasçam todas no mesmo ponto.
+     * How far to slide each end ALONG the face it is born on, so that several
+     * links sharing a face are not all born at the same point.
      *
-     * Era o defeito mais visível de um desenho cheio: três setas entrando pelo
-     * topo de um bloco viravam um tridente com um vértice só, e no vértice não
-     * dava para dizer qual seta ia para onde — nem pegar a certa com o mouse.
-     * Agora elas repartem a face.
+     * It was the most visible defect of a crowded drawing: three arrows
+     * arriving at the top of a block became a trident with a single vertex,
+     * and at that vertex you could neither tell which arrow went where nor
+     * pick the one you wanted with the mouse. They share the face now.
      *
-     * A ordem dentro da face é a do OUTRO extremo, não a da lista de ligações:
-     * quem vem da esquerda encosta à esquerda. Sem isso as setas se cruzariam
-     * bem no ponto em que acabaram de se separar, que é pior que o tridente.
+     * The order within the face comes from the OTHER end, not from the list of
+     * links: what comes from the left lands on the left. Without that the
+     * arrows would cross right where they have just separated, which is worse
+     * than the trident.
      *
-     * Uma ponta com `t` explícito (mensagem posicionada numa linha de vida)
-     * fica fora: ali a altura é conteúdo, escolhida por quem gerou o desenho.
+     * An end with an explicit `t` (a message placed on a lifeline) is left
+     * out: there the height is content, chosen by whoever generated the
+     * drawing.
      */
     function fanOffsets(edgeList) {
         const slots = edgeList.map(() => ({ from: 0, to: 0 }))
@@ -1331,9 +1334,9 @@ function mount(root) {
 
                 return alongY ? peer.y + peer.h / 2 : peer.x + peer.w / 2
             }
-            // A face não pode ser repartida além do próprio tamanho, e as
-            // pontas ficam longe dos cantos: uma seta saindo da quina de um
-            // bloco arredondado lê como se estivesse solta.
+            // A face cannot be shared beyond its own size, and the ends stay
+            // away from the corners: an arrow leaving the corner of a rounded
+            // block reads as if it were attached to nothing.
             const room = (alongY ? node.h : node.w) - 28
             const step = Math.min(ANCHOR_FAN_STEP, Math.max(0, room) / (ends.length - 1))
 
@@ -1351,12 +1354,12 @@ function mount(root) {
     function clearWorld() {
         nodes.forEach((n) => n.el.remove())
         nodes = []
-        // Raias são um estado por integração, não por sessão da página — sem
-        // isto, trocar para uma integração sem raias (ou com menos) deixaria
-        // raias da integração anterior penduradas em `world` —
-        // `nodes.forEach(...).remove()` acima só limpa os nós, nenhum deles
-        // é uma raia. `entry.wrap.remove()` basta: label/alças são filhas
-        // dele, saem junto.
+        // Lanes are per-drawing state, not per page session — without this,
+        // switching to a drawing with no lanes (or with fewer) would leave the
+        // previous one's lanes hanging in `world`: the
+        // `nodes.forEach(...).remove()` above clears only the nodes, and none
+        // of them is a lane. `entry.wrap.remove()` is enough, since the label
+        // and the handles are its children and go with it.
         laneEls.forEach((entry) => entry.wrap.remove())
         laneEls = []
         lanes = []
@@ -1377,19 +1380,19 @@ function mount(root) {
         if (saveBtn) saveBtn.disabled = !value
     }
 
-    // Aplica o tema (Original/Casual/Corporativo/Tech) ao canvas AO VIVO —
-    // não só na hora de exportar: o `data-viz-preset` fica no `world`, no
-    // `edges` (a <svg>) E no `viewport` (fundo do canvas, incluindo a
-    // trama de pontos — `viewport` nunca é capturado no export, que usa
-    // `EXPORT_PRESETS[...].bg` direto como `backgroundColor` do `toCanvas()`,
-    // mas ELE é o que o usuário vê enquanto edita, então precisa da MESMA
-    // troca de cor aqui) o tempo todo enquanto esse tema estiver ativo —
-    // assim as MESMAS regras CSS usadas pelo export (bloco/aresta/pill, ver o
-    // <style> deste componente) já pintam a edição normal também, nada
-    // precisa ser duplicado entre "vendo" e "exportando". `markDirty` é
-    // `false` só ao carregar (aplicando o tema já salvo em `viz_layout.theme`
-    // — mudar isso não é uma edição nova) e `true` numa escolha de verdade do
-    // usuário (habilita o "Salvar", mesmo padrão de mover um bloco).
+    // Applies the theme (Original/Casual/Corporativo/Tech) to the LIVE canvas,
+    // not only at export time: `data-viz-preset` stays on `world`, on `edges`
+    // (the svg) AND on `viewport` (the canvas's ground, dot grid included —
+    // `viewport` is never captured in the export, which passes
+    // `EXPORT_PRESETS[...].bg` straight to `toCanvas()`'s `backgroundColor`,
+    // but IT is what the user looks at while editing, so it needs the same
+    // colour change here) for as long as that theme is active. So the SAME CSS
+    // rules the export uses (block/edge/pill, in this component's stylesheet)
+    // already paint ordinary editing too, and nothing has to be duplicated
+    // between "looking at it" and "exporting it". `markDirty` is `false` only
+    // on load (applying the theme already saved in `viz_layout.theme` — that is
+    // not a new edit) and `true` on a real choice by the user (which enables
+    // "Salvar", the same way moving a block does).
     function applyTheme(theme, { markDirty: shouldMarkDirty = true } = {}) {
         currentTheme = EXPORT_PRESETS[theme] ? theme : 'original'
         if (currentTheme === 'original') {
@@ -1408,15 +1411,16 @@ function mount(root) {
     function showEmpty(name) {
         empty.style.display = ''
         refreshEditableUI()
-        presentToggleBtn?.classList.add('!hidden') // sem chain carregada não há o que apresentar
-        exportToggleBtn?.classList.add('!hidden') // idem — nada pra exportar
+        presentToggleBtn?.classList.add('!hidden') // with no chain loaded there is nothing to present
+        exportToggleBtn?.classList.add('!hidden') // likewise — nothing to export
         themeSelect?.closest('[data-viz-theme-wrap]')?.classList.add('!hidden')
         currentName = name || ''
-        // Um diagrama SEM chain nenhuma (nome conhecido) e um canvas que ainda
-        // não recebeu grafo (nome vazio) são estados diferentes, e o segundo
-        // só existe pelo instante entre carregar a página e o auto-select de
-        // `chain-select.js` rodar. O texto antigo mandava "escolher na lista" —
-        // a lista era a rail de integrações da solução, que não existe mais.
+        // A diagram with NO chain at all (name known) and a canvas that has
+        // not been handed a graph yet (name empty) are different states, and
+        // the second one exists only for the instant between the page loading
+        // and `chain-select.js`'s auto-select running. The old copy told people
+        // to "pick one from the list" — that list was the solution's rail of
+        // integrations, which no longer exists.
         if (emptyTitle) emptyTitle.textContent = name || 'Nada desenhado ainda'
         if (emptyHint) {
             emptyHint.textContent = name
@@ -1426,10 +1430,10 @@ function mount(root) {
     }
 
     function render(graph, name, slugArg) {
-        // Trocar a integração selecionada re-renderiza esta MESMA instância
-        // montada (`clearWorld()` logo abaixo destrói todo nó/aresta) — sem
-        // sair da apresentação primeiro, o rAF de `presentTick()` continuaria
-        // rodando contra elementos desanexados.
+        // Switching the selected drawing re-renders this SAME mounted instance
+        // (`clearWorld()` just below destroys every node and edge) — without
+        // leaving the presentation first, `presentTick()`'s rAF would go on
+        // running against detached elements.
         if (presenting) exitPresentation()
         selectNode(null)
         closeComment()
@@ -1488,36 +1492,36 @@ function mount(root) {
                         m.el.style.top = m.y + 'px'
                     })
                 }
-                // Nunca redesenha em cima de uma apresentação em andamento —
-                // draw() reconstrói todo <path class="ak-viz-edge">, o que
-                // invalidaria os `pathEl`/`length` já cacheados pelas
-                // bolinhas em voo (`startPresentAnimation()`). A imagem só
-                // fica com a âncora levemente desatualizada nesse cenário
-                // raro (carregamento lento + entrar na apresentação antes
-                // dela terminar), o que é aceitável.
+                // Never redraw over a presentation already running: draw()
+                // rebuilds every edge path, which would invalidate the
+                // `pathEl`/`length` the travelling dots have already cached
+                // (`startPresentAnimation()`). The only cost is an image whose
+                // anchor is slightly out of date in that rare case (a slow
+                // load plus entering the presentation before it finishes),
+                // which is acceptable.
                 if (!presenting) draw()
             }, { once: true })
         })
 
         layoutDefault()
-        // Uma âncora visual por ligação (`graph.edges`), não por par consecutivo
-        // de nós — a chain é um grafo livre, o número de edges é independente
-        // do número de nós.
+        // One visual anchor per link (`graph.edges`), not per consecutive pair
+        // of nodes — the chain is a free graph, so the number of edges is
+        // independent of the number of nodes.
         edgeAnchors = Array.from({ length: (graph.edges || []).length }, () => ({ from: 'r', to: 'l', dashed: false }))
 
         const layoutToApply = savedLayouts.get(slug) ?? graph.layout
-        // Mesma condição que `applyLayout()` usa por dentro pra saber se ela
-        // vai SOBRESCREVER `layoutDefault()` com posições salvas — o
-        // `ResizeObserver` de "hidden tab" mais abaixo usa esta MESMA
-        // variável pra saber se pode reflowar (`layoutDefault()` de novo,
-        // sem layout salvo em jogo) ou só remedir w/h (posições vieram do
-        // `viz_layout`, não são dele pra mexer).
+        // The same condition `applyLayout()` uses internally to know whether
+        // it will OVERWRITE `layoutDefault()` with saved positions — the
+        // "hidden tab" `ResizeObserver` further down reads this SAME variable
+        // to know whether it may reflow (`layoutDefault()` again, with no saved
+        // layout in play) or only re-measure w/h (the positions came from
+        // `viz_layout` and are not its to move).
         usedCustomLayout = Array.isArray(layoutToApply?.nodes) && layoutToApply.nodes.length === nodes.length
         applyLayout(layoutToApply)
-        // `logoOnly` só chega depois de `applyLayout()` (vem do `viz_layout`
-        // salvo), mas `paintNode()` já rodou pra cada nó lá em cima, sem
-        // saber disso ainda — repinta agora quem precisa, remedindo w/h
-        // (o conteúdo trocou de cartão pra imagem solta).
+        // `logoOnly` only arrives after `applyLayout()` (it comes from the
+        // saved `viz_layout`), but `paintNode()` already ran for every node
+        // above without knowing it yet — repaint the ones that need it now,
+        // re-measuring w/h (their content went from a card to a bare image).
         nodes.forEach((n) => {
             if (!n.logoOnly) return
             paintNode(n.el, n)
@@ -1538,27 +1542,28 @@ function mount(root) {
         fit()
     }
 
-    // Cor de fundo / cor de texto / fonte de um bloco — só sobrescreve o
-    // padrão do tema (CSS) quando o usuário escolheu algo; `textColor` nulo
-    // recalcula automaticamente pelo contraste com `color` (mesma regra do
-    // mapa mental de referência).
+    // A block's background colour / text colour / font — it overrides the
+    // theme's CSS default only where the user chose something; a null
+    // `textColor` is recomputed from the contrast against `color` (the same
+    // rule the reference mind map uses).
     function applyNodeStyle(n) {
         n.el.style.background = n.color || ''
         n.el.style.color = n.textColor || (n.color ? textColorFor(n.color) : '')
         n.el.style.fontFamily = FONTS[n.font] || FONTS.sans
         n.el.style.fontSize = FONT_SIZES[n.fontSize] || FONT_SIZES.sm
         n.el.classList.toggle('is-dashed', !!n.dashed)
-        // Borda leve opcional — só imagem (`viz_layout.nodes[i].imageBorderColor`);
-        // guardado por `kind` pra nunca escrever um `border` inline nos
-        // outros tipos, cujo contorno é só CSS de classe (`.is-dashed` etc.).
+        // Optional light border — images only
+        // (`viz_layout.nodes[i].imageBorderColor`); guarded by `kind` so an
+        // inline `border` is never written on the other kinds, whose outline is
+        // class CSS alone (`.is-dashed` and friends).
         if (n.kind === 'image') n.el.style.border = n.imageBorderColor ? `1.5px solid ${n.imageBorderColor}` : ''
-        // A altura da linha de vida é o único tamanho que vem do layout em vez
-        // do conteúdo: o corpo do bloco É o espaço vazio embaixo do cabeçalho,
-        // e é ele que as mensagens atravessam.
+        // A lifeline's height is the one size that comes from the layout rather
+        // than from the content: the block's body IS the empty room under the
+        // header, and that is what the messages cross.
         if (n.kind === 'lifeline') n.el.style.height = Number.isFinite(n.height) ? `${n.height}px` : ''
     }
 
-    // Layout padrão esquerda→direita, centros na linha y=0.
+    // The default left-to-right layout, centres on the line y=0.
     function layoutDefault() {
         let x = 0
         nodes.forEach((n) => {
@@ -1568,9 +1573,9 @@ function mount(root) {
         })
     }
 
-    // "Organizar": só reposiciona os blocos e reseta as âncoras das setas
-    // para o padrão — não toca em rótulos/topologia. `dashed` de cada aresta
-    // é preservado (só from/to voltam ao padrão).
+    // "Organizar": repositions the blocks and resets the arrows' anchors to
+    // the default, nothing else — labels and topology are untouched. Each
+    // edge's `dashed` is preserved (only from/to go back to the default).
     function organize() {
         if (!nodes.length) return
         layoutDefault()
@@ -1584,11 +1589,11 @@ function mount(root) {
         fit()
     }
 
-    // Aplica um layout salvo (posições + âncoras + comentários + raias), se
-    // compatível com a cadeia atual. `lanes` já foi resetado por
-    // `clearWorld()` no início de `render()` — aqui só sobrescreve quando o
-    // layout salvo realmente traz algo, e sempre termina redesenhando as
-    // raias (vazio ou não).
+    // Applies a saved layout (positions + anchors + comments + lanes) when it
+    // is compatible with the current chain. `lanes` was already reset by
+    // `clearWorld()` at the start of `render()` — this only overwrites when the
+    // saved layout actually carries something, and always ends by redrawing the
+    // lanes, empty or not.
     function applyLayout(layout) {
         applyTheme(typeof layout?.theme === 'string' ? layout.theme : 'original', { markDirty: false })
         if (!layout) {
@@ -1610,7 +1615,7 @@ function mount(root) {
                 if (p && typeof p.dashed === 'boolean') n.dashed = p.dashed
                 if (isHex(p?.imageBorderColor)) n.imageBorderColor = p.imageBorderColor
                 if (p && typeof p.logoOnly === 'boolean') n.logoOnly = p.logoOnly
-                // Só a linha de vida tem altura guardada — ver o comentário em
+                // Only a lifeline has a stored height — see the note in
                 // SaveChainLayoutRequest.
                 if (p && Number.isFinite(p.height)) n.height = p.height
             })
@@ -1642,18 +1647,18 @@ function mount(root) {
             lanes = layout.lanes
                 .filter((l) => l && typeof l.label === 'string')
                 .map((l) => ({
-                    // Backfill: uma raia salva antes de um destes campos
-                    // existir não traz a chave — `LANE_STYLE_DEFAULTS` cobre
-                    // o buraco, e as validações abaixo tratam qualquer valor
-                    // presente mas fora do esperado (enum errado, tipo
-                    // errado) do mesmo jeito, caindo no default.
+                    // Backfill: a lane saved before one of these fields
+                    // existed does not carry the key — `LANE_STYLE_DEFAULTS`
+                    // covers the hole, and the checks below treat any value
+                    // that is present but unexpected (wrong enum, wrong type)
+                    // the same way, falling back to the default.
                     ...LANE_STYLE_DEFAULTS,
                     label: l.label,
                     color: isHex(l.color) ? l.color : LANE_COLORS[0],
-                    // Ausente (não uma chave presente com `null`) de propósito
-                    // — é o sinal que `laneHeaderColor()` usa pra saber que o
-                    // cabeçalho ainda está no automático (escurecido de
-                    // `color`) em vez de uma escolha explícita.
+                    // ABSENT, rather than a key present holding `null`, on
+                    // purpose: that is the signal `laneHeaderColor()` reads to
+                    // know the header is still automatic (darkened from
+                    // `color`) instead of an explicit choice.
                     ...(isHex(l.headerColor) ? { headerColor: l.headerColor } : {}),
                     x: Number.isFinite(l.x) ? l.x : 0,
                     y: Number.isFinite(l.y) ? l.y : 0,
@@ -1676,10 +1681,10 @@ function mount(root) {
         rebuildNotes()
     }
 
-    // Bounding box (espaço do mundo) de todos os nós — usado por `fit()`.
-    // `null` quando não há nó nenhum. Raias NÃO entram nesta conta — só
-    // `fit()` centraliza/enquadra os BLOCOS; uma raia vazia arrastada bem
-    // longe deles não deveria "puxar" o enquadramento atrás de si.
+    // Bounding box (world space) of every node — used by `fit()`, and `null`
+    // when there is no node at all. Lanes are NOT counted: `fit()` frames the
+    // BLOCKS, and an empty lane dragged far away from them should not pull the
+    // framing along behind it.
     function nodesBBox() {
         if (!nodes.length) return null
         let minX = Infinity
@@ -1695,15 +1700,14 @@ function mount(root) {
         return { minX, minY, maxX, maxY }
     }
 
-    // União de `nodesBBox()` com as raias E as anotações — usada SÓ pela
-    // exportação (`captureDiagramCanvas()`), nunca por `fit()`: uma raia
-    // redimensionada maior que o cluster de blocos atual (comum — o usuário
-    // costuma deixar "espaço pra crescer"), ou um post-it solto longe de
-    // qualquer bloco, devem entrar no recorte exportado mesmo sem nó nenhum
-    // ali, senão aparecem cortados na imagem final. O tamanho de uma
-    // anotação não é persistido (só `x`/`y` — ver `rebuildNotes()`), então é
-    // medido direto do DOM aqui, com o mesmo fallback de `rebuildNotes()`
-    // caso o elemento ainda não tenha sido montado.
+    // The union of `nodesBBox()` with the lanes AND the notes — used ONLY by
+    // the export (`captureDiagramCanvas()`), never by `fit()`: a lane resized
+    // larger than the current cluster of blocks (common — people leave "room to
+    // grow"), or a post-it sitting far from any block, has to be inside the
+    // exported crop even with no node there, or it comes out cut off in the
+    // final image. A note's size is not persisted (only `x`/`y` — see
+    // `rebuildNotes()`), so it is measured straight from the DOM here, with the
+    // same fallback `rebuildNotes()` uses when the element is not mounted yet.
     function contentBBox() {
         const nb = nodesBBox()
         if (!nb && !lanes.length && !notes.length) return null
@@ -1725,30 +1729,29 @@ function mount(root) {
         return { minX, minY, maxX, maxY }
     }
 
-    // ── raias — retângulos de fundo livres, puramente visuais ──────
-    // Reconstrói do zero os `<div>` das raias a partir de `lanes` (chamado
-    // sempre que a lista muda: adicionar/remover/recolorir/renomear/mover/
-    // redimensionar) — a contagem é pequena, então recriar tudo é mais
-    // simples do que remendar incrementalmente. Cada raia é UMA raia (área
-    // colorida + etiqueta + 3 alças de redimensionamento, todas filhas do
-    // mesmo `wrap`) filha de `world` — espaço de MUNDO, exatamente como um
-    // bloco: `x`/`y`/`width`/`height` viram `left`/`top`/`width`/`height` em
-    // CSS direto, sem conversão nenhuma, e pan/zoom as movem/escalam de
-    // graça via a transform de `world` (nada a recalcular em `applyView()`).
-    // Isso só é possível porque uma raia deixou de ser obrigatoriamente
-    // 100% da largura do viewport — a versão anterior (raia = faixa
-    // horizontal sempre full-width, empilhada com as vizinhas) vivia em
-    // espaço de TELA de propósito, pra a largura ficar presa ao viewport
-    // independente do zoom; um retângulo livre não tem mais esse motivo.
+    // ── lanes — free background rectangles, purely visual ──────
+    // Rebuilds the lanes' `<div>`s from `lanes` from scratch (called whenever
+    // the list changes: add/remove/recolour/rename/move/resize) — the count is
+    // small, so recreating everything is simpler than patching incrementally.
+    // Each lane is ONE lane (coloured area + label + 3 resize handles, all
+    // children of the same `wrap`) and a child of `world` — WORLD space,
+    // exactly like a block: `x`/`y`/`width`/`height` become
+    // `left`/`top`/`width`/`height` in CSS with no conversion at all, and
+    // pan/zoom move and scale them for free through `world`'s transform
+    // (nothing to recompute in `applyView()`). That is only possible because a
+    // lane stopped being forced to 100% of the viewport's width — the earlier
+    // version (a lane was always a full-width horizontal band, stacked with its
+    // neighbours) lived in SCREEN space on purpose, to keep that width pinned
+    // to the viewport whatever the zoom; a free rectangle has no such reason.
     //
-    // Tudo entra ANTES dos nós em `world` (`prepend`) — ordem de documento,
-    // não z-index negativo (a lição de sempre: nem `.ak-viz-viewport` nem
-    // `[data-ak-chain-viz]` estabelecem um contexto de empilhamento
-    // próprio, então um z-index negativo escaparia e pintaria atrás do
-    // `bg-surface` do componente inteiro em vez de só atrás dos nós) —
-    // assim um bloco por cima de uma raia sempre fica visível/clicável;
-    // só a área da raia NÃO coberta por nenhum bloco reage ao arraste do
-    // próprio corpo (mover) ou das alças (redimensionar).
+    // Everything is inserted BEFORE the nodes in `world` (`prepend`) — document
+    // order, not a negative z-index (the usual lesson: neither
+    // `.ak-viz-viewport` nor `[data-ak-chain-viz]` establishes a stacking
+    // context of its own, so a negative z-index would escape and paint behind
+    // the whole component's `bg-surface` instead of just behind the nodes). So
+    // a block over a lane is always visible and clickable, and only the part of
+    // the lane NOT covered by a block answers a drag of its own body (move) or
+    // of its handles (resize).
     function rebuildLanes() {
         laneEls.forEach((entry) => entry.wrap.remove())
         laneEls = lanes.map((lane, i) => {
@@ -1760,53 +1763,55 @@ function mount(root) {
             wrap.style.top = lane.y + 'px'
             wrap.style.width = lane.width + 'px'
             wrap.style.height = lane.height + 'px'
-            // Preenchimento sutil de propósito (opacidade controlável,
-            // `laneBackgroundCss()`), mas a BORDA (sólida ou tracejada,
-            // `lane.dashed`) precisa se ler como o contorno real do
-            // retângulo — e o título, na cor cheia, é o que fica mais
-            // vívido de tudo.
+            // The fill is subtle on purpose (adjustable opacity,
+            // `laneBackgroundCss()`), but the BORDER — solid or dashed,
+            // `lane.dashed` — has to read as the rectangle's real outline, and
+            // the title, at full colour, is the most vivid thing of all.
             wrap.style.background = laneBackgroundCss(lane)
             wrap.style.borderColor = hexToRgba(lane.color, 0.7)
             wrap.style.borderStyle = lane.dashed ? 'dashed' : 'solid'
-            // Arrastar o CORPO inteiro (fora da etiqueta/alças) move a raia
-            // (`x`/`y`) — mas só a etiqueta abre o toolbar de cor/nome/remover
-            // num clique sem arraste (`onLabel`, ver o `mouseup` global);
-            // clicar o resto do corpo sem arrastar não faz nada. Exceção:
-            // sem título (`showTitle === false`) não existe faixa separada
-            // pra reservar como alvo de seleção — o corpo inteiro assume o
-            // papel da etiqueta, mesma distinção clique-vs-arraste de um
-            // bloco (`drag.moved`, ver `startNodePointer()`), só que aqui o
-            // "vira seleção" de um clique puro fica condicionado a QUAL
-            // parte do retângulo começou o gesto.
+            // Dragging the whole BODY (outside the label and the handles)
+            // moves the lane (`x`/`y`) — but only the label opens the
+            // colour/name/remove toolbar on a click without a drag (`onLabel`,
+            // see the global pointerup); clicking the rest of the body without
+            // dragging does nothing. The exception: with no title
+            // (`showTitle === false`) there is no separate strip to reserve as
+            // the selection target, so the whole body takes the label's role —
+            // the same click-versus-drag distinction a block makes
+            // (`drag.moved`, see `startNodePointer()`), except that here
+            // whether a pure click becomes a selection depends on WHICH part of
+            // the rectangle started the gesture.
             wrap.addEventListener('pointerdown', (e) => {
                 if (e.button !== 0 || !editable) return
                 e.stopPropagation()
                 e.preventDefault()
                 drag = { type: 'lane-move', index: i, startClientX: e.clientX, startClientY: e.clientY, startX: lane.x, startY: lane.y, moved: false, onLabel: lane.showTitle === false }
             })
-            // Sem título, o corpo inteiro assume o papel da etiqueta — inclusive
-            // pra renomear (`startInlineLaneLabelEdit()`), mesma distinção
-            // `showTitle === false` de tudo o mais nesta função.
+            // With no title the whole body takes the label's role, renaming
+            // included (`startInlineLaneLabelEdit()`) — the same
+            // `showTitle === false` distinction as everything else in this
+            // function.
             wrap.addEventListener('dblclick', (e) => {
                 if (!editable || lane.showTitle !== false) return
                 e.stopPropagation()
                 startInlineLaneLabelEdit(i)
             })
 
-            // Etiqueta: faixa de altura/largura cheia com o TÍTULO — na
-            // borda esquerda com texto vertical (orientação horizontal, a
-            // faixa clássica) ou no topo com texto padrão esquerda→direita
-            // (orientação vertical, `.is-vertical` acima) — cor
-            // independente da do corpo (`laneHeaderColor()`), com a cor do
-            // texto escolhida pelo contraste (`textColorFor()`) em vez de
-            // branco fixo, já que agora o cabeçalho pode ser claro (branco/
-            // bege). Tem `pointer-events: auto` própria (editável) pra virar
-            // o único alvo que abre o toolbar num clique — precisa do seu
-            // próprio `mousedown` (com `stopPropagation`) em vez de deixar
-            // borbulhar pro `wrap`, senão o `onLabel` acima sempre veria
-            // `false`. Sem título (`showTitle === false`) ela some da tela e
-            // o `wrap` acima assume a seleção — não removida do DOM pra
-            // `rebuildLanes()` continuar simples de reconstruir do zero.
+            // The label: a full-height or full-width strip carrying the TITLE
+            // — on the left edge with vertical text (horizontal orientation,
+            // the classic band) or along the top with ordinary left-to-right
+            // text (vertical orientation, `.is-vertical` above). Its colour is
+            // independent of the body's (`laneHeaderColor()`), and the text
+            // colour is picked by contrast (`textColorFor()`) rather than fixed
+            // white, since the header can now be light (white/beige). It
+            // carries `pointer-events: auto` of its own (when editable) so it
+            // can be the one target that opens the toolbar on a click — and it
+            // needs its own pointerdown (with `stopPropagation`) instead of
+            // letting the event bubble to `wrap`, or the `onLabel` above would
+            // always read `false`. With no title (`showTitle === false`) it
+            // leaves the screen and `wrap` takes over the selection; it is not
+            // removed from the DOM, so `rebuildLanes()` stays simple to rebuild
+            // from scratch.
             const label = document.createElement('span')
             label.className = 'ak-viz-lane-label'
             const headerColor = laneHeaderColor(lane)
@@ -1821,9 +1826,9 @@ function mount(root) {
                 e.preventDefault()
                 drag = { type: 'lane-move', index: i, startClientX: e.clientX, startClientY: e.clientY, startX: lane.x, startY: lane.y, moved: false, onLabel: true }
             })
-            // Renomear direto no cabeçalho — duplo clique troca o `<span>`
-            // estático por um `<input>` sobreposto, mesma ideia de
-            // `startInlineLabelEdit()` no bloco (ver a função mais abaixo).
+            // Renaming straight on the header — a double click swaps the
+            // static `<span>` for an overlaid `<input>`, the same idea as
+            // `startInlineLabelEdit()` on a block (see that function below).
             label.addEventListener('dblclick', (e) => {
                 if (!editable) return
                 e.stopPropagation()
@@ -1831,13 +1836,13 @@ function mount(root) {
             })
             wrap.appendChild(label)
 
-            // 3 alças de redimensionamento — direita (só largura), embaixo
-            // (só altura) e o canto (ambas de uma vez), mesmo padrão de
-            // qualquer editor de retângulos (Figma, Miro, Excalidraw). Só
-            // interativas quando editável, mesmo CSS attribute do label
-            // acima. O canto entra por último (depois de posicionado pelo
-            // CSS) só pra ganhar da alça de baixo/direita no pixel exato
-            // onde as três se encontram.
+            // 3 resize handles — right (width only), bottom (height only)
+            // and the corner (both at once), the same pattern as any rectangle
+            // editor (Figma, Miro, Excalidraw). Interactive only when editable,
+            // through the same CSS attribute the label above uses. The corner
+            // is appended last (after CSS has positioned it) purely so it beats
+            // the bottom and right handles on the exact pixel where all three
+            // meet.
             const handles = {}
             ;['e', 's', 'se'].forEach((dir) => {
                 const handle = document.createElement('div')
@@ -1873,12 +1878,12 @@ function mount(root) {
         setDirty(true)
     }
 
-    // Nasce centrada no meio do viewport ATUAL (não num canto fixo do
-    // mundo) — mesma ideia de `appendNode()` nascer perto do que já existe:
-    // o usuário provavelmente quer a raia nova perto do que está olhando
-    // agora, não em (0,0). Sem painel/diálogo no caminho: clicar o botão
-    // "Raias" da topbar já cria e seleciona a raia (`selectLane()` abre o
-    // toolbar na hora, pronta pra renomear).
+    // Born centred on the CURRENT viewport, not at a fixed corner of the
+    // world — the same idea as `appendNode()` being born near what already
+    // exists: the new lane probably belongs near what the person is looking at
+    // now, not at (0,0). No panel or dialog in the way: clicking the topbar's
+    // "Raias" button creates and selects the lane outright (`selectLane()`
+    // opens the toolbar right away, ready to rename).
     function addLane() {
         if (!editable || !graphRef) return
         const vpRect = viewport.getBoundingClientRect()
@@ -1897,15 +1902,14 @@ function mount(root) {
         selectLane(lanes.length - 1)
     }
 
-    // ── anotações "post-it" — texto livre multilinha, puramente visual ──
-    // Mesmo espírito das raias (filha de `world`, em espaço de MUNDO, pan/
-    // zoom de graça via a transform de `world`), mas BEM mais simples de
-    // propósito ("anotação básica"): sem toolbar próprio, sem cor
-    // configurável (sempre o amarelo do post-it), sem redimensionar — só
-    // posição (arrastando a faixinha do topo) e o texto em si
-    // (`contenteditable`, cresce sozinho com o conteúdo). Ao contrário das
-    // raias, entram DEPOIS dos nós em `world` (`append`, não `prepend`) — um
-    // post-it é colado por CIMA do diagrama, não atrás dele.
+    // ── "post-it" notes — free multiline text, purely visual ──
+    // The same spirit as the lanes (a child of `world`, in WORLD space, pan and
+    // zoom for free through `world`'s transform) but deliberately much simpler
+    // (a "basic note"): no toolbar of its own, no configurable colour (always
+    // the post-it yellow), no resizing — just position (dragging the small
+    // strip at the top) and the text itself, which grows with its content.
+    // Unlike the lanes, they go in AFTER the nodes in `world` (`append`, not
+    // `prepend`): a post-it is stuck ON TOP of the drawing, not behind it.
     function rebuildNotes() {
         noteEls.forEach((entry) => entry.wrap.remove())
         function autosize(body) {
@@ -1917,17 +1921,17 @@ function mount(root) {
             wrap.className = 'ak-viz-note'
             wrap.style.left = note.x + 'px'
             wrap.style.top = note.y + 'px'
-            // Leve rotação alternada por índice — o ar "colado à mão" de um
-            // post-it de verdade, sem virar caricatura (mesma dose "sóbria
-            // com alma" do resto do app). Puramente decorativa, não
-            // persistida — cada carregamento recalcula pela posição na
-            // lista, não por um valor salvo.
+            // A slight rotation alternating by index — the hand-stuck air of
+            // a real post-it, without becoming a caricature (the same "sober
+            // with a soul" dose as the rest of the app). Purely decorative and
+            // not persisted: every load recomputes it from the position in the
+            // list rather than from a stored value.
             wrap.style.transform = `rotate(${(i % 2 === 0 ? -1 : 1) * (1 + (i % 3) * 0.5)}deg)`
 
-            // Faixinha do topo: única parte que arrasta (mover) e que
-            // carrega o botão de remover — o corpo abaixo é todo texto
-            // editável, então precisa de uma área "neutra" pra servir de
-            // alça, mesmo espírito da etiqueta da raia (`rebuildLanes()`).
+            // The strip at the top: the only part that drags (move) and the
+            // one carrying the remove button — the body below is all editable
+            // text, so it needs a "neutral" area to act as a handle, the same
+            // spirit as a lane's label (`rebuildLanes()`).
             const handle = document.createElement('div')
             handle.className = 'ak-viz-note-handle'
             handle.addEventListener('pointerdown', (e) => {
@@ -1951,19 +1955,18 @@ function mount(root) {
             handle.appendChild(removeBtn)
             wrap.appendChild(handle)
 
-            // Corpo: `<textarea>`, não `contenteditable` — sem markdown, sem
-            // preview, é uma anotação básica, e cresce sozinho com o texto
-            // (`autosize()`), por isso não há `height` persistido, só
-            // `x`/`y` (ver `save()`). A escolha de `<textarea>` em vez de
-            // `contenteditable` não é estética: um `contenteditable`, ao
-            // apertar Enter, insere elementos (`<div>`/`<br>`, dependendo do
-            // navegador) e ler `.textContent` de volta ACHATA tudo numa
-            // string só, sem quebra de linha nenhuma — inaceitável pra uma
-            // anotação que precisa ser multilinha de verdade.
-            // `.value` de um `<textarea>` preserva `\n` de graça. `mousedown`
-            // para a propagação (sem `preventDefault`, que impediria o
-            // cursor de texto de posicionar) pra clicar no texto nunca
-            // iniciar um arraste do canvas.
+            // The body is a `<textarea>`, not a `contenteditable` — no
+            // markdown, no preview, it is a basic note, and it grows with its
+            // text (`autosize()`), which is why no `height` is persisted, only
+            // `x`/`y` (see `save()`). That choice is not aesthetic: pressing
+            // Enter inside a `contenteditable` inserts elements (`<div>` or
+            // `<br>`, depending on the browser) and reading `.textContent` back
+            // FLATTENS all of it into one string with no line breaks at all —
+            // unacceptable for a note that has to be genuinely multiline. A
+            // `<textarea>`'s `.value` preserves `\n` for free. Its pointerdown
+            // stops propagation (without `preventDefault`, which would keep the
+            // text caret from being placed) so clicking the text never starts a
+            // canvas drag.
             const body = document.createElement('textarea')
             body.className = 'ak-viz-note-body'
             body.rows = 1
@@ -1992,9 +1995,9 @@ function mount(root) {
         setDirty(true)
     }
 
-    // Nasce centrada no meio do viewport ATUAL, mesma ideia de `addLane()` —
-    // e já entra focada pronta pra digitar, já que não existe um toolbar
-    // separado que abriria com essa função pra guiar o próximo passo.
+    // Born centred on the CURRENT viewport, the same idea as `addLane()` — and
+    // it arrives focused, ready to type, since there is no separate toolbar
+    // that would open with it to point at the next step.
     function addNote() {
         if (!editable || !graphRef) return
         const vpRect = viewport.getBoundingClientRect()
@@ -2009,13 +2012,13 @@ function mount(root) {
         noteEls[notes.length - 1]?.body.focus()
     }
 
-    // ── toolbar da raia selecionada (cor/nome/remover) ──────────────
-    // Aberto por um clique (sem arraste) em qualquer raia — mesmo espírito
-    // do toolbar contextual de um bloco (`selectNode()`), só que com cor
-    // (presets, `buildLaneSwatches()`) + nome (input direto, sem lápis
-    // separado) + remover, já que uma raia não tem título/comentário/link
-    // pra editar. Mutuamente exclusivo com o toolbar do bloco: `selectNode()`
-    // fecha este; este fecha aquele.
+    // ── the selected lane's toolbar (colour/name/remove) ──────────────
+    // Opened by a click (without a drag) on any lane — the same spirit as a
+    // block's contextual toolbar (`selectNode()`), but with colour (presets,
+    // `buildLaneSwatches()`) plus name (a direct input, no separate pencil)
+    // plus remove, since a lane has no title/comment/link to edit. Mutually
+    // exclusive with the block's toolbar: `selectNode()` closes this one, and
+    // this one closes that.
     function selectLane(index) {
         if (!editable || !laneEls[index]) return
         selectNode(null)
@@ -2031,25 +2034,26 @@ function mount(root) {
         laneToolbar?.classList.add('flex')
     }
 
-    // Elemento que serve de âncora pro toolbar/seleção da raia — a etiqueta
-    // quando ela existe (`showTitle` !== false), o corpo inteiro quando não
-    // (sem faixa dedicada pra ancorar, o próprio `wrap` assume o papel).
+    // The element the lane's toolbar and selection anchor to — the label when
+    // there is one (`showTitle` !== false), the whole body when there is not
+    // (with no dedicated strip to anchor to, `wrap` itself takes the role).
     function laneAnchorEl(index) {
         const entry = laneEls[index]
         return lanes[index]?.showTitle === false ? entry.wrap : entry.label
     }
 
-    // ── renomear direto no cabeçalho, duplo clique ──────────────────
-    // Sobrepõe um `<input>` flutuante (filho de `stage`, espaço de TELA —
-    // mesma convenção de `startInlineProtocolEdit()`) centrado na etiqueta,
-    // em vez de trocar o `<span>` estático no lugar como
-    // `startInlineLabelEdit()` faz no bloco: a etiqueta tem só 26px de
-    // largura/altura (a faixa do swimlane) e, na orientação horizontal, texto
-    // vertical (`writing-mode`) — nem o espaço nem a orientação servem pra
-    // digitar direto. Sem título (`showTitle === false`), a âncora é o corpo
-    // inteiro, potencialmente enorme (até `LANE_MAX_SIZE`), então o centro
-    // usado é da interseção com a área VISÍVEL do stage, não do retângulo
-    // inteiro — senão o input nasceria fora da tela em uma raia grande.
+    // ── renaming straight on the header, by double click ──────────────────
+    // It overlays a floating `<input>` (a child of `stage`, in SCREEN space —
+    // the same convention as `startInlineProtocolEdit()`) centred on the label,
+    // instead of swapping the static `<span>` in place the way
+    // `startInlineLabelEdit()` does on a block: the label is only 26px wide or
+    // tall (the swimlane's strip) and, in the horizontal orientation, carries
+    // vertical text (`writing-mode`) — neither the room nor the orientation
+    // suits typing directly. With no title (`showTitle === false`) the anchor
+    // is the whole body, potentially enormous (up to `LANE_MAX_SIZE`), so the
+    // centre used is that of its intersection with the stage's VISIBLE area
+    // rather than of the whole rectangle — otherwise the input would be born
+    // off screen on a large lane.
     function startInlineLaneLabelEdit(index) {
         if (!editable || !lanes[index]) return
         const entry = laneEls[index]
@@ -2118,9 +2122,9 @@ function mount(root) {
         laneToolbar.classList.remove('flex')
     }
 
-    // Aplica cor/texto/tamanho do CABEÇALHO no DOM já montado — chamada
-    // sempre que `color` (o automático pode mudar), `headerColor` ou
-    // `fontSize` mudam, nunca precisa saber qual dos três foi.
+    // Applies the HEADER's colour/text/size to the DOM already mounted —
+    // called whenever `color` (the automatic one can move), `headerColor` or
+    // `fontSize` changes, and it never has to know which of the three it was.
     function applyLaneHeaderStyle(lane, entry) {
         if (!entry) return
         const headerColor = laneHeaderColor(lane)
@@ -2129,10 +2133,10 @@ function mount(root) {
         entry.label.style.fontSize = LANE_FONT_SIZES[lane.fontSize] || LANE_FONT_SIZES.sm
     }
 
-    // Presets fixos (`LANE_COLORS`), mesmo padrão de `buildSwatches()`
-    // (bloco) — sem cor personalizada aqui de propósito, só as predefinidas.
-    // Esta é a cor do CORPO (preenchimento + borda); `buildLaneHeaderSwatches()`
-    // logo abaixo é a mesma paleta pro cabeçalho, independente.
+    // Fixed presets (`LANE_COLORS`), the same pattern as `buildSwatches()` for
+    // a block — no custom colour here, on purpose, only the predefined ones.
+    // This is the BODY's colour (fill plus border); `buildLaneHeaderSwatches()`
+    // just below is the same palette for the header, independently.
     function buildLaneSwatches() {
         if (!laneToolbarSwatches || selectedLane === null) return
         const current = lanes[selectedLane]?.color
@@ -2159,20 +2163,20 @@ function mount(root) {
         if (entry) {
             entry.wrap.style.background = laneBackgroundCss(lane)
             entry.wrap.style.borderColor = hexToRgba(color, 0.7)
-            // Só reflete de verdade se o cabeçalho ainda estiver no
-            // automático (`laneHeaderColor()` já decide isso sozinho) — uma
-            // cor de cabeçalho explícita não muda quando o corpo muda.
+            // This only really shows if the header is still automatic
+            // (`laneHeaderColor()` decides that by itself) — an explicit header
+            // colour does not move when the body does.
             applyLaneHeaderStyle(lane, entry)
         }
         buildLaneSwatches()
         setDirty(true)
     }
 
-    // Mesma paleta/padrão de `buildLaneSwatches()`, pro cabeçalho — cor
-    // independente do corpo (`lane.headerColor`, ausente = automático via
-    // `laneHeaderColor()`); nenhum swatch aparece "selecionado" enquanto o
-    // cabeçalho estiver no automático, o que é o esperado (nenhuma escolha
-    // explícita feita ainda).
+    // The same palette and pattern as `buildLaneSwatches()`, for the header —
+    // a colour independent of the body's (`lane.headerColor`; absent means
+    // automatic, via `laneHeaderColor()`). No swatch reads as "selected" while
+    // the header is automatic, which is right: no explicit choice has been made
+    // yet.
     function buildLaneHeaderSwatches() {
         if (!laneToolbarHeaderSwatches || selectedLane === null) return
         const current = lanes[selectedLane]?.headerColor
@@ -2217,10 +2221,10 @@ function mount(root) {
         setDirty(true)
     }
 
-    // Reflete o estado da raia selecionada nos controles do toolbar — chamado
-    // sempre que `selectLane()` abre (uma raia pode ter sido editada por
-    // outro caminho, ou o toolbar reabrir numa raia diferente) e depois de
-    // cada toggle local, mesmo espírito de `refreshToolbarControls()` (bloco).
+    // Mirrors the selected lane's state onto the toolbar's controls — called
+    // whenever `selectLane()` opens (a lane may have been edited by another
+    // path, or the toolbar may be reopening on a different lane) and after each
+    // local toggle, the same spirit as `refreshToolbarControls()` for a block.
     function refreshLaneToolbarControls() {
         const lane = lanes[selectedLane]
         if (!lane) return
@@ -2247,8 +2251,8 @@ function mount(root) {
     }
 
     laneToolbarFontSize?.addEventListener('change', () => setLaneFontSize(laneToolbarFontSize.value))
-    // Cantos retos/arredondados — só a raia em si (a etiqueta acompanha via
-    // `.is-rounded` no CSS, ver `chain/viz.blade.php`).
+    // Square or rounded corners — the lane itself only (the label follows
+    // through `.is-rounded` in the CSS, see `chain/viz.blade.php`).
     laneToolbarRoundedBtn?.addEventListener('click', () => {
         if (selectedLane === null || !lanes[selectedLane]) return
         lanes[selectedLane].rounded = !lanes[selectedLane].rounded
@@ -2256,8 +2260,8 @@ function mount(root) {
         refreshLaneToolbarControls()
         setDirty(true)
     })
-    // Borda sólida/tracejada — mesmo botão-espelha-o-estado do toggle do
-    // bloco (`toolbarDashedBtn` acima).
+    // Solid or dashed border — the same button-mirrors-the-state toggle a
+    // block has (`toolbarDashedBtn` above).
     laneToolbarDashedBtn?.addEventListener('click', () => {
         if (selectedLane === null || !lanes[selectedLane]) return
         lanes[selectedLane].dashed = !lanes[selectedLane].dashed
@@ -2266,8 +2270,9 @@ function mount(root) {
         refreshLaneToolbarControls()
         setDirty(true)
     })
-    // Orientação horizontal/vertical — move a etiqueta da borda esquerda
-    // (texto vertical) pro topo (texto padrão), `.is-vertical` no CSS.
+    // Horizontal or vertical orientation — it moves the label from the left
+    // edge (vertical text) to the top (ordinary text), `.is-vertical` in the
+    // CSS.
     laneToolbarOrientationBtns.forEach((btn) => {
         btn.addEventListener('click', () => {
             if (selectedLane === null || !lanes[selectedLane]) return
@@ -2279,8 +2284,9 @@ function mount(root) {
         })
     })
     laneToolbarOpacity?.addEventListener('input', () => setLaneOpacity(laneToolbarOpacity.value))
-    // Título visível/oculto — sem título, o corpo inteiro assume o papel de
-    // alvo de seleção (`laneAnchorEl()`, usado por `startInlineLaneLabelEdit()`).
+    // Title shown or hidden — with no title the whole body takes the
+    // selection target's role (`laneAnchorEl()`, used by
+    // `startInlineLaneLabelEdit()`).
     laneToolbarTitleInput?.addEventListener('change', () => {
         if (selectedLane === null || !lanes[selectedLane]) return
         lanes[selectedLane].showTitle = !!laneToolbarTitleInput.checked
@@ -2298,23 +2304,24 @@ function mount(root) {
 
     function draw() {
         clearOverlays()
-        // Raias não precisam de nada aqui: são filhas de `world`, então
-        // arrastar um bloco (que roda `draw()` a cada `mousemove`) não as
-        // afeta em nada — pan/zoom idem, via a própria transform CSS.
+        // Lanes need nothing here: they are children of `world`, so dragging a
+        // block (which runs `draw()` on every pointermove) does not affect them
+        // at all — and neither does pan or zoom, through that same CSS
+        // transform.
         edgeLabelEls = []
         const edgeList = graphRef.edges || []
 
-        // As duas correções de legibilidade abaixo são COLETIVAS: uma ponta só
-        // sabe para onde se afastar depois de saber quantas outras disputam a
-        // mesma face, e um corredor só sabe que precisa desviar depois de
-        // saber quem mais passa por ali. Então a geometria toda vem primeiro,
-        // e o desenho depois.
+        // The two readability fixes below are COLLECTIVE: an end only knows
+        // which way to step aside once it knows how many others are competing
+        // for the same face, and a corridor only knows it has to detour once it
+        // knows who else runs through there. So all the geometry comes first,
+        // and the drawing after it.
         const fan = fanOffsets(edgeList)
         const ends = edgeList.map((edge, i) => {
-            // Enquanto essa ligação está sendo arrastada, desenha a ponta
-            // solta no nó sob o ponteiro (`drag.targetNode`), não no nó
-            // persistido em `edge.from`/`edge.to` — é a pré-visualização da
-            // religação, confirmada só no mouseup (`retargetEdge()`).
+            // While this link is being dragged, draw the loose end on the node
+            // under the pointer (`drag.targetNode`) rather than on the one
+            // stored in `edge.from`/`edge.to` — this is the preview of the
+            // retarget, confirmed only on pointerup (`retargetEdge()`).
             const fromIndex = (drag?.type === 'handle' && drag.edge === i && drag.end === 'from') ? drag.targetNode : edge.from
             const toIndex = (drag?.type === 'handle' && drag.edge === i && drag.end === 'to') ? drag.targetNode : edge.to
             const fromNode = nodes[fromIndex]
@@ -2324,18 +2331,18 @@ function mount(root) {
             const anchors = edgeAnchors[i] || { from: 'r', to: 'l', dashed: false }
             const a0 = anchorPoint(fromNode, anchors.from, anchors.fromT)
             const a3 = anchorPoint(toNode, anchors.to, anchors.toT)
-            // Reparte a face entre as ligações que a disputam: o deslocamento
-            // é AO LONGO dela, perpendicular à normal.
+            // Share the face between the links competing for it: the offset
+            // runs ALONG it, perpendicular to the normal.
             if (a0.nx !== 0) a0.y += fan[i].from
             else a0.x += fan[i].from
             if (a3.nx !== 0) a3.y += fan[i].to
             else a3.x += fan[i].to
-            // afasta as pontas da linha do centro do handle, para a seta não invadir o círculo
-            // Numa linha de vida a âncora fica SOBRE a linha tracejada, no
-            // mesmo ponto onde a alça de conexão é desenhada — e a alça é
-            // pintada depois, escondendo a ponta da seta. Um afastamento maior
-            // desse lado põe a ponta onde ela se vê, sem mexer no resto dos
-            // blocos, onde 8px continua certo.
+            // Keeps the ends clear of the handle's centre, so the arrowhead
+            // does not run into the circle. On a lifeline the anchor sits ON
+            // the dashed line, at the very point where the connection handle is
+            // drawn — and the handle is painted after, hiding the arrowhead. A
+            // larger gap on that side puts the head where it can be seen,
+            // without touching the other blocks, where 8px is still right.
             const gap0 = fromNode.kind === 'lifeline' ? EDGE_GAP_LIFELINE : EDGE_GAP
             const gap3 = toNode.kind === 'lifeline' ? EDGE_GAP_LIFELINE : EDGE_GAP
 
@@ -2360,17 +2367,18 @@ function mount(root) {
             const route = orthogonalPoints(p0, p3, EDGE_STUB, detour[i])
             const d = roundedPath(route)
 
-            // Alvo largo e invisível, por baixo do traço. Um traço de 2px é
-            // quase impossível de acertar com o mouse, e era o único jeito de
-            // pegar uma ligação: o SVG inteiro tem `pointer-events: none` e só
-            // o pill reabria eventos — numa ligação sem protocolo, o pill
-            // vazio era a única porta de entrada, e ele agora só aparece aqui.
+            // A wide invisible target, underneath the stroke. A 2px line is
+            // nearly impossible to hit with a mouse, and it was the only way to
+            // grab a link at all: the whole SVG carries `pointer-events: none`
+            // and only the pill reopened events — on a link with no protocol
+            // the empty pill was the single way in, and it only appears on
+            // hover now.
             if (editable) drawEdgeHit(d, i)
 
             const path = document.createElementNS(SVG_NS, 'path')
             path.setAttribute('class', 'ak-viz-edge' + (anchors.dashed ? ' is-dashed' : ''))
             path.setAttribute('d', d)
-            // Qual bloco está em cada ponta, para o destaque da seleção.
+            // Which block is on each end, for the selection highlight.
             path.dataset.from = String(fromIndex)
             path.dataset.to = String(toIndex)
             const arrow = edge.arrow || '->'
@@ -2379,10 +2387,9 @@ function mount(root) {
             path.dataset.edgeIndex = i // permite re-localizar este <path> por índice — ver startPresentAnimation()
             edges.appendChild(path)
 
-            // Pill de protocolo — sempre visível quando a ligação tem um
-            // definido; quando não tem, só desenha uma pill tracejada
-            // "+ protocolo" para quem pode editar (viewer não vê nada, igual
-            // ao comportamento antigo).
+            // The protocol pill — always visible when the link has one
+            // defined; when it has none, a dashed "+ protocolo" pill is drawn
+            // for whoever may edit (a viewer sees nothing, as before).
             const proto = edge.protocol
             if (proto || editable) drawProtocolPill(labelAnchor(route), i, proto)
 
@@ -2402,25 +2409,25 @@ function mount(root) {
         spreadProtocolPills()
 
         if (drag?.type === 'handle' && nodes[drag.targetNode]) drawAnchorDots(drag.targetNode, edgeAnchors[drag.edge][drag.end])
-        // Também desenha a prévia enquanto o quick-add está aberto (soltou a
-        // seta em canvas vazio) — não só durante o arraste em si —, pra dar
-        // continuidade visual: "esse bloco novo vai ligar ali" continua
-        // claro enquanto o usuário escolhe o tipo/Solução no painel.
+        // The preview is also drawn while the quick-add is open (an arrow
+        // dropped on empty canvas), not only during the drag itself, for visual
+        // continuity: "this new block will link there" stays clear while the
+        // person picks the kind or the Solution in the panel.
         if (drag?.type === 'connect' || quickAddOrigin) drawConnectPreview()
         inlineProtocolReposition?.()
-        // `draw()` recria todos os <path>, então o destaque da seleção e o do
-        // hover têm de ser repintados — senão somem no primeiro arraste.
+        // `draw()` recreates every path, so the selection and hover highlights
+        // have to be repainted — otherwise they vanish on the first drag.
         highlightLinkedEdges(selectedIndex)
         setHoveredEdge(hoveredEdge)
     }
 
-    // ── modo apresentação ────────────────────────────────────────────
-    // Ativado/desativado por `presentToggleBtn` (bottombar) ou Esc. Desliga
-    // toda edição reaproveitando o MESMO portão que já protege cada
-    // interação do arquivo (`editable`) — forçar `editable = false` some com
-    // drag de nó/raia, portas, alças e pill de protocolo de graça, sem
-    // tocar em cada um deles individualmente. `refreshEditableUI()`
-    // centraliza os toggles de visibilidade que hoje viviam espalhados em
+    // ── presentation mode ────────────────────────────────────────────
+    // Turned on and off by `presentToggleBtn` (bottom bar) or Esc. It disables
+    // every edit by reusing the SAME gate that already guards each interaction
+    // in this file (`editable`): forcing `editable = false` removes node and
+    // lane drags, ports, handles and the protocol pill for free, without
+    // touching any of them individually. `refreshEditableUI()` is where the
+    // visibility toggles live, instead of scattered through
     // `render()`/`showEmpty()`.
     function refreshEditableUI() {
         root.toggleAttribute('data-editable', editable)
@@ -2437,9 +2444,9 @@ function mount(root) {
         presentToggleBtn?.setAttribute('title', presenting ? 'Sair da apresentação' : 'Modo apresentação')
     }
 
-    // Uma bolinha por nó revelado — idempotente de propósito: o "sweep" de
-    // segurança em `onDotFirstLoopComplete()` chama isto pra TODO nó sem
-    // checar antes o que já foi revelado por outra bolinha.
+    // One dot per revealed node — idempotent on purpose: the safety sweep in
+    // `onDotFirstLoopComplete()` calls this for EVERY node without checking
+    // first what another dot has already revealed.
     function revealNode(index) {
         if (index == null || presentRevealedNodes[index]) return
         presentRevealedNodes[index] = true
@@ -2450,13 +2457,12 @@ function mount(root) {
         nodes.forEach((n, i) => revealNode(i))
     }
 
-    // Mesma ideia de `revealNode()`, pro `<path class="ak-viz-edge">` e sua
-    // pill de protocolo (se tiver uma — `edgeLabelEls[edgeIndex]` só existe
-    // quando a ligação tem `protocol` definido, já que durante a
-    // apresentação `editable=false` e `draw()` nunca desenha a pill
-    // tracejada "+ protocolo" de convite à edição). Uma seta só devia
-    // aparecer quando a bolinha COMEÇA a viajar por ela, não quando ela é
-    // desenhada pelo `draw()` de sempre — ver chamadas em
+    // The same idea as `revealNode()`, for an edge path and its protocol pill
+    // (if it has one — `edgeLabelEls[edgeIndex]` only exists when the link has
+    // a `protocol`, since `editable` is false while presenting and `draw()`
+    // never draws the dashed "+ protocolo" invitation then). An arrow should
+    // appear when a dot BEGINS travelling it, not when the ordinary `draw()`
+    // renders it — see the calls in
     // `startPresentAnimation()`/`presentTick()`.
     function revealEdge(edgeIndex) {
         if (edgeIndex == null || presentRevealedEdges[edgeIndex]) return
@@ -2470,8 +2476,8 @@ function mount(root) {
         (graphRef.edges || []).forEach((_, i) => revealEdge(i))
     }
 
-    // Só conta pra fadeIn na PRIMEIRA volta de cada bolinha (`dot.lap === 0`)
-    // — voltas seguintes não escondem/revelam nada de novo.
+    // Only the FIRST lap of each dot (`dot.lap === 0`) counts towards the fade
+    // in — later laps hide and reveal nothing new.
     function onDotArrivedAtSegmentEnd(dot) {
         if (dot.lap > 0) return
         const seg = dot.segments[dot.segIdx]
@@ -2479,11 +2485,11 @@ function mount(root) {
         revealNode(seg.reversed ? edge.from : edge.to)
     }
 
-    // Nó/aresta fora de qualquer um dos ≤5 caminhos animados (nó isolado já
-    // é revelado antes disso, ver `enterPresentation()` — isso aqui é só
-    // pra além do teto de ramificações) nunca seria revelado sozinho — uma
-    // vez que TODA bolinha ativa já fechou sua própria 1ª volta, revela o
-    // que sobrou de uma vez, garantindo que nada fique invisível pra sempre.
+    // A node or edge outside every one of the ≤5 animated paths (an isolated
+    // node is revealed before this, see `enterPresentation()` — this is for
+    // what lies beyond the branching ceiling) would never be revealed on its
+    // own. Once EVERY active dot has closed its own first lap, reveal whatever
+    // is left in one go, so nothing stays invisible forever.
     function onDotFirstLoopComplete(dot) {
         if (dot.firstLoopDone) return
         dot.firstLoopDone = true
@@ -2495,11 +2501,10 @@ function mount(root) {
         }
     }
 
-    // Posiciona o <circle> de uma bolinha no ponto atual do seu segmento —
-    // `getPointAtLength()` já devolve coordenadas no mesmo espaço de mundo
-    // que qualquer outro filho de `edges`/`world`, sem conversão. `reversed`
-    // amostra o <path> de trás pra frente (a ligação é `<-`, ver
-    // `computePresentationPaths()`).
+    // Places a dot's circle at the current point of its segment —
+    // `getPointAtLength()` already answers in the same world space as any other
+    // child of `edges`/`world`, with no conversion. `reversed` samples the path
+    // back to front (the link is `<-`, see `computePresentationPaths()`).
     function positionDot(dot) {
         const seg = dot.segments[dot.segIdx]
         const lenAlong = seg.reversed ? (seg.length - dot.segDist) : dot.segDist
@@ -2508,12 +2513,11 @@ function mount(root) {
         dot.el.setAttribute('cy', pt.y)
     }
 
-    // Constrói o <circle> de cada bolinha e cacheia o comprimento de cada
-    // segmento do seu caminho (`getTotalLength()`, uma vez só) antes de
-    // iniciar o loop — reconstruir isso a cada frame seria desperdício, e o
-    // <path> de cada aresta não muda enquanto se apresenta (nada dispara
-    // `draw()` durante a apresentação, ver `enterPresentation()`/o guard no
-    // listener de imagem colada).
+    // Builds each dot's circle and caches the length of every segment of its
+    // path (`getTotalLength()`, once) before starting the loop — rebuilding that
+    // on every frame would be waste, and an edge's path does not change while
+    // presenting (nothing triggers `draw()` then, see `enterPresentation()` and
+    // the guard in the pasted-image listener).
     function startPresentAnimation() {
         presentDots = presentPaths.map((path) => {
             const el = document.createElementNS(SVG_NS, 'circle')
@@ -2523,11 +2527,11 @@ function mount(root) {
             el.style.fillOpacity = '0.7' // corpo translúcido — o glow (currentColor) é que fica em destaque
             el.style.color = path.color // currentColor do drop-shadow em `.ak-viz-dot` lê daqui, não de `fill`
             edges.appendChild(el) // irmão dos <path class="ak-viz-edge">, nunca removido por clearOverlays()
-            // A 1ª aresta de cada caminho já foi revelada (instantâneo, sem
-            // fade) em `enterPresentation()`, ANTES do reflow forçado do
-            // reset dos nós isolados — não repetir a chamada aqui, que já é
-            // tarde o suficiente (depois daquele reflow) para acabar
-            // animando por acidente em vez de aparecer na hora.
+            // Each path's first edge was already revealed (instantly, with no
+            // fade) in `enterPresentation()`, BEFORE the forced reflow of the
+            // isolated-node reset. Do not repeat the call here: this point is
+            // late enough (after that reflow) that it would animate by accident
+            // instead of appearing at once.
             return {
                 el,
                 segments: path.edges.map(({ edgeIndex, reversed }) => {
@@ -2553,9 +2557,9 @@ function mount(root) {
     function presentTick(ts) {
         if (!presenting) return
         if (presentLastTs === null) presentLastTs = ts
-        // Clamp: uma aba em segundo plano pausa o rAF; ao voltar o foco, o
-        // primeiro `ts` pode vir com um salto enorme — sem isto a bolinha
-        // "teleportaria" por várias voltas de uma vez.
+        // Clamp: a background tab pauses rAF, and when focus comes back the
+        // first `ts` can arrive with an enormous jump — without this the dot
+        // would "teleport" through several laps at once.
         const dt = Math.min((ts - presentLastTs) / 1000, 0.1)
         presentLastTs = ts
         const step = PRESENT_BASE_SPEED * presentSpeedMultiplier * dt
@@ -2616,27 +2620,27 @@ function mount(root) {
         presentRevealedEdges = (graphRef.edges || []).map(() => false)
         presentFallbackFired = false
         nodes.forEach((n) => { n.el.style.opacity = '0' })
-        // Toda seta (e sua pill de protocolo, se tiver) começa invisível —
-        // só aparece quando uma bolinha começa a viajar por ela de verdade
-        // (`revealEdge()`, chamado de `startPresentAnimation()`/`presentTick()`),
-        // não simplesmente por já existir no grafo.
+        // Every arrow (and its protocol pill, if it has one) starts invisible:
+        // it appears when a dot actually begins travelling it (`revealEdge()`,
+        // called from `startPresentAnimation()`/`presentTick()`), not merely
+        // because it exists in the graph.
         edges.querySelectorAll('.ak-viz-edge').forEach((el) => { el.style.opacity = '0' })
         edgeLabelEls.forEach((el) => { if (el) el.style.opacity = '0' })
         presentPaths.forEach((p) => revealNode(p.startNode)) // nó de partida aparece na hora, nunca é "alcançado"
         presentPaths.forEach((p) => revealEdge(p.edges[0].edgeIndex)) // idem pra 1ª aresta de cada caminho — precisa estar ANTES do reflow forçado do isolado abaixo, senão esse reflow "comita" o opacity:0 acima como checkpoint de verdade e a revelação MAIS TARDE (em startPresentAnimation()) passa a animar por acidente
 
-        // Isolado (grau zero) não tem bolinha que um dia o alcance — não faz
-        // sentido ele esperar o sweep de fim-de-1ª-volta. MAS revelar rápido
-        // demais depois do opacity='0' acima INTERROMPE a mesma transição a
-        // meio caminho — e como a curva `ease` sai quase parada, interrompê-
-        // la a poucos ms do início (testado com 1 e com 2 `requestAnimationFrame`
-        // seguidos: nenhum dos dois deu tempo real suficiente) devolve o
-        // valor pra perto de onde já estava, sem fade visível nenhum. Em vez
-        // de brigar com uma transição em andamento, zera com `transition:
-        // none` + reflow forçado (sem NENHUMA transição rodando) e só then
-        // devolve o `transition` — a troca pra '1' que vem depois dispara
-        // uma transição limpa e completa de 0.5s a partir de um 0 de
-        // verdade, igual à de qualquer nó revelado por uma bolinha de fato.
+        // An isolated node (degree zero) has no dot that will ever reach it,
+        // so there is no sense in it waiting for the end-of-first-lap sweep.
+        // BUT revealing it too soon after the `opacity='0'` above INTERRUPTS
+        // that same transition halfway — and since the `ease` curve leaves
+        // almost at rest, interrupting it a few ms in (tried with one and with
+        // two consecutive `requestAnimationFrame`s: neither gave enough real
+        // time) returns the value to near where it already was, with no visible
+        // fade at all. Rather than fight a transition in flight, it zeroes with
+        // `transition: none` plus a forced reflow (with NO transition running)
+        // and only then restores `transition` — the switch to '1' that follows
+        // fires a clean, complete 0.5s transition from a real 0, exactly like
+        // any node a dot genuinely reveals.
         const isolated = computeIsolatedNodes(graphRef)
         if (isolated.length) {
             const isolatedEls = isolated.map((i) => nodes[i]?.el).filter(Boolean)
@@ -2654,21 +2658,22 @@ function mount(root) {
         stopPresentAnimation()
         presenting = false
         editable = savedEditableBeforePresenting
-        // Tira [data-presenting] ANTES do reset de opacidade — a transição
-        // de fadeIn só existe sob esse atributo (ver CSS), então o snap de
-        // volta pra 100% visível fica instantâneo, sem re-animar ao contrário.
+        // Removes [data-presenting] BEFORE resetting the opacity: the fade-in
+        // transition only exists under that attribute (see the CSS), so the
+        // snap back to fully visible is instant and nothing re-animates
+        // backwards.
         refreshEditableUI()
         nodes.forEach((n) => { n.el.style.opacity = '' })
         draw() // reconstrói arestas/pills do zero, todas com opacity padrão (visível) — nada a resetar nelas aqui
     }
 
-    // ── Exportar (PNG / GIF) ────────────────────────────────────────────
-    // Recorta `#world` ao redor de `contentBBox()`, nunca ao formato do
-    // viewport aberto no navegador — ver o parágrafo no topo do .blade para
-    // o raciocínio completo. `toCanvas()` clona `world` (nunca toca o DOM
-    // real), então NADA disto pisca na tela do usuário — a única exceção real
-    // é a troca de estado ao entrar/sair do Modo apresentação em si, que já
-    // muda a tela de propósito (mesmo comportamento de sempre).
+    // ── Export (PNG / GIF) ────────────────────────────────────────────
+    // Crops `#world` around `contentBBox()`, never to the shape of the viewport
+    // the browser happens to be showing — see the paragraph at the top of the
+    // .blade for the full reasoning. `toCanvas()` clones `world` (it never
+    // touches the real DOM), so NONE of this flickers on screen; the one real
+    // exception is entering and leaving presentation mode itself, which changes
+    // the screen on purpose, as it always has.
     // `fontEmbedCSS`, when given, skips `toCanvas()`'s own font detection
     // (`getFontEmbedCSS()` already ran once — see `exportVideo()`). Node
     // labels are set in 'Space Grotesk' (`.ak-viz-node`'s own rule) — a REAL
@@ -2744,15 +2749,15 @@ function mount(root) {
         }
     }
 
-    // Roda a própria animação do Modo apresentação (entra nela se ainda não
-    // estiver, e só sai de novo ao final se foi esta função que entrou —
-    // nunca interrompe uma apresentação que o usuário já tinha aberto por
-    // conta própria) e vai tirando fotos reais de `captureDiagramCanvas()`
-    // ao longo do caminho — o atraso de cada frame no GIF final é o tempo
-    // real decorrido entre uma foto e a próxima (`now - lastTs`), não um
-    // valor fixo: cada captura é um clone+serialize+rasterize completo do
-    // DOM, então o tempo por frame varia, mas a VELOCIDADE de reprodução do
-    // GIF continua fiel ao que realmente aconteceu.
+    // Runs presentation mode's own animation (entering it if it is not already
+    // running, and leaving again at the end only if this function is what
+    // entered — it never interrupts a presentation the user opened themselves)
+    // and takes real `captureDiagramCanvas()` photographs along the way. Each
+    // frame's delay in the finished GIF is the real time elapsed between one
+    // photograph and the next (`now - lastTs`), not a fixed value: every
+    // capture is a full clone, serialize and rasterize of the DOM, so the time
+    // per frame varies while the GIF's playback SPEED stays faithful to what
+    // actually happened.
     async function exportVideo() {
         if (!graphRef || !nodes.length) { Toast.show('Nada para exportar ainda.', 'warning'); return }
         setButtonLoading(exportGifBtn, true)
@@ -2784,10 +2789,10 @@ function mount(root) {
                 background: (EXPORT_PRESETS[currentTheme] || EXPORT_PRESETS.original).bg,
             })
 
-            // Sem espera artificial entre frames — encadeia uma captura direto
-            // atrás da outra; o próprio tempo real de captura (bem maior que
-            // qualquer espera que valeria a pena impor) já é o que vira o
-            // atraso de cada frame no GIF final.
+            // No artificial wait between frames — one capture is chained
+            // straight behind the last; the real capture time (far longer than
+            // any wait worth imposing) is itself what becomes each frame's
+            // delay in the finished GIF.
             let lastTs = performance.now()
             gif.addFrame(first, { delay: 80, copy: true }) // só o 1º frame não tem um "tempo decorrido" real anterior pra usar
 
@@ -2818,10 +2823,10 @@ function mount(root) {
         }
     }
 
-    // `proto` é `{value,label}` (passo com protocolo) ou `null` (sem
-    // protocolo ainda — só chega aqui quando `editable`, ver `draw()`).
-    // Clicável só quando `editable`: abre o editor de protocolo do segmento
-    // (`selectEdge()`), mesmo espírito do lápis de título do nó.
+    // `proto` is `{value,label}` (a step with a protocol) or `null` (none yet
+    // — which only reaches here when `editable`, see `draw()`). Clickable only
+    // when `editable`: it opens the segment's protocol editor (`selectEdge()`),
+    // the same spirit as a node's title pencil.
     function drawProtocolPill(spot, edgeIndex, proto) {
         if (!spot) return
 
@@ -2832,11 +2837,11 @@ function mount(root) {
 
         const g = document.createElementNS(SVG_NS, 'g')
         g.setAttribute('class', 'ak-viz-plabel' + (isEmpty ? ' is-empty' : '') + (editable ? ' is-editable' : ''))
-        // De qual ligação esta pill é — o destaque da seleção acende as duas
-        // juntas, senão a seta acesa fica com o rótulo apagado.
+        // Which link this pill belongs to — the selection highlight lights the
+        // two together, or a lit arrow would keep a dimmed label.
         g.dataset.edgeIndex = String(edgeIndex)
-        // Em que direção corre o trecho onde ela pousou: `spreadProtocolPills()`
-        // separa dois rótulos empilhados PERPENDICULARMENTE ao traço deles.
+        // Which way the run it landed on goes: `spreadProtocolPills()` pushes
+        // two stacked labels apart PERPENDICULAR to their own line.
         g.dataset.labelAxis = spot.horiz ? 'h' : 'v'
 
         const rect = document.createElementNS(SVG_NS, 'rect')
@@ -2852,10 +2857,10 @@ function mount(root) {
         label.setAttribute('x', mx)
         label.setAttribute('y', my + 1)
         label.textContent = text
-        // Redesenhado (`draw()`) enquanto este MESMO segmento está em edição
-        // inline (`startInlineProtocolEdit()`) — o `<input>` flutuante já
-        // cobre esta área, então o texto estático fica invisível por baixo
-        // dele em vez de aparecer duplicado.
+        // Redrawn (`draw()`) while this SAME segment is being edited inline
+        // (`startInlineProtocolEdit()`): the floating `<input>` already covers
+        // this area, so the static text stays invisible underneath it instead
+        // of showing up twice.
         if (inlineProtocolEditIndex === edgeIndex) label.style.opacity = '0'
 
         g.appendChild(rect)
@@ -2869,8 +2874,8 @@ function mount(root) {
                 e.stopPropagation()
                 selectEdge(edgeIndex)
             })
-            // Duplo clique edita o protocolo DIRETO no rótulo — mesmo padrão
-            // de `startInlineLabelEdit()` no texto do bloco.
+            // A double click edits the protocol ON the label itself — the same
+            // pattern as `startInlineLabelEdit()` on a block's text.
             g.addEventListener('dblclick', (e) => {
                 e.stopPropagation()
                 startInlineProtocolEdit(edgeIndex)
@@ -2882,11 +2887,12 @@ function mount(root) {
     }
 
     /**
-     * Dois rótulos que caíram um sobre o outro se separam.
+     * Two labels that landed on top of each other step apart.
      *
-     * Só os ESCRITOS entram: o pill vazio é convite, não conteúdo, e aparece
-     * um de cada vez (no hover da ligação) — deixá-lo empurrar um rótulo de
-     * verdade seria mover o desenho por causa de algo invisível.
+     * Only the WRITTEN ones take part: an empty pill is an invitation rather
+     * than content, and only one shows at a time (on the link's hover) —
+     * letting it push a real label would move the drawing because of something
+     * invisible.
      */
     function spreadProtocolPills() {
         const hits = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
@@ -2901,9 +2907,9 @@ function mount(root) {
             const [x0, y0] = [Number(rect.getAttribute('x')), Number(rect.getAttribute('y'))]
             let box = { x: x0, y: y0, w, h }
 
-            // Afasta perpendicular ao traço, alternando para os dois lados: um
-            // rótulo empurrado ao longo da própria linha continuaria na frente
-            // de quem já estava lá, e mais longe do trecho que ele nomeia.
+            // Step perpendicular to the line, alternating sides: a label
+            // pushed along its own line would still sit in front of whoever was
+            // already there, and further from the run it names.
             for (let step = 1; step <= 4 && placed.some((other) => hits(other, box)); step++) {
                 const shift = (step % 2 ? 1 : -1) * Math.ceil(step / 2) * (h + 6)
                 box = g.dataset.labelAxis === 'v'
@@ -2923,13 +2929,14 @@ function mount(root) {
     }
 
     /**
-     * Alvo invisível e largo por cima de uma ligação — hover, clique e duplo
-     * clique dela passam por aqui.
+     * A wide invisible target over a link — its hover, click and double click
+     * all arrive through here.
      *
-     * O `<svg>` das arestas tem `pointer-events: none` de propósito (não pode
-     * comer o clique que dá pan), então nada nele era clicável a não ser o
-     * pill. Numa ligação sem protocolo o pill era o tracejado "+ protocolo",
-     * que agora só aparece no hover — sem este alvo não haveria como pegá-la.
+     * The edges svg carries `pointer-events: none` on purpose (it must not eat
+     * the click that pans), so nothing in it was clickable but the pill. On a
+     * link with no protocol that pill was the dashed "+ protocolo", which only
+     * appears on hover now — without this target there would be no way to grab
+     * one.
      */
     function drawEdgeHit(d, edgeIndex) {
         const hit = document.createElementNS(SVG_NS, 'path')
@@ -2948,10 +2955,10 @@ function mount(root) {
 
         hit.addEventListener('pointerenter', () => setHoveredEdge(edgeIndex))
         hit.addEventListener('pointerleave', () => setHoveredEdge(null))
-        // NÃO engole o pointerdown: arrastar a partir daqui tem de continuar
-        // dando pan, e o alvo é largo o bastante para cair debaixo do ponteiro
-        // sem querer. Por isso o clique confirma que o ponteiro ficou parado —
-        // senão todo pan começado perto de um traço selecionaria a ligação.
+        // It does NOT swallow the pointerdown: a drag starting here still has
+        // to pan, and the target is wide enough to fall under the pointer by
+        // accident. That is why the click confirms the pointer stayed put —
+        // otherwise every pan begun near a line would select the link.
         hit.addEventListener('pointerdown', (e) => { downAt = { x: e.clientX, y: e.clientY } })
         hit.addEventListener('click', (e) => {
             if (!downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 4) return
@@ -2966,7 +2973,7 @@ function mount(root) {
         hits.appendChild(hit)
     }
 
-    /** Acende a ligação sob o ponteiro e revela o pill vazio dela. */
+    /** Lights the link under the pointer and reveals its empty pill. */
     function setHoveredEdge(index) {
         hoveredEdge = index
         edges.querySelectorAll('path.ak-viz-edge, .ak-viz-plabel').forEach((el) => {
@@ -2997,14 +3004,15 @@ function mount(root) {
         })
     }
 
-    // ── seleção + toolbar contextual ───────────────────────────────
+    // ── selection + contextual toolbar ───────────────────────────────
     /**
-     * Acende as ligações do bloco selecionado e apaga o resto.
+     * Lights the selected block's links and dims the rest.
      *
-     * É a resposta barata para "qual linha é essa" num desenho cheio: em vez de
-     * colorir toda seta o tempo todo — o que rouba contraste dos blocos e, com
-     * a paleta por categoria, pinta de azul justo os três blocos que mais se
-     * cruzam —, o desenho responde quando alguém pergunta, clicando.
+     * It is the cheap answer to "which line is this one" in a crowded drawing:
+     * instead of colouring every arrow all the time — which costs the blocks
+     * their contrast and, with the category palette, paints exactly the three
+     * most-crossed blocks the same blue — the drawing answers when somebody
+     * asks, by clicking.
      */
     function highlightLinkedEdges(index) {
         edges.classList.toggle('has-selection', index !== null)
@@ -3034,34 +3042,35 @@ function mount(root) {
             nodes[index].el.classList.add('is-selected')
             toolbar?.classList.remove('hidden')
             toolbar?.classList.add('flex')
-            // Borda leve com cor: só faz sentido numa imagem colada (as
-            // outras formas já têm seu próprio preenchimento/forma).
+            // A light coloured border only makes sense on a pasted image (the
+            // other shapes already have a fill and an outline of their own).
             toolbarImageBorderWrap?.classList.toggle('hidden', !editable || nodes[index].kind !== 'image')
             toolbarImageBorderWrap?.classList.toggle('flex', editable && nodes[index].kind === 'image')
-            // "Somente logo": só faz sentido num bloco de sistema com
-            // Solução cadastrada E logo — texto livre, decisão/ator e um
-            // sistema sem logo não têm imagem nenhuma pra mostrar sozinha.
+            // "Logo only" makes sense only on a system block with a registered
+            // Solution AND a logo — free text, a decision, an actor and a
+            // system with no logo have no image to show on its own.
             {
                 const canLogoOnly = nodes[index].kind === 'system' && !!nodes[index].solution && !!nodes[index].logo
                 toolbarLogoOnlyWrap?.classList.toggle('hidden', !editable || !canLogoOnly)
                 toolbarLogoOnlyWrap?.classList.toggle('flex', editable && canLogoOnly)
             }
-            // Tipo do bloco: fora do nó raiz (índice 0) e nunca numa imagem
-            // colada — não tem tipo/Solução/texto pra trocar, só a imagem
-            // (ver `ChainNodeKind::pickable()`).
+            // The block's kind: never on the root node (index 0) and never on
+            // a pasted image — there is no kind, Solution or text to change
+            // there, only the picture (see `ChainNodeKind::pickable()`).
             {
                 const kindEditable = editable && index !== 0 && nodes[index].kind !== 'image'
                 toolbarKindRow?.classList.toggle('hidden', !kindEditable)
                 toolbarKindRow?.classList.toggle('flex', kindEditable)
                 if (kindEditable) refreshKindRow(index)
-                // "Renomear" abre exatamente o mesmo editor inline do duplo
-                // clique, cujo guard (`startInlineLabelEdit()`) é esta mesma
-                // condição — daí compartilharem o booleano em vez de repetir a
-                // regra e poderem divergir depois.
+                // "Renomear" opens exactly the same inline editor the double
+                // click does, and that editor's guard
+                // (`startInlineLabelEdit()`) is this same condition — hence
+                // sharing the boolean instead of repeating the rule and letting
+                // the two drift apart later.
                 toolbarRenameBtn?.classList.toggle('!hidden', !kindEditable)
             }
-            // A lixeira segue a mesma regra do tipo: o nó raiz não sai (o
-            // servidor recusa índice 0 de qualquer forma).
+            // The trash follows the kind's rule: the root node does not go
+            // (the server refuses index 0 anyway).
             toolbarRemoveBtn?.classList.toggle('!hidden', !editable || index === 0)
             toolbarRemoveSep?.classList.toggle('hidden', !editable || index === 0)
             if (editable) {
@@ -3074,7 +3083,7 @@ function mount(root) {
         }
     }
 
-    // ── cor do bloco / cor do texto / fonte — só o bloco selecionado ──
+    // ── block colour / text colour / font — the selected block only ──
     function buildSwatches() {
         if (!toolbarSwatches) return
         const current = nodes[selectedIndex]?.color
@@ -3106,9 +3115,9 @@ function mount(root) {
             toolbarDashedBtn.classList.toggle('border-dashed', !!n.dashed)
             toolbarDashedBtn.classList.toggle('!bg-accent-soft', !!n.dashed)
         }
-        // A cor do input reflete a borda atual, ou branco (o padrão sugerido
-        // quando o usuário ainda não ligou a borda) — nunca o preto que um
-        // <input type="color"> assume sozinho sem um value explícito.
+        // The input's colour mirrors the current border, or white (the default
+        // suggested before anybody has turned the border on) — never the black
+        // a colour input assumes by itself with no explicit value.
         if (toolbarImageBorderColor) toolbarImageBorderColor.value = isHex(n.imageBorderColor) ? n.imageBorderColor : '#FFFFFF'
         if (toolbarImageBorderToggle) {
             toolbarImageBorderToggle.classList.toggle('!bg-accent-soft', !!n.imageBorderColor)
@@ -3120,8 +3129,8 @@ function mount(root) {
         }
     }
 
-    // Borda tracejada do bloco selecionado — puramente visual
-    // (`viz_layout.nodes[i].dashed`), independente de cor/fonte/forma.
+    // The selected block's dashed border — purely visual
+    // (`viz_layout.nodes[i].dashed`), independent of colour, font and shape.
     toolbarDashedBtn?.addEventListener('click', () => {
         if (!editable || selectedIndex === null || !nodes[selectedIndex]) return
         nodes[selectedIndex].dashed = !nodes[selectedIndex].dashed
@@ -3130,10 +3139,10 @@ function mount(root) {
         setDirty(true)
     })
 
-    // Borda leve da imagem — liga/desliga (branco por padrão na primeira
-    // vez); só chega a fazer algo quando o bloco selecionado é uma imagem
-    // (o próprio wrap já fica escondido pros demais tipos, mas a guarda
-    // aqui evita qualquer clique perdido enquanto o painel troca de bloco).
+    // The image's light border — on and off (white by default the first time).
+    // It only does anything when the selected block is an image (the wrapper is
+    // already hidden for the other kinds, but the guard here catches any stray
+    // click while the panel moves between blocks).
     toolbarImageBorderToggle?.addEventListener('click', () => {
         if (!editable || selectedIndex === null || !nodes[selectedIndex] || nodes[selectedIndex].kind !== 'image') return
         const n = nodes[selectedIndex]
@@ -3142,8 +3151,8 @@ function mount(root) {
         refreshToolbarControls()
         setDirty(true)
     })
-    // Trocar a cor sempre implica "ligada" — não existe um estado
-    // "desligada mas com uma cor guardada" pro usuário confundir.
+    // Changing the colour always implies "on" — there is no "off but holding a
+    // colour" state for anyone to be confused by.
     toolbarImageBorderColor?.addEventListener('input', (e) => {
         if (!editable || selectedIndex === null || !nodes[selectedIndex] || nodes[selectedIndex].kind !== 'image') return
         nodes[selectedIndex].imageBorderColor = e.target.value
@@ -3188,9 +3197,9 @@ function mount(root) {
     toolbarFont?.addEventListener('change', (e) => setNodeFont(e.target.value))
     toolbarFontSize?.addEventListener('change', (e) => setNodeFontSize(e.target.value))
 
-    // "Somente logo": troca estruturalmente o conteúdo do bloco (repintar via
-    // `paintNode()`, não só um estilo inline) — por isso remede w/h e
-    // redesenha as setas na sequência, mesmo padrão de `applyNodeData()`.
+    // "Logo only" changes the block's content structurally (a repaint through
+    // `paintNode()`, not just an inline style) — hence re-measuring w/h and
+    // redrawing the arrows right after, the same pattern as `applyNodeData()`.
     toolbarLogoOnlyToggle?.addEventListener('click', () => {
         if (!editable || selectedIndex === null || !nodes[selectedIndex]) return
         const n = nodes[selectedIndex]
@@ -3205,13 +3214,13 @@ function mount(root) {
         setDirty(true)
     })
 
-    // ── "Adicionar bloco": um ícone por tipo, cria na hora ──────────────
-    // Uma única linha horizontal de ícones (`getNodeKindsList()`, mesma lista
-    // de `refreshKindRow()` mas sem seleção persistente — cada clique é uma
-    // ação nova, não um toggle) — clicar um já cria o bloco
-    // (`createNodeFromKind()`), sem Solução/texto livre pra preencher aqui:
-    // isso vira `startInlineLabelEdit()` no bloco recém-criado, direto no
-    // canvas, mesma UX de renomear um bloco já existente.
+    // ── "Adicionar bloco": one icon per kind, created on the spot ──────────
+    // A single horizontal row of icons (`getNodeKindsList()`, the same list
+    // `refreshKindRow()` uses but with no persistent selection — each click is
+    // a new action, not a toggle). Clicking one creates the block outright
+    // (`createNodeFromKind()`), with no Solution or free text to fill in here:
+    // that becomes `startInlineLabelEdit()` on the block just created, straight
+    // on the canvas, the same gesture as renaming an existing one.
     function buildAddKindIcons() {
         if (!addKindIcons) return
         addKindIcons.innerHTML = ''
@@ -3231,20 +3240,20 @@ function mount(root) {
         })
     }
 
-    // POST direto — sem Solução/texto livre escolhidos ainda, então manda o
-    // próprio nome do tipo ("Sistema", "Decisão", …) como texto inicial
-    // (`início`/`fim` mandam `null`: o servidor já preenche "Início"/"Fim"
-    // sozinho, `ChainNodeKind::defaultLabel()`). `startInlineLabelEdit()` logo
-    // em seguida seleciona esse texto inteiro (mesmo `input.select()` de
-    // sempre), então o usuário digita por cima sem nem precisar apagar nada —
-    // pra um bloco `system`, digitar ali já é a busca de Solução de sempre.
+    // A plain POST — no Solution or free text has been chosen yet, so it sends
+    // the kind's own name ("Sistema", "Decisão", …) as the initial text
+    // (`start`/`end` send `null`: the server fills "Início"/"Fim" in by itself,
+    // `ChainNodeKind::defaultLabel()`). `startInlineLabelEdit()` right after
+    // selects that whole text (the usual `input.select()`), so the person types
+    // over it without having to delete anything — and on a `system` block,
+    // typing there is the usual Solution search.
     async function createNodeFromKind(kindValue) {
         if (!editable || !graphRef?.nodeAddUrl) return
         const kind = nodeKind(kindValue)
         const payload = { kind: kind.value, solution_id: null, label: kind.optionalLabel ? null : kind.label }
 
-        // Capturados ANTES do request — `closeAddEditor()` zera
-        // `quickAddPos`/`quickAddOrigin`, então lê-los depois seria tarde.
+        // Captured BEFORE the request: `closeAddEditor()` clears `quickAddPos`
+        // and `quickAddOrigin`, so reading them afterwards would be too late.
         const pos = quickAddPos
         const origin = quickAddOrigin
 
@@ -3266,9 +3275,9 @@ function mount(root) {
             patchRowGraphAppend(slug, data.node, data.summary)
             const newIndex = nodes.length - 1
             closeAddEditor()
-            // Veio de soltar uma seta em canvas vazio (`openQuickAddEditor()`)
-            // — completa a ligação com o bloco recém-criado, mesmo POST que
-            // soltar a seta sobre um bloco já existente usaria.
+            // This came from dropping an arrow on empty canvas
+            // (`openQuickAddEditor()`) — complete the link with the block just
+            // created, the same POST dropping it on an existing block uses.
             if (origin) createEdgeFrom(origin.index, newIndex, origin.side, 'l')
             startInlineLabelEdit(newIndex)
         } catch (err) {
@@ -3276,11 +3285,11 @@ function mount(root) {
         }
     }
 
-    // ── editor do bloco: tipo + select de Soluções cadastradas + texto livre ──
-    // Aplica os campos resolvidos que vêm do servidor (mesmo formato de
-    // `graph.nodes[i]`) num nó já desenhado, sem precisar redesenhar o grafo
-    // inteiro. O tamanho do bloco pode mudar (texto novo) — recalcula w/h e
-    // redesenha as arestas na sequência.
+    // ── the block's editor: kind + registered Solutions + free text ──
+    // Applies the resolved fields the server answers with (the same shape as
+    // `graph.nodes[i]`) onto a node already drawn, without redrawing the whole
+    // graph. The block's size can change (new text), so w/h is recomputed and
+    // the edges redrawn right after.
     function applyNodeData(index, data) {
         const n = nodes[index]
         if (!n) return
@@ -3302,10 +3311,10 @@ function mount(root) {
         draw()
     }
 
-    // Mantém a linha (lista à esquerda) consistente sem precisar re-selecionar
-    // a integração: atualiza o cache `data-ak-chain-graph` daquela linha e
-    // o texto do resumo, sem substituir o slot inteiro (o que derrubaria o
-    // destaque de seleção — ver chain-select.js).
+    // Keeps the row consistent without re-selecting the drawing: it updates
+    // that row's `data-ak-chain-graph` cache and its summary text, without
+    // replacing the whole slot, which would drop the selection highlight (see
+    // chain-select.js).
     function patchRowGraph(slugArg, index, nodeData, summary) {
         if (!slugArg) return
         const row = document.querySelector(`[data-ak-chain-select="${CSS.escape(slugArg)}"]`)
@@ -3320,7 +3329,7 @@ function mount(root) {
                     row.setAttribute('data-ak-chain-graph', JSON.stringify(g))
                 }
             } catch {
-                // cache malformado — ignora, a próxima seleção completa recarrega do servidor
+                // malformed cache — ignore it; the next full selection reloads from the server
             }
         }
         if (typeof summary === 'string') {
@@ -3328,11 +3337,11 @@ function mount(root) {
         }
     }
 
-    // Substitui o grafo cacheado da linha por inteiro, em vez de remendar um
-    // nó/edge: é o que a exclusão de bloco precisa, já que os índices de TODOS
-    // os nós acima do removido mudaram. Mesmo motivo de sempre para não usar
-    // `updateSlots()` aqui — trocar o slot inteiro zera o `aria-pressed` e
-    // derruba a seleção do usuário (ver `chain-select.js`).
+    // Replaces the row's cached graph wholesale instead of patching one node
+    // or edge: that is what deleting a block needs, since the indices of EVERY
+    // node above the removed one have moved. The usual reason not to use
+    // `updateSlots()` here — swapping the whole slot clears `aria-pressed` and
+    // drops the user's selection (see `chain-select.js`).
     function patchRowGraphReplace(slugArg, graph, summary) {
         if (!slugArg || !graph) return
         const row = document.querySelector(`[data-ak-chain-select="${CSS.escape(slugArg)}"]`)
@@ -3344,10 +3353,10 @@ function mount(root) {
         }
     }
 
-    // Mesma ideia de `patchRowGraph()`, mas para `chain.edges[i]` (protocolo
-    // e/ou sentido) — o protocolo não entra no resumo textual da linha
-    // (`ChainLabeler::label()` usa o sentido, não o protocolo), só o cache do
-    // grafo precisa ser atualizado.
+    // The same idea as `patchRowGraph()`, for `chain.edges[i]` (protocol and/or
+    // direction) — the protocol is not part of the row's written summary
+    // (`ChainLabeler::label()` uses the direction, not the protocol), so only
+    // the cached graph has to be updated.
     function patchRowEdge(slugArg, index, protocolData, arrow) {
         if (!slugArg) return
         const row = document.querySelector(`[data-ak-chain-select="${CSS.escape(slugArg)}"]`)
@@ -3363,12 +3372,12 @@ function mount(root) {
                 row.setAttribute('data-ak-chain-graph', JSON.stringify(g))
             }
         } catch {
-            // cache malformado — ignora, a próxima seleção completa recarrega do servidor
+            // malformed cache — ignore it; the next full selection reloads from the server
         }
     }
 
-    // Acrescenta (não substitui) uma ligação nova ao cache (`createEdgeFrom()`),
-    // que não mexe em nós, só em `chain.edges`.
+    // Appends (rather than replaces) a new link to the cache
+    // (`createEdgeFrom()`), which touches no node, only `chain.edges`.
     function patchRowGraphAddEdge(slugArg, from, to, arrow, protocolData, summary) {
         if (!slugArg) return
         const row = document.querySelector(`[data-ak-chain-select="${CSS.escape(slugArg)}"]`)
@@ -3384,7 +3393,7 @@ function mount(root) {
                     row.setAttribute('data-ak-chain-graph', JSON.stringify(g))
                 }
             } catch {
-                // cache malformado — ignora, a próxima seleção completa recarrega do servidor
+                // malformed cache — ignore it; the next full selection reloads from the server
             }
         }
         if (typeof summary === 'string') {
@@ -3392,7 +3401,7 @@ function mount(root) {
         }
     }
 
-    // Remove uma ligação do cache (`protocolDelete` acima) — os nós não mudam.
+    // Removes a link from the cache (`protocolDelete` above) — the nodes do not move.
     function patchRowGraphRemoveEdge(slugArg, index, summary) {
         if (!slugArg) return
         const row = document.querySelector(`[data-ak-chain-select="${CSS.escape(slugArg)}"]`)
@@ -3407,7 +3416,7 @@ function mount(root) {
                     row.setAttribute('data-ak-chain-graph', JSON.stringify(g))
                 }
             } catch {
-                // cache malformado — ignora, a próxima seleção completa recarrega do servidor
+                // malformed cache — ignore it; the next full selection reloads from the server
             }
         }
         if (typeof summary === 'string') {
@@ -3415,8 +3424,8 @@ function mount(root) {
         }
     }
 
-    // Mesma ideia, mas religando uma ponta (`from`/`to`) de uma ligação
-    // existente pra outro nó — arrastar o handle da seta até outro bloco
+    // The same idea, for re-pointing one end (`from`/`to`) of an existing link
+    // at another node — dragging the arrow's handle onto another block
     // (`retargetEdge()`).
     function patchRowGraphEdge(slugArg, edgeIndex, end, newNode, summary) {
         if (!slugArg) return
@@ -3432,7 +3441,7 @@ function mount(root) {
                     row.setAttribute('data-ak-chain-graph', JSON.stringify(g))
                 }
             } catch {
-                // cache malformado — ignora, a próxima seleção completa recarrega do servidor
+                // malformed cache — ignore it; the next full selection reloads from the server
             }
         }
         if (typeof summary === 'string') {
@@ -3440,11 +3449,11 @@ function mount(root) {
         }
     }
 
-    // Um único PATCH em `graphRef.nodeUpdateUrl` por vez — troca de tipo,
-    // troca de Solução e edição inline do rótulo passam todos por aqui.
-    // Falha (rede/validação) repinta o bloco a partir do último estado
-    // conhecido (`n`, ainda intacto — só o servidor confirma a mudança) em
-    // vez de deixar o DOM com o valor não salvo que o usuário via na hora.
+    // One PATCH to `graphRef.nodeUpdateUrl` at a time — changing the kind,
+    // changing the Solution and editing the label inline all come through here.
+    // A failure (network or validation) repaints the block from the last known
+    // state (`n`, still intact — only the server confirms a change) instead of
+    // leaving the DOM showing the unsaved value the person was looking at.
     let nodeFieldSaving = false
     async function patchNode(index, payload) {
         const n = nodes[index]
@@ -3468,9 +3477,10 @@ function mount(root) {
 
             applyNodeData(index, data.node)
             patchRowGraph(slug, index, data.node, data.summary)
-            // Reavalia a toolbar inteira, não só a linha de tipo — trocar de
-            // tipo/Solução pode ligar/desligar "somente logo" e a borda leve
-            // de imagem, que `selectNode()` já sabe decidir de um jeito só.
+            // Re-evaluates the whole toolbar rather than only the kind row:
+            // changing the kind or the Solution can enable or disable "logo
+            // only" and the image's light border, and `selectNode()` already
+            // decides all of that in one place.
             if (selectedIndex === index) selectNode(index)
             window.Toast?.show?.(data.message || 'Bloco atualizado.')
         } catch (err) {
@@ -3485,11 +3495,12 @@ function mount(root) {
         }
     }
 
-    // Payload de uma troca de TIPO só — preserva o que já existe: um bloco
-    // que passa a ser `system` mantém a Solução já ligada (ou, sem Solução,
-    // o texto atual como livre); um bloco que deixa de ser `system` carrega
-    // o texto resolvido atual (nome da Solução ou texto livre) como novo
-    // texto livre, já que decisão/ator/início/fim nunca referenciam Solução.
+    // The payload of a KIND change alone — it preserves what is already there:
+    // a block becoming `system` keeps the Solution already linked (or, with
+    // none, its current text as free text), and a block that stops being
+    // `system` carries its current resolved text (the Solution's name or the
+    // free text) over as the new free text, since a decision, an actor and the
+    // two terminals never reference a Solution.
     function buildKindSwitchPayload(n, newKindValue) {
         const kind = nodeKind(newKindValue)
         if (kind.system) {
@@ -3511,13 +3522,14 @@ function mount(root) {
         patchNode(selectedIndex, payload)
     }
 
-    // Segunda linha da toolbar: só os ícones do tipo (`getNodeKindsList()`,
-    // mesma lista e mesmo estilo de `buildAddKindIcons()` no painel
-    // "Adicionar bloco" — a diferença é que aqui existe uma seleção ATUAL pra
-    // destacar, ali cada clique é uma ação nova). A Solução de um bloco
-    // `system` não tem controle próprio aqui — liga/troca direto no
-    // autocomplete da edição inline (`startInlineLabelEdit()`), que é mais
-    // intuitivo que um select separado.
+    // The toolbar's second row: the kind icons only (`getNodeKindsList()`, the
+    // same list and the same styling as `buildAddKindIcons()` in the
+    // "Adicionar bloco" panel — the difference is that here there is a CURRENT
+    // selection to highlight, while there each click is a new action). A
+    // `system` block's Solution has no control of its own here: it is linked
+    // and changed straight from the inline editor's autocomplete
+    // (`startInlineLabelEdit()`), which is more intuitive than a separate
+    // select.
     function refreshKindRow(index) {
         const n = nodes[index]
         if (!toolbarKindIcons || !n) return
@@ -3545,21 +3557,21 @@ function mount(root) {
         })
     }
 
-    // ── edição inline do rótulo, direto na forma ────────────────────
-    // Duplo clique no texto do bloco troca o `<span>` estático (ou
-    // `.ak-viz-node-endcap-label`) por um `<input>` no lugar — sem popup
-    // separado. Num bloco `system` (`isSystem`), a digitação também filtra
-    // `getSolutionsList()` num dropdown ancorado ao próprio bloco
-    // (`.ak-viz-inline-suggest`, filho de `n.el` — herda o mesmo `transform`
-    // de pan/zoom do canvas de graça, sem matemática de posição própria):
-    // escolher uma sugestão (clique, ou Enter com uma sugestão em destaque)
-    // liga a Solução; se o texto digitado bater EXATAMENTE (sem diferenciar
-    // caixa) com o nome de alguma Solução ao confirmar, liga também, mesmo
-    // sem ter clicado numa sugestão; qualquer outro texto vira texto livre —
-    // nunca mantém um `solution_id` antigo junto de um texto novo (ver
-    // `ChainLabeler::nodeLabel()`: o nome de uma Solução sempre vence sobre
-    // o texto livre, então os dois nunca convivem). Decisão/ator/início/fim
-    // não têm Solução pra buscar — sem dropdown, só o texto.
+    // ── editing the label inline, on the shape itself ────────────────────
+    // A double click on the block's text swaps the static `<span>` (or
+    // `.ak-viz-node-endcap-label`) for an `<input>` in its place — no separate
+    // popup. On a `system` block (`isSystem`), typing also filters
+    // `getSolutionsList()` into a dropdown anchored to the block itself
+    // (`.ak-viz-inline-suggest`, a child of `n.el` — so it inherits the
+    // canvas's pan/zoom transform for free, with no position maths of its own).
+    // Picking a suggestion (a click, or Enter with one highlighted) links the
+    // Solution; if the typed text matches a Solution's name EXACTLY
+    // (case-insensitively) on confirm, it links too, even with no suggestion
+    // clicked; any other text becomes free text. An old `solution_id` is never
+    // kept beside a new text (see `ChainLabeler::nodeLabel()`: a Solution's
+    // name always beats free text, so the two never coexist). A decision, an
+    // actor and the two terminals have no Solution to search for — no dropdown,
+    // just the text.
     function startInlineLabelEdit(index) {
         const n = nodes[index]
         if (!n || !editable || index === 0 || n.kind === 'image') return
@@ -3578,24 +3590,24 @@ function mount(root) {
         input.focus()
         input.select()
 
-        // O `<input>` e o dropdown vivem DENTRO de `n.el`, que tem o
-        // `pointerdown` que arrasta o bloco (`startNodePointer()`) — e esse
-        // dá `preventDefault()`, que além de começar um arraste no lugar do
-        // clique também IMPEDE o `mousedown`/`click` de compatibilidade de
-        // existir. Sem estes dois guards, nada aqui dentro é clicável: nem o
-        // texto (pra posicionar o cursor), nem uma sugestão. Ver o `rule` de
-        // pointer events do canvas.
+        // The `<input>` and the dropdown live INSIDE `n.el`, which carries the
+        // pointerdown that drags the block (`startNodePointer()`) — and that
+        // one calls `preventDefault()`, which besides starting a drag in place
+        // of the click also STOPS the compatibility `mousedown`/`click` from
+        // ever firing. Without these two guards nothing in here is clickable:
+        // neither the text (to place the caret) nor a suggestion. See the
+        // canvas's pointer-events rule.
         //
-        // No input, só `stopPropagation()`: um `preventDefault()` aqui mataria
-        // o posicionamento do cursor e a seleção de texto com o mouse.
+        // On the input, `stopPropagation()` only: a `preventDefault()` here
+        // would kill caret placement and selecting text with the mouse.
         input.addEventListener('pointerdown', (e) => e.stopPropagation())
 
         const suggestBox = isSystem ? document.createElement('div') : null
         if (suggestBox) {
             suggestBox.className = 'ak-viz-inline-suggest hidden'
-            // No dropdown, `preventDefault()` TAMBÉM: é o que preserva o foco
-            // do input (o default do pointerdown/mousedown é mover o foco),
-            // então o `blur` não resolve a edição por baixo do clique.
+            // On the dropdown, `preventDefault()` AS WELL: that is what keeps
+            // the input focused (a pointerdown's default is to move focus), so
+            // `blur` does not resolve the edit out from under the click.
             suggestBox.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault() })
             n.el.appendChild(suggestBox)
         }
@@ -3614,13 +3626,13 @@ function mount(root) {
             if (!suggestBox) return
             const term = fold(input.value.trim())
             matches = term ? getSolutionsList().filter((s) => fold(s.name).includes(term)).slice(0, 8) : []
-            // A primeira sugestão já nasce em destaque: é ela que o Enter
-            // aplica, e o destaque é o que AVISA isso antes de teclar. Sem
-            // isso, Enter caía no caminho de texto livre e trocava a Solução
-            // do bloco pelo que estava digitado ("Access" no lugar de
-            // "AccessOne (IAM)") — a sugestão na tela não tinha como ser
-            // aplicada. Texto livre segue possível: um termo que não casa com
-            // nada não abre dropdown nenhum.
+            // The first suggestion is born highlighted: it is the one Enter
+            // applies, and the highlight is what SAYS so before anybody types.
+            // Without it, Enter fell through to the free-text path and replaced
+            // the block's Solution with whatever had been typed ("Access"
+            // instead of "AccessOne (IAM)") — the suggestion on screen could
+            // not be applied at all. Free text is still reachable: a term that
+            // matches nothing opens no dropdown.
             highlighted = matches.length ? 0 : -1
             suggestBox.innerHTML = ''
             suggestBox.classList.toggle('hidden', !matches.length)
@@ -3629,13 +3641,14 @@ function mount(root) {
                 item.type = 'button'
                 item.className = 'ak-viz-inline-suggest-item'
                 item.textContent = s.name
-                // `pointerdown`, como todo gesto deste canvas (ver o `rule`):
-                // `stopPropagation()` impede o arraste do bloco por baixo e
-                // `preventDefault()` preserva o foco do input, então o `blur`
-                // não resolve a edição antes do clique. Um `mousedown` aqui
-                // NUNCA chega a disparar — `startNodePointer()` cancela o
-                // pointerdown que o geraria — e um `click` também não; era
-                // exatamente por isso que clicar numa sugestão não fazia nada.
+                // `pointerdown`, like every gesture on this canvas (see the
+                // rule): `stopPropagation()` stops the block dragging
+                // underneath and `preventDefault()` keeps the input focused, so
+                // `blur` does not resolve the edit before the click. A
+                // `mousedown` here NEVER fires — `startNodePointer()` cancels
+                // the pointerdown that would generate it — and neither does a
+                // `click`; that is exactly why clicking a suggestion used to do
+                // nothing at all.
                 item.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); resolve(s) })
                 suggestBox.appendChild(item)
             })
@@ -3649,9 +3662,9 @@ function mount(root) {
             suggestBox?.remove()
         }
 
-        // `solution` explícita = veio de um clique/Enter na sugestão. Nula =
-        // veio de Enter/blur com só texto digitado — tenta o match exato
-        // antes de desistir e virar texto livre.
+        // An explicit `solution` means a click or Enter on a suggestion. Null
+        // means Enter or blur with typed text alone — try the exact match
+        // before giving up and becoming free text.
         function resolve(solution) {
             cleanup()
             if (!solution && isSystem) {
@@ -3693,9 +3706,10 @@ function mount(root) {
                 paintHighlight()
             }
         }
-        // Clicar fora confirma o mesmo que o Enter — a sugestão em destaque,
-        // se houver. Uma regra só: o que está destacado na tela é o que vai
-        // ser aplicado, seja teclando, clicando na linha ou clicando fora.
+        // Clicking away confirms the same thing Enter does — the highlighted
+        // suggestion, if there is one. One rule: what is highlighted on screen
+        // is what gets applied, whether by keyboard, by clicking the row, or by
+        // clicking away.
         const onBlur = () => resolve(highlighted >= 0 ? matches[highlighted] : null)
 
         autosize()
@@ -3705,11 +3719,11 @@ function mount(root) {
         input.addEventListener('blur', onBlur)
     }
 
-    // Caminho de "texto livre" da edição inline (`startInlineLabelEdit()`)
-    // — sempre com `solution_id: null`: mesmo num bloco que ANTES estava
-    // ligado a uma Solução, confirmar aqui é o usuário dizendo "não é mais
-    // essa Solução", nunca "mantenha a Solução e troque só o texto" (que,
-    // pela regra do `ChainLabeler`, o servidor ignoraria de qualquer jeito).
+    // The "free text" path of the inline editor (`startInlineLabelEdit()`) —
+    // always with `solution_id: null`. Even on a block that WAS linked to a
+    // Solution, confirming here is the person saying "this is not that Solution
+    // any more", never "keep the Solution and change only the text" (which, by
+    // `ChainLabeler`'s rule, the server would ignore anyway).
     function commitInlineLabel(index, newLabel) {
         const n = nodes[index]
         if (!n) return
@@ -3723,21 +3737,21 @@ function mount(root) {
         patchNode(index, { kind: n.kind || 'system', solution_id: null, label: newLabel || null })
     }
 
-    // ── adicionar bloco (puro, sem ligação) ────────────────────────
-    // Painel fixo no canto do canvas (estilo excalidraw.com — o mesmo canto
-    // que a toolbar do bloco/raia/protocolo usa, mutuamente exclusivo com
-    // elas), com os mesmos campos do editor do bloco (tipo + Solução/texto
-    // livre) e nada mais: sem seta, sem protocolo. O bloco nasce solto e o
-    // usuário liga depois, arrastando uma seta da porta de qualquer bloco até
-    // ele.
+    // ── adding a block (bare, with no link) ────────────────────────
+    // A panel pinned to the canvas's corner (excalidraw.com style — the same
+    // corner the block, lane and protocol toolbars use, and mutually exclusive
+    // with them), carrying the block editor's own fields (kind + Solution or
+    // free text) and nothing else: no arrow, no protocol. The block is born
+    // loose and gets linked afterwards, by dragging an arrow from any block's
+    // port onto it.
     function openAddEditor() {
         if (!editable || !graphRef) return
         selectNode(null)
         closeProtocolEditor()
         quickAddOrigin = null
         quickAddPos = null
-        // Sem ponto de drop, volta pro canto fixo do `left-3 top-3` da
-        // classe: limpar o inline é o que devolve a posição pra ela.
+        // With no drop point it goes back to the class's fixed `left-3 top-3`
+        // corner: clearing the inline style is what hands the position back.
         resetAddEditorPosition()
         if (addHint) addHint.textContent = 'O bloco nasce solto — depois arraste uma seta de qualquer bloco até ele.'
 
@@ -3753,16 +3767,16 @@ function mount(root) {
     }
 
     /**
-     * Coloca o painel "Adicionar bloco" ao lado de um PONTO DE MUNDO — a ponta
-     * da seta que acabou de ser solta em canvas vazio. A escolha do tipo é a
-     * continuação daquele gesto, então o cartão aparece onde o gesto terminou,
-     * não num canto a 1000px de distância (era esse o comportamento antigo, e
-     * ele obrigava a atravessar a tela pra escolher "Sistema" e voltar).
+     * Places the "Adicionar bloco" panel beside a WORLD POINT — the tip of the
+     * arrow just dropped on empty canvas. Choosing the kind continues that
+     * gesture, so the card appears where the gesture ended rather than in a
+     * corner 1000px away (which was the old behaviour, and it meant crossing
+     * the screen to pick "Sistema" and crossing back).
      *
-     * O painel NÃO vive dentro de `world`, então a conversão é manual (mesma
-     * matemática de `screenToWorld()`, ao contrário) e o resultado é preso
-     * dentro do stage — perto da borda direita/de baixo o cartão dobra pra
-     * dentro em vez de vazar pra fora da tela.
+     * The panel does NOT live inside `world`, so the conversion is manual (the
+     * same maths as `screenToWorld()`, the other way round) and the result is
+     * clamped inside the stage — near the right or bottom edge the card folds
+     * inwards instead of spilling off screen.
      */
     function positionAddEditorAt(wx, wy) {
         if (!addEditor) return
@@ -3779,16 +3793,16 @@ function mount(root) {
         addEditor.style.top = Math.round(Math.max(12, Math.min(y, sr.height - ph - 12))) + 'px'
     }
 
-    // MESMO painel, aberto ao soltar uma seta puxada de uma porta (`drag.type
-    // === 'connect'`) sobre canvas vazio, em vez do botão "+" — ver o
-    // `mouseup` de `drag.type === 'connect'` mais abaixo. `fromIndex`/
-    // `fromSide` é a porta de origem (pra ligar depois de criar, ver
-    // `createNodeFromKind()` acima); `wx`/`wy` é o ponto de MUNDO onde soltar,
-    // que serve pra DUAS coisas: o bloco novo nasce exatamente ali (não à
-    // direita do último) e o painel abre ali do lado
-    // (`positionAddEditorAt()`), na ponta da seta que acabou de ser solta —
-    // escolher o tipo é a continuação daquele gesto. Só o "+" da topbar, que
-    // não tem ponto nenhum pra ancorar, abre no canto fixo.
+    // The SAME panel, opened by dropping an arrow pulled from a port
+    // (`drag.type === 'connect'`) on empty canvas instead of by the "+" button
+    // — see the `drag.type === 'connect'` pointerup further down.
+    // `fromIndex`/`fromSide` is the origin port (to link once the block is
+    // created, see `createNodeFromKind()` above); `wx`/`wy` is the WORLD point
+    // of the drop, which serves TWO purposes: the new block is born exactly
+    // there (not to the right of the last one) and the panel opens beside it
+    // (`positionAddEditorAt()`), at the tip of the arrow just dropped —
+    // choosing the kind continues that gesture. Only the topbar's "+", which
+    // has no point to anchor to, opens in the fixed corner.
     function openQuickAddEditor(fromIndex, fromSide, wx, wy) {
         if (!editable || !graphRef) return
         selectNode(null)
@@ -3800,16 +3814,17 @@ function mount(root) {
         addEditor?.classList.add('flex')
         buildAddKindIcons()
         if (addHint) addHint.textContent = 'A seta que você soltou já liga o bloco novo aqui.'
-        // Depois de mostrar (e de montar os ícones): escondido, `offsetWidth`
-        // /`offsetHeight` são 0 e o clamp na borda não teria com o que contar.
+        // After showing it (and after building the icons): while hidden,
+        // `offsetWidth`/`offsetHeight` are 0 and the edge clamp would have
+        // nothing to measure.
         positionAddEditorAt(wx, wy)
     }
 
     function closeAddEditor() {
-        // A prévia tracejada da ligação pendente (`drawConnectPreview()`)
-        // só existe enquanto `quickAddOrigin` está preenchido — sem este
-        // redesenho, cancelar o quick-add deixaria a linha tracejada
-        // pendurada na tela até o próximo `draw()` por outro motivo.
+        // The pending link's dashed preview (`drawConnectPreview()`) exists
+        // only while `quickAddOrigin` is set — without this redraw, cancelling
+        // the quick-add would leave that dashed line hanging on screen until
+        // the next `draw()` happened for some other reason.
         const hadQuickAdd = !!quickAddOrigin
         quickAddOrigin = null
         quickAddPos = null
@@ -3826,18 +3841,19 @@ function mount(root) {
     })
     addEditor?.addEventListener('pointerdown', (e) => e.stopPropagation())
 
-    // Desenha o bloco novo e o seleciona — sem redesenhar o grafo inteiro.
-    // Nasce SEM LIGAÇÃO nenhuma: quem liga é o arraste da porta (ou o "modo
-    // ligar", ou religar uma seta existente até ele) — EXCETO quando vem de
-    // `openQuickAddEditor()` (soltar uma seta em canvas vazio), que liga logo
-    // em seguida (ver `createNodeFromKind()` acima). Fica dirty (a posição ainda não está
-    // salva em `viz_layout`), mesmo espírito de `organize()`. `pos` (ponto de
-    // MUNDO) centra o bloco ali — vem preenchido só nesse fluxo de soltar a
-    // seta; sem ele, nasce à direita do último bloco (mesmo espaçamento do
-    // layout padrão), o comportamento de sempre do "+" da topbar.
+    // Draws the new block and selects it, without redrawing the whole graph.
+    // It is born with NO LINK at all: linking is the port drag (or "modo
+    // ligar", or re-pointing an existing arrow at it) — EXCEPT when it comes
+    // from `openQuickAddEditor()` (an arrow dropped on empty canvas), which
+    // links right after (see `createNodeFromKind()` above). It leaves the
+    // drawing dirty (the position is not in `viz_layout` yet), the same spirit
+    // as `organize()`. `pos` (a WORLD point) centres the block there — it only
+    // arrives from that drop flow; without it the block is born to the right of
+    // the last one (the default layout's own spacing), which is what the
+    // topbar's "+" has always done.
     //
-    // O zoom NÃO muda aqui (ver `panIntoView()` no fim): só "Organizar",
-    // "Centralizar" e a carga inicial reenquadram.
+    // The zoom does NOT change here (see `panIntoView()` at the end): only
+    // "Organizar", "Centralizar" and the initial load re-frame.
     function appendNode(data, pos) {
         const index = nodes.length
         const el = document.createElement('div')
@@ -3896,31 +3912,31 @@ function mount(root) {
         draw()
         setDirty(true)
         selectNode(index)
-        // NÃO `fit()`: enquadrar recalcula `view.scale`, então cada bloco novo
-        // reajustava o zoom do canvas inteiro — desenhar um fluxo de dez blocos
-        // significava dez saltos de escala, e o zoom que a pessoa tinha
-        // escolhido pra trabalhar era descartado a cada clique no "+".
-        // Aqui só se traz o bloco novo pra vista, PRESERVANDO a escala, e só
-        // quando ele nasceu fora dela.
+        // NOT `fit()`: framing recomputes `view.scale`, so every new block
+        // re-adjusted the whole canvas's zoom — drawing a ten-block flow meant
+        // ten scale jumps, and the zoom the person had chosen to work at was
+        // thrown away on every click of the "+". This only brings the new block
+        // into view, PRESERVING the scale, and only when it was born outside
+        // it.
         panIntoView(entry)
     }
 
-    // Panorâmica mínima até um bloco caber na viewport, mantendo `view.scale`
-    // intacto. Se ele já está visível (com uma folga), não mexe em nada — uma
-    // câmera que se move quando não precisa é tão desorientadora quanto uma que
-    // troca de zoom.
+    // The minimum pan that brings a block into the viewport, with `view.scale`
+    // untouched. If it is already visible (with a margin) nothing moves — a
+    // camera that moves when it need not is as disorienting as one that changes
+    // zoom.
     //
-    // NÃO confundir com `revealNode()` (bem abaixo): aquele é do modo
-    // apresentação e faz um bloco APARECER (fade-in). Este move a câmera. Os
-    // dois nomes colidiram na primeira versão disto — duas `function`
-    // declarations no mesmo escopo, a segunda ganha, e o modo apresentação
-    // parou de revelar nada sem erro nenhum no console.
+    // NOT to be confused with `revealNode()` far below: that one belongs to
+    // presentation mode and makes a block APPEAR (fade in). This one moves the
+    // camera. The two names collided in the first version of this — two
+    // function declarations in one scope, the second wins — and presentation
+    // mode stopped revealing anything, with no console error at all.
     function panIntoView(n) {
         const pad = 40
         const vw = viewport.clientWidth
         const vh = viewport.clientHeight
 
-        // Cantos do bloco em coordenadas de TELA (o que a viewport recorta).
+        // The block's corners in SCREEN coordinates (what the viewport crops).
         const left = n.x * view.scale + view.x
         const top = n.y * view.scale + view.y
         const right = left + n.w * view.scale
@@ -3940,9 +3956,9 @@ function mount(root) {
         applyView()
     }
 
-    // Mesma ideia de `patchRowGraph()`, mas acrescentando (não substituindo)
-    // um nó — mantém a linha (lista à esquerda) consistente sem precisar
-    // re-selecionar a integração. Não mexe em `edges`: o bloco nasce solto.
+    // The same idea as `patchRowGraph()`, but appending a node rather than
+    // replacing one — it keeps the row consistent without re-selecting the
+    // drawing. It does not touch `edges`: the block is born loose.
     function patchRowGraphAppend(slugArg, nodeData, summary) {
         if (!slugArg) return
         const row = document.querySelector(`[data-ak-chain-select="${CSS.escape(slugArg)}"]`)
@@ -3958,7 +3974,7 @@ function mount(root) {
                     row.setAttribute('data-ak-chain-graph', JSON.stringify(g))
                 }
             } catch {
-                // cache malformado — ignora, a próxima seleção completa recarrega do servidor
+                // malformed cache — ignore it; the next full selection reloads from the server
             }
         }
         if (typeof summary === 'string') {
@@ -3966,26 +3982,26 @@ function mount(root) {
         }
     }
 
-    // ── ligação: sentido + protocolo do enum Protocol ───────────────────
-    // Painel fixo no canto do canvas (`selectEdge()`/`openProtocolEditor()`),
-    // mesmo estilo do toolbar do bloco/raia — nunca ancorado à pill do
-    // segmento — sentido e tracejado aplicam-se IMEDIATAMENTE (sem "Salvar"/
-    // "Cancelar"), mesmo espírito do toolbar do bloco e do toolbar da raia.
-    // O protocolo em si não tem campo aqui: é editado direto no rótulo da
-    // seta, no canvas (`startInlineProtocolEdit()`, mais abaixo — duplo
-    // clique na pill, mesmo padrão de `startInlineLabelEdit()` no texto do
-    // bloco). Ao contrário do nó, não existe segmento "raiz" protegido —
-    // qualquer aresta pode ter seu protocolo/sentido editados, inclusive as
-    // que ainda não têm um protocolo (pill tracejada "+ protocolo", desenhada
-    // em `drawProtocolPill()`).
+    // ── a link: direction + a protocol from the Protocol enum ─────────────
+    // A panel pinned to the canvas's corner
+    // (`selectEdge()`/`openProtocolEditor()`), in the same style as the block's
+    // and the lane's toolbars and never anchored to the segment's pill.
+    // Direction and dashed apply IMMEDIATELY (no "Salvar"/"Cancelar"), the same
+    // spirit as those two. The protocol itself has no field here: it is edited
+    // straight on the arrow's label, on the canvas
+    // (`startInlineProtocolEdit()` below — a double click on the pill, the same
+    // pattern as `startInlineLabelEdit()` on a block's text). Unlike a node,
+    // there is no protected "root" segment: every edge's protocol and direction
+    // can be edited, including the ones with no protocol yet (the dashed
+    // "+ protocolo" pill drawn in `drawProtocolPill()`).
 
-    // ── sentido da ligação: dois botões-toggle independentes ───────────
-    // `left`/`right` espelham se cada cabeça de seta está ativa —
-    // `refreshArrowButtons()` só pinta o estado atual, `setArrowUI()` o
-    // recebe pronto (abrindo o editor), `toggleArrowSide()` responde ao
-    // clique E já dispara o PATCH. `currentArrowValue()` é a única leitura
-    // que `patchEdgeFields()`/`createEdgeFrom()` fazem — nunca leem
-    // `arrowState` diretamente.
+    // ── the link's direction: two independent toggle buttons ───────────
+    // `left`/`right` mirror whether each arrowhead is active:
+    // `refreshArrowButtons()` only paints the current state, `setArrowUI()`
+    // receives it ready (when the editor opens), and `toggleArrowSide()`
+    // answers the click AND fires the PATCH. `currentArrowValue()` is the one
+    // read `patchEdgeFields()`/`createEdgeFrom()` make — they never read
+    // `arrowState` directly.
     function refreshArrowButtons() {
         ;[[protocolArrowLeft, arrowState.left], [protocolArrowRight, arrowState.right]].forEach(([btn, active]) => {
             if (!btn) return
@@ -4003,10 +4019,10 @@ function mount(root) {
         refreshArrowButtons()
     }
 
-    // Ignora o clique que desligaria a última cabeça ativa — '->'/'<-'/'<->'
-    // são os únicos sentidos válidos, não existe "sem cabeça nenhuma" pro
-    // servidor guardar. Aplica na hora (PATCH) — pinta o novo estado
-    // otimisticamente e desfaz (`onError`) se o servidor recusar.
+    // Ignores the click that would turn off the last active head: '->', '<-'
+    // and '<->' are the only valid directions, and there is no "no head at all"
+    // for the server to store. It applies at once (a PATCH), painting the new
+    // state optimistically and undoing it (`onError`) if the server refuses.
     function toggleArrowSide(side) {
         if (selectedEdge === null) return
         const next = { ...arrowState, [side]: !arrowState[side] }
@@ -4036,11 +4052,11 @@ function mount(root) {
     protocolArrowLeft?.addEventListener('click', () => toggleArrowSide('left'))
     protocolArrowRight?.addEventListener('click', () => toggleArrowSide('right'))
 
-    // Tracejado da seta — só `viz_layout` (nunca `chain`), mesmo padrão do
-    // `toolbarDashedBtn` do bloco: aplica local + `setDirty(true)`, sem PATCH
-    // próprio — entra no ar só quando "Salvar" (layout) rodar. A borda do
-    // próprio botão (sólida/tracejada) reflete o estado atual — sem
-    // checkbox.
+    // The arrow's dashed flag — `viz_layout` only, never `chain`, the same
+    // pattern as the block's `toolbarDashedBtn`: it applies locally plus
+    // `setDirty(true)`, with no PATCH of its own, and only reaches the server
+    // when "Salvar" runs. The button's own border (solid or dashed) mirrors the
+    // current state — no checkbox.
     function refreshProtocolDashedButton(index) {
         if (!protocolDashedBtn) return
         const dashed = !!edgeAnchors[index]?.dashed
@@ -4084,11 +4100,11 @@ function mount(root) {
 
     protocolEditor?.addEventListener('pointerdown', (e) => e.stopPropagation())
 
-    // Um único PATCH em `graphRef.edgeUpdateUrl` por vez — sentido (toggle)
-    // e protocolo (edição inline no rótulo) passam os dois por aqui, cada um
-    // aplicando na hora, sem um "Salvar" separado (mesmo espírito de
-    // `patchNode()` pro bloco). `onError`, se passado, desfaz a mudança já
-    // pintada otimisticamente na UI antes do PATCH voltar.
+    // One PATCH to `graphRef.edgeUpdateUrl` at a time — the direction (a
+    // toggle) and the protocol (edited inline on the label) both come through
+    // here, each applying at once with no separate "Salvar" (the same spirit as
+    // `patchNode()` for a block). `onError`, when given, undoes the change
+    // already painted optimistically before the PATCH came back.
     let edgeFieldSaving = false
     async function patchEdgeFields(index, payload, onError = null) {
         const url = graphRef?.edgeUpdateUrl?.replace('EDGE_INDEX', String(index))
@@ -4127,16 +4143,17 @@ function mount(root) {
         }
     }
 
-    // ── edição inline do protocolo, direto no rótulo da seta ────────────
-    // Duplo clique na pill (`drawProtocolPill()`) troca o texto SVG estático
-    // por um `<input>` flutuante sobreposto a ela — mesma ideia de
-    // `startInlineLabelEdit()` no bloco, adaptada porque a pill vive dentro
-    // de `<svg data-viz-edges>` (um filho HTML comum não entra num `<g>` sem
-    // um `<foreignObject>`): o input e sua lista de sugestões são filhos de
-    // `stage` (espaço de TELA), reancorados a cada `applyView()`/`draw()`
-    // via `inlineProtocolReposition` — mesma convenção da toolbar/editor de
-    // protocolo. Sugestões vêm de `getProtocolsList()` — texto livre,
-    // qualquer coisa digitada é aceita, a lista é só sugestão.
+    // ── editing the protocol inline, on the arrow's own label ────────────
+    // A double click on the pill (`drawProtocolPill()`) swaps the static SVG
+    // text for a floating `<input>` laid over it — the same idea as
+    // `startInlineLabelEdit()` on a block, adapted because the pill lives
+    // inside the edges svg (an ordinary HTML child cannot go into a `<g>`
+    // without a `<foreignObject>`): the input and its suggestion list are
+    // children of `stage` (SCREEN space), re-anchored on every
+    // `applyView()`/`draw()` through `inlineProtocolReposition` — the same
+    // convention the protocol toolbar uses. The suggestions come from
+    // `getProtocolsList()`, and the field is free text: anything typed is
+    // accepted, the list only suggests.
     function startInlineProtocolEdit(index) {
         if (!editable || !graphRef || !graphRef.edges?.[index]) return
         closeInlineProtocolEdit()
@@ -4151,11 +4168,11 @@ function mount(root) {
         input.spellcheck = false
         input.className = 'ak-viz-plabel-input'
         input.value = graphRef.edges[index]?.protocol?.value ?? ''
-        // Mesmos guards de `startInlineLabelEdit()`, por um caminho parecido:
-        // aqui os elementos ficam no `stage`, e um pointerdown que suba até o
-        // `viewport` chama `startPanning()` → `selectNode(null)` →
-        // `closeProtocolEditor()`, ou seja, o editor é DESMONTADO no meio do
-        // clique e a sugestão nunca é aplicada.
+        // The same guards as `startInlineLabelEdit()`, for a similar reason:
+        // these elements sit in `stage`, and a pointerdown that reaches
+        // `viewport` calls `startPanning()` → `selectNode(null)` →
+        // `closeProtocolEditor()` — so the editor is TORN DOWN mid-click and
+        // the suggestion is never applied.
         input.addEventListener('pointerdown', (e) => e.stopPropagation())
         stage.appendChild(input)
 
@@ -4190,10 +4207,10 @@ function mount(root) {
             const term = fold(input.value.trim())
             const all = getProtocolsList()
             matches = (term ? all.filter((p) => fold(p.label).includes(term)) : all).slice(0, 8)
-            // Destaca a primeira só quando há algo DIGITADO: com o campo
-            // vazio a lista mostra o enum inteiro, e aí um destaque faria o
-            // Enter aplicar o primeiro protocolo da lista em vez de limpar o
-            // protocolo, que é o que um campo vazio quer dizer.
+            // The first row is highlighted only when something has been
+            // TYPED: with the field empty the list shows the whole enum, and a
+            // highlight would make Enter apply the first protocol in it instead
+            // of clearing the protocol, which is what an empty field means.
             highlighted = term && matches.length ? 0 : -1
             suggestBox.innerHTML = ''
             suggestBox.classList.toggle('hidden', !matches.length)
@@ -4203,20 +4220,20 @@ function mount(root) {
                 item.className = 'ak-viz-plabel-suggest-item'
                 item.textContent = p.label
                 // `pointerdown` + `stopPropagation()` + `preventDefault()`,
-                // mesmo motivo de `startInlineLabelEdit()`: um `mousedown`
-                // aqui chegava a disparar (o pan não cancela o pointerdown),
-                // mas só DEPOIS de `selectNode(null)` já ter fechado este
-                // editor, então a sugestão clicada se perdia.
+                // for the same reason as in `startInlineLabelEdit()`: a
+                // `mousedown` here did fire (panning does not cancel the
+                // pointerdown), but only AFTER `selectNode(null)` had closed
+                // this editor, so the suggestion that was clicked was lost.
                 item.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); resolve(p.label) })
                 suggestBox.appendChild(item)
             })
             paintHighlight()
         }
 
-        // Só desmonta o `<input>`/sugestões e restaura o texto estático da
-        // pill (sem um `draw()` completo) — `patchEdgeFields()`, se chamado
-        // por `resolve()`, faz seu PRÓPRIO `draw()` quando o servidor
-        // confirmar, com o valor já atualizado.
+        // It only tears down the `<input>` and the suggestions and restores
+        // the pill's static text (with no full `draw()`) — `patchEdgeFields()`,
+        // if `resolve()` called it, does its OWN `draw()` once the server
+        // confirms, with the value already updated.
         function cleanup() {
             input.removeEventListener('input', onInput)
             input.removeEventListener('keydown', onKeydown)
@@ -4272,23 +4289,22 @@ function mount(root) {
         input.select()
     }
 
-    // Fecha uma edição inline em andamento (se houver), forçando o `blur` do
-    // input — reaproveita o mesmo caminho de confirmação/PATCH do Enter/blur
-    // natural (`resolve()` acima) em vez de duplicar a lógica aqui.
+    // Closes an inline edit in progress (if there is one) by forcing the
+    // input's `blur` — reusing the same confirm/PATCH path a natural Enter or
+    // blur takes (`resolve()` above) instead of duplicating the logic here.
     function closeInlineProtocolEdit() {
         inlineProtocolInput?.blur()
     }
 
-    // Acrescenta ao grafo local uma ligação recém-criada (`createEdgeFrom()`),
-    // NO ÍNDICE QUE O SERVIDOR deu a ela (`data.index`). Todo o resto do
-    // editor de ligação (protocolo, religar, desligar) endereça edge POR
-    // ÍNDICE, então inferir o índice pela ordem de inserção local desalinha
-    // tudo silenciosamente quando dois POSTs estão em voo e as respostas
-    // chegam fora de ordem. O `creatingEdge` das chamadas impede esse
-    // cenário; a checagem de comprimento aqui é a asserção disso — e cobre
-    // também o caso de outra pessoa ter mexido na mesma integração enquanto
-    // esta aba estava aberta. Preferimos não desenhar (e pedir reload) a
-    // desenhar com índice errado.
+    // Appends a link just created (`createEdgeFrom()`) to the local graph AT
+    // THE INDEX THE SERVER gave it (`data.index`). Everything else in the link
+    // editor (protocol, retarget, disconnect) addresses an edge BY INDEX, so
+    // inferring the index from the local insertion order silently misaligns all
+    // of it when two POSTs are in flight and the answers come back out of
+    // order. The callers' `creatingEdge` prevents that; the length check here
+    // is the assertion of it — and it also covers somebody else having edited
+    // the same drawing while this tab was open. Better not to draw (and ask for
+    // a reload) than to draw at the wrong index.
     function appendEdgeLocally(data, fromSide, toSide, dashed = false) {
         graphRef.edges = graphRef.edges || []
 
@@ -4302,9 +4318,9 @@ function mount(root) {
         return true
     }
 
-    // Remove a ligação em edição — DELETE em
-    // `graphRef.edgeRemoveUrl`. Os nós continuam existindo; se essa era a
-    // única ligação de um bloco, ele passa a aparecer isolado no grafo.
+    // Removes the link being edited — a DELETE to `graphRef.edgeRemoveUrl`.
+    // The nodes go on existing; if that was a block's only link, it simply
+    // appears isolated in the graph from then on.
     protocolDelete?.addEventListener('click', async () => {
         if (selectedEdge === null) return
         if (!window.confirm('Desligar esta ligação? Os blocos continuam existindo.')) return
@@ -4340,15 +4356,15 @@ function mount(root) {
     })
 
     /**
-     * O layout AO VIVO, na forma que `SaveChainLayoutRequest` valida.
+     * The LIVE layout, in the shape `SaveChainLayoutRequest` validates.
      *
-     * Extraído de "Salvar" porque a EXCLUSÃO de um bloco precisa dele também:
-     * ela redesenha o canvas a partir do grafo que o servidor devolve, e sem
-     * isto tudo que ainda não foi salvo — posição arrastada, tema, cor de
-     * bloco, raia, anotação — voltava ao que estava gravado. Um payload
-     * montado em dois lugares seria duas listas de campos para esquecer de
-     * atualizar, que é como `rounded`/`opacity`/`orientation` já ficaram de
-     * fora uma vez.
+     * Extracted from "Salvar" because DELETING a block needs it too: that
+     * redraws the canvas from the graph the server answers with, and without
+     * this everything not yet saved — a dragged position, the theme, a block's
+     * colour, a lane, a note — went back to whatever was stored. A payload
+     * built in two places would be two lists of fields to forget to update,
+     * which is how `rounded`/`opacity`/`orientation` fell out of it once
+     * already.
      */
     function layoutPayload() {
         return {
@@ -4362,9 +4378,9 @@ function mount(root) {
                 dashed: !!n.dashed,
                 imageBorderColor: n.imageBorderColor || null,
                 logoOnly: !!n.logoOnly,
-                // Só a linha de vida guarda altura; para os outros isso vai
-                // null e o servidor aceita (nullable) sem gravar tamanho
-                // nenhum — o bloco continua do tamanho do que está escrito nele.
+                // Only a lifeline stores a height; for the others this goes
+                // null and the server accepts it (nullable) without recording
+                // any size — the block stays as big as what is written in it.
                 height: n.kind === 'lifeline' && Number.isFinite(n.height) ? Math.round(n.height) : null,
             })),
             edges: edgeAnchors.map((a) => ({
@@ -4401,21 +4417,22 @@ function mount(root) {
         }
     }
 
-    // ── excluir bloco ──────────────────────────────────────────────
-    // Diferente de tudo o mais que edita a chain, aqui NÃO existe patch local
-    // possível: tirar um nó reindexa `chain.nodes`, e com ela todo `from`/`to`
-    // de `chain.edges` acima do índice removido — mais as posições, comentários
-    // e âncoras em `viz_layout`. O servidor faz esse reindex e devolve o GRAFO
-    // INTEIRO já resolvido (mesma forma do `data-ak-chain-graph` inicial),
-    // então o caminho honesto é redesenhar com `render()` em vez de tentar
-    // remendar os arrays locais. Ver `DiagramController::removeNode()`.
+    // ── deleting a block ──────────────────────────────────────────────
+    // Unlike everything else that edits the chain, no local patch is possible
+    // here: removing a node reindexes `chain.nodes`, and with it every
+    // `from`/`to` in `chain.edges` above the removed index — plus the
+    // positions, comments and anchors in `viz_layout`. The server does that
+    // reindex and answers with the WHOLE graph already resolved (the same shape
+    // as the initial `data-ak-chain-graph`), so the honest path is to redraw
+    // with `render()` rather than to patch the local arrays. See
+    // `DiagramController::removeNode()`.
     toolbarRemoveBtn?.addEventListener('click', async () => {
         if (!editable || selectedIndex === null || selectedIndex === 0) return
 
         const index = selectedIndex
         const label = nodes[index]?.label || 'este bloco'
-        // Quais ligações vão embora junto: a CONTAGEM avisa o usuário, e os
-        // ÍNDICES reindexam o layout vivo depois da exclusão (ver abaixo).
+        // Which links go with it: the COUNT is what warns the user, and the
+        // INDICES reindex the live layout after the delete (see below).
         const linkedEdges = (graphRef?.edges || [])
             .map((e, i) => (e.from === index || e.to === index ? i : -1))
             .filter((i) => i >= 0)
@@ -4442,18 +4459,18 @@ function mount(root) {
             const data = await res.json().catch(() => null)
             if (!res.ok) throw new Error(data?.message || 'Não foi possível excluir o bloco.')
 
-            // `render()` redesenha a partir do grafo do servidor, e o layout
-            // que ele reaplica é o que estiver em `savedLayouts` — que só é
-            // escrito no "Salvar". Jogar a entrada fora (o que este trecho
-            // fazia) significava perder TUDO que ainda não tinha sido salvo:
-            // posição arrastada, tema escolhido, cor de bloco, raia. Apagar um
-            // bloco desmanchava o desenho inteiro.
+            // `render()` redraws from the server's graph, and the layout it
+            // re-applies is whatever is in `savedLayouts` — which is only
+            // written by "Salvar". Throwing that entry away (what this used to
+            // do) meant losing EVERYTHING not yet saved: a dragged position,
+            // the chosen theme, a block's colour, a lane. Deleting one block
+            // undid the whole drawing.
             //
-            // Em vez disso, o estado vivo é reindexado aqui do mesmo jeito que
-            // o servidor reindexou o dele: fora o nó removido, fora as âncoras
-            // das ligações que morreram com ele. Os índices são conhecidos
-            // localmente — `linkedEdges` foi calculado ANTES do fetch, sobre o
-            // grafo que ainda tinha o nó.
+            // Instead, the live state is reindexed here the same way the server
+            // reindexed its own: minus the removed node, minus the anchors of
+            // the links that died with it. The indices are known locally —
+            // `linkedEdges` was computed BEFORE the fetch, against the graph
+            // that still had the node.
             const carried = layoutPayload()
             carried.nodes.splice(index, 1)
             carried.comments.splice(index, 1)
@@ -4462,9 +4479,9 @@ function mount(root) {
 
             patchRowGraphReplace(slug, data.graph, data.summary)
             render(data.graph, currentName, slug)
-            // O desenho na tela deixou de coincidir com o que está gravado no
-            // servidor no instante em que carregamos o estado vivo por cima —
-            // então continua havendo o que salvar.
+            // The drawing on screen stopped matching what is stored the moment
+            // we carried the live state across, so there is still something to
+            // save.
             if (wasDirty) setDirty(true)
             window.Toast?.show?.(data.message || 'Bloco excluído.')
         } catch (err) {
@@ -4474,13 +4491,13 @@ function mount(root) {
         }
     })
 
-    // ── sidebar de comentário (markdown) ───────────────────────────
+    // ── the comment sidebar (markdown) ───────────────────────────
     function isSidebarOpen() {
         return !!sidebar && !sidebar.classList.contains('translate-x-full')
     }
 
-    // Desloca o rodapé de zoom para não ficar por baixo da sidebar aberta
-    // (mesmo ajuste que o mapa mental de referência faz com #zoomctl).
+    // Shifts the zoom footer so it does not sit under the open sidebar (the
+    // same adjustment the reference mind map makes with #zoomctl).
     function positionBottomBar() {
         if (!bottomBar) return
         const shift = isSidebarOpen() ? sidebar.offsetWidth / 2 : 0
@@ -4528,12 +4545,12 @@ function mount(root) {
     toolbarComment?.addEventListener('click', () => { if (selectedIndex !== null) openComment(selectedIndex) })
     toolbarRenameBtn?.addEventListener('click', () => { if (selectedIndex !== null) startInlineLabelEdit(selectedIndex) })
 
-    // ── puxar uma seta de uma porta do bloco (ligação nova) ────────
-    // Disponível em TODOS os blocos, inclusive o raiz: a ligação não existe
-    // ainda enquanto o mouse está pressionado — só a prévia tracejada
-    // (`drawConnectPreview()`). Soltar sobre outro bloco cria a ligação
-    // (`createEdgeFrom()`); soltar fora de qualquer bloco, ou sobre o próprio
-    // bloco de origem, cancela sem efeito nenhum.
+    // ── pulling an arrow out of a block's port (a new link) ────────
+    // Available on EVERY block, the root included: the link does not exist yet
+    // while the pointer is down — only the dashed preview
+    // (`drawConnectPreview()`). Dropping on another block creates it
+    // (`createEdgeFrom()`); dropping outside every block, or on the origin
+    // block itself, cancels with no effect at all.
     function startPortDrag(e, index, side) {
         if (e.button !== 0) return // same guard as startHandleDrag (the caller has one too)
         const w = screenToWorld(e.clientX, e.clientY)
@@ -4542,15 +4559,16 @@ function mount(root) {
         draw()
     }
 
-    // Destaca o bloco sob o ponteiro durante o arraste (o destino da ligação).
+    // Highlights the block under the pointer during a drag (the link's target).
     function setLinkTarget(index) {
         nodes.forEach((n, i) => n.el.classList.toggle('is-link-target', i === index))
     }
 
-    // Fonte da prévia: o arraste em si (`drag.type === 'connect'`) OU, depois
-    // de soltar em canvas vazio, o quick-add ainda aberto (`quickAddOrigin`/
-    // `quickAddPos` — `targetNode` sempre `null` aí, já que não há bloco
-    // nenhum sob o ponto onde a seta foi solta).
+    // Where the preview comes from: the drag itself
+    // (`drag.type === 'connect'`) OR, after a drop on empty canvas, the
+    // quick-add still open (`quickAddOrigin`/`quickAddPos` — `targetNode` is
+    // always `null` there, since no block sits under the point the arrow was
+    // dropped on).
     function drawConnectPreview() {
         const src = drag?.type === 'connect'
             ? drag
@@ -4561,8 +4579,9 @@ function mount(root) {
         const a0 = anchorPoint(from, src.side)
         const p0 = { x: a0.x + a0.nx * EDGE_GAP, y: a0.y + a0.ny * EDGE_GAP, nx: a0.nx, ny: a0.ny }
         let p1 = { x: src.wx, y: src.wy, nx: 0, ny: 0 }
-        // Sobre um bloco: a prévia gruda na âncora onde a seta vai nascer, não
-        // no ponteiro — é exatamente o que será salvo em `viz_layout`.
+        // Over a block, the preview sticks to the anchor the arrow will be
+        // born on rather than to the pointer — exactly what `viz_layout` will
+        // store.
         if (src.targetNode !== null && nodes[src.targetNode]) {
             const a1 = anchorPoint(nodes[src.targetNode], src.toSide)
             p1 = { x: a1.x + a1.nx * EDGE_GAP, y: a1.y + a1.ny * EDGE_GAP, nx: a1.nx, ny: a1.ny }
@@ -4570,9 +4589,9 @@ function mount(root) {
 
         const path = document.createElementNS(SVG_NS, 'path')
         path.setAttribute('class', 'ak-viz-edge is-preview')
-        // Grudada num bloco, a prévia já mostra a rota que vai ser desenhada;
-        // solta no vazio continua uma reta até o ponteiro, que é o que o gesto
-        // está dizendo naquele instante.
+        // Snapped to a block, the preview already shows the route that will be
+        // drawn; loose in empty space it stays a straight line to the pointer,
+        // which is what the gesture is saying at that moment.
         path.setAttribute('d', src.targetNode !== null && nodes[src.targetNode]
             ? roundedPath(orthogonalPoints(p0, p1))
             : `M ${p0.x} ${p0.y} L ${p1.x} ${p1.y}`)
@@ -4580,16 +4599,16 @@ function mount(root) {
         edges.appendChild(path)
     }
 
-    // POST da ligação nova, já com `->` e sem protocolo — sem diálogo no
-    // caminho: sentido e protocolo se ajustam depois na pill da seta. A
-    // ligação entra no grafo local só depois do OK do servidor (ver
-    // `appendEdgeLocally()`). As âncoras vêm do próprio gesto (a porta de
-    // origem e o lado onde foi solta), e como âncora é visual
-    // (`viz_layout`), isso deixa o layout pendente de salvar.
+    // The new link's POST, born `->` and with no protocol — no dialog in the
+    // way: direction and protocol are adjusted afterwards on the arrow's pill.
+    // The link enters the local graph only once the server says OK (see
+    // `appendEdgeLocally()`). The anchors come from the gesture itself (the
+    // origin port and the side it was dropped on), and since an anchor is
+    // visual (`viz_layout`), that leaves the layout pending a save.
     async function createEdgeFrom(from, to, fromSide, toSide) {
-        // Um POST de ligação por vez: o gesto é rápido o bastante pra dois
-        // arrastes se sobreporem, e é a ordem das RESPOSTAS que define o índice
-        // local da edge (ver `appendEdgeLocally()`).
+        // One link POST at a time: the gesture is quick enough for two drags
+        // to overlap, and it is the order of the ANSWERS that decides the
+        // edge's local index (see `appendEdgeLocally()`).
         if (!graphRef?.edgeAddUrl || creatingEdge) return
         creatingEdge = true
 
@@ -4612,10 +4631,10 @@ function mount(root) {
                 draw()
                 setDirty(true)
                 window.Toast?.show?.(data.message || 'Ligação criada.')
-                // Abre na hora o menu compacto (ícones de sentido/tracejado/
-                // desligar) da ligação recém-criada — o protocolo em si se
-                // define depois, direto no rótulo (ver o comentário do
-                // painel no blade).
+                // Opens the new link's compact menu right away (the
+                // direction/dashed/disconnect icons) — the protocol itself is
+                // set afterwards, straight on the label (see the panel's
+                // comment in the blade).
                 selectEdge(data.index)
             }
         } catch (err) {
@@ -4625,7 +4644,7 @@ function mount(root) {
         }
     }
 
-    // ── arrastar ponta de seta (reposicionar âncora OU religar pra outro bloco) ──
+    // ── dragging an arrow's end (moving its anchor OR re-pointing it) ──
     function startHandleDrag(e, edgeIndex, end) {
         if (e.button !== 0) return
         e.stopPropagation()
@@ -4637,9 +4656,9 @@ function mount(root) {
         draw()
     }
 
-    // Nó cujo retângulo contém o ponto do mundo dado, ou null (nenhum) — usado
-    // durante o arraste de handle pra saber se o ponteiro está sobre um bloco
-    // diferente do nó original daquela ponta (religa) ou não (só muda a âncora).
+    // The node whose rectangle contains the given world point, or null — read
+    // during a handle drag to know whether the pointer is over a block other
+    // than that end's original node (a retarget) or not (just a new anchor).
     function nodeAtPoint(wx, wy) {
         for (let i = 0; i < nodes.length; i++) {
             const n = nodes[i]
@@ -4648,11 +4667,11 @@ function mount(root) {
         return null
     }
 
-    // PATCH que religa a ponta `end` da ligação `edgeIndex` pro nó `newNode`.
-    // Aplicado OTIMISTA em `graphRef.edges` antes deste fetch (no mouseup, ver
-    // abaixo) — evita a ligação "voltar" visualmente enquanto o request está
-    // em voo; aqui só confirma no cache da linha (lista à esquerda) ou
-    // desfaz a aplicação otimista se o servidor rejeitar.
+    // The PATCH that re-points link `edgeIndex`'s `end` at node `newNode`.
+    // Already applied OPTIMISTICALLY to `graphRef.edges` before this fetch (on
+    // pointerup, see below), which keeps the link from visually "springing
+    // back" while the request is in flight; this only confirms it in the row's
+    // cache or undoes the optimistic write if the server refuses.
     async function retargetEdge(edgeIndex, end, newNode, origNode) {
         const url = graphRef?.edgeRetargetUrl?.replace('EDGE_INDEX', String(edgeIndex))
         if (!url) return
@@ -4681,17 +4700,17 @@ function mount(root) {
         }
     }
 
-    // ── clique/arrastar bloco ───────────────────────────────────────
-    // Sempre intercepta (mesmo sem `editable`), para que um clique sem
-    // arraste selecione o nó em vez de subir para o pan do canvas. Só
-    // reposiciona o bloco de fato quando `editable`.
+    // ── clicking and dragging a block ───────────────────────────────
+    // It always intercepts, even without `editable`, so that a click with no
+    // drag selects the node instead of bubbling up to the canvas pan. It only
+    // actually moves the block when `editable`.
     function startNodePointer(e, index) {
         if (e.button !== 0) return
         e.stopPropagation()
         e.preventDefault()
-        // Porta de ligação: em vez de mover o bloco, começa a puxar uma seta
-        // dele até outro bloco (`startPortDrag()`). As portas só existem
-        // quando editável (CSS), mas a checagem também está aqui.
+        // A connection port: instead of moving the block, this starts pulling
+        // an arrow from it towards another block (`startPortDrag()`). The ports
+        // only exist when editable (CSS), but the check lives here too.
         const port = editable ? e.target.closest?.('[data-viz-port]') : null
         if (port) {
             startPortDrag(e, index, port.getAttribute('data-viz-port'))
@@ -4775,19 +4794,19 @@ function mount(root) {
     }
 
     /**
-     * Publica a imagem do canvas depois de um "Salvar" bem-sucedido.
+     * Publishes the canvas's picture after a successful "Salvar".
      *
-     * É uma cópia DERIVADA — a topologia continua sendo o `chain` e as
-     * posições continuam em `viz_layout`. Ela existe para que um deck do CATI
-     * mostre a arquitetura sem precisar de um navegador no meio do caminho: o
-     * deck embute esta imagem e aponta de volta para o canvas, o que mantém o
-     * canvas como o único lugar onde um diagrama se edita.
+     * It is a DERIVED copy — the topology is still the `chain` and the
+     * positions are still `viz_layout`. It exists so a CATI deck can show the
+     * architecture without a browser in the loop: the deck embeds this picture
+     * and links back to the canvas, which keeps the canvas the one place a
+     * diagram is edited.
      *
-     * Deliberadamente sem `await` e sem tratamento de erro visível: capturar
-     * uma imagem é caro e pode falhar (fonte, imagem colada que não carregou),
-     * e nada disso pode transformar um salvamento que DEU CERTO em erro na
-     * cara do usuário. Falhou? O deck usa a imagem anterior, e o próximo
-     * "Salvar" tenta de novo.
+     * Deliberately not awaited and with no visible error handling: capturing an
+     * image is expensive and can fail (a font, a pasted image that never
+     * loaded), and none of that may turn a save that WORKED into an error in
+     * somebody's face. Failed? The deck uses the previous picture, and the next
+     * "Salvar" tries again.
      */
     function publishDiagram() {
         if (!diagramUrl || !editable) return
@@ -4813,7 +4832,7 @@ function mount(root) {
                     body,
                 })
             } catch {
-                // silencioso, de propósito — ver o docblock acima
+                // silent, on purpose — see the docblock above
             }
         })()
     }
@@ -4825,16 +4844,17 @@ function mount(root) {
     let ox = 0
     let oy = 0
 
-    // Última posição conhecida do cursor sobre o canvas — usada pelos botões
-    // +/- da topbar para ancorar o zoom nela (em vez do centro do viewport,
-    // ver `zoomAt()` abaixo), igual à roda do mouse já faz. `null` até o
-    // cursor entrar no canvas pela primeira vez (`zoomAt` cai pro centro
-    // nesse caso, via `clientX ?? ...`). Não é limpo ao sair do canvas de
-    // propósito: o usuário tipicamente move o mouse PARA o botão +/- (fora
-    // do viewport) antes de clicar, então "esquecer" a última posição ali
-    // dentro derrotaria o propósito — like todo editor de canvas (Figma,
-    // Miro), os botões de zoom devem continuar ancorados em torno de onde o
-    // usuário estava olhando, não pular pro centro só porque o mouse saiu.
+    // The last known pointer position over the canvas — read by the topbar's
+    // +/- buttons to anchor the zoom there instead of at the viewport's centre
+    // (see `zoomAt()` below), exactly as the mouse wheel already does. `null`
+    // until the pointer enters the canvas for the first time (`zoomAt` falls
+    // back to the centre then, through `clientX ?? ...`). It is deliberately
+    // not cleared on leaving the canvas: people typically move the mouse TO the
+    // +/- button, outside the viewport, before clicking, so "forgetting" the
+    // last position inside would defeat the purpose — like every canvas editor
+    // (Figma, Miro), the zoom buttons should stay anchored around where the
+    // person was looking rather than jump to the centre because the pointer
+    // left.
     let lastPointerX = null
     let lastPointerY = null
     viewport.addEventListener('pointermove', (e) => {
@@ -4852,13 +4872,13 @@ function mount(root) {
         viewport.classList.add('is-panning')
     }
 
-    // Ctrl+clique força o pan mesmo com o ponteiro em cima de um bloco/porta/
-    // raia/alça/pill de protocolo — todos vivem dentro de `viewport` (via
-    // `world`), então um listener de CAPTURA aqui roda antes do próprio
-    // `mousedown` desses elementos (que começaria um arraste/seleção em vez
-    // de mover o canvas), e `stopPropagation()` nesta fase impede esses
-    // listeners de sequer rodar. Sem isto, mover o canvas exige acertar um
-    // pedaço vazio do fundo — impossível quando a cadeia enche o viewport.
+    // Ctrl+click forces the pan even with the pointer over a block, a port, a
+    // lane, a handle or a protocol pill — all of them live inside `viewport`
+    // (through `world`), so a CAPTURE listener here runs before those elements'
+    // own pointerdown (which would start a drag or a selection instead of
+    // moving the canvas), and `stopPropagation()` in that phase keeps them from
+    // running at all. Without it, moving the canvas means hitting an empty
+    // piece of the ground — impossible once the chain fills the viewport.
     viewport.addEventListener('pointerdown', (e) => {
         if (e.button !== 0 || !e.ctrlKey || drag) return
         e.stopPropagation()
@@ -4891,8 +4911,8 @@ function mount(root) {
             drag.wx = w.x
             drag.wy = w.y
             const hover = nodeAtPoint(w.x, w.y)
-            // Só outro bloco vale como destino — um bloco não pode se ligar a
-            // ele mesmo (o servidor também recusa, ver `to.different`).
+            // Only another block counts as a target — a block cannot link to
+            // itself (the server refuses it too, see `to.different`).
             drag.targetNode = (hover !== null && hover !== drag.from) ? hover : null
             drag.toSide = drag.targetNode !== null ? nearestAnchor(nodes[drag.targetNode], w.x, w.y) : 'l'
             setLinkTarget(drag.targetNode)
@@ -4901,10 +4921,10 @@ function mount(root) {
         }
         if (drag?.type === 'handle') {
             const w = screenToWorld(e.clientX, e.clientY)
-            // Sobre outro bloco (que não a ponta oposta da mesma ligação —
-            // isso seria um bloco ligado a ele mesmo): prévia de religação
-            // pra esse bloco. Fora de qualquer bloco, ou sobre a ponta
-            // oposta: volta pro nó original, só a âncora muda.
+            // Over another block (not the same link's opposite end, which
+            // would be a block linked to itself): preview the retarget onto
+            // that block. Outside every block, or over the opposite end: back
+            // to the original node, with only the anchor changing.
             const hover = nodeAtPoint(w.x, w.y)
             drag.targetNode = (hover !== null && hover !== drag.otherNode) ? hover : drag.origNode
             edgeAnchors[drag.edge][drag.end] = nearestAnchor(nodes[drag.targetNode], w.x, w.y)
@@ -4912,12 +4932,12 @@ function mount(root) {
             return
         }
         if (drag?.type === 'lane-resize') {
-            // Delta em TELA convertido pra MUNDO (`/ view.scale`) — mesmo
-            // raciocínio de `screenToWorld()`: arrastar 10px de tela deve
-            // mudar o tamanho por menos "mundo" quanto mais zoom, senão a
-            // raia cresceria/encolheria rápido demais em zooms altos. `dir`
-            // decide quais eixos mudam: 'e' só largura, 's' só altura, 'se'
-            // ambos (mesma raia, um único drag).
+            // A SCREEN delta converted to WORLD (`/ view.scale`), the same
+            // reasoning as `screenToWorld()`: dragging 10 screen px should
+            // change the size by less "world" the further you are zoomed in, or
+            // a lane would grow and shrink far too fast at high zoom. `dir`
+            // decides which axes move: 'e' width only, 's' height only, 'se'
+            // both (one lane, one drag).
             const lane = lanes[drag.index]
             const entry = laneEls[drag.index]
             if (!lane || !entry) return
@@ -4939,9 +4959,10 @@ function mount(root) {
             if (!lane || !entry) return
             const dx = (e.clientX - drag.startClientX) / view.scale
             const dy = (e.clientY - drag.startClientY) / view.scale
-            // Mesma distinção clique-vs-arraste de um bloco (`MOVE_TOLERANCE`,
-            // ver `startNodePointer()`) — decide no `mouseup` se isto vira
-            // "selecionar a raia" (abre o toolbar) ou "confirma o arraste".
+            // The same click-versus-drag distinction a block makes
+            // (`MOVE_TOLERANCE`, see `startNodePointer()`) — it decides on
+            // pointerup whether this becomes "select the lane" (opening the
+            // toolbar) or "confirm the drag".
             if (Math.abs(dx) > MOVE_TOLERANCE || Math.abs(dy) > MOVE_TOLERANCE) drag.moved = true
             lane.x = Math.round(drag.startX + dx)
             lane.y = Math.round(drag.startY + dy)
@@ -4968,19 +4989,19 @@ function mount(root) {
         applyView()
     })
     /**
-     * Fim de um gesto. `cancelled` distingue `pointercancel` de `pointerup`:
-     * um ponteiro de TOQUE pode ser cancelado pelo navegador (gesto do
-     * sistema, um segundo dedo, o elemento saindo do DOM) sem nunca disparar
-     * `pointerup` — e como todo arraste vive no objeto `drag` até um evento de
-     * término limpá-lo, ignorar isso deixaria o canvas travado no meio de um
-     * arraste, sem saída além de recarregar a página.
+     * The end of a gesture. `cancelled` tells `pointercancel` from `pointerup`:
+     * a TOUCH pointer can be cancelled by the browser (a system gesture, a
+     * second finger, the element leaving the DOM) without ever firing
+     * `pointerup` — and since every drag lives in the `drag` object until an
+     * end event clears it, ignoring that would leave the canvas stuck mid-drag,
+     * with no way out but a reload.
      *
-     * Num cancelamento só as AÇÕES são abandonadas — completar uma ligação,
-     * religar a ponta de uma seta, selecionar por clique-sem-arraste. O que já
-     * mudou de posição na tela (bloco/raia/anotação) é mantido e marcado como
-     * sujo: o gesto foi interrompido, mas o usuário está vendo o resultado
-     * dele, então desfazer silenciosamente seria mais surpreendente do que
-     * preservar.
+     * On a cancel only the ACTIONS are abandoned — completing a link,
+     * re-pointing an arrow's end, selecting by click-without-drag. Whatever has
+     * already moved on screen (a block, a lane, a note) keeps its new position
+     * and is marked dirty: the gesture was interrupted, but the person is
+     * looking at its result, so undoing it silently would be more surprising
+     * than keeping it.
      */
     function endPointer(cancelled = false) {
         if (drag) {
@@ -4990,47 +5011,47 @@ function mount(root) {
                 else if (editable) setDirty(true)
             } else if (drag.type === 'handle') {
                 if (cancelled) {
-                    // `draw()` no fim redesenha a partir de `graphRef`, então a
-                    // ponta arrastada volta sozinha pro lugar de origem.
+                    // The `draw()` at the end redraws from `graphRef`, so the
+                    // dragged end returns to where it started by itself.
                 } else if (drag.targetNode !== drag.origNode) {
-                    // Aplica otimista antes do PATCH — ver `retargetEdge()`.
+                    // Applied optimistically before the PATCH — see `retargetEdge()`.
                     graphRef.edges[drag.edge][drag.end] = drag.targetNode
                     retargetEdge(drag.edge, drag.end, drag.targetNode, drag.origNode)
                 } else {
                     setDirty(true)
                 }
             } else if (drag.type === 'connect') {
-                // Soltou sobre outro bloco: cria a ligação. Sobre canvas
-                // vazio: abre o "Adicionar bloco" — um clique no ícone do tipo
-                // já cria o bloco NAQUELE ponto e completa a ligação (ver
-                // `openQuickAddEditor()`/`createNodeFromKind()`) — puxar uma
-                // seta pro vazio e soltar é como se ganha um bloco novo já
-                // ligado, ao invés de simplesmente cancelar.
+                // Dropped on another block: create the link. Dropped on empty
+                // canvas: open "Adicionar bloco" — one click on a kind's icon
+                // creates the block AT THAT POINT and completes the link (see
+                // `openQuickAddEditor()`/`createNodeFromKind()`). Pulling an
+                // arrow into empty space and letting go is how you get a new
+                // block already linked, rather than simply a cancel.
                 setLinkTarget(null)
                 if (cancelled) {
-                    // Abandona: nem cria a ligação, nem abre o "Adicionar bloco".
+                    // Give up: neither create the link nor open "Adicionar bloco".
                 } else if (drag.targetNode !== null) createEdgeFrom(drag.from, drag.targetNode, drag.side, drag.toSide)
                 else openQuickAddEditor(drag.from, drag.side, drag.wx, drag.wy)
             } else if (drag.type === 'lane-resize') {
                 laneEls[drag.index]?.handles[drag.dir]?.classList.remove('is-resizing')
                 setDirty(true)
             } else if (drag.type === 'lane-move') {
-                // Clique sem arraste NA ETIQUETA: seleciona a raia (abre o
-                // toolbar de cor/nome/remover/estilo). Clique sem arraste no
-                // resto do corpo: não faz nada — só a etiqueta é alvo de
-                // seleção, EXCETO quando a raia não tem título
-                // (`showTitle === false`, `onLabel` já nasce `true` pro
-                // corpo inteiro em `rebuildLanes()`), já que aí não existe
-                // uma faixa separada pra reservar. Arraste de fato (de
-                // qualquer parte do corpo): só confirma a posição nova,
-                // mesma distinção de `drag.type === 'node'` acima.
+                // A click with no drag ON THE LABEL selects the lane (opening
+                // the colour/name/remove/style toolbar). A click with no drag
+                // anywhere else on the body does nothing — only the label is a
+                // selection target, EXCEPT when the lane has no title
+                // (`showTitle === false`, where `rebuildLanes()` already sets
+                // `onLabel` true for the whole body), since there is no
+                // separate strip to reserve then. A real drag, from any part of
+                // the body, only confirms the new position — the same
+                // distinction `drag.type === 'node'` makes above.
                 if (!drag.moved) { if (drag.onLabel && ! cancelled) selectLane(drag.index) }
                 else setDirty(true)
             } else if (drag.type === 'note-move') {
-                // Sem toolbar/seleção pra abrir — uma anotação não tem nada
-                // além de posição e texto (o texto já se edita direto no
-                // corpo, sempre). Um clique sem arraste na faixinha não faz
-                // nada; só um arraste de fato marca a posição como suja.
+                // No toolbar or selection to open — a note has nothing but a
+                // position and its text (and the text is always edited straight
+                // in the body). A click with no drag on the strip does nothing;
+                // only a real drag marks the position dirty.
                 if (drag.moved) setDirty(true)
             }
             drag = null
@@ -5047,29 +5068,29 @@ function mount(root) {
         zoomAt(e.deltaY < 0 ? 1.08 : 1 / 1.08, e.clientX, e.clientY)
     }, { passive: false })
 
-    // O pan por toque com um dedo já vem de graça dos listeners de PONTEIRO
-    // acima (`pointerdown`/`pointermove`/`pointerup` disparam para toque,
-    // caneta e mouse igualmente, e `.ak-viz-viewport` tem `touch-action: none`,
-    // então o navegador não rouba o gesto pra rolar a página).
+    // One-finger touch panning already comes free from the POINTER listeners
+    // above (`pointerdown`/`pointermove`/`pointerup` fire for touch, pen and
+    // mouse alike, and `.ak-viz-viewport` sets `touch-action: none`, so the
+    // browser does not steal the gesture to scroll the page).
     //
-    // Existia aqui um trio `touchstart`/`touchmove`/`touchend` dedicado a esse
-    // pan. Ele foi REMOVIDO, não portado: eventos de toque são um fluxo
-    // separado dos de mouse, então um toque num bloco borbulhava pro viewport
-    // sem passar pelo `stopPropagation()` do bloco (que só existia no
-    // `mousedown`) — arrastar um bloco no touch movia o CANVAS em vez do
-    // bloco. Mantê-lo ao lado dos listeners de ponteiro só trocaria esse bug
-    // por outro: os dois fluxos disparariam no mesmo gesto e o pan andaria
-    // junto com o arraste do bloco.
+    // A dedicated `touchstart`/`touchmove`/`touchend` trio used to live here for
+    // that pan. It was REMOVED rather than ported: touch events are a separate
+    // stream from mouse events, so a touch on a block bubbled to the viewport
+    // without passing through the block's `stopPropagation()` (which only
+    // existed on `mousedown`) — dragging a block with a finger moved the CANVAS
+    // instead of the block. Keeping it alongside the pointer listeners would
+    // only trade that bug for another: both streams would fire on one gesture
+    // and the pan would run together with the block's drag.
 
-    // ── controles ────────────────────────────────────────────────
-    // Ancorado na última posição do cursor sobre o canvas (`lastPointerX/Y`),
-    // não no centro do viewport — clicar + repetidamente antes empurrava
-    // qualquer bloco longe do centro (ex.: o mais à esquerda de uma chain
-    // comprida) rumo à borda da tela a cada clique, mesmo com o zoom
-    // matematicamente correto (verificado: a fórmula batia exatamente com
-    // "zoom ancorado no centro do viewport" a cada passo) — só não era o que
-    // o usuário esperava ao focar visualmente num bloco específico antes de
-    // ampliar.
+    // ── controls ────────────────────────────────────────────────
+    // Anchored on the pointer's last position over the canvas
+    // (`lastPointerX/Y`) rather than on the viewport's centre: clicking + over
+    // and over used to push any block away from the centre (say the leftmost of
+    // a long chain) towards the edge of the screen with each click, even though
+    // the zoom was mathematically correct — verified, the formula matched "zoom
+    // anchored at the viewport's centre" exactly at every step. It simply was
+    // not what somebody expects after looking at one particular block and then
+    // zooming in.
     root.querySelector('[data-viz-zoom-in]')?.addEventListener('click', () => zoomAt(1.12, lastPointerX, lastPointerY))
     root.querySelector('[data-viz-zoom-out]')?.addEventListener('click', () => zoomAt(1 / 1.12, lastPointerX, lastPointerY))
     root.querySelector('[data-viz-fit]')?.addEventListener('click', fit)
@@ -5085,7 +5106,7 @@ function mount(root) {
     exportGifBtn?.addEventListener('click', exportVideo)
     themeSelect?.addEventListener('change', () => applyTheme(themeSelect.value))
 
-    // ── tela cheia do navegador (botão do rodapé) ──
+    // ── the browser's own full screen (bottom-bar button) ──
     const fsOpen = root.querySelector('[data-viz-fs-open]')
     const fsClose = root.querySelector('[data-viz-fs-close]')
     function toggleFullscreen() {
@@ -5150,12 +5171,12 @@ function mount(root) {
     })
     viewportResizeObserver.observe(viewport)
 
-    // Esc fecha o toolbar de uma raia selecionada, fecha a sidebar de
-    // comentário, ou (fallback) fecha qualquer outro popover ainda aberto —
-    // `selectNode(null)` é a mesma chamada que o mousedown no canvas vazio já
-    // faz, e internamente fecha o editor de título, o editor de protocolo, o
-    // painel "Adicionar bloco" e a toolbar do bloco selecionado, então Esc
-    // passa a fechar tudo que clicar fora já fechava.
+    // Esc closes a selected lane's toolbar, closes the comment sidebar, or —
+    // as a fallback — closes any other popover still open. `selectNode(null)`
+    // is the same call a pointerdown on empty canvas already makes, and it
+    // internally closes the title editor, the protocol editor, the "Adicionar
+    // bloco" panel and the selected block's toolbar, so Esc closes everything
+    // clicking away already closed.
     window.addEventListener('keydown', (e) => {
         if (e.key !== 'Escape') return
         if (presenting) { exitPresentation(); return }
@@ -5164,14 +5185,14 @@ function mount(root) {
         selectNode(null)
     })
 
-    // Ctrl+V (ou Cmd+V) cola uma imagem direto no canvas — vira um bloco
-    // `image` como qualquer outro (porta, seta, comentário), a única forma de
-    // criar um (ver `ChainNodeKind::pickable()`). `paste` é um evento de
-    // documento (o canvas em si não é um campo de texto), então só reage
-    // quando nenhum campo de texto VISÍVEL está focado — `offsetParent` (não
-    // só a tag) descarta um input de um painel que acabou de fechar
-    // (`display:none`) mas continua sendo `document.activeElement`, o que do
-    // contrário engoliria o Ctrl+V como se ainda estivesse em edição.
+    // Ctrl+V (or Cmd+V) pastes an image straight onto the canvas — it becomes
+    // an `image` block like any other (ports, arrows, comments), and it is the
+    // only way to create one (see `ChainNodeKind::pickable()`). `paste` is a
+    // document event (the canvas itself is not a text field), so this only
+    // reacts when no VISIBLE text field has focus: `offsetParent`, rather than
+    // the tag alone, rules out an input from a panel that has just closed
+    // (`display:none`) while still being `document.activeElement`, which would
+    // otherwise swallow the Ctrl+V as if an edit were still open.
     document.addEventListener('paste', (e) => {
         if (!editable || !graphRef?.imageAddUrl) return
         const active = document.activeElement
@@ -5188,9 +5209,9 @@ function mount(root) {
         if (file) handlePasteImage(file)
     })
 
-    // Só uma de cada vez — colar de novo antes da primeira terminar de subir
-    // seria descartado silenciosamente (ver `pastingImage`) em vez de
-    // disparar dois POSTs concorrentes que voltariam em ordem imprevisível.
+    // One at a time — pasting again before the first upload finishes is
+    // dropped silently (see `pastingImage`) rather than firing two concurrent
+    // POSTs whose answers would come back in an unpredictable order.
     async function handlePasteImage(file) {
         if (pastingImage) return
         pastingImage = true
@@ -5209,10 +5230,10 @@ function mount(root) {
             const data = await res.json().catch(() => null)
             if (!res.ok) throw new Error(data?.message || 'Não foi possível colar a imagem.')
 
-            // Nasce perto de onde o usuário está olhando (último ponto do
-            // ponteiro sobre o canvas), como um bloco solto no vazio faria ao
-            // arrastar uma seta pra lá — sem isso, cai no padrão de
-            // `appendNode()` (à direita do último bloco).
+            // Born near where the person is looking (the pointer's last point
+            // over the canvas), as a block dropped in empty space would be when
+            // an arrow is dragged there — without it, this falls back to
+            // `appendNode()`'s default, to the right of the last block.
             const pos = (lastPointerX !== null && lastPointerY !== null) ? screenToWorld(lastPointerX, lastPointerY) : null
             appendNode(data.node, pos)
             patchRowGraphAppend(slug, data.node, data.summary)
