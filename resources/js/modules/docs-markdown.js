@@ -38,7 +38,7 @@ export function normalizeLanguage(value) {
 
 /* ============================ inline ============================ */
 
-// HTML inline (como o Editor.js guarda o texto rico) -> Markdown inline.
+// Inline HTML (how Editor.js stores rich text) -> inline Markdown.
 export function inlineToMd(html) {
     const tpl = document.createElement('template')
     tpl.innerHTML = html ?? ''
@@ -59,26 +59,26 @@ function nodeToMd(node) {
         switch (child.tagName) {
             case 'B':
             case 'STRONG':
-                out += `**${inner}**`
+                out += emphasis(inner, '**')
                 break
             case 'I':
             case 'EM':
-                out += `*${inner}*`
+                out += emphasis(inner, '*')
                 break
             case 'CODE': {
-                // Um valor protegido pode estar DENTRO do code inline, e o
-                // construto tem que sair junto: `textContent` achatava
-                // `<code><span class="ak-secret-mark">` em `` `[[SECRET-n]]` ``,
-                // o marcador voltava pro servidor sem o `{% secret %}` em volta
-                // e o valor real era gravado em texto puro — a proteção sumia
-                // no save, sem erro nenhum e com o chip aparecendo direitinho
-                // no editor até a hora de salvar.
+                // A protected value can live INSIDE the inline code, and the
+                // construct has to come out with it: `textContent` flattened
+                // `<code><span class="ak-secret-mark">` into `` `[[SECRET-n]]` ``,
+                // the marker went back to the server with no `{% secret %}`
+                // around it and the real value was written as plain text — the
+                // protection vanished on save, with no error at all and with
+                // the chip showing correctly in the editor right up to it.
                 const marked = child.querySelector(`.${SECRET_CLASS}`)
                 out += '`' + (marked ? wrapSecret(marked.textContent) : child.textContent) + '`'
                 break
             }
             case 'A':
-                out += `[${inner}](${child.getAttribute('href') || ''})`
+                out += `[${inner}](${linkDestination(child.getAttribute('href'))})`
                 break
             case 'BR':
                 out += '  \n'
@@ -96,11 +96,12 @@ function nodeToMd(node) {
                     break
                 }
 
-                // As duas aninhagens possíveis (code dentro do secret, secret
-                // dentro do code) são gravadas do MESMO jeito: os backticks
-                // por fora, o construto por dentro. É a única ordem que o
-                // GitbookRenderer pinta como cadeado dentro do <code> — e
-                // deixa o valor limpo, sem os backticks virarem parte dele.
+                // Both possible nestings (code inside the secret, secret
+                // inside the code) are written the SAME way: the backticks
+                // outside, the construct inside. It is the only order
+                // GitbookRenderer paints as a padlock within the <code> — and
+                // it leaves the value clean, with the backticks never becoming
+                // part of it.
                 const code = child.querySelector('code')
                 out += code
                     ? '`' + wrapSecret(code.textContent) + '`'
@@ -117,33 +118,106 @@ function nodeToMd(node) {
     return out
 }
 
+/* ---------------------------------------------------------------------------
+ * The emphasis rules.
+ *
+ * These have ONE job beyond working: agreeing with the reader. The read-only
+ * side (`App\Support\GitbookRenderer`) hands every line to league/commonmark,
+ * so CommonMark's delimiter rules are not one opinion about Markdown here —
+ * they are what the published page will do. Where these regexes disagreed with
+ * it, the editor and the reading screen showed two different documents, and
+ * the editor's version is the one that got saved back.
+ *
+ * Reduced to the three rules that actually decide the common cases:
+ *
+ *   - a run OPENS only when a non-space follows it and CLOSES only when a
+ *     non-space precedes it. `** texto **` is four literal asterisks, which is
+ *     what the reader printed while this file was turning it into bold —
+ *     and double-clicking a word hands us `<b>texto </b>` in every browser, so
+ *     that was the most ordinary way to bold something in a callout;
+ *   - `_` never opens or closes INSIDE a word, so `solution_id` stays
+ *     `solution_id`. Two of them on one line (`**solution_id** e **user_id**`)
+ *     used to produce `<b>solution<i>id</b> … <b>user</i>id</b>` — crossed
+ *     tags the browser then repaired into something nobody wrote;
+ *   - `**…**` may CONTAIN a lone `*`, so `**bold com *itálico* dentro**` is
+ *     bold with italic in it rather than a paragraph with visible asterisks.
+ *
+ * `***x***` is matched first because the two rules below would otherwise split
+ * it into overlapping <b>/<i> tags.
+ * ------------------------------------------------------------------------ */
+const BOLD_ITALIC = /\*\*\*(?!\s)([\s\S]+?)(?<!\s)\*\*\*/g
+const BOLD = /\*\*(?!\s)([\s\S]+?)(?<!\s)\*\*/g
+const BOLD_UNDERSCORE = /(^|[^\p{L}\p{N}_])__(?!\s)([\s\S]+?)(?<!\s)__(?![\p{L}\p{N}])/gu
+const ITALIC = /(^|[^*])\*(?!\s)([^*\n]+?)(?<!\s)\*/g
+const ITALIC_UNDERSCORE = /(^|[^\p{L}\p{N}_])_(?!\s)([^_\n]+?)(?<!\s)_(?![\p{L}\p{N}])/gu
+
+/**
+ * An inline link, in either CommonMark spelling of the destination: bare
+ * (`[x](/a/b)`, balanced parentheses allowed, which is what a Wikipedia URL
+ * needs) or wrapped in angle brackets (`[x](<page:a#b c>)`, which is how a
+ * destination carrying a space is written).
+ */
+const LINK = /\[([^\]]*)\]\((?:<([^<>]*)>|([^()]*(?:\([^()]*\)[^()]*)*))\)/g
+
 // Inline Markdown -> inline HTML (to feed Editor.js's rich text). Existing
 // HTML is preserved (<mark>, <u>, <img>…) — only the Markdown syntax is
-// transformed. Code spans are protected so nothing is formatted inside them.
+// transformed.
 export function inlineToHtml(md) {
     if (!md) return ''
 
+    // Three things leave the string before any emphasis rule can see them,
+    // each standing in as a control character: they are LITERALS, and `*` and
+    // `_` are ordinary characters inside them.
     const codes = []
     let text = md.replace(/`([^`]+)`/g, (_, c) => {
         codes.push(c)
         return `\x00${codes.length - 1}\x00`
     })
 
-    // Valores protegidos saem de cena antes das regras inline, pelo mesmo
-    // motivo que o código: o corpo é um literal. Uma senha com `*` ou `_` viraria
-    // itálico no editor e voltaria pro Markdown sem aqueles caracteres — o valor
-    // seria corrompido silenciosamente, no editor de quem PODE vê-lo.
+    // A protected value, for the same reason as the code: the body is a
+    // literal. A password holding `*` or `_` would turn into italics in the
+    // editor and go back to the Markdown without those characters — the value
+    // silently corrupted, in the editor of somebody who CAN read it.
     const secrets = []
     text = text.replace(/\{%\s*secret\s*%\}([\s\S]*?)\{%\s*endsecret\s*%\}/g, (_, value) => {
         secrets.push(value)
         return `\x01${secrets.length - 1}\x01`
     })
 
+    // A link's DESTINATION — never its label, where emphasis is real. `_` and
+    // `*` occur constantly in a path or a query string, and the rules below
+    // rewrote `…/wiki/a_b_c` as `…/wiki/a<i>b</i>c`: a link that still looked
+    // right in the editor and led nowhere.
+    const hrefs = []
+    text = text.replace(LINK, (_, label, angled, bare) => {
+        hrefs.push(angled !== undefined ? angled : (bare ?? ''))
+
+        return `[${label}](\x02${hrefs.length - 1}\x02)`
+    })
+
+    // Markdown's hard line break, before the emphasis rules so a run at the
+    // end of a line isn't read as closing on whitespace. The hint block is
+    // what depends on it — Enter inserts a <br> there (docs-tools/hint.js) and
+    // inlineToMd writes it back as two trailing spaces — but a paragraph and a
+    // table cell carry a break the same way.
+    text = text.replace(/ {2,}\n/g, '<br>')
+
     text = text
-        .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
-        .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<i>$2</i>')
-        .replace(/(^|[^_])_([^_\n]+)_/g, '$1<i>$2</i>')
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+        .replace(BOLD_ITALIC, '<i><b>$1</b></i>')
+        .replace(BOLD, '<b>$1</b>')
+        .replace(BOLD_UNDERSCORE, '$1<b>$2</b>')
+        .replace(ITALIC, '$1<i>$2</i>')
+        .replace(ITALIC_UNDERSCORE, '$1<i>$2</i>')
+
+    text = text.replace(
+        /\[([^\]]*)\]\(\x02(\d+)\x02\)/g,
+        (_, label, i) => `<a href="${escapeHtmlAttr(hrefs[i])}">${label}</a>`,
+    )
+
+    // A destination whose link didn't survive the pass above (a `]` inside the
+    // label, say) goes back as it came rather than leaving a control character
+    // in the author's text.
+    text = text.replace(/\x02(\d+)\x02/g, (_, i) => hrefs[i])
 
     text = text.replace(
         /\x01(\d+)\x01/g,
@@ -153,7 +227,52 @@ export function inlineToHtml(md) {
     return text.replace(/\x00(\d+)\x00/g, (_, i) => `<code>${codeToHtml(codes[i])}</code>`)
 }
 
-/** O construto, escrito num só lugar — os dois lados do round trip usam este. */
+/**
+ * `<b>`/`<i>` becoming `**…**` / `*…*`, with the tag's own whitespace moved
+ * OUTSIDE the delimiters.
+ *
+ * It is the serializing half of the flanking rule described above: a run does
+ * not close after a space, so `<b>Atenção </b>` written literally as
+ * `**Atenção **` published four asterisks instead of bold. Every browser hands
+ * us that trailing space when a word is selected by double-click, so this is
+ * the ordinary case rather than the odd one.
+ *
+ * Emphasis around nothing but whitespace is dropped entirely — `****` is not
+ * empty bold in any reader, it is four asterisks.
+ */
+function emphasis(inner, marker) {
+    const [, lead, body, trail] = String(inner).match(/^(\s*)([\s\S]*?)(\s*)$/)
+
+    return body === '' ? lead + trail : `${lead}${marker}${body}${marker}${trail}`
+}
+
+/**
+ * The destination of an inline link, as it goes into the Markdown.
+ *
+ * Angle brackets are CommonMark's way of saying "all of this is the address",
+ * and they are needed for whitespace and for a parenthesis the parser cannot
+ * pair off: `[x](/a (b)` ends at the first `)` in every reader. A destination
+ * that is already balanced is left bare, which is the spelling the whole
+ * corpus (and the GitBook import) already has.
+ */
+function linkDestination(href) {
+    const url = String(href ?? '').replace(/</g, '%3C').replace(/>/g, '%3E')
+
+    return /\s/.test(url) || ! balancedParens(url) ? `<${url}>` : url
+}
+
+function balancedParens(value) {
+    let depth = 0
+
+    for (const char of value) {
+        if (char === '(') depth++
+        else if (char === ')' && --depth < 0) return false
+    }
+
+    return depth === 0
+}
+
+/** The construct, written in one place — both sides of the round trip use it. */
 function wrapSecret(value) {
     return `{% secret %}${value}{% endsecret %}`
 }
@@ -176,6 +295,11 @@ function codeToHtml(code) {
 
 function escapeHtml(s) {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/** For a value going into a double-quoted HTML attribute (an href, here). */
+function escapeHtmlAttr(s) {
+    return escapeHtml(String(s ?? '')).replace(/"/g, '&quot;')
 }
 
 /* ============================ serialize ============================ */
@@ -299,7 +423,7 @@ function serializeHint(d) {
     return `{% hint style="${style}"${iconAttr} %}\n${text}\n{% endhint %}`
 }
 
-// Pares chave="valor" de uma string de atributos da notação GitBook (ordem livre).
+// key="value" pairs of a GitBook-notation attribute string (free order).
 function parseAttrs(raw) {
     const attrs = {}
     const re = /(\w+)="([^"]*)"/g
@@ -312,8 +436,8 @@ function serializeTabs(d) {
     const items = d.items || []
     const inner = items
         .map((t) => {
-            // Cada aba guarda blocos aninhados (Editor.js) — serializa recursivo.
-            // Compat: abas antigas guardavam `content` (Markdown cru).
+            // Each tab holds nested blocks (Editor.js) — serialize recursively.
+            // Compat: older tabs held `content` (raw Markdown).
             const body = Array.isArray(t.blocks) ? serialize(t.blocks).trim() : (t.content || '').trim()
             return `{% tab title="${escapeAttr(t.title || '')}" %}\n${body}\n{% endtab %}`
         })
@@ -465,10 +589,14 @@ function parseLines(lines) {
             continue
         }
 
-        // paragraph — junta linhas até uma linha em branco ou início de outro bloco
+        // paragraph — joins lines until a blank one or the start of another block
         const para = []
         while (i < n && lines[i].trim() !== '' && !startsNewBlock(lines[i])) {
-            para.push(lines[i].trim())
+            // Trimmed, EXCEPT for the two trailing spaces that are Markdown's
+            // hard line break: trimming the line whole turned every <br> a
+            // paragraph carried into a plain space on the way back into the
+            // editor, so the break survived one save and no more.
+            para.push(/ {2,}$/.test(lines[i]) ? lines[i].trim() + '  ' : lines[i].trim())
             i++
         }
         blocks.push({type: 'paragraph', data: {text: inlineToHtml(para.join('\n'))}})
@@ -477,7 +605,7 @@ function parseLines(lines) {
     return blocks
 }
 
-// Uma linha que, no meio de um parágrafo, sinaliza o começo de outro bloco.
+// A line that, in the middle of a paragraph, signals the start of another block.
 function startsNewBlock(line) {
     const t = line.trim()
     return (
@@ -515,7 +643,7 @@ function parseTabs(lines) {
         if (m) {
             const [inner, next] = consumeUntil(lines, i + 1, 'tab')
             i = next
-            // Conteúdo da aba vira blocos aninhados (parse recursivo).
+            // The tab's content becomes nested blocks (recursive parse).
             items.push({title: decodeAttr(m[1]), blocks: parseLines(inner)})
             continue
         }
@@ -529,7 +657,7 @@ function isListItem(line) {
 }
 
 function parseList(lines, start) {
-    // Coleta as linhas contíguas da lista.
+    // Collects the list's contiguous lines.
     const raw = []
     let i = start
     while (i < lines.length && (isListItem(lines[i]) || (lines[i].trim() !== '' && /^\s{2,}/.test(lines[i]) && raw.length))) {
@@ -542,7 +670,7 @@ function parseList(lines, start) {
     if (first && /\d+\./.test(first[1])) style = 'ordered'
     if (raw.some((l) => /^\s*[-*+]\s+\[[ xX]\]/.test(l))) style = 'checklist'
 
-    // Constrói a árvore por indentação (cada 2 espaços = 1 nível).
+    // Builds the tree by indentation (every 2 spaces = 1 level).
     const root = []
     const stack = [{level: -1, items: root}]
 
@@ -581,7 +709,7 @@ function parseTable(lines, start) {
     let i = start
     const header = splitRow(lines[i].trim())
     content.push(header)
-    i += 2 // pula a linha separadora
+    i += 2 // skips the separator row
     while (i < lines.length && isTableRow(lines[i].trim())) {
         content.push(splitRow(lines[i].trim()))
         i++
@@ -615,7 +743,7 @@ function fileFromSrc(src) {
     return m ? {url: src, mediaId: Number(m[1])} : {url: src}
 }
 
-// Deriva service/embed a partir da URL (YouTube, Vimeo, Figma). Mantém em sincronia
+// Derives service/embed from the URL (YouTube, Vimeo, Figma). Keep in sync
 // com App\Support\GitbookRenderer::embedData() (render read-only).
 export function embedData(url) {
     let m

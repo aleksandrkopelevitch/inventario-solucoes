@@ -31,11 +31,24 @@ export async function postData(e, ajaxElement) {
     const action   = button.getAttribute('data-ak-action')
     const formData = new FormData(form)
 
+    // Opened HERE — synchronously, still inside the click's own task — and not
+    // where the answer arrives. `window.open()` needs the transient user
+    // activation the gesture carries, and that expires in seconds, while the
+    // request behind this attribute can take a minute (generating a diagram is
+    // one model call, answered inside the request). Called from the response
+    // handler instead, every browser blocks it as a popup, silently.
+    const tab = button.getAttribute('data-ak-ajax-target') === '_blank'
+        ? openPendingTab(button)
+        : null
+
     try {
         setButtonLoadingState(button, true)
         const response = await ajaxModule.init('POST', action, formData)
-        await handleAjaxResponse(response, button)
+        await handleAjaxResponse(response, button, tab)
     } catch (error) {
+        // Nothing to show there any more, and a stranded "Preparando…" tab
+        // reads as a request that is still running.
+        tab?.close()
         let data     = {message: 'An unexpected error occurred', type: 'warning'}
         let errorBody = {}
 
@@ -75,13 +88,14 @@ export async function postData(e, ajaxElement) {
     }
 }
 
-async function handleAjaxResponse(response, button) {
+async function handleAjaxResponse(response, button, tab = null) {
     let data
     try {
         data = await response.json()
     } catch (error) {
         console.error('Error parsing JSON:', error)
         showWarning({message: 'Error parsing server response'})
+        tab?.close()
         return
     }
 
@@ -97,12 +111,58 @@ async function handleAjaxResponse(response, button) {
     }
 
     if (data.redirect) {
-        window.location.replace(data.redirect)
+        // A tab this call opened takes the destination; this one stays where
+        // it is, which is the whole point of asking for one.
+        if (tab) {
+            tab.location.replace(data.redirect)
+            tab.focus()
+        } else {
+            window.location.replace(data.redirect)
+        }
+    } else {
+        // No destination came back: the tab has nothing to become.
+        tab?.close()
     }
 
     if (data.modalIdToClose) {
         Modal.close(data.modalIdToClose)
     }
+}
+
+/**
+ * The blank tab a `data-ak-ajax-target="_blank"` call navigates once its
+ * answer arrives, painted with something to look at meanwhile.
+ *
+ * `about:blank` is same-origin, so it can be written into; a browser that
+ * refuses the write (or the window entirely) still leaves a usable tab — it
+ * just stays empty until the redirect lands.
+ */
+function openPendingTab(button) {
+    const tab = window.open('', '_blank')
+    if (!tab) return null
+
+    const label = button.getAttribute('data-ak-ajax-pending')
+        || button.getAttribute('aria-label')
+        || 'Preparando…'
+
+    try {
+        tab.document.write(
+            '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">'
+            + '<title>' + escapeText(label) + '</title></head>'
+            + '<body style="margin:0;display:grid;place-items:center;min-height:100vh;'
+            + 'font:500 14px system-ui,sans-serif;color:#57606a;background:#fbfbfa">'
+            + escapeText(label) + '</body></html>',
+        )
+        tab.document.close()
+    } catch (_) {
+        // A tab we cannot write into still works as a destination.
+    }
+
+    return tab
+}
+
+function escapeText(value) {
+    return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 function setButtonLoadingState(button, isLoading) {

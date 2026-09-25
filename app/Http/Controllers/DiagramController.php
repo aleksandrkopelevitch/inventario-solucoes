@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\SetDiagramSystems;
 use App\Enums\ChainNodeKind;
 use App\Enums\DiagramStatus;
 use App\Enums\Direction;
@@ -14,6 +15,7 @@ use App\Http\Requests\RemoveChainNodeRequest;
 use App\Http\Requests\RetargetChainEdgeRequest;
 use App\Http\Requests\SaveChainLayoutRequest;
 use App\Http\Requests\StoreDiagramRequest;
+use App\Http\Requests\SyncDiagramSystemsRequest;
 use App\Http\Requests\UpdateChainNodeRequest;
 use App\Http\Requests\UpdateChainProtocolRequest;
 use App\Http\Requests\UpdateDiagramMetaRequest;
@@ -23,6 +25,7 @@ use App\Services\DiagramCatalogService;
 use App\Support\DiagramSlug;
 use App\View\Components\Diagrams\Index;
 use App\View\Components\Diagrams\Meta;
+use App\View\Components\Diagrams\Systems;
 use App\View\Components\Solutions\Diagrams as SolutionDiagrams;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -140,6 +143,41 @@ class DiagramController extends Controller
             // index is where someone lands after leaving this page — the
             // client no-ops on whichever id isn't on the current page.
             'updatableSlots' => [Meta::slot($diagram), Index::slot()],
+        ]);
+    }
+
+    /**
+     * The systems somebody declares this drawing concerns — the MANUAL half of
+     * `diagram_solution` (`SetDiagramSystems`), never the half derived from the
+     * chain.
+     *
+     * It is here rather than on the canvas's chain endpoints because it is not
+     * a chain edit: nothing about the drawing changes, only what the catalog
+     * and the ecosystem map are told it is about. A drawing whose systems are
+     * lanes and neutral steps — every generated process and data flow — had no
+     * way to say so at all before this.
+     */
+    public function syncSystems(SyncDiagramSystemsRequest $request, Diagram $diagram, SetDiagramSystems $systems): JsonResponse
+    {
+        // BEFORE and after, unioned, for the same reason `NotebookController::
+        // syncSolutions()` does it: a system that was just UNDECLARED has to
+        // stop listing this drawing on its own page.
+        $affected = $diagram->participants()->pluck('solutions.id');
+
+        $systems->handle($diagram, $request->solutionIds());
+
+        $affected = $affected->merge($diagram->participants()->pluck('solutions.id'))->unique();
+
+        return response()->json([
+            'type'           => 'success',
+            'message'        => 'Sistemas do diagrama salvos.',
+            'updatableSlots' => [
+                Systems::slot($diagram),
+                // The index row names the systems a drawing touches, and each
+                // affected solution's card lists the drawings it appears in.
+                Index::slot(),
+                ...Solution::whereKey($affected)->get()->map(fn (Solution $solution) => SolutionDiagrams::slot($solution)),
+            ],
         ]);
     }
 

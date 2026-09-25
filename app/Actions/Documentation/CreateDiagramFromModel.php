@@ -26,9 +26,13 @@ class CreateDiagramFromModel
     {
         $built = ModelLayout::build($spec, $this->resolveSolutions($spec));
 
+        // Named for the model it IS — see `DiagramModel::suffixed()`. The slug
+        // is derived from the same string, so the address says it too.
+        $name = $spec->model->suffixed($spec->name);
+
         $diagram = Diagram::create([
-            'name'        => $spec->name,
-            'slug'        => DiagramSlug::unique($spec->name),
+            'name'        => $name,
+            'slug'        => DiagramSlug::unique($name),
             'status'      => DiagramStatus::Planned->value,
             'criticality' => 'medium',
             'direction'   => Direction::Unidirectional->value, // re-derived from the chain right below

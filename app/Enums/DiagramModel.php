@@ -54,4 +54,36 @@ enum DiagramModel: string
             self::Workflow  => 'queue-list',
         };
     }
+
+    /**
+     * The drawing's name with the model it was generated as at the end —
+     * "Pedido de compra — Sequência".
+     *
+     * All four models answer a question about the SAME page, so generating two
+     * of them put two rows called "Pedido de compra" in the catalog, told apart
+     * only by opening each. The suffix is part of the NAME rather than a column
+     * of its own because what comes out of here is an ordinary diagram from the
+     * moment it exists: somebody renames it, and renames it out of this shape,
+     * exactly like any other.
+     *
+     * Not re-applied to a name that already ends in it — the prompt asks for a
+     * title, but a model that answers "Pedido de compra — Sequência" must not
+     * produce it twice.
+     */
+    public function suffixed(string $name): string
+    {
+        $name = trim($name);
+        $suffix = ' — ' . $this->label();
+
+        if (str_ends_with(mb_strtolower($name), mb_strtolower($suffix))) {
+            return $name;
+        }
+
+        // `diagrams.name` is varchar(255) and nothing validates the length of a
+        // title a language model chose, so the BASE gives way, never the
+        // suffix: the type is the part that makes the row tellable apart.
+        $room = 255 - mb_strlen($suffix);
+
+        return (mb_strlen($name) > $room ? rtrim(mb_substr($name, 0, $room - 1)) . '…' : $name) . $suffix;
+    }
 }

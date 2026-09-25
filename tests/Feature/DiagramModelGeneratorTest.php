@@ -308,3 +308,31 @@ it('refuses a viewer', function () {
 
     expect(Diagram::count())->toBe(0);
 });
+
+it('names the drawing after the model it was generated as', function () {
+    $page = modelPage();
+    app()->instance(DiagramModelService::class, fakeModelService(modelJson(sequencePayload())));
+
+    $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]))
+        ->postJson(route('notebooks.pages.diagram.model', [$page->notebook, $page, 'sequence']))
+        ->assertOk();
+
+    // The suffix is what tells four drawings of the same page apart in the
+    // catalog; the slug is built from the suffixed name, so the address says it
+    // too.
+    expect(Diagram::sole()->name)->toBe('Consulta de pedido — Sequência')
+        ->and(Diagram::sole()->slug)->toBe('consulta-de-pedido-sequencia');
+});
+
+it('does not repeat a suffix the model already wrote', function () {
+    expect(DiagramModel::Workflow->suffixed('Compras — Processo'))->toBe('Compras — Processo')
+        ->and(DiagramModel::Workflow->suffixed('compras — processo'))->toBe('compras — processo')
+        ->and(DiagramModel::Workflow->suffixed('  Compras  '))->toBe('Compras — Processo');
+});
+
+it('gives way on the base rather than on the type when the name is too long', function () {
+    $name = DiagramModel::Dataflow->suffixed(str_repeat('a', 300));
+
+    expect(mb_strlen($name))->toBe(255)
+        ->and($name)->toEndWith('— Fluxo de dados');
+});

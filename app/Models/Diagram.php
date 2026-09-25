@@ -28,11 +28,18 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  * is drawn and named on its own (`/diagrams`).
  *
  * **It has exactly ONE relation, and documentation is not it.** `participants`
- * (the `diagram_solution` pivot, plus `source`/`target`) is DERIVED from the
- * chain by `SyncDiagramFromChain` and answers "which systems does this drawing
- * touch?". It is what the ecosystem map is built from, and nothing but that
- * action may write it — which is what keeps the map a reading of the DRAWINGS
- * rather than of somebody's filing.
+ * (the `diagram_solution` pivot, plus `source`/`target`) answers "which systems
+ * does this drawing touch?", and it is what the ecosystem map is built from.
+ *
+ * It has TWO writers and they do not overlap. `SyncDiagramFromChain` owns every
+ * row at `manual = false`: those are derived from the chain, rebuilt on each
+ * mutation, and nothing else may touch them — which is what keeps the map a
+ * reading of the DRAWINGS rather than of somebody's filing. `SetDiagramSystems`
+ * owns the rows at `manual = true`, which exist because a drawing's systems are
+ * not always blocks in it: a process or data-flow diagram is lanes and neutral
+ * steps, so it named no solution at all and reached neither the map nor any
+ * solution's page. `source`/`target` and `direction` stay derived from the
+ * chain alone — those describe the FLOW, and a declared system is not in one.
  *
  * Prose reaches a diagram by CITING it, as a `{% diagram %}` block in a page's
  * text (see `GitbookRenderer`). There was briefly a `documentation_pages.diagram_id`
@@ -206,10 +213,18 @@ class Diagram extends Model implements ChainCanvas
         return $this->belongsTo(Solution::class, 'target_solution_id');
     }
 
+    /**
+     * Every system this drawing concerns, in one list: the ones DERIVED from
+     * the chain and the ones somebody named by hand (`diagram_solution.manual`,
+     * far past any chain index so a declared system sorts after every drawn
+     * one). The map, the catalog and a solution's own page all read this, and
+     * none of them care which half a row came from — the two writers are told
+     * apart with `wherePivot('manual', …)` where it matters.
+     */
     public function participants(): BelongsToMany
     {
         return $this->belongsToMany(Solution::class, 'diagram_solution')
-            ->withPivot(['position'])
+            ->withPivot(['position', 'manual'])
             ->withTimestamps()
             ->orderByPivot('position');
     }

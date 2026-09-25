@@ -252,6 +252,50 @@ When you need a GitBook API fact, read `https://api.gitbook.com/openapi.json`
 (fetches fine, ~1.6MB). Their documentation site 404s or returns "query us with
 `?ask=`" stubs, and search summaries about it were wrong in both directions.
 
+### The editor's INLINE rules must agree with commonmark, because the reader is commonmark
+
+`docs-markdown.js`'s `inlineToHtml()` / `inlineToMd()` are the other half of a
+round trip whose reading end is `GitbookRenderer` → league/commonmark (GFM).
+So CommonMark's delimiter rules are not one opinion about Markdown here: they
+are what the published page does. Every place these two disagreed produced the
+same shape of bug — the editor showed one document, the reading screen showed
+another, and the editor's version is the one the next save wrote back.
+
+The four that were live until 2026-09-25, all found by diffing the two against
+each other rather than by reading the code:
+
+- **`** texto **` is four literal asterisks.** A run does not open before a
+  space or close after one. Double-clicking a word hands every browser
+  `<b>texto </b>`, so serializing it verbatim was the most ORDINARY way to bold
+  something in a callout, and it published the asterisks. `emphasis()` hoists
+  the whitespace outside the delimiters on the way out; the parse side applies
+  the same flanking rule, which is also what stops `2 * 3 * 4` becoming italic.
+- **`_` never opens or closes inside a word.** `solution_id` is a word in this
+  corpus, not emphasis. Two of them on one line — `**solution_id** e
+  **user_id**` — produced `<b>solution<i>id</b> … <b>user</i>id</b>`: crossed
+  tags the browser then repaired into something nobody wrote, which is where
+  "bold in a callout misbehaves" actually came from.
+- **`**…**` may contain a lone `*`.** Without that, `**bold com *itálico*
+  dentro**` showed its own asterisks.
+- **A link's DESTINATION is a literal.** It is pulled out before the emphasis
+  rules run, exactly as a code span and a `{% secret %}` already were, because
+  `_` and `*` are ordinary characters in a path — `…/wiki/a_b_c` was being
+  rewritten as `…/wiki/a<i>b</i>c`, a link that still read correctly in the
+  editor and led nowhere. Serializing wraps a destination in `<…>` when it
+  carries whitespace or a parenthesis the parser cannot pair off.
+
+The cheap way to check a change here: run the same strings through
+`GithubFlavoredMarkdownConverter` and through `inlineToHtml` (which is pure
+string work — no DOM, so it runs in plain node) and compare. Disagreement is
+the bug, whichever side looks more reasonable.
+
+Two further notes on that round trip: `  \n` is Markdown's hard line break and
+is what a hint's Enter (`docs-tools/hint.js` inserts a `<br>`) becomes, so
+neither end may trim it away; and a block tool that declares `sanitize.text` as
+an OBJECT has the inline tools' own configs merged into it by Editor.js — which
+is why `span.ak-secret-mark` survives inside a hint, and why that stops being
+true the moment a tool loses `inlineToolbar: true`.
+
 ### Re-filing a page: moving a DocumentationPage to another caderno
 
 `notebooks.pages.notebook` (PATCH) moves a page under a different `Notebook` —

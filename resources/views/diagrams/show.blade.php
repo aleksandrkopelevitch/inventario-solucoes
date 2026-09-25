@@ -5,7 +5,12 @@
      content, so it gets the whole viewport rather than a reading column. --}}
 <x-layouts.layout :title="$title" :fluid="true">
     <div class="flex min-h-0 flex-1 flex-col">
-        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-3 py-2">
+        {{-- `relative z-40` ranks the BAR, not what it opens — the same rule
+             the documentation reader's three regions follow. The canvas below
+             is full of absolutely positioned overlays up to `z-30`, and it
+             comes later in the DOM, so a popover dropping out of this bar with
+             a z-index of its own would tie with them and lose. --}}
+        <div class="relative z-40 flex flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-3 py-2">
             <div class="flex min-w-0 items-center gap-2">
                 <a href="{{ route('diagrams.index') }}" title="Todos os diagramas"
                     class="inline-flex size-8 shrink-0 items-center justify-center rounded-field text-muted no-underline transition-colors hover:bg-raised hover:text-ink">
@@ -15,6 +20,14 @@
             </div>
 
             <div class="flex shrink-0 items-center gap-2">
+                {{-- Which systems the drawing concerns, and the only place the
+                     DECLARED ones are edited — the drawn ones come from the
+                     chain. A diagram made of lanes and neutral steps (every
+                     generated process and data flow) has no `system` block to
+                     derive anything from, so without this it reached neither
+                     the ecosystem map nor any solution's page. --}}
+                <x-diagrams.systems :diagram="$diagram" />
+
                 {{-- Nothing about documentation here: prose CITES a drawing
                      with a `diagram` block, which lives in the text, so there
                      is no link for this side to show or edit. --}}

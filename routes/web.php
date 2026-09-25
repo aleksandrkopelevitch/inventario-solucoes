@@ -525,6 +525,10 @@ Route::middleware(['auth', 'inventory'])->group(function () {
         Route::get('/', [DiagramController::class, 'show'])->name('show');
         // Name/status only — never the chain (that is the canvas's, below).
         Route::patch('/', [DiagramController::class, 'update'])->name('update');
+        // The systems somebody DECLARES the drawing concerns — the manual half
+        // of `diagram_solution`. Not a chain endpoint: the drawing is untouched,
+        // only what the catalog and the map are told it is about.
+        Route::patch('systems', [DiagramController::class, 'syncSystems'])->name('systems');
         Route::delete('/', [DiagramController::class, 'destroy'])->name('destroy');
         // Purely visual: block positions, edge anchors, comments, lanes, notes.
         Route::patch('layout', [DiagramController::class, 'saveLayout'])->name('layout.save');
