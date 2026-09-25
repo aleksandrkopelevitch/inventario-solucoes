@@ -105,6 +105,13 @@ sobra. `--dated` recusa `--notebook=` (os dois nomeiam o caderno) e compõe com
 > aconteceu, o conserto é `chown -R www-data:www-data storage bootstrap/cache`
 > (incidente real em 2026-09-25, importando "Dados • BigQuery • GCP": 150
 > páginas e 300 anexos baixados corretamente e inacessíveis até o chown).
+>
+> O **deploy** já normaliza isso no último passo (`Envoy.blade.php`), então o
+> que ele mesmo escreve fica certo sozinho. Uma importação, não: ela acontece
+> *entre* deploys e quebra na hora — daí o `sudo -u www-data` continuar sendo a
+> regra aqui. E é `chown`, nunca `chmod -R`: o `0700` da pasta de mídia privada
+> está certo, e um chmod recursivo deixaria todo documento protegido da máquina
+> legível por qualquer um.
 
 ## Papéis de usuário
 
