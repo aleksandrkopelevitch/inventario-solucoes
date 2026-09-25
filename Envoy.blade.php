@@ -131,6 +131,34 @@
     php artisan event:cache
     php artisan icons:cache
 
+    {{--
+        Last, because everything above WRITES: the deploy connects as root
+        (the `akop` alias is User root), so every compiled view, cache file and
+        built asset it just produced is owned by root, while the app runs as
+        www-data under php-fpm. This makes the end state the same whoever ran
+        the deploy.
+
+        Most of that is survivable on its own — the parent directories are
+        www-data's and it is a directory's write bit that governs creating and
+        replacing files — but the failure mode when it is NOT survivable is
+        expensive and silent, so it is not worth leaving to chance. The real
+        incident (2026-09-25) was `gitbook:import` run as root: media on the
+        private disk (`MEDIA_DISK=local`) gets `0700` directories from
+        Flysystem, those came out `root:root`, and www-data could not traverse
+        into them — 300 assets downloaded, on disk, in the database, and every
+        `/files/{id}` answering permission denied. See README § Comandos.
+
+        chown, NEVER chmod -R. The `0700` on a private media directory is
+        correct and deliberate; a recursive chmod would make every protected
+        document on the box world-readable, which is the opposite of the fix.
+
+        `|| echo` rather than letting it abort: this sits before `artisan up`,
+        and a deploy run by a user who cannot chown must not leave the app in
+        maintenance mode over a step that is preventative.
+    --}}
+    echo "==> Normalising ownership to www-data"
+    chown -R www-data:www-data storage bootstrap/cache public/build || echo "==> WARNING: chown failed — see README § Comandos."
+
     echo "==> Restarting queue workers"
     php artisan queue:restart
 
@@ -172,6 +200,11 @@
     echo "==> Rebuilding caches"
     php artisan optimize
     php artisan icons:cache
+
+    {{-- Same reason as in the deploy task above, and needed for the same
+         reason: a rollback rebuilds all of it as root too. --}}
+    echo "==> Normalising ownership to www-data"
+    chown -R www-data:www-data storage bootstrap/cache public/build || echo "==> WARNING: chown failed — see README § Comandos."
 
     echo "==> Restarting queue workers"
     php artisan queue:restart
