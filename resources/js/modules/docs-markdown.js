@@ -1,20 +1,21 @@
-// docs-markdown.js — conversão entre os blocos do Editor.js e o formato de
-// armazenamento: Markdown + notação estendida estilo GitBook.
+// docs-markdown.js — the conversion between Editor.js blocks and the storage
+// format: Markdown plus GitBook-style extended notation.
 //
-//   serialize(blocks) -> string  (ao salvar)
-//   parse(markdown)   -> blocks[] (ao carregar)
+//   serialize(blocks) -> string  (on save)
+//   parse(markdown)   -> blocks[] (on load)
 //
-// Nativos em Markdown: header, paragraph, list (ordered/unordered/checklist),
-// quote, code, delimiter, table, image (<figure>). Sem Markdown nativo, via
-// notação GitBook: hint ({% hint %}), tabs ({% tabs %}), file ({% file %})
-// e diagram ({% diagram %} — citação de um desenho do catálogo, nossa).
+// Native in Markdown: header, paragraph, list (ordered/unordered/checklist),
+// quote, code, delimiter, table, image (<figure>). With no native Markdown,
+// through GitBook notation: hint ({% hint %}), tabs ({% tabs %}), file
+// ({% file %}) and diagram ({% diagram %} — a citation of a catalog drawing,
+// ours).
 //
-// secret ({% secret %}…{% endsecret %}) é o único construto INLINE: vive dentro
-// do texto de um bloco, não como bloco próprio, então é tratado em
-// inlineToMd()/inlineToHtml() e não em serializeBlock()/parseLines().
+// secret ({% secret %}…{% endsecret %}) is the only INLINE construct: it lives
+// inside a block's text rather than as a block of its own, so it is handled in
+// inlineToMd()/inlineToHtml() and not in serializeBlock()/parseLines().
 //
-// A mídia é referenciada por /files/{id} (rota files.show); os blocos image/
-// attaches guardam `mediaId` para reconstruir esse caminho no Markdown.
+// Media is referenced as /files/{id} (the files.show route); the image and
+// attaches blocks keep `mediaId` so that path can be rebuilt in the Markdown.
 
 import {DEFAULT_HINT_ICON} from './docs-tools/hint-icons'
 import {SECRET_CLASS} from './docs-tools/secret-class'
@@ -86,10 +87,10 @@ function nodeToMd(node) {
                 out += `<mark>${inner}</mark>`
                 break
             case 'SPAN': {
-                // O valor protegido (SecretInlineTool). textContent, não
-                // `inner`: o corpo é um valor literal — ou o marcador
-                // [[SECRET-n]] que o servidor devolve pra quem não pode ler o
-                // valor —, e formatação dentro dele não significaria nada.
+                // The protected value (SecretInlineTool). textContent, not
+                // `inner`: the body is a literal value — or the [[SECRET-n]]
+                // marker the server hands to somebody who may not read the
+                // value — and formatting inside it would mean nothing.
                 if (! child.classList.contains(SECRET_CLASS)) {
                     out += inner
                     break
@@ -116,9 +117,9 @@ function nodeToMd(node) {
     return out
 }
 
-// Markdown inline -> HTML inline (para alimentar o texto rico do Editor.js).
-// Preserva HTML já existente (<mark>, <u>, <img>...) — só transforma a sintaxe
-// Markdown. Protege os trechos de código para não formatar dentro deles.
+// Inline Markdown -> inline HTML (to feed Editor.js's rich text). Existing
+// HTML is preserved (<mark>, <u>, <img>…) — only the Markdown syntax is
+// transformed. Code spans are protected so nothing is formatted inside them.
 export function inlineToHtml(md) {
     if (!md) return ''
 
@@ -158,12 +159,12 @@ function wrapSecret(value) {
 }
 
 /**
- * O conteúdo de um code inline, virando HTML do editor.
+ * The contents of an inline code span, becoming the editor's HTML.
  *
- * Um `{% secret %}` dentro de backticks precisa virar CHIP, não texto cru: sem
- * isso o autor vê `{% secret %}[[SECRET-1]]{% endsecret %}` no meio do código,
- * não tem onde clicar pra revelar, e qualquer retoque no meio daquilo quebra o
- * construto na mão.
+ * A `{% secret %}` inside backticks has to become a CHIP rather than raw text:
+ * without that the author sees `{% secret %}[[SECRET-1]]{% endsecret %}` in the
+ * middle of the code, has nothing to click to reveal it, and any touch-up in
+ * there breaks the construct by hand.
  */
 function codeToHtml(code) {
     const match = code.match(/^\s*\{%\s*secret\s*%\}([\s\S]*?)\{%\s*endsecret\s*%\}\s*$/)
@@ -266,15 +267,16 @@ function serializeTable(d) {
             out.push(`| ${cells.map(() => '---').join(' | ')} |`)
         }
     })
-    // Tabela sem cabeçalho ainda precisa da linha separadora após a 1ª linha.
+    // A headerless table still needs the separator row after the first line.
     if (!withHeadings && rows.length) {
         out.splice(1, 0, `| ${Array.from({length: cols}, () => '---').join(' | ')} |`)
     }
     return out.join('\n')
 }
 
-// Larguras-preset persistidas em `data-width` no <figure>. 100% é o padrão e
-// não escreve atributo (compat com docs antigos, que não tinham data-width).
+// Preset widths, persisted as `data-width` on the <figure>. 100% is the
+// default and writes no attribute (compatible with older docs, which had no
+// data-width at all).
 const FIGURE_WIDTHS = [25, 50, 75]
 
 function serializeImage(d) {
@@ -289,8 +291,9 @@ function serializeImage(d) {
 function serializeHint(d) {
     const style = d.style || 'info'
     const text = inlineToMd(d.text).trim()
-    // `icon` só é gravado quando difere do padrão do estilo — mantém a notação
-    // limpa e o conteúdo já salvo (sem icon) retrocompatível.
+    // `icon` is written only when it differs from the style's default — it
+    // keeps the notation clean and content already saved (with no icon)
+    // backward compatible.
     const icon = (d.icon || '').trim()
     const iconAttr = icon && icon !== DEFAULT_HINT_ICON[style] ? ` icon="${escapeAttr(icon)}"` : ''
     return `{% hint style="${style}"${iconAttr} %}\n${text}\n{% endhint %}`
@@ -631,7 +634,7 @@ export function embedData(url) {
 function embedBlock(url) {
     const e = embedData(url)
     if (e) return {type: 'embed', data: {...e, caption: ''}}
-    // Serviço não suportado: cai para um link (degrada sem quebrar).
+    // Unsupported service: falls back to a link (degrades without breaking).
     return {type: 'paragraph', data: {text: `<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>`}}
 }
 

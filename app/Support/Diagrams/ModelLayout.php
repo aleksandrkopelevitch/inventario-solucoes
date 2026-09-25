@@ -173,8 +173,8 @@ final class ModelLayout
         $nodes = [];
         $positions = [];
 
-        // Onde cada item caiu, para o roteamento das setas logo abaixo saber se
-        // uma ligação anda ao longo da raia ou salta de uma para outra.
+        // Where each item landed, so the arrow routing just below can tell
+        // whether a link runs along the lane or jumps from one to another.
         $cells = [];
 
         foreach ($items as $item) {

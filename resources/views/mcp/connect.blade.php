@@ -1,8 +1,10 @@
-{{-- Conectar um app de chat ao inventário — a tela para quem NÃO é técnico.
+{{-- Connecting a chat app to the inventory — the screen for somebody who is
+     NOT technical.
 
-     Não é /mcp-tokens: aquela mint um token que lê o catálogo inteiro e é de
-     admin. Esta é de quem vai conectar, inclusive um Leitor (a conta que o SSO
-     cria), e por isso vive fora do grupo `inventory`. --}}
+     Not /mcp-tokens: that one mints a token that reads the whole catalog and
+     belongs to an admin. This one belongs to whoever is doing the connecting,
+     a Reader included (the account SSO creates), which is why it lives outside
+     the `inventory` group. --}}
 <x-layouts.layout title="Conexão MCP">
     <x-ui.hero-panel compact class="mb-6">
         <div>
@@ -85,8 +87,9 @@
         <x-mcp.connections />
 
         @can('viewAny', \App\Models\McpToken::class)
-            {{-- O caminho técnico fica no fim e como link: quem precisa dele sabe
-                 que precisa, e quem não precisa não deve tropeçar num token. --}}
+            {{-- The technical path sits at the end, and as a link: whoever
+                 needs it knows they do, and whoever does not should never
+                 trip over a token. --}}
             <div class="rounded-card border border-line bg-surface p-5 shadow-card">
                 <h2 class="font-display text-base font-semibold text-ink">Conectar um programa</h2>
                 <p class="mt-0.5 text-xs leading-relaxed text-muted">

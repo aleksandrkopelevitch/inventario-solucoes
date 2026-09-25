@@ -81,24 +81,24 @@ export const EDITOR_I18N = {
                 'With border': 'Com borda',
                 'Stretch image': 'Esticar imagem',
                 'With background': 'Com fundo',
-                // Mensagem de FALHA de upload (arquivo grande demais, tipo não
-                // aceito, sessão expirada, 403). Era o único caminho de erro do
-                // app que aparecia em inglês: os plugins Image/Attaches fazem o
-                // upload por conta própria e avisam pelo notifier do próprio
-                // Editor.js, sem passar pelo `Toast` daqui.
+                // The upload FAILURE message (file too large, type refused,
+                // session expired, 403). It was the app's only error path that
+                // surfaced in English: the Image/Attaches plugins upload on
+                // their own and report through Editor.js's own notifier,
+                // never passing through the `Toast` here.
                 //
-                // A tradução (em vez de um `Toast` nosso por cima) é de
-                // propósito: `uploadingFailed()` no plugin é o que também
-                // esconde o preloader do bloco — abandonar esse caminho
-                // deixaria o "carregando" girando pra sempre, e disparar os
-                // dois mostraria a mesma falha duas vezes.
+                // Translating it (rather than raising a `Toast` of our own on
+                // top) is deliberate: the plugin's `uploadingFailed()` is also
+                // what hides the block's preloader — abandoning that path
+                // would leave the spinner turning forever, and firing both
+                // would show the same failure twice.
                 //
-                // A chave é a string ORIGINAL do plugin e precisa bater
-                // exatamente, apóstrofo tipográfico (U+2019) incluso.
-                // Os limites citados são os de `UploadDocumentationMediaRequest`
-                // (`max:20480` KB + a lista de `mimes`) — o texto genérico do
-                // plugin nunca diz qual das duas regras falhou, então dizer as
-                // duas aqui é o que dá ao usuário o que corrigir.
+                // The key is the plugin's ORIGINAL string and has to match
+                // exactly, typographic apostrophe (U+2019) included. The
+                // limits quoted are `UploadDocumentationMediaRequest`'s
+                // (`max:20480` KB plus the `mimes` list) — the plugin's
+                // generic text never says which of the two rules failed, so
+                // naming both here is what gives the user something to fix.
                 'Couldn’t upload image. Please try another.':
                     'Não foi possível enviar a imagem. Use JPG, PNG, GIF, WEBP ou SVG de até 20 MB.',
             },

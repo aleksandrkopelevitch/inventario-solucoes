@@ -6,13 +6,13 @@ use App\Models\Notebook;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Nome de um Caderno — usado tanto pra criar quanto pra renomear (o slug nunca
- * muda, pela mesma razão de sempre: a URL de um caderno é estável).
+ * A caderno's name — used both to create and to rename (the slug never changes,
+ * for the usual reason: a caderno's URL is stable).
  *
- * As soluções que ele documenta não vêm por aqui — têm endpoint próprio
- * (`notebooks.solutions`, SyncNotebookSolutionsRequest), porque vincular é uma
- * decisão à parte de nomear e cada uma responde com um conjunto de slots
- * diferente.
+ * The solutions it documents do not come through here; they have an endpoint of
+ * their own (`notebooks.solutions`, SyncNotebookSolutionsRequest), because
+ * linking is a decision apart from naming and each answers with a different set
+ * of slots.
  */
 class SaveNotebookRequest extends FormRequest
 {
