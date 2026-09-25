@@ -19,6 +19,14 @@ use Illuminate\Support\Facades\DB;
  * Nodes with no solution (free text, and every decision/actor/start/end node
  * — see `ChainNodeKind`) count toward neighbors' in/out degree but don't
  * become participants (the pivot references solutions).
+ *
+ * **It owns the DERIVED half of `diagram_solution` and only that half.** A row
+ * at `manual = true` was written by somebody, through `SetDiagramSystems`, and
+ * survives every rebuild here: that is the whole point of the column, since a
+ * drawing made of lanes and neutral steps names no solution in its chain. The
+ * one thing this does to a manual row is DROP it when the chain grows a block
+ * for the same solution — the two would otherwise both be in `participants`,
+ * listing the system twice, and the drawn one is the better answer.
  */
 class SyncDiagramFromChain
 {
@@ -65,7 +73,7 @@ class SyncDiagramFromChain
 
         if ($solutionNodes->isEmpty()) {
             DB::transaction(function () use ($diagram) {
-                $diagram->participants()->detach();
+                $diagram->participants()->wherePivot('manual', false)->detach();
                 $diagram->update([
                     'source_solution_id' => null,
                     'target_solution_id' => null,
@@ -113,7 +121,12 @@ class SyncDiagramFromChain
         $pivotData = collect($positions)->map(fn ($position) => ['position' => $position])->all();
 
         DB::transaction(function () use ($diagram, $pivotData, $sourceId, $targetId, $bidirectional, $protocol) {
-            $diagram->participants()->detach();
+            $diagram->participants()->wherePivot('manual', false)->detach();
+            // A system that is now DRAWN stops being merely declared: keeping
+            // both rows would list it twice in `participants` (and could break
+            // the pivot's unique (diagram, solution, position) on the next
+            // rebuild, since the two carry different positions).
+            $diagram->participants()->wherePivot('manual', true)->detach(array_keys($pivotData));
             $diagram->participants()->attach($pivotData);
 
             $diagram->update([

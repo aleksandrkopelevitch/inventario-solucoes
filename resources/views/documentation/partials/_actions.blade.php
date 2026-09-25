@@ -55,7 +55,13 @@
          FormData from the form a button names, and there is no form in this bar
          to borrow. No `type="button"` on any of them — a button carrying
          `data-ak-ajax` must stay a submit, or Enter silently stops working
-         (AGENTS.md). --}}
+         (AGENTS.md).
+
+         `data-ak-ajax-target="_blank"` on all five: the drawing opens BESIDE
+         the page it was read from instead of replacing it. A diagram's own
+         page is not the page's child — its back arrow goes to the diagrams
+         index, which is where anybody who pressed one of these landed, one
+         click away from the prose they were writing. --}}
     {{-- The trigger appears only when the menu would have something in it.
          Without this a Viewer got the button and an EMPTY popover — an
          affordance for two things they may not do. The two conditions are the
@@ -73,6 +79,7 @@
                 @can('create', App\Models\Diagram::class)
                     <form id="docs-diagram-form" class="contents">
                         <x-forms.button variant="ghost" data-ak-ajax="docs-diagram-form" data-ak-action="{{ $diagramDraftUrl }}"
+                            data-ak-ajax-target="_blank" data-ak-ajax-pending="Desenhando o fluxo desta página…"
                             class="!h-auto !w-full !justify-start !gap-2.5 !rounded-md !px-2 !py-1.5 !text-left">
                             <x-heroicon-o-share class="size-4 shrink-0 text-muted" />
                             <span class="min-w-0">
@@ -91,6 +98,8 @@
                             <x-forms.button variant="ghost"
                                 data-ak-ajax="docs-model-form-{{ $entry['model']->value }}"
                                 data-ak-action="{{ $entry['url'] }}"
+                                data-ak-ajax-target="_blank"
+                                data-ak-ajax-pending="Desenhando: {{ $entry['model']->label() }}…"
                                 class="!h-auto !w-full !justify-start !gap-2.5 !rounded-md !px-2 !py-1.5 !text-left">
                                 <x-dynamic-component :component="'heroicon-o-' . $entry['model']->icon()" class="size-4 shrink-0 text-muted" />
                                 <span class="min-w-0">

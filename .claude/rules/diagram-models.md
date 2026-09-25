@@ -36,6 +36,16 @@ stops:
   actor are the same layout seen from two sides — writing them apart is how
   they start behaving differently when somebody drags one.
 
+**The model's name goes in the drawing's NAME** (`DiagramModel::suffixed()`,
+applied by `CreateDiagramFromModel`): "Pedido de compra — Sequência". All four
+models answer a question about the same page, so generating two of them put two
+identically-named rows in the catalog, tellable apart only by opening each. It
+is a suffix on the name rather than a column because what comes out is an
+ordinary diagram from the moment it exists — somebody renames it, and renames it
+out of this shape, like any other. The slug follows from the suffixed name, so
+the address says it too, and the helper refuses to apply a suffix a model
+already wrote.
+
 **Validation names the offending id**, because its sentences are handed back
 for the repair round. The one rule worth knowing: an item filed under a lane
 nobody declared is refused, since it would otherwise reach the layout and be

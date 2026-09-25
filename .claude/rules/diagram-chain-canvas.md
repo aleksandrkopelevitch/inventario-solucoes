@@ -1,6 +1,9 @@
 ---
 paths:
   - "app/Models/Diagram.php"
+  - "app/Actions/SetDiagramSystems.php"
+  - "app/Http/Requests/SyncDiagramSystemsRequest.php"
+  - "app/View/Components/Diagrams/**"
   - "app/Models/SubmissionDiagram.php"
   - "app/Contracts/ChainCanvas.php"
   - "app/Enums/ChainNodeKind.php"
@@ -93,6 +96,48 @@ concern — node position/style and per-block comments in the graphical canvas
 `saveLayout()` writes only `viz_layout`, never touching `chain` or the derived
 columns. Don't write the derived columns directly — edit `chain` and let the
 action re-derive.
+
+#### `diagram_solution` has a second writer — and only a second
+
+`diagram_solution.manual` says who wrote a participant row. The rows at `false`
+are the derived ones above and `SyncDiagramFromChain` still owns them whole: it
+detaches and rebuilds exactly those on every mutation. The rows at `true` are
+written by `App\Actions\SetDiagramSystems` alone
+(`PATCH diagrams/{diagram}/systems`, `x-diagrams.systems` in the page's top
+bar), and they exist because **a drawing's systems are not always blocks in
+it**: a generated process or data flow is lanes and neutral steps, so its chain
+named no solution and the drawing reached neither the ecosystem map nor any
+solution's page.
+
+Three things keep the two halves from contradicting each other, and each one is
+load-bearing:
+
+- **Neither writer touches the other's rows.** `SyncDiagramFromChain` scopes its
+  detach with `wherePivot('manual', false)`; `SetDiagramSystems` scopes its own
+  with `true`. A plain `detach()`/`sync()` on `participants` from either side
+  silently deletes the other half — which for the derivation means a declared
+  set that survived only until the next block was dragged.
+- **Drawn beats declared.** A system that gains a `system` block loses its
+  manual row (the derivation detaches it by id before attaching), and
+  `SetDiagramSystems` filters a solution already in the chain out of the set it
+  is handed rather than refusing it. Otherwise the same system is in
+  `participants` twice, and the pivot's unique `(diagram, solution, position)`
+  eventually collides.
+- **`source`/`target`/`direction` stay derived from the chain alone.** Those
+  describe the FLOW, and a declared system has no edge to read a direction from.
+  The manual rows sit at `SetDiagramSystems::POSITION_BASE` and above precisely
+  so they sort after everything the chain contributes.
+
+The ecosystem map still draws an EDGE only between two systems joined by a chain
+edge whose both ends resolve to a solution (`DiagramGraphService` reads the
+chain for that, not the pivot), so a declared system appears as a node the
+drawing touches and never as a relationship nobody drew.
+
+The panel showing this lists BOTH halves and labels them, because the
+difference is the only thing that explains why one can be removed there and the
+other cannot — a drawn system is unlinked by editing its block. Showing only the
+declared ones would read as the complete list of a diagram's systems while
+being a fraction of it.
 
 **Adding a block must not change the zoom.** `appendNode()` used to end with
 `fit()`, which recomputes `view.scale` — so drawing a ten-block flow meant ten

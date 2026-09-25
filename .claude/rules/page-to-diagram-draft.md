@@ -62,3 +62,14 @@ Nothing links the page and the drawing afterwards. A page reaches a diagram by
 CITING it (`{% diagram %}`) — the `documentation_pages.diagram_id` FK was
 removed for reasons written up in `.claude/rules/cadernos-notebooks.md`, and
 this feature must not quietly reintroduce it.
+
+**Which is exactly why the drawing opens in a NEW TAB** (`data-ak-ajax-target`
+on all five menu items — see `.claude/rules/data-ak-attribute-reference.md`).
+With no link back, a diagram's own arrow goes to the diagrams index, so
+replacing the document left whoever pressed the button on a list, one click
+from prose they had not finished — and, on an unsaved page, past the edits they
+had not committed. The tab is opened in the click handler rather than when the
+answer arrives: this is the ONE synchronous model call in the app, and by then
+the gesture's user activation is long expired and every browser blocks the
+popup silently. The response's own message says a tab was opened; the sentence
+about checking the blocks is FLASHED, so it is read in the tab it applies to.

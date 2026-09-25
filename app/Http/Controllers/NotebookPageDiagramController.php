@@ -21,6 +21,12 @@ use Illuminate\Http\JsonResponse;
  * `Integration` became `Diagram`. So this creates and redirects, and whoever
  * wants the picture in the text adds the citation themselves.
  *
+ * The redirect lands in a NEW TAB (`data-ak-ajax-target="_blank"` on the five
+ * menu items). Nothing links the page and the drawing, so a diagram's own back
+ * arrow goes to the diagrams index — which is where the author of a page ended
+ * up, one click from prose they had not finished. Opening beside it costs
+ * nothing and the page stays exactly as it was, unsaved edits included.
+ *
  * Its own controller rather than a tenth method on `NotebookPageController`:
  * everything there edits the page, and this writes a row in another module
  * entirely.
@@ -49,18 +55,18 @@ class NotebookPageDiagramController extends Controller
 
         $diagram = $this->creator->handle($this->drafts->draft($page));
 
-        // The Toast that matters belongs to the page being navigated TO:
-        // `redirect` replaces the document immediately (ajax-post.js), so the
-        // one in this response is shown and destroyed in the same instant. The
-        // flash survives into the GET that follows and the layout renders it
-        // there — and it says "confira", because what was just created is a
-        // reading of somebody's prose, not a fact.
-        $message = 'Diagrama criado a partir de "' . $page->title . '". Confira os blocos antes de salvar.';
-
-        session()->flash('status', $message);
+        // The Toast that matters belongs to the page being navigated TO, and it
+        // says "confira" because what was just created is a reading of
+        // somebody's prose, not a fact. It travels as a FLASH: the response's
+        // own `message` is shown on the page that stayed put, where "abri em
+        // outra aba" is the useful thing to say, and the flash is rendered by
+        // the layout in the tab that actually opened. (It survived the same way
+        // when this replaced the document — there the response's Toast was
+        // shown and destroyed in the same instant.)
+        session()->flash('status', 'Diagrama criado a partir de "' . $page->title . '". Confira os blocos antes de salvar.');
 
         return response()->json([
-            'message'  => $message,
+            'message'  => 'Diagrama criado — abri em outra aba.',
             'redirect' => route('diagrams.show', $diagram),
         ]);
     }
@@ -84,12 +90,10 @@ class NotebookPageDiagramController extends Controller
 
         $diagram = $this->modelCreator->handle($this->models->draft($page, $model));
 
-        $message = $model->label() . ' gerada a partir de "' . $page->title . '". Confira os blocos antes de salvar.';
-
-        session()->flash('status', $message);
+        session()->flash('status', $model->label() . ' gerada a partir de "' . $page->title . '". Confira os blocos antes de salvar.');
 
         return response()->json([
-            'message'  => $message,
+            'message'  => $model->label() . ' gerada — abri em outra aba.',
             'redirect' => route('diagrams.show', $diagram),
         ]);
     }
