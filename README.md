@@ -140,6 +140,38 @@ o normalizador já precisou foi achado contra página real, e um arquivo com o
 texto pré-normalizado nunca se beneficiaria do próximo — congelaria os bugs de
 hoje como se fossem o registro.
 
+**Restaurando um space de cada vez.** O `.zip` de cada space é independente, e
+o nome dele já diz qual é — `Titulo--<spaceId>.zip`:
+
+```bash
+ls ~/backup-gitbook                                       # ver o que existe
+php artisan gitbook:restore ~/backup-gitbook/Integracoes-Digibee--edu5p1Zks7fwfqwdtWhR.zip
+php artisan gitbook:restore ~/backup-gitbook/SCL--hzo9Uk9XElbIp7sog5gU.zip --dry-run
+php artisan gitbook:restore ~/backup-gitbook/*.zip         # tudo, um após o outro
+```
+
+**Vai criar caderno novo?** Depende do nome, e é a mesma regra do import: o
+caderno é resolvido **pelo nome** — o título do space arquivado, ou o que você
+passar em `--notebook=`. Se já existe um caderno com esse nome, ele é
+**atualizado no lugar** (página casada por título, nada duplicado); se não
+existe, é criado. Então restaurar um space que você já importou atualiza o
+caderno que está lá, não cria um segundo.
+
+Duas consequências práticas:
+
+- para restaurar **ao lado** do que já existe, sem tocar nele, dê outro nome:
+  `--notebook="Digibee (restaurado do backup)"`;
+- `--dated` põe cada restauração num caderno `<Space>_imported_DD_MM_YYYY`, que
+  é o modo certo para conferir um backup sem mexer no caderno de produção — e é
+  o **único** modo que apaga página que o arquivo não tem mais.
+
+Em produção, lembre do `sudo -u www-data` (o restore grava mídia, e vale a
+mesma regra do import):
+
+```bash
+sudo -u www-data php artisan gitbook:restore /caminho/Space--id.zip
+```
+
 Três coisas que valem saber:
 
 - **O `restore` é o mesmo import, com a fonte trocada.** Ele roda o

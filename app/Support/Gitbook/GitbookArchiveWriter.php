@@ -337,7 +337,15 @@ class GitbookArchiveWriter
             ];
         }
 
-        $zip->addFromString(GitbookArchiveFormat::ASSET_INDEX, $this->encode($index));
+        // `JSON_FORCE_OBJECT`, because a space with no assets at all would
+        // otherwise write `[]` — PHP encodes an empty array as a list. It reads
+        // back fine here (an empty foreach either way), but the format is meant
+        // to outlive this app and be readable by something else, and a file
+        // documented as an object must not sometimes be a list.
+        $zip->addFromString(
+            GitbookArchiveFormat::ASSET_INDEX,
+            (string) json_encode($index, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_FORCE_OBJECT),
+        );
 
         // `addFile()` only READS at close() — the spool has to still be there.
         $zip->close();
