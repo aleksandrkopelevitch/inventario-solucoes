@@ -2,10 +2,12 @@
 
 namespace App\Providers;
 
+use App\Contracts\GitbookSource;
 use App\Mcp\Actor;
 use App\Mcp\OAuth;
 use App\Support\Digibee\DigibeeAuthResolver;
 use App\Support\Fold;
+use App\Support\Gitbook\GitbookClient;
 use App\Support\Gitbook\TransientHttpFailure;
 use Carbon\Carbon;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -36,6 +38,12 @@ class AppServiceProvider extends ServiceProvider
         // rather than in `boot()` because Passport registers those routes in
         // its own `boot()`, which runs first.
         Passport::$deviceCodeGrantEnabled = false;
+
+        // A GitBook import reads through `GitbookSource`, and the live API is
+        // the default answer. `gitbook:restore` rebinds this to an open
+        // `GitbookArchive` before resolving the import, which is the entire
+        // mechanism behind restoring offline — see that command.
+        $this->app->bind(GitbookSource::class, GitbookClient::class);
     }
 
     /**
