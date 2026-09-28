@@ -2,6 +2,7 @@
 
 namespace App\Support\Gitbook;
 
+use App\Contracts\GitbookSource;
 use App\Exceptions\GitbookApiException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -25,8 +26,12 @@ use Illuminate\Support\Facades\Http;
  * single-level page list (a `../getting-started/install` link would not).
  *
  * List endpoints share one envelope: `{items: [...], next: {page: cursor}}`.
+ *
+ * The four an import needs are `GitbookSource`, which this satisfies as it
+ * already stood — the interface was extracted from these signatures so a
+ * `GitbookArchive` could stand in for them offline.
  */
-class GitbookClient
+class GitbookClient implements GitbookSource
 {
     public function configured(): bool
     {

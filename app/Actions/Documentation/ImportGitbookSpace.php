@@ -3,11 +3,11 @@
 namespace App\Actions\Documentation;
 
 use App\Contracts\Documentable;
+use App\Contracts\GitbookSource;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Services\DocumentationPageService;
 use App\Support\Gitbook\GitbookAssetImporter;
-use App\Support\Gitbook\GitbookClient;
 use App\Support\Gitbook\GitbookImportReport;
 use App\Support\Gitbook\GitbookMarkdownNormalizer;
 use App\Support\Gitbook\GitbookPage;
@@ -54,6 +54,13 @@ use Illuminate\Support\Str;
  * somewhere people also write by hand. What is removed is COUNTED
  * (`GitbookImportReport::$removed`) and printed, never silent.
  *
+ * **It reads through `GitbookSource`, not through the API.** That is the whole
+ * of `gitbook:restore`: an archive written by `gitbook:archive` answers the
+ * same four questions, so restoring is this action with its source swapped
+ * rather than a second import with its own bugs. Everything below — the tree
+ * clamp, title matching, re-shaping a flat import, `--dated`'s deletions — is
+ * decided from the answers and never asks where they came from.
+ *
  * There is deliberately no wrapping transaction: the work is dozens-to-hundreds
  * of HTTP requests, and a half-finished import that can simply be re-run is
  * worth far more than one that rolls back an hour of downloads because page 180
@@ -62,7 +69,7 @@ use Illuminate\Support\Str;
 class ImportGitbookSpace
 {
     public function __construct(
-        private readonly GitbookClient $client,
+        private readonly GitbookSource $client,
         private readonly GitbookMarkdownNormalizer $normalizer,
         private readonly GitbookAssetImporter $assets,
         private readonly DocumentationPageService $pages,

@@ -46,7 +46,7 @@ use Throwable;
  *   a 404 against our `files.show`, resolved with an id from another system.
  *   All 20 references in the first space imported for real were this shape, and
  *   the import cheerfully reported "0 assets re-hosted". They are resolved
- *   through the space's file list (`GitbookClient::files()`), which is the only
+ *   through the space's file list (`GitbookSource::files()`), which is the only
  *   place the real download URL exists.
  *
  * A `/files/{digits}` reference is left alone: that is one of ours, from a
@@ -57,8 +57,8 @@ use Throwable;
  * that owns the file; a page that references an asset living in a DIFFERENT
  * space (copied/duplicated content, or a genuine cross-reference) spells out
  * the owning space's id. Resolving it needs THAT space's own file list, not
- * this one's — `foreignFile()` fetches and caches it lazily, per owning space
- * id, the first time one of its assets is actually referenced. Found for real:
+ * this one's — `GitbookAssetResolver` fetches and caches it lazily, per owning
+ * space id, the first time one of its assets is actually referenced. Found for real:
  * two references in one page, both pointing at a different, already-imported
  * space. If the foreign space itself is inaccessible (wrong id, no access),
  * that is reported the same way as any other unfetchable asset — one page's
@@ -67,6 +67,11 @@ use Throwable;
  * The download is deliberately ours rather than Spatie's `addMediaFromUrl()`:
  * that helper has no size ceiling, and a documentation space can hold a 300MB
  * video someone dropped in once.
+ *
+ * Which reference means what is `GitbookAssetReference` and where its bytes are
+ * is `GitbookAssetResolver`, both shared with `gitbook:archive` — an archive has
+ * to download precisely what a restore will look for, and two copies of those
+ * rules is how it silently stops doing that.
  */
 class GitbookAssetImporter
 {
@@ -74,17 +79,15 @@ class GitbookAssetImporter
     private array $seen = [];
 
     /**
-     * @var array<string, array<string, array{url: string, name: string}>>
-     *                                                                     Foreign space id => its file list, fetched once and reused across
-     *                                                                     every page of the CURRENT import run (this importer is one
-     *                                                                     instance per `ImportGitbookSpace::handle()` call).
+     * `GitbookAssetResolver` holds the ref-to-URL rules AND the foreign-space
+     * cache, so one instance per import run is what keeps that cache correct —
+     * which is what the container gives, since this class is resolved per
+     * `ImportGitbookSpace::handle()` call.
      */
-    private array $foreignSpaceFiles = [];
-
-    public function __construct(private readonly GitbookClient $client) {}
+    public function __construct(private readonly GitbookAssetResolver $resolver) {}
 
     /**
-     * @param  array<string, array{url: string, name: string}>  $spaceFiles  From GitbookClient::files()
+     * @param  array<string, array{url: string, name: string}>  $spaceFiles  From GitbookSource::files()
      */
     public function rehost(DocumentationPage $page, string $markdown, array $spaceFiles = []): GitbookAssetImport
     {
@@ -93,18 +96,11 @@ class GitbookAssetImporter
         $imported = 0;
 
         $rewritten = preg_replace_callback(
-            '/(<img[^>]*\ssrc=")([^"]+)(")'
-            . '|(\{%\s*file\s+src=")([^"]+)("\s*%\})'
-            . '|(<a[^>]*\shref=")((?:\/files\/|\/spaces\/[A-Za-z0-9]+\/files\/)[^"]+)(")/i',
+            GitbookAssetReference::PATTERN,
             function (array $m) use ($page, $spaceFiles, &$failed, &$imported): string {
-                [$prefix, $ref, $suffix] = match (true) {
-                    ($m[2] ?? '') !== '' => [$m[1], $m[2], $m[3]],
-                    ($m[5] ?? '') !== '' => [$m[4], $m[5], $m[6]],
-                    default              => [$m[7], $m[8], $m[9]],
-                };
+                [$prefix, $ref, $suffix] = GitbookAssetReference::parts($m);
 
-                $ref = html_entity_decode($ref, ENT_QUOTES);
-                $source = $this->source($ref, $spaceFiles);
+                $source = $this->resolver->resolve($ref, $spaceFiles);
 
                 if ($source === null) {
                     // Already ours, or something we have no way to fetch.
@@ -157,66 +153,20 @@ class GitbookAssetImporter
     }
 
     /**
-     * What to download for one reference, or null when there is nothing to do.
-     * `['url' => '']` means "this IS a GitBook asset, but the space's file list
-     * has no download URL for it" — a reportable miss, not a no-op.
-     *
-     * @param  array<string, array{url: string, name: string}>  $spaceFiles
-     * @return array{url: string, name: string}|null
-     */
-    private function source(string $ref, array $spaceFiles): ?array
-    {
-        if (Str::startsWith($ref, ['http://', 'https://'])) {
-            return ['url' => $ref, 'name' => ''];
-        }
-
-        if (preg_match('#^/files/([A-Za-z0-9_-]+)$#', $ref, $m)) {
-            // Numeric: one of ours already (a previous import of this page).
-            if (ctype_digit($m[1])) {
-                return null;
-            }
-
-            return $spaceFiles[$m[1]] ?? ['url' => '', 'name' => ''];
-        }
-
-        if (preg_match('#^/spaces/([A-Za-z0-9]+)/files/([A-Za-z0-9_-]+)$#', $ref, $m)) {
-            return $this->foreignFile($m[1], $m[2]);
-        }
-
-        // A repo-relative `.gitbook/assets/…` path or anything else we can't fetch.
-        return null;
-    }
-
-    /**
-     * Resolves one asset that lives in ANOTHER space's file list, fetching
-     * that space's list once and caching it for the rest of this import run —
-     * the same list is fetched once even if several pages/references point at
-     * that same foreign space.
-     *
-     * @return array{url: string, name: string}
-     */
-    private function foreignFile(string $foreignSpaceId, string $fileId): array
-    {
-        if (! isset($this->foreignSpaceFiles[$foreignSpaceId])) {
-            try {
-                $this->foreignSpaceFiles[$foreignSpaceId] = $this->client->files($foreignSpaceId);
-            } catch (Throwable) {
-                // Wrong id, no access, or the space is gone — the reference is
-                // simply unresolvable, not a reason to abort this page's import.
-                $this->foreignSpaceFiles[$foreignSpaceId] = [];
-            }
-        }
-
-        return $this->foreignSpaceFiles[$foreignSpaceId][$fileId] ?? ['url' => '', 'name' => ''];
-    }
-
-    /**
      * @param  string  $name  The asset's name as GitBook knows it; a CDN URL's
      *                        own basename is often signed or opaque.
      * @return int The new media's id.
      */
     private function fetch(DocumentationPage $page, string $url, string $name = ''): int
     {
+        // A restore reads bytes off the disk, never the network: an archive's
+        // file list points at the extracted copy inside it
+        // (`GitbookArchive::files()`). Checked before the URL guard below,
+        // because a filesystem path is not a URL and would fail it.
+        if ($this->isLocalFile($url)) {
+            return $this->store($page, $url, $this->fileName($name !== '' ? $name : $url, null), moving: false);
+        }
+
         // The URLs come from an authenticated GitBook response, not from user
         // input, but this is still the app asking its own network for whatever
         // a URL says — the same guard the editor's "paste image URL" path uses.
@@ -266,15 +216,40 @@ class GitbookAssetImporter
         $path = tempnam(sys_get_temp_dir(), 'gitbook-');
         file_put_contents($path, $body);
 
+        return $this->store($page, $path, $this->fileName($name ?: $url, $response->header('Content-Type')), moving: true);
+    }
+
+    /** A path that exists on this machine, as opposed to something to download. */
+    private function isLocalFile(string $url): bool
+    {
+        return $url !== ''
+            && ! Str::startsWith($url, ['http://', 'https://'])
+            && str_starts_with($url, '/')
+            && is_file($url);
+    }
+
+    /**
+     * The media write both branches end at.
+     *
+     * `$moving` says who owns the file: a downloaded temp file is ours to lose
+     * (Spatie MOVES what it is given), while a file inside an extracted archive
+     * belongs to the archive and has to survive — the next page may reference
+     * the same asset, and a restore that consumed its own backup as it went
+     * could not be run twice.
+     */
+    private function store(DocumentationPage $page, string $path, string $name, bool $moving): int
+    {
         try {
-            return $page
-                ->addMedia($path)
-                ->usingFileName($this->fileName($name ?: $url, $response->header('Content-Type')))
-                ->toMediaCollection(Documentable::DOCS_COLLECTION)
-                ->id;
+            $adder = $page->addMedia($path)->usingFileName($name);
+
+            if (! $moving) {
+                $adder->preservingOriginal();
+            }
+
+            return $adder->toMediaCollection(Documentable::DOCS_COLLECTION)->id;
         } finally {
             // addMedia() moves the file, but a failure mid-way would leave it.
-            if (is_file($path)) {
+            if ($moving && is_file($path)) {
                 unlink($path);
             }
         }

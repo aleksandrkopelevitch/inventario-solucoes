@@ -113,6 +113,60 @@ sobra. `--dated` recusa `--notebook=` (os dois nomeiam o caderno) e compõe com
 > está certo, e um chmod recursivo deixaria todo documento protegido da máquina
 > legível por qualquer um.
 
+**Backup final: um `.zip` por space, e como voltar dele.** O import escreve no
+banco, que é coisa viva que gente edita. O `gitbook:archive` escreve um
+**arquivo** — que é o que alguém ainda tem daqui a dois anos, quando os spaces
+não existirem mais, o token estiver revogado e a pergunta for o que uma página
+dizia.
+
+```bash
+php artisan gitbook:archive --all                        # um .zip por space
+php artisan gitbook:archive --space=<id> --path=/mnt/bkp # um só, noutro lugar
+php artisan gitbook:restore backup/Docs--O3Qu….zip       # volta caderno + anexos
+php artisan gitbook:restore backup/*.zip --dated         # tudo, como snapshot do dia
+```
+
+Sem `--path` os arquivos vão para `storage/app/private/gitbook-archives/`. Um
+space cujo `.zip` já existe é **pulado** (use `--force` para reescrever): são
+dezenas de spaces e centenas de downloads na API de outra gente, e poder
+re-executar depois de uma falha sem pagar de novo pelo que já deu certo é o que
+torna o comando usável.
+
+O que vai dentro do `.zip` são as **respostas do GitBook, verbatim** — o
+Markdown no dialeto deles, antes do normalizador, com as referências de anexo
+intactas — mais os bytes de cada anexo. É de propósito: o arquivo é backup *do
+GitBook*, então precisa sobreviver a este app mudar de ideia. Todo conserto que
+o normalizador já precisou foi achado contra página real, e um arquivo com o
+texto pré-normalizado nunca se beneficiaria do próximo — congelaria os bugs de
+hoje como se fossem o registro.
+
+Três coisas que valem saber:
+
+- **O `restore` é o mesmo import, com a fonte trocada.** Ele roda o
+  `ImportGitbookSpace` de sempre, só que lendo o `.zip` em vez da API — então
+  herda tudo: o corte de profundidade, `group` virando página-seção vazia,
+  casar página por título (rodar duas vezes atualiza, não duplica) e a
+  reescrita dos anexos para `/files/{id}` da **nossa** mídia. Aceita
+  `--notebook=`, `--flat`, `--dated` e `--dry-run` como o import.
+- **Não toca a rede.** Nem para os anexos: o que precisava de request para
+  virar bytes — URL absoluta de CDN, referência para arquivo de *outro* space —
+  foi resolvido na hora de arquivar, enquanto a rede ainda existia. Um arquivo
+  que só restaura enquanto a coisa que ele faz backup ainda está de pé não é
+  backup. Há um teste que restaura com `Http::preventStrayRequests()` ligado.
+- **Ele guarda anexo que ninguém cita.** O import só persegue o que a página
+  embute, e isso está certo para um import; um backup moldado pelo parser de
+  hoje, não. Achado no primeiro space arquivado de verdade: um bloco
+  `{% openapi %}`, que o normalizador converte num aviso citando o arquivo em
+  vez de renderizá-lo — o spec estava referenciado em prosa e não casava com
+  nenhum padrão de anexo. O `index.json` grava tamanho e `sha256` de cada um,
+  então dá para **conferir** o arquivo em vez de confiar nele.
+
+Uma limitação conhecida, e nada a fazer por ela: o CDN do GitBook serve imagem
+transformada (`Vary: accept`), então o mesmo anexo pode voltar com bytes
+diferentes depois que eles otimizam do lado deles — o original pré-otimização
+não é alcançável pela API documentada. O que é arquivado é o que o
+`downloadURL` devolve, que é também exatamente o que o import já guardava.
+
 ## Papéis de usuário
 
 `App\Enums\UserRole`: **viewer** (Visualizador), **writer** (Editor) e

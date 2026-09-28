@@ -1,6 +1,9 @@
 ---
 paths:
   - "app/Console/Commands/ImportGitbookCommand.php"
+  - "app/Console/Commands/ArchiveGitbookCommand.php"
+  - "app/Console/Commands/RestoreGitbookCommand.php"
+  - "app/Contracts/GitbookSource.php"
   - "app/Support/Gitbook/**"
   - "app/Support/GitbookRenderer.php"
   - "app/Http/Controllers/MediaController.php"
@@ -62,6 +65,65 @@ Four things it is easy to get wrong:
 Verified against the live API 2026-09-02 (`Integrações Cobmais`, 7 pages, 4
 assets): first run created the dated caderno, a stray page plus its subpage
 added by hand were removed on the second run the same day and reported as 2.
+
+### The archive: a `.zip` per space, and why a restore is not a second import
+
+`gitbook:archive` writes one self-contained `.zip` per space and
+`gitbook:restore` reads it back with no network at all. It exists because the
+import writes into a database people edit, and the thing somebody needs in two
+years — when the spaces are gone and the token is revoked — is a FILE.
+
+**`GitbookSource` is the whole design.** The import asks exactly four questions
+(space title, page tree, one page's Markdown, the file list), so that list
+became an interface with two implementations: `GitbookClient` (live) and
+`GitbookArchive` (a zip). `gitbook:restore` rebinds the container and resolves
+the ordinary `ImportGitbookSpace`. So a restore inherits every hard-won
+behaviour above — the `MAX_DEPTH` clamp, `group` → empty section page, matching
+by title so a re-run updates instead of duplicating, the `/files/{id}` rewrite —
+rather than being a second import that drifts from the first. A behaviour that
+existed in one and not the other would be a bug in both, and the day the archive
+matters is the day nobody can compare them against the source.
+
+Four decisions worth keeping:
+
+- **It stores GitBook's answers verbatim, not this app's reading of them.** The
+  Markdown inside is the raw dialect, pre-normalizer. The archive is a backup of
+  GITBOOK, so it has to survive this app changing its mind; every normalizer fix
+  was found against a real page, and an archive of pre-normalized text could
+  never benefit from the next one — it would freeze today's bugs as the record.
+  The ONE exception is `assets/index.json`, resolved at archive time on purpose:
+  an absolute CDN URL and a cross-space `/spaces/{other}/files/{id}` both need a
+  request to become bytes, and an archive that only restores while the source is
+  still up is not a backup. A test asserts the restore under
+  `Http::preventStrayRequests()`.
+- **It archives files NOBODY references.** The import chases only what a page
+  embeds, which is right for an import and wrong for a backup: that is a backup
+  shaped by today's parser. Found on the first real archive — a `{% openapi %}`
+  block, which the normalizer deliberately down-converts to a callout naming the
+  file rather than rendering it, so the spec was cited in prose and matched no
+  asset pattern. Its bytes were about to be lost for the exact reason this
+  command exists. The sweep is `collect('/files/' . $id)` over the whole file
+  list, and `assets_referenced` in the manifest keeps the two numbers apart.
+- **Dedupe is keyed on ATTEMPT, not on success.** The unreferenced sweep
+  re-visits everything the page walk touched, so recording only what worked
+  downloaded a failing asset twice and reported it twice.
+- **A format version it does not know is REFUSED, not half-read.** The half that
+  came across would look like a complete restore, which is the one thing a
+  backup must never do.
+
+Two facts about the corpus that are easy to misread as bugs:
+
+- **GitBook's CDN serves a transformed image** (`Vary: accept`). The same asset
+  legitimately comes back with different bytes once they optimise it on their
+  side — measured: 255,533 → 141,551 for one PNG between two runs minutes apart,
+  identical across every `Accept` afterwards. The pre-optimisation original is
+  not reachable through the documented API, so what is archived is what
+  `downloadURL` returns, which is also exactly what the import already stored.
+  `index.json` records each asset's `bytes` and `sha256` so a re-archive can say
+  what changed and a restore can be CHECKED rather than trusted.
+- **An existing archive is skipped unless `--force`.** Dozens of spaces and
+  hundreds of downloads over somebody else's API — re-running after a failure
+  must not pay again for what already worked.
 
 ### In production it MUST run as `www-data` — root breaks the assets, silently
 
