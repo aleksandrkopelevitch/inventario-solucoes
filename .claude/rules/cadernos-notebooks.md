@@ -6,6 +6,8 @@ paths:
   - "app/Support/Documentation/PageLinks.php"
   - "app/Support/Documentation/DiagramCitation.php"
   - "app/Support/GitbookRenderer.php"
+  - "resources/js/modules/docs-markdown.js"
+  - "resources/js/modules/docs-tools/**"
   - "app/Http/Controllers/NotebookController.php"
   - "app/Http/Controllers/NotebookPageController.php"
   - "app/Http/Controllers/Concerns/EditsDocumentation.php"
@@ -128,6 +130,70 @@ Five things that follow, and each of them has a reason that is not obvious:
   that highlight rewrites the very text nodes the saved Range points at — and
   the Range has to survive a modal opening, so the link is inserted with DOM
   calls rather than `execCommand`.
+
+### A card GRID may leave the caderno; a sentence still may not
+
+`{% cards cols="3" %}` … `{% card title="…" image="/files/12" fit="cover"
+link="notebook:sap" %}`descrição`{% endcard %}` … `{% endcards %}` is the sixth
+construct of the dialect and the second one of our own. It draws a regular grid
+of product cards — a logo, a name, an optional line of description and a
+destination — which is how a landing page indexes what it links to.
+
+Four decisions in it, and three of them are about what a FAILURE costs:
+
+- **The destination is a reference, resolved per reader**, exactly like an
+  internal link: `notebook:{slug}`, `page:{slug}` (optionally `#anchor`), or an
+  address somebody typed. `page:` goes through `PageLinks::urlFor()`;
+  `notebook:` through `PageLinks::notebookUrlFor()`, which is the one address in
+  this app that leaves the caderno — and it is available to a CARD only, never
+  to prose. A card whose destination this reader has no address for renders as a
+  card with no link: the logo and the name are still documentation and only the
+  click is missing. A link that loses its href in the middle of a sentence is a
+  broken sentence, which is the failure the scoping rule above exists to
+  prevent. So the grid may be an index of the other cadernos; the paragraph
+  under it may not.
+- **Three different "no" for `notebook:`**: the magic link has no address at all
+  (its token grants one caderno), the knowledge base has one only while the
+  target is PUBLISHED, and a deleted caderno is nobody's address. The picker
+  (`notebooks.card-targets`, unscoped unlike `notebooks.link-targets`) says
+  which cadernos are unpublished rather than hiding them — unpublished is a
+  perfectly good destination while the page is being written internally.
+- **A typed address is CHECKED, not trusted.** This renderer runs with
+  `allow_unsafe_links`, so only `http(s):` and `mailto:` reach the `href`;
+  anything else is a card with no link. It is the only place in the dialect
+  where the author hands over a URL that is not built by `route()`.
+- **Nothing inside a card is rich text**, on either end of the round trip. The
+  CARD is the link, and a link inside a link is not valid HTML — so the tool
+  ships without `inlineToolbar` (the one tool here that does), and the title and
+  description are plain text the renderer escapes.
+
+Two mechanics worth knowing before touching the block:
+
+- **`{% card %}` looks self-closing and is not.** Its BODY is the description,
+  consumed the way `{% tab %}`'s is, so that text somebody wrote never has to be
+  escaped into a quoted attribute. The four attributes are read in free order
+  and an unknown `fit` falls back to the default rather than travelling on as a
+  class nothing styles.
+- **The frame is fixed and the LOGO adapts** (`fit`, per card: `contain`,
+  `cover`, `original` — see `resources/js/modules/docs-tools/cards-format.js`,
+  mirrored by `GitbookRenderer::CARD_FITS`). That is the whole point of the
+  grid: a wordmark, a small square icon and a screenshot each need a different
+  answer to the same box. `auto-rows-fr` is what makes every card the same size
+  rather than every card in a ROW — grid rows are sized independently, so one
+  two-line blurb in the first row leaves the second row shorter and the grid
+  stops reading as regular.
+
+And two traps the editor's tool had to be taught (both are the
+`data-mutation-free` rule from `.claude/rules/css-and-docs-rendering.md`, met a
+second time): **the media frame carries `data-mutation-free` and the card cannot.**
+The frame repaints for reasons that are not edits — an upload's "Enviando…", the
+outline while a file is dragged across it — and each of those marked the page
+dirty and handed it to autosave. The CARD holds the two contenteditables, and
+contenteditable typing reaches Editor.js ONLY through the MutationObserver that
+attribute filters (`addInputEvents` binds `input` for native inputs and nothing
+else), so marking the card would silently stop the page ever being saved. The
+picker's highlight therefore lives on the link button, which is mutation-free
+already, and the panel names the card it is about instead of outlining it.
 
 **There is exactly ONE kind of documentation: the page.** There used to be two —
 a page tree, and an integration's own single-page `documentation` column with

@@ -41,6 +41,16 @@ use App\Models\Notebook;
  *
  * The map is built LAZILY: most pages contain no internal link at all, and this
  * is constructed on every render.
+ *
+ * `notebookUrlFor()` is the one address that DOES leave the caderno, and it is
+ * deliberately not available to prose — only a `{% cards %}` destination
+ * resolves through it. The difference is what a failure costs. A card that
+ * cannot be addressed by this reader renders as a card with no link: the logo
+ * and the name are still there, still say what they said, and the only thing
+ * missing is a click. A LINK that loses its href in the middle of a sentence
+ * is a broken sentence, which is the failure the scoping rule above exists to
+ * prevent. So a grid of product logos may point at other cadernos; the
+ * paragraph under it still may not.
  */
 final class PageLinks
 {
@@ -52,6 +62,9 @@ final class PageLinks
 
     /** @var array<string, string>|null slug => url, null until the first lookup */
     private ?array $urls = null;
+
+    /** @var array<string, bool>|null every caderno's slug => published, null until the first lookup */
+    private ?array $notebooks = null;
 
     private function __construct(
         private readonly ?Notebook $notebook,
@@ -99,6 +112,49 @@ final class PageLinks
         $this->urls ??= $this->build();
 
         return $this->urls[$slug] ?? null;
+    }
+
+    /**
+     * The URL for ANOTHER caderno, or null when this reader has no address for
+     * it — see the note at the top of this class for why null is a legitimate
+     * answer here and is not one for a page.
+     *
+     * Three surfaces, three different "no":
+     *
+     * - **The magic link has no address at all.** Its token grants exactly one
+     *   caderno, so every other one is outside what the reader may open; a URL
+     *   pointing there would be a login screen wearing a product's logo.
+     * - **The knowledge base has one only while the target is PUBLISHED.**
+     *   `/docs/{caderno}` answers for a published caderno and nothing else, so
+     *   an unpublished destination silently becomes a card without a link the
+     *   day an admin unpublishes it — which is why the editor's picker says
+     *   out loud which cadernos are not published.
+     * - **A caderno that no longer exists** is nobody's address. Deleting one
+     *   must not damage the grid that pointed at it, the same promise
+     *   `{% diagram %}` makes for a deleted drawing.
+     */
+    public function notebookUrlFor(string $slug): ?string
+    {
+        if ($this->notebook === null || $this->surface === self::SHARED) {
+            return null;
+        }
+
+        // One query for every caderno rather than one per card: a grid is
+        // regularly nine of them, and the table is tens of rows.
+        $this->notebooks ??= Notebook::query()
+            ->get(['id', 'slug', 'published_at'])
+            ->mapWithKeys(fn (Notebook $book): array => [$book->slug => $book->isPublished()])
+            ->all();
+
+        if (! array_key_exists($slug, $this->notebooks)) {
+            return null;
+        }
+
+        if ($this->surface === self::KNOWLEDGE_BASE) {
+            return $this->notebooks[$slug] ? route('docs.notebook', $slug) : null;
+        }
+
+        return route('notebooks.show', $slug);
     }
 
     /** @return array<string, string> */

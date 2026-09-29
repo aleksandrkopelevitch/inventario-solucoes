@@ -625,12 +625,15 @@ Route::middleware(['auth', 'inventory'])->group(function () {
 
     Route::post('notebooks/{notebook}/pages', [NotebookPageController::class, 'store'])->name('notebooks.pages.store');
 
-    // Two catalogs the documentation editor reads, both static segments and so
-    // both BEFORE the {page} group below (and both reserved in
+    // Three catalogs the documentation editor reads, all static segments and so
+    // all BEFORE the {page} group below (and all reserved in
     // DocumentationPageService::RESERVED_SLUGS, or a page could take the URL):
-    // what a link inside this caderno may point at, and which pages may be
+    // what a link inside this caderno may point at, what a CARD may point at
+    // (every caderno, plus this one's pages — a card degrades to a card with no
+    // link, so it is allowed to leave the caderno), and which pages may be
     // handed to the Documentation Assistant as context.
     Route::get('notebooks/{notebook}/link-targets', [NotebookPageController::class, 'linkTargets'])->name('notebooks.link-targets');
+    Route::get('notebooks/{notebook}/card-targets', [NotebookPageController::class, 'cardTargets'])->name('notebooks.card-targets');
     Route::get('notebooks/{notebook}/context-pages', [NotebookPageController::class, 'contextPages'])->name('notebooks.context-pages');
 
     // Documentation Assistant polling — the chat carries its own target, so it

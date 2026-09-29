@@ -68,11 +68,19 @@ leftover from a copied reference bundle), delete it rather than leaving it —
 | | `App\Support\GitbookRenderer` | `App\Support\MarkdownText` |
 |---|---|---|
 | for | documentation pages, authored in the Editor.js block editor | the short free-text fields: a person's/company's `notes`, a solution's `description` and `support_operation_note` |
-| speaks | Markdown **+ GitBook notation** (`{% hint %}`, `{% tabs %}`, `{% file %}`) plus one of our own, `{% diagram slug="…" %}` | plain Markdown (GFM), nothing else |
+| speaks | Markdown **+ GitBook notation** (`{% hint %}`, `{% tabs %}`, `{% file %}`) plus two of our own, `{% diagram slug="…" %}` and `{% cards %}` | plain Markdown (GFM), nothing else |
 | raw HTML in the source | `html_input=allow` — it's how images arrive as `<figure><img src="/files/{id}">` | `html_input=strip`, plus `allow_unsafe_links=false`: a `<script>` in someone's notes must never run for the next reader |
 | single newline | a normal Markdown soft break | rendered as `<br>` (`renderer.soft_break`), because these fields were plain textareas read back with `whitespace-pre-line` and every note already in the database relies on it |
 | read side | `.html-content` + `GitbookRenderer` | `x-ui.markdown` + `.ak-rich-text` |
 | write side | Editor.js (`docs-editor.js`) | still a plain `<textarea>` — `x-ui.inline-edit type="textarea"`, which prints its own "Aceita Markdown" hint; the panel forms say the same via `x-forms.field`'s `hint` |
+
+The card grid is the one block whose look lives in CSS on BOTH sides:
+`.ak-doc-card*` in `app.css` for the reader and `.ak-card*` in
+`components/docs-editor.css` for the author, deliberately drawn the same. The
+GRID itself is still utilities written literally into `GitbookRenderer` (which
+`app.css` already lists as a `@source`), because Tailwind only ships classes it
+can see. Three fits, and they differ for real: `contain` scales a small logo UP
+to the frame, `original` never does, `cover` fills and crops.
 
 Don't merge the two without deciding which of those `html_input` contracts
 wins — and don't reach for the Editor.js editor for a small field: it's a

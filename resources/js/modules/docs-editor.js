@@ -116,7 +116,7 @@ function makeImageTool(Base) {
 
 // Editor.js and its plugins are heavy (~400 kB) and only used on this page, so
 // they're loaded on demand (separate chunk) only when an editor is on screen.
-async function loadTools({uploadUrl = '', catalogUrl = '', linkTargetsUrl = '', pageSlug = ''} = {}) {
+async function loadTools({uploadUrl = '', catalogUrl = '', linkTargetsUrl = '', cardTargetsUrl = '', pageSlug = ''} = {}) {
     const [
         {default: EditorJS},
         {default: Header},
@@ -132,6 +132,7 @@ async function loadTools({uploadUrl = '', catalogUrl = '', linkTargetsUrl = '', 
         {default: Embed},
         {default: HintTool},
         {default: DiagramTool},
+        {default: CardsTool},
         {default: SecretInlineTool},
         {default: DocsLinkTool},
         {default: TabsTool},
@@ -151,6 +152,7 @@ async function loadTools({uploadUrl = '', catalogUrl = '', linkTargetsUrl = '', 
         import('@editorjs/embed'),
         import('./docs-tools/hint'),
         import('./docs-tools/diagram'),
+        import('./docs-tools/cards'),
         import('./docs-tools/secret'),
         import('./docs-tools/link'),
         import('./docs-tools/tabs'),
@@ -233,6 +235,12 @@ async function loadTools({uploadUrl = '', catalogUrl = '', linkTargetsUrl = '', 
         // unreachable in the one place a callout most needs them.
         hint: {class: HintTool, inlineToolbar: true},
         diagram: {class: DiagramTool, config: {catalogUrl}},
+        // No `inlineToolbar`, deliberately, and it is the one tool here that
+        // wants none: the whole card is a link, and a link inside a link is not
+        // valid HTML — so a toolbar whose first offer is "Link" would be an
+        // invitation to write markup the renderer has to throw away. Title and
+        // description are plain text on both ends (see docs-tools/cards.js).
+        cards: {class: CardsTool, config: {uploadUrl, cardTargetsUrl}},
         tabs: {class: TabsTool, config: {EditorJS, getTools: buildTools, wire, onChange: markDirty, uploadUrl, i18n: EDITOR_I18N}},
         inlineCode: {class: InlineCode},
         marker: {class: Marker},

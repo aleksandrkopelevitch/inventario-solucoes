@@ -29,12 +29,20 @@
              CURRENT page is linked as a plain `#anchor`, everything else as
              `page:{slug}#anchor`. Both are `?? null` for a caller that renders
              this column without a caderno behind it; the tool then falls back to
-             plain URLs, which is exactly the built-in behaviour. --}}
+             plain URLs, which is exactly the built-in behaviour.
+
+             `cardTargetsUrl` is the same idea for the Cards block's destination
+             picker, with one difference: it offers every CADERNO as well as
+             this one's pages. A card that a given reader has no address for
+             degrades to a card with no link, so it is allowed to leave the
+             caderno where a sentence is not — see
+             App\Support\Documentation\PageLinks::notebookUrlFor(). --}}
         <div class="ak-docs-editor" data-ak-docs-editor
             data-config="{{ json_encode([
                 'uploadUrl'      => $uploadUrl,
                 'catalogUrl'     => route('diagrams.catalog'),
                 'linkTargetsUrl' => isset($notebook) ? route('notebooks.link-targets', $notebook) : null,
+                'cardTargetsUrl' => isset($notebook) ? route('notebooks.card-targets', $notebook) : null,
                 'pageSlug'       => $titlePage->slug ?? null,
             ]) }}"></div>
 
@@ -48,7 +56,7 @@
 
         <p class="mt-6 text-xs text-muted">
             Dica: digite <kbd class="rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-[11px]">/</kbd>
-            no início de um bloco para inserir títulos, listas, tabelas, hints, abas, imagens e arquivos —
+            no início de um bloco para inserir títulos, listas, tabelas, hints, abas, cards, imagens e arquivos —
             ou use Markdown direto (<code>## </code>, <code>- </code>, <code>> </code>, <code>```</code>).
         </p>
     @else
