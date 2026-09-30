@@ -269,6 +269,59 @@ class NotebookPageController extends Controller
     }
 
     /**
+     * Everything a CARD in a `{% cards %}` grid may point at: every caderno,
+     * plus this one's pages.
+     *
+     * The caderno half is deliberately NOT scoped the way `linkTargets()` above
+     * is, and the reason is what a failure costs on each side. A link that
+     * loses its destination in the middle of a sentence is a broken sentence,
+     * which is why prose may only address this caderno. A CARD that cannot be
+     * addressed by a given reader renders as a card with no link — the logo and
+     * the name are still there, and only the click is missing — so a grid of
+     * product logos is allowed to be what it obviously wants to be: an index of
+     * the other cadernos. See App\Support\Documentation\PageLinks::notebookUrlFor().
+     *
+     * `published` rides along because it is the difference between a
+     * destination that works for everybody and one that works only inside the
+     * app: `/docs/{caderno}` answers for a published caderno and nothing else.
+     * The picker says so rather than hiding the caderno — an unpublished one is
+     * a perfectly good destination while the page is being written internally.
+     *
+     * `update` on the caderno in the URL, like `linkTargets()`: this is an
+     * editing affordance, and a reader who cannot edit never gets an editor to
+     * open it from.
+     */
+    public function cardTargets(Notebook $notebook, DocumentationSearchService $search): JsonResponse
+    {
+        $this->authorize('update', $notebook);
+
+        $notebooks = Notebook::query()
+            ->orderBy('name')
+            ->get(['id', 'name', 'slug', 'published_at'])
+            ->map(fn (Notebook $book): array => [
+                'slug'      => $book->slug,
+                'name'      => $book->name,
+                'published' => $book->isPublished(),
+            ])
+            ->all();
+
+        return response()->json([
+            'notebooks' => $notebooks,
+            // A READING of the link catalog, headings included and unused: it
+            // answers from the same content-hashed cache the link picker warms,
+            // so asking for a second, slimmer shape would cost a query to save
+            // a few bytes over a connection that already has them.
+            'pages' => collect($search->linkTargets($notebook))
+                ->map(fn (array $page): array => [
+                    'slug'  => $page['slug'],
+                    'title' => $page['title'],
+                    'trail' => $page['trail'],
+                ])
+                ->all(),
+        ]);
+    }
+
+    /**
      * The pages a person may hand to the Documentation Assistant as context,
      * grouped by caderno with the current one first.
      *

@@ -162,18 +162,19 @@ class DocumentationChatPromptBuilder
         - O bloco de rascunho substitui APENAS a página atual ("CONTEÚDO ATUAL
           DA PÁGINA"). Nunca devolva o conteúdo de uma página de contexto dentro
           dele.
-        - Trechos escritos como [imagem], [arquivo], [diagrama] ou
-          [vídeo/embed] numa página de contexto são blocos que foram retirados
-          do texto que você recebeu. Não tente reconstruí-los.
+        - Trechos escritos como [imagem], [arquivo], [diagrama],
+          [vídeo/embed] ou [grade de cards] numa página de contexto são blocos
+          que foram retirados do texto que você recebeu. Não tente
+          reconstruí-los.
         - Uma página de contexto de OUTRO caderno não pode ser linkada:
           `page:slug` só resolve dentro do caderno desta página. Cite-a pelo
           nome, sem link.
 
         PROIBIDO no bloco de rascunho:
-        - Não CRIE imagens, `<figure>`, `<img>`, `{% file %}`, `{% embed %}` nem
-          `{% diagram %}`, e não invente caminhos `/files/{id}`: esses blocos
-          dependem de um id de arquivo ou de um slug de diagrama que só o
-          aplicativo conhece. Se o usuário pedir uma imagem nova, explique na
+        - Não CRIE imagens, `<figure>`, `<img>`, `{% file %}`, `{% embed %}`,
+          `{% diagram %}` nem `{% cards %}`, e não invente caminhos
+          `/files/{id}`: esses blocos dependem de um id de arquivo, de um slug
+          de diagrama ou de um slug de caderno que só o aplicativo conhece. Se o usuário pedir uma imagem nova, explique na
           resposta conversacional que ela é inserida pelo editor — não escreva
           um bloco novo no rascunho.
         - Não escreva um [[BLOCK-n]] que não esteja na lista que você recebeu.

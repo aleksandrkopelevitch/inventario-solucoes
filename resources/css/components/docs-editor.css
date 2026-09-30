@@ -630,3 +630,337 @@
     min-width: 20rem;
     max-width: 80vw;
 }
+
+/* ── Cards (editor) ───────────────────────────────────────────────────
+   The "Grade de cards" block (docs-tools/cards.js), drawn as close to what
+   GitbookRenderer will paint as an editable version can be: the same fixed
+   frame, the same three fits, the same grid. An author picking "Preencher"
+   for a logo that bleeds off its edges has to SEE that, not be told about it.
+   ──────────────────────────────────────────────────────────────────── */
+.ak-cards {
+    margin: 0.5rem 0;
+}
+.ak-cards__grid {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    /* Every card the same size, not every card in a ROW: grid rows are sized
+       independently, so one two-line description makes its whole row taller. */
+    grid-auto-rows: 1fr;
+    gap: 0.75rem;
+    align-items: stretch;
+}
+@media (min-width: 640px) {
+    .ak-cards__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* The author's own count, from `lg` — the same ladder the reader gets. */
+@media (min-width: 1024px) {
+    .ak-cards[data-cols='3'] .ak-cards__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .ak-cards[data-cols='4'] .ak-cards__grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+.ak-card {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card, 14px);
+    background: var(--color-surface);
+}
+.ak-card__media {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    padding: 1rem;
+    border-bottom: 1px solid var(--color-line);
+    background: #ffffff;
+    cursor: pointer;
+}
+.ak-card__media.is-dropping {
+    outline: 2px dashed var(--color-accent);
+    outline-offset: -4px;
+}
+.ak-card__media-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+.ak-card__media img {
+    display: block;
+}
+.ak-card__media[data-fit='contain'] img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+.ak-card__media[data-fit='cover'] {
+    padding: 0;
+}
+.ak-card__media[data-fit='cover'] img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.ak-card__media[data-fit='original'] img {
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
+}
+.ak-card__placeholder {
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.7rem;
+    color: var(--color-faint);
+}
+.ak-card__placeholder-icon {
+    width: 1.5rem;
+    height: 1.5rem;
+}
+.ak-card__media-remove {
+    position: absolute;
+    top: 0.3rem;
+    right: 0.3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--color-ink) 45%, transparent);
+    color: #ffffff;
+    font-size: 0.9rem;
+    line-height: 1;
+    opacity: 0;
+    transition: opacity 0.12s;
+}
+.ak-card__media:hover .ak-card__media-remove {
+    opacity: 1;
+}
+.ak-card__body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.6rem 0.75rem;
+}
+.ak-card__title {
+    outline: none;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-ink);
+}
+.ak-card__desc {
+    outline: none;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--color-muted);
+}
+.ak-card__title:empty::before,
+.ak-card__desc:empty::before {
+    content: attr(data-placeholder);
+    color: var(--color-faint);
+    font-weight: 400;
+}
+.ak-card__foot {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.35rem 0.5rem 0.5rem;
+    border-top: 1px dashed var(--color-line);
+}
+.ak-card__grip {
+    cursor: grab;
+    color: var(--color-faint);
+    font-size: 0.7rem;
+    line-height: 1;
+    user-select: none;
+}
+.ak-card__grip:active {
+    cursor: grabbing;
+}
+.ak-card__fit {
+    flex-shrink: 0;
+    padding: 0.1rem 0.2rem;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    font-size: 0.7rem;
+    color: var(--color-muted);
+    cursor: pointer;
+}
+.ak-card__fit:hover {
+    color: var(--color-ink);
+    background: var(--color-raised);
+}
+.ak-card__link {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    min-width: 0;
+    flex: 1 1 auto;
+    padding: 0.1rem 0.25rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    color: var(--color-accent);
+}
+.ak-card__link.is-empty {
+    color: var(--color-faint);
+}
+.ak-card__link:hover,
+.ak-card__link.is-open {
+    background: var(--color-accent-soft, #eaf2ec);
+}
+.ak-card__link.is-open {
+    box-shadow: inset 0 0 0 1px var(--color-accent);
+    color: var(--color-accent);
+}
+.ak-card__link-icon {
+    width: 0.85rem;
+    height: 0.85rem;
+    flex-shrink: 0;
+}
+.ak-card__link-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ak-card__remove {
+    flex-shrink: 0;
+    width: 1.15rem;
+    height: 1.15rem;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    line-height: 1;
+    color: var(--color-faint);
+}
+.ak-card__remove:hover {
+    background: color-mix(in srgb, var(--ak-docs-red) 12%, transparent);
+    color: var(--ak-docs-red);
+}
+/* A ghost card in the next cell, rather than a button under the grid: the
+   grid is what the block IS, and the place a new card goes is inside it. */
+.ak-cards__add {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    min-height: 6rem;
+    border: 1px dashed var(--color-line-2);
+    border-radius: var(--radius-card, 14px);
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--color-muted);
+}
+.ak-cards__add:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+    background: var(--color-accent-soft, #eaf2ec);
+}
+.ak-cards__picker {
+    margin-top: 0.5rem;
+    padding: 0.6rem;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-field, 8px);
+    background: var(--color-canvas);
+}
+.ak-cards__picker-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-ink);
+}
+.ak-cards__picker-close {
+    width: 1.15rem;
+    height: 1.15rem;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    line-height: 1;
+    color: var(--color-muted);
+}
+.ak-cards__picker-typed {
+    display: flex;
+    gap: 0.35rem;
+    align-items: stretch;
+}
+.ak-cards__picker-use {
+    flex-shrink: 0;
+    margin-top: 0.4rem;
+    padding: 0.3rem 0.6rem;
+    border: 1px solid var(--color-line-2);
+    border-radius: var(--radius-field, 8px);
+    background: var(--color-surface);
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--color-ink);
+}
+.ak-cards__picker-use:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+.ak-cards__picker-url,
+.ak-cards__picker-filter {
+    width: 100%;
+    margin-top: 0.4rem;
+    padding: 0.3rem 0.5rem;
+    border: 1px solid var(--color-line-2);
+    border-radius: var(--radius-field, 8px);
+    font-size: 0.75rem;
+    background: var(--color-surface);
+}
+.ak-cards__picker-clear {
+    margin-top: 0.35rem;
+    font-size: 0.7rem;
+    color: var(--color-muted);
+    text-decoration: underline;
+}
+.ak-cards__picker-list {
+    max-height: 14rem;
+    margin-top: 0.4rem;
+    overflow-y: auto;
+    font-size: 0.75rem;
+    color: var(--color-muted);
+}
+.ak-cards__picker-heading {
+    padding: 0.35rem 0.25rem 0.15rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-faint);
+}
+.ak-cards__picker-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    width: 100%;
+    padding: 0.25rem 0.35rem;
+    border-radius: 4px;
+    text-align: left;
+    color: var(--color-body);
+}
+.ak-cards__picker-row:hover {
+    background: var(--color-raised);
+    color: var(--color-ink);
+}
+.ak-cards__picker-label {
+    flex: 0 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+}
+.ak-cards__picker-hint {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.68rem;
+    color: var(--color-faint);
+}

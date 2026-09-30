@@ -31,6 +31,8 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  *       → tabs using the data-ak-tabs contract (resources/js/modules/tabs.js)
  *   {% file src="/files/{id}" %}
  *       → download card pointing to the authenticated files.show route
+ *   {% cards cols="3" %}{% card title="…" image="…" fit="…" link="…" %} … {% endcard %} … {% endcards %}
+ *       → a regular grid of product cards (ours) — see renderCards()
  *   {% secret %} … {% endsecret %}   (inline, ours)
  *       → a lock the value is NOT inside — see App\Support\Documentation\SecretText
  *
@@ -276,6 +278,14 @@ class GitbookRenderer
                 continue;
             }
 
+            if (preg_match('/^\{%\s*cards\b\s*(.*?)\s*%\}$/', $trimmed, $m)) {
+                $flush();
+                [$inner, $i] = $this->consumeUntil($lines, $i + 1, 'cards');
+                $html .= $this->renderCards($this->parseAttrs($m[1]), $inner);
+
+                continue;
+            }
+
             if (preg_match('/^\{%\s*file\s+src="([^"]*)"\s*%\}$/', $trimmed, $m)) {
                 $flush();
                 $html .= $this->renderFile($m[1]);
@@ -506,6 +516,177 @@ class GitbookRenderer
                 : '')
             . '</figcaption>'
             . '</figure>';
+    }
+
+    /**
+     * How many cards share a row, as the literal classes Tailwind can see.
+     *
+     * The ladder is the same in every case and it is the point of the block:
+     * one column on a phone, two from `sm`, and the author's count from `lg`.
+     * A grid whose cards reflow to four across on a narrow screen is not a
+     * regular grid any more, and the reading column is 3xl wide at most — so
+     * `lg` (the viewport, not the column) is where a third card fits.
+     *
+     * Mirrored by CARD_COLUMNS in resources/js/modules/docs-tools/cards-format.js.
+     */
+    private const CARD_COLUMNS = [
+        2 => 'sm:grid-cols-2',
+        3 => 'sm:grid-cols-2 lg:grid-cols-3',
+        4 => 'sm:grid-cols-2 lg:grid-cols-4',
+    ];
+
+    private const DEFAULT_CARD_COLUMNS = 3;
+
+    /** How a logo sits in the frame — see cards-format.js for what each means. */
+    private const CARD_FITS = ['contain', 'cover', 'original'];
+
+    private const DEFAULT_CARD_FIT = 'contain';
+
+    /**
+     * A regular grid of product cards: a logo, a name, an optional line of
+     * description and a destination.
+     *
+     * Every card in a grid is the same size — that is what makes it a grid —
+     * so the frame around the logo is fixed and it is the LOGO that adapts
+     * (`fit`, per card): a wordmark, a small square icon and a screenshot each
+     * need a different answer to the same box.
+     *
+     * @param  array<string, string>  $attrs
+     * @param  array<int, string>  $lines
+     */
+    private function renderCards(array $attrs, array $lines): string
+    {
+        $cards = [];
+        $i = 0;
+        $n = count($lines);
+
+        while ($i < $n) {
+            // `{% card %}` looks self-closing and is not: its body is the
+            // card's description, so it is consumed the way a tab is.
+            if (preg_match('/^\{%\s*card(?:\s+(.*?))?\s*%\}$/', trim($lines[$i]), $m)) {
+                [$inner, $i] = $this->consumeUntil($lines, $i + 1, 'card');
+                $cards[] = [$this->parseAttrs($m[1] ?? ''), $inner];
+
+                continue;
+            }
+            $i++;
+        }
+
+        if ($cards === []) {
+            return '';
+        }
+
+        $columns = self::CARD_COLUMNS[(int) ($attrs['cols'] ?? self::DEFAULT_CARD_COLUMNS)]
+            ?? self::CARD_COLUMNS[self::DEFAULT_CARD_COLUMNS];
+
+        $html = '';
+        foreach ($cards as [$cardAttrs, $body]) {
+            $html .= $this->renderCard($cardAttrs, $body);
+        }
+
+        // `auto-rows-fr` is what makes every card the same size rather than
+        // every card in a ROW the same size: grid rows are sized independently,
+        // so a two-line blurb in the first row left the second row 20px
+        // shorter and the grid stopped reading as regular.
+        return '<div class="ak-doc-cards my-6 grid auto-rows-fr grid-cols-1 gap-4 ' . $columns . '">' . $html . '</div>';
+    }
+
+    /**
+     * One card.
+     *
+     * Nothing inside it is a link, because the CARD is the link and a link
+     * inside a link is not valid HTML — which is also why the title and the
+     * description are plain text on both ends of the round trip rather than
+     * inline Markdown.
+     *
+     * A destination this reader has no address for (another caderno on a magic
+     * link, an unpublished one in `/docs`, a deleted one anywhere) turns the
+     * card into a `<div>` instead of dropping it: the logo and the name are
+     * documentation, the click is an affordance — the same call
+     * `renderDiagram()` makes for a drawing with no picture.
+     *
+     * @param  array<string, string>  $attrs
+     * @param  array<int, string>  $body
+     */
+    private function renderCard(array $attrs, array $body): string
+    {
+        $decode = fn (string $key): string => html_entity_decode($attrs[$key] ?? '', ENT_QUOTES);
+
+        $title = trim($decode('title'));
+        $image = trim($decode('image'));
+        $fit = in_array($attrs['fit'] ?? '', self::CARD_FITS, true) ? $attrs['fit'] : self::DEFAULT_CARD_FIT;
+
+        // One line, whatever the notation was wrapped to: a card blurb sits in
+        // a fixed box beside its neighbours, and a paragraph break inside one
+        // would make that box a different height from the one next to it.
+        $text = trim(implode(' ', array_map('trim', $body)));
+
+        $url = $this->cardUrl(trim($decode('link')));
+
+        $media = $image === ''
+            ? ''
+            : '<span class="ak-doc-card__media" data-fit="' . $fit . '">'
+                . '<img src="' . e($image) . '" alt="" loading="lazy">'
+                . '</span>';
+
+        $content = $media
+            . '<span class="ak-doc-card__body">'
+            . ($title !== '' ? '<span class="ak-doc-card__title">' . e($title) . '</span>' : '')
+            . ($text !== '' ? '<span class="ak-doc-card__text">' . e($text) . '</span>' : '')
+            . '</span>';
+
+        if ($url === null) {
+            return '<div class="ak-doc-card">' . $content . '</div>';
+        }
+
+        // An address outside the app opens in a new tab, for the reason the
+        // "Abrir diagrama" button does: losing the page you were reading is the
+        // one thing a card in the middle of a document must not do.
+        $external = ! str_starts_with($url, '/') && ! str_starts_with($url, url('/'));
+
+        return '<a class="ak-doc-card" href="' . e($url) . '"'
+            . ($external ? ' target="_blank" rel="noopener"' : '')
+            . '>' . $content . '</a>';
+    }
+
+    /**
+     * Where a card's destination points for THIS reader, or null when it points
+     * nowhere they can go.
+     *
+     * Three forms, and the first two are references rather than URLs for the
+     * reason App\Support\Documentation\PageLinks exists: the same caderno and
+     * the same page have a different address in the editor, in `/docs` and on a
+     * magic link, so an address written into the Markdown would be correct for
+     * exactly one audience.
+     *
+     * The third is whatever somebody typed, and it is checked here rather than
+     * trusted: this renderer runs with `allow_unsafe_links`, so a `javascript:`
+     * destination that reached the `href` would be a stored XSS with a product
+     * logo on it. Only http(s) and mailto survive; anything else renders as a
+     * card with no link, which is exactly what a destination nobody can follow
+     * is.
+     */
+    private function cardUrl(string $link): ?string
+    {
+        if ($link === '') {
+            return null;
+        }
+
+        if (str_starts_with($link, 'notebook:')) {
+            return $this->pageLinks->notebookUrlFor(substr($link, strlen('notebook:')));
+        }
+
+        if (str_starts_with($link, 'page:')) {
+            // The fragment is the reader's business, not the resolver's — it is
+            // a heading anchor inside the target page, and the same one
+            // whichever URL that page happens to have.
+            [$slug, $fragment] = array_pad(explode('#', substr($link, strlen('page:')), 2), 2, '');
+            $url = $this->pageLinks->urlFor(rawurldecode($slug));
+
+            return $url === null ? null : $url . ($fragment !== '' ? '#' . $fragment : '');
+        }
+
+        return preg_match('#^(https?://|mailto:)#i', $link) === 1 ? $link : null;
     }
 
     private function renderFile(string $src): string

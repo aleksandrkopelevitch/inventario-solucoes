@@ -94,8 +94,8 @@ deleted people's work.
 
 `App\Support\Documentation\BlockVault` freezes the blocks the model may
 neither write nor lose — `<figure>`/`<img>`, `{% file %}`, `{% embed %}`,
-`{% diagram %}` — as `[[BLOCK-n]]` markers. The system prompt used to ban that
-syntax outright ("não use imagens, `<figure>`, `<img>`, `{% file %}` nem
+`{% diagram %}`, `{% cards %}` — as `[[BLOCK-n]]` markers. The system prompt used
+to ban that syntax outright ("não use imagens, `<figure>`, `<img>`, `{% file %}` nem
 `{% embed %}`") while also demanding the COMPLETE page back in the draft. On any
 page with an image those two rules contradict each other, and the model resolved
 it the only way it could: by deleting the figure that was already there, while
@@ -107,12 +107,17 @@ of these blocks — a `/files/{id}` needs a media id only the upload knows, a
 showing it the syntax, not for telling it to leave the syntax out of a document
 that already contains it.
 
-Four things to keep:
+Five things to keep:
 
 - **PATTERNS order is load-bearing.** A `<figure>` contains an `<img>`, so the
   figure is captured first, and `capture()` walks a copy in which every
   captured block is already a marker — that is what stops the image inside a
   figure being frozen on its own.
+- **`{% cards %}` is the only MULTI-LINE construct in there, and it is frozen
+  whole.** Every logo in a grid is a `/files/{id}` only an upload knows and
+  every destination a `notebook:`/`page:` slug only the picker does, so the
+  trade is the right way round: the model loses the ability to reword one
+  card's blurb and gains no opportunity to invent four attributes.
 - **A dropped block is COUNTED, never re-inserted.** A marker the model deleted
   has no position left to restore it to, and guessing one would rewrite
   somebody's page. `droppedNotice()` appends a PT-BR warning to the

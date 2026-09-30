@@ -6,7 +6,7 @@
 // menu (block tunes), inline toolbar and each tool's menus (image, table,
 // list, file) — shows up in Portuguese.
 //
-// Strings from OUR OWN tools (Hint, Tabs) are already authored in PT-BR in
+// Strings from OUR OWN tools (Hint, Tabs, Cards) are already authored in PT-BR in
 // the tool itself; here we only translate what ships in English from
 // third-party packages and the core. The English keys on the left are the
 // source strings Editor.js uses as the translation identifier — don't invent
@@ -62,6 +62,10 @@ export const EDITOR_I18N = {
             InlineCode: 'Código em linha',
             Tabs: 'Abas',
             Hint: 'Aviso',
+            // Our own tool. Named for the SHAPE rather than for the card, so
+            // it is found by typing either "card" or "grade" in the toolbox
+            // filter — what somebody reaches for is the grid of logos.
+            Cards: 'Grade de cards',
             // Already PT-BR in the tool itself (SecretInlineTool::title), so
             // this entry is here only to keep the list complete: Editor.js
             // looks every inline tool's name up by its own string.

@@ -4,10 +4,10 @@ namespace App\Support\Documentation;
 
 /**
  * Freezes the blocks the Documentation Assistant may neither write nor lose:
- * images, file cards, embeds and diagram citations.
+ * images, file cards, embeds, diagram citations and card grids.
  *
  * A reply rewrites the WHOLE page (the 4-backtick draft block), so everything
- * the model is not handed back comes out deleted. These five constructs are the
+ * the model is not handed back comes out deleted. These constructs are the
  * ones it cannot author correctly — `<figure><img src="/files/12">` needs a
  * media id only the upload knows, `{% diagram slug="…" %}` a slug from the
  * catalog — and the system prompt used to say so as a flat ban: "não use
@@ -48,6 +48,13 @@ final class BlockVault
      * enough (the `<img>` pattern cannot see inside a figure that is no longer
      * there).
      *
+     * `cards` is the one MULTI-LINE construct here, and it is frozen whole for
+     * the same reason: every logo in it is a `/files/{id}` only an upload
+     * knows, and every destination a `notebook:`/`page:` slug only the picker
+     * does. Freezing the grid costs the model the ability to reword a card's
+     * blurb, which is the right trade against handing it four attributes it
+     * would be delighted to invent.
+     *
      * @var array<int, array{0: string, 1: string}> [label, pattern]
      */
     private const PATTERNS = [
@@ -56,6 +63,7 @@ final class BlockVault
         ['arquivo', '/\{%\s*file\b[^%]*%\}/i'],
         ['vídeo/embed', '/\{%\s*embed\b[^%]*%\}/i'],
         ['diagrama', '/\{%\s*diagram\b[^%]*%\}/i'],
+        ['grade de cards', '/\{%\s*cards\b.*?\{%\s*endcards\s*%\}/is'],
     ];
 
     /** @var array<string, string> marker => block */
@@ -67,7 +75,7 @@ final class BlockVault
     private int $dropped = 0;
 
     /**
-     * The same five constructs, REMOVED from a text rather than frozen in it.
+     * The same constructs, REMOVED from a text rather than frozen in it.
      *
      * For context that is read but never rewritten: another documentation page
      * handed to the assistant as reference (`ContextPageResolver`). Freezing
@@ -191,9 +199,9 @@ final class BlockVault
         }
 
         return $this->dropped === 1
-            ? '⚠️ Atenção: o rascunho não inclui 1 bloco que está na página (imagem, arquivo ou diagrama). '
+            ? '⚠️ Atenção: o rascunho não inclui 1 bloco que está na página (imagem, arquivo, diagrama ou grade de cards). '
                 . 'Se você não pediu essa remoção, revise o rascunho antes de aplicar.'
-            : "⚠️ Atenção: o rascunho não inclui {$this->dropped} blocos que estão na página (imagens, arquivos ou diagramas). "
+            : "⚠️ Atenção: o rascunho não inclui {$this->dropped} blocos que estão na página (imagens, arquivos, diagramas ou grades de cards). "
                 . 'Se você não pediu essa remoção, revise o rascunho antes de aplicar.';
     }
 

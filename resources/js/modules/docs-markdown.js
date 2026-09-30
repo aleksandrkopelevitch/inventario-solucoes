@@ -7,8 +7,8 @@
 // Native in Markdown: header, paragraph, list (ordered/unordered/checklist),
 // quote, code, delimiter, table, image (<figure>). With no native Markdown,
 // through GitBook notation: hint ({% hint %}), tabs ({% tabs %}), file
-// ({% file %}) and diagram ({% diagram %} — a citation of a catalog drawing,
-// ours).
+// ({% file %}), diagram ({% diagram %} — a citation of a catalog drawing,
+// ours) and cards ({% cards %} — a grid of product cards, also ours).
 //
 // secret ({% secret %}…{% endsecret %}) is the only INLINE construct: it lives
 // inside a block's text rather than as a block of its own, so it is handled in
@@ -17,6 +17,12 @@
 // Media is referenced as /files/{id} (the files.show route); the image and
 // attaches blocks keep `mediaId` so that path can be rebuilt in the Markdown.
 
+import {
+    CARD_COLUMNS,
+    CARD_FITS,
+    DEFAULT_CARD_COLUMNS,
+    DEFAULT_CARD_FIT,
+} from './docs-tools/cards-format'
 import {DEFAULT_HINT_ICON} from './docs-tools/hint-icons'
 import {SECRET_CLASS} from './docs-tools/secret-class'
 
@@ -349,6 +355,8 @@ function serializeBlock(block) {
             return serializeHint(d)
         case 'tabs':
             return serializeTabs(d)
+        case 'cards':
+            return serializeCards(d)
         default:
             return null
     }
@@ -445,6 +453,45 @@ function serializeTabs(d) {
     return `{% tabs %}\n${inner}\n{% endtabs %}`
 }
 
+/**
+ * A grid of product cards. The block's own setting is how many fit on a row
+ * (`cols`); everything else belongs to one card.
+ *
+ * A card with NOTHING in it is dropped rather than written as an empty
+ * citation — the same call `diagram` makes for a block with no drawing chosen.
+ * The description is the card's BODY (like a tab's content) instead of a fifth
+ * attribute: it is text somebody wrote, so it has no business being escaped
+ * into a quoted string.
+ */
+function serializeCards(d) {
+    const cols = CARD_COLUMNS.includes(Number(d.cols)) ? Number(d.cols) : DEFAULT_CARD_COLUMNS
+
+    const inner = (d.items || [])
+        .filter((c) => c.title || c.description || c.image || c.link)
+        .map((c) => {
+            const attrs = [`title="${escapeAttr(c.title || '')}"`]
+            if (c.image) attrs.push(`image="${escapeAttr(c.image)}"`)
+            // Written only when it differs from the default, like the hint's
+            // icon: it keeps the notation legible and a card saved before the
+            // setting existed reads the same as one saved after it.
+            if (CARD_FITS.includes(c.fit) && c.fit !== DEFAULT_CARD_FIT) {
+                attrs.push(`fit="${escapeAttr(c.fit)}"`)
+            }
+            if (c.link) attrs.push(`link="${escapeAttr(c.link)}"`)
+
+            // A card with no description closes on the next line rather than
+            // around a blank one — most of a logo grid is name-only.
+            const body = (c.description || '').trim()
+
+            return `{% card ${attrs.join(' ')} %}\n${body === '' ? '' : body + '\n'}{% endcard %}`
+        })
+        .join('\n')
+
+    if (inner === '') return ''
+
+    return `{% cards cols="${cols}" %}\n${inner}\n{% endcards %}`
+}
+
 function fileSrc(file) {
     if (!file) return ''
     if (file.mediaId) return `/files/${file.mediaId}`
@@ -512,6 +559,23 @@ function parseLines(lines) {
             const [inner, next] = consumeUntil(lines, i + 1, 'tabs')
             i = next
             blocks.push({type: 'tabs', data: {items: parseTabs(inner)}})
+            continue
+        }
+
+        // cards — a grid of product cards (logo, name, description, destination)
+        m = trimmed.match(/^\{%\s*cards\b\s*(.*?)\s*%\}$/)
+        if (m) {
+            const attrs = parseAttrs(m[1])
+            const [inner, next] = consumeUntil(lines, i + 1, 'cards')
+            i = next
+            const cols = Number(attrs.cols)
+            blocks.push({
+                type: 'cards',
+                data: {
+                    cols: CARD_COLUMNS.includes(cols) ? cols : DEFAULT_CARD_COLUMNS,
+                    items: parseCards(inner),
+                },
+            })
             continue
         }
 
@@ -611,7 +675,7 @@ function startsNewBlock(line) {
     return (
         /^(#{1,6})\s+/.test(t) ||
         /^(```|~~~)/.test(t) ||
-        /^\{%\s*(hint|tabs|file|embed|diagram)/.test(t) ||
+        /^\{%\s*(hint|tabs|cards|file|embed|diagram)/.test(t) ||
         /^<figure/.test(t) ||
         /^<img\s/i.test(t) ||
         /^(\*\*\*+|---+|___+)$/.test(t) ||
@@ -650,6 +714,37 @@ function parseTabs(lines) {
         i++
     }
     return items.length ? items : [{title: 'Aba 1', blocks: []}]
+}
+
+/**
+ * The cards inside one `{% cards %}` block.
+ *
+ * `{% card %}` looks like a self-closing construct and is not: its BODY is the
+ * card's description, so it is consumed the way a tab is. The four attributes
+ * are read in free order (`parseAttrs`) and an unknown `fit` falls back to the
+ * default rather than travelling on as a class nothing styles.
+ */
+function parseCards(lines) {
+    const items = []
+    let i = 0
+    while (i < lines.length) {
+        const m = lines[i].trim().match(/^\{%\s*card(?:\s+(.*?))?\s*%\}$/)
+        if (m) {
+            const attrs = parseAttrs(m[1] || '')
+            const [inner, next] = consumeUntil(lines, i + 1, 'card')
+            i = next
+            items.push({
+                title: decodeAttr(attrs.title || ''),
+                description: inner.join('\n').trim(),
+                image: decodeAttr(attrs.image || ''),
+                fit: CARD_FITS.includes(attrs.fit) ? attrs.fit : DEFAULT_CARD_FIT,
+                link: decodeAttr(attrs.link || ''),
+            })
+            continue
+        }
+        i++
+    }
+    return items
 }
 
 function isListItem(line) {
