@@ -97,14 +97,29 @@ class Presenter
     /*  Diagrams */
     /* ------------------------------------------------------------------ */
 
-    /** @return array<string, mixed> */
+    /**
+     * `caderno` is the caderno the drawing belongs to — but only a PUBLISHED
+     * one. Documentation on this server means the published cadernos and
+     * nothing else (`PublishedNotebooks`), so naming an unpublished one here
+     * would be the one place a token learnt it exists. An unpublished owner is
+     * simply left out, the same answer as "no caderno". Read only when the
+     * caller eager-loaded it: a lazy load across a list of rows is a strict-
+     * mode exception.
+     *
+     * @return array<string, mixed>
+     */
     public function diagramSummary(Diagram $diagram): array
     {
+        $notebook = $diagram->relationLoaded('notebook') ? $diagram->notebook : null;
+
         return $this->compact([
-            'slug'   => $diagram->slug,
-            'name'   => $diagram->name,
-            'status' => $diagram->status?->label(),
-            'url'    => route('diagrams.show', $diagram),
+            'slug'    => $diagram->slug,
+            'name'    => $diagram->name,
+            'status'  => $diagram->status?->label(),
+            'caderno' => $notebook?->isPublished()
+                ? ['slug' => $notebook->slug, 'name' => $notebook->name]
+                : null,
+            'url' => route('diagrams.show', $diagram),
         ]);
     }
 

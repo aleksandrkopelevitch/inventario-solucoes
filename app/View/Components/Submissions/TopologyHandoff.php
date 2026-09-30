@@ -3,9 +3,11 @@
 namespace App\View\Components\Submissions;
 
 use App\Models\Diagram;
+use App\Models\Notebook;
 use App\Models\Submission;
 use App\View\Components\Concerns\Renderable;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Collection;
 use Illuminate\View\Component;
 
 /**
@@ -46,6 +48,18 @@ class TopologyHandoff extends Component
             'targets' => $topology?->isPending() && $this->submission->solution
                 ? $this->submission->solution->diagrams()->orderBy('name')->get(['diagrams.id', 'diagrams.name'])
                 : collect(),
+            // Where a NEW diagram goes. The cadernos that document the
+            // submission's solution are the natural home, so they are offered
+            // on their own when there are any; otherwise every caderno is.
+            'notebooks' => $topology?->isPending() ? $this->notebookOptions() : collect(),
         ]);
+    }
+
+    /** @return Collection<int, Notebook> */
+    private function notebookOptions(): Collection
+    {
+        $documenting = $this->submission->solution?->notebooks()->get(['notebooks.id', 'notebooks.name']) ?? collect();
+
+        return $documenting->isNotEmpty() ? $documenting : Notebook::query()->orderBy('name')->get(['id', 'name']);
     }
 }

@@ -15,6 +15,7 @@ use App\Http\Requests\SaveDocumentationRequest;
 use App\Http\Requests\StoreDocumentationChatMessageRequest;
 use App\Http\Requests\StoreDocumentationPageRequest;
 use App\Http\Requests\UploadDocumentationMediaRequest;
+use App\Models\Diagram;
 use App\Models\DocumentationChat;
 use App\Models\DocumentationChatMessage;
 use App\Models\DocumentationPage;
@@ -80,14 +81,21 @@ class NotebookPageController extends Controller
             'notebookEditable'  => auth()->user()?->can('update', $notebook) ?? false,
             'createPageUrl'     => route('notebooks.pages.store', $notebook),
             'chatPanelUrl'      => route('notebooks.chat.panel', [$notebook, $page]),
-            // "Desenhar esta página" — reads the page, writes a Diagram.
-            'diagramDraftUrl' => route('notebooks.pages.diagram', [$notebook, $page]),
-            // The four rendered artifacts, in the same menu — one url per
-            // type, built here so the partial holds no route of its own.
+            // "Desenhar esta página" — reads the page, writes a Diagram of this
+            // caderno. Each item opens the dialog that asks "new or over an
+            // existing one?" (`?model=` says which item); the dialog posts.
+            'diagramDraftUrl' => route('notebooks.pages.diagram.target', [$notebook, $page]),
+            // The four models, in the same menu — one url per type, built here
+            // so the partial holds no route of its own.
             'modelUrls' => array_map(fn (DiagramModel $model) => [
                 'model' => $model,
-                'url'   => route('notebooks.pages.diagram.model', [$notebook, $page, $model->value]),
+                'url'   => route('notebooks.pages.diagram.target', [$notebook, $page, 'model' => $model->value]),
             ], DiagramModel::cases()),
+            // The caderno's drawings, at the foot of the rail.
+            ...(auth()->user()?->can('viewAny', Diagram::class) ? [
+                'notebookDiagramsUrl'  => route('notebooks.diagrams.index', $notebook),
+                'notebookDiagramCount' => $notebook->diagrams()->count(),
+            ] : []),
             // Where a lock posts its code. A TEMPLATE, with the ordinal as a
             // placeholder `docs-secret.js` substitutes: the reader holds many
             // locks and the module must not build a path of its own (same rule

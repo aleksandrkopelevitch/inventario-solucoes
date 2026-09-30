@@ -156,7 +156,7 @@ it('resolves a catalog name exactly, and keeps everything else as free text', fu
     $cws = Solution::factory()->create(['name' => 'CWS']);
     Solution::factory()->create(['name' => 'SAP S/4HANA']);
 
-    $diagram = app(CreateDiagramFromDraft::class)->handle(ChainDraft::fromArray([
+    $diagram = app(CreateDiagramFromDraft::class)->handle(notebook: Notebook::factory()->create(), draft: ChainDraft::fromArray([
         'name'  => 'CWS → SAP',
         'nodes' => [
             ['id' => 'a', 'kind' => 'system', 'solution' => 'CWS'],
@@ -177,7 +177,7 @@ it('resolves a catalog name exactly, and keeps everything else as free text', fu
 it('matches a catalog name written without its accents', function () {
     $solution = Solution::factory()->create(['name' => 'Gestão de Fretes']);
 
-    $diagram = app(CreateDiagramFromDraft::class)->handle(ChainDraft::fromArray([
+    $diagram = app(CreateDiagramFromDraft::class)->handle(notebook: Notebook::factory()->create(), draft: ChainDraft::fromArray([
         'name'  => 'X',
         'nodes' => [['id' => 'a', 'kind' => 'system', 'solution' => 'gestao de fretes']],
         'edges' => [],
@@ -187,7 +187,7 @@ it('matches a catalog name written without its accents', function () {
 });
 
 it('turns the draft ids into the chain indices the canvas addresses', function () {
-    $diagram = app(CreateDiagramFromDraft::class)->handle(ChainDraft::fromArray([
+    $diagram = app(CreateDiagramFromDraft::class)->handle(notebook: Notebook::factory()->create(), draft: ChainDraft::fromArray([
         'name'  => 'Fluxo',
         'nodes' => [
             ['id' => 'inicio', 'kind' => 'start'],
@@ -212,7 +212,7 @@ it('derives the diagram participants from the drawing it just created', function
     $a = Solution::factory()->create(['name' => 'Alpha']);
     $b = Solution::factory()->create(['name' => 'Beta']);
 
-    $diagram = app(CreateDiagramFromDraft::class)->handle(ChainDraft::fromArray([
+    $diagram = app(CreateDiagramFromDraft::class)->handle(notebook: Notebook::factory()->create(), draft: ChainDraft::fromArray([
         'name'  => 'Alpha → Beta',
         'nodes' => [
             ['id' => 'a', 'kind' => 'system', 'solution' => 'Alpha'],
@@ -236,8 +236,10 @@ it('gives a second diagram of the same name an address of its own', function () 
         'edges' => [],
     ]);
 
-    $first = app(CreateDiagramFromDraft::class)->handle($draft);
-    $second = app(CreateDiagramFromDraft::class)->handle($draft);
+    $notebook = Notebook::factory()->create();
+
+    $first = app(CreateDiagramFromDraft::class)->handle($draft, $notebook);
+    $second = app(CreateDiagramFromDraft::class)->handle($draft, $notebook);
 
     expect($first->slug)->toBe('mesmo-nome')->and($second->slug)->toBe('mesmo-nome-2');
 });
@@ -349,13 +351,18 @@ it('creates the drawing and sends the author to its canvas', function () {
     ])));
 
     $response = $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]))
-        ->postJson(drawUrl($page));
+        ->postJson(drawUrl($page), ['target' => 'new', 'name' => 'Pedidos do CWS']);
 
     $diagram = Diagram::sole();
 
-    $response->assertOk()->assertJsonPath('redirect', route('diagrams.show', $diagram));
+    $response->assertOk()
+        ->assertJsonPath('redirect', route('diagrams.show', $diagram))
+        ->assertJsonPath('modalIdToClose', 'main-modal');
 
-    expect($diagram->name)->toBe('CWS → SAP')
+    // The name the author typed wins over the one the model proposed, and the
+    // drawing lands in the page's CADERNO.
+    expect($diagram->name)->toBe('Pedidos do CWS')
+        ->and($diagram->notebook_id)->toBe($page->notebook_id)
         ->and($diagram->chain['nodes'])->toHaveCount(2)
         // The page is READ, never written, and nothing links the two afterwards
         // — prose reaches a drawing by citing it.
@@ -368,7 +375,7 @@ it('answers a failed draft with a message rather than a 500', function () {
     app()->instance(DiagramDraftService::class, fakeDraftService('Não consegui.', 'Ainda não.'));
 
     $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]))
-        ->postJson(drawUrl($page))
+        ->postJson(drawUrl($page), ['target' => 'new', 'name' => 'X'])
         ->assertStatus(422)
         ->assertJsonStructure(['message']);
 
@@ -385,7 +392,7 @@ it('refuses an account that may read the caderno but not write a diagram', funct
     ])));
 
     $this->actingAs(User::factory()->create(['role' => UserRole::Viewer->value]))
-        ->postJson(drawUrl($page))
+        ->postJson(drawUrl($page), ['target' => 'new', 'name' => 'X'])
         ->assertForbidden();
 
     expect(Diagram::count())->toBe(0);
@@ -403,4 +410,84 @@ it('offers the button to a writer and withholds it from a viewer', function () {
         ->get(route('notebooks.pages.edit', [$page->notebook, $page]))
         ->assertOk()
         ->assertDontSee('Desenhar esta página');
+});
+
+// ---------------------------------------------------------------------------
+// New or over an existing one — asked before anything is generated.
+// ---------------------------------------------------------------------------
+
+function oneBlockDraft(string $label = 'A'): DiagramDraftService
+{
+    return fakeDraftService(draftJson([
+        'name'  => 'Proposto pelo modelo',
+        'nodes' => [['id' => 'a', 'kind' => 'system', 'label' => $label]],
+        'edges' => [],
+    ]));
+}
+
+it('asks for a name before drawing a new diagram', function () {
+    $page = pageWithDocumentation();
+    app()->instance(DiagramDraftService::class, oneBlockDraft());
+
+    $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]))
+        ->postJson(drawUrl($page), ['target' => 'new', 'name' => ''])
+        ->assertStatus(422)
+        ->assertJsonPath('message', 'Dê um nome ao novo diagrama.');
+
+    expect(Diagram::count())->toBe(0);
+});
+
+it('draws over one of the caderno diagrams, keeping its name, address and declared systems', function () {
+    $page = pageWithDocumentation();
+    $declared = Solution::factory()->create();
+    $existing = Diagram::factory()->forNotebook($page->notebook)->create(['name' => 'Fluxo antigo', 'slug' => 'fluxo-antigo']);
+    $existing->participants()->attach($declared->id, ['position' => 1000, 'manual' => true]);
+    $existing->addMediaFromString('png')->usingFileName('d.png')->toMediaCollection(Diagram::DIAGRAM_COLLECTION);
+
+    app()->instance(DiagramDraftService::class, oneBlockDraft('Novo bloco'));
+
+    $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]))
+        ->postJson(drawUrl($page), ['target' => 'fluxo-antigo', 'name' => 'ignorado'])
+        ->assertOk()
+        ->assertJsonPath('redirect', route('diagrams.show', $existing));
+
+    $existing->refresh();
+
+    expect(Diagram::count())->toBe(1)
+        ->and($existing->name)->toBe('Fluxo antigo')
+        ->and($existing->slug)->toBe('fluxo-antigo')
+        ->and($existing->chain['nodes'][0]['label'])->toBe('Novo bloco')
+        // The picture showed the OLD drawing; a citation says "sem imagem
+        // ainda" until the canvas is opened, rather than lie.
+        ->and($existing->picture())->toBeNull()
+        ->and($existing->participants()->wherePivot('manual', true)->pluck('solutions.id')->all())->toBe([$declared->id]);
+});
+
+it('refuses to draw over a diagram of another caderno', function () {
+    $page = pageWithDocumentation();
+    $foreign = Diagram::factory()->create(['slug' => 'de-outro-caderno']);
+    app()->instance(DiagramDraftService::class, oneBlockDraft());
+
+    $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]))
+        ->postJson(drawUrl($page), ['target' => 'de-outro-caderno'])
+        ->assertStatus(422)
+        ->assertJsonPath('message', 'Esse diagrama não pertence a este caderno.');
+
+    expect($foreign->fresh()->chain)->toBe($foreign->chain);
+});
+
+it('opens a dialog listing only this caderno diagrams, the name prefilled with the page title', function () {
+    $page = pageWithDocumentation();
+    Diagram::factory()->forNotebook($page->notebook)->create(['name' => 'Deste caderno']);
+    Diagram::factory()->create(['name' => 'De outro caderno']);
+
+    $response = $this->actingAs(User::factory()->create(['role' => UserRole::Writer->value]))
+        ->getJson(route('notebooks.pages.diagram.target', [$page->notebook, $page, 'model' => 'sequence']))
+        ->assertOk();
+
+    expect($response->json('content'))
+        ->toContain('Deste caderno')
+        ->not->toContain('De outro caderno')
+        ->toContain(e($page->title . ' — Sequência'))
+        ->toContain(route('notebooks.pages.diagram.model', [$page->notebook, $page, 'sequence']));
 });

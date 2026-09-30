@@ -1,7 +1,7 @@
 {{-- The diagrams index's list (updatable slot). One card per diagram: name +
-     status, the chain summary, and the pages that explain it — the second half
-     being the point of the whole module, since a drawing nobody wrote about is
-     exactly what used to be invisible. --}}
+     status, the caderno it belongs to, the chain summary, and the systems it
+     names. Drawings of every caderno sit together only here, which is why the
+     caderno is on every row. --}}
 <div id="{{ $domId }}">
     @if ($rows->isEmpty())
         @if (collect($filters)->filter(fn ($value) => filled($value))->isNotEmpty())
@@ -11,7 +11,7 @@
         @else
             <x-ui.empty-state illustration="diagrams" illustration-class="max-w-[300px]"
                 title="Nenhum diagrama ainda"
-                description="Desenhe o primeiro fluxo e vincule-o às páginas de documentação que o explicam." />
+                description="Diagramas nascem dentro de um caderno: abra uma página e use &quot;Desenhar esta página&quot;, ou &quot;Diagramas do caderno&quot; no menu lateral." />
         @endif
     @else
         <div class="space-y-3">
@@ -28,6 +28,12 @@
                                 </a>
                                 <span class="inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium {{ $diagram->status->badgeClass() }}">{{ $diagram->status->label() }}</span>
                             </div>
+
+                            <a href="{{ route('notebooks.show', $row['notebook']) }}"
+                                class="mt-1.5 inline-flex max-w-full items-center gap-1.5 rounded-full border border-line bg-raised px-2 py-0.5 text-[11px] font-medium text-muted no-underline transition-colors hover:border-accent-line hover:text-ink">
+                                <x-heroicon-o-book-open class="size-3.5 shrink-0 text-accent" />
+                                <span class="truncate">Caderno: {{ $row['notebook']->name }}</span>
+                            </a>
 
                             <div class="mt-1.5 min-w-0">
                                 @if ($row['blocks'] > 1 && $row['summary'])
@@ -51,7 +57,7 @@
                                 <x-forms.button type="button" variant="ghost"
                                     data-ak-ajax="diagram-index-delete-{{ $diagram->id }}"
                                     data-ak-action="{{ route('diagrams.destroy', $diagram) }}"
-                                    data-ak-confirm="Excluir o diagrama &quot;{{ $diagram->name }}&quot;? As páginas vinculadas continuam existindo, apenas sem diagrama."
+                                    data-ak-confirm="Excluir o diagrama &quot;{{ $diagram->name }}&quot;? Páginas que citam este desenho continuam existindo — a citação passa a mostrar que ele foi removido."
                                     title="Excluir diagrama"
                                     class="opacity-45 !p-1.5 transition-opacity hover:opacity-100 hover:!text-crit">
                                     <x-heroicon-o-trash class="size-4" />
@@ -64,25 +70,12 @@
                         </div>
                     </div>
 
-                    {{-- The systems the drawing names among its blocks. A
-                         diagram that names none floats free of the catalog —
-                         the ecosystem map can't place it — so that gets a line
-                         of its own rather than simply nothing. --}}
-                    @if ($row['solutions']->isNotEmpty())
-                        <div class="flex flex-wrap gap-1.5 border-t border-line px-4 py-3">
-                            @foreach ($row['solutions'] as $solution)
-                                <a href="{{ $solution['url'] }}"
-                                    class="inline-flex max-w-full items-center rounded-full bg-accent-soft px-2.5 py-1 text-xs font-medium text-ink no-underline ring-1 ring-accent-line transition-colors hover:bg-accent-line">
-                                    <span class="truncate">{{ $solution['name'] }}</span>
-                                </a>
-                            @endforeach
-                        </div>
-                    @else
-                        <div class="flex items-center gap-2 border-t border-dashed border-line px-4 py-2.5 pl-6 text-xs text-faint">
-                            <x-heroicon-o-exclamation-triangle class="size-3.5 shrink-0" />
-                            Este desenho não cita nenhuma solução do catálogo.
-                        </div>
-                    @endif
+                    {{-- The systems the drawing names. One that names none floats
+                         free of the catalog — the ecosystem map can't place it —
+                         and the component says so rather than drawing nothing. --}}
+                    <div class="border-t border-line px-4 py-3">
+                        <x-diagrams.solution-chips :solutions="$row['solutions']" />
+                    </div>
                 </div>
             @endforeach
         </div>

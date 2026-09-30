@@ -73,7 +73,8 @@ class GetSolution implements Tool
             ->with([
                 'vendor',
                 'people:id,slug,name',
-                'diagrams:id,slug,name,status',
+                'diagrams:id,notebook_id,slug,name,status',
+                'diagrams.notebook:id,name,slug,published_at',
                 'notebooks',
             ])
             ->where('slug', $slug)

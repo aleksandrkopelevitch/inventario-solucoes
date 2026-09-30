@@ -11,28 +11,21 @@ use Illuminate\Support\Collection;
 use Illuminate\View\Component;
 
 /**
- * Plain nav list of the diagrams a solution appears in: name, chain summary
- * and status, with a creation form (optional name) and a delete action. It's
- * the left column of the solution detail page's "diagramas + documentação"
- * card — `Solutions\Documentation` is the right one, and the card's frame
- * lives in `solutions/show.blade.php` since each column is its own updatable
- * slot (creating on one side must not re-render the other).
+ * Plain nav list of the diagrams a solution appears in: name, the caderno it
+ * belongs to, chain summary and status, with a delete action. It's the left
+ * column of the solution detail page's "diagramas + documentação" card —
+ * `Solutions\Documentation` is the right one, and the card's frame lives in
+ * `solutions/show.blade.php` since each column is its own updatable slot.
  *
- * "Appears in" is the union of the two ways a diagram reaches a solution, and
- * both belong on this card because a reader asking "what drawings explain this
- * system?" does not care which one applies:
+ * "Appears in" means `participants`: a `system` block referencing this
+ * solution (derived by `SyncDiagramFromChain`) or a system somebody declared
+ * by hand (`SetDiagramSystems`).
  *
- * - it's a PARTICIPANT — the chain has a `system` node referencing this
- *   solution, derived into the `diagram_solution` pivot by
- *   `SyncDiagramFromChain`. This is the topology answer.
- * - it's REFERENCED BY THIS SOLUTION'S DOCUMENTATION — one of the solution's
- *   pages points at the diagram (`documentation_pages.diagram_id`). A drawing
- *   can legitimately explain a solution without the solution being a box in
- *   it (an overview of the surrounding flow, for instance).
+ * It no longer CREATES a diagram. The "Novo" form that used to sit here made a
+ * drawing that belonged to nothing; a diagram is born inside a caderno now,
+ * so each row names the caderno instead, and that is where a new one starts.
  *
- * Each row links straight to the diagram's own canvas page — the graphical
- * chain editor doesn't live inline here, and neither does the diagram's
- * name/status (`Diagrams\Meta`, in that page's top bar).
+ * Each row links straight to the diagram's own canvas page.
  */
 class Diagrams extends Component
 {
@@ -75,7 +68,7 @@ class Diagrams extends Component
      */
     private function diagrams(): Collection
     {
-        $columns = ['diagrams.id', 'diagrams.name', 'diagrams.slug', 'diagrams.status', 'diagrams.chain', 'diagrams.viz_layout'];
+        $columns = ['diagrams.id', 'diagrams.notebook_id', 'diagrams.name', 'diagrams.slug', 'diagrams.status', 'diagrams.chain', 'diagrams.viz_layout'];
 
         // The drawings this solution takes part in — the one relation a diagram
         // has. There used to be a second source here (drawings explained by a
@@ -84,6 +77,7 @@ class Diagrams extends Component
         // listed "diagrams mentioned anywhere in the text" would be a LIKE over
         // every page's longText to render a sidebar.
         return $this->solution->diagrams()
+            ->with('notebook:id,name,slug')
             ->get($columns)
             ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
             ->values();

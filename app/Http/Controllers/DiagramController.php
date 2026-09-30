@@ -3,9 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\SetDiagramSystems;
-use App\Enums\ChainNodeKind;
 use App\Enums\DiagramStatus;
-use App\Enums\Direction;
 use App\Http\Controllers\Concerns\EditsChain;
 use App\Http\Requests\AddChainEdgeRequest;
 use App\Http\Requests\AddChainImageRequest;
@@ -14,15 +12,14 @@ use App\Http\Requests\RemoveChainEdgeRequest;
 use App\Http\Requests\RemoveChainNodeRequest;
 use App\Http\Requests\RetargetChainEdgeRequest;
 use App\Http\Requests\SaveChainLayoutRequest;
-use App\Http\Requests\StoreDiagramRequest;
 use App\Http\Requests\SyncDiagramSystemsRequest;
 use App\Http\Requests\UpdateChainNodeRequest;
 use App\Http\Requests\UpdateChainProtocolRequest;
 use App\Http\Requests\UpdateDiagramMetaRequest;
 use App\Models\Diagram;
+use App\Models\Notebook;
 use App\Models\Solution;
 use App\Services\DiagramCatalogService;
-use App\Support\DiagramSlug;
 use App\View\Components\Diagrams\Index;
 use App\View\Components\Diagrams\Meta;
 use App\View\Components\Diagrams\Systems;
@@ -32,15 +29,16 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Diagrams — the module. A diagram is a drawing of a flow, named and drawn on
- * its own; documentation reaches it from the other side (a page points at it),
- * which is why nothing in these URLs is scoped under a solution the way the
- * old integration routes were.
+ * Diagrams — the module. A diagram is a drawing of a flow that belongs to a
+ * caderno; prose reaches it by citing it. It is still addressed by itself, so
+ * nothing in these URLs is scoped under a solution or a caderno.
  *
  * What this controller covers is everything the canvas itself doesn't:
- * `index()` (the catalog), `store()`, `show()` (the page the canvas is mounted
- * on) and `update()` — renaming or restatusing, driven by the page's top bar
- * (`Diagrams\Meta`), one field at a time. None of those touch the chain.
+ * `index()` (the catalog, across cadernos), `show()` (the page the canvas is
+ * mounted on) and `update()` — renaming or restatusing, driven by the page's
+ * top bar (`Diagrams\Meta`), one field at a time. None of those touch the
+ * chain. There is no `store()`: a diagram is only ever created inside a
+ * caderno (`NotebookDiagramController`, `NotebookPageDiagramController`).
  *
  * The chain mutations below are the canvas's, and their bodies live in
  * `Concerns\EditsChain` — shared with a submission's AS IS / TO BE drawings.
@@ -68,51 +66,11 @@ class DiagramController extends Controller
             'filters'       => $filters,
             'counters'      => $catalog->counters(),
             'statusOptions' => DiagramStatus::options(),
-        ]);
-    }
-
-    /**
-     * Creates a brand-new diagram. `solution_id` is optional and only seeds
-     * the root block — it comes from the "Novo" form on a solution's detail
-     * page, so the drawing starts from the system the person was looking at
-     * instead of from an empty canvas. Created from the diagrams index there
-     * is no such context, and the root is free text instead.
-     *
-     * Initial status is "planned", adjustable afterwards via `update()`.
-     */
-    public function store(StoreDiagramRequest $request): JsonResponse
-    {
-        $data = $request->validated();
-        $solution = filled($data['solution_id'] ?? null) ? Solution::find($data['solution_id']) : null;
-
-        $name = trim($data['name'] ?? '') ?: ($solution?->name ?? 'Novo diagrama');
-
-        $diagram = Diagram::create([
-            'name'        => $name,
-            'slug'        => DiagramSlug::unique($name),
-            'status'      => DiagramStatus::Planned->value,
-            'criticality' => 'medium',
-            'direction'   => Direction::Unidirectional->value, // re-derived from the chain right below
-            'chain'       => [
-                'nodes' => [[
-                    'solution_id' => $solution?->id,
-                    'label'       => $solution ? null : $name,
-                    'kind'        => ChainNodeKind::System->value,
-                ]],
-                'edges' => [],
-            ],
-        ]);
-
-        $diagram->afterChainMutation();
-
-        return response()->json([
-            'type'    => 'success',
-            'message' => 'Diagrama criado.',
-            // Straight to the canvas: a diagram that was just created is one
-            // root block and nothing else, so the list it came from has
-            // nothing to show about it yet, and drawing is the only sensible
-            // next step.
-            'redirect' => route('diagrams.show', $diagram),
+            // Only the cadernos that HAVE a drawing: a filter option that
+            // always answers "nenhum" is a question nobody needs to ask.
+            'notebookOptions' => Notebook::query()->whereHas('diagrams')->orderBy('name')->get(['name', 'slug'])
+                ->map(fn (Notebook $notebook) => ['value' => $notebook->slug, 'label' => $notebook->name])
+                ->all(),
         ]);
     }
 
@@ -120,6 +78,10 @@ class DiagramController extends Controller
     public function show(Diagram $diagram): View
     {
         $this->authorize('view', $diagram);
+
+        // The top bar leads back to it — loaded here, since a single-row
+        // fetch never arms strict mode's lazy-loading guard.
+        $diagram->load('notebook:id,name,slug');
 
         return view('diagrams.show', [
             'diagram' => $diagram,
@@ -182,20 +144,15 @@ class DiagramController extends Controller
     }
 
     /**
-     * `?solution=` and `?after=` are slot/navigation context, not data: the
-     * delete is offered from three screens and the response has to leave each
-     * of them consistent. A solution's detail card sends its own slug so its
-     * list re-renders without the row; the canvas page sends `after=index`,
-     * since staying on the page of a diagram that no longer exists is a 404
-     * waiting to happen. Missing on both counts (the diagrams index) is the
-     * plain case — the index slot alone covers it.
-     */
-    /**
      * The diagram catalog as a tree, for the documentation editor's `diagram`
      * block: solutions on top, their drawings underneath.
      *
-     * Grouped by SOLUTION because that is the only relation a diagram has, and
-     * because it is how someone writing a page thinks — "the drawing about
+     * Led by "Deste caderno" when the editor says which caderno it is writing
+     * in — the drawings that belong to it, the likeliest thing to cite. Not
+     * SCOPED to it: citing another caderno's drawing is legitimate, and the
+     * public route authorises a picture by citation, not by owner.
+     *
+     * Then grouped by SOLUTION, because it is how someone writing a page thinks — "the drawing about
      * SAP". `participants` is derived from each chain, so a drawing appears
      * under every system it actually touches, which is the same answer the
      * ecosystem map gives.
@@ -214,16 +171,21 @@ class DiagramController extends Controller
      * `getFirstMedia()` per diagram, which would be a query per row on a
      * catalog meant to be one.
      */
-    public function catalog(): JsonResponse
+    public function catalog(Request $request): JsonResponse
     {
         $this->authorize('viewAny', Diagram::class);
 
         $diagrams = Diagram::query()
-            ->with(['participants:id,name', 'media'])
+            ->with(['participants:id,name', 'media', 'notebook:id,slug'])
             ->orderBy('name')
-            ->get(['id', 'name', 'slug']);
+            ->get(['id', 'notebook_id', 'name', 'slug']);
 
         $groups = [];
+        // The caderno the editor is writing in (`?notebook=`), whose own
+        // drawings are the likeliest citation and so come FIRST, as a group of
+        // their own — also listed under their systems below, like any other.
+        $here = (string) $request->query('notebook');
+        $own = [];
 
         foreach ($diagrams as $diagram) {
             $entry = [
@@ -232,6 +194,10 @@ class DiagramController extends Controller
                 'pictureUrl' => $diagram->picture() ? route('diagrams.picture.show', $diagram) : null,
                 'url'        => route('diagrams.show', $diagram),
             ];
+
+            if ($here !== '' && $diagram->notebook->slug === $here) {
+                $own[] = $entry;
+            }
 
             if ($diagram->participants->isEmpty()) {
                 $groups['__loose']['diagrams'][] = $entry;
@@ -259,9 +225,23 @@ class DiagramController extends Controller
             $tree[] = ['solution' => 'Sem solução no catálogo', 'diagrams' => $loose['diagrams']];
         }
 
+        if ($own !== []) {
+            array_unshift($tree, ['solution' => 'Deste caderno', 'diagrams' => $own]);
+        }
+
         return response()->json(['groups' => $tree]);
     }
 
+    /**
+     * `?solution=` and `?after=` are slot/navigation context, not data: the
+     * delete is offered from three screens and the response has to leave each
+     * of them consistent. A solution's detail card sends its own slug so its
+     * list re-renders without the row; the canvas page sends `after=notebook`,
+     * since staying on the page of a deleted diagram is a 404 waiting to
+     * happen, and the caderno is where the drawing was opened from. Missing on
+     * both counts (the diagrams index) is the plain case — the index slot
+     * alone covers it.
+     */
     public function destroy(Request $request, Diagram $diagram): JsonResponse
     {
         $this->authorize('delete', $diagram);
@@ -283,7 +263,7 @@ class DiagramController extends Controller
             'type'           => 'success',
             'message'        => 'Diagrama removido.',
             'updatableSlots' => $slots,
-            'redirect'       => $request->query('after') === 'index' ? route('diagrams.index') : null,
+            'redirect'       => $request->query('after') === 'notebook' ? route('notebooks.show', $diagram->notebook) : null,
         ], fn ($value) => $value !== null));
     }
 

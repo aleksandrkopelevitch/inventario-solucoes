@@ -147,7 +147,7 @@ it('cleans an approved TO BE snapshot, so applying it later still works', functi
         ->and($chain['nodes'][1]['label'])->toBe('Sistema Citado');
 
     // The point of the sweep: the snapshot is still appliable.
-    $diagram = app(ApplyApprovedTopology::class)->handle($topology->fresh(), solutionAdmin());
+    $diagram = app(ApplyApprovedTopology::class)->handle($topology->fresh(), solutionAdmin(), notebook: Notebook::factory()->create());
 
     expect($diagram->participants->pluck('id')->all())->toBe([$subject->id]);
 });

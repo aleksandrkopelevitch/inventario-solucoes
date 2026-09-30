@@ -73,7 +73,7 @@ class GetDiagram implements Tool
         // the flow reads in — worth loading through the relation rather than
         // re-querying the solutions out of the chain's node list.
         $diagram = Diagram::query()
-            ->with('participants')
+            ->with(['participants', 'notebook:id,name,slug,published_at'])
             ->where('slug', $slug)
             ->first();
 

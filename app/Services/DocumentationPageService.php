@@ -55,7 +55,7 @@ class DocumentationPageService
     private const RESERVED_SLUGS = [
         // notebooks/{notebook}/…
         'pages', 'share', 'context', 'context-pages', 'chat', 'solutions', 'panel', 'secret-code', 'link-targets',
-        'card-targets',
+        'card-targets', 'diagrams',
         // docs/{notebook}/…
         'search', 'file', 'diagram', 'secrets',
     ];

@@ -45,6 +45,7 @@ class Index extends Component
             ->select('id', 'name', 'slug', 'public_token')
             ->withCount([
                 'pages',
+                'diagrams',
                 'pages as documented_count' => fn (Builder $q) => $q
                     ->whereNotNull('documentation')->where('documentation', '<>', ''),
             ])
@@ -72,7 +73,7 @@ class Index extends Component
                 // Per row, and against the real model: `update` on
                 // NotebookPolicy takes a Notebook, so a `@can('update',
                 // Notebook::class)` in the view is a TypeError, not a denial.
-                'canEdit'   => auth()->user()?->can('update', $notebook) ?? false,
+                'canEdit' => auth()->user()?->can('update', $notebook) ?? false,
                 // Deleting is the ADMIN's, not the editor's — the same split the
                 // rest of the app keeps (`canDelete()`), and it matters more here
                 // than anywhere: a caderno delete takes its whole page tree with
@@ -89,7 +90,7 @@ class Index extends Component
                 // guessed: how many pages go with it, and whether a link
                 // somebody already holds stops working.
                 'deleteConfirm' => $this->confirm($notebook),
-                'solutions' => $notebook->solutions->map(fn (Solution $solution) => [
+                'solutions'     => $notebook->solutions->map(fn (Solution $solution) => [
                     'name' => $solution->name,
                     'url'  => route('solutions.show', $solution),
                 ])->all(),
@@ -103,7 +104,8 @@ class Index extends Component
      *
      * A `window.confirm` naming only the caderno reads the same whether it
      * holds nothing or holds an imported GitBook space, and the page tree is
-     * exactly what makes those two different acts.
+     * exactly what makes those two different acts. The drawings count for the
+     * same reason: they belong to the caderno and are deleted with it.
      */
     private function confirm(Notebook $notebook): string
     {
@@ -113,6 +115,12 @@ class Index extends Component
             $sentence .= ' ' . ($notebook->pages_count === 1
                 ? 'A página dele vai junto.'
                 : 'As ' . $notebook->pages_count . ' páginas dele vão junto.');
+        }
+
+        if ($notebook->diagrams_count > 0) {
+            $sentence .= ' ' . ($notebook->diagrams_count === 1
+                ? 'O diagrama dele também é excluído.'
+                : 'Os ' . $notebook->diagrams_count . ' diagramas dele também são excluídos.');
         }
 
         if ($notebook->public_token !== null) {

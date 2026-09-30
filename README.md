@@ -2,7 +2,8 @@
 
 Aplicação Laravel standalone para catalogar as soluções e integrações da Leo
 Madeiras: cadastro de soluções/pessoas/empresas, um módulo de **Diagramas**
-(editor gráfico de topologia, um desenho por vez), um mapa read-only do
+(editor gráfico de topologia, um desenho por vez — todo diagrama pertence a um
+caderno), um mapa read-only do
 ecossistema derivado desses desenhos, documentação rica (estilo GitBook) em
 árvore de páginas — com um assistente de IA que gera rascunhos e com valores
 sensíveis atrás de cadeado —, um hub que reúne a cobertura dessa documentação,
@@ -12,9 +13,11 @@ testá-lo e corrigi-lo em rodadas — e o módulo do **Comitê de Arquitetura**,
 onde uma proposta é preparada, entrevistada, vira deck e volta para o catálogo
 depois de deliberada.
 
-Uma página de documentação pode apontar para um diagrama, e é assim que texto e
-desenho se relacionam: um diagrama explica 1..N páginas (e, por elas, 1..N
-soluções). Até 2026-08-26 existiam **duas** documentações — a árvore de páginas
+Todo diagrama **pertence a um caderno** (nunca a uma página dele) e só nasce
+dentro de um: lido a partir de uma página ("Desenhar esta página") ou em branco,
+em "Diagramas do caderno". O texto chega ao desenho **citando-o**
+(`{% diagram slug="…" %}`), de qualquer página, inclusive de outro caderno.
+Até 2026-08-26 existiam **duas** documentações — a árvore de páginas
 e uma coluna própria de cada integração — e a segunda deixou de existir junto
 com a entidade `Integration`, que virou `Diagram`.
 
@@ -764,15 +767,24 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   (`/diagrams/{slug}`) onde o canvas gráfico
   (`resources/js/modules/chain-viz.js`) desenha e edita a `chain`. Nome e
   **status** são editados in place na barra de cima
-  (`Diagrams\Meta`).
+  (`Diagrams\Meta`), que também mostra o **caderno** do desenho — e é para
+  ele que a seta de voltar leva.
 
-  O índice mostra, por diagrama, o resumo da cadeia e **as páginas que o
-  explicam** — ou, quando não há nenhuma, diz isso em voz alta. Os dois
-  contadores no topo (Desenhados / Explicados) são contados separadamente
-  porque faltam separadamente: um canvas com só o bloco raiz não é um desenho,
-  e um desenho sem página é o buraco que este módulo existe para mostrar. No
-  modelo antigo esse buraco era invisível: a documentação era uma coluna da
-  própria integração, e uma coluna vazia parecia igual a qualquer outra.
+  Todo diagrama **pertence a um caderno** (`diagrams.notebook_id`, obrigatório;
+  apagar o caderno apaga os desenhos dele, e a confirmação diz quantos). O
+  índice é a única tela que junta os desenhos de todos os cadernos, então cada
+  linha diz de qual caderno ela é, e há um filtro por caderno; ele **não cria**
+  diagrama nenhum. Criar acontece só dentro de um caderno, por dois caminhos:
+  "Desenhar esta página" (abaixo) e **"Diagramas do caderno"**, no pé do menu
+  lateral das páginas — um modal com os desenhos do caderno, os sistemas que
+  cada um cita, "Abrir canvas", "Copiar citação" e a criação em branco (nome
+  obrigatório). Tudo que escreve um desenho passa por uma ação só,
+  `App\Actions\WriteNotebookDiagram`. Em 2026-09-30, quando isso entrou, todos
+  os diagramas existentes eram de teste e foram apagados pela migration
+  `purge_test_diagrams`; não houve backfill.
+
+  O índice mostra ainda, por diagrama, o resumo da cadeia e os sistemas do
+  catálogo que ele cita — ou diz em voz alta que não cita nenhum.
 
   Até 2026-08-26 isto era uma `Integration`, alcançável só por dentro de uma
   solução que participasse dela (`/solutions/{slug}/integrations/{slug}/documentation`)
@@ -783,10 +795,10 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
 - **Diagramas de uma solução**: no detalhe da solução, um card único reúne os
   **diagramas** em que ela aparece (à esquerda) e os **cadernos que a
   documentam** (à direita) — o mesmo tipo de coisa, uma lista que se
-  abre para ler/editar, então uma moldura só. Cada lado cria o seu (o nome do
-  diagrama é opcional, e o bloco raiz nasce com a própria solução) e leva
-  **direto** ao registro criado; um lado vazio mostra uma ilustração dizendo o
-  que falta, não uma linha de texto cinza.
+  abre para ler/editar, então uma moldura só. Cada diagrama da lista diz de
+  qual **caderno** ele é. Daqui se cria caderno, mas não diagrama: um desenho
+  nasce dentro de um caderno que documenta a solução. Um lado vazio mostra uma
+  ilustração dizendo o que falta, não uma linha de texto cinza.
 
   "Aparece" quer dizer uma coisa só: a solução é um **bloco** do desenho (pivot
   derivado da chain). Havia um segundo caminho — uma página dela apontava para o
@@ -878,6 +890,15 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
     que ele une — sem isso, dois blocos quase colados ganham uma curva mais
     larga que o próprio segmento. O rótulo pousa no **maior trecho reto** da
     rota, não no meio geométrico, que numa rota ortogonal costuma ser um canto.
+  - **A seta contorna os dois blocos, nunca passa por trás deles.** A rota era
+    escolhida só pela orientação das duas pontas: com o destino atrás da face
+    de saída (arrastar o bloco de origem para além do destino), o cotovelo
+    voltava por baixo do próprio bloco e o handle da seta ficava escondido. O
+    roteador agora recebe as caixas dos dois blocos, mantém a rota de sempre
+    quando ela está livre — os desenhos que já estavam certos não mudam — e,
+    quando não está, escolhe a rota ortogonal com menos curvas que não volta,
+    não sai da face de chegada e não atravessa bloco nenhum, tentando primeiro
+    o vão entre eles.
   - **O pill "+ protocolo" some até você chegar perto.** Toda ligação sem
     protocolo desenhava um pill tracejado, sempre, em tamanho cheio: num
     desenho com raias é um por ligação, em cima dos rótulos de verdade e uns
@@ -1171,7 +1192,7 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   a resposta avisa em PT-BR: remover uma imagem é legítimo quando foi pedido,
   então o aviso diz o que falta e deixa o julgamento com quem aperta "Aplicar".
 - **"Desenhar esta página"**: um menu, cinco desenhos. A prosa de uma página
-  vira um `Diagram` comum — o **grafo livre** (`ChainDraft`, "o que conversa
+  vira um `Diagram` comum **do caderno da página** — o **grafo livre** (`ChainDraft`, "o que conversa
   com o quê") ou um dos quatro **modelos** (`DiagramModel`), que são as outras
   quatro perguntas que uma página costuma fazer:
 
@@ -1200,6 +1221,16 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   do nosso próprio validador, e o prompt dá ao modelo como dizer "esta página
   não tem sequência nenhuma" — resposta que vale mais que quatro caixas
   inventadas para satisfazer o pedido.
+
+  **Antes de gerar, um diálogo pergunta o destino**: criar um diagrama novo
+  (nome obrigatório, já preenchido com o título da página) ou **substituir** um
+  dos diagramas deste caderno. Perguntar antes, e não depois, é o que mantém a
+  chamada ao modelo numa requisição só, sem rascunho estacionado em lugar
+  nenhum. Substituir mantém nome, endereço, status e os sistemas declarados à
+  mão — as páginas que citam o desenho passam a mostrar o novo — e descarta a
+  imagem renderizada, que mostraria o desenho antigo até alguém abrir o canvas.
+  Um diagrama de **outro** caderno não pode ser o alvo. O resultado abre numa
+  aba nova, e a página que está sendo escrita fica como estava.
 - **Especialista em Integrações** (`/flowspec`): chat que gera o JSON de
   flowSpec Digibee a partir de um pedido em linguagem natural. Contexto **sem
   RAG** — Solutions citadas (explícitas via chips, ou inferidas casando o nome

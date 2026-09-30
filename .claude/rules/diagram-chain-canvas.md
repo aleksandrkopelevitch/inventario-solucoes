@@ -23,7 +23,11 @@ paths:
 ### Diagram topology invariant — the chain is the single source of truth
 
 A `Diagram` is a drawing of a flow, and a first-class record: `/diagrams` is its
-module, `/diagrams/{diagram}` is the canvas that authors it.
+module, `/diagrams/{diagram}` is the canvas that authors it. It **belongs to a
+caderno** (`notebook_id`, required, not fillable — written through
+`WriteNotebookDiagram`), and is created only from inside one; see
+`.claude/rules/page-to-diagram-draft.md`. It is still addressed by its own slug,
+because that is what a `{% diagram %}` citation names.
 
 Its topology lives in the `chain` json — a genuinely free
 graph: `{nodes: [{solution_id, label, kind}], edges: [{from, to, arrow, protocol}]}`,
@@ -157,3 +161,20 @@ TO BE) derives nothing, deliberately. The client never learns which it is
 editing, because every endpoint it calls arrives inside the graph payload
 (`ChainCanvas::chainUrls()`) — which is why `chain-viz.js` contains no route of
 its own and must keep containing none.
+
+**An arrow is routed around its two blocks, never behind them.**
+`orthogonalPoints()` in `chain-viz.js` used to pick a route from the two ends'
+orientation alone, which is right only while the destination lies ahead of the
+face the arrow leaves from. Drag a block past the one its right-hand arrow
+points down to and the single elbow at `(s3.x, s0.y)` turned back, ran the
+width of the block BEHIND it and came out of its underside — the stroke and the
+wide hit target used to grab it both hidden under the card. `routeBetween()`
+now takes the two blocks' boxes (`boxOf()`), keeps the classic route whenever
+it is clear (so drawings that already looked right do not move), and otherwise
+picks the cheapest orthogonal route — fewest bends, then shortest — that
+neither doubles back from `s0`, leaves `s3`'s face, nor crosses a box.
+Corridors are tried in the GAP between the blocks first, which is the route a
+person would draw. A lifeline is never passed as a box: its anchor sits on the
+dashed line inside it by design. The corridor fan-out (`corridorOffsets()`)
+reads the corridor of the route actually drawn, and a detour offset that would
+run into a block is dropped rather than applied.

@@ -169,6 +169,20 @@ it('returns a diagram as both a graph and a sentence', function () {
         ->and($data['participants'])->toHaveCount(2);
 });
 
+it('names a diagram caderno only when that caderno is published', function () {
+    // Documentation on this server is the PUBLISHED cadernos and nothing else,
+    // so a diagram must not be the one place a token learns that an
+    // unpublished caderno exists.
+    $published = Notebook::factory()->create(['name' => 'Manual', 'slug' => 'manual']);
+    $published->forceFill(['published_at' => now()])->save();
+    Diagram::factory()->forNotebook($published)->create(['slug' => 'publicado']);
+    Diagram::factory()->forNotebook(Notebook::factory()->create(['name' => 'Rascunho interno']))->create(['slug' => 'interno']);
+
+    expect(tool('get_diagram', ['slug' => 'publicado'])['data']['caderno'])->toBe(['slug' => 'manual', 'name' => 'Manual'])
+        ->and(tool('get_diagram', ['slug' => 'interno'])['data'])->not->toHaveKey('caderno')
+        ->and(tool('search_diagrams')['text'])->not->toContain('Rascunho interno');
+});
+
 it('lists the diagrams a solution takes part in', function () {
     $solution = Solution::factory()->create(['slug' => 'alvo']);
     $other = Solution::factory()->create();

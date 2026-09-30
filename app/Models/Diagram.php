@@ -27,9 +27,18 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  * carried a documentation column of its own. Both of those are gone — a diagram
  * is drawn and named on its own (`/diagrams`).
  *
- * **It has exactly ONE relation, and documentation is not it.** `participants`
- * (the `diagram_solution` pivot, plus `source`/`target`) answers "which systems
- * does this drawing touch?", and it is what the ecosystem map is built from.
+ * **It belongs to a caderno** (`notebook`, required). Not to a page: a page is
+ * what a drawing is often READ from ("Desenhar esta página"), and it cites
+ * drawings in its text, but a drawing outlives any rewrite of that page and a
+ * caderno may hold several. Nothing creates a diagram outside a caderno — the
+ * catalog (`/diagrams`) and a solution's page only list them, each with the
+ * caderno it belongs to. `notebook_id` is deliberately NOT fillable, like the
+ * page's: it is written through `notebook()->associate()`
+ * (`App\Actions\WriteNotebookDiagram`).
+ *
+ * `participants` (the `diagram_solution` pivot, plus `source`/`target`)
+ * answers "which systems does this drawing touch?", and it is what the
+ * ecosystem map is built from.
  *
  * It has TWO writers and they do not overlap. `SyncDiagramFromChain` owns every
  * row at `manual = false`: those are derived from the chain, rebuilt on each
@@ -197,12 +206,11 @@ class Diagram extends Model implements ChainCanvas
     /*  Relations */
     /* ------------------------------------------------------------------ */
 
-    /**
-     * Documentation pages that point at this drawing — the authored side of
-     * the diagram/solution link, and the reason the FK lives on the page: one
-     * diagram legitimately explains several pages (often in several
-     * solutions' trees), while a page never has two drawings to reconcile.
-     */
+    public function notebook(): BelongsTo
+    {
+        return $this->belongsTo(Notebook::class);
+    }
+
     public function source(): BelongsTo
     {
         return $this->belongsTo(Solution::class, 'source_solution_id');
@@ -246,6 +254,10 @@ class Diagram extends Model implements ChainCanvas
         $search = trim((string) ($filters['search'] ?? ''));
         if ($search !== '') {
             $query->whereFolded('name', $search);
+        }
+
+        if (filled($filters['notebook'] ?? null)) {
+            $query->whereRelation('notebook', 'slug', $filters['notebook']);
         }
 
         if (filled($filters['status'] ?? null)) {

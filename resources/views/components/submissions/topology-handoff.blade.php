@@ -20,11 +20,23 @@
                         @csrf
 
                         <x-forms.field label="Aplicar em" for="apply-topology-target"
-                            hint="Uma proposta costuma descrever algo que ainda não existe — nesse caso, crie uma integração nova.">
+                            hint="Uma proposta costuma descrever algo que ainda não existe — nesse caso, crie um diagrama novo.">
                             <x-forms.select id="apply-topology-target" name="diagram_id">
-                                <option value="">Criar uma integração nova</option>
+                                <option value="">Criar um diagrama novo</option>
                                 @foreach ($targets as $target)
                                     <option value="{{ $target->id }}">{{ $target->name }}</option>
+                                @endforeach
+                            </x-forms.select>
+                        </x-forms.field>
+
+                        {{-- A diagram always belongs to a caderno, so a NEW one
+                             needs one. Ignored by the request when a diagram is
+                             picked above — that one keeps its own caderno. --}}
+                        <x-forms.field label="Caderno do novo diagrama" for="apply-topology-notebook"
+                            hint="Usado só ao criar um diagrama novo. Um diagrama existente continua no caderno dele.">
+                            <x-forms.select id="apply-topology-notebook" name="notebook_id">
+                                @foreach ($notebooks as $notebook)
+                                    <option value="{{ $notebook->id }}">{{ $notebook->name }}</option>
                                 @endforeach
                             </x-forms.select>
                         </x-forms.field>
@@ -34,7 +46,7 @@
                         <x-forms.button form="apply-topology-form"
                             data-ak-ajax="apply-topology-form"
                             data-ak-action="{{ route('submissions.topology.apply', [$submission, $topology]) }}"
-                            data-ak-confirm="Isso sobrescreve a topologia da integração escolhida com o desenho aprovado. Continuar?">
+                            data-ak-confirm="Se um diagrama existente foi escolhido, o desenho dele é substituído pelo aprovado. Continuar?">
                             <x-heroicon-o-check class="size-4" /> Aplicar ao catálogo
                         </x-forms.button>
 

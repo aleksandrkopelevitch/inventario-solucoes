@@ -30,17 +30,16 @@ it('renders both columns as separate slots inside the card', function () {
         ->assertSee('id="solution-notebooks-slot"', false);
 });
 
-it('offers both creation affordances to an admin and neither to a viewer', function () {
-    // Documentation is no longer created FROM here: a page belongs to a
-    // caderno, so the right gesture on a solution is "novo caderno", which
-    // opens the panel where it is named and linked in one go.
+it('offers "novo caderno" to an admin and no diagram creation to anybody', function () {
+    // Neither documentation nor a drawing is created FROM here: a page belongs
+    // to a caderno, and so does a diagram. The right gesture on a solution is
+    // "novo caderno", which opens the panel where it is named and linked.
     $solution = Solution::factory()->create();
 
     $this->actingAs(workspaceAdmin())
         ->get(route('solutions.show', $solution))
         ->assertOk()
-        ->assertSee('id="diagram-create-form"', false)
-        ->assertSee(route('diagrams.store'), false)
+        ->assertDontSee('id="diagram-create-form"', false)
         ->assertSee('Novo caderno')
         ->assertSee(route('notebooks.panel.create'), false);
 
@@ -49,6 +48,18 @@ it('offers both creation affordances to an admin and neither to a viewer', funct
         ->assertOk()
         ->assertDontSee('id="diagram-create-form"', false)
         ->assertDontSee('Novo caderno');
+});
+
+it('names the caderno each of the solution diagrams belongs to', function () {
+    $solution = Solution::factory()->create();
+    $notebook = Notebook::factory()->create(['name' => 'Caderno do SAP']);
+    $diagram = Diagram::factory()->forNotebook($notebook)->create();
+    $diagram->participants()->attach($solution->id, ['position' => 0]);
+
+    $this->actingAs(workspaceAdmin())
+        ->get(route('solutions.show', $solution))
+        ->assertOk()
+        ->assertSee('Caderno: Caderno do SAP');
 });
 
 it('draws an illustrated empty state on each column that has nothing', function () {

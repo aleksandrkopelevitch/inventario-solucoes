@@ -8,6 +8,7 @@ use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Models\ApprovedTopology;
 use App\Models\Diagram;
+use App\Models\Notebook;
 use App\Models\Solution;
 use App\Models\Submission;
 use App\Models\User;
@@ -161,12 +162,18 @@ it('applies the approved topology to a new diagram and re-derives its columns', 
     approve($submission);
     $topology = $submission->fresh()->approvedTopology;
 
+    $notebook = Notebook::factory()->create();
+
     $this->postJson(route('submissions.topology.apply', [$submission, $topology]), [
-        'diagram_id' => null,
+        'diagram_id'  => null,
+        'notebook_id' => $notebook->id,
     ])->assertOk();
 
     $topology->refresh();
     $diagram = $topology->diagram;
+
+    // A diagram always belongs to a caderno — a proposal's TO BE included.
+    expect($diagram->notebook_id)->toBe($notebook->id);
 
     expect($topology->isPending())->toBeFalse()
         ->and($topology->applied_by_id)->toBe($this->user->id)
@@ -178,6 +185,19 @@ it('applies the approved topology to a new diagram and re-derives its columns', 
         ->and($diagram->protocol)->toBe('rest')
         // The layout travels with it, or the canvas opens as a pile at origin.
         ->and($diagram->viz_layout['nodes'])->toHaveCount(2);
+});
+
+it('asks which caderno a new diagram goes into', function () {
+    $submission = approvableSubmission();
+    approve($submission);
+    $topology = $submission->fresh()->approvedTopology;
+
+    $response = $this->postJson(route('submissions.topology.apply', [$submission, $topology]), ['diagram_id' => null])
+        ->assertStatus(422);
+
+    expect($response->json('message'))->toContain('caderno')
+        ->and(Diagram::count())->toBe(0)
+        ->and($topology->fresh()->isPending())->toBeTrue();
 });
 
 it('applies onto an existing diagram of the same solution', function () {
@@ -242,7 +262,7 @@ it('refuses to resolve the same handoff twice', function () {
     $topology = $submission->fresh()->approvedTopology;
 
     $this->postJson(route('submissions.topology.dismiss', [$submission, $topology]))->assertOk();
-    $this->postJson(route('submissions.topology.apply', [$submission, $topology]), ['diagram_id' => null])
+    $this->postJson(route('submissions.topology.apply', [$submission, $topology]), ['diagram_id' => null, 'notebook_id' => Notebook::factory()->create()->id])
         ->assertStatus(409);
 });
 
@@ -252,7 +272,8 @@ it('refuses a topology reached through the wrong submission', function () {
     approve($theirs);
 
     $this->postJson(route('submissions.topology.apply', [$mine, $theirs->fresh()->approvedTopology]), [
-        'diagram_id' => null,
+        'diagram_id'  => null,
+        'notebook_id' => Notebook::factory()->create()->id,
     ])->assertNotFound();
 });
 
@@ -282,7 +303,7 @@ it('warns on the solution page that its diagrams are showing the old scenario', 
 
     expect($html)->toContain('ainda não foi aplicada');
 
-    app(ApplyApprovedTopology::class)->handle($submission->fresh()->approvedTopology, $this->user);
+    app(ApplyApprovedTopology::class)->handle($submission->fresh()->approvedTopology, $this->user, notebook: Notebook::factory()->create());
 
     expect($this->get(route('solutions.show', $submission->solution))->getContent())
         ->not->toContain('ainda não foi aplicada');
@@ -319,7 +340,7 @@ it('leaves an applied record readable after its diagram is deleted', function ()
     approve($submission);
     $topology = $submission->fresh()->approvedTopology;
 
-    $diagram = app(ApplyApprovedTopology::class)->handle($topology, $this->user);
+    $diagram = app(ApplyApprovedTopology::class)->handle($topology, $this->user, notebook: Notebook::factory()->create());
     $diagram->delete();
 
     // nullOnDelete, not cascade: the history of having applied it survives the

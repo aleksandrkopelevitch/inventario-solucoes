@@ -40,7 +40,7 @@
         <div class="ak-docs-editor" data-ak-docs-editor
             data-config="{{ json_encode([
                 'uploadUrl'      => $uploadUrl,
-                'catalogUrl'     => route('diagrams.catalog'),
+                'catalogUrl'     => route('diagrams.catalog', isset($notebook) ? ['notebook' => $notebook->slug] : []),
                 'linkTargetsUrl' => isset($notebook) ? route('notebooks.link-targets', $notebook) : null,
                 'cardTargetsUrl' => isset($notebook) ? route('notebooks.card-targets', $notebook) : null,
                 'pageSlug'       => $titlePage->slug ?? null,

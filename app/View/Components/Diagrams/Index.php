@@ -3,7 +3,6 @@
 namespace App\View\Components\Diagrams;
 
 use App\Models\Diagram;
-use App\Models\Solution;
 use App\Services\DiagramCatalogService;
 use App\Support\ChainLabeler;
 use App\View\Components\Concerns\Renderable;
@@ -48,14 +47,13 @@ class Index extends Component
                 'summary' => $diagram->chain ? $labeler->label($diagram->chain, $solutions) : null,
                 'blocks'  => count($diagram->chain['nodes'] ?? []),
                 'url'     => route('diagrams.show', $diagram),
-                // The systems this drawing names among its blocks — the one
-                // relation a diagram has. Eager-loaded by the service, so a row
-                // costs no query. It used to list the pages that explained the
-                // diagram, back when a page could point at one.
-                'solutions' => $diagram->participants->map(fn (Solution $solution) => [
-                    'name' => $solution->name,
-                    'url'  => route('solutions.show', $solution),
-                ]),
+                // The systems this drawing names among its blocks, as the
+                // Solution models `x-diagrams.solution-chips` draws. Eager-loaded
+                // by the service, so a row costs no query.
+                'solutions' => $diagram->participants,
+                // The caderno it belongs to — every diagram has one, and this
+                // list is the one place drawings of every caderno sit together.
+                'notebook' => $diagram->notebook,
             ]),
         ]);
     }
