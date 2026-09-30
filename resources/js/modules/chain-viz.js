@@ -202,8 +202,37 @@ const EDGE_CORRIDOR_BUCKET = 14
 // Distance between two ends competing for the SAME face of a block.
 const ANCHOR_FAN_STEP = 16
 
-/** The route's vertices between two anchors, straight end runs included. */
-function orthogonalPoints(p0, p3, stub = EDGE_STUB, offset = 0) {
+// How far a route keeps from a block's edge before it counts as running
+// THROUGH it. Smaller than the stub, so an end run is never judged against the
+// block it is born on.
+const EDGE_BOX_MARGIN = 4
+
+/**
+ * The route between two ends, as its middle vertices plus its corridor.
+ *
+ * The first version of this knew only the two anchor points, and picked the
+ * route from their orientation alone. That draws the right thing while the
+ * destination lies AHEAD of the face the arrow leaves from, and something
+ * broken the moment it does not: drag a block past the one its right-hand
+ * arrow points down to, and the single elbow at `(s3.x, s0.y)` turns back
+ * left, runs the whole width of the block BEHIND it and comes down out of its
+ * underside — the stroke, and the wide invisible target used to grab it, both
+ * hidden under the card (reported 2026-09-30).
+ *
+ * So `boxes` (the two blocks, world space) are what a route is judged
+ * against. The route drawn before still wins whenever it is valid, which is
+ * what keeps every drawing that already looked right looking exactly the same;
+ * only when it doubles back or crosses a block is it replaced, by the cheapest
+ * orthogonal alternative that does neither — fewest bends, then shortest.
+ *
+ * `corridor` is the long middle run, where it crosses the empty space between
+ * the two blocks: `axis: 'x'` is a vertical run at `x = coord`, `axis: 'y'` a
+ * horizontal one. `from`/`to` are its ends on the OTHER axis, so two corridors
+ * can be told apart when they merely share a coordinate in distant parts of
+ * the drawing. `null` for a single elbow — there is no middle run there for
+ * anyone to contend over.
+ */
+function routeBetween(p0, p3, boxes = [], stub = EDGE_STUB) {
     const s0 = { x: p0.x + p0.nx * stub, y: p0.y + p0.ny * stub }
     const s3 = { x: p3.x + p3.nx * stub, y: p3.y + p3.ny * stub }
     // This canvas's normals are all axial (see ANCHORS), so "does it leave
@@ -212,49 +241,143 @@ function orthogonalPoints(p0, p3, stub = EDGE_STUB, offset = 0) {
     const fromHoriz = p0.nx !== 0
     const toHoriz = p3.nx !== 0
 
-    // The detour must not push the corridor OUTSIDE the gap between the two
-    // ends. With two blocks close together, an 18px step put the corridor
-    // behind the source block: the line left it, doubled back over itself and
-    // came in again. Clamped to the gap, the dense case loses a little
-    // separation instead of drawing something wrong.
-    const between = (value, a, b) => Math.min(Math.max(value, Math.min(a, b)), Math.max(a, b))
+    const vertical = (x) => ({ mids: [{ x, y: s0.y }, { x, y: s3.y }], corridor: { axis: 'x', coord: x, from: s0.y, to: s3.y } })
+    const horizontal = (y) => ({ mids: [{ x: s0.x, y }, { x: s3.x, y }], corridor: { axis: 'y', coord: y, from: s0.x, to: s3.x } })
 
-    let mids
-    if (fromHoriz && toHoriz) {
-        const mx = between((s0.x + s3.x) / 2 + offset, s0.x, s3.x)
-        mids = [{ x: mx, y: s0.y }, { x: mx, y: s3.y }]
-    } else if (!fromHoriz && !toHoriz) {
-        const my = between((s0.y + s3.y) / 2 + offset, s0.y, s3.y)
-        mids = [{ x: s0.x, y: my }, { x: s3.x, y: my }]
-    } else if (fromHoriz) {
-        mids = [{ x: s3.x, y: s0.y }]
-    } else {
-        mids = [{ x: s0.x, y: s3.y }]
+    let classic
+    if (fromHoriz && toHoriz) classic = vertical((s0.x + s3.x) / 2)
+    else if (!fromHoriz && !toHoriz) classic = horizontal((s0.y + s3.y) / 2)
+    else if (fromHoriz) classic = { mids: [{ x: s3.x, y: s0.y }], corridor: null }
+    else classic = { mids: [{ x: s0.x, y: s3.y }], corridor: null }
+
+    if (!boxes.length || routeIsClear(s0, classic.mids, s3, p0, p3, boxes)) return { ...classic, classic: true, s0, s3 }
+
+    // The coordinates worth trying for a corridor, on each axis: the gap
+    // BETWEEN the two blocks when there is one (the route a person would draw),
+    // then just outside both of them, then the two ends' own lines.
+    const along = (lo, hi, a, b) => {
+        const values = []
+        const [first, second] = boxes
+        if (second) {
+            if (first[hi] < second[lo]) values.push((first[hi] + second[lo]) / 2)
+            if (second[hi] < first[lo]) values.push((second[hi] + first[lo]) / 2)
+        }
+        values.push(Math.min(...boxes.map((box) => box[lo])) - stub, Math.max(...boxes.map((box) => box[hi])) + stub, a, b, (a + b) / 2)
+
+        return values
+    }
+    const ys = along('top', 'bottom', s0.y, s3.y)
+    const xs = along('left', 'right', s0.x, s3.x)
+
+    const candidates = [
+        ...ys.map(horizontal),
+        ...xs.map(vertical),
+        { mids: [{ x: s3.x, y: s0.y }], corridor: null },
+        { mids: [{ x: s0.x, y: s3.y }], corridor: null },
+    ]
+
+    let best = null
+    for (const candidate of candidates) {
+        if (!routeIsClear(s0, candidate.mids, s3, p0, p3, boxes)) continue
+        const cost = routeCost([p0, s0, ...candidate.mids, s3, p3])
+        // Strictly less: on a tie the earlier candidate stays, and the list is
+        // ordered by how natural the route reads.
+        if (!best || cost < best.cost) best = { ...candidate, cost }
+    }
+
+    // Nothing clean exists (two blocks overlapping, say): draw the classic
+    // route rather than nothing.
+    return best ? { ...best, classic: false, s0, s3 } : { ...classic, classic: true, s0, s3 }
+}
+
+/** Bends first, length second — one bend is worth more than any detour. */
+function routeCost(points) {
+    let bends = 0
+    let length = 0
+    let lastAxis = null
+
+    for (let i = 1; i < points.length; i++) {
+        const dx = points[i].x - points[i - 1].x
+        const dy = points[i].y - points[i - 1].y
+        if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) continue
+        const axis = Math.abs(dx) >= Math.abs(dy) ? 'h' : 'v'
+        if (lastAxis && axis !== lastAxis) bends++
+        lastAxis = axis
+        length += Math.abs(dx) + Math.abs(dy)
+    }
+
+    return bends * 100000 + length
+}
+
+/**
+ * Whether a route between the two stubs is one a reader can follow: it leaves
+ * `s0` without turning back into the block it came from, arrives at `s3`
+ * heading INTO the destination (or across its face, never away from it), and
+ * no run between the two stubs passes through either block.
+ */
+function routeIsClear(s0, mids, s3, p0, p3, boxes) {
+    const points = [s0, ...mids, s3].filter((point, i, all) => i === 0
+        || Math.abs(point.x - all[i - 1].x) > 0.01 || Math.abs(point.y - all[i - 1].y) > 0.01)
+
+    if (points.length > 1) {
+        const first = points[1]
+        if ((first.x - s0.x) * p0.nx + (first.y - s0.y) * p0.ny < -0.01) return false
+        const last = points[points.length - 2]
+        if ((s3.x - last.x) * p3.nx + (s3.y - last.y) * p3.ny > 0.01) return false
+    }
+
+    for (let i = 1; i < points.length; i++) {
+        const [a, b] = [points[i - 1], points[i]]
+        for (const box of boxes) {
+            const left = box.left - EDGE_BOX_MARGIN
+            const right = box.right + EDGE_BOX_MARGIN
+            const top = box.top - EDGE_BOX_MARGIN
+            const bottom = box.bottom + EDGE_BOX_MARGIN
+            if (Math.max(a.x, b.x) > left && Math.min(a.x, b.x) < right
+                && Math.max(a.y, b.y) > top && Math.min(a.y, b.y) < bottom) return false
+        }
+    }
+
+    return true
+}
+
+/** A block's box, in the shape `routeBetween()` reads. */
+function boxOf(node) {
+    return { left: node.x, right: node.x + node.w, top: node.y, bottom: node.y + node.h }
+}
+
+/**
+ * The route's vertices between two anchors, straight end runs included.
+ * `offset` pushes the corridor aside (see `corridorOffsets()`).
+ */
+function orthogonalPoints(p0, p3, stub = EDGE_STUB, offset = 0, boxes = []) {
+    const route = routeBetween(p0, p3, boxes, stub)
+    const { s0, s3, corridor } = route
+    let mids = route.mids
+
+    if (offset && corridor) {
+        let coord = corridor.coord + offset
+        // The detour must not push the corridor OUTSIDE the gap between the
+        // two ends. With two blocks close together, an 18px step put the
+        // corridor behind the source block: the line left it, doubled back
+        // over itself and came in again. Clamped to the gap, the dense case
+        // loses a little separation instead of drawing something wrong.
+        const [a, b] = corridor.axis === 'x' ? [s0.x, s3.x] : [s0.y, s3.y]
+        if (route.classic) coord = Math.min(Math.max(coord, Math.min(a, b)), Math.max(a, b))
+
+        const shifted = corridor.axis === 'x'
+            ? [{ x: coord, y: s0.y }, { x: coord, y: s3.y }]
+            : [{ x: s0.x, y: coord }, { x: s3.x, y: coord }]
+        // A detour that would run into a block is not worth the separation.
+        if (!boxes.length || routeIsClear(s0, shifted, s3, p0, p3, boxes)) mids = shifted
     }
 
     return [p0, s0, ...mids, s3, p3]
 }
 
-/**
- * A route's CORRIDOR: the long middle run, where it crosses the empty space
- * between the two blocks. `null` when the route makes a single elbow (leaving
- * horizontally and arriving vertically, or the other way round) — there is no
- * middle run there for anyone to contend over.
- *
- * `from`/`to` are the corridor's ends on the OTHER axis, so we can tell whether
- * two of them really cross or merely happened to land on the same coordinate in
- * different parts of the drawing.
- */
-function corridorOf(p0, p3, stub = EDGE_STUB) {
-    const s0 = { x: p0.x + p0.nx * stub, y: p0.y + p0.ny * stub }
-    const s3 = { x: p3.x + p3.nx * stub, y: p3.y + p3.ny * stub }
-    const fromHoriz = p0.nx !== 0
-    const toHoriz = p3.nx !== 0
-
-    if (fromHoriz && toHoriz) return { axis: 'x', coord: (s0.x + s3.x) / 2, from: s0.y, to: s3.y }
-    if (!fromHoriz && !toHoriz) return { axis: 'y', coord: (s0.y + s3.y) / 2, from: s0.x, to: s3.x }
-
-    return null
+/** A route's CORRIDOR — see `routeBetween()`. */
+function corridorOf(p0, p3, stub = EDGE_STUB, boxes = []) {
+    return routeBetween(p0, p3, boxes, stub).corridor
 }
 
 /**
@@ -2345,9 +2468,14 @@ function mount(root) {
             // without touching the other blocks, where 8px is still right.
             const gap0 = fromNode.kind === 'lifeline' ? EDGE_GAP_LIFELINE : EDGE_GAP
             const gap3 = toNode.kind === 'lifeline' ? EDGE_GAP_LIFELINE : EDGE_GAP
+            // The blocks the route must stay out of. Not a lifeline: its
+            // anchor sits ON the dashed line down its middle, so the arrow is
+            // born inside its own box by design.
+            const boxes = [fromNode, toNode].filter((node) => node.kind !== 'lifeline').map(boxOf)
 
             return {
                 fromIndex,
+                boxes,
                 toIndex,
                 anchors,
                 a0,
@@ -2357,14 +2485,14 @@ function mount(root) {
             }
         })
 
-        const detour = corridorOffsets(ends.map((e) => (e ? corridorOf(e.p0, e.p3) : null)))
+        const detour = corridorOffsets(ends.map((e) => (e ? corridorOf(e.p0, e.p3, EDGE_STUB, e.boxes) : null)))
 
         edgeList.forEach((edge, i) => {
             const end = ends[i]
             if (!end) return
 
             const { fromIndex, toIndex, anchors, a0, a3, p0, p3 } = end
-            const route = orthogonalPoints(p0, p3, EDGE_STUB, detour[i])
+            const route = orthogonalPoints(p0, p3, EDGE_STUB, detour[i], end.boxes)
             const d = roundedPath(route)
 
             // A wide invisible target, underneath the stroke. A 2px line is
@@ -4593,7 +4721,7 @@ function mount(root) {
         // drawn; loose in empty space it stays a straight line to the pointer,
         // which is what the gesture is saying at that moment.
         path.setAttribute('d', src.targetNode !== null && nodes[src.targetNode]
-            ? roundedPath(orthogonalPoints(p0, p1))
+            ? roundedPath(orthogonalPoints(p0, p1, EDGE_STUB, 0, [from, nodes[src.targetNode]].filter((node) => node.kind !== 'lifeline').map(boxOf)))
             : `M ${p0.x} ${p0.y} L ${p1.x} ${p1.y}`)
         path.setAttribute('marker-end', `url(#${markerEnd.id})`)
         edges.appendChild(path)
