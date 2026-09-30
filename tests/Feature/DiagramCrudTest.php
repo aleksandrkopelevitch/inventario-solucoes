@@ -2,9 +2,11 @@
 
 use App\Enums\UserRole;
 use App\Models\Diagram;
+use App\Models\Notebook;
 use App\Models\Solution;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\Route;
 
 uses(LazilyRefreshDatabase::class);
 
@@ -13,54 +15,75 @@ function diagramAdmin(): User
     return User::factory()->create(['role' => UserRole::Admin->value]);
 }
 
-it('seeds the root block with the solution the creation came from', function () {
-    $solution = Solution::factory()->create(['name' => 'SVL']);
+it('creates a blank diagram inside a caderno and goes straight to its canvas', function () {
+    $notebook = Notebook::factory()->create();
 
     $response = $this->actingAs(diagramAdmin())
-        ->postJson(route('diagrams.store'), ['name' => 'Nova integração', 'solution_id' => $solution->id])
+        ->postJson(route('notebooks.diagrams.store', $notebook), ['name' => 'Fluxo novo'])
         ->assertOk()
         ->assertJson(['type' => 'success']);
 
-    $diagram = Diagram::where('name', 'Nova integração')->firstOrFail();
+    $diagram = Diagram::where('name', 'Fluxo novo')->firstOrFail();
 
+    // One free-text root block named after it, no participants — and it
+    // belongs to the caderno it was created in.
     expect($diagram->status->value)->toBe('planned')
-        ->and($diagram->chain)->toBe([
-            'nodes' => [['solution_id' => $solution->id, 'label' => null, 'kind' => 'system']],
-            'edges' => [],
-        ])
-        ->and($diagram->participants->pluck('id')->all())->toBe([$solution->id])
-        // Creating one takes the user straight to its canvas — there's nothing
-        // about a brand-new diagram the list it came from could show.
+        ->and($diagram->notebook_id)->toBe($notebook->id)
+        ->and($diagram->chain['nodes'])->toBe([['solution_id' => null, 'label' => 'Fluxo novo', 'kind' => 'system']])
+        ->and($diagram->participants)->toBeEmpty()
         ->and($response->json('redirect'))->toBe(route('diagrams.show', $diagram));
 });
 
-it('starts from a free-text root block when created without a solution', function () {
-    // The diagrams index has no solution in context, so the root is the
-    // diagram's own name as free text — and it derives no participants.
-    $this->actingAs(diagramAdmin())
-        ->postJson(route('diagrams.store'), ['name' => 'Fluxo novo'])
-        ->assertOk();
+it('asks for a name before creating a blank diagram', function () {
+    $response = $this->actingAs(diagramAdmin())
+        ->postJson(route('notebooks.diagrams.store', Notebook::factory()->create()), ['name' => ''])
+        ->assertStatus(422);
 
-    $diagram = Diagram::where('name', 'Fluxo novo')->firstOrFail();
-
-    expect($diagram->chain['nodes'])->toBe([['solution_id' => null, 'label' => 'Fluxo novo', 'kind' => 'system']])
-        ->and($diagram->participants)->toBeEmpty();
+    expect($response->json('message'))->toBe('Dê um nome ao diagrama.')
+        ->and(Diagram::count())->toBe(0);
 });
 
-it('falls back to the solution name when creating a diagram without a name', function () {
-    $solution = Solution::factory()->create(['name' => 'SVL']);
+it('no longer creates a diagram outside a caderno', function () {
+    // `diagrams.store` was the door a drawing that belonged to nothing came in
+    // through, from /diagrams and from a solution's page.
+    expect(Route::has('diagrams.store'))->toBeFalse();
 
     $this->actingAs(diagramAdmin())
-        ->postJson(route('diagrams.store'), ['solution_id' => $solution->id])
-        ->assertOk();
-
-    $this->assertDatabaseHas('diagrams', ['name' => 'SVL']);
+        ->postJson('/diagrams', ['name' => 'Solto'])
+        ->assertStatus(405);
 });
 
 it('forbids non-admins from creating a diagram', function () {
     $this->actingAs(User::factory()->create()) // viewer
-        ->postJson(route('diagrams.store'), ['name' => 'Nova'])
+        ->postJson(route('notebooks.diagrams.store', Notebook::factory()->create()), ['name' => 'Nova'])
         ->assertForbidden();
+});
+
+it('lists only the caderno own diagrams in its modal, with the systems each names', function () {
+    $notebook = Notebook::factory()->create();
+    $solution = Solution::factory()->create(['name' => 'SAP CPI']);
+    $mine = Diagram::factory()->forNotebook($notebook)->create(['name' => 'Deste caderno']);
+    $mine->participants()->attach($solution->id, ['position' => 0]);
+    Diagram::factory()->create(['name' => 'De outro caderno']);
+
+    $content = $this->actingAs(diagramAdmin())
+        ->getJson(route('notebooks.diagrams.index', $notebook))
+        ->assertOk()
+        ->json('content');
+
+    expect($content)->toContain('Deste caderno')
+        ->toContain('SAP CPI')
+        ->toContain(e('{% diagram slug="' . $mine->slug . '" %}'))
+        ->not->toContain('De outro caderno');
+});
+
+it('deletes a caderno diagrams along with it', function () {
+    $notebook = Notebook::factory()->create();
+    $diagram = Diagram::factory()->forNotebook($notebook)->create();
+
+    $notebook->delete();
+
+    $this->assertModelMissing($diagram);
 });
 
 it('renames and changes the status of an existing diagram without touching its chain', function () {

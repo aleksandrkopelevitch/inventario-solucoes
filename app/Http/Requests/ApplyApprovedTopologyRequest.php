@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\ApprovedTopology;
 use App\Models\Diagram;
+use App\Models\Notebook;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -30,6 +31,17 @@ class ApplyApprovedTopologyRequest extends FormRequest
     {
         return [
             'diagram_id' => ['nullable', 'integer', 'exists:diagrams,id'],
+            // Where a NEW diagram goes — a diagram always belongs to a caderno.
+            // Ignored when drawing over an existing one, which keeps its own.
+            'notebook_id' => ['required_without:diagram_id', 'nullable', 'integer', 'exists:notebooks,id'],
+        ];
+    }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return [
+            'notebook_id.required_without' => 'Escolha o caderno onde o novo diagrama vai ficar.',
         ];
     }
 
@@ -55,6 +67,18 @@ class ApplyApprovedTopologyRequest extends FormRequest
                 );
             }
         });
+    }
+
+    /** The caderno a new diagram goes into; null when drawing over an existing one. */
+    public function targetNotebook(): ?Notebook
+    {
+        if ($this->targetDiagram() !== null) {
+            return null;
+        }
+
+        $id = $this->validated('notebook_id');
+
+        return filled($id) ? Notebook::find($id) : null;
     }
 
     /** The chosen target, or null for "create a new diagram". */

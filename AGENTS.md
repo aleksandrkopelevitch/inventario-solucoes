@@ -3,7 +3,8 @@
 Catalog of Leo Madeiras' solutions/integrations: solution, people and company
 records, a documentation module (**cadernos** — a page tree per `Notebook`,
 each linked to 0..N solutions),
-a **diagrams** module (the graphical topology editor, one drawing at a time),
+a **diagrams** module (the graphical topology editor, one drawing at a time;
+every diagram belongs to a caderno and is created only from inside one),
 an internal **knowledge base** (`/docs` — the cadernos an admin published, read
 by anybody with a Leo account, most of whom arrive through Entra SSO),
 a read-only map of the ecosystem derived from those drawings, the **Comitê de

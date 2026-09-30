@@ -61,9 +61,9 @@ class DiagramCatalogService
     {
         return Diagram::query()
             ->filter($filters)
-            ->with(['participants:id,name,slug'])
+            ->with(['participants:id,name,slug', 'notebook:id,name,slug'])
             ->orderBy('name')
-            ->get(['id', 'name', 'slug', 'status', 'chain']);
+            ->get(['id', 'notebook_id', 'name', 'slug', 'status', 'chain']);
     }
 
     /**

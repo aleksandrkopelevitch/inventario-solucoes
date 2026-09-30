@@ -92,7 +92,7 @@ it('lets an editor create a caderno, write a page and draw a diagram', function 
 
     expect($page->fresh()->documentation)->toContain('# Conteúdo');
 
-    $this->actingAs(writer())->postJson(route('diagrams.store'), ['name' => 'Fluxo novo'])->assertOk();
+    $this->actingAs(writer())->postJson(route('notebooks.diagrams.store', $notebook), ['name' => 'Fluxo novo'])->assertOk();
     expect(Diagram::where('name', 'Fluxo novo')->exists())->toBeTrue();
 });
 
@@ -165,7 +165,7 @@ it('still refuses a viewer any write', function () {
     $this->actingAs(viewerUser())
         ->postJson(route('notebooks.pages.store', $notebook), ['title' => 'X'])
         ->assertForbidden();
-    $this->actingAs(viewerUser())->postJson(route('diagrams.store'), ['name' => 'X'])->assertForbidden();
+    $this->actingAs(viewerUser())->postJson(route('notebooks.diagrams.store', $notebook), ['name' => 'X'])->assertForbidden();
 });
 
 it('gives a viewer the read-only render rather than the editor', function () {

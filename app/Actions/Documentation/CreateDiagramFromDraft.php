@@ -2,11 +2,10 @@
 
 namespace App\Actions\Documentation;
 
-use App\Enums\DiagramStatus;
-use App\Enums\Direction;
+use App\Actions\WriteNotebookDiagram;
 use App\Models\Diagram;
+use App\Models\Notebook;
 use App\Models\Solution;
-use App\Support\DiagramSlug;
 use App\Support\Documentation\ChainDraft;
 use App\Support\Fold;
 
@@ -19,15 +18,22 @@ use App\Support\Fold;
  * node and edge below comes from the draft, and the only judgement it makes is
  * whether a name matches a Solution.
  *
- * The diagram is created exactly as `DiagramController::store()` creates an
- * empty one (same defaults, same `afterChainMutation()`), because the whole
- * point is that what comes out is an ORDINARY diagram. It is drawn, renamed,
+ * The row itself is written by `WriteNotebookDiagram` — the same door a blank
+ * diagram goes through, because the whole point is that what comes out is an
+ * ORDINARY diagram of the caderno: a new one, or a new drawing over one the
+ * author chose to replace. It is drawn, renamed,
  * rewired and deleted like any other, and the ecosystem map reads it like any
  * other — there is no "draft" state to get stuck in.
  */
 class CreateDiagramFromDraft
 {
-    public function handle(ChainDraft $draft): Diagram
+    public function __construct(private readonly WriteNotebookDiagram $writer) {}
+
+    /**
+     * @param  string|null  $name  the name the author typed; the draft's own is only the fallback
+     * @param  Diagram|null  $target  the caderno's diagram to draw over, instead of creating one
+     */
+    public function handle(ChainDraft $draft, Notebook $notebook, ?string $name = null, ?Diagram $target = null): Diagram
     {
         $solutions = $this->resolveSolutions($draft);
 
@@ -73,18 +79,12 @@ class CreateDiagramFromDraft
             ];
         }
 
-        $diagram = Diagram::create([
-            'name'        => $draft->name,
-            'slug'        => DiagramSlug::unique($draft->name),
-            'status'      => DiagramStatus::Planned->value,
-            'criticality' => 'medium',
-            'direction'   => Direction::Unidirectional->value, // re-derived from the chain right below
-            'chain'       => ['nodes' => $nodes, 'edges' => $edges],
-        ]);
-
-        $diagram->afterChainMutation();
-
-        return $diagram;
+        return $this->writer->handle(
+            $notebook,
+            chain: ['nodes' => $nodes, 'edges' => $edges],
+            name: trim((string) $name) ?: $draft->name,
+            target: $target,
+        );
     }
 
     /**

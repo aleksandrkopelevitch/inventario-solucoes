@@ -129,6 +129,17 @@ class Notebook extends Model implements HasMedia
      * consumer has to decide whether it is reading the primary or the set, and
      * the answer drifts. A notebook simply describes these systems.
      */
+    /**
+     * The drawings of this caderno. They belong to the CADERNO, never to one
+     * of its pages: a page is read to draw one, and cites any number of them
+     * with `{% diagram %}`, but a drawing outlives any rewrite of the page it
+     * was first read from.
+     */
+    public function diagrams(): HasMany
+    {
+        return $this->hasMany(Diagram::class)->orderBy('name');
+    }
+
     public function solutions(): BelongsToMany
     {
         return $this->belongsToMany(Solution::class)->orderBy('name');
@@ -215,6 +226,11 @@ class Notebook extends Model implements HasMedia
             $notebook->secret_code ??= Str::random(self::SECRET_CODE_LENGTH);
         });
 
-        static::deleting(fn (self $notebook) => $notebook->pages()->get()->each->delete());
+        static::deleting(function (self $notebook) {
+            $notebook->pages()->get()->each->delete();
+            // Through the models as well, although the FK cascades: only a
+            // model delete removes a drawing's media (pasted images, picture).
+            $notebook->diagrams()->get()->each->delete();
+        });
     }
 }

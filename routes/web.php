@@ -27,6 +27,7 @@ use App\Http\Controllers\McpTokenController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\NotebookContextDocumentController;
 use App\Http\Controllers\NotebookController;
+use App\Http\Controllers\NotebookDiagramController;
 use App\Http\Controllers\NotebookPageController;
 use App\Http\Controllers\NotebookPageDiagramController;
 use App\Http\Controllers\PipelineRunController;
@@ -505,9 +506,11 @@ Route::middleware(['auth', 'inventory'])->group(function () {
      | Flat, not nested: a diagram is addressed by itself. It used to be an
      | `Integration` reachable only under a solution that took part in it, which
      | meant every one of these URLs carried a `{solution}` the endpoint didn't
-     | need and a `scopeBindings` check to keep the two in agreement. A diagram
-     | reaches a solution the other way round now — a documentation page points
-     | at it — so there is nothing left to scope.
+     | need and a `scopeBindings` check to keep the two in agreement. It
+     | belongs to a caderno now, but is still addressed by itself — its slug is
+     | what a page's `{% diagram %}` names, and it must survive the caderno
+     | being renamed. Nothing here CREATES one: that is
+     | `notebooks/{notebook}/diagrams` and the page's "Desenhar esta página".
      |
      | The nine chain endpoints are the canvas's, and they mirror the
      | submission-diagram ones ONE FOR ONE: same payloads, same responses, same
@@ -519,7 +522,6 @@ Route::middleware(['auth', 'inventory'])->group(function () {
      | (`whereNumber`), not models.
      */
     Route::get('diagrams', [DiagramController::class, 'index'])->name('diagrams.index');
-    Route::post('diagrams', [DiagramController::class, 'store'])->name('diagrams.store');
 
     Route::prefix('diagrams/{diagram}')->name('diagrams.')->group(function () {
         Route::get('/', [DiagramController::class, 'show'])->name('show');
@@ -625,6 +627,13 @@ Route::middleware(['auth', 'inventory'])->group(function () {
 
     Route::post('notebooks/{notebook}/pages', [NotebookPageController::class, 'store'])->name('notebooks.pages.store');
 
+    // The caderno's drawings: the lookup modal its rail opens, and the one way
+    // left to start a blank one. A diagram belongs to a caderno — nothing
+    // creates one outside it. Static segment, so it is ahead of the {page}
+    // group and reserved in DocumentationPageService::RESERVED_SLUGS.
+    Route::get('notebooks/{notebook}/diagrams', [NotebookDiagramController::class, 'index'])->name('notebooks.diagrams.index');
+    Route::post('notebooks/{notebook}/diagrams', [NotebookDiagramController::class, 'store'])->name('notebooks.diagrams.store');
+
     // Three catalogs the documentation editor reads, all static segments and so
     // all BEFORE the {page} group below (and all reserved in
     // DocumentationPageService::RESERVED_SLUGS, or a page could take the URL):
@@ -664,10 +673,11 @@ Route::middleware(['auth', 'inventory'])->group(function () {
         Route::post('notebooks/{notebook}/{page}/secrets/{index}', [NotebookPageController::class, 'revealSecret'])
             ->whereNumber('index')
             ->name('notebooks.pages.secrets');
-        // The drawing this page describes. Creates an ordinary Diagram in its
-        // own module and redirects to its canvas — the page is READ here and
-        // never written, and nothing links the two afterwards (prose reaches a
-        // drawing by citing it).
+        // The drawing this page describes, written into the page's CADERNO:
+        // `target` is the dialog asking "new (named) or over one of this
+        // caderno's?", and the two POSTs draw once it is answered. The page is
+        // READ here and never written; prose reaches a drawing by citing it.
+        Route::get('notebooks/{notebook}/{page}/diagram/target', [NotebookPageDiagramController::class, 'target'])->name('notebooks.pages.diagram.target');
         Route::post('notebooks/{notebook}/{page}/diagram', [NotebookPageDiagramController::class, 'store'])->name('notebooks.pages.diagram');
         // The same page, drawn as one of the four MODELS. `{model}` is an
         // implicit enum binding, so a shape outside the four 404s before the

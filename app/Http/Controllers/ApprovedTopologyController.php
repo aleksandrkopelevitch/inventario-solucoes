@@ -34,6 +34,7 @@ class ApprovedTopologyController extends Controller
             $topology,
             $request->user(),
             $request->targetDiagram(),
+            $request->targetNotebook(),
         );
 
         return $this->answered(

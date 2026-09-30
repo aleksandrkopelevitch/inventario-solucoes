@@ -1,9 +1,9 @@
 {{-- Left column of the solution's "diagramas + documentação" card (the frame
      itself is in solutions/show.blade.php — this is the updatable slot, so it
      can't own the card's border). A plain nav list: each row opens that
-     diagram's own canvas page. Two kinds of row live here together on purpose
-     (a drawing this solution is a box in, and a drawing its documentation
-     points at) — see the component's docblock. --}}
+     diagram's own canvas page, and names the caderno the drawing belongs to —
+     a diagram is created inside a caderno, never here (see the component's
+     docblock). --}}
 <div id="{{ $domId }}" class="flex min-w-0 flex-col p-6" aria-label="Diagramas da solução">
     <div class="flex items-center gap-2.5">
         <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-accent text-white">
@@ -17,26 +17,7 @@
         @endif
     </div>
 
-    <p class="mt-1.5 text-sm text-muted">Fluxos desenhados em que esta solução aparece. O texto que os explica vive nas páginas de documentação.</p>
-
-    @can('create', App\Models\Diagram::class)
-        {{-- Creates a new Diagram (name only) with the current solution as
-             the root node and goes STRAIGHT to its canvas, where the blocks,
-             links, protocol and status are authored. Name is optional (falls
-             back to the solution's own name), so "Novo" alone is a valid
-             gesture. --}}
-        <form id="diagram-create-form" class="mt-4 flex items-center gap-2">
-            @csrf
-            <input type="hidden" name="solution_id" value="{{ $solution->id }}">
-            <x-forms.input type="text" name="name" placeholder="Nome do novo diagrama (opcional)"
-                class="!h-9 min-w-0 flex-1 !text-sm" />
-            <x-forms.button data-ak-ajax="diagram-create-form"
-                data-ak-action="{{ route('diagrams.store') }}"
-                class="!h-9 !shrink-0 !px-3 !text-xs">
-                <x-heroicon-o-plus class="size-4" /> Novo
-            </x-forms.button>
-        </form>
-    @endcan
+    <p class="mt-1.5 text-sm text-muted">Fluxos desenhados em que esta solução aparece. Cada um pertence a um caderno de documentação, onde é criado.</p>
 
     <div class="mt-4 flex flex-col gap-2">
         @forelse ($rows as $row)
@@ -58,6 +39,11 @@
                         @if ($row['summary'])
                             <span class="min-w-0 truncate font-mono text-xs text-muted">{{ $row['summary'] }}</span>
                         @endif
+                    </span>
+                    {{-- Plain text, not a link: the whole row is already one. --}}
+                    <span class="mt-1 flex min-w-0 items-center gap-1 text-[11px] text-muted">
+                        <x-heroicon-o-book-open class="size-3.5 shrink-0 text-accent" />
+                        <span class="truncate">Caderno: {{ $diagram->notebook->name }}</span>
                     </span>
                 </span>
 
@@ -82,7 +68,7 @@
         @empty
             <x-ui.empty-state illustration="diagrams" illustration-class="max-w-[268px]"
                 title="Nenhum diagrama ainda"
-                description="Crie o primeiro para desenhar o fluxo entre os sistemas e vinculá-lo a uma página de documentação." />
+                description="Diagramas são criados dentro de um caderno que documenta esta solução — a partir de uma página, com &quot;Desenhar esta página&quot;." />
         @endforelse
     </div>
 </div>

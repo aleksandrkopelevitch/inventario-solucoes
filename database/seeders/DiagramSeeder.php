@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Enums\Direction;
 use App\Models\Diagram;
+use App\Models\Notebook;
 use App\Models\Solution;
 use Illuminate\Database\Seeder;
 
@@ -22,10 +23,15 @@ use Illuminate\Database\Seeder;
  * became the source of truth, made only in the half nothing reads: the
  * ecosystem map builds its edges from `chain.edges`, so a seeded database
  * drew every solution and not one single link between them.
+ *
+ * A diagram belongs to a caderno, so the portfolio gets one of its own
+ * (`NOTEBOOK_SLUG`), created if missing and left alone otherwise.
  */
 class DiagramSeeder extends Seeder
 {
     private const DIGIBEE = 'digibee-ipaas';
+
+    private const NOTEBOOK_SLUG = 'portfolio-de-integracoes';
 
     /** @var array<string, int> cache slug => solution id */
     private array $cache = [];
@@ -126,21 +132,29 @@ class DiagramSeeder extends Seeder
     {
         $this->ensurePlannedSolutions();
 
+        $notebook = Notebook::firstOrCreate(
+            ['slug' => self::NOTEBOOK_SLUG],
+            ['name' => 'Portfólio de integrações'],
+        );
+
         foreach ($this->portfolio() as $def) {
-            $diagram = Diagram::updateOrCreate(
-                ['slug' => $def['slug']],
-                [
-                    'name' => $def['name'],
-                    // Placeholder: `diagrams.direction` is NOT NULL, and it is
-                    // re-derived from the chain by the line below — the same
-                    // shape `DiagramController::store()` uses on creation.
-                    'direction'   => Direction::Unidirectional->value,
-                    'sync_mode'   => $def['sync_mode'],
-                    'status'      => $def['status'],
-                    'criticality' => $def['criticality'],
-                    'chain'       => $this->chain($def),
-                ],
-            );
+            // `notebook_id` is not fillable (a diagram is filed through the
+            // relation), so this is firstOrNew + associate rather than the
+            // updateOrCreate it used to be.
+            $diagram = Diagram::firstOrNew(['slug' => $def['slug']]);
+            $diagram->fill([
+                'name' => $def['name'],
+                // Placeholder: `diagrams.direction` is NOT NULL, and it is
+                // re-derived from the chain by the line below — the same
+                // shape `WriteNotebookDiagram` uses on creation.
+                'direction'   => Direction::Unidirectional->value,
+                'sync_mode'   => $def['sync_mode'],
+                'status'      => $def['status'],
+                'criticality' => $def['criticality'],
+                'chain'       => $this->chain($def),
+            ]);
+            $diagram->notebook()->associate($notebook);
+            $diagram->save();
 
             $diagram->afterChainMutation();
         }

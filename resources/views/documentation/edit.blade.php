@@ -53,6 +53,21 @@
                                            :title="$notebookLabel"
                                            :rename-url="$notebookRenameUrl ?? null"
                                            :can-edit="$notebookEditable ?? false" />
+
+                {{-- The caderno's drawings. A diagram belongs to the CADERNO,
+                     not to the page on screen, so this sits at the foot of the
+                     rail — the part that is the same on every page — and
+                     outside the pages-nav slot, which a page move swaps. --}}
+                @isset($notebookDiagramsUrl)
+                    <div class="shrink-0 border-t border-line p-2">
+                        <x-forms.button type="button" variant="ghost" data-ak-modal-open="main-modal" data-ak-modal-url="{{ $notebookDiagramsUrl }}"
+                            class="!h-9 !w-full !justify-start !gap-2 !px-2.5 !text-xs">
+                            <x-heroicon-o-share class="size-4 shrink-0 text-accent" />
+                            <span class="flex-1 text-left font-semibold text-ink">Diagramas do caderno</span>
+                            <span class="rounded-full bg-raised px-2 py-0.5 text-[11px] font-medium text-muted">{{ $notebookDiagramCount }}</span>
+                        </x-forms.button>
+                    </div>
+                @endisset
             </aside>
         @endisset
 

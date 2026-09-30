@@ -2,23 +2,22 @@
 
 namespace App\Actions\Cati;
 
-use App\Enums\ChainNodeKind;
-use App\Enums\Direction;
+use App\Actions\WriteNotebookDiagram;
 use App\Models\ApprovedTopology;
 use App\Models\Diagram;
+use App\Models\Notebook;
 use App\Models\User;
-use Illuminate\Support\Str;
 
 /**
  * Writes an approved TO BE onto a real Diagram — the moment the catalog
  * catches up with a committee decision.
  *
- * This is where the Fase 3 `ChainCanvas` contract pays for itself: the write
- * goes through `writeChain()` + `afterChainMutation()`, which is the same door
- * the canvas uses, so the derived columns (participants, source/target,
- * direction, the protocol summary) come out re-derived without this action
- * knowing they exist. Assigning `chain` directly here would have been the one
- * place in the app where topology changed without those following.
+ * The write goes through `WriteNotebookDiagram`, the door every drawing is
+ * written through: `writeChain()` + `afterChainMutation()`, so the derived
+ * columns (participants, source/target, direction, the protocol summary) come
+ * out re-derived without this action knowing they exist, and a new diagram
+ * lands in the caderno the person picked — a diagram belongs to a caderno,
+ * and a proposal's TO BE is no exception.
  *
  * A HUMAN chooses the target, always. A submission's TO BE is a free graph
  * that may describe several diagrams or one that does not exist yet, and an
@@ -27,29 +26,40 @@ use Illuminate\Support\Str;
  */
 class ApplyApprovedTopology
 {
+    public function __construct(private readonly WriteNotebookDiagram $writer) {}
+
     /**
      * @param  Diagram|null  $target  null creates a new diagram for the drawing
+     * @param  Notebook|null  $notebook  where that new diagram goes; required when `$target` is null
      */
-    public function handle(ApprovedTopology $topology, User $user, ?Diagram $target = null): Diagram
+    public function handle(ApprovedTopology $topology, User $user, ?Diagram $target = null, ?Notebook $notebook = null): Diagram
     {
-        $topology->loadMissing('solution');
+        $topology->loadMissing(['solution', 'submission']);
 
-        $diagram = $target ?? $this->newDiagram($topology);
+        if ($target !== null) {
+            $target->loadMissing('notebook');
+            $notebook = $target->notebook;
+        }
 
-        // Through the contract, never by assignment: `afterChainMutation()` is
-        // what re-derives participants/source/target/direction and the protocol
-        // summary from the chain.
-        $diagram->writeChain(chain: $topology->chain, layout: $topology->viz_layout);
-        $diagram->afterChainMutation();
+        throw_if($notebook === null, \InvalidArgumentException::class, 'A new diagram needs a notebook.');
 
-        // A new diagram is born with no participants at all, so the
-        // solution the submission was about is attached by the sync above only
-        // if the chain references it. Nothing else to do here — the chain is
-        // the source of truth and it has just been written.
+        // Named after the submission, so the row is recognisable in the
+        // caderno and on the solution's page before anyone opens it. An
+        // overwrite keeps the target's own name.
+        $name = trim((string) $topology->submission?->name) ?: $topology->solution->name;
+
+        $diagram = $this->writer->handle(
+            $notebook,
+            chain: $topology->chain,
+            layout: $topology->viz_layout,
+            name: $name,
+            target: $target,
+        );
+
         $topology->update([
-            'diagram_id' => $diagram->id,
-            'applied_at'     => now(),
-            'applied_by_id'  => $user->id,
+            'diagram_id'    => $diagram->id,
+            'applied_at'    => now(),
+            'applied_by_id' => $user->id,
         ]);
 
         return $diagram->fresh();
@@ -63,45 +73,5 @@ class ApplyApprovedTopology
             'dismissed_by_id'  => $user->id,
             'dismissed_reason' => $reason,
         ]);
-    }
-
-    /**
-     * A brand-new Diagram for a TO BE that describes something the catalog
-     * does not have yet — the common case for a proposal.
-     *
-     * Born with an empty chain and `planned` status; the caller writes the real
-     * chain immediately afterwards, which is what derives everything else. The
-     * name comes from the submission so the row is recognisable in the
-     * solution's list before anyone opens it.
-     */
-    private function newDiagram(ApprovedTopology $topology): Diagram
-    {
-        $topology->loadMissing('submission');
-
-        $name = trim((string) $topology->submission?->name) ?: $topology->solution->name;
-
-        return Diagram::create([
-            'name'   => $name,
-            'slug'   => $this->uniqueSlug($name),
-            'status' => 'planned',
-            // Both re-derived from the chain the caller is about to write; they
-            // exist here only because the columns are not nullable.
-            'criticality' => 'medium',
-            'direction'   => Direction::Unidirectional->value,
-            'chain'       => ['nodes' => [['solution_id' => null, 'label' => $name, 'kind' => ChainNodeKind::System->value]], 'edges' => []],
-        ]);
-    }
-
-    private function uniqueSlug(string $name): string
-    {
-        $base = Str::slug($name) ?: 'diagrama';
-        $slug = $base;
-        $suffix = 1;
-
-        while (Diagram::where('slug', $slug)->exists()) {
-            $slug = $base . '-' . (++$suffix);
-        }
-
-        return $slug;
     }
 }

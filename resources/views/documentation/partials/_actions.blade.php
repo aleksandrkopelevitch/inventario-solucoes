@@ -45,29 +45,23 @@
          The first item is the free graph — what talks to what. The four below
          it are the other questions a page asks: in what order the calls
          happen, what the states of a run are, where the data comes to rest,
-         who does what. All five produce the same thing, an ordinary Diagram on
-         the canvas, which is why they sit in one menu instead of two.
+         who does what. All five produce the same thing, an ordinary Diagram of
+         THIS CADERNO on the canvas, which is why they sit in one menu.
 
-         Every item needs the same ability, because every item writes a row in
-         the diagrams module: `create` on Diagram.
+         No item draws anything by itself any more. Each opens the dialog
+         (`#main-modal`, notebooks.pages.diagram.target) that asks whether to
+         create a new diagram, under a name the author types, or to draw over
+         one the caderno already has — asked BEFORE the minute-long model call,
+         so nothing has to be parked while the answer comes. The dialog's
+         confirm is what posts, and it carries the `data-ak-ajax-target`
+         new-tab hooks these items used to. Each item also closes this menu
+         (the same `data-ak-toggle` as the trigger): the click lands inside it,
+         so the outside-click rule never would.
 
-         Each item is its own <form class="contents">: ajax-post.js builds a
-         FormData from the form a button names, and there is no form in this bar
-         to borrow. No `type="button"` on any of them — a button carrying
-         `data-ak-ajax` must stay a submit, or Enter silently stops working
-         (AGENTS.md).
-
-         `data-ak-ajax-target="_blank"` on all five: the drawing opens BESIDE
-         the page it was read from instead of replacing it. A diagram's own
-         page is not the page's child — its back arrow goes to the diagrams
-         index, which is where anybody who pressed one of these landed, one
-         click away from the prose they were writing. --}}
-    {{-- The trigger appears only when the menu would have something in it.
-         Without this a Viewer got the button and an EMPTY popover — an
-         affordance for two things they may not do. The two conditions are the
-         two halves of the menu, in the same order. --}}
+         Shown only to whoever may write a diagram (`create`), so a Viewer gets
+         neither the trigger nor an empty popover. --}}
     @isset($diagramDraftUrl)
-    @if ($canEdit || (auth()->user()?->can('create', App\Models\Diagram::class) ?? false))
+    @can('create', App\Models\Diagram::class)
         <div class="relative">
             <x-forms.button type="button" variant="ghost" data-ak-toggle="docs-draw-menu"
                 data-ak-toggle-classes="hidden" data-ak-toggle-blur="true"
@@ -76,43 +70,34 @@
             </x-forms.button>
 
             <div id="docs-draw-menu" class="hidden absolute right-0 top-full z-20 mt-1.5 w-72 rounded-field border border-line bg-surface p-1.5 shadow-xl">
-                @can('create', App\Models\Diagram::class)
-                    <form id="docs-diagram-form" class="contents">
-                        <x-forms.button variant="ghost" data-ak-ajax="docs-diagram-form" data-ak-action="{{ $diagramDraftUrl }}"
-                            data-ak-ajax-target="_blank" data-ak-ajax-pending="Desenhando o fluxo desta página…"
-                            class="!h-auto !w-full !justify-start !gap-2.5 !rounded-md !px-2 !py-1.5 !text-left">
-                            <x-heroicon-o-share class="size-4 shrink-0 text-muted" />
-                            <span class="min-w-0">
-                                <span class="block truncate text-xs font-semibold text-ink">Fluxo, no canvas</span>
-                                <span class="block truncate text-[11px] text-muted">Um diagrama editável, com os sistemas do catálogo</span>
-                            </span>
-                        </x-forms.button>
-                    </form>
-
-                    <span class="my-1 block h-px bg-line"></span>
-                @endcan
+                <x-forms.button type="button" variant="ghost" data-ak-modal-open="main-modal" data-ak-modal-url="{{ $diagramDraftUrl }}"
+                    data-ak-toggle="docs-draw-menu" data-ak-toggle-classes="hidden"
+                    class="!h-auto !w-full !justify-start !gap-2.5 !rounded-md !px-2 !py-1.5 !text-left">
+                    <x-heroicon-o-share class="size-4 shrink-0 text-muted" />
+                    <span class="min-w-0">
+                        <span class="block truncate text-xs font-semibold text-ink">Fluxo, no canvas</span>
+                        <span class="block truncate text-[11px] text-muted">Um diagrama editável, com os sistemas do catálogo</span>
+                    </span>
+                </x-forms.button>
 
                 @isset($modelUrls)
+                    <span class="my-1 block h-px bg-line"></span>
+
                     @foreach ($modelUrls as $entry)
-                        <form id="docs-model-form-{{ $entry['model']->value }}" class="contents">
-                            <x-forms.button variant="ghost"
-                                data-ak-ajax="docs-model-form-{{ $entry['model']->value }}"
-                                data-ak-action="{{ $entry['url'] }}"
-                                data-ak-ajax-target="_blank"
-                                data-ak-ajax-pending="Desenhando: {{ $entry['model']->label() }}…"
-                                class="!h-auto !w-full !justify-start !gap-2.5 !rounded-md !px-2 !py-1.5 !text-left">
-                                <x-dynamic-component :component="'heroicon-o-' . $entry['model']->icon()" class="size-4 shrink-0 text-muted" />
-                                <span class="min-w-0">
-                                    <span class="block truncate text-xs font-semibold text-ink">{{ $entry['model']->label() }}</span>
-                                    <span class="block truncate text-[11px] text-muted">{{ $entry['model']->hint() }}</span>
-                                </span>
-                            </x-forms.button>
-                        </form>
+                        <x-forms.button type="button" variant="ghost" data-ak-modal-open="main-modal" data-ak-modal-url="{{ $entry['url'] }}"
+                            data-ak-toggle="docs-draw-menu" data-ak-toggle-classes="hidden"
+                            class="!h-auto !w-full !justify-start !gap-2.5 !rounded-md !px-2 !py-1.5 !text-left">
+                            <x-dynamic-component :component="'heroicon-o-' . $entry['model']->icon()" class="size-4 shrink-0 text-muted" />
+                            <span class="min-w-0">
+                                <span class="block truncate text-xs font-semibold text-ink">{{ $entry['model']->label() }}</span>
+                                <span class="block truncate text-[11px] text-muted">{{ $entry['model']->hint() }}</span>
+                            </span>
+                        </x-forms.button>
                     @endforeach
                 @endisset
             </div>
         </div>
-    @endif
+    @endcan
     @endisset
 
     @if ($canEdit)

@@ -118,7 +118,7 @@ class SearchDiagrams implements Tool
 
         $total = $query->count();
         $limit = $args->int('limit', 25, 1, 100);
-        $diagrams = $query->orderBy('name')->limit($limit)->get();
+        $diagrams = $query->with('notebook:id,name,slug,published_at')->orderBy('name')->limit($limit)->get();
 
         return ToolResult::json([
             'total'     => $total,

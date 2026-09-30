@@ -2,13 +2,12 @@
 
 namespace App\Actions\Documentation;
 
-use App\Enums\DiagramStatus;
-use App\Enums\Direction;
+use App\Actions\WriteNotebookDiagram;
 use App\Models\Diagram;
+use App\Models\Notebook;
 use App\Models\Solution;
 use App\Support\Diagrams\ModelLayout;
 use App\Support\Diagrams\ModelSpec;
-use App\Support\DiagramSlug;
 use App\Support\Fold;
 use Illuminate\Support\Collection;
 
@@ -22,27 +21,30 @@ use Illuminate\Support\Collection;
  */
 class CreateDiagramFromModel
 {
-    public function handle(ModelSpec $spec): Diagram
+    public function __construct(private readonly WriteNotebookDiagram $writer) {}
+
+    /**
+     * @param  string|null  $name  the name the author typed; the spec's own is only the fallback
+     * @param  Diagram|null  $target  the caderno's diagram to draw over, instead of creating one
+     */
+    public function handle(ModelSpec $spec, Notebook $notebook, ?string $name = null, ?Diagram $target = null): Diagram
     {
         $built = ModelLayout::build($spec, $this->resolveSolutions($spec));
 
         // Named for the model it IS — see `DiagramModel::suffixed()`. The slug
-        // is derived from the same string, so the address says it too.
-        $name = $spec->model->suffixed($spec->name);
+        // is derived from the same string, so the address says it too. Applied
+        // to a typed name as well: the dialog prefills it already suffixed, and
+        // `suffixed()` refuses to add a suffix that is already there. An
+        // overwrite keeps the target's name, whatever the model.
+        $name = $spec->model->suffixed(trim((string) $name) ?: $spec->name);
 
-        $diagram = Diagram::create([
-            'name'        => $name,
-            'slug'        => DiagramSlug::unique($name),
-            'status'      => DiagramStatus::Planned->value,
-            'criticality' => 'medium',
-            'direction'   => Direction::Unidirectional->value, // re-derived from the chain right below
-            'chain'       => $built['chain'],
-            'viz_layout'  => $built['viz_layout'],
-        ]);
-
-        $diagram->afterChainMutation();
-
-        return $diagram;
+        return $this->writer->handle(
+            $notebook,
+            chain: $built['chain'],
+            layout: $built['viz_layout'],
+            name: $name,
+            target: $target,
+        );
     }
 
     /**

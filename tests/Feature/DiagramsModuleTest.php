@@ -170,13 +170,14 @@ it('refreshes the solution card it was deleted from, and navigates away when ask
 
     $this->assertModelMissing($diagram);
 
-    // From the diagram's own page: staying there would be a 404 on the next click.
+    // From the diagram's own page: staying there would be a 404 on the next
+    // click, so it goes back to the caderno the drawing belonged to.
     $second = Diagram::factory()->create();
 
     $this->actingAs(diagramsAdmin())
-        ->deleteJson(route('diagrams.destroy', ['diagram' => $second, 'after' => 'index']))
+        ->deleteJson(route('diagrams.destroy', ['diagram' => $second, 'after' => 'notebook']))
         ->assertOk()
-        ->assertJson(['redirect' => route('diagrams.index')]);
+        ->assertJson(['redirect' => route('notebooks.show', $second->notebook)]);
 });
 
 it('forbids a viewer from deleting a diagram', function () {

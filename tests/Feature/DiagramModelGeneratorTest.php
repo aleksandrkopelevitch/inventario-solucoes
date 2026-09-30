@@ -135,7 +135,8 @@ it('refuses a step filed under a lane nobody declared', function () {
 
 it('draws a sequence as lifelines, with every message at its own height', function () {
     $diagram = app(CreateDiagramFromModel::class)->handle(
-        ModelSpec::from(DiagramModel::Sequence, sequencePayload())
+        notebook: Notebook::factory()->create(),
+        spec: ModelSpec::from(DiagramModel::Sequence, sequencePayload())
     );
 
     $nodes = $diagram->chain['nodes'];
@@ -162,7 +163,7 @@ it('draws a sequence as lifelines, with every message at its own height', functi
 });
 
 it('draws a process as lanes with the steps advancing along them', function () {
-    $diagram = app(CreateDiagramFromModel::class)->handle(ModelSpec::from(DiagramModel::Workflow, [
+    $diagram = app(CreateDiagramFromModel::class)->handle(notebook: Notebook::factory()->create(), spec: ModelSpec::from(DiagramModel::Workflow, [
         'name'  => 'Chamado',
         'lanes' => [['id' => 's', 'label' => 'Solicitante'], ['id' => 'ti', 'label' => 'TI']],
         'steps' => [
@@ -186,7 +187,7 @@ it('draws a process as lanes with the steps advancing along them', function () {
 });
 
 it('drops a lifecycle failure to its own row and dashes the way back', function () {
-    $diagram = app(CreateDiagramFromModel::class)->handle(ModelSpec::from(DiagramModel::Lifecycle, [
+    $diagram = app(CreateDiagramFromModel::class)->handle(notebook: Notebook::factory()->create(), spec: ModelSpec::from(DiagramModel::Lifecycle, [
         'name'   => 'Execução',
         'states' => [
             ['id' => 'novo', 'label' => 'Recebido', 'kind' => 'start'],
@@ -217,7 +218,7 @@ it('stacks a data flow down its stage and derives the participants', function ()
     $sap = Solution::factory()->create(['name' => 'SAP S/4HANA']);
     $bq = Solution::factory()->create(['name' => 'Google BigQuery']);
 
-    $diagram = app(CreateDiagramFromModel::class)->handle(ModelSpec::from(DiagramModel::Dataflow, [
+    $diagram = app(CreateDiagramFromModel::class)->handle(notebook: Notebook::factory()->create(), spec: ModelSpec::from(DiagramModel::Dataflow, [
         'name'  => 'Carga',
         'lanes' => [['id' => 'o', 'label' => 'Origem'], ['id' => 'c', 'label' => 'Consumo']],
         'nodes' => [
@@ -281,7 +282,7 @@ it('creates the drawing and sends the author to its canvas', function () {
     app()->instance(DiagramModelService::class, fakeModelService(modelJson(sequencePayload())));
 
     $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]))
-        ->postJson(route('notebooks.pages.diagram.model', [$page->notebook, $page, 'sequence']))
+        ->postJson(route('notebooks.pages.diagram.model', [$page->notebook, $page, 'sequence']), ['target' => 'new', 'name' => 'Consulta'])
         ->assertOk()
         ->assertJsonPath('redirect', route('diagrams.show', Diagram::sole()));
 
@@ -303,7 +304,7 @@ it('refuses a viewer', function () {
     app()->instance(DiagramModelService::class, fakeModelService(modelJson(sequencePayload())));
 
     $this->actingAs(User::factory()->create(['role' => UserRole::Viewer->value]))
-        ->postJson(route('notebooks.pages.diagram.model', [$page->notebook, $page, 'sequence']))
+        ->postJson(route('notebooks.pages.diagram.model', [$page->notebook, $page, 'sequence']), ['target' => 'new', 'name' => 'X'])
         ->assertForbidden();
 
     expect(Diagram::count())->toBe(0);
@@ -314,10 +315,10 @@ it('names the drawing after the model it was generated as', function () {
     app()->instance(DiagramModelService::class, fakeModelService(modelJson(sequencePayload())));
 
     $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]))
-        ->postJson(route('notebooks.pages.diagram.model', [$page->notebook, $page, 'sequence']))
+        ->postJson(route('notebooks.pages.diagram.model', [$page->notebook, $page, 'sequence']), ['target' => 'new', 'name' => 'Consulta de pedido'])
         ->assertOk();
 
-    // The suffix is what tells four drawings of the same page apart in the
+    // Applied to the name the author TYPED, too. The suffix is what tells four drawings of the same page apart in the
     // catalog; the slug is built from the suffixed name, so the address says it
     // too.
     expect(Diagram::sole()->name)->toBe('Consulta de pedido — Sequência')

@@ -75,9 +75,11 @@ opened since that feature landed has none), and a deleted diagram becomes a
 
 Addressed by SLUG, never id: it is what the author picked and what the URL shows,
 it survives a database reload between environments, and a stale citation still
-reads as something. The picker (`diagrams.catalog`) groups the catalog by
-SOLUTION — the only relation a diagram has left — with a trailing group for
-drawings that name none, since those are still citable.
+reads as something. A diagram BELONGS to a caderno (`notebook_id`), but a page
+may cite any caderno's drawing — the public route authorises a picture by
+citation, not by owner. So the picker (`diagrams.catalog?notebook=`) leads with
+a "Deste caderno" group and then groups the whole catalog by SOLUTION, with a
+trailing group for drawings that name none, since those are still citable.
 
 **A link between two pages is `[texto](page:{slug})`, resolved per READER.**
 It is the one construct of the dialect that is not a `{% … %}` block — it is an
@@ -241,9 +243,11 @@ Three more rules that are easy to half-implement:
   same card: `update` (editor) opens the rename panel, `delete` (admin) removes
   the caderno. It answers with the catalog SLOT, not a `redirect` — from the
   catalog, a redirect to the catalog is a full reload that throws away the
-  filters the URL still shows. The confirm states the two consequences that are
-  COUNTED rather than guessed: how many pages go with it, and whether a public
-  link somebody already holds stops working.
+  filters the URL still shows. The confirm states the consequences that are
+  COUNTED rather than guessed: how many pages go with it, how many DIAGRAMS go
+  with it (they belong to the caderno, and are deleted through the models so
+  their media goes too), and whether a public link somebody already holds stops
+  working.
 
 The rail (`x-documentation.pages-nav`) renders that walk as ONE flat `@foreach`
 with an indent class per depth — deliberately not a recursive partial, so every

@@ -5,6 +5,11 @@ paths:
   - "app/Services/Documentation/DiagramDraftService.php"
   - "app/Services/Documentation/DiagramDraftPromptBuilder.php"
   - "app/Http/Controllers/NotebookPageDiagramController.php"
+  - "app/Http/Controllers/NotebookDiagramController.php"
+  - "app/Http/Requests/DrawNotebookPageRequest.php"
+  - "app/Actions/WriteNotebookDiagram.php"
+  - "resources/views/notebooks/diagram-target.blade.php"
+  - "resources/views/notebooks/diagrams.blade.php"
   - "app/Exceptions/DiagramDraftFailed.php"
   - "app/Support/DiagramSlug.php"
 ---
@@ -58,18 +63,55 @@ Three more things that are easy to undo:
   guess costs. The page is read (masked and stripped, like every other surface
   that hands a page's text to a model) and left exactly as it was.
 
-Nothing links the page and the drawing afterwards. A page reaches a diagram by
-CITING it (`{% diagram %}`) — the `documentation_pages.diagram_id` FK was
-removed for reasons written up in `.claude/rules/cadernos-notebooks.md`, and
-this feature must not quietly reintroduce it.
+### The drawing belongs to the CADERNO, and the author picks new or over
 
-**Which is exactly why the drawing opens in a NEW TAB** (`data-ak-ajax-target`
-on all five menu items — see `.claude/rules/data-ak-attribute-reference.md`).
-With no link back, a diagram's own arrow goes to the diagrams index, so
-replacing the document left whoever pressed the button on a list, one click
-from prose they had not finished — and, on an unsaved page, past the edits they
-had not committed. The tab is opened in the click handler rather than when the
-answer arrives: this is the ONE synchronous model call in the app, and by then
-the gesture's user activation is long expired and every browser blocks the
-popup silently. The response's own message says a tab was opened; the sentence
-about checking the blocks is FLASHED, so it is read in the tab it applies to.
+**A diagram belongs to a caderno** (`diagrams.notebook_id`, required,
+cascading) — never to the page it was read from. The page is read and left
+exactly as it was; it reaches the drawing by CITING it (`{% diagram %}`), and
+the `documentation_pages.diagram_id` FK was removed for reasons written up in
+`.claude/rules/cadernos-notebooks.md` — this feature must not quietly
+reintroduce it. Nothing creates a diagram outside a caderno any more:
+`diagrams.store` is gone, and `/diagrams` and a solution's page only LIST
+drawings, each naming its caderno.
+
+**The choice is asked BEFORE the model call.** Every item of the menu opens a
+dialog (`notebooks.pages.diagram.target`, `?model=` for the four models):
+"Criar um diagrama novo" with a REQUIRED name, prefilled with the page title
+(already `suffixed()` for a model), or one of this caderno's diagrams to draw
+over. Asking afterwards would mean parking the draft somewhere until the answer
+came, and the call is synchronous — so the question comes first and the
+confirm is what posts. `DrawNotebookPageRequest` carries it as ONE field,
+`target` = `new` | a slug, and the slug must be one of THIS caderno's: an
+overwrite that could reach another caderno would rewrite a drawing its pages
+cite, from a screen that never showed it. The typed name wins over the one the
+model proposed.
+
+**Overwriting keeps the diagram's identity** (`WriteNotebookDiagram`): name,
+slug, status and the declared systems stay; only the chain and `viz_layout` are
+replaced (the old layout goes even when the new drawing brings none — it is
+keyed by NODE index). The slug is what citations name, so every page citing
+the drawing shows the new one. The rendered PICTURE is dropped: it is posted by
+the browser after a layout save, so until the canvas is opened it would go on
+showing the drawing that was just replaced, and "sem imagem ainda" is true where
+the old picture is not.
+
+`WriteNotebookDiagram` is the ONE door a drawing is written through — blank,
+free graph, the four models and the CATI approval all call it. There used to be
+four `Diagram::create()` calls with the same defaults and a second copy of the
+slug loop; a fifth creation path belongs there too.
+
+**The drawing still opens in a NEW TAB** (`data-ak-ajax-target` on the dialog's
+confirm — see `.claude/rules/data-ak-attribute-reference.md`), so the prose
+being written stays put, unsaved edits included. The tab is opened in the click
+handler rather than when the answer arrives: this is the ONE synchronous model
+call in the app, and by then the gesture's user activation is long expired and
+every browser blocks the popup silently. The canvas's back arrow leads to the
+CADERNO, not to the diagrams index. The response's own message says a tab was
+opened; the sentence about checking the blocks is FLASHED, so it is read in the
+tab it applies to.
+
+**The caderno's drawings have one place of their own**: "Diagramas do caderno"
+at the foot of the pages rail (outside the pages-nav slot, which a page move
+swaps), opening a lookup modal (`notebooks.diagrams.index`) with the systems
+each drawing names (`x-diagrams.solution-chips`, shared with `/diagrams`), a
+"Copiar citação" and the one blank-creation form left in the app.
