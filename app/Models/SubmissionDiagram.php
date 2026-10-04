@@ -150,6 +150,7 @@ class SubmissionDiagram extends Model implements ChainCanvas, HasMedia
             'nodeAddUrl'      => route('submissions.diagrams.chain.node.add', $self),
             'imageAddUrl'     => route('submissions.diagrams.chain.image.add', $self),
             'nodeUpdateUrl'   => route('submissions.diagrams.chain.node.update', [...$self, 'NODE_INDEX']),
+            'nodeImageUrl'    => route('submissions.diagrams.chain.node.image.store', [...$self, 'NODE_INDEX']),
             'nodeRemoveUrl'   => route('submissions.diagrams.chain.node.remove', [...$self, 'NODE_INDEX']),
             'edgeAddUrl'      => route('submissions.diagrams.chain.edge.add', $self),
             'edgeUpdateUrl'   => route('submissions.diagrams.chain.protocol.update', [...$self, 'EDGE_INDEX']),

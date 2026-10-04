@@ -12,7 +12,7 @@ use Spatie\MediaLibrary\HasMedia;
  * own**: every endpoint it calls arrives inside the graph payload it is drawn
  * from (`nodeAddUrl`, `edgeRetargetUrl`, `saveUrl`, …). That is what makes a
  * second owner cheap — the client never learns there is one. This contract is
- * the server half of the same idea: `Concerns\EditsChain` performs the nine
+ * the server half of the same idea: `Concerns\EditsChain` performs the eleven
  * chain mutations against anything that implements it.
  *
  * Two implementations, and the difference between them is the whole reason
@@ -88,7 +88,7 @@ interface ChainCanvas extends HasMedia
     /**
      * Every endpoint the canvas needs, keyed as the graph payload expects
      * (`saveUrl`, `nodeAddUrl`, `nodeUpdateUrl`, `nodeRemoveUrl`,
-     * `imageAddUrl`, `edgeAddUrl`, `edgeUpdateUrl`, `edgeRetargetUrl`,
+     * `nodeImageUrl`, `imageAddUrl`, `edgeAddUrl`, `edgeUpdateUrl`, `edgeRetargetUrl`,
      * `edgeRemoveUrl`, `diagramUrl`). `NODE_INDEX`/`EDGE_INDEX` placeholders
      * are substituted client-side.
      *

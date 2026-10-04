@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Diagram;
 use App\Http\Requests\Concerns\AuthorizesChainOwner;
+use App\Models\Diagram;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -22,12 +22,21 @@ class AddChainImageRequest extends FormRequest
     use AuthorizesChainOwner;
 
     /**
+     * What a picture on the canvas may be — shared with
+     * `SetChainNodeImageRequest`, which puts one INSIDE a block instead. No
+     * SVG: Laravel's `image` rule refuses it unless told `allow_svg`, and an
+     * uploaded SVG served back from `/files/{id}` is a document that can carry
+     * script, not a picture.
+     */
+    public const IMAGE_RULES = ['required', 'image', 'max:10240', 'mimes:jpg,jpeg,png,gif,webp'];
+
+    /**
      * @return array<string, mixed>
      */
     public function rules(): array
     {
         return [
-            'image' => ['required', 'image', 'max:10240', 'mimes:jpg,jpeg,png,gif,webp,svg'],
+            'image' => self::IMAGE_RULES,
         ];
     }
 }

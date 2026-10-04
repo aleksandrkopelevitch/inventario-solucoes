@@ -11,7 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\UploadedFile;
 
 /**
- * The nine mutations the F3 canvas performs, against any `ChainCanvas`.
+ * The eleven mutations the F3 canvas performs, against any `ChainCanvas`.
  *
  * These used to live in `DiagramController`, spelled against
  * `Diagram` directly. They moved here when a submission's AS IS / TO BE
@@ -65,7 +65,12 @@ trait EditsChain
         $chain = $owner->chainData();
         abort_if(! $chain || $node <= 0 || ! isset($chain['nodes'][$node]), 404);
 
-        $chain['nodes'][$node] = $this->chainNodeShape($data);
+        // The block's own picture survives an edit of its kind or title. It is
+        // kept even across a kind that cannot show it (`acceptsImage()`):
+        // `ChainGraph` simply does not resolve it there, and turning the block
+        // back into an action block brings it back instead of having lost it.
+        $mediaId = $chain['nodes'][$node]['media_id'] ?? null;
+        $chain['nodes'][$node] = $this->chainNodeShape($data) + array_filter(['media_id' => $mediaId]);
         $owner->writeChain(chain: $chain);
         $owner->afterChainMutation();
 
@@ -110,6 +115,9 @@ trait EditsChain
         abort_if(! $chain || $node <= 0 || ! isset($chain['nodes'][$node]), 404);
 
         $nodes = array_values($chain['nodes']);
+        // The block's picture (an image block's, or one inside an action
+        // block) goes with it: nothing else references it.
+        $removedMedia = $nodes[$node]['media_id'] ?? null;
         array_splice($nodes, $node, 1);
 
         // Which edges survive, and where they used to live — the old positions
@@ -144,6 +152,7 @@ trait EditsChain
             layout: $this->layoutWithoutNode($owner->vizLayout(), $node, $keptAnchorIndexes),
         );
         $owner->afterChainMutation();
+        $this->deleteChainMedia($owner, $removedMedia);
 
         $owner->refresh();
         $labeler = $this->chainLabeler();
@@ -230,6 +239,74 @@ trait EditsChain
         ];
 
         return $this->appendedNode($owner, $chain, 'Imagem adicionada.');
+    }
+
+    /**
+     * Puts a picture INSIDE an existing action block (`ChainNodeKind::
+     * acceptsImage()`) — pasted with the block selected, or picked through the
+     * toolbar's "Imagem" button. Stored in the same collection as an image
+     * block's picture and referenced the same way (`chain.nodes[i].media_id`),
+     * so `ChainGraph` resolves both through one query.
+     *
+     * Where the picture sits (beside the text, or above it with the block's
+     * box gone) is NOT here: that is `viz_layout.nodes[i].imageMode`, purely
+     * visual, saved with the rest of the layout.
+     *
+     * A replaced picture is deleted, not orphaned: it belonged to this block
+     * alone.
+     */
+    protected function setChainNodeImage(ChainCanvas $owner, UploadedFile $image, int $node): JsonResponse
+    {
+        $chain = $owner->chainData();
+        abort_if(! $chain || ! isset($chain['nodes'][$node]), 404);
+        abort_unless(ChainNodeKind::fromNode($chain['nodes'][$node])->acceptsImage(), 422, 'Este tipo de bloco não aceita imagem.');
+
+        $previous = $chain['nodes'][$node]['media_id'] ?? null;
+        $media = $owner->addMedia($image)->toMediaCollection($owner->chainImageCollection());
+
+        $chain['nodes'][$node]['media_id'] = $media->id;
+        $owner->writeChain(chain: $chain);
+        $owner->afterChainMutation();
+        $this->deleteChainMedia($owner, $previous);
+
+        return $this->resolvedNode($owner, $node, 'Imagem adicionada ao bloco.');
+    }
+
+    /** Takes the picture back out of a block, which returns to plain text. */
+    protected function removeChainNodeImage(ChainCanvas $owner, int $node): JsonResponse
+    {
+        $chain = $owner->chainData();
+        abort_if(! $chain || ! isset($chain['nodes'][$node]), 404);
+
+        $previous = $chain['nodes'][$node]['media_id'] ?? null;
+        unset($chain['nodes'][$node]['media_id']);
+        $owner->writeChain(chain: $chain);
+        $owner->afterChainMutation();
+        $this->deleteChainMedia($owner, $previous);
+
+        return $this->resolvedNode($owner, $node, 'Imagem removida do bloco.');
+    }
+
+    /** The one node, resolved the way the canvas draws it — same shape `updateChainNode()` answers with. */
+    private function resolvedNode(ChainCanvas $owner, int $node, string $message): JsonResponse
+    {
+        $owner->refresh();
+        $solutions = $this->chainLabeler()->resolveSolutions(collect([$owner->chainData()]));
+        $comment = $owner->vizLayout()['comments'][$node] ?? null;
+
+        return response()->json([
+            'type'    => 'success',
+            'message' => $message,
+            'node'    => ChainGraph::resolveNode($owner->chainData()['nodes'][$node], $solutions, $comment),
+        ]);
+    }
+
+    /** Scoped to the owner's own media, so a stale id can never reach somebody else's file. */
+    private function deleteChainMedia(ChainCanvas $owner, mixed $mediaId): void
+    {
+        if ($mediaId) {
+            $owner->media()->whereKey($mediaId)->first()?->delete();
+        }
     }
 
     /**

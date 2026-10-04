@@ -60,11 +60,43 @@ three). That matters beyond looks: the label is absolutely positioned at
 `top: 100%`, deliberately OUTSIDE the node's box, because `node.w`/`h` come
 from `offsetWidth`/`offsetHeight` and every port and edge anchor is computed
 from them — let the label into the box and the anchors drift toward whatever
-the text's height happens to be. Every other kind is a **white** box; shape
-carries the kind (chamfered hexagon = decision, dashed border = external free
-text) and color is left to mean whatever the author decides
-(`viz_layout.nodes[i].color`). Only the two flow terminals keep a fill of their
-own, green/red.
+the text's height happens to be. Shape carries the kind (solid orange diamond =
+decision, dashed border = external free text), and only the two flow terminals
+keep a fill of their own, green/red.
+
+**The default look IS a reference profile, measured, not invented.** Since
+2026-10-03 the "Original" theme reproduces the "Login e cadastro VTEX" boards
+(IBM Plex Sans 15/20, `#F4F6F8` ground, `#5A6675` arrows, `#B9C2CE` hairline,
+`#F6C453` diamond, `#17212B` pill) — the values sit as `--viz-*` tokens on
+`[data-ak-chain-viz]`, and the other five themes stay as alternatives. An
+ACTION block (`system`/`step`, `chain-viz.js::isActionKind()`) is the only kind
+that takes any of the author's styling, and all of it is `viz_layout`, never
+the chain:
+
+- `tone` — `white` (none) / `blue` / `red` / `green` / `orange`, fill + 2px
+  border + ink chosen together (`SaveChainLayoutRequest::TONES`). It replaced
+  the free `color`/`textColor` pair, which the request no longer validates, so
+  a stale value is dropped on the next save; the client maps the old palette's
+  pastels to the nearest tone (`LEGACY_TONES`) rather than turning them white.
+- `pill` — the dark rounded shape. A SHAPE, not a kind, and dark whatever the
+  tone: `applyNodeStyle()` never writes `data-tone` alongside `is-pill`, and
+  picking a tone takes the block out of the pill.
+- `imageMode` — `left` (picture beside the text) or `top` (the box disappears
+  and the block is the picture with its text underneath, in `--viz-caption`,
+  which a dark theme turns white). It replaced `logoOnly`, still read as `top`.
+
+The picture itself is CONTENT and lives in the chain: `chain.nodes[i].media_id`,
+written by `setChainNodeImage()`/`removeChainNodeImage()` (pasted with the block
+selected, or the toolbar's "Imagem"), refused on a kind that is not
+`ChainNodeKind::acceptsImage()`, and carried across `updateChainNode()` so a
+rename does not lose it. A replaced or removed picture is deleted, it belonged
+to that block alone. With no picture of its own, a block naming a Solution shows
+the catalog logo in the same slot.
+
+**Measure after the font, not before.** Every block is sized by its text, and
+on a first visit the text is set in the fallback until IBM Plex arrives —
+`render()` measures again on `document.fonts.ready`, or the arrows stay anchored
+to (and routed around) boxes that no longer exist.
 
 **Removing a node is the one mutation that REINDEXES.** `removeNode()` drops
 the block, every edge touching it, and decrements every surviving `from`/`to`
@@ -91,7 +123,7 @@ is the ONLY thing that writes the derived columns (`participants` pivot with
 `position`, `source/target_solution_id`, `direction`, and the summary scalar
 `protocol` = first non-null edge protocol) — it runs after every mutation to
 `chain`, via `Diagram::afterChainMutation()`, which
-`Concerns\EditsChain` calls for every one of the nine endpoints. The ecosystem
+`Concerns\EditsChain` calls for every one of the eleven endpoints. The ecosystem
 map is a reading of those columns, which is what makes it a reading of the
 drawings rather than a second truth. `Diagram.viz_layout`
 (`{nodes: [{x,y}], edges: [{from,to}], comments}`) is a purely **visual**
@@ -155,7 +187,7 @@ second declaration silently won.)
 
 **The canvas is owner-agnostic, and there are two owners.**
 `App\Contracts\ChainCanvas` is the contract; `Concerns\EditsChain` performs
-all nine mutations against anything implementing it. `Diagram` re-derives its
+all eleven mutations against anything implementing it. `Diagram` re-derives its
 columns in `afterChainMutation()`; a `SubmissionDiagram` (a proposal's AS IS /
 TO BE) derives nothing, deliberately. The client never learns which it is
 editing, because every endpoint it calls arrives inside the graph payload

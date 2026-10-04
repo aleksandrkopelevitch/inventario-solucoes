@@ -392,7 +392,7 @@
                          doesn't set custom properties in any browser — only
                          `style.setProperty()` does, which the option doesn't
                          use. `--viz-line` has exactly one static value in this
-                         component (`#94A3C4`, unthemed) so hardcoding it here
+                         component (`#5A6675`, unthemed) so hardcoding it here
                          is safe; if that ever stops being true, this needs a
                          real fix, not another hardcode. Keep this in sync by
                          hand if the outer rules change — there is no build
@@ -415,19 +415,20 @@
                          comment like this one is safe: it is gone before the
                          browser sees it. --}}
                     <style>
-                        .ak-viz-edges path.ak-viz-edge { fill: none; stroke: #94A3C4; stroke-width: 2; }
+                        .ak-viz-edges path.ak-viz-edge { fill: none; stroke: #5A6675; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
                         .ak-viz-edges path.ak-viz-edge.is-dashed { stroke-dasharray: 7 5; }
-                        .ak-viz-edges marker path { fill: #94A3C4; }
-                        .ak-viz-edges .ak-viz-plabel-box { fill: #fff; stroke: #94A3C4; stroke-width: 1; }
+                        .ak-viz-edges marker path { fill: #5A6675; }
+                        .ak-viz-edges .ak-viz-plabel-box { fill: #fff; stroke: #D5DBE3; stroke-width: 1; }
                         .ak-viz-edges .ak-viz-plabel-text {
-                            fill: #4f5b7a;
-                            font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-                            font-size: 10px;
+                            fill: #3D4855;
+                            font-family: 'IBM Plex Sans', system-ui, sans-serif;
+                            font-size: 11px;
+                            font-weight: 600;
                             text-anchor: middle;
                             dominant-baseline: middle;
                         }
                         .ak-viz-edges .ak-viz-plabel.is-empty .ak-viz-plabel-box { fill: transparent; stroke-dasharray: 3 2; }
-                        .ak-viz-edges .ak-viz-plabel.is-empty .ak-viz-plabel-text { fill: #94A3C4; }
+                        .ak-viz-edges .ak-viz-plabel.is-empty .ak-viz-plabel-text { fill: #5A6675; }
                         .ak-viz-dot { filter: drop-shadow(0 0 4px currentColor) drop-shadow(0 0 8px currentColor); }
 
                         /* The selection highlight (`highlightLinkedEdges()`):
@@ -519,7 +520,7 @@
                              token, so these two rules look redundant while you
                              are editing. They are not: this internal sheet is
                              the only one that survives into the export clone,
-                             where the base rule's hardcoded `#94A3C4` would
+                             where the base rule's hardcoded `#5A6675` would
                              otherwise draw a light-canvas arrow across a
                              near-black screenshot. Keep each value equal to
                              the matching `--viz-*` token on the viewport. --}}
@@ -717,29 +718,17 @@
         <div data-viz-toolbar
             class="ak-viz-toolbar pointer-events-none absolute left-3 top-3 z-20 hidden max-h-[calc(100%-24px)] w-56 flex-col gap-3 overflow-y-auto rounded-xl border border-line bg-surface p-2.5 shadow-[0_8px_28px_rgba(16,24,40,.16)]">
             <div data-viz-toolbar-style class="pointer-events-auto flex flex-col gap-3">
-                <div>
+                {{-- The block's tone — five swatches built in JS
+                     (chain-viz.js::buildSwatches(), from `TONES`), each one a
+                     fill + border + text color chosen together. There is no
+                     free color and no separate text color any more: the
+                     reference profile has exactly these five, and a free pick
+                     let every author invent what a color meant. Action blocks
+                     only (system/step) — hidden for the rest by `selectNode()`:
+                     a decision is always the orange diamond. --}}
+                <div data-viz-toolbar-tone>
                     <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-faint">Cor</p>
-                    <div class="flex flex-wrap items-center gap-1.5">
-                        {{-- Block color palette — presets generated in JS (chain-viz.js::buildSwatches) --}}
-                        <div data-viz-swatches class="flex flex-wrap items-center gap-1"></div>
-
-                        {{-- Custom block color --}}
-                        <x-forms.input type="color" data-viz-custom-color title="Cor personalizada do bloco"
-                            class="!size-[22px] !shrink-0 !cursor-pointer !rounded-md !border !border-line !bg-transparent !p-0 [&::-webkit-color-swatch]:!rounded-md [&::-webkit-color-swatch]:!border-none [&::-webkit-color-swatch-wrapper]:!p-0" />
-                    </div>
-                </div>
-
-                <div>
-                    <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-faint">Cor do texto</p>
-                    {{-- Text color — square with an underlined "A" in the current color, same as the reference mind-map --}}
-                    <div class="relative flex size-[26px] shrink-0">
-                        <x-forms.label for="viz-text-color-input" data-viz-text-color-wrap title="Cor do texto"
-                            class="!m-0 !flex !size-full !font-extrabold !text-ink size-full cursor-pointer items-center justify-center rounded-md border border-line text-sm">
-                            <span class="pointer-events-none border-b-[3px] border-current pb-px">A</span>
-                        </x-forms.label>
-                        <x-forms.input type="color" id="viz-text-color-input" data-viz-text-color
-                            class="!absolute !inset-0 !size-full !cursor-pointer !border-0 !bg-transparent !p-0 !opacity-0" />
-                    </div>
+                    <div data-viz-swatches class="flex flex-wrap items-center gap-1.5"></div>
                 </div>
 
                 <div>
@@ -757,7 +746,7 @@
 
                 <div>
                     <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-faint">Tamanho da fonte</p>
-                    {{-- Peq (13px, today's default) / Médio / Grande (`FONT_SIZES` in chain-viz.js). --}}
+                    {{-- Peq (15px, the default) / Médio / Grande (`FONT_SIZES` in chain-viz.js). --}}
                     <x-forms.select data-viz-font-size title="Tamanho da fonte"
                         class="!h-8 !w-full !rounded-md !border-line !bg-surface !py-0 !text-xs">
                         <option value="sm">Peq</option>
@@ -797,17 +786,51 @@
                                 class="!size-[22px] !shrink-0 !cursor-pointer !rounded-md !border !border-line !bg-transparent !p-0 [&::-webkit-color-swatch]:!rounded-md [&::-webkit-color-swatch]:!border-none [&::-webkit-color-swatch-wrapper]:!p-0" />
                         </div>
 
-                        {{-- "Somente logo" — system blocks with a registered Solution
-                             (and a logo) only, hidden for every other kind/state
-                             (toggled in `chain-viz.js::selectNode()`). Swaps
-                             the whole card (avatar + name) for just the Solution's
-                             logo, no border/background (`viz_layout.nodes[i].logoOnly`). --}}
-                        <div data-viz-toolbar-logo-only class="hidden items-center gap-1.5">
-                            <x-forms.button type="button" variant="ghost" data-viz-toolbar-logo-only-toggle title="Somente logo"
-                                class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
-                                <x-heroicon-o-photo class="pointer-events-none size-3.5" />
-                            </x-forms.button>
-                        </div>
+                        {{-- The dark pill — a SHAPE any action block may take
+                             (`viz_layout.nodes[i].pill`), not a kind: the block
+                             stays a system or a step. Dark whatever the tone, so
+                             picking a tone takes the block out of it again. --}}
+                        <x-forms.button type="button" variant="ghost" data-viz-toolbar-pill title="Pílula escura"
+                            class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
+                            <span class="pointer-events-none block h-2.5 w-4 rounded-full bg-current"></span>
+                        </x-forms.button>
+                    </div>
+                </div>
+
+                {{-- The block's picture — action blocks only (hidden for the
+                     rest by `selectNode()`). "Imagem" uploads one into the
+                     block (Ctrl+V with the block selected does the same);
+                     "Remover" only appears for a picture of the block's own,
+                     since a catalog logo belongs to the Solution. The two
+                     placements are `viz_layout.nodes[i].imageMode`: beside the
+                     text, or above it with the box gone. --}}
+                <div data-viz-toolbar-picture class="hidden">
+                    <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-faint">Imagem</p>
+                    <div class="flex flex-wrap items-center gap-1.5">
+                        <x-forms.button type="button" variant="ghost" data-viz-toolbar-picture-upload title="Colocar uma imagem no bloco"
+                            class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
+                            <x-heroicon-o-photo class="pointer-events-none size-3.5" />
+                        </x-forms.button>
+                        <x-forms.input type="file" accept="image/png,image/jpeg,image/gif,image/webp"
+                            data-viz-toolbar-picture-input class="!hidden" />
+                        <x-forms.button type="button" variant="ghost" data-viz-toolbar-picture-left title="Imagem ao lado do texto"
+                            class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
+                            <span class="pointer-events-none flex items-center gap-0.5">
+                                <span class="block size-2 rounded-[2px] bg-current"></span>
+                                <span class="flex flex-col gap-0.5"><span class="block h-px w-2 bg-current"></span><span class="block h-px w-2 bg-current"></span></span>
+                            </span>
+                        </x-forms.button>
+                        <x-forms.button type="button" variant="ghost" data-viz-toolbar-picture-top title="Só a imagem, com o texto embaixo"
+                            class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
+                            <span class="pointer-events-none flex flex-col items-center gap-0.5">
+                                <span class="block size-2 rounded-[2px] bg-current"></span>
+                                <span class="block h-px w-3 bg-current"></span>
+                            </span>
+                        </x-forms.button>
+                        <x-forms.button type="button" variant="ghost" data-viz-toolbar-picture-remove title="Remover a imagem do bloco"
+                            class="!size-[26px] !shrink-0 !rounded-md !border !border-line !p-0 !text-ink hover:!bg-accent-soft">
+                            <x-heroicon-o-x-mark class="pointer-events-none size-3.5" />
+                        </x-forms.button>
                     </div>
                 </div>
 
@@ -1084,31 +1107,56 @@
     {{-- Inline (not @push): the layout has no @stack and the Diagrama tab
          mounts this component only once per page, so there's no risk of duplication. --}}
     <style>
-            @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
 
-            /* Diagram canvas (F3) — JS-driven, its own navy/blue palette
-               (mirrors the reference mind-map), independent of the app's
-               green/lime theme. */
+            /* Diagram canvas (F3) — JS-driven, its own palette, independent of
+               the app's green/lime theme.
+
+               The default ("Original") IS the reference profile since
+               2026-10-03: the "Login e cadastro VTEX" boards, measured out of
+               their exported HTML — a #F4F6F8 ground, IBM Plex Sans 15/20 in
+               #17212B, #5A6675 arrows 2px wide, white blocks on a #B9C2CE
+               hairline, the orange #F6C453 diamond and the dark #17212B pill.
+               Change a value here and that board stops being what the default
+               looks like. */
             [data-ak-chain-viz] {
-                --viz-bg: #F7F9FC;
-                --viz-grid: #E7ECF4;
-                --viz-line: #94A3C4;
+                --viz-bg: #F4F6F8;
+                --viz-grid: #DCE2E9;
+                --viz-line: #5A6675;
                 /* Every block is WHITE (2026-08-26). It used to be one pastel
                    per kind — lavender for a system, mint for an actor, straw
                    for a decision — which meant a diagram of a dozen blocks was
                    a dozen tints of nothing in particular, and the per-block
                    color someone actually chose (`viz_layout.nodes[i].color`)
                    had to fight a default that was already colored. White is
-                   the ground; SHAPE says what a block is (chamfered hexagon =
-                   decision, circle = actor, dashed border = external), and
-                   color is left to mean whatever the author decides it means.
-                   The two flow terminals keep their fill: a start/end marker
-                   is a punctuation mark, not a box, and green/red is the
-                   flowchart convention readers already know. */
+                   the ground; SHAPE says what a block is (orange diamond =
+                   decision, circle = actor, dashed border = external), and the
+                   author colors an action block with one of four TONES
+                   (`[data-tone]` below) — a closed set since 2026-10-03, not a
+                   free picker. The two flow terminals keep their fill: a
+                   start/end marker is a punctuation mark, not a box, and
+                   green/red is the flowchart convention readers already know. */
                 --viz-node: #FFFFFF;
+                /* The white block's hairline. A theme retints it instead of
+                   painting a ring of its own over it — a box-shadow ring and a
+                   border on the same edge read as a rendering bug. */
+                --viz-node-border: #B9C2CE;
+                /* The external block's dashed outline and its quieter text. */
+                --viz-free-border: #8A96A6;
+                --viz-free-ink: #3D4855;
+                /* The decision diamond and the dark pill — the same in every
+                   theme: they are the two shapes a reader finds first. */
+                --viz-decision: #F6C453;
+                --viz-decision-ink: #17212B;
+                --viz-pill: #17212B;
+                --viz-pill-ink: #FFFFFF;
+                /* The text under a picture once the block's box is gone
+                   (`.is-picture-top`) — it sits on the canvas itself, so a dark
+                   theme turns it white. */
+                --viz-caption: #17212B;
                 --viz-node-start: #22C55E;    /* início block (solid circle) — bold on purpose, flow terminal */
                 --viz-node-end: #EF4444;      /* fim block (solid circle) — bold on purpose, flow terminal */
-                --viz-ink: #1A1A2E;
+                --viz-ink: #17212B;
                 --viz-select: #4A90D9; /* selection ring + comment badge */
                 --viz-highlight: #AADB1E; /* highlighted anchor/handle */
             }
@@ -1190,14 +1238,22 @@
                      `rgba(30, 41, 59, .5)` composites to over `#020617`. Same
                      pixels, one layer fewer. --}}
                 --viz-node: #0F172A;
+                --viz-node-border: rgba(148, 163, 184, .28);
+                --viz-free-border: rgba(148, 163, 184, .45);
+                --viz-free-ink: #CBD5E1;
                 --viz-ink: #E2E8F0;
+                --viz-caption: #F8FAFC;
             }
             .ak-viz-viewport[data-viz-preset="blueprint"] {
                 --viz-bg: #EDF7FA;
                 --viz-grid: #B5D5E1;
                 --viz-line: #6D93A5;
                 --viz-node: #F9FDFF;
+                --viz-node-border: rgba(120, 170, 189, .55);
+                --viz-free-border: rgba(109, 147, 165, .7);
+                --viz-free-ink: #315668;
                 --viz-ink: #123344;
+                --viz-caption: #123344;
             }
             .ak-viz-viewport.is-panning { cursor: grabbing; }
             .ak-viz-world {
@@ -1438,6 +1494,8 @@
                 fill: none;
                 stroke: var(--viz-line);
                 stroke-width: 2;
+                stroke-linecap: round;
+                stroke-linejoin: round;
             }
             /* Arrow being pulled out of a port, until the mouse is released
                (there's no edge in the chain yet — see `drag.type === 'connect'`). */
@@ -1453,13 +1511,14 @@
             .ak-viz-edges marker path { fill: var(--viz-line); }
             .ak-viz-edges .ak-viz-plabel-box {
                 fill: #fff;
-                stroke: var(--viz-line);
+                stroke: #D5DBE3;
                 stroke-width: 1;
             }
             .ak-viz-edges .ak-viz-plabel-text {
-                fill: #4f5b7a;
-                font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-                font-size: 10px;
+                fill: #3D4855;
+                font-family: 'IBM Plex Sans', system-ui, sans-serif;
+                font-size: 11px;
+                font-weight: 600;
                 text-anchor: middle;
                 dominant-baseline: middle;
             }
@@ -1546,33 +1605,40 @@
             .ak-viz-dot {
                 filter: drop-shadow(0 0 4px currentColor) drop-shadow(0 0 8px currentColor);
             }
-            /* Lavender/blue-ish nodes (mind-map palette), 10px radius (a bit
-               tighter than the original 13px). Column layout: attribute line
-               (optional) + body (avatar + name). The ring in the box-shadow
-               is the node's only border — bumped from .03 to .14 opacity
-               (2026-07-28) so it still delimits the block now that fills are
-               much lighter (including plain white), where the old barely-there
-               ring all but disappeared. */
+            /* The action block — the reference profile's white card: a #B9C2CE
+               hairline, 10px corners, centred text on a 20px line and generous
+               room around it. Sized by its content between a floor and a
+               ceiling, so a two-word step stays a card and a long one wraps
+               into lines instead of stretching the drawing.
+
+               The outline is a real BORDER, not a box-shadow ring: the tones
+               below widen it to 2px in their own hue, and a ring painted over a
+               border reads as two outlines. Themes retint it through
+               `--viz-node-border` for the same reason. */
             .ak-viz-node {
                 position: absolute;
                 display: flex;
                 flex-direction: column;
+                justify-content: center;
                 gap: 4px;
                 width: max-content;
-                min-width: 54px;
-                max-width: 240px;
-                padding: 10px 14px;
+                min-width: 140px;
+                max-width: 260px;
+                min-height: 56px;
+                padding: 14px 20px;
+                border: 1px solid var(--viz-node-border);
                 border-radius: 10px;
                 background: var(--viz-node);
                 color: var(--viz-ink);
-                font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
-                font-size: 13px;
-                line-height: 1.35;
-                font-weight: 500;
+                font-family: 'IBM Plex Sans', 'Inter', system-ui, sans-serif;
+                font-size: 15px;
+                line-height: 20px;
+                font-weight: 400;
+                text-align: center;
                 white-space: normal;
                 overflow-wrap: break-word;
                 user-select: none;
-                box-shadow: 0 1px 2px rgba(16, 24, 40, .08), 0 0 0 1px rgba(16, 24, 40, .14);
+                box-shadow: none;
             }
             /* Theme border/shadow (`data-viz-theme` bottom-bar select,
                `applyTheme()`) — border/shadow color only, matching each
@@ -1582,8 +1648,15 @@
                `.ak-viz-node` is plain HTML (not inside the edges `<svg>`),
                so a normal external rule like this is enough — no need for
                the internal-`<style>`-duplication trick the SVG needs. */
-            .ak-viz-world[data-viz-preset="casual"] .ak-viz-node {
-                box-shadow: 0 2px 6px rgba(245, 158, 11, .15), 0 0 0 1px rgba(245, 158, 11, .35);
+            {{-- The three rule themes retint the hairline and add a lift. The
+                 lift is scoped with `:where()` so it adds no specificity: it
+                 must stay below the selection ring further down, and it must
+                 not reach the shapes that draw their own outline (the diamond,
+                 a picture with no box, a pasted image, a lifeline's column) —
+                 a shadow there traces the invisible rectangle around them. --}}
+            .ak-viz-world[data-viz-preset="casual"] { --viz-node-border: rgba(245, 158, 11, .45); }
+            .ak-viz-world[data-viz-preset="casual"] .ak-viz-node:where(:not(.is-decision, .is-picture-top, .is-image, .is-lifeline)) {
+                box-shadow: 0 2px 6px rgba(245, 158, 11, .15);
             }
             {{-- "mais polido" (2026-08-04): a proper layered card shadow —
                  soft ambient lift (large blur, negative spread, low opacity)
@@ -1591,35 +1664,33 @@
                  the single flat ring every other theme uses. This is the
                  actual visual difference between "flat" and "polished": more
                  shadow LAYERS at different distances, not more blur on one. --}}
-            .ak-viz-world[data-viz-preset="corporativo"] .ak-viz-node {
-                box-shadow: 0 8px 20px -8px rgba(27, 77, 46, .18), 0 2px 4px rgba(27, 77, 46, .08), 0 0 0 1px rgba(27, 77, 46, .20);
+            .ak-viz-world[data-viz-preset="corporativo"] { --viz-node-border: rgba(27, 77, 46, .25); }
+            .ak-viz-world[data-viz-preset="corporativo"] .ak-viz-node:where(:not(.is-decision, .is-picture-top, .is-image, .is-lifeline)) {
+                box-shadow: 0 8px 20px -8px rgba(27, 77, 46, .18), 0 2px 4px rgba(27, 77, 46, .08);
             }
             {{-- Flat card resting on the dark canvas — a plain (uncolored)
                  lift shadow grounds it, and the border is a barely-there
                  neutral hairline, not a colored/glowing ring. Matches the
                  reference: light pastel cards, no border glow at all. --}}
-            .ak-viz-world[data-viz-preset="tech"] .ak-viz-node {
-                box-shadow: 0 2px 8px rgba(0, 0, 0, .45), 0 0 0 1px rgba(148, 163, 184, .22);
+            {{-- The text under a picture, and the external block, sit on the navy
+                 canvas itself. --}}
+            .ak-viz-world[data-viz-preset="tech"] {
+                --viz-node-border: rgba(148, 163, 184, .3);
+                --viz-free-border: rgba(148, 163, 184, .55);
+                --viz-free-ink: #CBD5E1;
+                --viz-caption: #FFFFFF;
             }
-            {{-- The two token themes (see the viewport block above) need the
-                 same treatment stated four times, because the base stylesheet
-                 says "outline" in four different ways: a ring on the ordinary
-                 block, NO ring on the three kinds that draw their own outline
-                 (a free block's dashed border, a decision's clipped hexagon
-                 layer, a logo-only block's bare image), a plain lift on the
-                 two solid terminals, and a ring again on the actor's circle.
-                 Each of those is a `.ak-viz-node.is-*` rule of its own, and a
-                 theme rule is more specific than all of them — so a single
-                 generic override doesn't just retint them, it erases the
-                 distinction. --}}
+            .ak-viz-world[data-viz-preset="tech"] .ak-viz-node:where(:not(.is-decision, .is-picture-top, .is-image, .is-lifeline)) {
+                box-shadow: 0 2px 8px rgba(0, 0, 0, .45);
+            }
             {{-- The block's CATEGORY family, as one custom property.
 
                  Set on every node in every theme and READ by only two of them
                  (right below) — which is the point. "Original", "Casual",
                  "Corporativo" and "Tech" go on saying a block is a block; the
                  two token themes add a SECOND axis on top of the one this
-                 canvas already has. Shape still carries the KIND (chamfered
-                 hexagon = decision, circle = actor, dashed = external), and
+                 canvas already has. Shape still carries the KIND (orange
+                 diamond = decision, circle = actor, dashed = external), and
                  the hue carries what the system IS — the same hue the solution
                  tile, the category chip and the ecosystem map already use, so
                  somebody who has learned the catalog's colors reads the drawing
@@ -1654,52 +1725,32 @@
                  against `transparent`: a fallback that let the arrows
                  underneath show through the block would be worse than no tint.
                  Archify's treatment, over our own axis. --}}
-            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node {
-                box-shadow: 0 2px 10px rgba(2, 6, 23, .55), 0 0 0 1px rgba(148, 163, 184, .28);
+            {{-- The hairline itself comes from the theme's `--viz-node-border`
+                 (on the viewport, above); this only adds the lift, under the
+                 same `:where()` scoping as the rule themes. --}}
+            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node:where(:not(.is-decision, .is-picture-top, .is-image, .is-lifeline, .is-free)) {
+                box-shadow: 0 2px 10px rgba(2, 6, 23, .55);
             }
             {{-- `:not(.is-lifeline)`: numa linha de vida quem carrega a cor
                  é o CABEÇALHO, não a coluna. Tingir a caixa inteira pintava
                  uma faixa vertical do tamanho do diagrama atrás das
                  mensagens — o corpo de uma linha de vida é espaço vazio de
-                 propósito, é por ele que as setas passam. --}}
-            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node[data-category-family]:not(.is-lifeline) {
+                 propósito, é por ele que as setas passam.
+                 `:not([data-tone], .is-pill)`: a tone or the pill the author
+                 chose wins over the category hue. --}}
+            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node[data-category-family]:not(.is-lifeline, [data-tone], .is-pill, .is-picture-top) {
                 background: color-mix(in oklab, var(--viz-node-accent) 16%, var(--viz-node));
-                box-shadow: 0 2px 10px rgba(2, 6, 23, .55), 0 0 0 1px var(--viz-node-accent);
+                border-color: var(--viz-node-accent);
             }
             {{-- O cartão da linha de vida carrega a sombra/aro que o bloco
                  comum carrega; o bloco em si é transparente, então a regra
                  genérica do tema não o alcança. --}}
             .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-lifeline .ak-viz-node-body {
-                background: var(--viz-node);
-                box-shadow: 0 2px 10px rgba(2, 6, 23, .55), 0 0 0 1px rgba(148, 163, 184, .28);
+                box-shadow: 0 2px 10px rgba(2, 6, 23, .55);
             }
             .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-lifeline[data-category-family] .ak-viz-node-body {
                 background: color-mix(in oklab, var(--viz-node-accent) 16%, var(--viz-node));
-                box-shadow: 0 2px 10px rgba(2, 6, 23, .55), 0 0 0 1px var(--viz-node-accent);
-            }
-            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-lifeline,
-            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-free,
-            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-decision,
-            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-logo-only {
-                box-shadow: none;
-            }
-            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-start,
-            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-end {
-                box-shadow: 0 2px 10px rgba(2, 6, 23, .6);
-            }
-            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-actor {
-                box-shadow: 0 2px 10px rgba(2, 6, 23, .55), 0 0 0 1px rgba(148, 163, 184, .28);
-            }
-            {{-- The hexagon's outline is the 1px of this layer left showing
-                 around the fill layer inset into it (see `.is-decision::before`
-                 below) — a near-black wash on a near-black canvas is no
-                 outline at all. --}}
-            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-decision::before {
-                background: rgba(148, 163, 184, .38);
-            }
-            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-dashed,
-            .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-decision.is-dashed::after {
-                border-color: rgba(148, 163, 184, .45);
+                border-color: var(--viz-node-accent);
             }
             {{-- The chip under a round block, and the resize handle's hover
                  wash: both are a fixed light-canvas color, not a token. --}}
@@ -1714,51 +1765,22 @@
                  correctly; what it changes is their tint — a drafting-paper
                  canvas wants a blue-grey contact shadow, not the neutral
                  near-black one. --}}
-            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node {
-                box-shadow: 0 1px 2px rgba(18, 51, 68, .10), 0 0 0 1px rgba(120, 170, 189, .55);
+            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node:where(:not(.is-decision, .is-picture-top, .is-image, .is-lifeline, .is-free)) {
+                box-shadow: 0 1px 2px rgba(18, 51, 68, .10);
             }
             {{-- Lighter mix than the dark theme's: the same 16% over a white
                  card reads as a colored card, not a tinted one, and blueprint
                  is meant to stay drafting paper. --}}
-            {{-- `:not(.is-lifeline)`: numa linha de vida quem carrega a cor
-                 é o CABEÇALHO, não a coluna. Tingir a caixa inteira pintava
-                 uma faixa vertical do tamanho do diagrama atrás das
-                 mensagens — o corpo de uma linha de vida é espaço vazio de
-                 propósito, é por ele que as setas passam. --}}
-            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node[data-category-family]:not(.is-lifeline) {
+            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node[data-category-family]:not(.is-lifeline, [data-tone], .is-pill, .is-picture-top) {
                 background: color-mix(in oklab, var(--viz-node-accent) 8%, var(--viz-node));
-                box-shadow: 0 1px 2px rgba(18, 51, 68, .10), 0 0 0 1px var(--viz-node-accent);
+                border-color: var(--viz-node-accent);
             }
-            {{-- O cartão da linha de vida carrega a sombra/aro que o bloco
-                 comum carrega; o bloco em si é transparente, então a regra
-                 genérica do tema não o alcança. --}}
             .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-lifeline .ak-viz-node-body {
-                background: var(--viz-node);
-                box-shadow: 0 1px 2px rgba(18, 51, 68, .10), 0 0 0 1px rgba(120, 170, 189, .55);
+                box-shadow: 0 1px 2px rgba(18, 51, 68, .10);
             }
             .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-lifeline[data-category-family] .ak-viz-node-body {
                 background: color-mix(in oklab, var(--viz-node-accent) 8%, var(--viz-node));
-                box-shadow: 0 1px 2px rgba(18, 51, 68, .10), 0 0 0 1px var(--viz-node-accent);
-            }
-            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-lifeline,
-            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-free,
-            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-decision,
-            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-logo-only {
-                box-shadow: none;
-            }
-            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-start,
-            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-end {
-                box-shadow: 0 2px 8px rgba(18, 51, 68, .22);
-            }
-            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-actor {
-                box-shadow: 0 2px 8px rgba(18, 51, 68, .12), 0 0 0 1px rgba(120, 170, 189, .55);
-            }
-            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-decision::before {
-                background: rgba(120, 170, 189, .75);
-            }
-            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-dashed,
-            .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-decision.is-dashed::after {
-                border-color: rgba(109, 147, 165, .6);
+                border-color: var(--viz-node-accent);
             }
             .ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node-endcap-label {
                 background: #F9FDFF;
@@ -1773,8 +1795,26 @@
             .ak-viz-node-body {
                 display: flex;
                 align-items: center;
-                gap: 6px;
+                justify-content: center;
+                gap: 10px;
             }
+            {{-- A block's picture beside its text (`imageMode: 'left'`, the
+                 default): a fixed slot rather than the picture's own size, so a
+                 400px paste and a 32px logo make blocks of the same height. The
+                 text then reads from the left, against the picture. --}}
+            .ak-viz-node-picture {
+                display: block;
+                flex-shrink: 0;
+                width: auto;
+                height: auto;
+                max-width: 64px;
+                max-height: 40px;
+                object-fit: contain;
+                border-radius: 4px;
+                pointer-events: none;
+            }
+            .ak-viz-node.has-picture:not(.is-picture-top) .ak-viz-node-body { justify-content: flex-start; }
+            .ak-viz-node.has-picture:not(.is-picture-top) .ak-viz-node-text { text-align: left; }
             .ak-viz-node-avatar {
                 display: flex;
                 align-items: center;
@@ -1822,7 +1862,9 @@
                 justify-content: flex-start;
                 padding: 10px 14px 0;
                 min-width: 120px;
+                min-height: 0;
                 background: transparent;
+                border: none;
                 box-shadow: none;
             }
             {{-- The header is the only part with a background: drawn as a
@@ -1834,7 +1876,7 @@
                 border-radius: 10px;
                 padding: 8px 12px;
                 background: var(--viz-node);
-                box-shadow: 0 1px 2px rgba(16, 24, 40, .08), 0 0 0 1px rgba(16, 24, 40, .14);
+                border: 1px solid var(--viz-node-border);
             }
             .ak-viz-node.is-lifeline::after {
                 content: '';
@@ -1860,53 +1902,55 @@
                 background: var(--viz-node);
             }
 
+            {{-- Transparent on the canvas, as the reference's "Cliente refaz o
+                 login…" box is: an external block is not one of ours, and the
+                 dashed 2px outline is all of it. --}}
             .ak-viz-node.is-free {
-                background: var(--viz-node);
-                border: 1px dashed var(--viz-line);
+                background: transparent;
+                border: 2px dashed var(--viz-free-border);
+                color: var(--viz-free-ink);
                 box-shadow: none;
             }
-            /* Decision block (`ChainNodeKind::Decision`): the flow's branch, a
-               chamfered hexagon. The shape is a `::before` layer, NOT
+            /* Decision block (`ChainNodeKind::Decision`): the flow's branch,
+               the reference profile's solid orange DIAMOND with semibold dark
+               text — the same in every theme, since it is the first shape a
+               reader looks for. The shape is a `::before` layer, NOT
                `clip-path` on the block itself — clipping the element would also
                cut off its children (connection ports, comment badge), which sit
                on/outside its edges on purpose. The bounding box stays
                rectangular either way, so every edge/anchor calculation in
-               chain-viz.js keeps working unchanged. */
+               chain-viz.js keeps working unchanged, and the four ports land
+               exactly on the diamond's four tips.
+
+               Text fits a diamond only inside its middle: a W×H rhombus holds a
+               w×h rectangle while w/W + h/H ≤ 1. Hence the floor (the
+               reference's own 200×112), the ceiling (which
+               `ModelLayout::STEP_PITCH` is sized against), and side padding far
+               larger than the vertical one — a line has to stop well short of
+               the left and right tips. Up to three lines read cleanly; past
+               that the block keeps growing taller rather than spilling. No
+               outline: a solid fill on the light ground needs none, which is
+               also what retired the two-layer hexagon this used to be. */
             .ak-viz-node.is-decision {
                 background: transparent;
+                border: none;
                 box-shadow: none;
-                padding-left: 26px;
-                padding-right: 26px;
-            }
-            /* TWO clipped layers, not one, and the reason is subtle enough to
-               be worth stating: `clip-path` clips the element's BORDER too, and
-               a border is drawn along the rectangular border box — so on a
-               hexagon only the flat top and bottom spans of it ever survive,
-               and the diagonals never had an outline at all. That went unnoticed
-               while the block had a colored fill, because the FILL was what drew
-               the shape. White fill on a near-white canvas made the block
-               disappear (caught in a render on 2026-08-26), so the outline had
-               to become real: `::before` is a full-size hexagon in the line
-               color, `::after` is the white hexagon 1px inside it, and the 1px
-               of the first one showing around the second IS the border. */
-            .ak-viz-node.is-decision::before,
-            .ak-viz-node.is-decision::after {
-                content: '';
-                position: absolute;
-                clip-path: polygon(18px 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 18px 100%, 0 50%);
-                /* Both layers stay at 0 while everything that must READ above
-                   them is lifted to 1 below. `::after` is generated as the last
-                   child, so without this it would paint over the block's own
-                   text, ports and comment badge. */
-                z-index: 0;
+                min-width: 200px;
+                max-width: 280px;
+                min-height: 112px;
+                padding: 28px 68px;
+                color: var(--viz-decision-ink);
+                font-weight: 600;
             }
             .ak-viz-node.is-decision::before {
+                content: '';
+                position: absolute;
                 inset: 0;
-                background: rgba(16, 24, 40, .24);
-            }
-            .ak-viz-node.is-decision::after {
-                inset: 1px;
-                background: var(--viz-node);
+                clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+                background: var(--viz-decision);
+                /* Stays at 0 while everything that must READ above it is lifted
+                   to 1 below. */
+                z-index: 0;
             }
             .ak-viz-node.is-decision .ak-viz-node-body,
             .ak-viz-node.is-decision .ak-viz-comment-badge,
@@ -1938,6 +1982,7 @@
                 height: 52px;
                 min-width: 0;
                 max-width: none;
+                min-height: 0;
                 padding: 0;
                 border-radius: 999px;
                 display: flex;
@@ -1945,15 +1990,15 @@
                 justify-content: center;
                 box-shadow: 0 2px 8px rgba(16, 24, 40, .22);
             }
-            .ak-viz-node.is-start { background: var(--viz-node-start); }
-            .ak-viz-node.is-end { background: var(--viz-node-end); }
+            .ak-viz-node.is-start { background: var(--viz-node-start); border: none; }
+            .ak-viz-node.is-end { background: var(--viz-node-end); border: none; }
             /* White like every other block, so it needs the delimiting ring
                back — the drop shadow above alone would leave a white circle
                floating on a near-white canvas with no edge at all. The two
                terminals don't: they are solid green/red. */
             .ak-viz-node.is-actor {
                 background: var(--viz-node);
-                box-shadow: 0 2px 8px rgba(16, 24, 40, .12), 0 0 0 1px rgba(16, 24, 40, .14);
+                box-shadow: 0 2px 8px rgba(16, 24, 40, .12);
             }
             .ak-viz-node.is-start .ak-viz-node-avatar.is-kind,
             .ak-viz-node.is-end .ak-viz-node-avatar.is-kind,
@@ -1999,7 +2044,7 @@
                 padding: 2px 6px;
                 border-radius: 6px;
                 background: #fff;
-                box-shadow: 0 0 0 1px var(--viz-line);
+                box-shadow: 0 0 0 1px var(--viz-node-border);
                 font-size: 11px;
                 font-weight: 600;
                 color: var(--viz-ink);
@@ -2047,7 +2092,7 @@
                 overflow-y: auto;
                 padding: 4px;
                 border-radius: 8px;
-                border: 1px solid var(--viz-line);
+                border: 1px solid var(--viz-node-border);
                 background: var(--viz-bg);
                 box-shadow: 0 8px 24px rgba(16, 24, 40, .18);
             }
@@ -2105,7 +2150,7 @@
                 overflow-y: auto;
                 padding: 4px;
                 border-radius: 8px;
-                border: 1px solid var(--viz-line);
+                border: 1px solid var(--viz-node-border);
                 background: var(--viz-bg);
                 box-shadow: 0 8px 24px rgba(16, 24, 40, .18);
             }
@@ -2167,6 +2212,8 @@
             .ak-viz-node.is-image {
                 padding: 4px;
                 min-width: 0;
+                min-height: 0;
+                border: none;
                 /* Explicit, not just "omitted" — the base `.ak-viz-node` rule
                    above already sets `background: var(--viz-node)` (the
                    lavender fill), which would otherwise show through any
@@ -2187,24 +2234,34 @@
                 object-fit: contain;
                 pointer-events: none; /* the block's drag is already handled by the node's own `mousedown` */
             }
-            /* "Somente logo" (`viz_layout.nodes[i].logoOnly`): swaps the card
-               (avatar + name) for the solution's image at full size, with no
-               frame and no background — the same reasoning as `.is-image`
-               above (an image with real transparency should let the canvas show
-               through it), except that here the image is the catalog's logo
-               rather than media belonging to the node. */
-            .ak-viz-node.is-logo-only {
-                padding: 4px;
-                min-width: 0;
-                background: transparent;
+            /* "Só a imagem, com o texto embaixo" (`viz_layout.nodes[i].imageMode
+               === 'top'`): the box goes — no fill, no border, no shadow — and
+               the block is its picture with the text underneath, read straight
+               off the canvas. Hence `--viz-caption` rather than the block's
+               ink: dark on a light canvas, white on a dark theme's. Nothing of
+               a tone or of the pill survives here, and the rule is written one
+               notch more specific than theirs to say so. */
+            .ak-viz-node.is-picture-top {
                 box-shadow: none;
             }
-            .ak-viz-node.is-logo-only img {
-                display: block;
-                width: 64px;
-                height: 64px;
-                object-fit: contain;
-                pointer-events: none;
+            [data-ak-chain-viz] .ak-viz-world .ak-viz-node.is-picture-top.has-picture {
+                min-width: 0;
+                min-height: 0;
+                padding: 4px;
+                background: transparent;
+                border-color: transparent;
+                border-radius: 10px;
+                color: var(--viz-caption);
+                font-weight: 500;
+            }
+            .ak-viz-node.is-picture-top .ak-viz-node-body {
+                flex-direction: column;
+                gap: 8px;
+            }
+            .ak-viz-node.is-picture-top .ak-viz-node-picture {
+                max-width: 160px;
+                max-height: 120px;
+                border-radius: 6px;
             }
             /* Mídia removida por fora (ou um nó `image` mal formado sem
                `media_id`) — quadro vazio com o ícone de fallback em vez de
@@ -2225,27 +2282,52 @@
                 height: 28px;
             }
             /* Dashed border toggle (`viz_layout.nodes[i].dashed`) — purely
-               visual, independent of the block's kind/color. The decision
-               block's visible shape is the `::before` layer (clip-path
-               hexagon), so its outer box gets no border at all — the dash
-               goes on `::before` instead, clipped by the same polygon so it
-               traces the hexagon's edge rather than the bounding rectangle. */
-            .ak-viz-node.is-dashed {
-                border: 1.5px dashed rgba(26, 26, 46, .4);
+               visual, independent of the block's kind and tone: only the
+               border's STYLE changes, so a toned block keeps its own hue and
+               width.
+
+               Scoped to the kinds that HAVE a border. The others reset it with
+               `border: none`, which also puts the width back to `medium` and
+               the color to `currentColor` — so a bare `border-style: dashed`
+               there drew a thick dark rectangle around the diamond's box, and
+               a decision saved as dashed before the toggle left that kind
+               could no longer be cleared. A pasted image gets its own subtle
+               dash instead, as it always had. */
+            .ak-viz-node.is-dashed:not(.is-decision, .is-start, .is-end, .is-image, .is-lifeline, .is-picture-top) {
+                border-style: dashed;
             }
-            .ak-viz-node.is-free.is-dashed {
-                border-color: var(--viz-line);
+            .ak-viz-node.is-image.is-dashed {
+                border: 1.5px dashed var(--viz-node-border);
             }
-            .ak-viz-node.is-decision.is-dashed {
-                border: none;
-            }
-            /* The dashed cue on a hexagon is still only as good as a clipped
-               border can be — the flat top and bottom spans, never the
-               diagonals (see the two-layer note above). It rides on the FILL
-               layer so it sits inside the hairline rather than replacing it,
-               which keeps the shape readable either way. */
-            .ak-viz-node.is-decision.is-dashed::after {
-                border: 1.5px dashed rgba(26, 26, 46, .4);
+
+            /* The four TONES (`viz_layout.nodes[i].tone`, `data-tone`, set by
+               `applyNodeStyle()` on action blocks only) — the reference
+               profile's tinted cards: a pale fill, a 2px border in the hue and
+               dark text of the same family. Blue and orange are the board's
+               own ("Tela final", "Exceção"); red and green are drawn to the
+               same recipe. Fixed in every theme, like the diamond: a tone is a
+               statement by the author, not a mood of the canvas.
+
+               `[data-ak-chain-viz] .ak-viz-world` buys the specificity to beat a
+               theme's per-block rule; no `box-shadow` here, so the selection
+               ring still wins. Width and color only — the border's STYLE stays
+               whatever the block says (dashed, external). */
+            [data-ak-chain-viz] .ak-viz-world .ak-viz-node[data-tone="blue"] { background: #DCE9FF; border-width: 2px; border-color: #2F6FDB; color: #0F2F66; }
+            [data-ak-chain-viz] .ak-viz-world .ak-viz-node[data-tone="red"] { background: #FDE2E1; border-width: 2px; border-color: #D03B35; color: #6E1712; }
+            [data-ak-chain-viz] .ak-viz-world .ak-viz-node[data-tone="green"] { background: #DDF3E5; border-width: 2px; border-color: #2E9C5C; color: #0F3D22; }
+            [data-ak-chain-viz] .ak-viz-world .ak-viz-node[data-tone="orange"] { background: #FFE6DA; border-width: 2px; border-color: #D9531E; color: #6B2209; }
+
+            /* The dark PILL (`viz_layout.nodes[i].pill`) — a shape an action
+               block takes, not a kind: the reference's "Cliente acessa a área
+               logada". Dark whatever the theme; `applyNodeStyle()` never sets a
+               tone alongside it. */
+            [data-ak-chain-viz] .ak-viz-world .ak-viz-node.is-pill {
+                padding: 14px 26px;
+                border-color: var(--viz-pill);
+                border-radius: 999px;
+                background: var(--viz-pill);
+                color: var(--viz-pill-ink);
+                font-weight: 500;
             }
             /* Kind icon (decision/actor) — same slot as the solution avatar,
                but transparent: it's a stroked glyph, not a logo. */

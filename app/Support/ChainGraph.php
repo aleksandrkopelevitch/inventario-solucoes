@@ -47,9 +47,10 @@ class ChainGraph
         // same positional convention `viz_layout.nodes`/`edges` already use.
         $comments = $owner->vizLayout()['comments'] ?? [];
 
-        // One query for every image node's media instead of one per node.
+        // One query for every picture the drawing shows — image blocks and the
+        // ones sitting inside an action block alike — instead of one per node.
         $mediaIds = collect($chain['nodes'] ?? [])
-            ->filter(fn ($node) => ChainNodeKind::fromNode($node) === ChainNodeKind::Image)
+            ->filter(fn ($node) => self::showsMedia(ChainNodeKind::fromNode($node)))
             ->pluck('media_id')
             ->filter()
             ->unique()
@@ -80,13 +81,14 @@ class ChainGraph
      * Resolves a chain node into the format the canvas consumes.
      *
      * `kind` (`ChainNodeKind`) drives the block's shape/colour — a decision
-     * block is drawn as a chamfered hexagon, an actor and start/end as small
+     * block is drawn as an orange diamond, an actor and start/end as small
      * circles with the label written below them —, with `icon` bringing that
      * kind's heroicon already rendered (the JS builds nodes in plain DOM,
      * without Blade). Nodes stored before kinds existed have no `kind` key:
      * they read as `system`.
      *
-     * `media_id` (Image nodes only) resolves to `mediaUrl` — the authenticated
+     * `media_id` (an Image node's picture, or the one inside an action block —
+     * `ChainNodeKind::acceptsImage()`) resolves to `mediaUrl` — the authenticated
      * `/files/{id}` URL (same convention as documentation-embedded images),
      * never a raw disk URL. `$mediaById`, when given, is a batch already
      * loaded by `for()` (avoids N+1 across every image node); single-node call
@@ -102,7 +104,7 @@ class ChainGraph
     {
         $kind = ChainNodeKind::fromNode($node);
         $solution = $kind->referencesSolution() ? ($solutions[$node['solution_id'] ?? null] ?? null) : null;
-        $media = $kind === ChainNodeKind::Image ? self::resolveMedia($node['media_id'] ?? null, $mediaById) : null;
+        $media = self::showsMedia($kind) ? self::resolveMedia($node['media_id'] ?? null, $mediaById) : null;
 
         return [
             'label'      => (new ChainLabeler)->nodeLabel($node, $solutions),
@@ -125,6 +127,12 @@ class ChainGraph
             'cloud'          => self::attributeBadge($solution?->cloud_label, $solution?->cloud_icon),
             'mediaUrl'       => $media ? route('files.show', $media) : null,
         ];
+    }
+
+    /** Whether a node of this kind draws its `media_id` at all. */
+    private static function showsMedia(ChainNodeKind $kind): bool
+    {
+        return $kind === ChainNodeKind::Image || $kind->acceptsImage();
     }
 
     /**

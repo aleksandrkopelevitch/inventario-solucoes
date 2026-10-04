@@ -36,8 +36,8 @@ async function resolveGifWorkerUrl() {
 // whose direction follows the segment (`->` forward, `<-` back, `<->` both) and
 // whose label is the protocol. Every node has a KIND (`kind`, see
 // `App\Enums\ChainNodeKind`): `system` (a registered solution or an external
-// system as free text), `decision` (a fork in the flow, drawn as a chamfered
-// hexagon), `actor` (a person or an area, drawn as a rounded badge with an
+// system as free text), `decision` (a fork in the flow, drawn as the orange
+// diamond), `actor` (a person or an area, drawn as a rounded badge with an
 // icon) or `start`/`end` (the beginning and the end of the flow, drawn as a
 // solid-coloured circle — green/red — with the kind's icon inside and the label
 // written BELOW the circle rather than beside it). The kind arrives resolved in
@@ -558,21 +558,39 @@ function roundedPath(points, radius = EDGE_CORNER) {
 // intermediate top/bottom ones exist only for an arrow tip to stick to).
 const ANCHOR_SIDES = ['t', 'r', 'b', 'l']
 
-// The block colour palette (the same logic as the reference mind map: presets
-// plus a custom colour) and the font families selectable per block. Very light
-// shades on purpose (2026-07-28: the previous palette's colours were too
-// strong) plus pure white as the first option — the text stays dark on all of
-// them (see `textColorFor()`), since every one of them is high in luminance.
-const PALETTE = ['#FFFFFF', '#E9EDFB', '#E6F1FC', '#E3F4EA', '#FCF1D4', '#FBE7EC', '#EFE7FB', '#EDF1F5']
+// An action block's TONE — fill, border and text color chosen together, never
+// one by one (`SaveChainLayoutRequest::TONES`). They are the reference profile's
+// own (the "Login e cadastro VTEX" boards): white with a light grey hairline,
+// and four tinted cards with a 2px border of the same hue. The free palette and
+// color picker that were here let every author invent a meaning per color; the
+// CSS (`[data-tone]` in components/chain/viz.blade.php) owns the values, these
+// two are only what the swatch shows.
+const TONES = [
+    { value: 'white', label: 'Branco', fill: '#FFFFFF', border: '#B9C2CE' },
+    { value: 'blue', label: 'Azul', fill: '#DCE9FF', border: '#2F6FDB' },
+    { value: 'red', label: 'Vermelho', fill: '#FDE2E1', border: '#D03B35' },
+    { value: 'green', label: 'Verde', fill: '#DDF3E5', border: '#2E9C5C' },
+    { value: 'orange', label: 'Laranja', fill: '#FFE6DA', border: '#D9531E' },
+]
+const isTone = (v) => TONES.some((t) => t.value === v)
+// A block saved with the retired free `color` keeps the nearest tone instead of
+// going white — only the old palette's own pastels map; a custom pick reads as
+// white, since nothing says what it meant.
+const LEGACY_TONES = { '#e9edfb': 'blue', '#e6f1fc': 'blue', '#e3f4ea': 'green', '#fcf1d4': 'orange', '#fbe7ec': 'red' }
+// The kinds drawn as an ACTION block: the only ones that take a tone, the dark
+// pill shape and a picture of their own (`ChainNodeKind::acceptsImage()`). A
+// decision is always the orange diamond, the round kinds and the lifeline keep
+// their own look.
+const isActionKind = (kind) => kind === 'system' || kind === 'step'
 const FONTS = {
-    sans: "'Space Grotesk', 'Inter', system-ui, sans-serif",
+    sans: "'IBM Plex Sans', 'Inter', system-ui, sans-serif",
     serif: "Georgia, 'Times New Roman', serif",
-    mono: "ui-monospace, 'SF Mono', Menlo, Consolas, monospace",
+    mono: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace",
 }
-// `sm` is today's size (13px, see `.ak-viz-node` in the CSS) — kept here as an
-// explicit value (rather than "absent = the CSS default") so it fits the same
-// pattern as the font <select>, which always has a value selected.
-const FONT_SIZES = { sm: '13px', md: '15px', lg: '17px' }
+// `sm` is the default, the reference profile's 15px on a 20px line — kept here
+// as an explicit value (rather than "absent = the CSS default") so it fits the
+// same pattern as the font <select>, which always has a value selected.
+const FONT_SIZES = { sm: '15px', md: '17px', lg: '20px' }
 
 // A new lane's default colours (cycled, one per `lanes.length` at creation
 // time) and its initial size (world px) — both only suggestions, editable
@@ -694,7 +712,7 @@ const EXPORT_IMAGE_PLACEHOLDER = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA
 // subtle gradient (see `.ak-viz-viewport[data-viz-preset="corporativo"]`) —
 // canvas fills can't do gradients here, so this approximates its overall tone.
 const EXPORT_PRESETS = {
-    original:    { bg: '#F7F9FC' },
+    original:    { bg: '#F4F6F8' },
     casual:      { bg: '#FFF7ED' },
     corporativo: { bg: '#F5F8F6' },
     tech:        { bg: '#132A45' },
@@ -900,17 +918,25 @@ function buildPorts(el) {
     })
 }
 
+// What `paintNode()` shows as an action block's picture, or null.
+function blockPicture(data) {
+    if (!isActionKind(data.kind || 'system')) return null
+    return data.mediaUrl || (data.solution && data.logo) || null
+}
+
 // (Re)draws a block's content from the node's resolved data — used both when
 // mounting the whole graph (`render()`) and after editing one node's title
 // (`applyNodeData()`), so the two paths can never build the block's DOM
 // differently.
 function paintNode(el, data) {
     const kind = data.kind || 'system'
-    // Only a system block carrying a registered solution (a real logo) can
-    // become "logo only" — free text, decision and actor have no image at all
-    // to show on its own, and a solution with no logo would fall back to the
-    // initial badge, which makes no sense "alone" in place of the card.
-    const logoOnly = kind === 'system' && !!data.solution && !!data.logo && !!data.logoOnly
+    // The block's picture: its own (`mediaUrl`, pasted or uploaded into it),
+    // or else the catalog logo of the Solution it names. Action blocks only.
+    const picture = blockPicture(data)
+    // "Em cima": the box goes and the block is the picture with its text
+    // underneath. Needs a picture — with none there is nothing to stand in for
+    // the box.
+    const pictureTop = !!picture && data.imageMode === 'top'
     // `is-free` (the "outside Leo" dashed border) belongs only to a system
     // block with no Solution — decision/actor/start/end have shapes and
     // colours of their own, see the classes below.
@@ -922,7 +948,8 @@ function paintNode(el, data) {
     el.classList.toggle('is-image', kind === 'image')
     el.classList.toggle('is-lifeline', kind === 'lifeline')
     el.classList.toggle('is-step', kind === 'step')
-    el.classList.toggle('is-logo-only', logoOnly)
+    el.classList.toggle('has-picture', !!picture)
+    el.classList.toggle('is-picture-top', pictureTop)
     el.classList.toggle('has-comment', !!data.comment)
     el.classList.toggle('is-dashed', !!data.dashed)
     // The colour family of the solution's CATEGORY
@@ -939,24 +966,6 @@ function paintNode(el, data) {
     // an actor into a system would leave the old tooltip stuck to the new
     // block.
     el.title = ''
-
-    // "Somente logo": the whole card (avatar + name) goes and only the
-    // solution's image at full size is left — the same spirit as a pasted image
-    // (`kind === 'image'` above), except that here it is a catalog solution
-    // rather than media belonging to the node.
-    if (logoOnly) {
-        const img = document.createElement('img')
-        img.src = data.logo
-        img.alt = data.label || ''
-        el.appendChild(img)
-
-        const badge = document.createElement('span')
-        badge.className = 'ak-viz-comment-badge'
-        el.appendChild(badge)
-
-        buildPorts(el)
-        return
-    }
 
     // A pasted image (Ctrl+V): the image alone, with no avatar and no label —
     // the content already IS the image. It stays a block like any other (port,
@@ -1014,13 +1023,24 @@ function paintNode(el, data) {
         return
     }
 
-    // The block's body: avatar (the solution's logo, or the name's initial when
-    // there is no logo; the kind's icon on decision/actor) plus the name. A
-    // free-text system node has no avatar at all.
+    // The block's body: the picture (beside the text, or above it — the CSS
+    // turns the row into a column under `.is-picture-top`), else the avatar (a
+    // Solution with no logo gets its initial; a lifeline its logo) plus the
+    // name. A decision draws no icon: the diamond already says what it is.
     const body = document.createElement('div')
     body.className = 'ak-viz-node-body'
-    if (data.solution) body.appendChild(buildAvatar(data))
-    else if (data.icon) body.appendChild(buildKindIcon(data.icon))
+    if (picture) {
+        const img = document.createElement('img')
+        img.className = 'ak-viz-node-picture'
+        img.src = picture
+        img.alt = ''
+        img.draggable = false
+        // A picture that fails to load (a logo whose file is gone) leaves the
+        // text alone rather than a broken-image glyph beside it.
+        img.addEventListener('error', () => { img.style.display = 'none' }, { once: true })
+        body.appendChild(img)
+    } else if (data.solution) body.appendChild(buildAvatar(data))
+    else if (data.icon && kind !== 'decision') body.appendChild(buildKindIcon(data.icon))
     const text = document.createElement('span')
     text.className = 'ak-viz-node-text'
     text.textContent = data.label ?? '?'
@@ -1235,22 +1255,26 @@ function mount(root) {
     const bottomBar = root.querySelector('[data-viz-bottombar]')
     const toolbar = root.querySelector('[data-viz-toolbar]')
     const toolbarStyle = root.querySelector('[data-viz-toolbar-style]')
-    // Second row: dashed, the light border of an image / "logo only" (both
-    // conditional), the block's kind (icons — see `refreshKindRow()` /
-    // `changeNodeKind()`) and the actions (comment/delete), all together.
+    // Second row: dashed, the pill shape and the light border of an image (both
+    // conditional), the block's picture, the block's kind (icons — see
+    // `refreshKindRow()` / `changeNodeKind()`) and the actions
+    // (comment/delete), all together.
     const toolbarRow2 = root.querySelector('[data-viz-toolbar-row2]')
+    const toolbarToneWrap = root.querySelector('[data-viz-toolbar-tone]')
     const toolbarSwatches = root.querySelector('[data-viz-swatches]')
-    const toolbarCustomColor = root.querySelector('[data-viz-custom-color]')
-    const toolbarTextColor = root.querySelector('[data-viz-text-color]')
-    const toolbarTextColorWrap = root.querySelector('[data-viz-text-color-wrap]')
+    const toolbarPillToggle = root.querySelector('[data-viz-toolbar-pill]')
+    const toolbarPictureWrap = root.querySelector('[data-viz-toolbar-picture]')
+    const toolbarPictureUpload = root.querySelector('[data-viz-toolbar-picture-upload]')
+    const toolbarPictureInput = root.querySelector('[data-viz-toolbar-picture-input]')
+    const toolbarPictureRemove = root.querySelector('[data-viz-toolbar-picture-remove]')
+    const toolbarPictureLeft = root.querySelector('[data-viz-toolbar-picture-left]')
+    const toolbarPictureTop = root.querySelector('[data-viz-toolbar-picture-top]')
     const toolbarFont = root.querySelector('[data-viz-font]')
     const toolbarFontSize = root.querySelector('[data-viz-font-size]')
     const toolbarDashedBtn = root.querySelector('[data-viz-toolbar-dashed]')
     const toolbarImageBorderWrap = root.querySelector('[data-viz-toolbar-image-border]')
     const toolbarImageBorderToggle = root.querySelector('[data-viz-toolbar-image-border-toggle]')
     const toolbarImageBorderColor = root.querySelector('[data-viz-image-border-color]')
-    const toolbarLogoOnlyWrap = root.querySelector('[data-viz-toolbar-logo-only]')
-    const toolbarLogoOnlyToggle = root.querySelector('[data-viz-toolbar-logo-only-toggle]')
     const toolbarComment = root.querySelector('[data-viz-toolbar-comment]')
     const toolbarRenameBtn = root.querySelector('[data-viz-toolbar-rename]')
     const toolbarRemoveBtn = root.querySelector('[data-viz-toolbar-remove]')
@@ -1588,7 +1612,7 @@ function mount(root) {
             el.addEventListener('pointerdown', (e) => startNodePointer(e, i))
             el.addEventListener('dblclick', () => startInlineLabelEdit(i))
             world.appendChild(el)
-            nodes.push({ ...data, el, w: 0, h: 0, x: 0, y: 0, color: null, textColor: null, font: 'sans', fontSize: 'sm', imageBorderColor: null })
+            nodes.push({ ...data, el, w: 0, h: 0, x: 0, y: 0, tone: null, pill: false, imageMode: 'left', font: 'sans', fontSize: 'sm', imageBorderColor: null })
         })
         nodes.forEach((n) => {
             n.w = n.el.offsetWidth
@@ -1602,27 +1626,14 @@ function mount(root) {
         // `usedCustomLayout`, set right below; read here lazily since this
         // listener only fires later, well after that assignment runs).
         nodes.forEach((n) => {
-            if (n.kind !== 'image') return
+            if (n.kind !== 'image' && !n.el.classList.contains('has-picture')) return
             const img = n.el.querySelector('img')
             if (!img || img.complete) return
             img.addEventListener('load', () => {
-                n.w = n.el.offsetWidth
-                n.h = n.el.offsetHeight
-                if (!usedCustomLayout) {
-                    layoutDefault()
-                    nodes.forEach((m) => {
-                        m.el.style.left = m.x + 'px'
-                        m.el.style.top = m.y + 'px'
-                    })
-                }
-                // Never redraw over a presentation already running: draw()
-                // rebuilds every edge path, which would invalidate the
-                // `pathEl`/`length` the travelling dots have already cached
-                // (`startPresentAnimation()`). The only cost is an image whose
-                // anchor is slightly out of date in that rare case (a slow
-                // load plus entering the presentation before it finishes),
-                // which is acceptable.
-                if (!presenting) draw()
+                // `reflowFromMeasurements()` skips `draw()` while presenting:
+                // a redraw would invalidate the `pathEl`/`length` the
+                // travelling dots have cached (`startPresentAnimation()`).
+                reflowFromMeasurements(graph)
             }, { once: true })
         })
 
@@ -1641,12 +1652,13 @@ function mount(root) {
         // `viz_layout` and are not its to move).
         usedCustomLayout = Array.isArray(layoutToApply?.nodes) && layoutToApply.nodes.length === nodes.length
         applyLayout(layoutToApply)
-        // `logoOnly` only arrives after `applyLayout()` (it comes from the
+        // `imageMode` only arrives after `applyLayout()` (it comes from the
         // saved `viz_layout`), but `paintNode()` already ran for every node
         // above without knowing it yet — repaint the ones that need it now,
-        // re-measuring w/h (their content went from a card to a bare image).
+        // re-measuring w/h (their content went from a card to a picture with
+        // its text underneath).
         nodes.forEach((n) => {
-            if (!n.logoOnly) return
+            if (n.imageMode !== 'top' || !blockPicture(n)) return
             paintNode(n.el, n)
             n.w = n.el.offsetWidth
             n.h = n.el.offsetHeight
@@ -1663,15 +1675,49 @@ function mount(root) {
         draw()
         setDirty(false)
         fit()
+
+        // The blocks were measured in whatever font was ready — on a first
+        // visit that is the fallback, and IBM Plex arriving a moment later
+        // reflows every label, so the arrows stayed anchored to boxes that no
+        // longer existed (and routed around the stale ones). Same family of
+        // bug as the pasted image measured before it loaded: measure again
+        // once the real size is known.
+        document.fonts?.ready?.then(() => reflowFromMeasurements(graph))
     }
 
-    // A block's background colour / text colour / font — it overrides the
-    // theme's CSS default only where the user chose something; a null
-    // `textColor` is recomputed from the contrast against `color` (the same
-    // rule the reference mind map uses).
+    // Every block measured again, for the content that only reaches its real
+    // size after the first measurement (a picture still loading, a webfont on
+    // its way) — and the default layout redone from those sizes, but only for
+    // a drawing that is still the default's: positions from `viz_layout`, or a
+    // block dragged in the meantime (`dirty`), are the person's. A no-op once
+    // another graph has been rendered over this one.
+    function reflowFromMeasurements(graph) {
+        if (graphRef !== graph) return
+        nodes.forEach((n) => {
+            n.w = n.el.offsetWidth
+            n.h = n.el.offsetHeight
+        })
+        if (!usedCustomLayout && !dirty) {
+            layoutDefault()
+            nodes.forEach((n) => {
+                n.el.style.left = n.x + 'px'
+                n.el.style.top = n.y + 'px'
+            })
+        }
+        if (!presenting) draw()
+    }
+
+    // A block's tone, pill shape and font. Tone and pill are classes/attributes
+    // the CSS paints — never an inline color, so a theme can still restyle the
+    // white block and every tone stays the one in the stylesheet. The pill is
+    // dark whatever the tone, hence one or the other on the element, never
+    // both.
     function applyNodeStyle(n) {
-        n.el.style.background = n.color || ''
-        n.el.style.color = n.textColor || (n.color ? textColorFor(n.color) : '')
+        const action = isActionKind(n.kind)
+        const pill = action && !!n.pill
+        n.el.classList.toggle('is-pill', pill)
+        if (action && !pill && isTone(n.tone) && n.tone !== 'white') n.el.dataset.tone = n.tone
+        else delete n.el.dataset.tone
         n.el.style.fontFamily = FONTS[n.font] || FONTS.sans
         n.el.style.fontSize = FONT_SIZES[n.fontSize] || FONT_SIZES.sm
         n.el.classList.toggle('is-dashed', !!n.dashed)
@@ -1731,13 +1777,15 @@ function mount(root) {
                     n.x = p.x
                     n.y = p.y
                 }
-                if (isHex(p?.color)) n.color = p.color
-                if (isHex(p?.textColor)) n.textColor = p.textColor
+                if (isTone(p?.tone)) n.tone = p.tone
+                else if (isHex(p?.color)) n.tone = LEGACY_TONES[p.color.toLowerCase()] ?? null
+                if (p && typeof p.pill === 'boolean') n.pill = p.pill
                 if (p && FONTS[p.font]) n.font = p.font
                 if (p && FONT_SIZES[p.fontSize]) n.fontSize = p.fontSize
                 if (p && typeof p.dashed === 'boolean') n.dashed = p.dashed
                 if (isHex(p?.imageBorderColor)) n.imageBorderColor = p.imageBorderColor
-                if (p && typeof p.logoOnly === 'boolean') n.logoOnly = p.logoOnly
+                if (p?.imageMode === 'top' || p?.imageMode === 'left') n.imageMode = p.imageMode
+                else if (p?.logoOnly === true) n.imageMode = 'top'
                 // Only a lifeline has a stored height — see the note in
                 // SaveChainLayoutRequest.
                 if (p && Number.isFinite(p.height)) n.height = p.height
@@ -2804,7 +2852,7 @@ function mount(root) {
     // the screen on purpose, as it always has.
     // `fontEmbedCSS`, when given, skips `toCanvas()`'s own font detection
     // (`getFontEmbedCSS()` already ran once — see `exportVideo()`). Node
-    // labels are set in 'Space Grotesk' (`.ak-viz-node`'s own rule) — a REAL
+    // labels are set in 'IBM Plex Sans' (`.ak-viz-node`'s own rule) — a REAL
     // loaded webfont, not a `system-ui` fallback — so skipping font embed
     // entirely (this function used to pass `skipFonts: true`) silently
     // substituted a wider fallback typeface in the exported PNG/GIF, enough
@@ -2897,7 +2945,7 @@ function mount(root) {
 
         try {
             // Detecting/embedding fonts from scratch (`toCanvas()`'s default
-            // behavior, needed so 'Space Grotesk' node labels don't silently
+            // behavior, needed so 'IBM Plex Sans' node labels don't silently
             // fall back to a wider typeface — see captureDiagramCanvas()'s
             // comment) is real work: scans every stylesheet on the page for
             // @font-face rules, then fetches each font file. Fine once; far
@@ -3174,13 +3222,16 @@ function mount(root) {
             // other shapes already have a fill and an outline of their own).
             toolbarImageBorderWrap?.classList.toggle('hidden', !editable || nodes[index].kind !== 'image')
             toolbarImageBorderWrap?.classList.toggle('flex', editable && nodes[index].kind === 'image')
-            // "Logo only" makes sense only on a system block with a registered
-            // Solution AND a logo — free text, a decision, an actor and a
-            // system with no logo have no image to show on its own.
+            // Tone, pill and picture belong to the action blocks alone — a
+            // decision is always the orange diamond, and the round kinds and
+            // the lifeline keep the look of their own.
             {
-                const canLogoOnly = nodes[index].kind === 'system' && !!nodes[index].solution && !!nodes[index].logo
-                toolbarLogoOnlyWrap?.classList.toggle('hidden', !editable || !canLogoOnly)
-                toolbarLogoOnlyWrap?.classList.toggle('flex', editable && canLogoOnly)
+                const action = editable && isActionKind(nodes[index].kind)
+                toolbarToneWrap?.classList.toggle('hidden', !action)
+                toolbarPillToggle?.classList.toggle('!hidden', !action)
+                toolbarPictureWrap?.classList.toggle('hidden', !action)
+                // The diamond has no outline to dash.
+                toolbarDashedBtn?.classList.toggle('!hidden', nodes[index].kind === 'decision')
             }
             // The block's kind: never on the root node (index 0) and never on
             // a pasted image — there is no kind, Solution or text to change
@@ -3211,21 +3262,24 @@ function mount(root) {
         }
     }
 
-    // ── block colour / text colour / font — the selected block only ──
+    // ── block tone / pill / picture / font — the selected block only ──
     function buildSwatches() {
         if (!toolbarSwatches) return
-        const current = nodes[selectedIndex]?.color
+        const n = nodes[selectedIndex]
+        const current = n && !n.pill && isTone(n.tone) ? n.tone : 'white'
         toolbarSwatches.innerHTML = ''
-        PALETTE.forEach((color) => {
+        TONES.forEach((tone) => {
             const sw = document.createElement('button')
             sw.type = 'button'
-            sw.className = 'size-[22px] shrink-0 cursor-pointer rounded-md border border-black/10 transition-transform hover:scale-110'
-            sw.style.background = color
-            sw.title = color
-            sw.style.boxShadow = current && current.toLowerCase() === color.toLowerCase()
-                ? '0 0 0 2px var(--viz-bg), 0 0 0 3.5px var(--viz-select)'
-                : ''
-            sw.addEventListener('click', () => setNodeColor(color))
+            sw.className = 'size-[22px] shrink-0 cursor-pointer rounded-md border-2 transition-transform hover:scale-110'
+            sw.style.background = tone.fill
+            sw.style.borderColor = tone.border
+            sw.title = tone.label
+            sw.setAttribute('aria-label', tone.label)
+            const active = !n?.pill && current === tone.value
+            sw.setAttribute('aria-pressed', String(active))
+            sw.style.boxShadow = active ? '0 0 0 2px var(--viz-bg), 0 0 0 3.5px var(--viz-select)' : ''
+            sw.addEventListener('click', () => setNodeTone(tone.value))
             toolbarSwatches.appendChild(sw)
         })
     }
@@ -3233,10 +3287,25 @@ function mount(root) {
     function refreshToolbarControls() {
         const n = nodes[selectedIndex]
         if (!n) return
-        if (toolbarCustomColor) toolbarCustomColor.value = isHex(n.color) ? n.color : '#4A90D9'
-        const effectiveTextColor = n.textColor || (n.color ? textColorFor(n.color) : '#1A1A2E')
-        if (toolbarTextColor) toolbarTextColor.value = isHex(effectiveTextColor) ? effectiveTextColor : '#1A1A2E'
-        if (toolbarTextColorWrap) toolbarTextColorWrap.style.color = effectiveTextColor
+        if (toolbarPillToggle) {
+            toolbarPillToggle.classList.toggle('!bg-accent-soft', !!n.pill)
+            toolbarPillToggle.setAttribute('aria-pressed', String(!!n.pill))
+        }
+        // The picture row: "Remover" only for a picture of the block's own (a
+        // catalog logo is the Solution's, not the block's to delete), and the
+        // two placements only once there is a picture to place.
+        {
+            const picture = !!blockPicture(n)
+            toolbarPictureRemove?.classList.toggle('!hidden', !n.mediaUrl)
+            toolbarPictureLeft?.classList.toggle('!hidden', !picture)
+            toolbarPictureTop?.classList.toggle('!hidden', !picture)
+            const top = picture && n.imageMode === 'top'
+            toolbarPictureLeft?.classList.toggle('!bg-accent-soft', picture && !top)
+            toolbarPictureLeft?.setAttribute('aria-pressed', String(picture && !top))
+            toolbarPictureTop?.classList.toggle('!bg-accent-soft', top)
+            toolbarPictureTop?.setAttribute('aria-pressed', String(top))
+            if (toolbarPictureUpload) toolbarPictureUpload.title = n.mediaUrl ? 'Trocar a imagem do bloco' : 'Colocar uma imagem no bloco'
+        }
         if (toolbarFont) toolbarFont.value = n.font || 'sans'
         if (toolbarFontSize) toolbarFontSize.value = n.fontSize || 'sm'
         if (toolbarDashedBtn) {
@@ -3250,10 +3319,6 @@ function mount(root) {
         if (toolbarImageBorderToggle) {
             toolbarImageBorderToggle.classList.toggle('!bg-accent-soft', !!n.imageBorderColor)
             toolbarImageBorderToggle.setAttribute('aria-pressed', String(!!n.imageBorderColor))
-        }
-        if (toolbarLogoOnlyToggle) {
-            toolbarLogoOnlyToggle.classList.toggle('!bg-accent-soft', !!n.logoOnly)
-            toolbarLogoOnlyToggle.setAttribute('aria-pressed', String(!!n.logoOnly))
         }
     }
 
@@ -3289,22 +3354,31 @@ function mount(root) {
         setDirty(true)
     })
 
-    function setNodeColor(color) {
-        if (!editable || selectedIndex === null || !nodes[selectedIndex]) return
-        nodes[selectedIndex].color = color
-        applyNodeStyle(nodes[selectedIndex])
+    // A tone always brings the block back from the dark pill: the swatch row
+    // shows the pill as "no tone chosen", so picking one is picking out of it.
+    function setNodeTone(tone) {
+        if (!editable || selectedIndex === null || !nodes[selectedIndex] || !isTone(tone)) return
+        const n = nodes[selectedIndex]
+        n.tone = tone === 'white' ? null : tone
+        n.pill = false
+        applyNodeStyle(n)
         buildSwatches()
         refreshToolbarControls()
         setDirty(true)
     }
 
-    function setNodeTextColor(color) {
-        if (!editable || selectedIndex === null || !nodes[selectedIndex]) return
-        nodes[selectedIndex].textColor = color
-        applyNodeStyle(nodes[selectedIndex])
+    // The pill changes the block's size (its own padding and radius), so the
+    // arrows are redrawn from the new measurement.
+    toolbarPillToggle?.addEventListener('click', () => {
+        if (!editable || selectedIndex === null || !nodes[selectedIndex] || !isActionKind(nodes[selectedIndex].kind)) return
+        const n = nodes[selectedIndex]
+        n.pill = !n.pill
+        applyNodeStyle(n)
+        remeasure(n)
+        buildSwatches()
         refreshToolbarControls()
         setDirty(true)
-    }
+    })
 
     function setNodeFont(font) {
         if (!editable || selectedIndex === null || !nodes[selectedIndex] || !FONTS[font]) return
@@ -3320,27 +3394,101 @@ function mount(root) {
         setDirty(true)
     }
 
-    toolbarCustomColor?.addEventListener('input', (e) => setNodeColor(e.target.value))
-    toolbarTextColor?.addEventListener('input', (e) => setNodeTextColor(e.target.value))
     toolbarFont?.addEventListener('change', (e) => setNodeFont(e.target.value))
     toolbarFontSize?.addEventListener('change', (e) => setNodeFontSize(e.target.value))
 
-    // "Logo only" changes the block's content structurally (a repaint through
-    // `paintNode()`, not just an inline style) — hence re-measuring w/h and
-    // redrawing the arrows right after, the same pattern as `applyNodeData()`.
-    toolbarLogoOnlyToggle?.addEventListener('click', () => {
-        if (!editable || selectedIndex === null || !nodes[selectedIndex]) return
-        const n = nodes[selectedIndex]
-        if (n.kind !== 'system' || !n.solution || !n.logo) return
-        n.logoOnly = !n.logoOnly
-        paintNode(n.el, n)
+    // The block's size follows its content — measured again after anything
+    // that changes it, and once more when a picture finishes loading, since an
+    // <img> still in flight measures as nothing.
+    function remeasure(n) {
         n.w = n.el.offsetWidth
         n.h = n.el.offsetHeight
-        applyNodeStyle(n)
-        refreshToolbarControls()
         draw()
+        const img = n.el.querySelector('img.ak-viz-node-picture')
+        if (img && !img.complete) {
+            img.addEventListener('load', () => {
+                n.w = n.el.offsetWidth
+                n.h = n.el.offsetHeight
+                if (!presenting) draw()
+            }, { once: true })
+        }
+    }
+
+    // Beside the text or above it: a repaint through `paintNode()`, not just
+    // a style, since the body turns from a row into a column.
+    function setPictureMode(mode) {
+        if (!editable || selectedIndex === null || !nodes[selectedIndex]) return
+        const n = nodes[selectedIndex]
+        if (!blockPicture(n) || n.imageMode === mode) return
+        n.imageMode = mode
+        paintNode(n.el, n)
+        applyNodeStyle(n)
+        remeasure(n)
+        refreshToolbarControls()
         setDirty(true)
+    }
+    toolbarPictureLeft?.addEventListener('click', () => setPictureMode('left'))
+    toolbarPictureTop?.addEventListener('click', () => setPictureMode('top'))
+
+    toolbarPictureUpload?.addEventListener('click', () => toolbarPictureInput?.click())
+    toolbarPictureInput?.addEventListener('change', () => {
+        const file = toolbarPictureInput.files?.[0]
+        toolbarPictureInput.value = ''
+        if (file && selectedIndex !== null) uploadNodePicture(selectedIndex, file)
     })
+    toolbarPictureRemove?.addEventListener('click', () => {
+        if (selectedIndex !== null) removeNodePicture(selectedIndex)
+    })
+
+    // Puts a picture INSIDE a block — the toolbar's "Imagem" button, or a paste
+    // while the block is selected. The server answers with the node resolved
+    // the usual way, so this is `applyNodeData()` like any other block edit.
+    async function uploadNodePicture(index, file) {
+        const n = nodes[index]
+        if (!editable || !n || !isActionKind(n.kind) || !graphRef?.nodeImageUrl || pastingImage) return
+        pastingImage = true
+        try {
+            const formData = new FormData()
+            formData.append('image', file)
+            const res = await fetch(graphRef.nodeImageUrl.replace('NODE_INDEX', String(index)), {
+                method: 'POST',
+                headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
+                body: formData,
+            })
+            const data = await res.json().catch(() => null)
+            if (!res.ok) throw new Error(data?.message || 'Não foi possível colocar a imagem no bloco.')
+            // The canvas may have been redrawn while the file travelled (a
+            // block changed kind, the drawing was reloaded): paint only the
+            // block that asked for it.
+            if (nodes[index] !== n) return
+            applyNodeData(index, data.node)
+            patchRowGraph(slug, index, data.node)
+            if (selectedIndex === index) refreshToolbarControls()
+            window.Toast?.show?.(data.message || 'Imagem adicionada ao bloco.')
+        } catch (err) {
+            window.Toast?.show?.(err.message || 'Não foi possível colocar a imagem no bloco.', 'error')
+        } finally {
+            pastingImage = false
+        }
+    }
+
+    async function removeNodePicture(index) {
+        const n = nodes[index]
+        if (!editable || !n?.mediaUrl || !graphRef?.nodeImageUrl) return
+        try {
+            const res = await fetch(graphRef.nodeImageUrl.replace('NODE_INDEX', String(index)), {
+                method: 'DELETE',
+                headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
+            })
+            const data = await res.json().catch(() => null)
+            if (!res.ok) throw new Error(data?.message || 'Não foi possível remover a imagem.')
+            applyNodeData(index, data.node)
+            patchRowGraph(slug, index, data.node)
+            if (selectedIndex === index) refreshToolbarControls()
+        } catch (err) {
+            window.Toast?.show?.(err.message || 'Não foi possível remover a imagem.', 'error')
+        }
+    }
 
     // ── "Adicionar bloco": one icon per kind, created on the spot ──────────
     // A single horizontal row of icons (`getNodeKindsList()`, the same list
@@ -3428,15 +3576,14 @@ function mount(root) {
             solution: data.solution,
             solutionId: data.solutionId ?? null,
             logo: data.logo,
+            mediaUrl: data.mediaUrl ?? null,
             comment: data.comment ?? null,
         })
         paintNode(n.el, n)
-        n.w = n.el.offsetWidth
-        n.h = n.el.offsetHeight
         n.el.style.left = n.x + 'px'
         n.el.style.top = n.y + 'px'
         applyNodeStyle(n)
-        draw()
+        remeasure(n)
     }
 
     // Keeps the row consistent without re-selecting the drawing: it updates
@@ -3992,7 +4139,7 @@ function mount(root) {
         world.appendChild(el)
 
         const prev = nodes[index - 1]
-        const entry = { ...data, el, w: 0, h: 0, x: 0, y: 0, color: null, textColor: null, font: 'sans', fontSize: 'sm', imageBorderColor: null }
+        const entry = { ...data, el, w: 0, h: 0, x: 0, y: 0, tone: null, pill: false, imageMode: 'left', font: 'sans', fontSize: 'sm', imageBorderColor: null }
         nodes.push(entry)
         entry.w = el.offsetWidth
         entry.h = el.offsetHeight
@@ -4499,13 +4646,13 @@ function mount(root) {
             nodes: nodes.map((n) => ({
                 x: Math.round(n.x),
                 y: Math.round(n.y),
-                color: n.color || null,
-                textColor: n.textColor || null,
+                tone: isTone(n.tone) && n.tone !== 'white' ? n.tone : null,
+                pill: !!n.pill,
                 font: n.font || 'sans',
                 fontSize: n.fontSize || 'sm',
                 dashed: !!n.dashed,
                 imageBorderColor: n.imageBorderColor || null,
-                logoOnly: !!n.logoOnly,
+                imageMode: n.imageMode === 'top' ? 'top' : 'left',
                 // Only a lifeline stores a height; for the others this goes
                 // null and the server accepts it (nullable) without recording
                 // any size — the block stays as big as what is written in it.
@@ -4556,6 +4703,13 @@ function mount(root) {
     // `DiagramController::removeNode()`.
     toolbarRemoveBtn?.addEventListener('click', async () => {
         if (!editable || selectedIndex === null || selectedIndex === 0) return
+        // A picture still uploading is addressed by NODE INDEX, and removing a
+        // block reindexes every block after it — the picture would land on
+        // whichever block took the old index. One wait is cheaper than that.
+        if (pastingImage) {
+            window.Toast?.show?.('Aguarde o envio da imagem terminar.', 'warning')
+            return
+        }
 
         const index = selectedIndex
         const label = nodes[index]?.label || 'este bloco'
@@ -5313,9 +5467,10 @@ function mount(root) {
         selectNode(null)
     })
 
-    // Ctrl+V (or Cmd+V) pastes an image straight onto the canvas — it becomes
-    // an `image` block like any other (ports, arrows, comments), and it is the
-    // only way to create one (see `ChainNodeKind::pickable()`). `paste` is a
+    // Ctrl+V (or Cmd+V) pastes an image straight onto the canvas — into the
+    // selected action block when there is one, otherwise as an `image` block
+    // like any other (ports, arrows, comments), which is the only way to create
+    // one (see `ChainNodeKind::pickable()`). `paste` is a
     // document event (the canvas itself is not a text field), so this only
     // reacts when no VISIBLE text field has focus: `offsetParent`, rather than
     // the tag alone, rules out an input from a panel that has just closed
@@ -5334,7 +5489,11 @@ function mount(root) {
 
         e.preventDefault()
         const file = imageItem.getAsFile()
-        if (file) handlePasteImage(file)
+        if (!file) return
+        // With an action block selected the picture goes INTO it; otherwise it
+        // becomes an image block of its own, as it always did.
+        if (selectedIndex !== null && isActionKind(nodes[selectedIndex]?.kind) && graphRef.nodeImageUrl) uploadNodePicture(selectedIndex, file)
+        else handlePasteImage(file)
     })
 
     // One at a time — pasting again before the first upload finishes is
