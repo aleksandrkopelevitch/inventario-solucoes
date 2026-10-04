@@ -64,22 +64,17 @@ it('renders diagram blocks white, keeping only the two flow terminals coloured',
         ->and($html)->toContain('.ak-viz-anchor');    // candidate anchors (4 + 2 + 2)
 });
 
-it('draws the decision hexagon with a real outline, not a clipped border', function () {
+it('draws the decision as the reference profile\'s solid orange diamond', function () {
     $html = Blade::render('<x-chain.viz />');
 
-    // `clip-path` clips the element's BORDER too, and a border follows the
-    // rectangular border box — so on a hexagon only the flat top/bottom spans
-    // of it survive and the diagonals get none. That was invisible while the
-    // block had a coloured fill (the fill drew the shape); with a white fill on
-    // a near-white canvas the block vanished. Two clipped layers is the fix:
-    // a line-coloured hexagon, and the white one 1px inside it.
+    // One clipped fill layer, a true rhombus — the four ports sit on its four
+    // tips because the block's box stays rectangular. The old white hexagon
+    // needed a second, outline layer; a solid fill needs none.
     expect($html)
-        ->toContain('.ak-viz-node.is-decision::before,')
-        ->toContain('.ak-viz-node.is-decision::after {')
-        ->toMatch('/is-decision::before \{\s*\n\s*inset: 0;\s*\n\s*background: rgba\(16, 24, 40, \.24\);/')
-        ->toMatch('/is-decision::after \{\s*\n\s*inset: 1px;\s*\n\s*background: var\(--viz-node\);/')
-        // `::after` is generated last, so the block's own text, ports and
-        // comment badge have to be lifted above both layers or it covers them.
+        ->toContain('--viz-decision: #F6C453;')
+        ->toMatch('/is-decision::before \{[^}]*clip-path: polygon\(50% 0, 100% 50%, 50% 100%, 0 50%\);[^}]*background: var\(--viz-decision\);/s')
+        ->not->toContain('.ak-viz-node.is-decision::after')
+        // The text, ports and comment badge are lifted above the fill layer.
         ->toContain('.ak-viz-node.is-decision .ak-viz-node-body,');
 });
 
@@ -90,9 +85,20 @@ it('gives the actor the same round silhouette as the flow terminals', function (
     // a box with the icon beside its text.
     expect($html)->toContain(".ak-viz-node.is-actor {\n                background: var(--viz-node);")
         ->and($html)->toMatch('/\.ak-viz-node\.is-start,\s*\n\s*\.ak-viz-node\.is-end,\s*\n\s*\.ak-viz-node\.is-actor \{/')
-        // The label under a round block wears the arrow-pill's own chip:
-        // white fill + a `--viz-line` hairline, since it sits on open canvas.
-        ->and($html)->toContain('box-shadow: 0 0 0 1px var(--viz-line);');
+        // The label under a round block wears a chip with the block's own
+        // hairline, since it sits on open canvas.
+        ->and($html)->toContain('box-shadow: 0 0 0 1px var(--viz-node-border);');
+});
+
+it('draws the four tones and the pill from the stylesheet, never inline', function () {
+    $html = Blade::render('<x-chain.viz />');
+
+    foreach (['blue' => '#2F6FDB', 'red' => '#D03B35', 'green' => '#2E9C5C', 'orange' => '#D9531E'] as $tone => $border) {
+        expect($html)->toMatch('/\.ak-viz-node\[data-tone="' . $tone . '"\] \{[^}]*border-width: 2px; border-color: ' . $border . ';/');
+    }
+
+    expect($html)->toMatch('/\.ak-viz-node\.is-pill \{[^}]*border-radius: 999px;[^}]*background: var\(--viz-pill\);/s')
+        ->and($html)->toContain('--viz-pill: #17212B;');
 });
 
 it('gives the logo fallback a solid green anchor block (no gray tile)', function () {

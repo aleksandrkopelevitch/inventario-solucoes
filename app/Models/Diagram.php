@@ -194,6 +194,7 @@ class Diagram extends Model implements ChainCanvas
             'nodeAddUrl'      => route('diagrams.chain.node.add', $this),
             'imageAddUrl'     => route('diagrams.chain.image.add', $this),
             'nodeUpdateUrl'   => route('diagrams.chain.node.update', [$this, 'NODE_INDEX']),
+            'nodeImageUrl'    => route('diagrams.chain.node.image.store', [$this, 'NODE_INDEX']),
             'nodeRemoveUrl'   => route('diagrams.chain.node.remove', [$this, 'NODE_INDEX']),
             'edgeAddUrl'      => route('diagrams.chain.edge.add', $this),
             'edgeUpdateUrl'   => route('diagrams.chain.protocol.update', [$this, 'EDGE_INDEX']),

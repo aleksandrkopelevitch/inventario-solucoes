@@ -9,9 +9,11 @@ use App\Http\Requests\AddChainEdgeRequest;
 use App\Http\Requests\AddChainImageRequest;
 use App\Http\Requests\AddChainNodeRequest;
 use App\Http\Requests\RemoveChainEdgeRequest;
+use App\Http\Requests\RemoveChainNodeImageRequest;
 use App\Http\Requests\RemoveChainNodeRequest;
 use App\Http\Requests\RetargetChainEdgeRequest;
 use App\Http\Requests\SaveChainLayoutRequest;
+use App\Http\Requests\SetChainNodeImageRequest;
 use App\Http\Requests\SyncDiagramSystemsRequest;
 use App\Http\Requests\UpdateChainNodeRequest;
 use App\Http\Requests\UpdateChainProtocolRequest;
@@ -317,6 +319,16 @@ class DiagramController extends Controller
     public function addImageNode(AddChainImageRequest $request, Diagram $diagram): JsonResponse
     {
         return $this->addChainImageNode($diagram, $request->file('image'));
+    }
+
+    public function setNodeImage(SetChainNodeImageRequest $request, Diagram $diagram, int $node): JsonResponse
+    {
+        return $this->setChainNodeImage($diagram, $request->file('image'), $node);
+    }
+
+    public function removeNodeImage(RemoveChainNodeImageRequest $request, Diagram $diagram, int $node): JsonResponse
+    {
+        return $this->removeChainNodeImage($diagram, $node);
     }
 
     public function retargetEdge(RetargetChainEdgeRequest $request, Diagram $diagram, int $edge): JsonResponse

@@ -56,8 +56,20 @@ class SaveChainLayoutRequest extends FormRequest
     /** Fonts available in each block's contextual toolbar. */
     public const FONTS = ['sans', 'serif', 'mono'];
 
-    /** Text sizes available in each block's contextual toolbar — `sm` is today's default (13px). */
+    /** Text sizes available in each block's contextual toolbar — `sm` is the default (15px). */
     public const FONT_SIZES = ['sm', 'md', 'lg'];
+
+    /**
+     * An action block's tone — fill, border and text color chosen TOGETHER,
+     * never one by one (`chain-viz.js`'s `TONES`). A block with no tone is
+     * white. It replaced the free `color`/`textColor` pair: a dozen pastels
+     * plus a color picker produced drawings in which no two blocks agreed on
+     * what a color meant, and the reference profile has exactly these.
+     */
+    public const TONES = ['white', 'blue', 'red', 'green', 'orange'];
+
+    /** Where a block's picture sits: beside the text, or above it with the box gone. */
+    public const IMAGE_MODES = ['left', 'top'];
 
     /** A lane's long-axis direction — decides where its title strip sits and how the title reads. */
     public const LANE_ORIENTATIONS = ['horizontal', 'vertical'];
@@ -79,17 +91,22 @@ class SaveChainLayoutRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'theme'                    => ['nullable', Rule::in(self::THEMES)],
-            'nodes'                    => ['present', 'array'],
-            'nodes.*.x'                => ['required', 'numeric'],
-            'nodes.*.y'                => ['required', 'numeric'],
-            'nodes.*.color'            => ['nullable', 'regex:/^#[0-9a-f]{6}$/i'],
-            'nodes.*.textColor'        => ['nullable', 'regex:/^#[0-9a-f]{6}$/i'],
+            'theme'        => ['nullable', Rule::in(self::THEMES)],
+            'nodes'        => ['present', 'array'],
+            'nodes.*.x'    => ['required', 'numeric'],
+            'nodes.*.y'    => ['required', 'numeric'],
+            'nodes.*.tone' => ['nullable', Rule::in(self::TONES)],
+            // The dark pill: a SHAPE any action block may take, not a kind —
+            // the block stays a system or a step, only drawn rounded and dark.
+            'nodes.*.pill'             => ['nullable', 'boolean'],
             'nodes.*.font'             => ['nullable', Rule::in(self::FONTS)],
             'nodes.*.fontSize'         => ['nullable', Rule::in(self::FONT_SIZES)],
             'nodes.*.dashed'           => ['nullable', 'boolean'],
             'nodes.*.imageBorderColor' => ['nullable', 'regex:/^#[0-9a-f]{6}$/i'],
-            'nodes.*.logoOnly'         => ['nullable', 'boolean'],
+            // Replaces `logoOnly`, which was the `top` mode for a catalog logo
+            // alone and with no text — the client still reads an old
+            // `logoOnly: true` as `top` (`chain-viz.js::applyLayout()`).
+            'nodes.*.imageMode' => ['nullable', Rule::in(self::IMAGE_MODES)],
             // How far a LIFELINE reaches down the canvas. Only that kind has a
             // stored size at all: every other block is sized by its own
             // content, and a lifeline is the one whose body IS the empty space

@@ -24,8 +24,16 @@ use Illuminate\Support\Collection;
  */
 final class ModelLayout
 {
-    /** Distance between two lifelines, and between two columns of a data flow. */
-    private const COLUMN_PITCH = 300;
+    /**
+     * Distance between two lifelines, and between two columns of a data flow.
+     *
+     * Every pitch below is sized to the canvas's blocks, which grew on
+     * 2026-10-03 (the reference profile: a step up to 260px wide and at least
+     * 56px tall, a decision diamond up to 280×112 and more). A lane column is
+     * this minus 40, and a step sits `LANE_PAD` inside it, so the widest step
+     * still fits its lane.
+     */
+    private const COLUMN_PITCH = 340;
 
     /** Vertical distance between two messages on a lifeline. */
     private const MESSAGE_STEP = 52;
@@ -36,10 +44,14 @@ final class ModelLayout
     /** A lifeline's tail below the last message, so the line doesn't stop on it. */
     private const LIFELINE_TAIL = 60;
 
-    /** Distance between two steps along a flow, and between two lanes. */
-    private const STEP_PITCH = 240;
+    /** Distance between two steps along a flow — wider than the widest diamond. */
+    private const STEP_PITCH = 320;
 
-    private const LANE_PITCH = 190;
+    /** Distance between two lanes; a step sits 60px into its lane, and a diamond is 112px tall. */
+    private const LANE_PITCH = 220;
+
+    /** Distance between two steps down a vertical (data flow) lane. */
+    private const ROW_PITCH = 150;
 
     private const LANE_PAD = 28;
 
@@ -184,7 +196,7 @@ final class ModelLayout
 
             $nodes[] = self::node($item, self::kindFor($item), $solutions);
             $positions[] = $vertical
-                ? ['x' => self::ORIGIN_X + $lane * self::COLUMN_PITCH + self::LANE_PAD, 'y' => self::ORIGIN_Y + 70 + $slot * 120]
+                ? ['x' => self::ORIGIN_X + $lane * self::COLUMN_PITCH + self::LANE_PAD, 'y' => self::ORIGIN_Y + 70 + $slot * self::ROW_PITCH]
                 : ['x' => self::ORIGIN_X + 40 + $slot * self::STEP_PITCH, 'y' => self::ORIGIN_Y + $lane * self::LANE_PITCH + 60];
         }
 
@@ -226,7 +238,7 @@ final class ModelLayout
                     'x'           => self::ORIGIN_X + $i * self::COLUMN_PITCH,
                     'y'           => self::ORIGIN_Y,
                     'width'       => self::COLUMN_PITCH - 40,
-                    'height'      => max(220, 130 + $span * 120),
+                    'height'      => max(220, 130 + $span * self::ROW_PITCH),
                     'orientation' => 'vertical',
                 ]
                 : [

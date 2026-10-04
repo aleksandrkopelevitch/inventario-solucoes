@@ -77,13 +77,13 @@ it('rejects an unknown anchor key', function () {
         ->assertStatus(422);
 });
 
-it('persists per-block color, text color and font from the contextual toolbar', function () {
+it('persists per-block tone, pill shape and font from the contextual toolbar', function () {
     [$solution, $diagram] = layoutSolutionAndIntegration();
 
     $payload = [
         'nodes' => [
-            ['x' => 0, 'y' => 0, 'color' => '#4A90D9', 'textColor' => '#FFFFFF', 'font' => 'mono'],
-            ['x' => 240, 'y' => 30, 'color' => null, 'textColor' => null, 'font' => 'serif'],
+            ['x' => 0, 'y' => 0, 'tone' => 'blue', 'pill' => false, 'font' => 'mono'],
+            ['x' => 240, 'y' => 30, 'tone' => null, 'pill' => true, 'font' => 'serif'],
         ],
         'edges' => [['from' => 'r', 'to' => 'l']],
     ];
@@ -96,37 +96,20 @@ it('persists per-block color, text color and font from the contextual toolbar', 
     expect($diagram->fresh()->viz_layout)->toBe($payload);
 });
 
-it('rejects an invalid font or a malformed hex color on a block', function () {
+it('drops the retired free color and text color instead of storing them', function () {
     [$solution, $diagram] = layoutSolutionAndIntegration();
 
     $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]))
         ->patchJson(route('diagrams.layout.save', $diagram), [
-            'nodes' => [['x' => 0, 'y' => 0, 'color' => 'not-a-color', 'font' => 'comic-sans']],
+            'nodes' => [['x' => 0, 'y' => 0, 'color' => '#4A90D9', 'textColor' => '#FFFFFF', 'tone' => 'green']],
             'edges' => [],
         ])
-        ->assertStatus(422);
+        ->assertOk();
+
+    expect($diagram->fresh()->viz_layout['nodes'])->toBe([['x' => 0, 'y' => 0, 'tone' => 'green']]);
 });
 
-it('persists a block\'s font size and logo-only toggle', function () {
-    [$solution, $diagram] = layoutSolutionAndIntegration();
-
-    $payload = [
-        'nodes' => [
-            ['x' => 0, 'y' => 0, 'fontSize' => 'lg', 'logoOnly' => true],
-            ['x' => 240, 'y' => 30, 'fontSize' => 'md', 'logoOnly' => false],
-        ],
-        'edges' => [['from' => 'r', 'to' => 'l']],
-    ];
-
-    $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]))
-        ->patchJson(route('diagrams.layout.save', $diagram), $payload)
-        ->assertOk()
-        ->assertJson(['type' => 'success']);
-
-    expect($diagram->fresh()->viz_layout)->toBe($payload);
-});
-
-it('rejects an unknown font size or a non-boolean logo-only flag', function (array $overrides) {
+it('rejects an invalid font or an unknown tone on a block', function (array $overrides) {
     [$solution, $diagram] = layoutSolutionAndIntegration();
 
     $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]))
@@ -136,8 +119,42 @@ it('rejects an unknown font size or a non-boolean logo-only flag', function (arr
         ])
         ->assertStatus(422);
 })->with([
-    'invalid font size'     => [['fontSize' => 'xl']],
-    'non-boolean logo-only' => [['logoOnly' => 'yes']],
+    'invalid font'     => [['font' => 'comic-sans']],
+    'unknown tone'     => [['tone' => 'purple']],
+    'non-boolean pill' => [['pill' => 'yes']],
+]);
+
+it('persists a block\'s font size and image placement', function () {
+    [$solution, $diagram] = layoutSolutionAndIntegration();
+
+    $payload = [
+        'nodes' => [
+            ['x' => 0, 'y' => 0, 'fontSize' => 'lg', 'imageMode' => 'top'],
+            ['x' => 240, 'y' => 30, 'fontSize' => 'md', 'imageMode' => 'left'],
+        ],
+        'edges' => [['from' => 'r', 'to' => 'l']],
+    ];
+
+    $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]))
+        ->patchJson(route('diagrams.layout.save', $diagram), $payload)
+        ->assertOk()
+        ->assertJson(['type' => 'success']);
+
+    expect($diagram->fresh()->viz_layout)->toBe($payload);
+});
+
+it('rejects an unknown font size or image placement', function (array $overrides) {
+    [$solution, $diagram] = layoutSolutionAndIntegration();
+
+    $this->actingAs(User::factory()->create(['role' => UserRole::Admin->value]))
+        ->patchJson(route('diagrams.layout.save', $diagram), [
+            'nodes' => [array_merge(['x' => 0, 'y' => 0], $overrides)],
+            'edges' => [],
+        ])
+        ->assertStatus(422);
+})->with([
+    'invalid font size'       => [['fontSize' => 'xl']],
+    'invalid image placement' => [['imageMode' => 'right']],
 ]);
 
 it('persists an image block\'s light border color', function () {

@@ -422,7 +422,7 @@ Route::middleware(['auth', 'inventory'])->group(function () {
          | Submission::diagrams(), so a diagram belonging to another submission
          | 404s instead of being edited through the wrong parent.
          |
-         | The nine chain endpoints mirror the diagrams module's ONE FOR ONE
+         | The eleven chain endpoints mirror the diagrams module's ONE FOR ONE
          | — same request classes, same controller trait (Concerns\EditsChain),
          | same response shapes — because it is the same canvas over a
          | different owner. `chain-viz.js` never learns which one it is
@@ -443,6 +443,8 @@ Route::middleware(['auth', 'inventory'])->group(function () {
 
             Route::post('chain/nodes', [SubmissionDiagramController::class, 'addNode'])->name('chain.node.add');
             Route::post('chain/images', [SubmissionDiagramController::class, 'addImageNode'])->name('chain.image.add');
+            Route::post('chain/nodes/{node}/image', [SubmissionDiagramController::class, 'setNodeImage'])->whereNumber('node')->name('chain.node.image.store');
+            Route::delete('chain/nodes/{node}/image', [SubmissionDiagramController::class, 'removeNodeImage'])->whereNumber('node')->name('chain.node.image.remove');
             Route::patch('chain/nodes/{node}', [SubmissionDiagramController::class, 'updateNode'])->whereNumber('node')->name('chain.node.update');
             Route::delete('chain/nodes/{node}', [SubmissionDiagramController::class, 'removeNode'])->whereNumber('node')->name('chain.node.remove');
 
@@ -512,7 +514,7 @@ Route::middleware(['auth', 'inventory'])->group(function () {
      | being renamed. Nothing here CREATES one: that is
      | `notebooks/{notebook}/diagrams` and the page's "Desenhar esta página".
      |
-     | The nine chain endpoints are the canvas's, and they mirror the
+     | The eleven chain endpoints are the canvas's, and they mirror the
      | submission-diagram ones ONE FOR ONE: same payloads, same responses, same
      | FormRequests. `chain-viz.js` never learns which owner it is editing,
      | because every URL it calls arrives inside the graph payload
@@ -550,6 +552,11 @@ Route::middleware(['auth', 'inventory'])->group(function () {
         Route::post('chain/nodes', [DiagramController::class, 'addNode'])->name('chain.node.add');
         // New IMAGE block — pasting a picture directly on the canvas (Ctrl+V).
         Route::post('chain/images', [DiagramController::class, 'addImageNode'])->name('chain.image.add');
+        // A picture INSIDE an existing action block — {node} is the index in the chain.
+        Route::post('chain/nodes/{node}/image', [DiagramController::class, 'setNodeImage'])
+            ->whereNumber('node')->name('chain.node.image.store');
+        Route::delete('chain/nodes/{node}/image', [DiagramController::class, 'removeNodeImage'])
+            ->whereNumber('node')->name('chain.node.image.remove');
         // Protocol and/or direction of a single link — {edge} is the index in chain.edges.
         Route::patch('chain/protocol/{edge}', [DiagramController::class, 'updateProtocol'])
             ->whereNumber('edge')->name('chain.protocol.update');

@@ -147,7 +147,7 @@ it('draws a sequence as lifelines, with every message at its own height', functi
         // last message would read as "this participant left".
         ->and(collect($layout['nodes'])->pluck('y')->unique())->toHaveCount(1)
         ->and(collect($layout['nodes'])->pluck('height')->unique())->toHaveCount(1)
-        ->and(collect($layout['nodes'])->pluck('x')->all())->toBe([60, 360, 660]);
+        ->and(collect($layout['nodes'])->pluck('x')->all())->toBe([60, 400, 740]);
 
     // Each message lands lower than the one before it, and the two ends of a
     // message are at the same height.

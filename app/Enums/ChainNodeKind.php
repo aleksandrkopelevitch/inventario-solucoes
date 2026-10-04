@@ -87,6 +87,19 @@ enum ChainNodeKind: string
     }
 
     /**
+     * Which kinds can carry a picture of their own INSIDE the block
+     * (`chain.nodes[i].media_id`, set through `EditsChain::setChainNodeImage()`)
+     * — the action blocks only. A decision is a diamond whose text already
+     * fights the shape for room, the round kinds carry their icon, a lifeline
+     * shows its participant's logo in the header, and an `Image` block IS a
+     * picture.
+     */
+    public function acceptsImage(): bool
+    {
+        return $this === self::System || $this === self::Step;
+    }
+
+    /**
      * Heroicon (outline) drawn inside the block, for the kinds that don't have
      * a solution logo/initial to show as avatar. Rendered server-side
      * (`Heroicons::outlineSvg()`) into the graph payload, since

@@ -7,9 +7,11 @@ use App\Http\Requests\AddChainEdgeRequest;
 use App\Http\Requests\AddChainImageRequest;
 use App\Http\Requests\AddChainNodeRequest;
 use App\Http\Requests\RemoveChainEdgeRequest;
+use App\Http\Requests\RemoveChainNodeImageRequest;
 use App\Http\Requests\RemoveChainNodeRequest;
 use App\Http\Requests\RetargetChainEdgeRequest;
 use App\Http\Requests\SaveChainLayoutRequest;
+use App\Http\Requests\SetChainNodeImageRequest;
 use App\Http\Requests\StoreDiagramPictureRequest;
 use App\Http\Requests\StoreSubmissionDiagramUploadRequest;
 use App\Http\Requests\UpdateChainNodeRequest;
@@ -97,6 +99,16 @@ class SubmissionDiagramController extends Controller
     public function addImageNode(AddChainImageRequest $request, Submission $submission, SubmissionDiagram $diagram): JsonResponse
     {
         return $this->addChainImageNode($diagram, $request->file('image'));
+    }
+
+    public function setNodeImage(SetChainNodeImageRequest $request, Submission $submission, SubmissionDiagram $diagram, int $node): JsonResponse
+    {
+        return $this->setChainNodeImage($diagram, $request->file('image'), $node);
+    }
+
+    public function removeNodeImage(RemoveChainNodeImageRequest $request, Submission $submission, SubmissionDiagram $diagram, int $node): JsonResponse
+    {
+        return $this->removeChainNodeImage($diagram, $node);
     }
 
     public function retargetEdge(RetargetChainEdgeRequest $request, Submission $submission, SubmissionDiagram $diagram, int $edge): JsonResponse
