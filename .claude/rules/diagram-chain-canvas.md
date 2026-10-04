@@ -68,7 +68,11 @@ keep a fill of their own, green/red.
 2026-10-03 the "Original" theme reproduces the "Login e cadastro VTEX" boards
 (IBM Plex Sans 15/20, `#F4F6F8` ground, `#5A6675` arrows, `#B9C2CE` hairline,
 `#F6C453` diamond, `#17212B` pill) — the values sit as `--viz-*` tokens on
-`[data-ak-chain-viz]`, and the other five themes stay as alternatives. An
+`[data-ak-chain-viz]`, and the other five themes stay as alternatives. The
+SIZES are the board's too, and fixed: an action card and the pill are 200×96, a
+decision 200×112, and a long text wraps and grows the block taller, never wider
+(260px only with a picture beside the text). Content-sized blocks were the first
+version, and the user rejected it: "Aprovado" came out a 150×60 chip. An
 ACTION block (`system`/`step`, `chain-viz.js::isActionKind()`) is the only kind
 that takes any of the author's styling, and all of it is `viz_layout`, never
 the chain:

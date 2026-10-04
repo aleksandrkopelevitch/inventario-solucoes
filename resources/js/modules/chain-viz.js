@@ -1036,8 +1036,14 @@ function paintNode(el, data) {
         img.alt = ''
         img.draggable = false
         // A picture that fails to load (a logo whose file is gone) leaves the
-        // text alone rather than a broken-image glyph beside it.
-        img.addEventListener('error', () => { img.style.display = 'none' }, { once: true })
+        // plain card behind rather than a broken-image glyph — and the 260px
+        // and left-aligned text it was widened for. Registered first, so the
+        // re-measuring listeners added after this (`reflowFromMeasurements()`,
+        // `remeasure()`) read the card's real size.
+        img.addEventListener('error', () => {
+            img.remove()
+            el.classList.remove('has-picture', 'is-picture-top')
+        }, { once: true })
         body.appendChild(img)
     } else if (data.solution) body.appendChild(buildAvatar(data))
     else if (data.icon && kind !== 'decision') body.appendChild(buildKindIcon(data.icon))
@@ -1629,12 +1635,13 @@ function mount(root) {
             if (n.kind !== 'image' && !n.el.classList.contains('has-picture')) return
             const img = n.el.querySelector('img')
             if (!img || img.complete) return
-            img.addEventListener('load', () => {
-                // `reflowFromMeasurements()` skips `draw()` while presenting:
-                // a redraw would invalidate the `pathEl`/`length` the
-                // travelling dots have cached (`startPresentAnimation()`).
-                reflowFromMeasurements(graph)
-            }, { once: true })
+            // `reflowFromMeasurements()` skips `draw()` while presenting: a
+            // redraw would invalidate the `pathEl`/`length` the travelling dots
+            // have cached (`startPresentAnimation()`). A failed load resizes
+            // the block just the same (see `paintNode()`).
+            const reflow = () => reflowFromMeasurements(graph)
+            img.addEventListener('load', reflow, { once: true })
+            img.addEventListener('error', reflow, { once: true })
         })
 
         layoutDefault()
@@ -3406,11 +3413,13 @@ function mount(root) {
         draw()
         const img = n.el.querySelector('img.ak-viz-node-picture')
         if (img && !img.complete) {
-            img.addEventListener('load', () => {
+            const measure = () => {
                 n.w = n.el.offsetWidth
                 n.h = n.el.offsetHeight
                 if (!presenting) draw()
-            }, { once: true })
+            }
+            img.addEventListener('load', measure, { once: true })
+            img.addEventListener('error', measure, { once: true })
         }
     }
 
@@ -4169,7 +4178,7 @@ function mount(root) {
         // (zero) size the first time.
         const img = el.querySelector('img')
         if (img && !img.complete) {
-            img.addEventListener('load', () => {
+            const settle = () => {
                 const newW = el.offsetWidth
                 const newH = el.offsetHeight
                 if (pos) {
@@ -4181,7 +4190,9 @@ function mount(root) {
                 entry.w = newW
                 entry.h = newH
                 if (!presenting) draw() // ver o mesmo guard/motivo no listener de imagem em render()
-            }, { once: true })
+            }
+            img.addEventListener('load', settle, { once: true })
+            img.addEventListener('error', settle, { once: true })
         }
 
         draw()
