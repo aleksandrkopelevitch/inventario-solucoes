@@ -1606,10 +1606,13 @@
                 filter: drop-shadow(0 0 4px currentColor) drop-shadow(0 0 8px currentColor);
             }
             /* The action block — the reference profile's white card: a #B9C2CE
-               hairline, 10px corners, centred text on a 20px line and generous
-               room around it. Sized by its content between a floor and a
-               ceiling, so a two-word step stays a card and a long one wraps
-               into lines instead of stretching the drawing.
+               hairline, 10px corners, centred text on a 20px line, and the
+               board's own FIXED 200×96 card. Fixed on purpose, and measured
+               (63 of the reference's white blocks are exactly 200×96): sized by
+               its content, "Aprovado" came out a 150×60 chip beside a
+               three-line neighbour, and a flow read as a scatter of sizes
+               instead of a column of equal steps. A long text wraps inside the
+               200px and the card only grows taller.
 
                The outline is a real BORDER, not a box-shadow ring: the tones
                below widen it to 2px in their own hue, and a ring painted over a
@@ -1621,11 +1624,9 @@
                 flex-direction: column;
                 justify-content: center;
                 gap: 4px;
-                width: max-content;
-                min-width: 140px;
-                max-width: 260px;
-                min-height: 56px;
-                padding: 14px 20px;
+                width: 200px;
+                min-height: 96px;
+                padding: 10px 12px;
                 border: 1px solid var(--viz-node-border);
                 border-radius: 10px;
                 background: var(--viz-node);
@@ -1813,6 +1814,9 @@
                 border-radius: 4px;
                 pointer-events: none;
             }
+            {{-- Wider by the picture's slot, so the text keeps the room a
+                 plain card gives it. --}}
+            .ak-viz-node.has-picture:not(.is-picture-top) { width: 260px; }
             .ak-viz-node.has-picture:not(.is-picture-top) .ak-viz-node-body { justify-content: flex-start; }
             .ak-viz-node.has-picture:not(.is-picture-top) .ak-viz-node-text { text-align: left; }
             .ak-viz-node-avatar {
@@ -1860,8 +1864,10 @@
                  na lateral na altura que o `fromT`/`toT` da aresta disser. --}}
             .ak-viz-node.is-lifeline {
                 justify-content: flex-start;
-                padding: 10px 14px 0;
+                width: max-content;
                 min-width: 120px;
+                max-width: 260px;
+                padding: 10px 14px 0;
                 min-height: 0;
                 background: transparent;
                 border: none;
@@ -1923,22 +1929,21 @@
                exactly on the diamond's four tips.
 
                Text fits a diamond only inside its middle: a W×H rhombus holds a
-               w×h rectangle while w/W + h/H ≤ 1. Hence the floor (the
-               reference's own 200×112), the ceiling (which
-               `ModelLayout::STEP_PITCH` is sized against), and side padding far
-               larger than the vertical one — a line has to stop well short of
-               the left and right tips. Up to three lines read cleanly; past
-               that the block keeps growing taller rather than spilling. No
+               w×h rectangle while w/W + h/H ≤ 1. The reference's own 200×112
+               with its 44px side padding leaves a 112px column, which two lines
+               fit; the vertical padding is what keeps a third and fourth line
+               inside the tips too (three lines make it 136px tall, the size
+               the rule asks for). Width stays fixed like the action card's —
+               a longer question grows the diamond down, not sideways. No
                outline: a solid fill on the light ground needs none, which is
                also what retired the two-layer hexagon this used to be. */
             .ak-viz-node.is-decision {
                 background: transparent;
                 border: none;
                 box-shadow: none;
-                min-width: 200px;
-                max-width: 280px;
+                width: 200px;
                 min-height: 112px;
-                padding: 28px 68px;
+                padding: 38px 44px;
                 color: var(--viz-decision-ink);
                 font-weight: 600;
             }
@@ -2210,6 +2215,8 @@
                border (`imageBorderColor`, see the `.ak-viz-node.is-image`
                inline style in `applyNodeStyle()`), not this `background`. */
             .ak-viz-node.is-image {
+                width: max-content;
+                max-width: 240px;
                 padding: 4px;
                 min-width: 0;
                 min-height: 0;
@@ -2245,6 +2252,8 @@
                 box-shadow: none;
             }
             [data-ak-chain-viz] .ak-viz-world .ak-viz-node.is-picture-top.has-picture {
+                width: max-content;
+                max-width: 200px;
                 min-width: 0;
                 min-height: 0;
                 padding: 4px;
@@ -2322,7 +2331,7 @@
                logada". Dark whatever the theme; `applyNodeStyle()` never sets a
                tone alongside it. */
             [data-ak-chain-viz] .ak-viz-world .ak-viz-node.is-pill {
-                padding: 14px 26px;
+                padding: 10px 14px;
                 border-color: var(--viz-pill);
                 border-radius: 999px;
                 background: var(--viz-pill);

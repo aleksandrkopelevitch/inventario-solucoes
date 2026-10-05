@@ -28,10 +28,10 @@ final class ModelLayout
      * Distance between two lifelines, and between two columns of a data flow.
      *
      * Every pitch below is sized to the canvas's blocks, which grew on
-     * 2026-10-03 (the reference profile: a step up to 260px wide and at least
-     * 56px tall, a decision diamond up to 280×112 and more). A lane column is
-     * this minus 40, and a step sits `LANE_PAD` inside it, so the widest step
-     * still fits its lane.
+     * 2026-10-03 (the reference profile: a 200×96 card, 260px wide with a
+     * picture beside its text, and a 200×112 decision diamond). A lane column
+     * is this minus 40, and a step sits `LANE_PAD` inside it, so the widest
+     * card still fits its lane.
      */
     private const COLUMN_PITCH = 340;
 
@@ -44,7 +44,7 @@ final class ModelLayout
     /** A lifeline's tail below the last message, so the line doesn't stop on it. */
     private const LIFELINE_TAIL = 60;
 
-    /** Distance between two steps along a flow — wider than the widest diamond. */
+    /** Distance between two steps along a flow — a card's width plus room for the arrow and its label. */
     private const STEP_PITCH = 320;
 
     /** Distance between two lanes; a step sits 60px into its lane, and a diamond is 112px tall. */
