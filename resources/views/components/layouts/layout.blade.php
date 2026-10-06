@@ -19,30 +19,30 @@
     $sections = [
         'Catálogo' => [
             ['route' => 'profile.show', 'label' => 'Visão geral', 'icon' => 'home', 'active' => 'profile.show'],
-            ['route' => 'solutions.index', 'label' => 'Soluções', 'icon' => 'squares-2x2', 'active' => ['solutions.index', 'solutions.show']],
-            ['route' => 'people.index', 'label' => 'Pessoas', 'icon' => 'users', 'active' => 'people.*'],
-            ['route' => 'companies.index', 'label' => 'Empresas', 'icon' => 'building-office-2', 'active' => 'companies.*'],
+            ['route' => 'solutions.index', 'label' => 'Soluções', 'icon' => 'squares-2x2', 'active' => ['solutions.index', 'solutions.show', 'solutions.spreadsheet'], 'can' => 'viewAny', 'canModel' => \App\Models\Solution::class],
+            ['route' => 'people.index', 'label' => 'Pessoas', 'icon' => 'users', 'active' => 'people.*', 'can' => 'viewAny', 'canModel' => \App\Models\Person::class],
+            ['route' => 'companies.index', 'label' => 'Empresas', 'icon' => 'building-office-2', 'active' => 'companies.*', 'can' => 'viewAny', 'canModel' => \App\Models\Company::class],
         ],
         'Governança' => [
-            ['route' => 'notebooks.index', 'label' => 'Cadernos', 'icon' => 'book-open', 'active' => 'notebooks.*'],
+            ['route' => 'notebooks.index', 'label' => 'Cadernos', 'icon' => 'book-open', 'active' => 'notebooks.*', 'can' => 'viewAny'],
             // Admin only (`can`), because deciding what the whole company reads
             // is `NotebookPolicy::administer`. `/docs` itself gets no entry: it
             // is its own shell with its own top bar, reached from here and from
             // the switcher inside it.
             ['route' => 'docs.settings', 'label' => 'Base de conhecimento', 'icon' => 'building-library', 'active' => 'docs.settings', 'can' => 'administerAny'],
-            ['route' => 'documentation.index', 'label' => 'Cobertura da documentação', 'icon' => 'chart-bar-square', 'active' => 'documentation.*'],
-            ['route' => 'diagrams.index', 'label' => 'Diagramas', 'icon' => 'share', 'active' => 'diagrams.*'],
+            ['route' => 'documentation.index', 'label' => 'Cobertura da documentação', 'icon' => 'chart-bar-square', 'active' => 'documentation.*', 'can' => 'viewAny'],
+            ['route' => 'diagrams.index', 'label' => 'Diagramas', 'icon' => 'share', 'active' => 'diagrams.*', 'can' => 'viewAny', 'canModel' => \App\Models\Diagram::class],
             ['route' => 'solutions.map', 'label' => 'Mapa do ecossistema', 'icon' => 'globe-alt', 'active' => 'solutions.map'],
-            ['route' => 'flowspec.index', 'label' => 'Especialista em Integrações', 'icon' => 'cpu-chip', 'active' => 'flowspec.*'],
+            ['route' => 'flowspec.index', 'label' => 'Especialista em Integrações', 'icon' => 'cpu-chip', 'active' => 'flowspec.*', 'can' => 'viewAny', 'canModel' => \App\Models\FlowspecChat::class],
             // Two entries, because they are two audiences. Connecting a chat
-            // client is ungated — any account does it for itself, with its own
-            // access (App\Mcp\Actor), a `Reader` included. Minting a TOKEN is
+            // client is ungated — any account does it for itself
+            // (App\Mcp\Actor). Minting a TOKEN is
             // still admin-only (`McpTokenPolicy`), because a token is not an
             // account: it reads the whole catalog and belongs to whatever
             // program holds it.
             ['route' => 'mcp.connect', 'label' => 'Conexão MCP', 'icon' => 'bolt', 'active' => 'mcp.connect'],
             ['route' => 'mcp-tokens.index', 'label' => 'Tokens MCP', 'icon' => 'key', 'active' => 'mcp-tokens.*', 'can' => 'viewAny', 'canModel' => \App\Models\McpToken::class],
-            ['route' => 'submissions.index', 'label' => 'Comitê de Arquitetura', 'icon' => 'clipboard-document-check', 'active' => 'submissions.*'],
+            ['route' => 'submissions.index', 'label' => 'Comitê de Arquitetura', 'icon' => 'clipboard-document-check', 'active' => 'submissions.*', 'can' => 'viewAny', 'canModel' => \App\Models\Submission::class],
         ],
     ];
 
@@ -55,7 +55,9 @@
     // in the drawer while being correctly hidden in the rail.
     //
     // `canModel` is how an item names the model its ability belongs to; the
-    // default stays `Notebook` for the entry that was already here.
+    // default stays `Notebook` for the entry that was already here. Every
+    // module's entries carry their `viewAny`, so a module whose level is None
+    // (App\Enums\AccessLevel) is simply absent from the rail.
     $sections = array_map(
         fn (array $items) => array_values(array_filter($items, fn (array $item) => ! isset($item['can'])
             || (auth()->user()?->can($item['can'], $item['canModel'] ?? \App\Models\Notebook::class) ?? false))),

@@ -84,6 +84,7 @@
                      there is no flowSpec-specific code between the click and the
                      panel — flowspec-chat.js only handles what comes back OUT of
                      it (the checked references). --}}
+                @can('viewAny', \App\Models\Notebook::class)
                 <x-forms.button type="button" variant="ghost" data-ak-fs-open-picker
                     data-ak-panel-open data-ak-panel-url="{{ $config['pickerUrl'] }}" data-ak-panel-size="medium"
                     class="!w-full !justify-start !px-3 !py-2 !text-left !font-normal !text-body">
@@ -93,6 +94,7 @@
                         <span class="text-[11px] text-faint">Páginas de qualquer caderno</span>
                     </span>
                 </x-forms.button>
+                @endcan
                 <x-forms.button type="button" variant="ghost" data-ak-fs-open-file
                     class="!w-full !justify-start !px-3 !py-2 !text-left !font-normal !text-body">
                     <x-heroicon-o-arrow-up-tray class="size-4 shrink-0 text-muted" />

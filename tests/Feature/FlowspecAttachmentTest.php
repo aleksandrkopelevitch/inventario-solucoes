@@ -2,6 +2,7 @@
 
 use App\Actions\Flowspec\AttachFlowspecText;
 use App\Actions\Flowspec\NormalizeReferenceFlowspec;
+use App\Enums\AccessModule;
 use App\Enums\ContextExtractionState;
 use App\Enums\FlowspecAttachmentKind;
 use App\Enums\UserRole;
@@ -24,9 +25,12 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 uses(LazilyRefreshDatabase::class);
 
-function attachmentUser(UserRole $role = UserRole::Viewer): User
+/** An Editor of the Especialista module — who starts and writes conversations. */
+function attachmentUser(UserRole $role = UserRole::Member): User
 {
-    return User::factory()->create(['role' => $role->value]);
+    return $role->isAdmin()
+        ? User::factory()->admin()->create()
+        : User::factory()->editor(AccessModule::Integrations)->create();
 }
 
 function documentedPage(string $title = 'Contrato', string $body = 'POST /colaboradores'): DocumentationPage

@@ -5,6 +5,8 @@ namespace App\Models;
 // Uncomment to enforce email verification (e.g., for 2-step login flow):
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 
+use App\Enums\AccessLevel;
+use App\Enums\AccessModule;
 use App\Enums\UserRole;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -30,7 +32,7 @@ class User extends Authenticatable implements HasMedia, OAuthenticatable
      * after Microsoft has attested it. Mass-assignable, it would be a posted
      * field that says "I am this person at Entra".
      */
-    protected $fillable = ['role', 'name', 'email', 'password', 'preferences'];
+    protected $fillable = ['role', 'access', 'name', 'email', 'password', 'preferences'];
 
     protected $hidden = ['password', 'remember_token'];
 
@@ -42,7 +44,55 @@ class User extends Authenticatable implements HasMedia, OAuthenticatable
             'password'                => 'hashed',
             'preferences'             => 'array',
             'role'                    => UserRole::class,
+            'access'                  => 'array',
         ];
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role->isAdmin();
+    }
+
+    /**
+     * This account's level in `$module`. An admin is an Editor everywhere, and
+     * a module nobody set answers that module's `defaultLevel()`.
+     */
+    public function accessLevel(AccessModule $module): AccessLevel
+    {
+        if ($this->isAdmin()) {
+            return AccessLevel::Editor;
+        }
+
+        return AccessLevel::tryFrom((string) ($this->access[$module->value] ?? '')) ?? $module->defaultLevel();
+    }
+
+    /** Opening `$module` at all — anything but `None`. */
+    public function canView(AccessModule $module): bool
+    {
+        return $this->accessLevel($module)->canView();
+    }
+
+    /** Creating and changing records in `$module` — what its Editor level adds. */
+    public function canEdit(AccessModule $module): bool
+    {
+        return $this->accessLevel($module) === AccessLevel::Editor;
+    }
+
+    /**
+     * Sets one module's level. The module's default is stored as an absent
+     * key, so the column only records what differs from it.
+     */
+    public function setAccessLevel(AccessModule $module, AccessLevel $level): void
+    {
+        $access = $this->access ?? [];
+
+        if ($level === $module->defaultLevel()) {
+            unset($access[$module->value]);
+        } else {
+            $access[$module->value] = $level->value;
+        }
+
+        $this->access = $access === [] ? null : $access;
     }
 
     /**

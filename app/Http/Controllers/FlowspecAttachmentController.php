@@ -10,6 +10,7 @@ use App\Http\Requests\StoreFlowspecAttachmentRequest;
 use App\Http\Requests\UpdateFlowspecAttachmentRequest;
 use App\Models\FlowspecAttachment;
 use App\Models\FlowspecChat;
+use App\Models\Notebook;
 use App\View\Components\Flowspec\ContextPanel;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -89,6 +90,8 @@ class FlowspecAttachmentController extends Controller
     public function picker(Request $request): JsonResponse
     {
         $this->authorize('viewAny', FlowspecChat::class);
+        // It lists every caderno's pages — the documentation module's.
+        $this->authorize('viewAny', Notebook::class);
 
         $chat = $this->pickerChat($request);
 
@@ -164,7 +167,7 @@ class FlowspecAttachmentController extends Controller
 
         $chat = FlowspecChat::query()->find((int) $id);
 
-        return $chat !== null && $request->user()->can('view', $chat) ? $chat : null;
+        return $chat !== null && $request->user()->can('update', $chat) ? $chat : null;
     }
 
     /**

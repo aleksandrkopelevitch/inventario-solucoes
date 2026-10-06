@@ -196,7 +196,7 @@ it('lets a viewer read the canvas but not draw on it', function () {
     $submission = diagramSubmission();
     $diagram = $submission->diagram(SubmissionDiagramKind::ToBe);
 
-    $this->actingAs(User::factory()->create(['role' => UserRole::Viewer]));
+    $this->actingAs(User::factory()->reader()->create());
 
     $this->get(route('submissions.diagrams.edit', [$submission, $diagram]))->assertOk();
     $this->postJson(route('submissions.diagrams.chain.node.add', [$submission, $diagram]), [
@@ -268,7 +268,7 @@ it('refuses a viewer publishing a submission capture', function () {
     $submission = diagramSubmission();
     $diagram = $submission->diagram(SubmissionDiagramKind::AsIs);
 
-    $this->actingAs(User::factory()->create(['role' => UserRole::Viewer]));
+    $this->actingAs(User::factory()->create(['role' => UserRole::Member]));
 
     $this->postJson(route('submissions.diagrams.picture.store', [$submission, $diagram]), [
         'image' => UploadedFile::fake()->image('canvas.png'),

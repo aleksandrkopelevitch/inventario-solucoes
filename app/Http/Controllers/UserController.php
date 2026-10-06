@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Actions\GrantPersonAccess;
+use App\Enums\AccessModule;
 use App\Enums\UserRole;
 use App\Http\Requests\InviteUserRequest;
 use App\Http\Requests\RevokeUserAccessRequest;
+use App\Http\Requests\UpdateUserAccessRequest;
 use App\Http\Requests\UpdateUserRoleRequest;
 use App\Mail\UserInvitationMail;
 use App\Models\User;
@@ -38,6 +40,8 @@ use Illuminate\Support\Facades\Password;
  * - `update()` — the role, reachable from the accounts list and from the
  *   person's own Acesso card, which is why the refusals live in
  *   `UpdateUserRoleRequest` rather than in either screen.
+ * - `updateAccess()` — the account's level in each module (Leitor/Editor),
+ *   from the same two screens.
  */
 class UserController extends Controller
 {
@@ -59,6 +63,35 @@ class UserController extends Controller
             'type'           => 'success',
             'message'        => "\"{$user->name}\" agora é {$user->fresh()->role->label()}.",
             'updatableSlots' => [Accounts::slot()],
+        ]);
+    }
+
+    /**
+     * Sets the account's level in one or more modules (`AccessModule`).
+     *
+     * Answers with both screens that show the levels — the roster and, when
+     * the account belongs to somebody, that person's Acesso card; a slot whose
+     * id is not on the page is a no-op in `ajax-slot.js`.
+     */
+    public function updateAccess(UpdateUserAccessRequest $request, User $user): JsonResponse
+    {
+        foreach ($request->levels() as $module => $level) {
+            $user->setAccessLevel(AccessModule::from($module), $level);
+        }
+
+        $user->save();
+
+        $changed = collect($request->levels())
+            ->map(fn ($level, $module) => AccessModule::from($module)->shortLabel() . ': ' . $level->label())
+            ->implode(', ');
+
+        return response()->json([
+            'type'           => 'success',
+            'message'        => "\"{$user->name}\" — {$changed}.",
+            'updatableSlots' => array_values(array_filter([
+                Accounts::slot(),
+                $user->person ? Access::slot($user->person) : null,
+            ])),
         ]);
     }
 

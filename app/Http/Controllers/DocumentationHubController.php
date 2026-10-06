@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Solution;
+use App\Models\Notebook;
 use App\Services\DocumentationCoverageService;
 use App\View\Components\Documentation\Hub;
 use Illuminate\Contracts\View\View;
@@ -24,7 +24,8 @@ class DocumentationHubController extends Controller
 {
     public function index(Request $request, DocumentationCoverageService $coverage): View|JsonResponse
     {
-        $this->authorize('viewAny', Solution::class);
+        // Coverage of the documentation module, so it is that module's gate.
+        $this->authorize('viewAny', Notebook::class);
 
         $filters = (array) $request->query('filter', []);
 

@@ -391,7 +391,7 @@ it('refuses an account that may read the caderno but not write a diagram', funct
         'edges' => [],
     ])));
 
-    $this->actingAs(User::factory()->create(['role' => UserRole::Viewer->value]))
+    $this->actingAs(User::factory()->create(['role' => UserRole::Member->value]))
         ->postJson(drawUrl($page), ['target' => 'new', 'name' => 'X'])
         ->assertForbidden();
 
@@ -401,12 +401,12 @@ it('refuses an account that may read the caderno but not write a diagram', funct
 it('offers the button to a writer and withholds it from a viewer', function () {
     $page = pageWithDocumentation();
 
-    $this->actingAs(User::factory()->create(['role' => UserRole::Writer->value]))
+    $this->actingAs(User::factory()->editor()->create())
         ->get(route('notebooks.pages.edit', [$page->notebook, $page]))
         ->assertOk()
         ->assertSee('Desenhar esta página');
 
-    $this->actingAs(User::factory()->create(['role' => UserRole::Viewer->value]))
+    $this->actingAs(User::factory()->create(['role' => UserRole::Member->value]))
         ->get(route('notebooks.pages.edit', [$page->notebook, $page]))
         ->assertOk()
         ->assertDontSee('Desenhar esta página');
@@ -481,7 +481,7 @@ it('opens a dialog listing only this caderno diagrams, the name prefilled with t
     Diagram::factory()->forNotebook($page->notebook)->create(['name' => 'Deste caderno']);
     Diagram::factory()->create(['name' => 'De outro caderno']);
 
-    $response = $this->actingAs(User::factory()->create(['role' => UserRole::Writer->value]))
+    $response = $this->actingAs(User::factory()->editor()->create())
         ->getJson(route('notebooks.pages.diagram.target', [$page->notebook, $page, 'model' => 'sequence']))
         ->assertOk();
 

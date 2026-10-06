@@ -63,10 +63,9 @@
             </button>
         @endif
 
-        {{-- The account corner, and the only one a Reader ever sees: this shell
-             is the WHOLE app for somebody Entra SSO provisioned, so the two
-             things that are nowhere else on their screen — who they are signed
-             in as, and how to stop being signed in as them — belong here.
+        {{-- The account corner: this shell has no sidebar, so the two things
+             that would otherwise be nowhere on screen — who they are signed in
+             as, and how to stop being signed in as them — belong here.
 
              `@auth` because this same layout serves the magic link, which is a
              TOKEN granting one caderno to a guest with no account at all. An
@@ -91,18 +90,11 @@
 
                     <div class="my-1 h-px bg-line"></div>
 
-                    {{-- The way back into the app, for the accounts that have
-                         one. A `Reader` has no inventory to return to — the
-                         route group would bounce them straight back here — so
-                         the entry is drawn by the same predicate that guards
-                         it (App\Http\Middleware\EnsureInventoryAccess) rather
-                         than offered to everybody and redirected away. --}}
-                    @if (auth()->user()->role->canReadInventory())
-                        <a href="{{ route('profile.show') }}"
-                           class="flex items-center gap-2 px-3 py-2 text-[13px] font-medium text-ink no-underline hover:bg-raised">
-                            <x-heroicon-o-squares-2x2 class="size-4 text-muted" /> Ir para o inventário
-                        </a>
-                    @endif
+                    {{-- The way back into the app — every account reads it. --}}
+                    <a href="{{ route('profile.show') }}"
+                       class="flex items-center gap-2 px-3 py-2 text-[13px] font-medium text-ink no-underline hover:bg-raised">
+                        <x-heroicon-o-squares-2x2 class="size-4 text-muted" /> Ir para o inventário
+                    </a>
 
                     <x-auth.logout class="!w-full !justify-start !rounded-none !px-3 !py-2 !text-[13px] !font-medium !text-ink hover:!bg-raised" />
                 </div>

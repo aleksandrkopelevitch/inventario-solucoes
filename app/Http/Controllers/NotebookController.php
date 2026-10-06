@@ -90,6 +90,8 @@ class NotebookController extends Controller
      */
     public function show(Notebook $notebook): RedirectResponse
     {
+        $this->authorize('view', $notebook);
+
         $page = $this->pages->firstPage($notebook);
 
         if (! $page) {

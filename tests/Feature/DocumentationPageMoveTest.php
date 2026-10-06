@@ -179,7 +179,7 @@ it('forbids a viewer from moving a page', function () {
     $page = importedPage();
     $source = $page->notebook;
     $destination = Notebook::factory()->create();
-    $viewer = User::factory()->create(['role' => UserRole::Viewer->value]);
+    $viewer = User::factory()->create(['role' => UserRole::Member->value]);
 
     $this->actingAs($viewer)
         ->patchJson(route('notebooks.pages.notebook', [$source, $page]), [

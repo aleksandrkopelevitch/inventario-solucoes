@@ -149,7 +149,7 @@ it('marks a message applied and 404s a cross-solution mismatch', function () {
         ->postJson(route('notebooks.chat.messages.apply', [$notebook, $mismatch]))
         ->assertNotFound();
 
-    $viewer = User::factory()->create(['role' => UserRole::Viewer->value]);
+    $viewer = User::factory()->create(['role' => UserRole::Member->value]);
     $this->actingAs($viewer)
         ->postJson(route('notebooks.chat.messages.apply', [$notebook, $message]))
         ->assertForbidden();
@@ -236,7 +236,7 @@ it('rejects an empty message with a warning', function () {
 it('forbids a non-admin from sending a message', function () {
     $notebook = Notebook::factory()->create();
     $page = chatPage($notebook);
-    $viewer = User::factory()->create(['role' => UserRole::Viewer->value]);
+    $viewer = User::factory()->create(['role' => UserRole::Member->value]);
 
     $this->actingAs($viewer)
         ->postJson(route('notebooks.chat.messages.store', [$notebook, $page]), ['message' => 'oi'])
@@ -272,7 +272,7 @@ it('forbids a non-admin from storing or removing a context document', function (
     Storage::fake('public');
     $notebook = Notebook::factory()->create();
     $media = $notebook->addMediaFromString('x')->usingFileName('a.txt')->toMediaCollection(Notebook::CONTEXT_COLLECTION);
-    $viewer = User::factory()->create(['role' => UserRole::Viewer->value]);
+    $viewer = User::factory()->create(['role' => UserRole::Member->value]);
 
     $this->actingAs($viewer)
         ->post(route('notebooks.context.store', $notebook), [
@@ -484,7 +484,7 @@ it('still accepts a picked file, and refuses a request carrying neither', functi
 it('forbids a viewer from pasting context, like any other attach', function () {
     Storage::fake('public');
     $notebook = Notebook::factory()->create();
-    $viewer = User::factory()->create(['role' => UserRole::Viewer->value]);
+    $viewer = User::factory()->create(['role' => UserRole::Member->value]);
 
     $this->actingAs($viewer)
         ->postJson(route('notebooks.context.store', $notebook), ['text' => str_repeat('a', 3000)])

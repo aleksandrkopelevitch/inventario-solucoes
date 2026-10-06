@@ -21,7 +21,7 @@ class StoreSolutionRequest extends FormRequest
     {
         return [
             'name'                   => ['required', 'string', 'max:255'],
-            'slug'                   => ['nullable', 'string', 'max:255', new AsciiSlug, Rule::unique('solutions', 'slug')],
+            'slug'                   => ['nullable', 'string', 'max:255', new AsciiSlug, Rule::unique('solutions', 'slug'), Rule::notIn(Solution::RESERVED_SLUGS)],
             'description'            => ['nullable', 'string'],
             'vendor_company_id'      => ['nullable', 'integer', 'exists:companies,id'],
             'category'               => ['required', Rule::exists('attribute_options', 'value')->where('group', 'category')],

@@ -31,8 +31,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * the URL reads the caderno, which is what makes it the right tool for a vendor
  * and the wrong one for "everybody here". This surface is the other half — an
  * account is required, Entra SSO is how most of them arrive
- * (`Auth\EntraController`), and the account it provisions is a `Reader`, which
- * reaches this screen and nothing else in the app.
+ * (`Auth\EntraController`), and only what an admin published is shown.
  *
  * **The screen is `DocumentationReader`**, shared byte for byte with the magic
  * link. What this controller adds is the audience and one extra affordance: a
@@ -162,11 +161,10 @@ class KnowledgeBaseController extends Controller
      * Media embedded in a page of this caderno.
      *
      * A route of its own rather than `files.show`, and the reason is specific
-     * to this surface: a `/docs` reader IS authenticated, so `files.show` would
-     * happily answer them — with any documentation media in the app, including
-     * pages of cadernos nobody published. `MediaController::show()` authorizes
-     * by COLLECTION NAME alone, which is the right rule for somebody who may
-     * read the whole inventory and the wrong one for a `Reader`.
+     * to this surface: `MediaController::show()` authorizes by COLLECTION NAME
+     * alone, so it would serve any documentation media in the app, including
+     * pages of cadernos nobody published. `/docs` shows what was published and
+     * nothing else, for every request it answers.
      */
     public function file(Notebook $notebook, Media $media): BinaryFileResponse
     {

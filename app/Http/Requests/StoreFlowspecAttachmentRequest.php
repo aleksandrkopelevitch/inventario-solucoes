@@ -4,8 +4,10 @@ namespace App\Http\Requests;
 
 use App\Http\Requests\Concerns\GuardsFlowspecContext;
 use App\Models\FlowspecChat;
+use App\Models\Notebook;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * Adding one piece of context to an existing conversation: inventory
@@ -31,7 +33,8 @@ class StoreFlowspecAttachmentRequest extends FormRequest
     {
         return [
             ...$this->contextRules(),
-            'documents' => ['required_without_all:file,text', 'nullable', 'array', 'max:' . config('services.flowspec.max_attachments')],
+            // Documentation module's pages: refused at level None there.
+            'documents' => ['required_without_all:file,text', 'nullable', 'array', 'max:' . config('services.flowspec.max_attachments'), Rule::prohibitedIf(fn () => $this->user()?->cannot('viewAny', Notebook::class) ?? true)],
             'file'      => ['required_without_all:documents,text', 'file', 'mimes:' . self::ACCEPTED_MIMES, 'max:20480'],
             'text'      => ['required_without_all:documents,file', 'nullable', 'string', 'max:' . config('services.flowspec.max_reference_chars')],
             'label'     => ['nullable', 'string', 'max:255'],

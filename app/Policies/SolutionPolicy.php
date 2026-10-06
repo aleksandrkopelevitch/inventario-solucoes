@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\AccessModule;
 use App\Models\Solution;
 use App\Models\User;
 
@@ -9,23 +10,23 @@ class SolutionPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->role->canReadInventory();
+        return $user->canView(AccessModule::Catalog);
     }
 
     public function view(User $user, Solution $solution): bool
     {
-        return $user->role->canReadInventory();
+        return $user->canView(AccessModule::Catalog);
     }
 
-    /** Creation and editing need write access (admin or editor). */
+    /** Creating and editing: an Editor of the catalog module (admins included). */
     public function create(User $user): bool
     {
-        return $user->role->canWrite();
+        return $user->canEdit(AccessModule::Catalog);
     }
 
     public function update(User $user, Solution $solution): bool
     {
-        return $user->role->canWrite();
+        return $user->canEdit(AccessModule::Catalog);
     }
 
     /**
@@ -36,6 +37,16 @@ class SolutionPolicy
      */
     public function delete(User $user, Solution $solution): bool
     {
-        return $user->role->canDelete();
+        return $user->isAdmin();
+    }
+
+    /**
+     * Handing the catalog spreadsheet to people outside the company (its magic
+     * link). Admin, like publishing a caderno (`NotebookPolicy::administer`):
+     * an editor curates the records, an admin decides who outside reads them.
+     */
+    public function share(User $user): bool
+    {
+        return $user->isAdmin();
     }
 }

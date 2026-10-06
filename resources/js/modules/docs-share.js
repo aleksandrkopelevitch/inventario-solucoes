@@ -5,6 +5,11 @@
 // Delegation on `document` (not per-element) because `ajax-slot.js` swaps
 // the whole container (`docs-share-slot`) on every mutation. Follows the
 // same pattern as the other auto-persistence modules (fetch + updateSlots + Toast).
+//
+// It also drives the solutions spreadsheet's magic link
+// (Solutions\SpreadsheetSharePanel): any `[data-ak-share-panel]` carrying
+// share/unshare URLs gets generate/copy/revoke, so the two public links behave
+// the same. That panel simply has no secret code.
 import {updateSlots} from './ajax-slot'
 
 function csrf() {

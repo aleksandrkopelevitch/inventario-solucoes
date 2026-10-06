@@ -661,7 +661,7 @@ it('exports the ticket text and the document', function () {
 
 it('lets a viewer read but not write', function () {
     $submission = ownedSubmission();
-    $viewer = User::factory()->create(['role' => UserRole::Viewer]);
+    $viewer = User::factory()->reader()->create();
 
     $this->actingAs($viewer);
 

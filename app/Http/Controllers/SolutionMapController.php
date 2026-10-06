@@ -24,7 +24,9 @@ class SolutionMapController extends Controller
      */
     public function index(Request $request)
     {
-        $this->authorize('viewAny', Solution::class);
+        // No module gate, by decision: the map belongs to no module
+        // (App\Enums\AccessModule) and every account reads it, whatever its
+        // levels — `auth` on the route is the whole authorization.
 
         if ($request->wantsJson()) {
             return $this->data($request);
@@ -60,7 +62,7 @@ class SolutionMapController extends Controller
      */
     public function data(Request $request): JsonResponse
     {
-        $this->authorize('viewAny', Solution::class);
+        // Same as `index()`: every account reads the map.
 
         // A query string can make any of these an ARRAY (`?group[]=x`), and
         // every one of them ends up in a `where()` or a `(string)` cast. The

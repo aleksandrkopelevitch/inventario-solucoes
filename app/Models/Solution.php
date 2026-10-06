@@ -16,6 +16,13 @@ class Solution extends Model
     /** @use HasFactory<SolutionFactory> */
     use HasFactory;
 
+    /**
+     * Static segments that sit where `solutions/{solution}` does, so a solution
+     * slugged with one would be unreachable at its own URL. Check it against
+     * `php artisan route:list --path=solutions` when adding a segment.
+     */
+    public const RESERVED_SLUGS = ['new', 'search', 'coverage', 'spreadsheet'];
+
     protected $fillable = [
         'name',
         'slug',

@@ -14,22 +14,13 @@ function mcpUser(UserRole $role): User
 }
 
 it('is an admin screen, and every other tier is refused', function () {
-    // Narrower than `canWrite()` on purpose: an editor writes CONTENT, and a
-    // token hands out the whole catalog to a program.
+    // Narrower than any module's Editor on purpose: an editor writes CONTENT,
+    // and a token hands out the whole catalog to a program.
     $this->actingAs(mcpUser(UserRole::Admin))->get(route('mcp-tokens.index'))->assertOk();
 
-    foreach ([UserRole::Writer, UserRole::Viewer] as $role) {
-        $this->actingAs(mcpUser($role))->get(route('mcp-tokens.index'))->assertForbidden();
+    foreach ([User::factory()->editor()->create(), mcpUser(UserRole::Member)] as $user) {
+        $this->actingAs($user)->get(route('mcp-tokens.index'))->assertForbidden();
     }
-
-    // A Reader is refused one step earlier, by `EnsureInventoryAccess` on the
-    // route group, and is REDIRECTED rather than shown a 403 — for that tier
-    // this is not a refusal at all, it is somebody landing one screen away from
-    // the only thing they have.
-    $this->actingAs(mcpUser(UserRole::Reader))
-        ->get(route('mcp-tokens.index'))
-        ->assertRedirect(route('docs.index'));
-
 });
 
 it('sends a guest to the login screen', function () {
@@ -41,15 +32,12 @@ it('sends a guest to the login screen', function () {
 it('refuses minting and deleting to anybody but an admin', function () {
     $token = McpToken::factory()->create();
 
-    // A Reader is included here and answers 403 rather than a redirect: the
-    // middleware `abort_if`s on a JSON caller, which is what every mutation in
-    // this app is.
-    foreach ([UserRole::Writer, UserRole::Viewer, UserRole::Reader] as $role) {
-        $this->actingAs(mcpUser($role))
+    foreach ([User::factory()->editor()->create(), mcpUser(UserRole::Member)] as $user) {
+        $this->actingAs($user)
             ->postJson(route('mcp-tokens.store'), ['name' => 'Meu token'])
             ->assertForbidden();
 
-        $this->actingAs(mcpUser($role))
+        $this->actingAs($user)
             ->deleteJson(route('mcp-tokens.destroy', $token))
             ->assertForbidden();
     }
@@ -145,7 +133,7 @@ it('lights the sidebar entry for an admin and hides it from everyone else', func
     $admin = $this->actingAs(mcpUser(UserRole::Admin))->get(route('solutions.index'))->getContent();
     expect($admin)->toContain(route('mcp-tokens.index'));
 
-    $writer = $this->actingAs(mcpUser(UserRole::Writer))->get(route('solutions.index'))->getContent();
+    $writer = $this->actingAs(User::factory()->editor()->create())->get(route('solutions.index'))->getContent();
     expect($writer)->not->toContain(route('mcp-tokens.index'))
         // The sibling gated entry still works — the per-item model did not
         // break the one that was already there.

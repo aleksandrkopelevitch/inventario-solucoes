@@ -1,5 +1,5 @@
 @props([
-    'chats',            // Collection of the user's FlowspecChat (latest first, withCount('messages'))
+    'chats',            // Collection of every FlowspecChat (latest first, withCount('messages'), with('user'))
     'current' => null,  // the FlowspecChat being shown, if any — highlighted in the list
 ])
 
@@ -12,9 +12,11 @@
     <div class="flex w-72 flex-1 flex-col overflow-hidden">
         <div class="flex items-center justify-between gap-2 border-b border-line px-3 py-2.5">
             <span class="text-[11px] font-bold uppercase tracking-[0.12em] text-faint">Conversas</span>
-            <x-forms.button :href="route('flowspec.index')" variant="ghost" class="!p-1.5" title="Nova conversa">
-                <x-heroicon-o-plus class="size-4" />
-            </x-forms.button>
+            @can('create', \App\Models\FlowspecChat::class)
+                <x-forms.button :href="route('flowspec.index')" variant="ghost" class="!p-1.5" title="Nova conversa">
+                    <x-heroicon-o-plus class="size-4" />
+                </x-forms.button>
+            @endcan
         </div>
 
         <div class="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2">
@@ -26,7 +28,11 @@
                     'hover:bg-raised' => ! $active,
                 ])>
                     <span @class(['block truncate text-sm', 'font-semibold text-ink' => $active, 'text-body' => ! $active])>{{ $chat->title }}</span>
-                    <span class="mt-0.5 block truncate text-[11px] text-faint">{{ $chat->updated_at->diffForHumans() }}</span>
+                    {{-- Every account reads every conversation, so somebody
+                         else's is labelled with whose it is. --}}
+                    <span class="mt-0.5 block truncate text-[11px] text-faint">
+                        {{ $chat->updated_at->diffForHumans() }}@if ($chat->user_id !== auth()->id() && $chat->user) · {{ $chat->user->name }}@endif
+                    </span>
                 </a>
             @empty
                 <p class="px-3 py-6 text-center text-xs text-faint">Nenhuma conversa ainda.</p>

@@ -3,8 +3,7 @@
 
      Not /mcp-tokens: that one mints a token that reads the whole catalog and
      belongs to an admin. This one belongs to whoever is doing the connecting,
-     a Reader included (the account SSO creates), which is why it lives outside
-     the `inventory` group. --}}
+     any account included. --}}
 <x-layouts.layout title="Conexão MCP">
     <x-ui.hero-panel compact class="mb-6">
         <div>
@@ -70,12 +69,11 @@
             <div class="mt-4 rounded-field border border-line bg-raised/60 px-3.5 py-3">
                 <p class="text-[11px] font-semibold uppercase tracking-wide text-muted">O que a conexão enxerga</p>
                 <ul class="mt-1.5 space-y-1 text-xs leading-relaxed text-muted">
-                    @if (auth()->user()->role->canReadInventory())
-                        <li>· Todo o catálogo: soluções, diagramas, pessoas (com contatos) e empresas.</li>
-                    @else
-                        <li>· A documentação publicada na base de conhecimento — o mesmo que sua conta
-                            vê em <a href="{{ route('docs.index') }}" class="text-accent hover:underline">/docs</a>.
-                            O catálogo de soluções não entra nesta conexão.</li>
+                    @if (auth()->user()->canView(\App\Enums\AccessModule::Catalog))
+                        <li>· O catálogo: soluções, pessoas (com contatos) e empresas.</li>
+                    @endif
+                    @if (auth()->user()->canView(\App\Enums\AccessModule::Documentation))
+                        <li>· Os diagramas.</li>
                     @endif
                     <li>· Da documentação, só os cadernos publicados. Caderno não publicado é invisível.</li>
                     <li>· Valores protegidos nunca saem — o modelo vê só que existe um.</li>

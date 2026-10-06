@@ -21,14 +21,24 @@
                 <p class="mt-1.5 max-w-lg text-sm text-muted">Descreva a integração e gere um pipeline Digibee pronto para colar no canvas. Use <x-heroicon-o-plus class="inline size-4 align-text-bottom" /> para anexar a documentação do inventário ou um arquivo seu — texto longo colado na caixa também vira anexo. O que estiver anexado vale para toda a conversa.</p>
             </div>
 
-            {{-- Composer — pinned to the bottom, full width --}}
+            {{-- Composer — pinned to the bottom, full width. It is the module's
+                 Editor's (FlowspecChatPolicy::create);
+                 a Reader reads the team's conversations and is told why there
+                 is no box. --}}
             <div class="border-t border-line bg-canvas/50 px-4 py-3 md:px-6">
-                <x-flowspec.composer
-                    formId="flowspec-new-chat-form"
-                    :action="route('flowspec.store')"
-                    messageId="flowspec-new-message"
-                    submitLabel="Gerar flowSpec"
-                    placeholder="Ex.: com base na documentação do SVL e do IAM, crie um flowSpec que receba o colaborador, gerencie cache de token JWT por 30 min e faça POST no SVL." />
+                @can('create', \App\Models\FlowspecChat::class)
+                    <x-flowspec.composer
+                        formId="flowspec-new-chat-form"
+                        :action="route('flowspec.store')"
+                        messageId="flowspec-new-message"
+                        submitLabel="Gerar flowSpec"
+                        placeholder="Ex.: com base na documentação do SVL e do IAM, crie um flowSpec que receba o colaborador, gerencie cache de token JWT por 30 min e faça POST no SVL." />
+                @else
+                    <p class="text-center text-sm text-muted">
+                        Você é <strong class="font-semibold text-ink">Leitor</strong> no Especialista em Integrações:
+                        pode ler as conversas da equipe ao lado. Para gerar um flowSpec, peça o nível Editor a um administrador.
+                    </p>
+                @endcan
             </div>
         </section>
     </div>

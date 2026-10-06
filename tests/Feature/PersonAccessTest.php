@@ -43,7 +43,7 @@ it('grants a person an account, linked and with a live access link', function ()
     $person = personWithEmail();
 
     $this->actingAs(accessAdmin())
-        ->postJson(route('people.access.store', $person), ['role' => UserRole::Writer->value])
+        ->postJson(route('people.access.store', $person), ['role' => UserRole::Admin->value])
         ->assertOk()
         ->assertJson(['type' => 'success']);
 
@@ -51,7 +51,7 @@ it('grants a person an account, linked and with a live access link', function ()
 
     expect($account)->not->toBeNull()
         ->and($account->email)->toBe('fulano@leomadeiras.com.br')
-        ->and($account->role)->toBe(UserRole::Writer)
+        ->and($account->role)->toBe(UserRole::Admin)
         ->and($account->hasLiveAccessToken())->toBeTrue()
         ->and($account->access_token_expires_at->diffInDays(now()))
         ->toBeLessThanOrEqual(User::ACCESS_TOKEN_DAYS);
@@ -61,7 +61,7 @@ it('refuses to grant access to a person with no email, naming the missing field'
     $person = Person::factory()->create(['email' => null]);
 
     $response = $this->actingAs(accessAdmin())
-        ->postJson(route('people.access.store', $person), ['role' => UserRole::Viewer->value])
+        ->postJson(route('people.access.store', $person), ['role' => UserRole::Member->value])
         ->assertStatus(422);
 
     expect($response->json('message'))->toContain('e-mail')
@@ -73,22 +73,22 @@ it('refuses to grant twice', function () {
     $person = personWithEmail();
     $admin = accessAdmin();
 
-    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'viewer'])->assertOk();
+    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'member'])->assertOk();
     $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'admin'])->assertStatus(422);
 
-    expect($person->fresh()->user->role)->toBe(UserRole::Viewer);
+    expect($person->fresh()->user->role)->toBe(UserRole::Member);
 });
 
 it('refuses to grant when a live account already belongs to another person', function () {
     $taken = personWithEmail('compartilhado@leomadeiras.com.br');
     $this->actingAs(accessAdmin())
-        ->postJson(route('people.access.store', $taken), ['role' => 'viewer'])
+        ->postJson(route('people.access.store', $taken), ['role' => 'member'])
         ->assertOk();
 
     $other = Person::factory()->create(['email' => 'compartilhado@leomadeiras.com.br']);
 
     $response = $this->actingAs(accessAdmin())
-        ->postJson(route('people.access.store', $other), ['role' => 'viewer'])
+        ->postJson(route('people.access.store', $other), ['role' => 'member'])
         ->assertStatus(422);
 
     expect($response->json('message'))->toContain('outra pessoa');
@@ -102,7 +102,7 @@ it('refuses to grant when a live account already belongs to another person', fun
 
 it('refuses an EDITOR every access action — curating a person is not handing out an account', function () {
     $person = personWithEmail();
-    $editor = User::factory()->create(['role' => UserRole::Writer->value]);
+    $editor = User::factory()->editor()->create();
 
     // The editor CAN edit this person…
     $this->actingAs($editor)
@@ -111,7 +111,7 @@ it('refuses an EDITOR every access action — curating a person is not handing o
 
     // …and cannot give them an account.
     $this->actingAs($editor)
-        ->postJson(route('people.access.store', $person), ['role' => 'viewer'])
+        ->postJson(route('people.access.store', $person), ['role' => 'member'])
         ->assertForbidden();
 
     expect($person->fresh()->user_id)->toBeNull();
@@ -119,9 +119,9 @@ it('refuses an EDITOR every access action — curating a person is not handing o
 
 it('shows an editor whether a person has access, without the levers', function () {
     $person = personWithEmail();
-    $this->actingAs(accessAdmin())->postJson(route('people.access.store', $person), ['role' => 'viewer'])->assertOk();
+    $this->actingAs(accessAdmin())->postJson(route('people.access.store', $person), ['role' => 'member'])->assertOk();
 
-    $content = $this->actingAs(User::factory()->create(['role' => UserRole::Writer->value]))
+    $content = $this->actingAs(User::factory()->editor()->create())
         ->get(route('people.show', $person))
         ->assertOk()
         ->getContent();
@@ -141,7 +141,7 @@ it('shows an editor whether a person has access, without the levers', function (
 
 it('sends the link holder to the password screen and NEVER logs them in', function () {
     $person = personWithEmail();
-    $this->actingAs(accessAdmin())->postJson(route('people.access.store', $person), ['role' => 'viewer'])->assertOk();
+    $this->actingAs(accessAdmin())->postJson(route('people.access.store', $person), ['role' => 'member'])->assertOk();
 
     $token = $person->fresh()->user->access_token;
 
@@ -163,7 +163,7 @@ it('turns a dead link into one message that says nothing about the account', fun
         ->assertRedirect(route('login.create'));
 
     $person = personWithEmail();
-    $this->actingAs(accessAdmin())->postJson(route('people.access.store', $person), ['role' => 'viewer'])->assertOk();
+    $this->actingAs(accessAdmin())->postJson(route('people.access.store', $person), ['role' => 'member'])->assertOk();
     $account = $person->fresh()->user;
     $token = $account->access_token;
 
@@ -175,7 +175,7 @@ it('turns a dead link into one message that says nothing about the account', fun
 
 it('spends the link the moment the password is set', function () {
     $person = personWithEmail();
-    $this->actingAs(accessAdmin())->postJson(route('people.access.store', $person), ['role' => 'viewer'])->assertOk();
+    $this->actingAs(accessAdmin())->postJson(route('people.access.store', $person), ['role' => 'member'])->assertOk();
     $account = $person->fresh()->user;
 
     expect($account->hasLiveAccessToken())->toBeTrue();
@@ -199,7 +199,7 @@ it('spends the link the moment the password is set', function () {
 it('replaces the link when a new one is generated, killing the old', function () {
     $person = personWithEmail();
     $admin = accessAdmin();
-    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'viewer'])->assertOk();
+    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'member'])->assertOk();
 
     $account = $person->fresh()->user;
     $old = $account->access_token;
@@ -217,7 +217,7 @@ it('replaces the link when a new one is generated, killing the old', function ()
 it('revokes just the link, leaving the account able to log in', function () {
     $person = personWithEmail();
     $admin = accessAdmin();
-    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'viewer'])->assertOk();
+    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'member'])->assertOk();
     $account = $person->fresh()->user;
 
     $this->actingAs($admin)
@@ -238,7 +238,7 @@ it('revokes just the link, leaving the account able to log in', function () {
 it('revokes access without removing the person from the catalog', function () {
     $person = personWithEmail();
     $admin = accessAdmin();
-    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'writer'])->assertOk();
+    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'admin'])->assertOk();
     $account = $person->fresh()->user;
 
     $this->actingAs($admin)->deleteJson(route('people.access.destroy', $person))->assertOk();
@@ -255,16 +255,16 @@ it('revokes access without removing the person from the catalog', function () {
 it('restores the same account when access is granted again', function () {
     $person = personWithEmail();
     $admin = accessAdmin();
-    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'writer'])->assertOk();
+    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'admin'])->assertOk();
     $firstId = $person->fresh()->user_id;
 
     $this->actingAs($admin)->deleteJson(route('people.access.destroy', $person))->assertOk();
-    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'viewer'])->assertOk();
+    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'member'])->assertOk();
 
     // The same row, not a second account beside the first — whatever this person
     // authored stays attached to them.
     expect($person->fresh()->user_id)->toBe($firstId)
-        ->and($person->fresh()->user->role)->toBe(UserRole::Viewer)
+        ->and($person->fresh()->user->role)->toBe(UserRole::Member)
         ->and(User::withTrashed()->where('email', $person->email)->count())->toBe(1);
 });
 
@@ -288,7 +288,7 @@ it('links an orphan account to a person', function () {
 
 it('refuses to link an account that already belongs to somebody', function () {
     $taken = personWithEmail('um@leomadeiras.com.br');
-    $this->actingAs(accessAdmin())->postJson(route('people.access.store', $taken), ['role' => 'viewer'])->assertOk();
+    $this->actingAs(accessAdmin())->postJson(route('people.access.store', $taken), ['role' => 'member'])->assertOk();
 
     $other = personWithEmail('dois@leomadeiras.com.br');
 
@@ -309,7 +309,7 @@ it('refuses to link an account that already belongs to somebody', function () {
 it('names the person behind each account and says when there is none', function () {
     $admin = accessAdmin();
     $person = personWithEmail();
-    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'viewer'])->assertOk();
+    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'member'])->assertOk();
 
     $content = $this->actingAs($admin)->get(route('people.accounts'))->assertOk()->getContent();
 
@@ -334,8 +334,8 @@ it('404s when the person and the account in the URL are not linked', function ()
     $theirs = personWithEmail('deles@leomadeiras.com.br');
     $admin = accessAdmin();
 
-    $this->actingAs($admin)->postJson(route('people.access.store', $mine), ['role' => 'viewer'])->assertOk();
-    $this->actingAs($admin)->postJson(route('people.access.store', $theirs), ['role' => 'viewer'])->assertOk();
+    $this->actingAs($admin)->postJson(route('people.access.store', $mine), ['role' => 'member'])->assertOk();
+    $this->actingAs($admin)->postJson(route('people.access.store', $theirs), ['role' => 'member'])->assertOk();
 
     $otherAccount = $theirs->fresh()->user;
 
@@ -347,7 +347,7 @@ it('404s when the person and the account in the URL are not linked', function ()
         ->postJson(route('people.access.link.refresh', [$mine, $otherAccount]))
         ->assertNotFound();
 
-    expect($otherAccount->fresh()->role)->toBe(UserRole::Viewer);
+    expect($otherAccount->fresh()->role)->toBe(UserRole::Member);
 });
 
 /*
@@ -360,7 +360,7 @@ it('revokes an ORPHAN account from the roster, which is its only door', function
     // The gap this closes: revoking lived only on a person's Acesso card, so an
     // account with no Person had its role changeable there and no way to be
     // switched off anywhere at all.
-    $orphan = User::factory()->create(['role' => UserRole::Viewer->value]);
+    $orphan = User::factory()->create(['role' => UserRole::Member->value]);
 
     expect($orphan->person)->toBeNull();
 
@@ -376,7 +376,7 @@ it('revokes an ORPHAN account from the roster, which is its only door', function
 it('unlinks the person and refreshes their card when revoking from the roster', function () {
     $person = personWithEmail();
     $admin = accessAdmin();
-    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'writer'])->assertOk();
+    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'admin'])->assertOk();
     $account = $person->fresh()->user;
 
     $response = $this->actingAs($admin)->deleteJson(route('users.destroy', $account))->assertOk();
@@ -394,7 +394,7 @@ it('unlinks the person and refreshes their card when revoking from the roster', 
 it('clears the access link when an account is revoked from the roster', function () {
     $person = personWithEmail();
     $admin = accessAdmin();
-    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'viewer'])->assertOk();
+    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'member'])->assertOk();
     $account = $person->fresh()->user;
     $token = $account->access_token;
 
@@ -432,7 +432,7 @@ it('leaves the last account with the panel able to log in', function () {
     expect(User::where('role', UserRole::Admin->value)->count())->toBe(1);
 
     $this->actingAs($admin)->deleteJson(route('users.destroy', $admin))->assertStatus(422);
-    $this->actingAs(User::factory()->create(['role' => UserRole::Writer->value]))
+    $this->actingAs(User::factory()->editor()->create())
         ->deleteJson(route('users.destroy', $admin))
         ->assertForbidden();
 
@@ -441,7 +441,7 @@ it('leaves the last account with the panel able to log in', function () {
 
 it('offers the trash on other rows of the roster and withholds it on your own', function () {
     $admin = accessAdmin();
-    $other = User::factory()->create(['role' => UserRole::Viewer->value]);
+    $other = User::factory()->create(['role' => UserRole::Member->value]);
 
     $content = $this->actingAs($admin)->get(route('people.accounts'))->assertOk()->getContent();
 
@@ -454,7 +454,7 @@ it('reaches the revoke endpoint the way the button actually calls it', function 
     // NOT the path the UI takes: `ajax-post.js` always POSTs and the verb is
     // spoofed by `@method('DELETE')` in the hidden form. If Laravel's method
     // override were ever off, those tests would stay green while the button 405s.
-    $orphan = User::factory()->create(['role' => UserRole::Viewer->value]);
+    $orphan = User::factory()->create(['role' => UserRole::Member->value]);
 
     $this->actingAs(accessAdmin())
         ->postJson(route('users.destroy', $orphan), ['_method' => 'DELETE'])
@@ -466,7 +466,7 @@ it('reaches the revoke endpoint the way the button actually calls it', function 
 it('reaches the person-card revoke the same way', function () {
     $person = personWithEmail();
     $admin = accessAdmin();
-    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'viewer'])->assertOk();
+    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'member'])->assertOk();
 
     $this->actingAs($admin)
         ->postJson(route('people.access.destroy', $person), ['_method' => 'DELETE'])
@@ -512,7 +512,7 @@ it('unlinks an account from a person and leaves it able to log in', function () 
 });
 
 it('leaves an unlinked account on the roster, linkable again', function () {
-    $orphan = User::factory()->create(['role' => UserRole::Viewer->value, 'email' => 'volta@leomadeiras.com.br']);
+    $orphan = User::factory()->create(['role' => UserRole::Member->value, 'email' => 'volta@leomadeiras.com.br']);
     $person = personWithEmail('pessoa@leomadeiras.com.br');
     $admin = accessAdmin();
 
@@ -532,7 +532,7 @@ it('keeps the access link alive across an unlink', function () {
     // handed out has no reason to stop working.
     $person = personWithEmail();
     $admin = accessAdmin();
-    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'viewer'])->assertOk();
+    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'member'])->assertOk();
 
     $account = $person->fresh()->user;
     $token = $account->access_token;
@@ -548,8 +548,8 @@ it('404s an unlink whose person and account are not linked', function () {
     $theirs = personWithEmail('deles@leomadeiras.com.br');
     $admin = accessAdmin();
 
-    $this->actingAs($admin)->postJson(route('people.access.store', $mine), ['role' => 'viewer'])->assertOk();
-    $this->actingAs($admin)->postJson(route('people.access.store', $theirs), ['role' => 'viewer'])->assertOk();
+    $this->actingAs($admin)->postJson(route('people.access.store', $mine), ['role' => 'member'])->assertOk();
+    $this->actingAs($admin)->postJson(route('people.access.store', $theirs), ['role' => 'member'])->assertOk();
 
     $otherAccount = $theirs->fresh()->user;
 
@@ -563,11 +563,11 @@ it('404s an unlink whose person and account are not linked', function () {
 it('refuses an EDITOR the unlink — it is access management, not curation', function () {
     $person = personWithEmail();
     $admin = accessAdmin();
-    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'viewer'])->assertOk();
+    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'member'])->assertOk();
 
     $account = $person->fresh()->user;
 
-    $this->actingAs(User::factory()->create(['role' => UserRole::Writer->value]))
+    $this->actingAs(User::factory()->editor()->create())
         ->deleteJson(route('people.access.unlink', [$person, $account]))
         ->assertForbidden();
 
@@ -579,7 +579,7 @@ it('offers both verbs on the card, each naming the account it acts on', function
     // which is which before either is pressed.
     $person = personWithEmail();
     $admin = accessAdmin();
-    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'viewer'])->assertOk();
+    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'member'])->assertOk();
 
     $content = $this->actingAs($admin)->get(route('people.show', $person->fresh()))->assertOk()->getContent();
 
@@ -594,7 +594,7 @@ it('offers both verbs on the card, each naming the account it acts on', function
 it('reaches the unlink the way the button actually calls it', function () {
     $person = personWithEmail();
     $admin = accessAdmin();
-    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'viewer'])->assertOk();
+    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'member'])->assertOk();
 
     $account = $person->fresh()->user;
 
@@ -629,7 +629,7 @@ it('offers the orphan as a CREDENTIAL, never as a second person', function () {
 it('leads a roster row with the e-mail and names whose account it is', function () {
     $admin = accessAdmin();
     $person = personWithEmail();
-    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'viewer'])->assertOk();
+    $this->actingAs($admin)->postJson(route('people.access.store', $person), ['role' => 'member'])->assertOk();
 
     $content = $this->actingAs($admin)->get(route('people.accounts'))->assertOk()->getContent();
     $row = str($content)->after('people-accounts-slot')->before('Convidar por e-mail')->toString();

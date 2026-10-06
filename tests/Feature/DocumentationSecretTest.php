@@ -27,7 +27,7 @@ uses(LazilyRefreshDatabase::class);
 /** The value used throughout, shaped like the header that motivated the feature. */
 const SECRET_VALUE = 'Basic c2ItbGVvOnMzY3IzdC1xYXMtdG9rZW4=';
 
-function secretUser(UserRole $role = UserRole::Viewer): User
+function secretUser(UserRole $role = UserRole::Member): User
 {
     return User::factory()->create(['role' => $role->value]);
 }
@@ -173,7 +173,7 @@ it('hands an ADMIN markers too — the editor never receives the values in bulk'
 it('hands an EDITOR markers and does not tell it the code is unnecessary', function () {
     $page = secretPage();
 
-    $html = $this->actingAs(secretUser(UserRole::Writer))
+    $html = $this->actingAs(User::factory()->editor()->create())
         ->get(route('notebooks.pages.edit', [$page->notebook, $page]))
         ->assertOk()
         ->getContent();
@@ -234,7 +234,7 @@ it('reveals a value to an admin with no code at all', function () {
 it('refuses an EDITOR without the code — writing a page is not reading its values', function () {
     $page = secretPage();
 
-    $this->actingAs(secretUser(UserRole::Writer))
+    $this->actingAs(User::factory()->editor()->create())
         ->postJson(route('notebooks.pages.secrets', [$page->notebook, $page, 1]))
         ->assertStatus(422)
         ->assertJsonMissing(['value' => SECRET_VALUE]);
@@ -386,7 +386,7 @@ it('puts the real values back when an editor saves the masked text', function ()
     $page = secretPage();
     $masked = SecretText::mask($page->documentation);
 
-    $this->actingAs(secretUser(UserRole::Writer))
+    $this->actingAs(User::factory()->editor()->create())
         ->patchJson(route('notebooks.pages.update', [$page->notebook, $page]), [
             // What the editor round-trips: markers, plus a real edit around them.
             'documentation' => str_replace('para QAS', 'para o ambiente QAS', $masked),
@@ -433,7 +433,7 @@ it('gives every new caderno a code, and shows it only to an admin', function () 
 
     // An editor can write every page in this caderno and still must not be
     // handed the string that unlocks its values.
-    $this->actingAs(secretUser(UserRole::Writer))
+    $this->actingAs(User::factory()->editor()->create())
         ->get(route('notebooks.pages.edit', [$notebook, $page]))
         ->assertOk()
         ->assertDontSee($notebook->secret_code, false);
@@ -442,7 +442,7 @@ it('gives every new caderno a code, and shows it only to an admin', function () 
 it('rotates the code for an admin and refuses an editor', function () {
     $notebook = Notebook::factory()->create(['secret_code' => 'X6h2dG']);
 
-    $this->actingAs(secretUser(UserRole::Writer))
+    $this->actingAs(User::factory()->editor()->create())
         ->postJson(route('notebooks.secret-code', $notebook))
         ->assertForbidden();
 

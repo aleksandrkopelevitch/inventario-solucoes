@@ -14,6 +14,6 @@ class UserPolicy
 {
     public function manage(User $user): bool
     {
-        return $user->role->isAdmin();
+        return $user->isAdmin();
     }
 }

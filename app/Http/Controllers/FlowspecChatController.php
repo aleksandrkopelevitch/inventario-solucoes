@@ -9,6 +9,7 @@ use App\Http\Requests\StoreFlowspecChatRequest;
 use App\Jobs\GenerateFlowspecReply;
 use App\Models\DocumentationPage;
 use App\Models\FlowspecChat;
+use App\Models\Notebook;
 use App\Services\Flowspec\FlowspecContextResolver;
 use App\View\Components\Flowspec\Thread;
 use Illuminate\Http\JsonResponse;
@@ -33,7 +34,7 @@ class FlowspecChatController extends Controller
         $this->authorize('viewAny', FlowspecChat::class);
 
         return view('flowspec.index', [
-            'chats' => $request->user()->flowspecChats()->latest('updated_at')->withCount('messages')->get(),
+            'chats' => $this->chats(),
         ]);
     }
 
@@ -79,7 +80,7 @@ class FlowspecChatController extends Controller
 
         return view('flowspec.show', [
             'chat'  => $chat,
-            'chats' => $request->user()->flowspecChats()->latest('updated_at')->withCount('messages')->get(),
+            'chats' => $this->chats(),
         ]);
     }
 
@@ -114,7 +115,10 @@ class FlowspecChatController extends Controller
 
         $term = trim((string) $request->query('q', ''));
 
-        if ($term === '') {
+        // The pages are the documentation module's: an account whose level
+        // there is None finds nothing to attach, rather than reading cadernos
+        // through the Especialista.
+        if ($term === '' || $request->user()->cannot('viewAny', Notebook::class)) {
             return response()->json(['results' => []]);
         }
 
@@ -160,8 +164,9 @@ class FlowspecChatController extends Controller
         $text = trim((string) $request->query('q', ''));
 
         // Below this there is nothing to match on but noise, and every
-        // keystroke would run the catalog scan.
-        if (mb_strlen($text) < 3) {
+        // keystroke would run the catalog scan. And no documentation module,
+        // no documentation to suggest (see searchDocuments()).
+        if (mb_strlen($text) < 3 || $request->user()->cannot('viewAny', Notebook::class)) {
             return response()->json(['suggestions' => []]);
         }
 
@@ -189,5 +194,20 @@ class FlowspecChatController extends Controller
         $chat = FlowspecChat::query()->find((int) $id);
 
         return $chat !== null && $request->user()->can('view', $chat) ? $chat : null;
+    }
+
+    /**
+     * The conversations rail: EVERY conversation, not just the viewer's — every
+     * account reads the module (FlowspecChatPolicy), and somebody else's thread
+     * is how a Reader learns what was already generated. The author rides along
+     * so the rail can say whose it is.
+     */
+    private function chats()
+    {
+        return FlowspecChat::query()
+            ->with('user:id,name')
+            ->latest('updated_at')
+            ->withCount('messages')
+            ->get();
     }
 }

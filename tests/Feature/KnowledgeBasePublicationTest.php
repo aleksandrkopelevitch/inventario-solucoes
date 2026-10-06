@@ -51,8 +51,8 @@ it('refuses everybody but an admin', function () {
 
     // An EDITOR is the one that matters: they may rewrite every page of this
     // caderno and must not be able to decide the whole company reads it.
-    foreach ([UserRole::Reader, UserRole::Viewer, UserRole::Writer] as $role) {
-        $this->actingAs(User::factory()->create(['role' => $role]))
+    foreach ([User::factory()->create(), User::factory()->editor()->create()] as $user) {
+        $this->actingAs($user)
             ->patchJson(route('notebooks.publication', $notebook), ['published' => true])
             ->assertForbidden();
     }
@@ -66,7 +66,7 @@ it('cannot be published by posting the column to the panel an editor can reach',
     // `published_at` is outside `$fillable` for exactly this reason: the rename
     // panel is `update` (editor) while publishing is `administer` (admin), and
     // a fillable column is one posted field away from collapsing the two.
-    $this->actingAs(User::factory()->create(['role' => UserRole::Writer]))
+    $this->actingAs(User::factory()->editor()->create())
         ->patchJson(route('notebooks.update', $notebook), [
             'name'         => 'Renomeado',
             'published_at' => now()->toDateTimeString(),

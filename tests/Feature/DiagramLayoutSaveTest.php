@@ -56,7 +56,7 @@ it('does not touch topology when saving the layout (chain stays the source of tr
 it('forbids non-admins from saving the layout', function () {
     [$solution, $diagram] = layoutSolutionAndIntegration();
 
-    $this->actingAs(User::factory()->create(['role' => UserRole::Viewer->value]))
+    $this->actingAs(User::factory()->create(['role' => UserRole::Member->value]))
         ->patchJson(route('diagrams.layout.save', $diagram), [
             'nodes' => [['x' => 0, 'y' => 0], ['x' => 1, 'y' => 1]],
             'edges' => [['from' => 'r', 'to' => 'l']],

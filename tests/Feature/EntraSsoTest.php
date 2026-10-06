@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Auth\ResolveEntraUser;
+use App\Enums\AccessModule;
 use App\Enums\UserRole;
 use App\Exceptions\EntraSignInRejected;
 use App\Http\Controllers\Auth\EntraController;
@@ -45,10 +46,16 @@ function signIn(SocialiteUser $profile): User
     return app(ResolveEntraUser::class)->handle($profile);
 }
 
-it('provisions a first-time signer as a reader and nothing more', function () {
+it('provisions a first-time signer with the new-account defaults: catalog and documentation, nothing else', function () {
     $user = signIn(entraProfile());
 
-    expect($user->role)->toBe(UserRole::Reader)
+    expect($user->role)->toBe(UserRole::Member)
+        ->and($user->access)->toBeNull()
+        ->and($user->canEdit(AccessModule::Catalog))->toBeFalse()
+        ->and($user->canView(AccessModule::Catalog))->toBeTrue()
+        ->and($user->canView(AccessModule::Documentation))->toBeTrue()
+        ->and($user->canView(AccessModule::Integrations))->toBeFalse()
+        ->and($user->canView(AccessModule::Committee))->toBeFalse()
         ->and($user->email)->toBe('ana.souza@leomadeiras.com.br')
         ->and($user->name)->toBe('Ana Souza')
         ->and($user->entra_id)->not->toBeEmpty();

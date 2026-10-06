@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\AccessModule;
 use App\Enums\UserRole;
 use App\Jobs\GenerateFlowspecReply;
 use App\Models\Diagram;
@@ -17,9 +18,12 @@ use Illuminate\Support\Str;
 
 uses(LazilyRefreshDatabase::class);
 
-function flowspecUser(UserRole $role = UserRole::Viewer): User
+/** An Editor of the Especialista module — who starts and writes conversations. */
+function flowspecUser(UserRole $role = UserRole::Member): User
 {
-    return User::factory()->create(['role' => $role->value]);
+    return $role->isAdmin()
+        ? User::factory()->admin()->create()
+        : User::factory()->editor(AccessModule::Integrations)->create();
 }
 
 /** Minimal, valid flowSpec for assistant messages in the HTTP tests. */
@@ -262,14 +266,16 @@ it('declares WithoutOverlapping middleware keyed by the chat, so concurrent mess
         ->and((int) $middleware[0]->key)->toBe($chat->id);
 });
 
-it('blocks another user from viewing or messaging a chat', function () {
+it('lets another user read a chat but not message it', function () {
     $owner = flowspecUser();
-    $chat = $owner->flowspecChats()->create(['title' => 'Privado']);
+    $chat = $owner->flowspecChats()->create(['title' => 'Da equipe']);
 
-    $intruder = flowspecUser();
+    $other = flowspecUser();
 
-    $this->actingAs($intruder)->get(route('flowspec.show', $chat))->assertForbidden();
-    $this->actingAs($intruder)->postJson(route('flowspec.messages.store', $chat), ['message' => 'oi'])->assertForbidden();
+    // Every account reads every conversation (FlowspecChatPolicy); only its
+    // author continues it.
+    $this->actingAs($other)->get(route('flowspec.show', $chat))->assertOk()->assertSee('somente leitura');
+    $this->actingAs($other)->postJson(route('flowspec.messages.store', $chat), ['message' => 'oi'])->assertForbidden();
 });
 
 it('adds a hand-entered example to the corpus (admin)', function () {
@@ -393,8 +399,8 @@ it('renders the corpus management modal for an admin', function () {
         ->toContain('flowspec-example-list-slot');
 });
 
-it('forbids non-admins from managing the corpus', function () {
-    $viewer = flowspecUser();
+it('forbids a Reader of the module from managing the corpus', function () {
+    $viewer = User::factory()->create();
     $example = FlowspecExample::factory()->create();
     $payload = ['name' => 'X', 'description' => 'Y', 'tags' => ['rest'], 'flow_spec' => json_encode(assistantFlowspec())];
 
@@ -495,8 +501,8 @@ it('renders the guideline management modal for an admin', function () {
         ->toContain('flowspec-guideline-list-slot');
 });
 
-it('forbids non-admins from managing guidelines', function () {
-    $viewer = flowspecUser();
+it('forbids a Reader of the module from managing guidelines', function () {
+    $viewer = User::factory()->create();
     $guideline = FlowspecGuideline::factory()->create();
     $payload = ['title' => 'X', 'content' => 'Y'];
 
@@ -513,7 +519,7 @@ it('forbids non-admins from managing guidelines', function () {
 */
 
 it('shows the derived test battery on a validated flowSpec', function () {
-    $user = flowspecUser(UserRole::Writer);
+    $user = User::factory()->editor()->create();
     $chat = FlowspecChat::factory()->for($user, 'user')->create(['title' => 'Consulta de cliente']);
     $chat->messages()->create([
         'role'      => 'assistant',
@@ -533,7 +539,7 @@ it('shows the derived test battery on a validated flowSpec', function () {
 });
 
 it('withholds the battery from a document the validator refused', function () {
-    $user = flowspecUser(UserRole::Writer);
+    $user = User::factory()->editor()->create();
     $chat = FlowspecChat::factory()->for($user, 'user')->create();
     $chat->messages()->create([
         'role'      => 'assistant',
@@ -549,7 +555,7 @@ it('withholds the battery from a document the validator refused', function () {
 });
 
 it('names the blocked cases so the coverage debt is readable', function () {
-    $user = flowspecUser(UserRole::Writer);
+    $user = User::factory()->editor()->create();
     $chat = FlowspecChat::factory()->for($user, 'user')->create();
 
     $id = (string) Str::uuid();

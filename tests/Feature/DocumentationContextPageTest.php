@@ -259,7 +259,7 @@ it('groups the context page catalog by caderno, current one first', function () 
 it('refuses the context page catalog to someone who cannot edit the caderno', function () {
     $notebook = Notebook::factory()->create();
 
-    $this->actingAs(User::factory()->create(['role' => UserRole::Viewer->value]))
+    $this->actingAs(User::factory()->create(['role' => UserRole::Member->value]))
         ->getJson(route('notebooks.context-pages', $notebook))
         ->assertForbidden();
 });

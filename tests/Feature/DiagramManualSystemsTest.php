@@ -129,7 +129,7 @@ it('saves the declared systems over the endpoint and refuses a viewer', function
     $diagram = lanedDiagram();
     $erp = Solution::factory()->create();
 
-    $this->actingAs(User::factory()->create(['role' => UserRole::Viewer->value]))
+    $this->actingAs(User::factory()->create(['role' => UserRole::Member->value]))
         ->patchJson(route('diagrams.systems', $diagram), [
             'solutions' => [['value' => $erp->id, 'label' => $erp->name]],
         ])

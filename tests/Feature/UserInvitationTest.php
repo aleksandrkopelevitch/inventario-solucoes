@@ -22,8 +22,8 @@ it('lets an admin read the accounts roster and refuses everyone else', function 
         ->assertSee('Quem tem acesso')
         ->assertSee($admin->email);
 
-    foreach ([UserRole::Writer, UserRole::Viewer] as $role) {
-        $this->actingAs(User::factory()->create(['role' => $role->value]))
+    foreach ([User::factory()->editor()->create(), User::factory()->create()] as $user) {
+        $this->actingAs($user)
             ->get(route('people.accounts'))
             ->assertForbidden();
     }
@@ -34,7 +34,7 @@ it('forbids a non-admin from viewing or inviting users', function () {
 
     $this->actingAs($viewer)->get(route('people.accounts'))->assertForbidden();
     $this->actingAs($viewer)
-        ->postJson(route('users.store'), ['name' => 'X', 'email' => 'x@leomadeiras.com.br', 'role' => 'viewer'])
+        ->postJson(route('users.store'), ['name' => 'X', 'email' => 'x@leomadeiras.com.br', 'role' => 'member'])
         ->assertForbidden();
 });
 
@@ -46,14 +46,14 @@ it('invites a new user and queues the invitation email', function () {
         ->postJson(route('users.store'), [
             'name'  => 'Nova Pessoa',
             'email' => 'nova@leomadeiras.com.br',
-            'role'  => 'viewer',
+            'role'  => 'member',
         ])->assertOk()->assertJson(['type' => 'success']);
 
     expect($response->json('updatableSlots.0.id'))->toBe('people-accounts-slot');
 
     $invited = User::firstWhere('email', 'nova@leomadeiras.com.br');
     expect($invited)->not->toBeNull()
-        ->and($invited->role)->toBe(UserRole::Viewer);
+        ->and($invited->role)->toBe(UserRole::Member);
 
     Mail::assertQueued(UserInvitationMail::class, fn ($mail) => $mail->user->is($invited));
 });
@@ -66,7 +66,7 @@ it('rejects an invite with a duplicate email', function () {
         ->postJson(route('users.store'), [
             'name'  => 'Duplicado',
             'email' => $existing->email,
-            'role'  => 'viewer',
+            'role'  => 'member',
         ])->assertStatus(422);
 });
 
@@ -87,7 +87,7 @@ it('lets an invited user set their password via the reset-password flow and log 
     $this->actingAs($admin)->postJson(route('users.store'), [
         'name'  => 'Convidada',
         'email' => 'convidada@leomadeiras.com.br',
-        'role'  => 'viewer',
+        'role'  => 'member',
     ])->assertOk();
 
     $invited = User::firstWhere('email', 'convidada@leomadeiras.com.br');
@@ -129,17 +129,17 @@ it('lets an invited user set their password via the reset-password flow and log 
 |
 */
 
-it('lets an admin promote a viewer to editor', function () {
+it('lets an admin promote a member to admin', function () {
     $admin = User::factory()->create(['role' => UserRole::Admin->value]);
-    $viewer = User::factory()->create(['role' => UserRole::Viewer->value]);
+    $viewer = User::factory()->create(['role' => UserRole::Member->value]);
 
     $response = $this->actingAs($admin)
-        ->patchJson(route('users.update', $viewer), ['role' => UserRole::Writer->value])
+        ->patchJson(route('users.update', $viewer), ['role' => UserRole::Admin->value])
         ->assertOk()
         ->assertJson(['type' => 'success']);
 
-    expect($viewer->fresh()->role)->toBe(UserRole::Writer)
-        ->and($response->json('message'))->toContain('Editor')
+    expect($viewer->fresh()->role)->toBe(UserRole::Admin)
+        ->and($response->json('message'))->toContain('Administrador')
         ->and($response->json('updatableSlots.0.id'))->toBe('people-accounts-slot');
 });
 
@@ -148,10 +148,10 @@ it('lets an admin demote another admin while one remains', function () {
     $other = User::factory()->create(['role' => UserRole::Admin->value]);
 
     $this->actingAs($admin)
-        ->patchJson(route('users.update', $other), ['role' => UserRole::Viewer->value])
+        ->patchJson(route('users.update', $other), ['role' => UserRole::Member->value])
         ->assertOk();
 
-    expect($other->fresh()->role)->toBe(UserRole::Viewer);
+    expect($other->fresh()->role)->toBe(UserRole::Member);
 });
 
 it('refuses to change your own role, whoever you are', function () {
@@ -159,7 +159,7 @@ it('refuses to change your own role, whoever you are', function () {
     User::factory()->create(['role' => UserRole::Admin->value]); // not the last admin
 
     $response = $this->actingAs($admin)
-        ->patchJson(route('users.update', $admin), ['role' => UserRole::Viewer->value])
+        ->patchJson(route('users.update', $admin), ['role' => UserRole::Member->value])
         ->assertStatus(422);
 
     expect($response->json('message'))->toContain('seu próprio perfil')
@@ -175,17 +175,17 @@ it('leaves the last admin standing, since the only account that could demote the
     $second = User::factory()->create(['role' => UserRole::Admin->value]);
 
     $this->actingAs($admin)
-        ->patchJson(route('users.update', $second), ['role' => UserRole::Viewer->value])
+        ->patchJson(route('users.update', $second), ['role' => UserRole::Member->value])
         ->assertOk();
 
     expect(User::where('role', UserRole::Admin->value)->count())->toBe(1);
 
     $this->actingAs($admin)
-        ->patchJson(route('users.update', $admin), ['role' => UserRole::Viewer->value])
+        ->patchJson(route('users.update', $admin), ['role' => UserRole::Member->value])
         ->assertStatus(422);
 
     $this->actingAs($second->fresh())
-        ->patchJson(route('users.update', $admin), ['role' => UserRole::Viewer->value])
+        ->patchJson(route('users.update', $admin), ['role' => UserRole::Member->value])
         ->assertForbidden();
 
     expect($admin->fresh()->role)->toBe(UserRole::Admin)
@@ -193,32 +193,32 @@ it('leaves the last admin standing, since the only account that could demote the
 });
 
 it('refuses an editor and a viewer outright', function () {
-    $target = User::factory()->create(['role' => UserRole::Viewer->value]);
+    $target = User::factory()->create(['role' => UserRole::Member->value]);
 
-    foreach ([UserRole::Writer, UserRole::Viewer] as $role) {
-        $this->actingAs(User::factory()->create(['role' => $role->value]))
+    foreach ([User::factory()->editor()->create(), User::factory()->create()] as $user) {
+        $this->actingAs($user)
             ->patchJson(route('users.update', $target), ['role' => UserRole::Admin->value])
             ->assertForbidden();
     }
 
-    expect($target->fresh()->role)->toBe(UserRole::Viewer);
+    expect($target->fresh()->role)->toBe(UserRole::Member);
 });
 
 it('rejects a role the enum does not know', function () {
     $admin = User::factory()->create(['role' => UserRole::Admin->value]);
-    $target = User::factory()->create(['role' => UserRole::Viewer->value]);
+    $target = User::factory()->create(['role' => UserRole::Member->value]);
 
     $this->actingAs($admin)
         ->patchJson(route('users.update', $target), ['role' => 'superadmin'])
         ->assertStatus(422);
 
-    expect($target->fresh()->role)->toBe(UserRole::Viewer);
+    expect($target->fresh()->role)->toBe(UserRole::Member);
 });
 
 it('offers the role select on other rows of the roster and withholds it on your own', function () {
     $admin = User::factory()->create(['role' => UserRole::Admin->value, 'name' => 'Eu Mesmo']);
     User::factory()->create(['role' => UserRole::Admin->value, 'name' => 'Outro Admin']);
-    User::factory()->create(['role' => UserRole::Viewer->value, 'name' => 'Alguem Viewer']);
+    User::factory()->create(['role' => UserRole::Member->value, 'name' => 'Alguem Viewer']);
 
     $content = $this->actingAs($admin)->get(route('people.accounts'))->assertOk()->getContent();
 
@@ -226,7 +226,9 @@ it('offers the role select on other rows of the roster and withholds it on your 
     // carries it — `json_encode` escapes the slashes.
     $actionOf = fn (User $user) => trim(json_encode(route('users.update', $user)), '"');
 
-    expect(substr_count($content, 'data-ak-inline-edit='))->toBe(2)
+    // Two role selects (the other two rows) plus the member's four module
+    // levels; nothing at all on your own row.
+    expect(substr_count($content, 'data-ak-inline-edit='))->toBe(6)
         ->and($content)->toContain('Eu Mesmo')
         ->and($content)->toContain($actionOf(User::where('name', 'Alguem Viewer')->sole()))
         ->and($content)->not->toContain($actionOf($admin));
@@ -254,7 +256,7 @@ it('creates the catalog row with the account and links the two', function () {
         ->postJson(route('users.store'), [
             'name'  => 'Marina Duarte',
             'email' => 'marina.duarte@leomadeiras.com.br',
-            'role'  => 'writer',
+            'role'  => 'member',
         ])->assertOk();
 
     $account = User::firstWhere('email', 'marina.duarte@leomadeiras.com.br');
@@ -282,7 +284,7 @@ it('reuses the person already filed under that e-mail, whatever its case', funct
         ->postJson(route('users.store'), [
             'name'  => 'Rafael N.',
             'email' => 'rafael.nogueira@leomadeiras.com.br',
-            'role'  => 'viewer',
+            'role'  => 'member',
         ])->assertOk();
 
     expect(Person::withEmail('rafael.nogueira@leomadeiras.com.br')->count())->toBe(1)
@@ -306,7 +308,7 @@ it('refuses an invite whose person already holds a different account', function 
         ->postJson(route('users.store'), [
             'name'  => 'Joana Prado',
             'email' => 'joana@leomadeiras.com.br',
-            'role'  => 'viewer',
+            'role'  => 'member',
         ])->assertStatus(422);
 
     expect($response->json('message'))->toContain('Joana Prado')
@@ -325,7 +327,7 @@ it('keeps an invited person off the reserved slugs', function () {
         ->postJson(route('users.store'), [
             'name'  => 'Accounts',
             'email' => 'accounts@leomadeiras.com.br',
-            'role'  => 'viewer',
+            'role'  => 'member',
         ])->assertOk();
 
     expect(Person::firstWhere('email', 'accounts@leomadeiras.com.br')->slug)->not->toBe('accounts');

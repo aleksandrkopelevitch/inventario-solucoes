@@ -6,7 +6,7 @@ use App\Models\McpToken;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Minting a token. Admin only — `McpTokenPolicy::create`, never `canWrite()`.
+ * Minting a token. Admin only — `McpTokenPolicy::create`, never a module's Editor level.
  */
 class StoreMcpTokenRequest extends FormRequest
 {
