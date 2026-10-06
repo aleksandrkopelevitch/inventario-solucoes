@@ -1,54 +1,81 @@
 <?php
 
+use App\Enums\AccessLevel;
+use App\Enums\AccessModule;
 use App\Enums\UserRole;
+use App\Models\User;
 
-it('exposes the four application roles, floor tier first', function () {
-    expect(UserRole::cases())->toHaveCount(4)
-        ->and(array_map(fn (UserRole $r) => $r->value, UserRole::cases()))
-        ->toBe(['reader', 'viewer', 'writer', 'admin']);
+it('has two roles, member and admin', function () {
+    expect(array_map(fn (UserRole $r) => $r->value, UserRole::cases()))->toBe(['member', 'admin'])
+        ->and(UserRole::Member->label())->toBe('Usuário')
+        ->and(UserRole::Admin->label())->toBe('Administrador')
+        ->and(UserRole::Admin->isAdmin())->toBeTrue()
+        ->and(UserRole::Member->isAdmin())->toBeFalse();
 });
 
-it('maps each role to a Portuguese label and a sentence saying what it is for', function () {
-    expect(UserRole::Reader->label())->toBe('Leitor (base de conhecimento)')
-        ->and(UserRole::Viewer->label())->toBe('Visualizador')
-        ->and(UserRole::Writer->label())->toBe('Editor')
-        ->and(UserRole::Admin->label())->toBe('Administrador');
+it('has four modules and three levels, labelled in Portuguese', function () {
+    expect(array_map(fn (AccessModule $m) => $m->value, AccessModule::cases()))
+        ->toBe(['catalog', 'documentation', 'integrations', 'committee'])
+        ->and(AccessLevel::None->label())->toBe('Nenhum')
+        ->and(AccessLevel::Reader->label())->toBe('Leitor')
+        ->and(AccessLevel::Editor->label())->toBe('Editor');
+});
 
-    foreach (UserRole::cases() as $role) {
-        expect($role->description())->not->toBe('');
+it('gives a member each module\'s default unless told otherwise', function () {
+    $user = new User(['role' => UserRole::Member]);
+
+    expect($user->accessLevel(AccessModule::Catalog))->toBe(AccessLevel::Reader)
+        ->and($user->accessLevel(AccessModule::Documentation))->toBe(AccessLevel::Reader)
+        ->and($user->accessLevel(AccessModule::Integrations))->toBe(AccessLevel::None)
+        ->and($user->accessLevel(AccessModule::Committee))->toBe(AccessLevel::None);
+});
+
+it('makes a member an Editor only in the modules granted', function () {
+    $user = new User(['role' => UserRole::Member, 'access' => ['catalog' => 'editor']]);
+
+    expect($user->canEdit(AccessModule::Catalog))->toBeTrue()
+        ->and($user->canEdit(AccessModule::Documentation))->toBeFalse()
+        ->and($user->canEdit(AccessModule::Committee))->toBeFalse();
+});
+
+it('makes an admin an Editor everywhere, whatever is stored', function () {
+    $user = new User(['role' => UserRole::Admin, 'access' => null]);
+
+    foreach (AccessModule::cases() as $module) {
+        expect($user->canEdit($module))->toBeTrue();
     }
 });
 
-it('lets the writer write but not delete or administer', function () {
-    expect(UserRole::Writer->canWrite())->toBeTrue()
-        ->and(UserRole::Writer->canDelete())->toBeFalse()
-        ->and(UserRole::Writer->isAdmin())->toBeFalse();
+it('stores a module\'s default as an absent key, so the column only records differences', function () {
+    $user = new User(['role' => UserRole::Member]);
+
+    $user->setAccessLevel(AccessModule::Committee, AccessLevel::Reader);
+    expect($user->access)->toBe(['committee' => 'reader']);
+
+    $user->setAccessLevel(AccessModule::Committee, AccessLevel::None);
+    $user->setAccessLevel(AccessModule::Catalog, AccessLevel::Reader);
+    expect($user->access)->toBeNull();
 });
 
-it('lets the admin do everything and the viewer nothing', function () {
-    expect(UserRole::Admin->canWrite())->toBeTrue()
-        ->and(UserRole::Admin->canDelete())->toBeTrue()
-        ->and(UserRole::Admin->isAdmin())->toBeTrue()
-        ->and(UserRole::Viewer->canWrite())->toBeFalse()
-        ->and(UserRole::Viewer->canDelete())->toBeFalse()
-        ->and(UserRole::Viewer->isAdmin())->toBeFalse();
+it('treats an unknown stored level as a Reader', function () {
+    $user = new User(['role' => UserRole::Member, 'access' => ['catalog' => 'owner']]);
+
+    expect($user->accessLevel(AccessModule::Catalog))->toBe(AccessLevel::Reader);
 });
 
-/**
- * The predicate the knowledge base turns on. It is the only one shaped as a
- * FLOOR rather than as an added power, so it is asserted for every case
- * explicitly — a new tier inserted below `Reader` has to make a deliberate
- * choice here rather than inherit one.
- */
-it('withholds the inventory from the reader and from nobody else', function () {
-    expect(UserRole::Reader->canReadInventory())->toBeFalse()
-        ->and(UserRole::Viewer->canReadInventory())->toBeTrue()
-        ->and(UserRole::Writer->canReadInventory())->toBeTrue()
-        ->and(UserRole::Admin->canReadInventory())->toBeTrue();
+it('stores None explicitly and closes the module with it', function () {
+    $user = new User(['role' => UserRole::Member]);
+
+    $user->setAccessLevel(AccessModule::Catalog, AccessLevel::None);
+
+    expect($user->access)->toBe(['catalog' => 'none'])
+        ->and($user->canView(AccessModule::Catalog))->toBeFalse()
+        ->and($user->canEdit(AccessModule::Catalog))->toBeFalse()
+        ->and($user->canView(AccessModule::Documentation))->toBeTrue();
 });
 
-it('gives the reader no power at all beyond reading the knowledge base', function () {
-    expect(UserRole::Reader->canWrite())->toBeFalse()
-        ->and(UserRole::Reader->canDelete())->toBeFalse()
-        ->and(UserRole::Reader->isAdmin())->toBeFalse();
+it('never closes a module to an admin', function () {
+    $user = new User(['role' => UserRole::Admin, 'access' => ['catalog' => 'none']]);
+
+    expect($user->canView(AccessModule::Catalog))->toBeTrue();
 });

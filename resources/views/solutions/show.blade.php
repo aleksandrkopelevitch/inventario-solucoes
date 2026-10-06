@@ -33,7 +33,9 @@
          applied it to the catalog yet. Above the diagrams list on purpose:
          it is a warning ABOUT that list — the graph below is showing the
          previous scenario. Not a slot: nothing on this page changes it, and it
-         is resolved on the submission's own screen. --}}
+         is resolved on the submission's own screen. Only for whoever can open
+         the committee module — the warning is a link into it. --}}
+    @can('viewAny', \App\Models\Submission::class)
     @foreach ($pendingTopologies as $pending)
         <div class="animate-ak-rise mt-5 flex flex-wrap items-center gap-3 rounded-card border border-cat-amber-line bg-cat-amber-soft px-4 py-3" style="animation-delay: 80ms">
             <x-heroicon-o-arrow-path-rounded-square class="size-5 shrink-0 text-cat-amber-ink" />
@@ -46,6 +48,7 @@
                class="shrink-0 text-sm font-medium text-cat-amber-ink underline">Ver a submissão</a>
         </div>
     @endforeach
+    @endcan
 
     {{-- 3. What this solution HAS been documented with, in one card: the
          diagrams it takes part in on the left, the cadernos that document it on
@@ -59,10 +62,15 @@
          lives here and not in either component — a slot swap replaces the
          component's root node wholesale, so the frame has to be outside it.
          The divider between the columns is the one exception, carried by the
-         right column itself (it re-renders identically on every swap). --}}
+         right column itself (it re-renders identically on every swap).
+
+         Both columns are the documentation module, so the card is absent for
+         an account whose level there is None (App\Enums\AccessLevel). --}}
+    @can('viewAny', \App\Models\Notebook::class)
     <div class="animate-ak-rise mt-5 grid overflow-hidden rounded-card border border-line bg-surface shadow-card lg:grid-cols-2"
          style="animation-delay: 90ms">
         <x-solutions.diagrams :solution="$solution" />
         <x-solutions.notebooks :solution="$solution" />
     </div>
+    @endcan
 </x-layouts.layout>

@@ -11,11 +11,14 @@ use App\Models\FlowspecChat;
 use App\Models\FlowspecMessage;
 use App\Models\PipelineRun;
 use App\Models\User;
-use App\View\Components\Flowspec\LifecyclePanel;
+use App\Rules\AsciiSlug;
 use App\Services\Digibee\PipelineHealingService;
 use App\Support\Digibee\Healing\HealingReport;
 use App\Support\Digibee\Healing\HealingRound;
 use App\Support\Digibee\PromotionReadiness;
+use App\Support\Digibee\Testing\EndpointCredential;
+use App\Support\Digibee\TriggerSpec;
+use App\View\Components\Flowspec\LifecyclePanel;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 
@@ -30,7 +33,7 @@ uses(LazilyRefreshDatabase::class);
  */
 function runEditor(): User
 {
-    return User::factory()->create(['role' => UserRole::Writer->value]);
+    return User::factory()->editor()->create();
 }
 
 function runChatFor(User $user): FlowspecChat
@@ -85,7 +88,7 @@ it('lets an editor start a run on their own conversation', function () {
 it('refuses a viewer who owns the conversation', function () {
     // Seeing every flowSpec in your own chat is `view`; reaching the realm is a
     // write capability. A Viewer has the first and must not have the second.
-    $user = User::factory()->create(['role' => UserRole::Viewer->value]);
+    $user = User::factory()->create(['role' => UserRole::Member->value]);
     $chat = runChatFor($user);
     $message = runMessageIn($chat);
 
@@ -223,8 +226,8 @@ it('answers a poll without rendering the panel when nothing changed', function (
 
     PipelineRun::create([
         'flowspec_message_id' => $message->id, 'user_id' => $user->id,
-        'pipeline_name' => 'zfl-teste', 'environment' => 'test',
-        'status' => PipelineRunStatus::Running, 'rounds' => [['round' => 1]],
+        'pipeline_name'       => 'zfl-teste', 'environment' => 'test',
+        'status'              => PipelineRunStatus::Running, 'rounds' => [['round' => 1]],
     ]);
 
     $response = $this->actingAs($user)
@@ -243,8 +246,8 @@ it('renders the panel when a round has landed since the client last looked', fun
 
     PipelineRun::create([
         'flowspec_message_id' => $message->id, 'user_id' => $user->id,
-        'pipeline_name' => 'zfl-teste', 'environment' => 'test',
-        'status' => PipelineRunStatus::Running, 'rounds' => [['round' => 1], ['round' => 2]],
+        'pipeline_name'       => 'zfl-teste', 'environment' => 'test',
+        'status'              => PipelineRunStatus::Running, 'rounds' => [['round' => 1], ['round' => 2]],
     ]);
 
     $response = $this->actingAs($user)
@@ -263,8 +266,8 @@ it('always renders the panel once the run has settled', function () {
 
     PipelineRun::create([
         'flowspec_message_id' => $message->id, 'user_id' => $user->id,
-        'pipeline_name' => 'zfl-teste', 'environment' => 'test',
-        'status' => PipelineRunStatus::Done, 'rounds' => [['round' => 1]],
+        'pipeline_name'       => 'zfl-teste', 'environment' => 'test',
+        'status'              => PipelineRunStatus::Done, 'rounds' => [['round' => 1]],
     ]);
 
     $response = $this->actingAs($user)
@@ -292,8 +295,8 @@ it('persists each round as it finishes, not all of them at the end', function ()
 
     $run = PipelineRun::create([
         'flowspec_message_id' => $message->id, 'user_id' => $user->id,
-        'pipeline_name' => 'zfl-teste', 'environment' => 'test',
-        'status' => PipelineRunStatus::Pending,
+        'pipeline_name'       => 'zfl-teste', 'environment' => 'test',
+        'status'              => PipelineRunStatus::Pending,
     ]);
 
     $seenWhileRunning = [];
@@ -309,8 +312,8 @@ it('persists each round as it finishes, not all of them at the end', function ()
             array $document,
             string $pipelineName,
             string $environment = 'test',
-            ?App\Support\Digibee\TriggerSpec $trigger = null,
-            ?App\Support\Digibee\Testing\EndpointCredential $credential = null,
+            ?TriggerSpec $trigger = null,
+            ?EndpointCredential $credential = null,
             bool $create = false,
             ?int $maxRounds = null,
             ?callable $onRound = null,
@@ -364,8 +367,8 @@ it('refuses to run a row somebody already settled', function () {
 
     $run = PipelineRun::create([
         'flowspec_message_id' => $message->id, 'user_id' => $user->id,
-        'pipeline_name' => 'zfl-teste', 'environment' => 'test',
-        'status' => PipelineRunStatus::Done,
+        'pipeline_name'       => 'zfl-teste', 'environment' => 'test',
+        'status'              => PipelineRunStatus::Done,
     ]);
 
     $healing = new class extends PipelineHealingService
@@ -378,8 +381,8 @@ it('refuses to run a row somebody already settled', function () {
             array $document,
             string $pipelineName,
             string $environment = 'test',
-            ?App\Support\Digibee\TriggerSpec $trigger = null,
-            ?App\Support\Digibee\Testing\EndpointCredential $credential = null,
+            ?TriggerSpec $trigger = null,
+            ?EndpointCredential $credential = null,
             bool $create = false,
             ?int $maxRounds = null,
             ?callable $onRound = null,
@@ -425,7 +428,7 @@ it('never suggests a name the form would then refuse', function () {
     $suggested = (new LifecyclePanel($message))->render()->getData()['suggestedName'];
 
     expect($suggested)->toBe('integracao-zfl')
-        ->and(validator(['n' => $suggested], ['n' => [new App\Rules\AsciiSlug]])->passes())->toBeTrue();
+        ->and(validator(['n' => $suggested], ['n' => [new AsciiSlug]])->passes())->toBeTrue();
 });
 
 it('falls back to a usable name when the conversation has no title', function () {
@@ -456,8 +459,8 @@ it('records the trigger the form asked for', function () {
 
     $this->actingAs($user)
         ->postJson(route('flowspec.lifecycle.store', [$chat, $message]), runPayload([
-            'trigger_kind'  => 'scheduler',
-            'trigger_cron'  => '0 0 3 * * *',
+            'trigger_kind' => 'scheduler',
+            'trigger_cron' => '0 0 3 * * *',
         ]))
         ->assertOk();
 
@@ -616,9 +619,9 @@ it('hands the healing service the trigger the run recorded', function () {
 
     $run = PipelineRun::create([
         'flowspec_message_id' => $message->id, 'user_id' => $user->id,
-        'pipeline_name' => 'zfl-teste', 'environment' => 'test',
-        'trigger_kind' => 'scheduler', 'trigger_cron' => '0 0 6 ? * * *',
-        'status' => PipelineRunStatus::Pending,
+        'pipeline_name'       => 'zfl-teste', 'environment' => 'test',
+        'trigger_kind'        => 'scheduler', 'trigger_cron' => '0 0 6 ? * * *',
+        'status'              => PipelineRunStatus::Pending,
     ]);
 
     $received = new stdClass;
@@ -632,8 +635,8 @@ it('hands the healing service the trigger the run recorded', function () {
             array $document,
             string $pipelineName,
             string $environment = 'test',
-            ?App\Support\Digibee\TriggerSpec $trigger = null,
-            ?App\Support\Digibee\Testing\EndpointCredential $credential = null,
+            ?TriggerSpec $trigger = null,
+            ?EndpointCredential $credential = null,
             bool $create = false,
             ?int $maxRounds = null,
             ?callable $onRound = null,
@@ -663,7 +666,7 @@ it('hands the healing service the trigger the run recorded', function () {
 
     (new RunPipelineLifecycle($run))->handle($healing, $assess, app(SynthesizeTriggerSpec::class));
 
-    expect($received->trigger)->toBeInstanceOf(App\Support\Digibee\TriggerSpec::class)
+    expect($received->trigger)->toBeInstanceOf(TriggerSpec::class)
         ->and($received->trigger->kind)->toBe(DigibeeTriggerKind::Scheduler)
         // The cron the form asked for reaches the platform, not a synthesized guess.
         ->and($received->trigger->spec['cronExpression'] ?? null)->toBe('0 0 6 ? * * *')
@@ -681,10 +684,10 @@ it('offers the form again once a run has settled, so a wrong trigger can be corr
     // of which only fail by RUNNING) had no way back from the UI.
     PipelineRun::create([
         'flowspec_message_id' => $message->id, 'user_id' => $user->id,
-        'pipeline_name' => 'zfl-ja-existe', 'environment' => 'test',
-        'trigger_kind' => 'scheduler', 'trigger_cron' => '0 0 6 ? * * *',
-        'status' => PipelineRunStatus::Done, 'verdict' => HealingVerdict::StillFailing,
-        'finished_at' => now(),
+        'pipeline_name'       => 'zfl-ja-existe', 'environment' => 'test',
+        'trigger_kind'        => 'scheduler', 'trigger_cron' => '0 0 6 ? * * *',
+        'status'              => PipelineRunStatus::Done, 'verdict' => HealingVerdict::StillFailing,
+        'finished_at'         => now(),
     ]);
 
     $this->actingAs($user)->get(route('flowspec.show', $chat))
@@ -701,8 +704,8 @@ it('keeps the form away while a run is still going', function () {
 
     PipelineRun::create([
         'flowspec_message_id' => $message->id, 'user_id' => $user->id,
-        'pipeline_name' => 'zfl-rodando', 'environment' => 'test',
-        'status' => PipelineRunStatus::Running,
+        'pipeline_name'       => 'zfl-rodando', 'environment' => 'test',
+        'status'              => PipelineRunStatus::Running,
     ]);
 
     $this->actingAs($user)->get(route('flowspec.show', $chat))

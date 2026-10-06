@@ -45,6 +45,12 @@
             <x-forms.button href="{{ route('solutions.map') }}" variant="glass" class="!rounded-full">
                 Ver mapa do ecossistema <x-heroicon-o-arrow-right class="size-4" />
             </x-forms.button>
+            {{-- Every record at once, read-only, with value filters and an
+                 Excel/CSV export — and the one view of the catalog that can be
+                 handed to someone outside through a magic link. --}}
+            <x-forms.button href="{{ route('solutions.spreadsheet') }}" variant="glass" class="!rounded-full">
+                <x-heroicon-o-table-cells class="size-4" /> Ver como planilha
+            </x-forms.button>
         </div>
     </x-ui.hero-panel>
 

@@ -20,6 +20,7 @@ use App\Http\Controllers\Inventory\CompanyController;
 use App\Http\Controllers\Inventory\PersonAccessController;
 use App\Http\Controllers\Inventory\PersonController;
 use App\Http\Controllers\Inventory\SolutionController;
+use App\Http\Controllers\Inventory\SolutionSpreadsheetController;
 use App\Http\Controllers\KnowledgeBaseController;
 use App\Http\Controllers\KnowledgeBaseSettingsController;
 use App\Http\Controllers\Mcp\ConnectController;
@@ -33,6 +34,7 @@ use App\Http\Controllers\NotebookPageDiagramController;
 use App\Http\Controllers\PipelineRunController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicDocumentationController;
+use App\Http\Controllers\PublicSolutionSpreadsheetController;
 use App\Http\Controllers\SolutionMapController;
 use App\Http\Controllers\SubmissionChatController;
 use App\Http\Controllers\SubmissionController;
@@ -82,10 +84,8 @@ Route::get('auth/entra/callback', [EntraController::class, 'callback'])->name('e
 | Base de conhecimento interna (`/docs`)
 |--------------------------------------------------------------------------
 |
-| SEMI-public: an account is required, but ANY account — including the `Reader`
-| tier Entra provisions, which reaches this and nothing else. That is why this
-| group carries `auth` WITHOUT `inventory`, and it is the only group in the file
-| that does.
+| SEMI-public: an account is required, but ANY account — including one Entra
+| SSO provisioned on its first visit — and only published cadernos are shown.
 |
 | `entra.silent` runs FIRST, and the order is the feature: a guest is sent to
 | Entra with `prompt=none` and comes back signed in having seen nothing. Put
@@ -98,24 +98,11 @@ Route::get('auth/entra/callback', [EntraController::class, 'callback'])->name('e
 | open.
 */
 // Signing out belongs to EVERY account, so it is `auth` and nothing else.
-//
-// It sat inside the `inventory` group below until this was found in production:
-// `EnsureInventoryAccess` runs before the controller and redirects a `Reader`
-// to `/docs`, so submitting the form logged nobody out and landed them back
-// where they started, still signed in. Nothing failed and nothing was logged —
-// the button simply did nothing. It was unreachable only for the one tier that
-// most needs it: `/docs` is a reader's entire application, and before SSO no
-// reader existed to walk into it.
-//
-// The rule this is an instance of: a route the `inventory` gate is allowed to
-// answer for is a route ABOUT the inventory. Session and account routes are not.
 Route::middleware('auth')->delete('logout', [LoginController::class, 'destroy'])->name('login.destroy');
 
 Route::middleware(['entra.silent', 'auth'])->group(function () {
-    // Connecting a chat client. In THIS group and not in the inventory one
-    // below, because the account that most needs it is the tier the inventory
-    // group exists to keep out: a `Reader` connects for the knowledge base,
-    // which is exactly what its connection will reach (App\Mcp\Actor).
+    // Connecting a chat client — any account, signed in silently through
+    // Entra like `/docs` (App\Mcp\Actor).
     Route::get('mcp/connect', [ConnectController::class, 'index'])->name('mcp.connect');
     Route::delete('mcp/connections/{token}', [ConnectController::class, 'destroy'])->name('mcp.connections.destroy');
 
@@ -129,8 +116,8 @@ Route::middleware(['entra.silent', 'auth'])->group(function () {
     Route::get('docs/{notebook}/search', [KnowledgeBaseController::class, 'search'])->name('docs.search');
     // Media and diagram pictures get routes of their own rather than reusing
     // `files.show` / `diagrams.picture.show`: those authorize by collection
-    // name and by `auth`, which a signed-in `Reader` satisfies — for every
-    // caderno in the app, published or not. See KnowledgeBaseController::file().
+    // name and by `auth` — for every caderno in the app, published or not —
+    // and `/docs` serves only what was published. See KnowledgeBaseController::file().
     Route::get('docs/{notebook}/file/{media}', [KnowledgeBaseController::class, 'file'])->name('docs.file');
     Route::get('docs/{notebook}/diagram/{diagram}', [KnowledgeBaseController::class, 'diagramPicture'])->name('docs.diagram');
 
@@ -144,10 +131,9 @@ Route::middleware(['entra.silent', 'auth'])->group(function () {
     });
 });
 
-// Authenticated routes — the INVENTORY. `inventory` is what keeps a `Reader`
-// out of it (App\Http\Middleware\EnsureInventoryAccess); the policies say the
-// same thing a second time, on purpose.
-Route::middleware(['auth', 'inventory'])->group(function () {
+// Authenticated routes — the INVENTORY. Every account reads all of it; what
+// each one may CHANGE is the policies' job, per module (App\Enums\AccessModule).
+Route::middleware('auth')->group(function () {
     Route::get('profile', [ProfileController::class, 'show'])->name('profile.show');
     Route::get('profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -161,6 +147,12 @@ Route::middleware(['auth', 'inventory'])->group(function () {
     Route::redirect('solutions/coverage', '/documentation');
     // Name search (autocomplete for the "Systems" chips in the Person form). Static, before solutions.{solution:slug}.
     Route::get('solutions/search', [SolutionController::class, 'search'])->name('solutions.search');
+    // The catalog as a read-only spreadsheet, and its magic link (admin). Static,
+    // so `spreadsheet` is reserved as a solution slug (Solution::RESERVED_SLUGS).
+    Route::get('solutions/spreadsheet', [SolutionSpreadsheetController::class, 'index'])->name('solutions.spreadsheet');
+    Route::get('solutions/spreadsheet/export', [SolutionSpreadsheetController::class, 'export'])->name('solutions.spreadsheet.export');
+    Route::post('solutions/spreadsheet/share', [SolutionSpreadsheetController::class, 'share'])->name('solutions.spreadsheet.share');
+    Route::delete('solutions/spreadsheet/share', [SolutionSpreadsheetController::class, 'unshare'])->name('solutions.spreadsheet.unshare');
     Route::get('solutions/{solution}/edit', [SolutionController::class, 'edit'])->name('solutions.edit');
 
     Route::get('solutions/{solution}', [SolutionController::class, 'show'])->name('solutions.show');
@@ -199,6 +191,8 @@ Route::middleware(['auth', 'inventory'])->group(function () {
     // it. This shim keeps old bookmarks working — it lands on the first caderno
     // linked to the solution, or on the solution itself when none is.
     Route::get('solutions/{solution}/documentation', function (Solution $solution) {
+        abort_unless(auth()->user()->can('view', $solution), 403);
+
         $notebook = $solution->notebooks()->first();
 
         return $notebook
@@ -311,6 +305,9 @@ Route::middleware(['auth', 'inventory'])->group(function () {
     // promotion to editor, or taking the admin off someone who left, meant an
     // UPDATE against the production database.
     Route::patch('users/{user}', [UserController::class, 'update'])->name('users.update');
+    // The account's level in each module (Leitor/Editor) — admin, like the
+    // role. Edited one module at a time from the roster and the Acesso card.
+    Route::patch('users/{user}/access', [UserController::class, 'updateAccess'])->name('users.access.update');
     // Switches an account off, from the roster. It has to live here rather than
     // only on a person's Acesso card: an account does not need a Person, so an
     // orphan had its role changeable and no way to be switched off at all.
@@ -738,11 +735,14 @@ Route::post('public-docs/{token}/secrets/{slug}/{index}', [PublicDocumentationCo
 // cannot arise here (see § Caching in AGENTS.md).
 Route::get('public-docs/{token}/search', [PublicDocumentationController::class, 'search'])->name('public.docs.search');
 
-// The front door. A `Reader` is sent straight to `/docs` rather than to
-// `profile.show`, which sits inside the inventory: landing them there would
-// work — `EnsureInventoryAccess` catches it — but as a redirect they can watch
-// happen, on the app's very first screen.
+// The solutions spreadsheet's magic link — same contract as `public-docs`: no
+// auth, the token is the whole authorization (App\Models\PublicLink), and a
+// revoked or wrong token is a 404.
+Route::get('public-solutions/{token}', [PublicSolutionSpreadsheetController::class, 'show'])->name('public.solutions.spreadsheet');
+Route::get('public-solutions/{token}/export', [PublicSolutionSpreadsheetController::class, 'export'])->name('public.solutions.spreadsheet.export');
+
+// The front door.
 Route::get('/', fn () => auth()->check()
-    ? redirect()->route(auth()->user()->role->canReadInventory() ? 'profile.show' : 'docs.index')
+    ? redirect()->route('profile.show')
     : redirect()->route('login.create')
 );

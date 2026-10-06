@@ -15,15 +15,14 @@ uses(LazilyRefreshDatabase::class);
  * signed in with a password: nobody in that world ever needed to become
  * somebody else. Entra SSO ends it — an account is now something anybody with a
  * Leo mailbox gets by visiting once, and the person it strands is exactly the
- * one who already had an account here under another address. They arrive as a
- * `Reader`, land in `/docs`, and every inventory route redirects them back to
- * it (App\Http\Middleware\EnsureInventoryAccess), so without a way out the
- * knowledge base is the whole application, permanently.
+ * one who already had an account here under another address — a brand-new
+ * account, often landing in `/docs` from a shared link, with no way back to
+ * the login screen unless the shell offers one.
  */
-it('offers a way out from inside the knowledge base, which is a reader’s whole app', function () {
+it('offers a way out from inside the knowledge base', function () {
     Notebook::factory()->published()->create();
 
-    $this->actingAs(User::factory()->reader()->create())
+    $this->actingAs(User::factory()->create())
         ->get(route('docs.index'))
         ->assertOk()
         ->assertSee(route('login.destroy'))
@@ -52,26 +51,11 @@ it('shows no account menu on the magic link, where there is no session to end', 
         ->assertDontSee('Sair');
 });
 
-/** A reader only reaches the inventory the moment an admin promotes them. */
-it('sends a reader back to the knowledge base until their role changes', function () {
-    $user = User::factory()->reader()->create();
-
-    $this->actingAs($user)->get(route('profile.show'))->assertRedirect(route('docs.index'));
-
-    $user->update(['role' => UserRole::Admin]);
-
-    $this->actingAs($user->fresh())->get(route('profile.show'))->assertOk();
-});
-
 /**
- * Every tier, and the `Reader` is the one this test exists for.
- *
- * `login.destroy` sat inside the `inventory` route group, so
- * `EnsureInventoryAccess` answered it before the controller ever did: a reader
- * submitting the form was redirected to `/docs` and stayed signed in. The
- * button did nothing, silently, for the only tier whose entire application is
- * the screen it was added to. Signing out is not an inventory action — it is
- * `auth` and nothing else.
+ * Every role. `login.destroy` once sat inside a route group whose middleware
+ * answered it before the controller did, and the button silently did nothing
+ * for one tier. Signing out is not an inventory action — it is `auth` and
+ * nothing else.
  */
 it('ends the session and returns to the login screen, whatever the account may read', function (UserRole $role) {
     $this->actingAs(User::factory()->create(['role' => $role]))
@@ -80,15 +64,6 @@ it('ends the session and returns to the login screen, whatever the account may r
 
     $this->assertGuest();
 })->with([
-    'reader' => UserRole::Reader,
-    'viewer' => UserRole::Viewer,
-    'writer' => UserRole::Writer,
+    'member' => UserRole::Member,
     'admin'  => UserRole::Admin,
 ]);
-
-/** The gate that used to swallow it still guards everything it should. */
-it('keeps the inventory itself closed to a reader', function () {
-    $this->actingAs(User::factory()->reader()->create())
-        ->get(route('solutions.index'))
-        ->assertRedirect(route('docs.index'));
-});

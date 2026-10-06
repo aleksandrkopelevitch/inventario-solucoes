@@ -66,6 +66,9 @@ class NotebookPageController extends Controller
         // (strict mode) — we already have it in hand via the route binding.
         $page->setRelation('notebook', $notebook);
 
+        // The documentation module's Reader level (anything but None).
+        $this->authorize('view', $page);
+
         return $this->documentationView($page, [
             'save'   => route('notebooks.pages.update', [$notebook, $page]),
             'upload' => route('notebooks.pages.media', [$notebook, $page]),
@@ -171,7 +174,10 @@ class NotebookPageController extends Controller
 
     public function destroy(Notebook $notebook, DocumentationPage $page): JsonResponse
     {
-        $this->authorize('update', $notebook);
+        // `delete`, not `update` on the caderno: writing and moving pages is
+        // the documentation Editor's, removing one (and its subtree) is the
+        // admin's, like every other delete (DocumentationPagePolicy).
+        $this->authorize('delete', $page);
 
         $next = $this->pages->delete($page);
 

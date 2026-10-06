@@ -4,12 +4,14 @@ namespace App\Http\Requests\Concerns;
 
 use App\Enums\FlowspecDocumentType;
 use App\Models\FlowspecChat;
+use App\Models\Notebook;
 use App\Rules\FlowspecDocumentReference;
 use App\Services\Flowspec\FlowspecContextBudget;
 use App\Services\Flowspec\FlowspecContextResolver;
 use App\Support\Context\TokenEstimator;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Validation\Rule;
 
 /**
  * Rules and the context ceiling shared by the two endpoints that can add
@@ -43,7 +45,9 @@ trait GuardsFlowspecContext
             // Inventory documentation, as `page:{id}` / `diagram:{id}`
             // references from the picker. `max` bounds the DB lookups one
             // request can trigger at validation time.
-            'documents'   => ['nullable', 'array', 'max:' . $max],
+            // The pages are the documentation module's, so an account whose
+            // level there is None may not attach them (App\Enums\AccessLevel).
+            'documents'   => ['nullable', 'array', 'max:' . $max, Rule::prohibitedIf(fn () => $this->user()?->cannot('viewAny', Notebook::class) ?? true)],
             'documents.*' => ['string', new FlowspecDocumentReference],
 
             'files'   => ['nullable', 'array', 'max:' . $max],

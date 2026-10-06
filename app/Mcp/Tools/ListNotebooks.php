@@ -2,6 +2,7 @@
 
 namespace App\Mcp\Tools;
 
+use App\Enums\AccessModule;
 use App\Mcp\Support\Presenter;
 use App\Mcp\Support\PublishedNotebooks;
 use App\Mcp\Tool;
@@ -25,10 +26,10 @@ class ListNotebooks implements Tool
         private readonly Presenter $presenter,
     ) {}
 
-    public function requiresInventory(): bool
+    public function module(): ?AccessModule
     {
-        // Documentação publicada: o que /docs entrega a qualquer conta Leo.
-        return false;
+        // Published documentation — what `/docs` shows any account.
+        return null;
     }
 
     public function name(): string

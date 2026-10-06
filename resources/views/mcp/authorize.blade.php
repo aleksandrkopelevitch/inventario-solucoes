@@ -42,25 +42,21 @@
             </p>
 
             {{-- What the connection reaches, said as the person's own access
-                 rather than as the scope's name. A `Reader` — the tier o SSO
-                 provisiona — lê a base publicada e nada do catálogo, que é
-                 exatamente o que vê no navegador (App\Mcp\Actor). --}}
+                 rather than as the scope's name: a module at level None has no
+                 tools on the connection (App\Mcp\Actor). --}}
             <div class="mt-4 rounded-field border border-line bg-raised/60 px-4 py-3">
                 <p class="text-[11px] font-semibold uppercase tracking-wide text-muted">O que essa conexão vai ler</p>
                 <ul class="mt-2 space-y-1.5 text-[13px] leading-relaxed text-body">
-                    @if ($user->role->canReadInventory())
-                        <li>· O catálogo: soluções, diagramas, pessoas (com contatos) e empresas.</li>
+                    @if ($user->canView(\App\Enums\AccessModule::Catalog))
+                        <li>· O catálogo: soluções, pessoas (com contatos) e empresas.</li>
+                    @endif
+                    @if ($user->canView(\App\Enums\AccessModule::Documentation))
+                        <li>· Os diagramas.</li>
                     @endif
                     <li>· A documentação dos cadernos publicados na base de conhecimento.</li>
                     <li>· Valores protegidos nunca saem — o modelo vê só que existe um.</li>
                     <li>· <strong class="font-semibold text-ink">Somente leitura.</strong> Nada é criado, alterado ou apagado.</li>
                 </ul>
-                @unless ($user->role->canReadInventory())
-                    <p class="mt-2.5 text-xs leading-relaxed text-muted">
-                        Sua conta lê a base de conhecimento. O catálogo de soluções não
-                        estará disponível nesta conexão, como não está no app.
-                    </p>
-                @endunless
             </div>
 
             <div class="mt-5 flex flex-wrap items-center gap-2">

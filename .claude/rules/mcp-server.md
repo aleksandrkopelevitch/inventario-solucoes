@@ -51,21 +51,15 @@ Four things the OAuth half decided, each reversible by accident:
   That reasoning inverted the moment the flow existed: the parameter is exactly
   how a client discovers the authorization server, and without it a connector
   goes back to asking for a token.
-- **`Actor::canReadInventory()` mirrors the APP, not the credential.** Before
-  OAuth, who could connect was "whoever an admin minted a token for", so what a
-  connection reached could be a constant. Signing in is a door every Leo account
-  already has, the `Reader` tier Entra SSO provisions included — and that tier
-  sees `/docs` and nothing else in the browser. So a Reader's connection reaches
-  the published cadernos, every other tier reaches the catalog, and a token stays
-  full-access because an admin minted it and can delete it. `Tool::requiresInventory()`
-  is how each tool declares its side of that line; a new tool that forgets to
-  declare does not compile, which is the only version of this check that survives
-  the thirteenth tool.
-- **A tool a Reader may not use is UNKNOWN, not refused.** `ToolRegistry::all()`
-  filters by actor, so `tools/list` never offers it and `tools/call` answers the
-  same sentence a typo gets. But `initialize` then has to SAY so — a model that
-  cannot see `search_solutions` concludes the catalog is empty and reports that
-  to somebody, so the instructions a Reader gets name the limit out loud.
+- **`Actor::canRead()` mirrors the APP, not the credential.** Each tool
+  declares `module(): ?AccessModule` (null = the published knowledge base,
+  open to every account like `/docs`); a person's connection is shown only the
+  tools of modules whose level is not None for them, and a minted token keeps
+  the full read (an admin minted it and can delete it). A tool that forgets to
+  declare does not compile. Filtering lives in `ToolRegistry::all()`, so a
+  hidden tool is also UNKNOWN when called — the same sentence a typo gets —
+  and `initialize` names the closed modules out loud, because a model that
+  cannot see `search_solutions` concludes the catalog is empty.
 - **Registration is open, and the redirect allowlist is its entire security.**
   RFC 7591 registration has to be callable by a client that holds nothing yet.
   What stops that from minting a client that redirects somebody's authorization
@@ -85,15 +79,14 @@ at the request, and the anonymous probe every connector opens with came back 500
 
 Passport carries the grant and nothing else: authorization code + PKCE (S256
 only), public clients, no password/implicit/device grant, no client-management
-API. One scope, `mcp`, and it is a LABEL — access is decided per request from the
-account's role, so a client asking for more gains nothing. `Passport::$deviceCodeGrantEnabled`
+API. One scope, `mcp`, and it is a LABEL — every account reads the same thing,
+so a client asking for more gains nothing. `Passport::$deviceCodeGrantEnabled`
 is turned off in `AppServiceProvider::register()` rather than `boot()`, because
 Passport registers those routes in its own `boot()`, which runs first.
 
 **`/mcp/connect` is the screen a person is sent to, and `/mcp-tokens` is not.**
-The first answers to `auth` alone and lives OUTSIDE the `inventory` group, beside
-the `/docs` routes — a Reader connects for the knowledge base, which is what its
-connection will reach. The second still answers to `McpTokenPolicy` (admin), and
+The first answers to `auth` alone and lives beside the `/docs` routes (silent
+Entra sign-on), open to every account by decision. The second still answers to `McpTokenPolicy` (admin), and
 is reached from inside the first, and from its own rail entry — the sidebar
 carries BOTH, because they are two audiences: "Conexão MCP" ungated, "Tokens
 MCP" gated by `McpTokenPolicy`. Collapsing them into one ungated entry is what

@@ -35,7 +35,7 @@ caderno and there is nothing to switch to.
 **SEMI-public is the whole design of `/docs`.** The magic link carries no
 identity at all, which is what makes it right for a vendor and wrong for
 "everybody here"; `/docs` requires an account and accepts ANY account,
-including the `Reader` tier Entra provisions (see `.claude/rules/roles-and-policies.md`). Publication is
+including one Entra SSO provisioned on its first visit (see `.claude/rules/roles-and-policies.md`). Publication is
 `notebooks.published_at` — a timestamp rather than a boolean, so the admin
 screen can answer "what is published, and since when", and `scopePublished()`
 is the one reading of it.
@@ -47,21 +47,18 @@ Five rules that are easy to half-implement:
   `search`. Those are the ones where the question is not "what should I list"
   but "may this be served at all".
 - **It is NOT a policy.** `NotebookPolicy` answers about the caderno as an
-  object of EDITING and says `true` for every `Viewer`, including the two
-  hundred cadernos nobody published. The same trap bit
-  `RevealPageSecretRequest`, whose `authorize()` went through
-  `NotebookPolicy::view` — which refuses a `Reader`, so every lock on `/docs`
-  would have refused the exact audience the surface exists for.
+  object of EDITING and says `true` to every account, including for the two
+  hundred cadernos nobody published. `RevealPageSecretRequest` on `/docs`
+  authorizes by publication for the same reason.
 - **An unpublished caderno 404s for an ADMIN too.** `/docs` exists so that "what
   has been published" is answerable by looking at it, and a surface that shows
   more to whoever decides what is on it cannot answer that. Previewing before
   publishing is what the editor is for.
 - **Media and diagram pictures need routes of their own**, and this is the
-  reason `/docs` differs from the magic link rather than reusing `files.show`: a
-  `Reader` IS authenticated, so `files.show` would answer them — with any
-  documentation media in the app. `MediaController::show()` authorizes by
-  COLLECTION NAME alone, which is the right rule for somebody who may read the
-  whole inventory and the wrong one for a reader of one published caderno.
+  reason `/docs` differs from the magic link rather than reusing `files.show`:
+  `MediaController::show()` authorizes by COLLECTION NAME alone, so it would
+  serve any documentation media in the app, published or not, and `/docs`
+  serves what was published and nothing else.
 - **`linkDiagrams: false` on `/docs` as well.** The link COULD be rendered
   conditionally — a reader who may reach `/diagrams/{slug}` exists — and
   deliberately is not: the knowledge base would then be a screen whose content

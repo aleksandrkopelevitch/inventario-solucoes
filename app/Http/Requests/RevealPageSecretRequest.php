@@ -17,9 +17,7 @@ use Illuminate\Foundation\Http\FormRequest;
  *   `PublicDocumentationController::file()` does for embedded media.
  * - the **knowledge base** (`/docs`) authorizes by PUBLICATION. Deliberately
  *   not by `NotebookPolicy::view`, which answers about the caderno as an object
- *   of editing and says no to a `Reader` — the very tier this surface exists
- *   for. Using it here would have made every lock on `/docs` refuse the
- *   audience it was published to.
+ *   of editing, not about whether it was published to this audience.
  * - the **editor** is the caderno's own policy, unchanged.
  *
  * What none of them decides is whether the VALUE comes back: that is

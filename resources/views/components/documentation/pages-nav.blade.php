@@ -179,12 +179,14 @@
 
                         {{-- Deleting a parent takes its subpages with it, so the
                              confirmation says so — the rail is the only place
-                             that knows how many are about to go. --}}
-                        <x-forms.button type="button" variant="ghost" data-ak-ajax="doc-page-destroy-{{ $i }}" data-ak-action="{{ $page['destroyUrl'] }}"
-                            data-ak-confirm="Excluir a página &quot;{{ $page['title'] }}&quot;@if ($page['hasChildren'] ?? false) e todas as suas subpáginas@endif? Esta ação não pode ser desfeita."
-                            class="!justify-start !px-2 !py-1 !text-xs !text-crit">
-                            <x-heroicon-o-trash class="size-3.5" /> Excluir
-                        </x-forms.button>
+                             that knows how many are about to go. Admin only. --}}
+                        @if ($page['canDelete'] ?? false)
+                            <x-forms.button type="button" variant="ghost" data-ak-ajax="doc-page-destroy-{{ $i }}" data-ak-action="{{ $page['destroyUrl'] }}"
+                                data-ak-confirm="Excluir a página &quot;{{ $page['title'] }}&quot;@if ($page['hasChildren'] ?? false) e todas as suas subpáginas@endif? Esta ação não pode ser desfeita."
+                                class="!justify-start !px-2 !py-1 !text-xs !text-crit">
+                                <x-heroicon-o-trash class="size-3.5" /> Excluir
+                            </x-forms.button>
+                        @endif
                     </div>
 
                     <form id="doc-page-destroy-{{ $i }}" class="hidden">

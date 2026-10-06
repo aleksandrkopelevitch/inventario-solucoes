@@ -2,7 +2,6 @@
 
 use App\Http\Middleware\AttemptEntraSilentSignOn;
 use App\Http\Middleware\AuthenticateMcpRequest;
-use App\Http\Middleware\EnsureInventoryAccess;
 use App\Http\Middleware\PreventJsonResponseCaching;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
@@ -56,16 +55,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'throttle:mcp',
         ]);
 
-        // Aliases, both used on route groups in `routes/web.php`:
-        //
-        // - `inventory` keeps a `Reader` (the tier Entra SSO provisions) out of
-        //   everything that is not the knowledge base. One gate on one group,
-        //   rather than a rule each controller has to remember.
-        // - `entra.silent` runs BEFORE `auth` on `/docs`, which is the only
-        //   order that works: `auth` would send a guest to the login screen and
-        //   the silent attempt would never get a turn.
+        // `entra.silent` runs BEFORE `auth` on `/docs`, which is the only order
+        // that works: `auth` would send a guest to the login screen and the
+        // silent attempt would never get a turn.
         $middleware->alias([
-            'inventory'    => EnsureInventoryAccess::class,
             'entra.silent' => AttemptEntraSilentSignOn::class,
         ]);
 

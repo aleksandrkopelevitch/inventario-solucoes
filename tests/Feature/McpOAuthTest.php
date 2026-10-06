@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\AccessLevel;
+use App\Enums\AccessModule;
 use App\Enums\UserRole;
 use App\Mcp\OAuth;
 use App\Models\McpToken;
@@ -14,7 +16,7 @@ use Laravel\Passport\Passport;
 
 uses(LazilyRefreshDatabase::class);
 
-function oauthUser(UserRole $role = UserRole::Viewer): User
+function oauthUser(UserRole $role = UserRole::Member): User
 {
     return User::factory()->create(['role' => $role->value]);
 }
@@ -115,7 +117,7 @@ it('takes a client from registration to a working access token', function () {
     $challenge = rtrim(strtr(base64_encode(hash('sha256', $verifier, true)), '+/', '-_'), '=');
 
     // The consent screen, as the person signing in sees it.
-    $user = oauthUser(UserRole::Viewer);
+    $user = oauthUser(UserRole::Member);
     $authorize = $this->actingAs($user)->get(route('passport.authorizations.authorize', [
         'client_id'             => $clientId,
         'redirect_uri'          => $redirect,
@@ -157,35 +159,16 @@ it('takes a client from registration to a working access token', function () {
 /* ------------------------------------------------------------------ */
 
 it('gives an account exactly what its role reaches in the app', function () {
-    $all = collect(mcpAs(oauthUser(UserRole::Viewer), 'tools/list')->assertOk()->json('result.tools'))
+    $all = collect(mcpAs(oauthUser(UserRole::Member), 'tools/list')->assertOk()->json('result.tools'))
         ->pluck('name');
 
     expect($all)->toContain('search_solutions', 'search_people', 'list_notebooks');
 
-    // A Reader — the tier Entra SSO provisions, which in the browser reaches
-    // `/docs` and nothing else. Signing in is a door every Leo account already
-    // has, so a connector that handed this account the catalog would be a hole
-    // in the gate the app already enforces.
-    $reader = collect(mcpAs(oauthUser(UserRole::Reader), 'tools/list')->assertOk()->json('result.tools'))
-        ->pluck('name');
+    // A brand-new account — what Entra SSO provisions — reads every module,
+    // so its connection is shown the same twelve tools as anybody's.
+    $fresh = collect(mcpAs(oauthUser(UserRole::Member), 'tools/list')->assertOk()->json('result.tools'));
 
-    expect($reader->all())->toBe(['list_notebooks', 'get_notebook', 'get_documentation_page', 'search_documentation']);
-});
-
-it('refuses a catalog tool to a reader, as an unknown tool', function () {
-    // The same sentence a typo gets, and deliberately: a tool the account was
-    // never shown is a tool that does not exist for it.
-    mcpAs(oauthUser(UserRole::Reader), 'tools/call', ['name' => 'search_solutions', 'arguments' => []])
-        ->assertOk()
-        ->assertJsonPath('error.code', -32602);
-});
-
-it('tells a reader what the connection covers, in the instructions', function () {
-    $instructions = mcpAs(oauthUser(UserRole::Reader), 'initialize')->assertOk()->json('result.instructions');
-
-    // A model that cannot SEE the catalog tools does not conclude "não tenho
-    // acesso"; it concludes the catalog is empty, and reports that to somebody.
-    expect($instructions)->toContain('SOMENTE a documentação publicada');
+    expect($fresh)->toHaveCount(12);
 });
 
 it('keeps a minted token on the full read, since it is not a tier', function () {
@@ -202,9 +185,9 @@ it('keeps a minted token on the full read, since it is not a tier', function () 
 /*  The connect screen */
 /* ------------------------------------------------------------------ */
 
-it('opens for every signed-in tier, including the one kept out of the inventory', function () {
-    foreach ([UserRole::Admin, UserRole::Writer, UserRole::Viewer, UserRole::Reader] as $role) {
-        $this->actingAs(oauthUser($role))->get(route('mcp.connect'))->assertOk()->assertSee(route('mcp.handle'));
+it('opens for every signed-in account, editor or not', function () {
+    foreach ([oauthUser(UserRole::Admin), User::factory()->editor()->create(), oauthUser(UserRole::Member)] as $user) {
+        $this->actingAs($user)->get(route('mcp.connect'))->assertOk()->assertSee(route('mcp.handle'));
     }
 
     auth()->logout();
@@ -215,13 +198,13 @@ it('offers the token screen only to an admin', function () {
     $this->actingAs(oauthUser(UserRole::Admin))->get(route('mcp.connect'))
         ->assertSee(route('mcp-tokens.index'));
 
-    $this->actingAs(oauthUser(UserRole::Viewer))->get(route('mcp.connect'))
+    $this->actingAs(oauthUser(UserRole::Member))->get(route('mcp.connect'))
         ->assertDontSee(route('mcp-tokens.index'));
 });
 
 it('revokes one connection, and only the account own', function () {
-    $user = oauthUser(UserRole::Viewer);
-    $other = oauthUser(UserRole::Viewer);
+    $user = oauthUser(UserRole::Member);
+    $other = oauthUser(UserRole::Member);
 
     $client = app(ClientRepository::class)
         ->createAuthorizationCodeGrantClient('Claude', ['https://claude.ai/cb'], false);
@@ -307,4 +290,23 @@ it('keeps the token half working while the OAuth half is broken', function () {
     $this->postJson(route('mcp.handle'), ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/list'], [
         'Authorization' => 'Bearer ' . McpToken::mint('APLA')['plain'],
     ])->assertOk();
+});
+
+it('shows a person only the tools of the modules they read, and says so', function () {
+    $user = User::factory()->create();
+    $user->setAccessLevel(AccessModule::Catalog, AccessLevel::None);
+    $user->save();
+
+    $tools = collect(mcpAs($user, 'tools/list')->assertOk()->json('result.tools'))->pluck('name');
+
+    expect($tools)->not->toContain('search_solutions')
+        ->and($tools)->not->toContain('get_person')
+        ->and($tools)->toContain('search_diagrams', 'search_documentation');
+
+    mcpAs($user, 'tools/call', ['name' => 'search_solutions', 'arguments' => []])
+        ->assertOk()
+        ->assertJsonPath('error.code', -32602);
+
+    expect(mcpAs($user, 'initialize')->json('result.instructions'))
+        ->toContain('NÃO alcança: Soluções, Pessoas e Empresas');
 });

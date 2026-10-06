@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\AccessModule;
 use App\Jobs\GenerateFlowspecReply;
 use App\Models\DocumentationPage;
 use App\Models\FlowspecAttachment;
@@ -132,7 +133,7 @@ it('refuses a document that would not fit, without creating anything', function 
     config()->set('services.flowspec.context_limit_tokens', 60000);
     config()->set('services.flowspec.history_reserve_tokens', 1000);
 
-    $user = User::factory()->create();
+    $user = User::factory()->editor(AccessModule::Integrations)->create();
     $chat = FlowspecChat::factory()->for($user)->create();
     $huge = DocumentationPage::factory()->for(notebookFor(Solution::factory()->create()))
         ->create(['title' => 'Manual inteiro', 'documentation' => str_repeat('x', 200000)]);
@@ -152,7 +153,7 @@ it('refuses a new conversation whose staged context would not fit', function () 
     config()->set('services.flowspec.context_limit_tokens', 60000);
     config()->set('services.flowspec.history_reserve_tokens', 1000);
 
-    $user = User::factory()->create();
+    $user = User::factory()->editor(AccessModule::Integrations)->create();
 
     $this->actingAs($user)->postJson(route('flowspec.store'), [
         'message' => 'gera o pipeline',
@@ -166,7 +167,7 @@ it('refuses a new conversation whose staged context would not fit', function () 
 it('still accepts an attachment that fits in what is left', function () {
     config()->set('services.flowspec.context_limit_tokens', 500000);
 
-    $user = User::factory()->create();
+    $user = User::factory()->editor(AccessModule::Integrations)->create();
     $chat = FlowspecChat::factory()->for($user)->create();
     $page = DocumentationPage::factory()->for(notebookFor(Solution::factory()->create()))
         ->create(['documentation' => str_repeat('x', 5000)]);
@@ -240,7 +241,7 @@ it('trims nothing when no allowance is given', function () {
 */
 
 it('renders the meter and the attached items in the composer', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->editor(AccessModule::Integrations)->create();
     $chat = FlowspecChat::factory()->for($user)->create();
     $page = DocumentationPage::factory()->for(notebookFor(Solution::factory()->create(['name' => 'SVL'])))
         ->create(['title' => 'Contrato', 'documentation' => str_repeat('x', 3500)]);
@@ -258,7 +259,7 @@ it('renders the meter and the attached items in the composer', function () {
 it('tells the user the context is full, on the screen', function () {
     config()->set('services.flowspec.context_limit_tokens', 10);
 
-    $user = User::factory()->create();
+    $user = User::factory()->editor(AccessModule::Integrations)->create();
     $chat = FlowspecChat::factory()->for($user)->create();
 
     $this->actingAs($user)->get(route('flowspec.show', $chat))
@@ -292,7 +293,7 @@ it('reports the estimated context and any trim in the message meta', function ()
 */
 
 it('answers a scalar where an array was declared with a 422, never a 500', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->editor(AccessModule::Integrations)->create();
     $chat = FlowspecChat::factory()->for($user)->create();
 
     foreach ([['documents' => 'page:1'], ['texts' => 'não é array'], ['files' => 'nem isso']] as $payload) {
@@ -307,7 +308,7 @@ it('answers a scalar where an array was declared with a 422, never a 500', funct
 
 it('does the same on the endpoint that opens a conversation', function () {
     Queue::fake();
-    $user = User::factory()->create();
+    $user = User::factory()->editor(AccessModule::Integrations)->create();
 
     $this->actingAs($user)
         ->postJson(route('flowspec.store'), ['message' => 'gera aí', 'documents' => 'page:1'])
@@ -324,7 +325,7 @@ it('still counts both shapes of the same input against the attachment cap', func
     // attaches with instead of reading the raw keys.
     config()->set('services.flowspec.max_attachments', 2);
 
-    $user = User::factory()->create();
+    $user = User::factory()->editor(AccessModule::Integrations)->create();
     $chat = FlowspecChat::factory()->for($user)->create();
 
     $response = $this->actingAs($user)->postJson(route('flowspec.attachments.store', $chat), [
@@ -386,7 +387,7 @@ it('refuses a document whose text will not fit, even when its file is small', fu
     config()->set('services.flowspec.context_limit_tokens', 100000);
     config()->set('services.flowspec.history_reserve_tokens', 40000);
 
-    $user = User::factory()->create();
+    $user = User::factory()->editor(AccessModule::Integrations)->create();
     $chat = FlowspecChat::factory()->for($user)->create();
     $file = wordFileOf('Cláusula de nível de serviço com janela de manutenção acordada', 40000);
 
@@ -401,7 +402,7 @@ it('refuses a document whose text will not fit, even when its file is small', fu
 it('still accepts a zipped document that genuinely fits', function () {
     config()->set('services.flowspec.context_limit_tokens', 500000);
 
-    $user = User::factory()->create();
+    $user = User::factory()->editor(AccessModule::Integrations)->create();
     $chat = FlowspecChat::factory()->for($user)->create();
 
     $this->actingAs($user)
@@ -415,7 +416,7 @@ it('does not charge for a document the conversation already has', function () {
     // Attaching twice is a no-op (AttachFlowspecDocuments dedupes), so the
     // second request must not be measured for something it will never create —
     // a stale suggestion button is exactly this request.
-    $user = User::factory()->create();
+    $user = User::factory()->editor(AccessModule::Integrations)->create();
     $chat = FlowspecChat::factory()->for($user)->create();
     $page = DocumentationPage::factory()->for(notebookFor(Solution::factory()->create()))
         ->create(['documentation' => str_repeat('x', 40000)]);
@@ -438,7 +439,7 @@ it('does not charge for a document the conversation already has', function () {
 });
 
 it('does not charge an already-attached document against the count cap either', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->editor(AccessModule::Integrations)->create();
     $chat = FlowspecChat::factory()->for($user)->create();
     $page = DocumentationPage::factory()->for(notebookFor(Solution::factory()->create()))
         ->create(['documentation' => 'contrato']);

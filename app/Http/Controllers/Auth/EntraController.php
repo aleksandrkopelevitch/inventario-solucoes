@@ -131,7 +131,7 @@ class EntraController extends Controller
         $request->session()->regenerate();
         $request->session()->put(self::SILENT_ATTEMPTED, true);
 
-        return redirect()->intended($this->home($user));
+        return redirect()->intended(route('profile.show'));
     }
 
     /**
@@ -157,17 +157,6 @@ class EntraController extends Controller
 
         return redirect()->route('login.create')
             ->with('error', 'A Microsoft não autorizou esse login. Fale com um administrador.');
-    }
-
-    /** Where a freshly signed-in account belongs. */
-    private function home(User $user): string
-    {
-        // A `Reader` has no inventory to land on, and `profile.show` is inside
-        // it — sending them there would bounce them straight back out through
-        // `EnsureInventoryAccess`, which is a redirect a person can see.
-        return $user->role->canReadInventory()
-            ? route('profile.show')
-            : route('docs.index');
     }
 
     private function driver(): AbstractProvider

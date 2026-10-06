@@ -303,7 +303,7 @@ it('refuses a viewer', function () {
     $page = modelPage();
     app()->instance(DiagramModelService::class, fakeModelService(modelJson(sequencePayload())));
 
-    $this->actingAs(User::factory()->create(['role' => UserRole::Viewer->value]))
+    $this->actingAs(User::factory()->create(['role' => UserRole::Member->value]))
         ->postJson(route('notebooks.pages.diagram.model', [$page->notebook, $page, 'sequence']), ['target' => 'new', 'name' => 'X'])
         ->assertForbidden();
 

@@ -244,7 +244,7 @@ it('offers every caderno and this one\'s pages to the card picker', function () 
 it('refuses the card catalog to somebody who cannot edit the caderno', function () {
     $notebook = Notebook::factory()->create();
 
-    $this->actingAs(User::factory()->create(['role' => UserRole::Viewer->value]))
+    $this->actingAs(User::factory()->create(['role' => UserRole::Member->value]))
         ->getJson(route('notebooks.card-targets', $notebook))
         ->assertForbidden();
 });

@@ -2,6 +2,7 @@
 
 namespace App\Mcp;
 
+use App\Enums\AccessModule;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -125,28 +126,23 @@ class McpServer
      * documentation half of this server sees published cadernos only, which is
      * the difference between "não está documentado" and "não foi publicado" —
      * two answers a person acts on very differently.
+     *
+     * A connection that cannot read some module is told so HERE, once: a model
+     * that cannot see `search_solutions` does not conclude "não tenho acesso";
+     * it concludes the catalog is empty, and says so to somebody.
      */
     private function instructions(Actor $actor): string
     {
-        // A connection that reaches only the knowledge base is told so HERE,
-        // once, rather than being left to infer it from a short tool list. A
-        // model that cannot see `search_solutions` does not conclude "não tenho
-        // acesso ao catálogo"; it concludes the catalog is empty, and says so.
-        if (! $actor->canReadInventory) {
-            return <<<'TXT'
-            Base de conhecimento da Leo Madeiras: os cadernos de documentação publicados
-            internamente.
+        $closed = collect($this->tools->every())
+            ->map(fn (Tool $tool) => $tool->module())
+            ->filter()
+            ->unique()
+            ->reject(fn (AccessModule $module) => $actor->canRead($module))
+            ->map(fn (AccessModule $module) => $module->label())
+            ->values();
 
-            Os dados são em português. Busque pelos termos como estão escritos e não
-            traduza um termo antes de pesquisar.
-
-            Esta conexão alcança SOMENTE a documentação publicada. O catálogo de soluções,
-            os diagramas, as pessoas e as empresas existem no app e não estão disponíveis
-            aqui — é o mesmo alcance que esta conta tem no navegador, não uma falha.
-
-            Todo o acesso é somente leitura.
-            TXT;
-        }
+        $limit = $closed->isEmpty() ? '' : "\n\nEsta conexão NÃO alcança: " . $closed->implode('; ')
+            . '. É o mesmo alcance que esta conta tem no app, não uma falha — não diga que esses dados não existem.';
 
         return <<<'TXT'
         Inventário de Soluções da Leo Madeiras: o catálogo de sistemas e integrações,
@@ -162,7 +158,7 @@ class McpServer
         encontrado NA BASE PUBLICADA, nunca que não existe documentação.
 
         Todo o acesso é somente leitura.
-        TXT;
+        TXT . $limit;
     }
 
     /**

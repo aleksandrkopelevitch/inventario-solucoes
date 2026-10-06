@@ -36,24 +36,30 @@ class ToolRegistry
     public function __construct(private readonly Container $container) {}
 
     /**
-     * The tools this caller may use.
+     * The tools this caller may use: those of the modules it reads.
      *
-     * Filtering here rather than at the call site is what makes a `Reader`'s
-     * connection coherent: `tools/list` shows only the documentation tools, so
-     * the model never chooses one it would be refused, and `find()` answers null
-     * for the rest — which `McpServer` reports as an unknown tool, the same
-     * sentence a typo gets. There is no second, quieter error to write.
+     * Filtering here rather than at the call site is what keeps a connection
+     * coherent: `tools/list` shows only what the account may read, so the model
+     * never chooses a tool it would be refused, and `find()` answers null for
+     * the rest — which `McpServer` reports as an unknown tool, the same sentence
+     * a typo gets.
      *
      * @return list<Tool>
      */
     public function all(Actor $actor): array
     {
-        $tools = array_map(fn (string $tool) => $this->container->make($tool), self::TOOLS);
+        return array_values(array_filter($this->every(), fn (Tool $tool) => $actor->canRead($tool->module())));
+    }
 
-        return array_values(array_filter(
-            $tools,
-            fn (Tool $tool) => $actor->canReadInventory || ! $tool->requiresInventory(),
-        ));
+    /**
+     * Every tool the server has, whoever asks — for saying what a caller is
+     * NOT shown, never for serving one.
+     *
+     * @return list<Tool>
+     */
+    public function every(): array
+    {
+        return array_map(fn (string $tool) => $this->container->make($tool), self::TOOLS);
     }
 
     public function find(string $name, Actor $actor): ?Tool

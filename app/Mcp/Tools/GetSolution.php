@@ -2,6 +2,7 @@
 
 namespace App\Mcp\Tools;
 
+use App\Enums\AccessModule;
 use App\Mcp\Support\Arguments;
 use App\Mcp\Support\Presenter;
 use App\Mcp\Tool;
@@ -22,10 +23,9 @@ class GetSolution implements Tool
 {
     public function __construct(private readonly Presenter $presenter) {}
 
-    public function requiresInventory(): bool
+    public function module(): ?AccessModule
     {
-        // Catálogo: fechado para quem não lê o inventário no app.
-        return true;
+        return AccessModule::Catalog;
     }
 
     public function name(): string

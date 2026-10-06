@@ -9,7 +9,7 @@
      thing nobody did; SSO turns an account into something anybody with a Leo
      mailbox gets on their first visit, and the person it strands is precisely
      the one who already had an account here under a different address — they
-     land as a `Reader` with no way back out to the login screen.
+     land in a brand-new account with no way back out to the login screen.
 
      The button is styled by the CALLER (`$attributes`), because the two shells
      this sits in are opposites: a dark sidebar dropdown and the white docs top

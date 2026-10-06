@@ -2,6 +2,7 @@
 
 use App\Actions\Flowspec\AttachFlowspecText;
 use App\Actions\Flowspec\NormalizeReferenceFlowspec;
+use App\Enums\AccessModule;
 use App\Models\DocumentationPage;
 use App\Models\FlowspecAttachment;
 use App\Models\FlowspecChat;
@@ -188,7 +189,7 @@ it('counts names per conversation, not globally', function () {
 });
 
 it('renames an attachment, and the new name is what the next prompt heads it with', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->editor(AccessModule::Integrations)->create();
     $chat = FlowspecChat::factory()->for($user)->create();
     $attachment = FlowspecAttachment::factory()->for($chat, 'chat')
         ->flowspecReference('{"flowSpec":{"a":[]}}')->create();
@@ -209,7 +210,7 @@ it('renames an attachment, and the new name is what the next prompt heads it wit
 });
 
 it('refuses a blank name', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->editor(AccessModule::Integrations)->create();
     $chat = FlowspecChat::factory()->for($user)->create();
     $attachment = FlowspecAttachment::factory()->for($chat, 'chat')->create(['label' => 'Contrato']);
 
@@ -226,7 +227,7 @@ it('refuses a blank name', function () {
 // would let someone rename context belonging to a conversation they can see
 // nothing else of.
 it('refuses to rename an attachment belonging to another conversation', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->editor(AccessModule::Integrations)->create();
     $mine = FlowspecChat::factory()->for($user)->create();
     $theirs = FlowspecChat::factory()->create();
     $attachment = FlowspecAttachment::factory()->for($theirs, 'chat')->create(['label' => 'Contrato alheio']);
@@ -242,7 +243,7 @@ it('refuses to rename an attachment belonging to another conversation', function
 // anywhere (see the ComponentTagCompiler notes in AGENTS.md), so the one thing
 // worth asserting about the pill is that the hook really reaches the browser.
 it('renders the rename editor on a pill, but not on a documentation reference', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->editor(AccessModule::Integrations)->create();
     $chat = FlowspecChat::factory()->for($user)->create();
 
     // Counting editors rather than asserting the absence of a URL: `route()`

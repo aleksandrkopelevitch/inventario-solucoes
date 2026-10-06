@@ -2,36 +2,37 @@
 
 namespace App\Policies;
 
+use App\Enums\AccessModule;
 use App\Models\Diagram;
 use App\Models\User;
 
 class DiagramPolicy
 {
-    /** Any authenticated user can browse the diagram catalog. */
+    /** Reading the diagrams: any level but None in the documentation module. */
     public function viewAny(User $user): bool
     {
-        return $user->role->canReadInventory();
+        return $user->canView(AccessModule::Documentation);
     }
 
     public function view(User $user, Diagram $diagram): bool
     {
-        return $user->role->canReadInventory();
+        return $user->canView(AccessModule::Documentation);
     }
 
-    /** Creation and editing need write access; DELETING a drawing does not
-     *  — prose elsewhere cites it and survives it, so that stays with the admin. */
+    /** Creating and editing: an Editor of the documentation module. DELETING a
+     *  drawing stays with the admin — prose elsewhere cites it and survives it. */
     public function create(User $user): bool
     {
-        return $user->role->canWrite();
+        return $user->canEdit(AccessModule::Documentation);
     }
 
     public function update(User $user, Diagram $diagram): bool
     {
-        return $user->role->canWrite();
+        return $user->canEdit(AccessModule::Documentation);
     }
 
     public function delete(User $user, Diagram $diagram): bool
     {
-        return $user->role->canDelete();
+        return $user->isAdmin();
     }
 }

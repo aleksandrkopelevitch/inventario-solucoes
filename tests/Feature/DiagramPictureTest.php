@@ -73,7 +73,7 @@ it('never lets the picture touch the topology', function () {
 
 it('refuses a viewer trying to publish one', function () {
     Storage::fake('public');
-    $this->actingAs(User::factory()->create(['role' => UserRole::Viewer]));
+    $this->actingAs(User::factory()->create(['role' => UserRole::Member]));
 
     [$solution, $diagram] = diagramContext();
 

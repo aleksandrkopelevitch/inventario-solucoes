@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\AccessModule;
 use App\Models\Notebook;
 use App\Models\User;
 
@@ -9,28 +10,28 @@ class NotebookPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->role->canReadInventory();
+        return $user->canView(AccessModule::Documentation);
     }
 
     public function view(User $user, Notebook $notebook): bool
     {
-        return $user->role->canReadInventory();
+        return $user->canView(AccessModule::Documentation);
     }
 
-    /** Creating a caderno and writing its pages: write access (same rule as SolutionPolicy). */
+    /** Creating a caderno and writing its pages: an Editor of the documentation module. */
     public function create(User $user): bool
     {
-        return $user->role->canWrite();
+        return $user->canEdit(AccessModule::Documentation);
     }
 
     public function update(User $user, Notebook $notebook): bool
     {
-        return $user->role->canWrite();
+        return $user->canEdit(AccessModule::Documentation);
     }
 
     public function delete(User $user, Notebook $notebook): bool
     {
-        return $user->role->canDelete();
+        return $user->isAdmin();
     }
 
     /**
@@ -48,7 +49,7 @@ class NotebookPolicy
      */
     public function administer(User $user, Notebook $notebook): bool
     {
-        return $user->role->isAdmin();
+        return $user->isAdmin();
     }
 
     /**
@@ -64,6 +65,6 @@ class NotebookPolicy
      */
     public function administerAny(User $user): bool
     {
-        return $user->role->isAdmin();
+        return $user->isAdmin();
     }
 }

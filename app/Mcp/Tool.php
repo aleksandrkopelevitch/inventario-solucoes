@@ -2,6 +2,8 @@
 
 namespace App\Mcp;
 
+use App\Enums\AccessModule;
+
 /**
  * One tool the MCP server exposes.
  *
@@ -20,17 +22,15 @@ interface Tool
     public function name(): string;
 
     /**
-     * Whether this tool reads the INVENTORY — the catalog, the diagrams, the
-     * people and their contacts. Everything the knowledge base is not.
+     * The app module this tool reads (App\Enums\AccessModule), or null for the
+     * published knowledge base, which every account reads like `/docs`.
      *
-     * Declared rather than inferred, and declared on the narrow side: a
-     * connection made by a `Reader` (the tier Entra SSO provisions, which in the
-     * browser reaches `/docs` and nothing else) is shown only the tools that
-     * answer `false` here. A new tool that forgets to say is a new tool that
-     * does not compile, which is the only version of this check that survives
-     * somebody adding the thirteenth one (see App\Mcp\Actor).
+     * Declared, not inferred: a person's connection is shown only the tools of
+     * modules their level there is not None, so a new tool that forgets to say
+     * which module it reads does not compile — the only version of this check
+     * that survives the thirteenth tool (see App\Mcp\Actor).
      */
-    public function requiresInventory(): bool;
+    public function module(): ?AccessModule;
 
     /** Human title for a client's tool picker. */
     public function title(): string;

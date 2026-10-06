@@ -43,7 +43,9 @@
     </div>
 
     <div class="mt-5 grid gap-3.5 lg:grid-cols-5">
-        {{-- Documentation coverage — real, content-based, honest about the gap --}}
+        {{-- Documentation coverage — real, content-based, honest about the gap.
+             Absent when the documentation module is None for this account. --}}
+        @if ($coverageBars)
         <div class="animate-ak-rise rounded-card border border-line bg-surface p-6 shadow-card lg:col-span-3"
              style="animation-delay: 240ms">
             <div class="flex items-start justify-between gap-3">
@@ -91,8 +93,10 @@
             </p>
         </div>
 
+        @endif
+
         {{-- Quick access into the work --}}
-        <div class="animate-ak-rise rounded-card border border-line bg-surface p-6 shadow-card lg:col-span-2"
+        <div @class(['animate-ak-rise rounded-card border border-line bg-surface p-6 shadow-card', 'lg:col-span-2' => $coverageBars, 'lg:col-span-5' => ! $coverageBars])
              style="animation-delay: 300ms">
             <h2 class="font-display text-[22px] font-semibold text-ink">Atalhos</h2>
             <p class="mt-0.5 text-[13px] text-muted">Ir direto ao ponto.</p>

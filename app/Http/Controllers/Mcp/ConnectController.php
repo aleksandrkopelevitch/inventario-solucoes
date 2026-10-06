@@ -15,10 +15,9 @@ use Illuminate\View\View;
  * It is deliberately NOT `/mcp-tokens`. That screen is an admin surface: it
  * mints a credential that reads the whole catalog, so it answers to
  * `McpTokenPolicy` and shows a list of secrets. This one answers to `auth` and
- * nothing else, because the person who needs it is the person connecting — a
- * `Reader` provisioned by Entra SSO included, which is why it lives OUTSIDE the
- * `inventory` group with the `/docs` routes rather than inside it with the
- * catalog.
+ * nothing else, because the person who needs it is the person connecting —
+ * an account Entra SSO provisioned included, which is why it lives with the
+ * `/docs` routes (silent sign-on) rather than with the catalog.
  *
  * What it holds is one URL and the connections that URL produced. Revoking is
  * here for the same reason: the consent screen promises it, and a promise about

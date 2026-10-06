@@ -37,7 +37,7 @@ class Accounts extends Component
         $accounts = User::query()
             ->with('person:id,name,slug,user_id')
             ->orderBy('name')
-            ->get(['id', 'name', 'email', 'role', 'access_token', 'access_token_expires_at']);
+            ->get(['id', 'name', 'email', 'role', 'access', 'access_token', 'access_token_expires_at']);
 
         return view('components.people.accounts', [
             'domId'       => self::DOM_ID,

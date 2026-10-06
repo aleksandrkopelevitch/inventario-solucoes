@@ -15,12 +15,12 @@ uses(LazilyRefreshDatabase::class);
  * required, any account will do, and what it shows is what an admin published.
  *
  * Most of what is asserted here is a refusal, because the interesting half of
- * this feature is everything a `Reader` must NOT reach: the inventory, an
- * unpublished caderno, and the media of one.
+ * this feature is what `/docs` must NOT show: an unpublished caderno, and the
+ * media of one.
  */
 function reader(): User
 {
-    return User::factory()->reader()->create();
+    return User::factory()->create();
 }
 
 function publishedNotebook(string $name = 'Manual do Digibee'): Notebook
@@ -64,8 +64,8 @@ it('404s an unpublished caderno for everybody, the admin included', function () 
     // The point of the strict version: `/docs` exists so that "what has been
     // published" can be answered by looking at it, and a surface that shows
     // more to whoever decides what is on it cannot answer that.
-    foreach ([UserRole::Reader, UserRole::Viewer, UserRole::Writer, UserRole::Admin] as $role) {
-        $this->actingAs(User::factory()->create(['role' => $role]))
+    foreach ([User::factory()->create(), User::factory()->editor()->create(), User::factory()->admin()->create()] as $user) {
+        $this->actingAs($user)
             ->get(route('docs.notebook', $notebook))
             ->assertNotFound();
     }
@@ -103,39 +103,29 @@ it('404s a page that belongs to another caderno', function () {
         ->assertNotFound();
 });
 
-it('keeps a reader out of the whole inventory and sends them to /docs', function () {
+// Every account reads every module now (App\Enums\AccessModule) — the tier
+// that reached `/docs` and nothing else is gone: a brand-new account reads the
+// catalog and the documentation by default (AccessModule::defaultLevel()), and
+// the Especialista and the Comitê wait for an admin.
+it('lets a brand-new account read the catalog and the documentation as well as /docs', function () {
     $reader = reader();
 
-    foreach (['solutions.index', 'people.index', 'companies.index', 'notebooks.index', 'diagrams.index', 'flowspec.index', 'submissions.index', 'profile.show'] as $route) {
-        $this->actingAs($reader)
-            ->get(route($route))
-            ->assertRedirect(route('docs.index'));
+    foreach (['solutions.index', 'people.index', 'companies.index', 'notebooks.index', 'diagrams.index', 'solutions.map', 'profile.show'] as $route) {
+        $this->actingAs($reader)->get(route($route))->assertOk();
+    }
+
+    foreach (['flowspec.index', 'submissions.index'] as $route) {
+        $this->actingAs($reader)->get(route($route))->assertForbidden();
     }
 });
 
-it('answers a reader with 403 rather than a redirect when the caller wanted JSON', function () {
-    // A redirect to an HTML page is unparseable to `ajax-slot.js`; a status is
-    // not.
-    $this->actingAs(reader())
-        ->getJson(route('solutions.index'))
-        ->assertForbidden();
-});
-
-it('sends a reader to /docs from the app root', function () {
-    $this->actingAs(reader())->get('/')->assertRedirect(route('docs.index'));
-});
-
-it('lands a reader on /docs after a password login rather than on the app home', function () {
-    // An account provisioned by SSO has no usable password, but one handed the
-    // Reader role by an admin does — and must not be dropped on a screen that
-    // immediately bounces them. No `actingAs` here: `login.store` is in the
-    // `guest` group, so an authenticated session never reaches it.
+it('lands a password login on the app home', function () {
     $reader = reader();
     $reader->forceFill(['password' => 'segredo-123'])->save();
 
     $this->postJson(route('login.store'), ['email' => $reader->email, 'password' => 'segredo-123'])
         ->assertOk()
-        ->assertJson(['redirect' => route('docs.index')]);
+        ->assertJson(['redirect' => route('profile.show')]);
 });
 
 it('serves media of the caderno being read and nothing else', function () {
@@ -150,28 +140,14 @@ it('serves media of the caderno being read and nothing else', function () {
         ->assertOk();
 
     // The same media asked for through ANOTHER published caderno. This is the
-    // check `files.show` cannot make — it authorizes by collection name, which
-    // a signed-in Reader satisfies for every caderno in the app.
+    // check `files.show` cannot make — it authorizes by collection name, for
+    // every caderno in the app.
     $other = publishedNotebook('Outro');
     pageIn($other, 'Página');
 
     $this->actingAs(reader())
         ->get(route('docs.file', [$other, $media]))
         ->assertNotFound();
-});
-
-it('refuses a reader the authenticated media route entirely', function () {
-    $notebook = publishedNotebook();
-    $page = pageIn($notebook, 'Com imagem');
-    $media = $page->addMediaFromString('bytes')
-        ->usingFileName('diagrama.png')
-        ->toMediaCollection(Documentable::DOCS_COLLECTION);
-
-    // `files.show` lives in the inventory group, so the Reader never reaches
-    // the controller's own check at all.
-    $this->actingAs(reader())
-        ->get(route('files.show', $media))
-        ->assertRedirect(route('docs.index'));
 });
 
 it('serves a diagram picture only to the caderno that cites it', function () {
@@ -240,9 +216,8 @@ it('lets a reader unlock a protected value with the caderno code', function () {
     $notebook = publishedNotebook();
     $page = pageIn($notebook, 'Credenciais', 'Header: {% secret %}Bearer abc123{% endsecret %}');
 
-    // The trap this covers: `RevealPageSecretRequest` authorized through
-    // `NotebookPolicy::view`, which says NO to a Reader — so every lock on
-    // /docs refused the audience the surface exists for.
+    // `/docs` authorizes the lock by PUBLICATION, not by the caderno's own
+    // policy (RevealPageSecretRequest).
     $this->actingAs(reader())
         ->postJson(route('docs.secrets', [$notebook, $page, 'index' => 1]), ['code' => $notebook->secret_code])
         ->assertOk()
@@ -259,13 +234,10 @@ it('sends a guest to the login screen when SSO is off', function () {
 });
 
 it('withholds the settings screen from everybody but an admin', function () {
-    // 403 for all three, the Reader included: the screen sits under `/docs`,
-    // which carries no `inventory` middleware (that is the whole point of the
-    // group), so `NotebookPolicy::administerAny` is what answers here — one
-    // rule for everybody who is not an admin, rather than a refusal whose shape
-    // depends on which tier asked.
-    foreach ([UserRole::Reader, UserRole::Viewer, UserRole::Writer] as $role) {
-        $this->actingAs(User::factory()->create(['role' => $role]))
+    // `NotebookPolicy::administerAny` answers: a documentation Editor writes
+    // cadernos but does not decide what the whole company reads.
+    foreach ([User::factory()->create(), User::factory()->editor()->create()] as $user) {
+        $this->actingAs($user)
             ->get(route('docs.settings'))
             ->assertForbidden();
     }

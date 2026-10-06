@@ -34,6 +34,7 @@ import * as flowspecChat from './modules/flowspec-chat.js'
 import * as lifecyclePoll from './modules/lifecycle-poll.js'
 import * as catiChat from './modules/cati-chat.js'
 import * as mobileNav from './modules/mobile-nav.js'
+import * as solutionsSheet from './modules/solutions-sheet.js'
 
 import.meta.glob([
     '../img/**',
@@ -73,6 +74,7 @@ window.globalModules = {
     "lifecyclePoll"     : lifecyclePoll,
     "catiChat"          : catiChat,
     "mobileNav"         : mobileNav,
+    "solutionsSheet"    : solutionsSheet,
 }
 
 /*------------------------------------------------

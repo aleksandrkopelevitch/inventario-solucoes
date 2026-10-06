@@ -22,9 +22,10 @@ use Laravel\Socialite\Contracts\User as SocialiteUser;
  * 2. **Do we already know them?** By `entra_id` first — the `oid`, which
  *    survives a rename — and by e-mail exactly once, on the visit that links
  *    the two. That second match is what keeps an editor who was invited last
- *    year from arriving as a brand-new reader with their own history detached.
- * 3. **Otherwise, provision them** as a `Reader`: the knowledge base and
- *    nothing else.
+ *    year from arriving as a brand-new account with their own history detached.
+ * 3. **Otherwise, provision them** as a member with the new-account
+ *    defaults (`AccessModule::defaultLevel()`): Reader of the catalog and the
+ *    documentation, None in the Especialista and the Comitê.
  *
  * What it never does is RESTORE a revoked account. That is the one case where
  * "recognise them and let them in" is exactly wrong — see
@@ -63,11 +64,11 @@ final class ResolveEntraUser
         $user->forceFill([
             'name'  => $this->name($profile, $email),
             'email' => $email,
-            // The floor tier, always. Whoever should be more than a reader is
-            // promoted by an admin on the Usuários panel — a role this app
-            // derived from a claim in somebody else's directory would be a
-            // permission this app does not actually control.
-            'role' => UserRole::Reader,
+            // The new-account defaults, always (AccessModule::defaultLevel()).
+            // Whoever should edit a module is promoted by an admin — a level
+            // this app derived from a claim in somebody else's directory would
+            // be a permission this app does not actually control.
+            'role' => UserRole::Member,
             // Unusable and never shown, the same shape `GrantPersonAccess`
             // writes: the column is NOT NULL and this person authenticates
             // somewhere else entirely. They can still set one through

@@ -1,8 +1,9 @@
 <?php
 
+use App\Enums\AccessModule;
+use App\Enums\ContextExtractionState;
 use App\Enums\SubmissionSectionKey;
 use App\Enums\SubmissionSectionState;
-use App\Enums\ContextExtractionState;
 use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Models\CatiExample;
@@ -189,9 +190,9 @@ it('filters the catalog by status, solution and free text', function () {
         ->and(Submission::query()->filter([])->count())->toBe(2);
 });
 
-it('lets the author and admins edit, and nobody else', function () {
-    $author = User::factory()->create(['role' => UserRole::Viewer]);
-    $other = User::factory()->create(['role' => UserRole::Viewer]);
+it('lets the author (a committee Editor) and admins edit, and nobody else', function () {
+    $author = User::factory()->editor(AccessModule::Committee)->create();
+    $other = User::factory()->editor(AccessModule::Committee)->create();
     $admin = User::factory()->create(['role' => UserRole::Admin]);
     $submission = Submission::factory()->create(['created_by_id' => $author->id]);
 

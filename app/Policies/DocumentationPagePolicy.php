@@ -27,4 +27,14 @@ class DocumentationPagePolicy
     {
         return $user->can('update', $page->notebook);
     }
+
+    /**
+     * Removing a page — and its whole subtree with it — is a delete like any
+     * other, so it is the admin's, even though moving and writing pages is the
+     * caderno's Editor.
+     */
+    public function delete(User $user, DocumentationPage $page): bool
+    {
+        return $user->isAdmin();
+    }
 }

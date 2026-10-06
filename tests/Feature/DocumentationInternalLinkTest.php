@@ -153,7 +153,7 @@ it('resolves internal links on the authenticated read-only reader', function () 
 
     // A VIEWER, deliberately: it is the only role that gets the rendered HTML
     // from the server (an editor gets Editor.js and the raw Markdown).
-    $viewer = User::factory()->create(['role' => UserRole::Viewer->value]);
+    $viewer = User::factory()->create(['role' => UserRole::Member->value]);
 
     $this->actingAs($viewer)
         ->get(route('notebooks.pages.edit', [$notebook, $from]))
@@ -212,7 +212,7 @@ it('keeps every caderno out of another caderno link targets', function () {
 
 it('refuses the link targets to someone who cannot edit the caderno', function () {
     $notebook = Notebook::factory()->create();
-    $viewer = User::factory()->create(['role' => UserRole::Viewer->value]);
+    $viewer = User::factory()->create(['role' => UserRole::Member->value]);
 
     $this->actingAs($viewer)
         ->getJson(route('notebooks.link-targets', $notebook))

@@ -34,6 +34,10 @@ trait BuildsPagesNav
         // DocumentationPageService::destinationsFor().
         $destinations = $pages->destinationsFor($notebook);
 
+        // Deleting a page is the admin's (DocumentationPagePolicy::delete); an
+        // Editor writes and moves pages, so the rest of the row's menu stays.
+        $canDelete = auth()->user()?->isAdmin() ?? false;
+
         return $pages->navRows($notebook, $active)->map(fn (array $row) => [
             'id'           => $row['page']->id,
             'title'        => $row['page']->title,
@@ -48,6 +52,7 @@ trait BuildsPagesNav
             'editUrl'      => route('notebooks.pages.edit', [$notebook, $row['page']]),
             'renameUrl'    => route('notebooks.pages.rename', [$notebook, $row['page']]),
             'destroyUrl'   => route('notebooks.pages.destroy', [$notebook, $row['page']]),
+            'canDelete'    => $canDelete,
             'moveUrl'      => route('notebooks.pages.move', [$notebook, $row['page']]),
             'notebookUrl'  => route('notebooks.pages.notebook', [$notebook, $row['page']]),
             'destinations' => $destinations,

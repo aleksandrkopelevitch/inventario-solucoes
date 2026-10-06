@@ -75,7 +75,7 @@ class Index extends Component
                 // Notebook::class)` in the view is a TypeError, not a denial.
                 'canEdit' => auth()->user()?->can('update', $notebook) ?? false,
                 // Deleting is the ADMIN's, not the editor's — the same split the
-                // rest of the app keeps (`canDelete()`), and it matters more here
+                // rest of the app keeps (`UserRole`), and it matters more here
                 // than anywhere: a caderno delete takes its whole page tree with
                 // it, so an editor who may rewrite a page must not be able to
                 // remove the 133 they did not write.

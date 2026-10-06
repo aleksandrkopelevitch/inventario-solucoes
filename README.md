@@ -202,33 +202,44 @@ diferentes depois que eles otimizam do lado deles — o original pré-otimizaç�
 não é alcançável pela API documentada. O que é arquivado é o que o
 `downloadURL` devolve, que é também exatamente o que o import já guardava.
 
-## Papéis de usuário
+## Papéis de usuário e níveis por módulo
 
-`App\Enums\UserRole`: **viewer** (Visualizador), **writer** (Editor) e
-**admin** (Administrador).
+`App\Enums\UserRole` diz só se a conta é **Usuário** ou **Administrador**. O
+que um usuário pode fazer é um **nível por módulo** (`App\Enums\AccessModule` ×
+`App\Enums\AccessLevel`, gravado em `users.access`):
 
-- **Visualizador** lê o catálogo e a documentação. Nada além disso.
-- **Editor** escreve CONTEÚDO: soluções, pessoas, empresas, cadernos e suas
-  páginas, diagramas, o corpus do Especialista em Integrações. É o que o
-  aplicativo existe para catalogar.
-- **Administrador** faz também o que não é conteúdo: convidar contas, editar o
-  vocabulário de atributos, **excluir** registros, publicar o link público de um
-  caderno e ler os **valores protegidos** de uma página.
+| Módulo | Cobre |
+|---|---|
+| Soluções, Pessoas e Empresas | o catálogo |
+| Documentação e Diagramas | cadernos, páginas e diagramas |
+| Especialista em Integrações | `/flowspec` e o corpus de exemplos/diretrizes |
+| Comitê de Arquitetura | `/submissions` |
 
-Nenhuma policy compara o enum diretamente: as três decisões passam por
-`canWrite()` (admin ou editor), `canDelete()` (admin) e `isAdmin()` (admin).
-Antes de existir o Editor a mesma regra estava escrita como
-`$user->role === UserRole::Admin` em treze arquivos, e acrescentar um nível
-significava editar os treze sem esquecer nenhum. Duas fronteiras que valem
-reler:
+Cada módulo tem três níveis:
 
-- **Excluir é do admin**, com uma exceção: apagar uma *página* é parte de
-  escrever a árvore, então ela vai por `update` no caderno. Um caderno leva a
-  árvore de páginas toda; um diagrama apagado deixa prosa citando ele.
-- **Publicar não é editar.** O menu "Compartilhar" de um caderno (link público
-  **e** código de leitura dos valores protegidos) é
-  `NotebookPolicy::administer`, não `update` — que deixou de significar "admin"
-  no dia em que o Editor entrou.
+- **Nenhum** — o módulo não existe para a conta: some do menu, das telas de
+  outros módulos, dos endpoints e das ferramentas MCP.
+- **Leitor** lê, filtra e exporta tudo do módulo.
+- **Editor** cria e altera dentro do módulo. No Comitê, só as submissões que
+  criou; no Especialista, só as próprias conversas (o Leitor lê as de todos).
+
+**Toda conta nova** (convite, acesso concedido ou login pela Microsoft) nasce
+**Leitor** em Soluções/Pessoas/Empresas e em Documentação/Diagramas, e
+**Nenhum** no Especialista e no Comitê — um administrador abre esses dois por
+pessoa (`AccessModule::defaultLevel()`). As contas que já existiam antes dos
+níveis por módulo mantiveram exatamente o acesso que tinham.
+
+O **Administrador** é Editor em tudo e faz o que não é conteúdo: **excluir**
+qualquer registro (inclusive páginas), contas, papéis e níveis de acesso,
+vincular pessoas a contas, vocabulário de atributos, publicação de cadernos e
+da planilha, valores protegidos e a tela de tokens MCP. O **Mapa do
+ecossistema**, a base de conhecimento (`/docs`) e a **Conexão MCP** são de
+todas as contas, qualquer que seja o nível.
+
+Os níveis são editados por um administrador em **Pessoas → Quem tem acesso** e
+no card **Acesso** de cada pessoa. As policies decidem por
+`$user->canEdit(AccessModule::…)` e `$user->isAdmin()` — nunca comparando o
+enum ou o JSON diretamente. Detalhes em `.claude/rules/roles-and-policies.md`.
 
 Não existe self-registration: toda conta é criada por um admin, que envia um
 convite por e-mail (`UserController::store`); a pessoa convidada define a
@@ -1448,8 +1459,9 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   São **duas credenciais para dois tipos de chamador**. Uma PESSOA conecta pelo
   OAuth 2.1: em `/mcp/connect` ela copia um endereço, cola no conector do Claude
   Desktop (ou do ChatGPT), entra com a conta Leo e autoriza — nenhum token
-  circula, e a conexão lê exatamente o que a conta dela lê no app (um Leitor,
-  o perfil que o SSO cria, alcança só a documentação publicada). O app é o
+  circula, e a conexão lê exatamente o que a conta dela lê no app (um módulo
+  em **Nenhum** não tem ferramentas na conexão; a documentação publicada é de
+  todos). O app é o
   próprio servidor de autorização: Passport carrega o grant (authorization code
   + PKCE), o registro dinâmico de cliente (RFC 7591) é aberto mas limitado pela
   lista de origens em `config/mcp.php`, e cada pessoa revoga suas conexões na
@@ -1723,8 +1735,9 @@ contexto e loop de normalização/validação), `ColorRefactorTest`,
 `PageCrawlSmokeTest` (crawl de todas as páginas seedadas),
 `UserInvitationTest` (convite de usuário por admin, fluxo de definir senha **e**
 a troca de papel: promover, rebaixar, a recusa do próprio papel e a invariante
-do último admin), `WriterRoleTest` (o que um Editor pode e o que continua sendo
-do admin — inclusive DELETE, link público e código de leitura),
+do último admin), `ModuleAccessTest` (níveis por módulo: o que o Editor de cada
+módulo pode, o que continua sendo do admin — inclusive DELETE, link público e
+código de leitura — e a edição dos níveis),
 `DocumentationSecretTest` (valores protegidos: cadeado em vez de texto puro nas
 quatro superfícies, revelar com código, admin sem código, as cinco tentativas em
 12h com o tempo congelado, o magic link, e o round trip pelo editor — inclusive

@@ -55,7 +55,7 @@
                 <div class="flex items-center gap-1.5">
                     <x-forms.select name="role" class="flex-1 !py-1.5 text-sm">
                         @foreach (\App\Enums\UserRole::cases() as $role)
-                            <option value="{{ $role->value }}" @selected($role === \App\Enums\UserRole::Viewer)>{{ $role->label() }}</option>
+                            <option value="{{ $role->value }}" @selected($role === \App\Enums\UserRole::Member)>{{ $role->label() }}</option>
                         @endforeach
                     </x-forms.select>
                     <x-forms.button data-ak-ajax="user-invite-form" data-ak-action="{{ route('users.store') }}"

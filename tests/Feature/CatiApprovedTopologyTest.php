@@ -282,7 +282,7 @@ it('lets a viewer see the handoff but not resolve it', function () {
     approve($submission);
     $topology = $submission->fresh()->approvedTopology;
 
-    $this->actingAs(User::factory()->create(['role' => UserRole::Viewer]));
+    $this->actingAs(User::factory()->create(['role' => UserRole::Member]));
 
     $this->postJson(route('submissions.topology.apply', [$submission, $topology]), ['diagram_id' => null])
         ->assertForbidden();

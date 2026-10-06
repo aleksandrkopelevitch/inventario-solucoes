@@ -46,6 +46,11 @@
                             sem pessoa vinculada
                         </span>
                     @endif
+
+                    {{-- What this account may edit, module by module. Editable
+                         by an admin on every row but their own — the same rule
+                         as the role badge beside it. --}}
+                    <x-people.access-levels :account="$account" :editable="$editableRows[$account->id] ?? false" class="mt-1.5" />
                 </div>
 
                 <div class="flex shrink-0 items-center gap-2.5">
@@ -77,9 +82,8 @@
                         class="shrink-0">
                         <span @class([
                             'rounded-full px-2 py-0.5 text-[11px] font-semibold',
-                            'bg-accent-soft text-accent' => $account->role->isAdmin(),
-                            'bg-lime-soft text-lime-ink' => $account->role === \App\Enums\UserRole::Writer,
-                            'bg-raised text-muted' => ! $account->role->canWrite(),
+                            'bg-accent-soft text-accent' => $account->isAdmin(),
+                            'bg-raised text-muted' => ! $account->isAdmin(),
                         ])>{{ $account->role->label() }}</span>
                     </x-ui.inline-edit>
 

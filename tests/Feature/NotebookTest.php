@@ -19,7 +19,7 @@ function notebookAdmin(): User
 
 function notebookEditor(): User
 {
-    return User::factory()->create(['role' => UserRole::Writer->value]);
+    return User::factory()->editor()->create();
 }
 
 /*

@@ -16,9 +16,8 @@
         @if ($account)
             <span @class([
                 'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold',
-                'bg-accent-soft text-accent' => $account->role->isAdmin(),
-                'bg-lime-soft text-lime-ink' => $account->role === \App\Enums\UserRole::Writer,
-                'bg-raised text-muted' => ! $account->role->canWrite(),
+                'bg-accent-soft text-accent' => $account->isAdmin(),
+                'bg-raised text-muted' => ! $account->isAdmin(),
             ])>{{ $account->role->label() }}</span>
         @endif
     </div>
@@ -48,7 +47,7 @@
                             <x-forms.label for="person-access-role" class="!text-[11px]">Perfil</x-forms.label>
                             <x-forms.select id="person-access-role" name="role" class="!py-1.5 text-sm">
                                 @foreach ($roleOptions as $option)
-                                    <option value="{{ $option['value'] }}" @selected($option['value'] === 'viewer')>{{ $option['label'] }}</option>
+                                    <option value="{{ $option['value'] }}" @selected($option['value'] === 'member')>{{ $option['label'] }}</option>
                                 @endforeach
                             </x-forms.select>
                         </div>
@@ -121,6 +120,14 @@
                         <span class="text-xs font-medium text-accent">Alterar perfil</span>
                     </x-ui.inline-edit>
                 @endif
+            </div>
+
+            {{-- What this account may edit, module by module — read by
+                 everybody who can see the card, changed by an admin (never on
+                 their own account, like the role). --}}
+            <div class="mt-3">
+                <p class="mb-1.5 text-[11px] font-medium text-muted">Nível por módulo</p>
+                <x-people.access-levels :account="$account" :editable="$canChangeRole" />
             </div>
 
             @if ($canManage)

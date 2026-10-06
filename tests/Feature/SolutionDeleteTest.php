@@ -33,7 +33,7 @@ it('lets an admin delete a solution', function () {
 it('refuses to delete for a writer', function () {
     $solution = Solution::factory()->create();
 
-    $this->actingAs(User::factory()->create(['role' => UserRole::Writer->value]))
+    $this->actingAs(User::factory()->editor()->create())
         ->deleteJson(route('solutions.destroy', $solution))
         ->assertForbidden();
 
@@ -116,7 +116,7 @@ it('shows the delete control only to an admin', function () {
     $this->actingAs(solutionAdmin())->get(route('solutions.show', $solution))
         ->assertSee('solution-page-delete');
 
-    $this->actingAs(User::factory()->create(['role' => UserRole::Writer->value]))
+    $this->actingAs(User::factory()->editor()->create())
         ->get(route('solutions.show', $solution))
         ->assertDontSee('solution-page-delete');
 });

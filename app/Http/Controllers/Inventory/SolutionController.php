@@ -370,7 +370,7 @@ class SolutionController extends Controller
         $slug = $base;
         $suffix = 1;
 
-        while (Solution::where('slug', $slug)
+        while (in_array($slug, Solution::RESERVED_SLUGS, true) || Solution::where('slug', $slug)
             ->when($solution, fn ($q) => $q->whereKeyNot($solution->getKey()))
             ->exists()) {
             $slug = $base . '-' . (++$suffix);
