@@ -37,10 +37,23 @@ const SOLUTION_R = 26
 const EASE = 0.14
 const SEARCH_ORANGE = '#ff8a1f'
 
-// Hosting view geometry, in world px.
-const CELL = 150          // one system's slot inside a container
-const BOX_PAD = 34        // inner padding of a container
-const BOX_HEADER = 46     // the container's title strip
+// Hosting view geometry, in world px. Cells are wider than tall because what
+// competes for room in them is a horizontal name.
+const CELL_W = 180        // one system's slot inside a container
+const CELL_H = 124
+const BOX_PAD = 30        // inner padding of a container
+const BOX_HEADER = 64     // the container's title strip
+
+// Legibility floors, in SCREEN px. Everything on the canvas scales with the
+// zoom; these are where it stops shrinking, so the far view still shows a
+// system as a mark you can find and a container title you can read — and
+// zooming in only ever makes things bigger, never smaller.
+const MIN_NODE_PX = 12       // a system's radius
+const LABEL_MIN_ROOM_PX = 30 // below this a name has no room to say anything
+const TITLE_WORLD = 24       // container title, in world px…
+const TITLE_MIN_PX = 13      // …and never smaller than this on screen
+const ICON_WORLD = 44        // container picture, in world px…
+const ICON_MIN_PX = 22       // …and never smaller than this on screen
 const BOX_GAP = 170       // space between containers — room for the arrows
 const ARROW_SPREAD = 26   // distance between parallel arrows of one container pair
 
@@ -90,7 +103,7 @@ function mount(shell) {
 
     const view = mountCanvas(canvas, {
         nodes: () => state.nodes,
-        hitRadius: (node) => node.radius,
+        hitRadius: (node) => drawnRadius(node, view.view.k),
         draw: (ctx, frame, api) => draw(ctx, frame, api),
         onHover: (node, event, point) => onHover(node, event, point),
         onClick: (node, event, point) => onClick(node, event, point),
@@ -219,11 +232,11 @@ function mount(shell) {
         containers.sort((a, b) => b.members.length - a.members.length || a.label.localeCompare(b.label))
 
         for (const box of containers) {
-            const cols = Math.max(1, Math.ceil(Math.sqrt(box.members.length * 1.4)))
+            const cols = Math.max(1, Math.ceil(Math.sqrt(box.members.length * 1.2)))
             const rows = Math.ceil(box.members.length / cols)
             box.cols = cols
-            box.w = Math.max(cols * CELL, 240) + BOX_PAD * 2
-            box.h = rows * CELL + BOX_PAD * 2 + BOX_HEADER
+            box.w = Math.max(cols * CELL_W, 300) + BOX_PAD * 2
+            box.h = rows * CELL_H + BOX_PAD * 2 + BOX_HEADER
         }
 
         const area = containers.reduce((sum, b) => sum + (b.w + BOX_GAP) * (b.h + BOX_GAP), 0)
@@ -255,10 +268,10 @@ function mount(shell) {
 
             const sorted = [...box.members].sort((a, b) => a.label.localeCompare(b.label))
             const usedCols = Math.min(box.cols, sorted.length)
-            const offset = (box.w - BOX_PAD * 2 - usedCols * CELL) / 2
+            const offset = (box.w - BOX_PAD * 2 - usedCols * CELL_W) / 2
             sorted.forEach((node, i) => {
-                node.tx = box.x + BOX_PAD + offset + (i % box.cols) * CELL + CELL / 2
-                node.ty = box.y + BOX_HEADER + BOX_PAD + Math.floor(i / box.cols) * CELL + CELL / 2 - 10
+                node.tx = box.x + BOX_PAD + offset + (i % box.cols) * CELL_W + CELL_W / 2
+                node.ty = box.y + BOX_HEADER + BOX_PAD + Math.floor(i / box.cols) * CELL_H + CELL_H / 2 - 12
             })
         }
     }
@@ -324,7 +337,7 @@ function mount(shell) {
 
         const trim = (end, cx, cy, dir) => {
             if (end.type === 'solution') {
-                const gap = end.radius + 6
+                const gap = drawnRadius(end, view.view.k) + 6
 
                 return [cx + Math.cos(angle) * gap * dir, cy + Math.sin(angle) * gap * dir]
             }
@@ -615,39 +628,59 @@ function mount(shell) {
         ctx.globalAlpha = 1
     }
 
-    /** Container titles and pictures, in screen space so they stay crisp. */
+    /**
+     * Container titles and pictures, in screen space so they stay crisp.
+     *
+     * Sized in WORLD units — they grow with the zoom like the container they
+     * name — with a floor in screen px for the far view. When the floor makes
+     * the title taller than the strip it heads, it grows UPWARD into the gap
+     * above the container instead of over the first row of systems.
+     */
     function drawContainerTitles(ctx, api) {
         const k = api.view.k
         for (const box of state.containers) {
             const [sx, sy] = api.w2s(box.x, box.y)
-            const headerPx = BOX_HEADER * k
-            if (headerPx < 14) continue
+            const stripPx = BOX_HEADER * k
+            const fontPx = Math.max(TITLE_MIN_PX, TITLE_WORLD * k)
+            const hasImage = box.image?.complete && box.image.naturalWidth
+            const iconPx = hasImage ? Math.max(ICON_MIN_PX, ICON_WORLD * k) : 0
+            const rowPx = Math.max(fontPx * 1.3, iconPx)
+            const midY = rowPx + 8 > stripPx ? sy + stripPx - rowPx / 2 - 4 : sy + stripPx / 2
+            let textX = sx + Math.max(10, 18 * k)
 
-            const icon = Math.min(26, headerPx * 0.62)
-            let textX = sx + 16 * Math.min(1, k * 1.4)
-            const midY = sy + headerPx / 2
-
-            if (box.image?.complete && box.image.naturalWidth) {
-                ctx.fillStyle = 'rgba(255,255,255,0.92)'
-                roundRectPath(ctx, textX, midY - icon / 2, icon, icon, 5)
-                ctx.fill()
-                ctx.save()
-                roundRectPath(ctx, textX + 2, midY - icon / 2 + 2, icon - 4, icon - 4, 4)
-                ctx.clip()
-                ctx.drawImage(box.image, textX + 2, midY - icon / 2 + 2, icon - 4, icon - 4)
-                ctx.restore()
-                textX += icon + 8
+            if (hasImage) {
+                // The picture as it was uploaded, contained in its square —
+                // no plate behind it.
+                const scale = Math.min(iconPx / box.image.naturalWidth, iconPx / box.image.naturalHeight)
+                const w = box.image.naturalWidth * scale
+                const h = box.image.naturalHeight * scale
+                ctx.drawImage(box.image, textX + (iconPx - w) / 2, midY - h / 2, w, h)
+                textX += iconPx + fontPx * 0.5
             }
 
-            ctx.font = `700 ${Math.round(Math.min(15, Math.max(10, headerPx * 0.34)))}px Inter, system-ui, sans-serif`
+            // The row may only use its own container's width: far out, where
+            // the floor keeps the title big while the boxes shrink, the count
+            // goes first and then the title is cut, so two neighbours never
+            // run into each other.
+            const room = sx + box.w * k - textX - 8
+            if (room < fontPx * 1.5) continue
+
+            ctx.font = `800 ${Math.round(fontPx)}px Inter, system-ui, sans-serif`
+            const title = fitText(ctx, box.label.toUpperCase(), room)
             ctx.textAlign = 'left'
             ctx.textBaseline = 'middle'
+            ctx.fillStyle = 'rgba(6,9,11,0.6)'
+            ctx.fillText(title, textX + 1, midY + 1)
             ctx.fillStyle = '#ffffff'
-            ctx.fillText(box.label.toUpperCase(), textX, midY)
-            ctx.font = `500 ${Math.round(Math.min(12, Math.max(9, headerPx * 0.26)))}px Inter, system-ui, sans-serif`
-            ctx.fillStyle = 'rgba(255,255,255,0.55)'
-            const labelWidth = ctx.measureText(box.label.toUpperCase()).width
-            ctx.fillText(`· ${box.members.length} sistema${box.members.length === 1 ? '' : 's'}`, textX + labelWidth * 1.12 + 8, midY)
+            ctx.fillText(title, textX, midY)
+
+            const titleWidth = ctx.measureText(title).width
+            const count = `· ${box.members.length} sistema${box.members.length === 1 ? '' : 's'}`
+            ctx.font = `500 ${Math.round(fontPx * 0.72)}px Inter, system-ui, sans-serif`
+            if (titleWidth + fontPx * 0.5 + ctx.measureText(count).width <= room) {
+                ctx.fillStyle = 'rgba(255,255,255,0.6)'
+                ctx.fillText(count, textX + titleWidth + fontPx * 0.5, midY)
+            }
             ctx.textBaseline = 'alphabetic'
         }
     }
@@ -685,36 +718,52 @@ function mount(shell) {
         ctx.globalAlpha = 1
     }
 
+    /**
+     * A system's radius as drawn: its world size, but never under
+     * MIN_NODE_PX on screen — far out, a block that shrank to a speck could
+     * not be told from the backdrop.
+     */
+    function drawnRadius(node, k) {
+        return Math.max(node.radius, MIN_NODE_PX / k)
+    }
+
+    function hasLogo(node) {
+        return Boolean(node.logo?.complete && node.logo.naturalWidth)
+    }
+
     function drawNode(ctx, node, k, focus, tick) {
         if (node.x == null) return
         const dim = focus && ! focus.has(node.id)
         const alpha = dim ? 0.22 : 1
-        const r = node.radius
+        const r = drawnRadius(node, k)
 
-        const glowR = r * 2.5
-        ctx.globalAlpha = alpha * 0.55
-        ctx.drawImage(glowSprite(node.color), node.x - glowR, node.y - glowR, glowR * 2, glowR * 2)
-        ctx.globalAlpha = alpha
+        if (hasLogo(node)) {
+            // A system with a logo IS its logo: drawn on its own, in its own
+            // proportions, with nothing behind it — no orb, no glow. It is
+            // the one thing on the canvas recognisable at any distance.
+            const box = r * 2.3
+            const scale = Math.min(box / node.logo.naturalWidth, (r * 1.7) / node.logo.naturalHeight)
+            const w = node.logo.naturalWidth * scale
+            const h = node.logo.naturalHeight * scale
+            ctx.globalAlpha = alpha
+            ctx.drawImage(node.logo, node.x - w / 2, node.y - h / 2, w, h)
+        } else {
+            const glowR = r * 2.5
+            ctx.globalAlpha = alpha * 0.55
+            ctx.drawImage(glowSprite(node.color), node.x - glowR, node.y - glowR, glowR * 2, glowR * 2)
+            ctx.globalAlpha = alpha
 
-        ctx.drawImage(orbSprite(node.color, 0.42), node.x - r, node.y - r, r * 2, r * 2)
-        ctx.strokeStyle = 'rgba(8,10,12,0.85)'
-        ctx.lineWidth = 2 / k + 0.4
-        circle(ctx, node.x, node.y, r)
-        ctx.stroke()
-
-        if (node.logo?.complete && node.logo.naturalWidth) {
-            const s = r * 1.05
-            ctx.save()
-            circle(ctx, node.x, node.y, r - 3)
-            ctx.clip()
-            ctx.drawImage(node.logo, node.x - s, node.y - s, s * 2, s * 2)
-            ctx.restore()
+            ctx.drawImage(orbSprite(node.color, 0.42), node.x - r, node.y - r, r * 2, r * 2)
+            ctx.strokeStyle = 'rgba(8,10,12,0.85)'
+            ctx.lineWidth = 2 / k + 0.4
+            circle(ctx, node.x, node.y, r)
+            ctx.stroke()
         }
 
         if (state.selected?.id === node.id) {
             ctx.strokeStyle = hexToRgba(palette.lime, 0.9)
             ctx.lineWidth = 2 / k
-            circle(ctx, node.x, node.y, r + 7 + Math.sin(tick * 0.08) * 1.5)
+            circle(ctx, node.x, node.y, r * (hasLogo(node) ? 1.25 : 1) + 7 + Math.sin(tick * 0.08) * 1.5)
             ctx.stroke()
         }
 
@@ -725,13 +774,13 @@ function mount(shell) {
             ctx.globalAlpha = 1
             ctx.strokeStyle = SEARCH_ORANGE
             ctx.lineWidth = Math.max(4, 4 / k)
-            circle(ctx, node.x, node.y, r + 5)
+            circle(ctx, node.x, node.y, r * (hasLogo(node) ? 1.25 : 1) + 5)
             ctx.stroke()
 
             const pulse = (tick % 90) / 90
             ctx.globalAlpha = 1 - pulse
             ctx.lineWidth = Math.max(2, 2 / k)
-            circle(ctx, node.x, node.y, r + 8 + pulse * 26)
+            circle(ctx, node.x, node.y, r * (hasLogo(node) ? 1.25 : 1) + 8 + pulse * 26)
             ctx.stroke()
         }
 
@@ -751,18 +800,21 @@ function mount(shell) {
             if (node.x == null) continue
             const focused = api.hover?.id === node.id || state.selected?.id === node.id || state.highlighted === node.id
             // On the hosting view the systems sit in a grid, so a name may
-            // only use its own cell: cut to fit, and left out entirely while
-            // the cells are too small to hold a word — far out, the
-            // containers' titles are the reading.
-            const room = state.view === 'hosting' && ! focused ? CELL * k - 12 : Infinity
-            if (room < 44) continue
+            // only use its own cell: cut to fit, a size smaller far out, and
+            // left out only once the cell cannot hold a word.
+            const room = state.view === 'hosting' && ! focused ? CELL_W * k - 10 : Infinity
+            if (room < LABEL_MIN_ROOM_PX) continue
 
             const [sx, sy] = api.w2s(node.x, node.y)
             if (sx < -80 || sy < -40 || sx > api.size.width + 80 || sy > api.size.height + 40) continue
 
-            ctx.font = '700 10.5px Inter, system-ui, sans-serif'
+            // Grows with the zoom, gently (square root) — up close the blocks
+            // are large and a 10px name under them reads as an afterthought —
+            // between a floor for the far view and a ceiling for the near one.
+            ctx.font = `700 ${Math.round(Math.min(16, Math.max(focused ? 10.5 : 9, 10.5 * Math.sqrt(k))))}px Inter, system-ui, sans-serif`
             const label = fitText(ctx, node.label.toUpperCase(), room)
-            const y = sy + node.radius * k + 14
+            const reach = hasLogo(node) ? drawnRadius(node, k) * 0.85 : drawnRadius(node, k)
+            const y = sy + reach * k + 13
             ctx.globalAlpha = focus && ! focus.has(node.id) && ! focused ? 0.22 : 1
             ctx.fillStyle = 'rgba(6,9,11,0.85)'
             ctx.fillText(label, sx + 1, y + 1)

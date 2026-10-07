@@ -57,3 +57,27 @@ The search finds systems only and marks the hit with an orange ring
 (`SEARCH_ORANGE`) until Esc, centring the camera on its DESTINATION
 (`targetOf()`), never its live position — blocks ease toward their targets, so
 the live coordinates right after a layout describe a picture not drawn yet.
+
+### Legible far out, never worse up close
+
+Everything on the canvas lives in world units and scales with the zoom; a few
+things have a FLOOR in screen px so the far view still reads (2026-10-07):
+
+- A system's radius never drops under `MIN_NODE_PX` — `drawnRadius()`, which
+  hit-testing and the arrows' trimming use too, so what you can click is what
+  you see.
+- **A system with a logo is drawn as the logo** — on its own, in its own
+  proportions, no orb, no glow, no plate (the user's call). It is the thing on
+  the canvas recognisable at any distance. Rings (selection, search) wrap it at
+  1.25× the radius.
+- Names are cut to their cell on the hosting view (`CELL_W`, cells wider than
+  tall because names are horizontal), hidden only when the cell has under
+  `LABEL_MIN_ROOM_PX`; their size grows with √zoom between 9 and 16px, so up
+  close they keep pace with the blocks.
+- Container titles and pictures are sized in WORLD units (`TITLE_WORLD`,
+  `ICON_WORLD`) with screen floors (`TITLE_MIN_PX`, `ICON_MIN_PX`). They used to
+  be capped in screen px instead, which made them SHRINK relative to the box
+  as you zoomed in. When the floor makes the title taller than its strip it
+  grows upward into the gap above, and it never runs past its own container's
+  width (the count goes first, then the title is cut) — far out, neighbours
+  otherwise ran into each other.
