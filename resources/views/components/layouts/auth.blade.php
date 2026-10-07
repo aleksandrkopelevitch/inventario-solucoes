@@ -17,9 +17,9 @@
 
 <div class="flex min-h-screen flex-col items-center justify-center px-4 py-12">
 
-    <a href="{{ route('login.create') }}" class="mb-8 flex items-center gap-2.5 no-underline">
-        <span class="flex size-9 items-center justify-center rounded-field bg-sidebar font-display text-base font-bold text-white">L</span>
-        <span class="font-display text-xl font-semibold tracking-tight text-ink">{{ config('app.name') }}</span>
+    {{-- The iSol wordmark, on a transparent background (resources/img). --}}
+    <a href="{{ route('login.create') }}" class="mb-8 block no-underline">
+        <img src="{{ Vite::asset('resources/img/logo-isol-horizontal.png') }}" alt="iSol — {{ config('app.name') }}" class="h-16 w-auto">
     </a>
 
     <div class="w-full max-w-sm rounded-card border border-line bg-surface p-8 shadow-card">

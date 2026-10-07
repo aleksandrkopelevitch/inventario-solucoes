@@ -33,7 +33,7 @@
 
     {{-- Top bar: Leo brand + caderno name (stays white over the cream canvas) --}}
     <header class="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-white px-4 py-3 sm:px-6">
-        <span class="flex size-8 shrink-0 items-center justify-center rounded-field bg-sidebar font-display text-sm font-bold text-white">L</span>
+        <img src="{{ Vite::asset('resources/img/logo-isol-icone.png') }}" alt="iSol" class="size-8 shrink-0 rounded-field">
         {{-- The caderno's name, and nothing over it. The "DOCUMENTAÇÃO"
              eyebrow that sat here said what the whole screen already is, and
              the word that actually earns a label — CADERNO — belongs next to

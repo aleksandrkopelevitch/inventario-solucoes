@@ -17,7 +17,7 @@
 </head>
 <body class="min-h-screen bg-canvas text-body font-sans antialiased">
     <div class="mx-auto flex min-h-screen w-full max-w-xl flex-col items-center justify-center px-6 py-12 text-center">
-        <span class="flex size-11 shrink-0 items-center justify-center rounded-field bg-sidebar font-display text-lg font-bold text-white">L</span>
+        <img src="{{ Vite::asset('resources/img/logo-isol-icone.png') }}" alt="iSol" class="size-11 shrink-0 rounded-field">
 
         <p class="mt-6 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-accent">Erro 403</p>
         <h1 class="mt-2 font-display text-2xl font-semibold text-ink">Sem permissão</h1>

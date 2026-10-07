@@ -36,9 +36,11 @@ import * as catiChat from './modules/cati-chat.js'
 import * as mobileNav from './modules/mobile-nav.js'
 import * as solutionsSheet from './modules/solutions-sheet.js'
 
-import.meta.glob([
-    '../img/**',
-])
+// Static images referenced from Blade with `Vite::asset('resources/img/…')`.
+// `eager` with `?url` on purpose: a plain (lazy) glob whose result nothing
+// reads is tree-shaken away by Vite 8 before its files are emitted, so the
+// images never reached the manifest and every `Vite::asset()` call threw.
+import.meta.glob('../img/**', { eager: true, query: '?url', import: 'default' })
 
 window.globalModules = {
     "toggle"       : toggle,
