@@ -1037,7 +1037,7 @@ function paintNode(el, data) {
         img.draggable = false
         // A picture that fails to load (a logo whose file is gone) leaves the
         // plain card behind rather than a broken-image glyph — and the 260px
-        // and left-aligned text it was widened for. Registered first, so the
+        // width it was widened to. Registered first, so the
         // re-measuring listeners added after this (`reflowFromMeasurements()`,
         // `remeasure()`) read the card's real size.
         img.addEventListener('error', () => {
