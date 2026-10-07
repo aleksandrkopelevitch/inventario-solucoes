@@ -10,7 +10,9 @@
      The confirm keeps the three hooks the menu items used to carry
      (`data-ak-ajax-target="_blank"` + `-pending`): the model call is
      synchronous and can take a minute, so the blank tab has to be opened
-     inside THIS click, and it shows what it is waiting for. No `type` on the
+     inside THIS click, and it shows what it is waiting for — the kind of
+     drawing, animated in a loop (`-pending-kind`, `pending-drawing.js`), over
+     the same one-line hint the menu item gave it (`-pending-hint`). No `type` on the
      button — it must stay a submit, or Enter in the name field silently stops
      working (AGENTS.md). --}}
 <div class="flex items-start justify-between border-b border-line px-5 py-4">
@@ -64,7 +66,9 @@
         <x-forms.button type="button" variant="ghost" data-close>Cancelar</x-forms.button>
         <x-forms.button data-ak-ajax="diagram-target-form" data-ak-action="{{ $action }}"
             data-ak-ajax-target="_blank"
-            data-ak-ajax-pending="{{ $model ? 'Desenhando: ' . $model->label() . '…' : 'Desenhando o fluxo desta página…' }}">
+            data-ak-ajax-pending="{{ $model ? 'Desenhando: ' . $model->label() . '…' : 'Desenhando o fluxo desta página…' }}"
+            data-ak-ajax-pending-kind="{{ $model?->value ?? 'graph' }}"
+            data-ak-ajax-pending-hint="{{ $model?->hint() ?? 'Um diagrama editável, com os sistemas do catálogo' }}">
             <x-heroicon-o-sparkles class="size-4" /> Desenhar
         </x-forms.button>
     </div>

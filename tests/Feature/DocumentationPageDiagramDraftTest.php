@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Documentation\CreateDiagramFromDraft;
+use App\Enums\DiagramModel;
 use App\Enums\UserRole;
 use App\Exceptions\DiagramDraftFailed;
 use App\Models\Diagram;
@@ -490,4 +491,20 @@ it('opens a dialog listing only this caderno diagrams, the name prefilled with t
         ->not->toContain('De outro caderno')
         ->toContain(e($page->title . ' — Sequência'))
         ->toContain(route('notebooks.pages.diagram.model', [$page->notebook, $page, 'sequence']));
+});
+
+it('tells the waiting tab which drawing to animate: the model, or the free graph', function () {
+    $page = pageWithDocumentation();
+    $editor = User::factory()->editor()->create();
+
+    $content = fn (array $query) => $this->actingAs($editor)
+        ->getJson(route('notebooks.pages.diagram.target', [$page->notebook, $page, ...$query]))
+        ->assertOk()
+        ->json('content');
+
+    expect($content(['model' => 'workflow']))
+        ->toContain('data-ak-ajax-pending-kind="workflow"')
+        ->toContain('data-ak-ajax-pending-hint="' . e(DiagramModel::Workflow->hint()) . '"');
+
+    expect($content([]))->toContain('data-ak-ajax-pending-kind="graph"');
 });
