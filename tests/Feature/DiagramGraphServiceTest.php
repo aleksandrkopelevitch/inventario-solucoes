@@ -1,11 +1,14 @@
 <?php
 
 use App\Enums\Direction;
+use App\Models\AttributeOption;
 use App\Models\Diagram;
 use App\Models\Solution;
+use App\Models\User;
 use App\Services\DiagramGraphService;
 use Database\Seeders\AttributeOptionSeeder;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 
 uses(LazilyRefreshDatabase::class);
 
@@ -85,36 +88,25 @@ it('gives each node its category colour family and no stored position, which the
         ->and($rootNode)->not->toHaveKey('positionUrl');
 });
 
-it('carries every diagram with the systems it names, so the map can unfold one without a second request', function () {
-    $this->seed(AttributeOptionSeeder::class);
+it('stays at solution level: no diagram drawings in the payload, only their names behind each arrow', function () {
     $service = new DiagramGraphService;
 
     $root = Solution::factory()->create();
-    $digibee = Solution::factory()->create(['category' => 'ipaas']);
     $target = Solution::factory()->create();
+    $diagram = Diagram::factory()->active()->create(['name' => 'SAP -> BigQuery']);
+    attachParticipants($diagram, [[$root, 0], [$target, 1]]);
 
-    $diagram = Diagram::factory()->active()->create([
-        'name'               => 'SAP -> BigQuery',
-        'source_solution_id' => $root->id,
-        'target_solution_id' => $target->id,
-    ]);
-    attachParticipants($diagram, [[$root, 0], [$digibee, 1], [$target, 2]]);
+    $graph = $service->globalMap();
 
-    $drawing = collect($service->globalMap()['diagrams'])->firstWhere('slug', $diagram->slug);
-
-    expect($drawing['id'])->toBe("diag-{$diagram->slug}")
-        ->and($drawing['label'])->toBe('SAP -> BigQuery')
-        ->and($drawing['url'])->toBe(route('diagrams.show', $diagram))
-        ->and($drawing['statusLabel'])->toBe('Ativa')
-        // Every system it touches, so expanding EITHER end finds it.
-        ->and($drawing['solutions'])->toBe(["sol-{$root->id}", "sol-{$digibee->id}", "sol-{$target->id}"])
-        ->and($drawing['chain']['nodes'])->toHaveCount(3)
-        ->and($drawing['chain']['edges'])->toHaveCount(2)
-        ->and($drawing['chain']['nodes'][1]['solutionId'])->toBe("sol-{$digibee->id}")
-        ->and($drawing['chain']['nodes'][1]['url'])->toBe(route('solutions.show', $digibee));
+    expect($graph)->not->toHaveKey('diagrams')
+        ->and($graph['edges'][0]['diagrams'])->toBe([[
+            'slug' => $diagram->slug,
+            'name' => 'SAP -> BigQuery',
+            'url'  => route('diagrams.show', $diagram),
+        ]]);
 });
 
-it('draws a decision block in the chain and still refuses it as a participant', function () {
+it('never draws an arrow to a decision block, even one carrying a solution_id', function () {
     $service = new DiagramGraphService;
 
     $root = Solution::factory()->create();
@@ -138,17 +130,10 @@ it('draws a decision block in the chain and still refuses it as a participant', 
     $diagram->afterChainMutation();
 
     $graph = $service->globalMap();
-    $drawing = collect($graph['diagrams'])->firstWhere('slug', $diagram->slug);
 
-    // The block is drawn, with its own text and kind...
-    expect($drawing['chain']['nodes'][1]['kind'])->toBe('decision')
-        ->and($drawing['chain']['nodes'][1]['label'])->toBe('Tem estoque?')
-        ->and($drawing['chain']['nodes'][1]['solutionId'])->toBeNull()
-        ->and($drawing['chain']['edges'][0]['protocol'])->toBe('REST')
-        // ...and it is not one of the systems this diagram hangs off, nor does
-        // it produce a link on the macro graph.
-        ->and($drawing['solutions'])->toBe(["sol-{$root->id}", "sol-{$target->id}"])
-        ->and($graph['edges'])->toBeEmpty();
+    // The decision sits between the two systems, so no pair of SYSTEMS is
+    // directly linked — and the leftover `solution_id` must not invent one.
+    expect($graph['edges'])->toBeEmpty();
 });
 
 it('draws a multi-hop chain in position order, not a single A<>B edge', function () {
@@ -485,4 +470,70 @@ it('filters the global map by directorate', function () {
         ->toContain("sol-{$ti->id}", "sol-{$financeiro->id}")
         ->not->toContain("sol-{$comercial->id}", "sol-{$logistica->id}");
     expect($graph['edges'])->toHaveCount(1);
+});
+
+/*
+|--------------------------------------------------------------------------
+| The "Por hospedagem" view
+|--------------------------------------------------------------------------
+*/
+
+it('places a system in its cloud first, then its hosting model, then "Não informado"', function () {
+    $this->seed(AttributeOptionSeeder::class);
+    $service = new DiagramGraphService;
+
+    $onAws = Solution::factory()->create(['environment' => 'saas', 'cloud' => 'aws']);
+    $saas = Solution::factory()->create(['environment' => 'saas', 'cloud' => null]);
+    $nowhere = Solution::factory()->create(['environment' => null, 'cloud' => null]);
+
+    expect($service->hostingOf($onAws))->toBe('cloud:aws')
+        ->and($service->hostingOf($saas))->toBe('environment:saas')
+        ->and($service->hostingOf($nowhere))->toBe(DiagramGraphService::UNKNOWN_HOSTING);
+});
+
+it('adds every solution and the containers they fall into for the hosting view', function () {
+    $this->seed(AttributeOptionSeeder::class);
+    AttributeOption::where('group', 'cloud')->where('value', 'aws')
+        ->update(['color' => '#ff9900', 'image_path' => 'hosting-images/aws.png']);
+    AttributeOption::forgetCache();
+    $service = new DiagramGraphService;
+
+    $connectedA = Solution::factory()->create(['environment' => 'saas', 'cloud' => 'aws']);
+    $connectedB = Solution::factory()->create(['environment' => 'on_premise', 'cloud' => null]);
+    $alone = Solution::factory()->create(['environment' => null, 'cloud' => null]);
+    attachParticipants(Diagram::factory()->active()->create(), [[$connectedA, 0], [$connectedB, 1]]);
+
+    $links = $service->globalMap();
+    $hosting = $service->globalMap(wholeCatalog: true);
+
+    expect(collect($links['nodes'])->pluck('id'))->not->toContain("sol-{$alone->id}")
+        ->and(collect($hosting['nodes'])->pluck('id'))->toContain("sol-{$alone->id}", "sol-{$connectedA->id}")
+        ->and(collect($hosting['nodes'])->firstWhere('id', "sol-{$connectedA->id}")['hosting'])->toBe('cloud:aws')
+        // Clouds first, hosting models next, "Não informado" last.
+        ->and(collect($hosting['hostings'])->pluck('id')->first())->toBe('cloud:aws')
+        ->and(collect($hosting['hostings'])->pluck('id')->last())->toBe('unknown')
+        ->and(collect($hosting['hostings'])->pluck('id'))->toContain('environment:on_premise')
+        ->and($hosting['hostings'][0])->toMatchArray([
+            'label' => 'AWS',
+            'color' => '#ff9900',
+            'image' => Storage::disk('public')->url('hosting-images/aws.png'),
+        ])
+        // A hosting nobody coloured falls back to the neutral grey.
+        ->and(collect($hosting['hostings'])->firstWhere('id', 'environment:on_premise')['color'])->toBe(AttributeOption::DEFAULT_COLOR);
+});
+
+it('serves the hosting view from the map endpoint', function () {
+    $this->seed(AttributeOptionSeeder::class);
+    Solution::factory()->create(['environment' => 'saas', 'cloud' => null]);
+
+    $this->actingAs(User::factory()->create())
+        ->getJson(route('solutions.map.data', ['view' => 'hosting']))
+        ->assertOk()
+        ->assertJsonPath('hostings.0.id', 'environment:saas');
+
+    // An array where a string belongs reads as the default view, not a 500.
+    $this->actingAs(User::factory()->create())
+        ->getJson(route('solutions.map.data') . '?view[]=hosting')
+        ->assertOk()
+        ->assertJsonMissingPath('hostings.0');
 });

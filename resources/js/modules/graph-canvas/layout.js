@@ -1,6 +1,5 @@
-// The two arrangements the ecosystem map offers, and the rule that makes the
-// drill-down legible: a child is always placed RELATIVE to what it came out
-// of, so expanding a block grows a cluster instead of reshuffling the map.
+// The two arrangements the links view of the ecosystem map offers (the
+// hosting view lays out its own containers, in ecosystem-map.js).
 //
 // `rings` is deterministic — the same portfolio draws the same picture every
 // time, which is what lets somebody say "SAP is the one at the top left" to a
@@ -81,134 +80,14 @@ export function ringsLayout(nodes, edges) {
     return placed
 }
 
-/**
- * One grouping at a time: each hub on a large ring, and its members in
- * concentric rings around that hub.
- *
- * `satelliteLayout` does not serve here: it opens the children on a fan of a
- * single radius, which is right for the 2-3 diagrams of one system and becomes
- * an overlapping row for the 40 systems of a directorate. And the hubs' ring is
- * sized by how big the groupings are, not by a constant — otherwise the largest
- * one swallows its neighbours.
- */
-export function groupsLayout(groups, membersOf, inner = 130, gap = 82) {
-    if (! groups.length) return
-
-    const outerRadius = (group) => {
-        const total = membersOf(group).length
-        let placed = 0
-        let ring = 0
-        let radius = inner
-
-        while (placed < total) {
-            ring++
-            radius = inner + (ring - 1) * gap
-            placed += Math.max(5, Math.floor((2 * Math.PI * radius) / gap))
-        }
-
-        return total ? radius : inner * 0.5
-    }
-
-    const radii = groups.map(outerRadius)
-    const total = radii.reduce((sum, r) => sum + r, 0)
-    // The ring needs circumference for the sum of the groupings' diameters,
-    // and radius enough for the largest of them not to cross the centre.
-    // Whichever is larger wins.
-    const ring = groups.length === 1
-        ? 0
-        : Math.max(Math.max(...radii) * 1.7, (total * 2.4) / (2 * Math.PI))
-
-    // Each grouping takes an ARC PROPORTIONAL to its own size, not an equal
-    // slice: they arrive ordered largest to smallest, so equal slices put the
-    // largest ones side by side with the same clearance as the smallest, and
-    // they overlapped — the one thing that was unreadable in the far view.
-    let walked = 0
-
-    groups.forEach((group, i) => {
-        const share = total ? radii[i] / total : 1 / groups.length
-        const angle = (walked + share / 2) * Math.PI * 2 - Math.PI / 2
-        walked += share
-        group.tx = Math.cos(angle) * ring
-        group.ty = Math.sin(angle) * ring
-        group.angle = angle
-
-        const members = membersOf(group)
-        let placed = 0
-        let level = 0
-
-        while (placed < members.length) {
-            level++
-            const radius = inner + (level - 1) * gap
-            const capacity = Math.max(5, Math.floor((2 * Math.PI * radius) / gap))
-            const slice = members.slice(placed, placed + capacity)
-
-            slice.forEach((child, j) => {
-                // Each ring is rotated a little, otherwise the radii line up
-                // and the grouping reads as a star instead of a disc.
-                const a = level * 0.6 + (j / slice.length) * Math.PI * 2
-                child.tx = group.tx + Math.cos(a) * radius
-                child.ty = group.ty + Math.sin(a) * radius
-                child.angle = a
-            })
-
-            placed += slice.length
-        }
-    })
-}
-
-/**
- * Satellites around one parent: the diagrams a system takes part in, on an
- * arc that opens AWAY from the centre of the map, so a cluster never grows
- * back over the graph it came from.
- */
-export function satelliteLayout(parent, children, radius) {
-    const away = Math.atan2(parent.ty ?? parent.y ?? 0, parent.tx ?? parent.x ?? 0) || 0
-    const spread = Math.min(Math.PI * 1.6, 0.5 + children.length * 0.42)
-
-    children.forEach((child, i) => {
-        const t = children.length === 1 ? 0.5 : i / (children.length - 1)
-        const angle = away - spread / 2 + spread * t
-        child.tx = (parent.tx ?? parent.x) + Math.cos(angle) * radius
-        child.ty = (parent.ty ?? parent.y) + Math.sin(angle) * radius
-        child.angle = angle
-    })
-}
-
-/**
- * A diagram's chain, laid along a ray running outward from the diagram's own
- * block — the reading order of the flow, in the direction the cluster was
- * already growing. A chain is read as a sentence ("SAP → Digibee → SVL →
- * BigQuery"), so a circle would be the wrong shape however well it packed.
- */
-export function chainLayout(diagram, steps, spacing) {
-    const angle = diagram.angle ?? Math.atan2(diagram.ty ?? 0, diagram.tx ?? 0) ?? 0
-    // Perpendicular zig-zag of a few px keeps a long chain from drawing every
-    // block on one straight line through the labels of the one before it.
-    const nx = Math.cos(angle + Math.PI / 2)
-    const ny = Math.sin(angle + Math.PI / 2)
-
-    steps.forEach((step, i) => {
-        const along = spacing * (i + 1)
-        const wobble = (i % 2 ? 1 : -1) * 26
-        step.tx = (diagram.tx ?? diagram.x) + Math.cos(angle) * along + nx * wobble
-        step.ty = (diagram.ty ?? diagram.y) + Math.sin(angle) * along + ny * wobble
-    })
-}
-
-/**
- * d3's simulation over whatever is visible. Link distance carries the
- * hierarchy: a chain step sits close to its diagram, a diagram close to the
- * systems it belongs to, and two systems keep the whole pair length apart.
- */
+/** d3's simulation over the systems, two of them kept a pair length apart. */
 export function buildSimulation(nodes, links, onTick) {
-    const distance = { pair: 260, owns: 120, member: 78, flow: 96 }
-
     return forceSimulation(nodes)
         .force('link', forceLink(links)
             .id((d) => d.id)
-            .distance((l) => distance[l.kind] ?? 140)
-            .strength((l) => (l.kind === 'pair' ? 0.25 : 0.6)))
-        .force('charge', forceManyBody().strength((d) => (d.type === 'solution' ? -820 : -260)))
+            .distance(260)
+            .strength(0.25))
+        .force('charge', forceManyBody().strength(-820))
         .force('collide', forceCollide((d) => d.radius + 16).strength(0.85))
         .force('center', forceCenter(0, 0))
         .force('x', forceX(0).strength(0.015))

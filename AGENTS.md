@@ -82,6 +82,7 @@ if a rule you expect is not here, it is in one of these:
 | `gitbook-import-and-doc-markdown.md` | `gitbook:import` and the Markdown round trip |
 | `inline-edit-pattern.md` | `x-ui.inline-edit` |
 | `solutions-spreadsheet.md` | the read-only catalog spreadsheet, its export and its magic link |
+| `ecosystem-map.md` | the `/map` canvas: solution level only, one arrow per pair, the hosting view |
 
 When a rule changes, edit it where it lives. When adding one, give it a
 `paths:` list of globs that actually resolve — a glob pointing at a renamed file

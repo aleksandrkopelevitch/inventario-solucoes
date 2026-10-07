@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Editable values (at runtime, via the "Manage attributes" area) for the 8
@@ -16,7 +17,10 @@ class AttributeOption extends Model
 {
     private const CACHE_KEY = 'attribute_options.all';
 
-    protected $fillable = ['group', 'value', 'label', 'icon'];
+    /** A hosting value nobody gave a colour yet — the map's neutral slate. */
+    public const DEFAULT_COLOR = '#64748b';
+
+    protected $fillable = ['group', 'value', 'label', 'icon', 'color', 'image_path'];
 
     /**
      * Where the rebuilt options live for the length of one request.
@@ -108,18 +112,29 @@ class AttributeOption extends Model
         // next one.
         $raw = Cache::memo()->remember(self::CACHE_KEY, now()->addDay(), fn () => static::query()
             ->orderBy('label')
-            ->get(['id', 'group', 'value', 'label', 'icon'])
+            ->get(['id', 'group', 'value', 'label', 'icon', 'color', 'image_path'])
             ->groupBy('group')
-            ->map(fn (Collection $options) => $options->map->only(['id', 'group', 'value', 'label', 'icon'])->all())
+            ->map(fn (Collection $options) => $options->map->only(['id', 'group', 'value', 'label', 'icon', 'color', 'image_path'])->all())
             ->all());
 
         return collect($raw)->map(fn (array $options) => collect($options)->map(function (array $attrs) {
-            $option = new self(['group' => $attrs['group'], 'value' => $attrs['value'], 'label' => $attrs['label'], 'icon' => $attrs['icon']]);
+            $option = new self([
+                'group' => $attrs['group'], 'value' => $attrs['value'], 'label' => $attrs['label'], 'icon' => $attrs['icon'],
+                // `?? null`: an entry cached before these columns existed has no
+                // such keys, and strict mode refuses a missing attribute.
+                'color' => $attrs['color'] ?? null, 'image_path' => $attrs['image_path'] ?? null,
+            ]);
             $option->id = $attrs['id'];
             $option->exists = true;
 
             return $option;
         }));
+    }
+
+    /** Public URL of the uploaded picture (hosting groups), or null. */
+    public function imageUrl(): ?string
+    {
+        return $this->image_path ? Storage::disk('public')->url($this->image_path) : null;
     }
 
     protected static function booted(): void

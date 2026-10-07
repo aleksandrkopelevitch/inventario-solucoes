@@ -1,10 +1,10 @@
 // Canvas drawing primitives for the ecosystem map: color math, cached glow
-// and orb sprites, node shapes and the curved-link geometry.
+// and orb sprites, the circle and the arrowhead.
 //
 // Adapted from the "Second Brain" workspace-graph visualizer by Jay E /
 // RoboNuggets (`public/_flows2.js`), used under CC BY 4.0 — see the NOTICE
-// file at the repo root. What is ours is the vocabulary it draws (a chain's
-// node kinds, a category's color family); the technique below is theirs.
+// file at the repo root. What is ours is the vocabulary it draws (a
+// category's color family); the technique below is theirs.
 //
 // The one idea worth restating, because it is why this file exists at all:
 // a radial gradient is expensive and a graph redraws every frame, so a glow
@@ -14,7 +14,6 @@
 
 const glowCache = {}
 const orbCache = {}
-const bowCache = new Map()
 
 /** #abc → #aabbcc, so every helper below can slice fixed offsets. */
 function norm(hex) {
@@ -77,59 +76,7 @@ export function orbSprite(color, litMix = 0.35) {
     return (orbCache[key] = c)
 }
 
-// ---- curved links ----------------------------------------------------------
-// Every link bows a little, deterministically by index, so two links between
-// the same pair never lie on top of each other and the whole graph reads as
-// drawn rather than plotted.
-
-export function bowOf(i) {
-    if (!bowCache.has(i)) {
-        bowCache.set(i, (((i * 2654435761) % 2) ? 1 : -1) * (0.07 + ((i * 97) % 13) / 13 * 0.09))
-    }
-
-    return bowCache.get(i)
-}
-
-export function linkCtrl(a, b, i) {
-    const bw = bowOf(i)
-
-    return [(a.x + b.x) / 2 - (b.y - a.y) * bw, (a.y + b.y) / 2 + (b.x - a.x) * bw]
-}
-
-/** Point at `t` along the quadratic the link is drawn as. */
-export function linkPoint(a, b, i, t) {
-    const [cx, cy] = linkCtrl(a, b, i)
-    const u = 1 - t
-
-    return [u * u * a.x + 2 * u * t * cx + t * t * b.x, u * u * a.y + 2 * u * t * cy + t * t * b.y]
-}
-
 // ---- shapes ----------------------------------------------------------------
-// The chain's node kinds keep the shape vocabulary of the F3 canvas: a
-// decision is a chamfered hexagon, an actor and the two flow terminals are
-// circles, everything else is a rounded square.
-
-export function roundedRect(ctx, x, y, s, radius) {
-    ctx.beginPath()
-    ctx.moveTo(x - s + radius, y - s)
-    ctx.arcTo(x + s, y - s, x + s, y + s, radius)
-    ctx.arcTo(x + s, y + s, x - s, y + s, radius)
-    ctx.arcTo(x - s, y + s, x - s, y - s, radius)
-    ctx.arcTo(x - s, y - s, x + s, y - s, radius)
-    ctx.closePath()
-}
-
-export function hexagon(ctx, x, y, s) {
-    const w = s * 1.12
-    ctx.beginPath()
-    ctx.moveTo(x - w, y)
-    ctx.lineTo(x - w * 0.52, y - s)
-    ctx.lineTo(x + w * 0.52, y - s)
-    ctx.lineTo(x + w, y)
-    ctx.lineTo(x + w * 0.52, y + s)
-    ctx.lineTo(x - w * 0.52, y + s)
-    ctx.closePath()
-}
 
 export function circle(ctx, x, y, s) {
     ctx.beginPath()
