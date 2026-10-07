@@ -19,7 +19,7 @@
 <body class="flex h-dvh flex-col bg-canvas font-sans text-[14.5px] text-body antialiased">
 
     <header class="flex shrink-0 items-center gap-3 border-b border-line bg-white px-4 py-3 sm:px-5">
-        <span class="flex size-8 shrink-0 items-center justify-center rounded-field bg-sidebar font-display text-sm font-bold text-white">L</span>
+        <img src="{{ Vite::asset('resources/img/logo-isol-icone.png') }}" alt="iSol" class="size-8 shrink-0 rounded-field">
         <p class="truncate font-display text-base font-semibold leading-tight text-ink">Inventário de Soluções · Leo Madeiras</p>
         <span class="ml-auto shrink-0 rounded-full border border-line bg-canvas px-2 py-0.5 text-[11px] font-medium text-muted">Somente leitura</span>
     </header>

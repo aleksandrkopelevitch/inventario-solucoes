@@ -74,8 +74,8 @@
     {{-- Sidebar — icon-only rail; each item projects its label as a flyout on
          hover (see the hover flyout <span> below). --}}
     <aside class="sticky top-0 z-40 flex h-screen flex-col items-center gap-1 bg-sidebar bg-linear-to-b from-sidebar-top to-sidebar-bottom px-3 py-4 text-sidebar-ink max-md:hidden">
-        <a href="{{ route('profile.show') }}" class="mb-1.5 flex size-10 shrink-0 items-center justify-center no-underline" title="Leo Madeiras — Inventário">
-            <span class="flex size-9 items-center justify-center rounded-field bg-white font-display text-base font-bold text-sidebar">L</span>
+        <a href="{{ route('profile.show') }}" class="mb-1.5 flex size-10 shrink-0 items-center justify-center no-underline" title="iSol — Inventário de Soluções">
+            <img src="{{ Vite::asset('resources/img/logo-isol-icone.png') }}" alt="iSol" class="size-9 rounded-field">
         </a>
 
         @foreach ($sections as $sectionLabel => $items)
@@ -269,7 +269,7 @@
        class="fixed left-0 top-0 z-[70] flex h-full w-72 max-w-[82%] -translate-x-full flex-col bg-sidebar bg-linear-to-b from-sidebar-top to-sidebar-bottom text-sidebar-ink shadow-2xl transition-transform duration-300 md:hidden">
     <div class="flex items-center justify-between px-4 py-4">
         <a href="{{ route('profile.show') }}" class="flex items-center gap-2 no-underline">
-            <span class="flex size-9 items-center justify-center rounded-field bg-white font-display text-base font-bold text-sidebar">L</span>
+            <img src="{{ Vite::asset('resources/img/logo-isol-icone.png') }}" alt="iSol" class="size-9 rounded-field">
             <span class="font-display text-sm font-semibold text-white">Inventário</span>
         </a>
         <x-forms.button type="button" variant="ghost" data-ak-mobile-nav-close aria-label="Fechar menu"

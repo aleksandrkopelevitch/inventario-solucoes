@@ -27,7 +27,7 @@
 
         <div class="rounded-card border border-line bg-surface p-6 shadow-card">
             <div class="flex items-center gap-3">
-                <span class="flex size-10 shrink-0 items-center justify-center rounded-field bg-sidebar font-display text-base font-bold text-white">L</span>
+                <img src="{{ Vite::asset('resources/img/logo-isol-icone.png') }}" alt="iSol" class="size-10 shrink-0 rounded-field">
                 <div>
                     <p class="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-accent">Inventário de Soluções</p>
                     <h1 class="font-display text-lg font-semibold leading-tight text-ink">Autorizar conexão</h1>
