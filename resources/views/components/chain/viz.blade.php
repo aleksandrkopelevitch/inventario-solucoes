@@ -1801,8 +1801,10 @@
             }
             {{-- A block's picture beside its text (`imageMode: 'left'`, the
                  default): a fixed slot rather than the picture's own size, so a
-                 400px paste and a 32px logo make blocks of the same height. The
-                 text then reads from the left, against the picture. --}}
+                 400px paste and a 32px logo make blocks of the same height.
+                 Picture and text stay CENTERED as one group, like a block with
+                 no picture — reading from the left edge made a block with a
+                 logo look misaligned next to one without. --}}
             .ak-viz-node-picture {
                 display: block;
                 flex-shrink: 0;
@@ -1817,8 +1819,6 @@
             {{-- Wider by the picture's slot, so the text keeps the room a
                  plain card gives it. --}}
             .ak-viz-node.has-picture:not(.is-picture-top) { width: 260px; }
-            .ak-viz-node.has-picture:not(.is-picture-top) .ak-viz-node-body { justify-content: flex-start; }
-            .ak-viz-node.has-picture:not(.is-picture-top) .ak-viz-node-text { text-align: left; }
             .ak-viz-node-avatar {
                 display: flex;
                 align-items: center;

@@ -1,5 +1,6 @@
 import * as ajaxModule from './ajax'
 import {updateSlots} from './ajax-slot'
+import {pendingTabHtml} from './pending-drawing'
 
 document.addEventListener('DOMContentLoaded', () => {
     document.body.addEventListener('click', function (e) {
@@ -131,7 +132,10 @@ async function handleAjaxResponse(response, button, tab = null) {
 
 /**
  * The blank tab a `data-ak-ajax-target="_blank"` call navigates once its
- * answer arrives, painted with something to look at meanwhile.
+ * answer arrives, painted with something to look at meanwhile — the label,
+ * and, when the button says what kind of drawing it is waiting for
+ * (`data-ak-ajax-pending-kind`), that drawing animated in a loop
+ * (`pending-drawing.js`).
  *
  * `about:blank` is same-origin, so it can be written into; a browser that
  * refuses the write (or the window entirely) still leaves a usable tab — it
@@ -141,28 +145,20 @@ function openPendingTab(button) {
     const tab = window.open('', '_blank')
     if (!tab) return null
 
-    const label = button.getAttribute('data-ak-ajax-pending')
-        || button.getAttribute('aria-label')
-        || 'Preparando…'
-
     try {
-        tab.document.write(
-            '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">'
-            + '<title>' + escapeText(label) + '</title></head>'
-            + '<body style="margin:0;display:grid;place-items:center;min-height:100vh;'
-            + 'font:500 14px system-ui,sans-serif;color:#57606a;background:#fbfbfa">'
-            + escapeText(label) + '</body></html>',
-        )
+        tab.document.write(pendingTabHtml({
+            label: button.getAttribute('data-ak-ajax-pending')
+                || button.getAttribute('aria-label')
+                || 'Preparando…',
+            hint: button.getAttribute('data-ak-ajax-pending-hint'),
+            kind: button.getAttribute('data-ak-ajax-pending-kind'),
+        }))
         tab.document.close()
     } catch (_) {
         // A tab we cannot write into still works as a destination.
     }
 
     return tab
-}
-
-function escapeText(value) {
-    return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 function setButtonLoadingState(button, isLoading) {
