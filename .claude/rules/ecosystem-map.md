@@ -70,10 +70,18 @@ things have a FLOOR in screen px so the far view still reads (2026-10-07):
   proportions, no orb, no glow, no plate (the user's call). It is the thing on
   the canvas recognisable at any distance. Rings (selection, search) wrap it at
   1.25× the radius.
-- Names are cut to their cell on the hosting view (`CELL_W`, cells wider than
-  tall because names are horizontal), hidden only when the cell has under
-  `LABEL_MIN_ROOM_PX`; their size grows with √zoom between 9 and 16px, so up
-  close they keep pace with the blocks.
+- **A name is never cut** (the user's call, 2026-10-07): it wraps at its
+  spaces inside its cell's width (`CELL_W`, cells wider than tall because
+  names are horizontal), so it never runs sideways into a neighbour. A word is
+  never split. On the hosting view a name that does not fit its cell WHOLE — a
+  word wider than the cell, or more lines than fit above the next row — is
+  left out instead, as is every name once the cell is under
+  `LABEL_MIN_ROOM_PX`; far out that is most of them, and the hover tooltip is
+  what names a system there. The links view has no grid: it wraps at the same
+  width with a floor (`LINKS_LABEL_MIN_PX`) and never hides. Hovering does not
+  widen or enlarge a name — it only turns white; the tooltip says the rest.
+  Size grows with √zoom between 9 and 16px, so up close names keep pace with
+  the blocks.
 - Container titles and pictures are sized in WORLD units (`TITLE_WORLD`,
   `ICON_WORLD`) with screen floors (`TITLE_MIN_PX`, `ICON_MIN_PX`). They used to
   be capped in screen px instead, which made them SHRINK relative to the box
