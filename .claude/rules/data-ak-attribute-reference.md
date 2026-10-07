@@ -21,6 +21,7 @@ All JS hooks use the `data-ak-*` prefix. Internal slots (`data-spinner`, `data-l
 | `data-ak-toggle-once` | `toggle.js` | Fire only once |
 | `data-ak-toggle-blur="true"` | `toggle.js` | Close on outside click. "Outside" is judged from the click's `composedPath()`, not from `contains(target)` alone — a handler that runs earlier in the same click and DETACHES what was clicked (chips.js's ✕ on a chip) would otherwise read as an outside click and close a popover mid-edit |
 | `data-ak-toggle-mouseout` | `toggle.js` | Also toggle on mouseout |
+| `data-ak-rail` (the desktop `<aside>`) + `data-ak-rail-scroll` / `data-ak-rail-arrow="up\|down"` / `data-ak-rail-link` / `data-ak-rail-flyout` | `rail-scroll.js` | The rail's own vertical scroll: logo pinned top, user menu pinned bottom, the items between them scroll with the native scrollbar hidden. Each arrow shows only while there is something to scroll to that way; hover scrolls continuously, click steps. The hover labels are `position: fixed` (an absolute one is clipped by the scrolling region) and the module sets their `top` from the item, on hover and on scroll |
 | `data-ak-panel-open` | `side-panel.js` | Opens `#side-panel` |
 | `data-ak-panel-url="url"` | `side-panel.js` | URL to fetch content from |
 | `data-ak-panel-close` | `side-panel.js` | Closes `#side-panel` and clears content |

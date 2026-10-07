@@ -72,12 +72,27 @@
 <div class="grid min-h-screen md:grid-cols-[72px_1fr]">
 
     {{-- Sidebar — icon-only rail; each item projects its label as a flyout on
-         hover (see the hover flyout <span> below). --}}
-    <aside class="sticky top-0 z-40 flex h-screen flex-col items-center gap-1 bg-sidebar bg-linear-to-b from-sidebar-top to-sidebar-bottom px-3 py-4 text-sidebar-ink max-md:hidden">
-        <a href="{{ route('profile.show') }}" class="mb-1.5 flex size-10 shrink-0 items-center justify-center no-underline" title="iSol — Inventário de Soluções">
+         hover (see the hover flyout <span> below).
+
+         Three parts: the logo pinned at the top, the user's menu pinned at the
+         bottom, and the items between them in a region that scrolls on its own
+         when the screen is too short to hold them all (`data-ak-rail-scroll`,
+         rail-scroll.js). The native scrollbar is hidden — a 72px rail has no
+         room for one — and two arrows take its place, each shown only while
+         there is something to scroll to in its direction: hovering scrolls
+         continuously, a click (or Enter) moves one step. --}}
+    <aside data-ak-rail class="sticky top-0 z-40 flex h-screen flex-col items-center bg-sidebar bg-linear-to-b from-sidebar-top to-sidebar-bottom px-3 py-4 text-sidebar-ink max-md:hidden">
+        <a href="{{ route('profile.show') }}" class="mb-2.5 flex size-10 shrink-0 items-center justify-center no-underline" title="iSol — Inventário de Soluções">
             <img src="{{ Vite::asset('resources/img/logo-isol-icone.png') }}" alt="iSol" class="size-9 rounded-field">
         </a>
 
+        <div class="relative flex min-h-0 w-full flex-1 flex-col">
+        <x-forms.button type="button" variant="ghost" data-ak-rail-arrow="up" hidden aria-label="Rolar o menu para cima"
+            class="!absolute inset-x-0 top-0 z-10 !h-7 !rounded-field !p-0 !text-sidebar-faint bg-linear-to-b from-sidebar-top via-sidebar-top/90 to-transparent hover:!text-white">
+            <x-heroicon-o-chevron-up class="size-4" />
+        </x-forms.button>
+
+        <div data-ak-rail-scroll class="flex min-h-0 w-full flex-1 flex-col items-center gap-1 overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         @foreach ($sections as $sectionLabel => $items)
             @unless ($loop->first)
                 <div class="my-1 h-px w-7 bg-white/10"></div>
@@ -93,7 +108,7 @@
                         // rail hides what an account cannot open rather than
                         // offering a link that answers 403.
                     @endphp
-                    <a href="{{ $has ? route($item['route']) : '#' }}"
+                    <a href="{{ $has ? route($item['route']) : '#' }}" data-ak-rail-link
                        @class([
                            'group relative flex h-10 w-full items-center justify-center rounded-field transition-colors',
                            'text-sidebar-ink hover:bg-white/[0.06]' => ! $on,
@@ -109,18 +124,29 @@
 
                         {{-- Hover flyout: label projects out to the right of the
                              icon, continuing the sidebar green, rounded on the
-                             outer (right) corners. Purely visual (pointer-events-none). --}}
-                        <span class="pointer-events-none absolute left-full top-0 z-50 flex h-10 translate-x-1 items-center whitespace-nowrap rounded-r-field bg-sidebar pl-3 pr-4 text-sm font-medium text-white opacity-0 shadow-[8px_0_20px_-6px_rgba(0,0,0,0.35)] transition-[opacity,transform] duration-150 group-hover:translate-x-0 group-hover:opacity-100">
+                             outer (right) corners. Purely visual (pointer-events-none).
+                             `fixed`, with its `top` set on hover by
+                             rail-scroll.js: inside the scrolling region an
+                             absolute flyout would be clipped by it. --}}
+                        <span data-ak-rail-flyout class="pointer-events-none fixed left-[60px] z-50 flex h-10 translate-x-1 items-center whitespace-nowrap rounded-r-field bg-sidebar pl-3 pr-4 text-sm font-medium text-white opacity-0 shadow-[8px_0_20px_-6px_rgba(0,0,0,0.35)] transition-[opacity,transform] duration-150 group-hover:translate-x-0 group-hover:opacity-100">
                             {{ $item['label'] }}
                         </span>
                     </a>
                 @endforeach
             </nav>
         @endforeach
+        </div>
 
-        <div class="flex-1"></div>
+        <x-forms.button type="button" variant="ghost" data-ak-rail-arrow="down" hidden aria-label="Rolar o menu para baixo"
+            class="!absolute inset-x-0 bottom-0 z-10 !h-7 !rounded-field !p-0 !text-sidebar-faint bg-linear-to-t from-sidebar-bottom via-sidebar-bottom/90 to-transparent hover:!text-white">
+            <x-heroicon-o-chevron-down class="size-4" />
+        </x-forms.button>
+        </div>
 
-        <x-layouts.user-menu />
+        {{-- Pinned to the bottom, outside the scrolling region. --}}
+        <div class="shrink-0 pt-1.5">
+            <x-layouts.user-menu />
+        </div>
     </aside>
 
     {{-- Main --}}
