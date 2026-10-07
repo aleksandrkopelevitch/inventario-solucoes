@@ -50,6 +50,7 @@ const BOX_HEADER = 64     // the container's title strip
 // zooming in only ever makes things bigger, never smaller.
 const MIN_NODE_PX = 12       // a system's radius
 const LABEL_MIN_ROOM_PX = 30 // below this a name has no room to say anything
+const LINKS_LABEL_MIN_PX = 110 // a name's wrapping width on the links view, at the least
 const TITLE_WORLD = 24       // container title, in world px…
 const TITLE_MIN_PX = 13      // …and never smaller than this on screen
 const ICON_WORLD = 44        // container picture, in world px…
@@ -799,10 +800,17 @@ function mount(shell) {
         for (const node of state.nodes) {
             if (node.x == null) continue
             const focused = api.hover?.id === node.id || state.selected?.id === node.id || state.highlighted === node.id
-            // On the hosting view the systems sit in a grid, so a name may
-            // only use its own cell: cut to fit, a size smaller far out, and
-            // left out only once the cell cannot hold a word.
-            const room = state.view === 'hosting' && ! focused ? CELL_W * k - 10 : Infinity
+            // A name is never cut: it wraps at its spaces inside its own width,
+            // so it never runs sideways into a neighbour. On the hosting view
+            // that width is the cell, and a name that does not fit the cell
+            // whole — a word wider than it, or more lines than there is room
+            // for above the next row — is left out rather than shown in part;
+            // zooming in brings it back, the tooltip names it meanwhile. On the
+            // links view, where nothing is gridded, it wraps at the same width
+            // with a floor.
+            // Hovering never widens it: the tooltip already says the whole name.
+            const cell = CELL_W * k - 10
+            const room = state.view === 'hosting' ? cell : Math.max(cell, LINKS_LABEL_MIN_PX)
             if (room < LABEL_MIN_ROOM_PX) continue
 
             const [sx, sy] = api.w2s(node.x, node.y)
@@ -811,15 +819,28 @@ function mount(shell) {
             // Grows with the zoom, gently (square root) — up close the blocks
             // are large and a 10px name under them reads as an afterthought —
             // between a floor for the far view and a ceiling for the near one.
-            ctx.font = `700 ${Math.round(Math.min(16, Math.max(focused ? 10.5 : 9, 10.5 * Math.sqrt(k))))}px Inter, system-ui, sans-serif`
-            const label = fitText(ctx, node.label.toUpperCase(), room)
-            const reach = hasLogo(node) ? drawnRadius(node, k) * 0.85 : drawnRadius(node, k)
-            const y = sy + reach * k + 13
+            const fontPx = Math.round(Math.min(16, Math.max(9, 10.5 * Math.sqrt(k))))
+            ctx.font = `700 ${fontPx}px Inter, system-ui, sans-serif`
+            const lines = wrapText(ctx, node.label.toUpperCase(), room)
+            const reach = (hasLogo(node) ? drawnRadius(node, k) * 0.85 : drawnRadius(node, k)) * k
+            const lineHeight = Math.round(fontPx * 1.2)
+            const top = sy + reach + 13
+
+            if (state.view === 'hosting') {
+                // The last line's baseline must clear the next row's system.
+                const floor = CELL_H * k - reach - 6
+                const tooWide = lines.some((line) => ctx.measureText(line).width > room)
+                if (tooWide || reach + 13 + (lines.length - 1) * lineHeight > floor) continue
+            }
+
             ctx.globalAlpha = focus && ! focus.has(node.id) && ! focused ? 0.22 : 1
-            ctx.fillStyle = 'rgba(6,9,11,0.85)'
-            ctx.fillText(label, sx + 1, y + 1)
-            ctx.fillStyle = state.highlighted === node.id ? SEARCH_ORANGE : focused ? '#ffffff' : 'rgba(236,241,238,0.92)'
-            ctx.fillText(label, sx, y)
+            lines.forEach((line, i) => {
+                const y = top + i * lineHeight
+                ctx.fillStyle = 'rgba(6,9,11,0.85)'
+                ctx.fillText(line, sx + 1, y + 1)
+                ctx.fillStyle = state.highlighted === node.id ? SEARCH_ORANGE : focused ? '#ffffff' : 'rgba(236,241,238,0.92)'
+                ctx.fillText(line, sx, y)
+            })
             ctx.globalAlpha = 1
         }
 
@@ -1031,6 +1052,29 @@ function mount(shell) {
 }
 
 // ---- helpers ------------------------------------------------------------
+
+/**
+ * `text` broken at its spaces into lines of at most `width` px in the current
+ * font. A word is never split: one wider than `width` is a line of its own
+ * (the caller decides whether that still fits). Nothing is ever dropped.
+ */
+function wrapText(ctx, text, width) {
+    const lines = []
+    let line = ''
+
+    for (const word of text.split(/\s+/).filter(Boolean)) {
+        const candidate = line ? `${line} ${word}` : word
+        if (! line || ctx.measureText(candidate).width <= width) {
+            line = candidate
+            continue
+        }
+        lines.push(line)
+        line = word
+    }
+    if (line) lines.push(line)
+
+    return lines
+}
 
 /** `text`, cut with an ellipsis to at most `width` px in the current font. */
 function fitText(ctx, text, width) {
