@@ -53,6 +53,7 @@ class AttributeOptionController extends Controller
             'value' => $this->uniqueValue($group, $label),
             'label' => $label,
             'icon'  => $group->supportsIcon() ? $request->validated('icon') : null,
+            ...$this->hostingLook($request, $group, null),
         ]);
 
         return $this->saved("\"{$option->label}\" adicionado.", $group);
@@ -65,6 +66,7 @@ class AttributeOptionController extends Controller
         $option->update([
             'label' => $request->validated('label'),
             'icon'  => $group->supportsIcon() ? $request->validated('icon') : null,
+            ...$this->hostingLook($request, $group, $option),
         ]);
 
         return $this->saved("\"{$option->label}\" atualizado.", $group);
@@ -97,6 +99,33 @@ class AttributeOptionController extends Controller
      * the raw text (no slug) for the ~40 existing values, so new values
      * follow the same format to avoid mixing conventions within the group.
      */
+    /**
+     * The colour and picture a hosting value wears on the map. Empty for every
+     * other group, so a stray posted field never lands on a category. A new
+     * upload replaces the picture; `image_action=remove` clears it; neither
+     * keeps what is there.
+     *
+     * @return array<string, mixed>
+     */
+    private function hostingLook(StoreAttributeOptionRequest|UpdateAttributeOptionRequest $request, AttributeGroup $group, ?AttributeOption $option): array
+    {
+        if (! $group->isHosting()) {
+            return [];
+        }
+
+        $look = ['color' => $request->validated('color')];
+
+        if ($request->hasFile('image')) {
+            $look['image_path'] = $request->file('image')->store('hosting-images', 'public');
+        } elseif ($request->validated('image_action') === 'remove') {
+            $look['image_path'] = null;
+        } elseif ($option === null) {
+            $look['image_path'] = null;
+        }
+
+        return $look;
+    }
+
     private function uniqueValue(AttributeGroup $group, string $label): string
     {
         $base = $group === AttributeGroup::Directorate ? trim($label) : Str::slug($label);

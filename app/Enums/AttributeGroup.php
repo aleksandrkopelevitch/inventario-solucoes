@@ -39,6 +39,20 @@ enum AttributeGroup: string
      * (F3, `chain-viz.js`). The other groups have no icon field in the
      * "Manage attributes" UI.
      */
+    /**
+     * Where a system runs — Hospedagem and Cloud. These carry a colour and a
+     * picture as well as the icon: the ecosystem map's "Por hospedagem" view
+     * draws one container per value, filled with the colour and badged with
+     * the picture (`DiagramGraphService::hostingOf()`).
+     */
+    public function isHosting(): bool
+    {
+        return match ($this) {
+            self::Environment, self::Cloud => true,
+            default                        => false,
+        };
+    }
+
     public function supportsIcon(): bool
     {
         return match ($this) {

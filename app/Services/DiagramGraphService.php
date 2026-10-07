@@ -6,6 +6,7 @@ use App\Enums\ChainNodeKind;
 use App\Enums\DiagramStatus;
 use App\Enums\Direction;
 use App\Enums\Protocol;
+use App\Models\AttributeOption;
 use App\Models\Diagram;
 use App\Models\Solution;
 use App\Support\CategoryPalette;
@@ -26,22 +27,19 @@ use Illuminate\Support\Facades\Storage;
  *         'nodes' => [ ['id','label','slug','category','logo','url',
  *             'categoryLabel','statusLabel','criticalityLabel','environmentLabel',
  *             'cloudLabel','contractLabel','supportLabel','directorate',
- *             'categoryFamily'], ... ],
+ *             'categoryFamily','hosting'], ... ],
  *         'edges' => [ ['id','source','target','label','status','direction','diagrams'], ... ],
- *         'diagrams' => [ ['id','slug','label','url','status','statusLabel',
- *             'criticalityLabel','syncModeLabel','protocolLabel','solutions',
- *             'chain' => ['nodes','edges']], ... ],
+ *         'hostings' => [ ['id','label','kind','color','image','icon'], ... ],
  *     ]
  *
- * The three levels of the map are all in there, in one response: the macro
- * graph is `nodes` + `edges`, expanding a solution or a pair hangs the
- * `diagrams` that name it (`solutions`, and `edges[].diagrams`), and opening
- * one of those draws its `chain`. It is one fetch because the whole thing is
- * one reading of the same diagrams — splitting it would re-query the same
- * rows per click and make the search box unable to see a drawing nobody had
- * expanded yet. Measured at 21 KB for the ten seeded diagrams; if the
- * portfolio ever reaches a few hundred, `chain` is the half to move behind a
- * per-diagram endpoint (it is ~80% of the bytes), not the catalog above it.
+ * The map is read at SOLUTION level only (2026-10-07, the user's call): a
+ * block per system, an arrow per pair. It used to carry every diagram's
+ * resolved chain so a click could unfold the drawings behind a system — too
+ * much detail for a picture of the whole ecosystem, so that half of the
+ * payload is gone and `edges[].diagrams` (name + slug) is all that remains
+ * of the drawings, for the card a click on an arrow opens.
+ *
+ * `hosting` places a system in the "Por hospedagem" view: see `hostingOf()`.
  *
  * Rules (section 10):
  * - Every candidate edge comes from a real link in `chain.edges` (not from
@@ -61,14 +59,27 @@ use Illuminate\Support\Facades\Storage;
  */
 class DiagramGraphService
 {
+    /** The container for a system with no cloud and no hosting model. */
+    public const UNKNOWN_HOSTING = 'unknown';
+
+    /** What a block on the map needs from a solution — and nothing more. */
+    private const SOLUTION_COLUMNS = [
+        'id', 'name', 'slug', 'category', 'logo_path', 'status', 'criticality',
+        'environment', 'cloud', 'contract_status', 'support_type', 'directorate',
+    ];
+
     /**
-     * Global map: the whole ecosystem, with optional query-string filters.
-     * Accepted filters: `status` (default all), `category`, `directorate`.
+     * Global map: the whole ecosystem, with optional filters — `status`
+     * (default all), `category`, `directorate`.
+     *
+     * `$wholeCatalog` adds every solution, connected or not: the "Por
+     * hospedagem" view is a picture of where EVERYTHING runs, while the links
+     * view only has something to say about systems that talk to another one.
      *
      * @param  array<string, string|null>  $filters
      * @return array{nodes: array<int, array<string, mixed>>, edges: array<int, array<string, mixed>>}
      */
-    public function globalMap(array $filters = []): array
+    public function globalMap(array $filters = [], bool $wholeCatalog = false): array
     {
         $status = $filters['status'] ?? null;
         $category = $filters['category'] ?? null;
@@ -87,55 +98,39 @@ class DiagramGraphService
             ->with($this->graphEagerLoad())
             ->get();
 
-        return $this->build($diagrams);
+        $extra = $wholeCatalog
+            ? Solution::query()->select(self::SOLUTION_COLUMNS)->orderBy('name')->get()
+            : collect();
+
+        return $this->build($diagrams, $extra);
     }
 
     /** Eager loads that avoid N+1 while building nodes/edges. */
     private function graphEagerLoad(): array
     {
         return [
-            'participants' => fn ($q) => $q->select(
-                'solutions.id',
-                'solutions.name',
-                'solutions.slug',
-                'solutions.category',
-                'solutions.logo_path',
-                'solutions.status',
-                'solutions.criticality',
-                'solutions.environment',
-                'solutions.cloud',
-                'solutions.contract_status',
-                'solutions.support_type',
-                'solutions.directorate',
-            ),
+            'participants' => fn ($q) => $q->select(array_map(fn (string $c) => "solutions.{$c}", self::SOLUTION_COLUMNS)),
         ];
     }
 
     /**
-     * Builds the neutral contract from a collection of diagrams.
+     * Builds the neutral contract from a collection of diagrams, plus any
+     * `$extra` solutions to draw even when no diagram names them.
      *
      * @param  Collection<int, Diagram>  $diagrams
-     * @return array{nodes: array<int, array<string, mixed>>, edges: array<int, array<string, mixed>>}
+     * @param  Collection<int, Solution>  $extra
+     * @return array<string, array<int, array<string, mixed>>>
      */
-    private function build(Collection $diagrams): array
+    private function build(Collection $diagrams, Collection $extra): array
     {
         $nodes = [];
         $edges = [];
-        $drawings = [];
         $seq = 0;
-
-        // One query for every solution referenced by ANY chain node, so the
-        // drill-down's third level resolves its labels and logos without an
-        // N+1 — and without depending on the participants pivot, which only
-        // ever holds the `system` nodes.
-        $chainSolutions = (new ChainLabeler)->resolveSolutions($diagrams->map->chainData());
 
         foreach ($diagrams as $diagram) {
             foreach ($diagram->participants as $participant) {
                 $this->putNode($nodes, $participant);
             }
-
-            $drawings[] = $this->drawing($diagram, $chainSolutions);
 
             $chainNodes = array_values($diagram->chain['nodes'] ?? []);
             $chainEdges = array_values($diagram->chain['edges'] ?? []);
@@ -166,83 +161,14 @@ class DiagramGraphService
             }
         }
 
+        foreach ($extra as $solution) {
+            $this->putNode($nodes, $solution);
+        }
+
         return [
             'nodes'    => array_values($nodes),
             'edges'    => $this->dedupePairs($edges),
-            'diagrams' => $drawings,
-        ];
-    }
-
-    /**
-     * One diagram, resolved for the map's two deeper levels: the card the
-     * macro graph expands into, and the drawing that card opens.
-     *
-     * The chain is resolved HERE rather than through `ChainGraph::resolveNode()`
-     * even though both answer the same two questions (`ChainNodeKind::fromNode()`
-     * for the kind, `ChainLabeler::nodeLabel()` for the text). What that one
-     * adds is what the F3 canvas needs and this one cannot use: a rendered
-     * heroicon per node — the map draws shapes on a canvas, so an SVG string
-     * per node would be a few hundred bytes each, on every node of every
-     * diagram, for markup nothing here mounts — plus environment/cloud badges
-     * and an authenticated media URL. Both call sites go through the same two
-     * decisions, which is the part that must never diverge.
-     *
-     * @param  Collection<int, Solution>  $solutions
-     * @return array<string, mixed>
-     */
-    private function drawing(Diagram $diagram, Collection $solutions): array
-    {
-        $chain = $diagram->chainData() ?? [];
-        $chainNodes = array_values($chain['nodes'] ?? []);
-        $labeler = new ChainLabeler;
-
-        return [
-            'id'               => "diag-{$diagram->slug}",
-            'slug'             => $diagram->slug,
-            'label'            => $diagram->name,
-            'url'              => route('diagrams.show', $diagram),
-            'status'           => $diagram->status->value,
-            'statusLabel'      => $diagram->status->label(),
-            'criticalityLabel' => $diagram->criticality_label,
-            'syncModeLabel'    => $diagram->sync_mode?->label(),
-            'protocolLabel'    => filled($diagram->protocol)
-                ? (Protocol::tryFrom($diagram->protocol)?->label() ?? $diagram->protocol)
-                : null,
-            // The macro nodes this diagram hangs off — every solution it
-            // touches, so expanding either SAP or the SAP-Digibee pair finds
-            // it. Read off the chain and not off the pivot for the reason
-            // above: one list, one rule (`referencesSolution()`).
-            'solutions' => collect($chainNodes)
-                ->map(fn (array $node) => ChainNodeKind::fromNode($node)->referencesSolution()
-                    ? ($node['solution_id'] ?? null)
-                    : null)
-                ->filter()
-                ->unique()
-                ->map(fn (int $id) => "sol-{$id}")
-                ->values()
-                ->all(),
-            'chain' => [
-                'nodes' => collect($chainNodes)->map(function (array $node) use ($labeler, $solutions) {
-                    $kind = ChainNodeKind::fromNode($node);
-                    $solution = $kind->referencesSolution() ? ($solutions[$node['solution_id'] ?? null] ?? null) : null;
-
-                    return [
-                        'label'      => $labeler->nodeLabel($node, $solutions),
-                        'kind'       => $kind->value,
-                        'solutionId' => $solution ? "sol-{$solution->id}" : null,
-                        'logo'       => $solution?->logo_path ? Storage::disk('public')->url($solution->logo_path) : null,
-                        'url'        => $solution ? route('solutions.show', $solution) : null,
-                    ];
-                })->values()->all(),
-                'edges' => collect($chain['edges'] ?? [])->map(fn (array $edge) => [
-                    'from'     => $edge['from'] ?? 0,
-                    'to'       => $edge['to'] ?? 0,
-                    'arrow'    => $edge['arrow'] ?? '->',
-                    'protocol' => filled($edge['protocol'] ?? null)
-                        ? (Protocol::tryFrom($edge['protocol'])?->label() ?? $edge['protocol'])
-                        : null,
-                ])->values()->all(),
-            ],
+            'hostings' => $this->hostings(array_values($nodes)),
         ];
     }
 
@@ -316,7 +242,7 @@ class DiagramGraphService
             if (filled($edge['label'])) {
                 $group['protocols'][$edge['label']] = true;
             }
-            $group['diagrams'][$edge['slug']] = ['slug' => $edge['slug'], 'name' => $edge['diagram_name']];
+            $group['diagrams'][$edge['slug']] = ['slug' => $edge['slug'], 'name' => $edge['diagram_name'], 'url' => $edge['diagram_url']];
             unset($group);
         }
 
@@ -384,17 +310,12 @@ class DiagramGraphService
     }
 
     /**
-     * One solution as the map's renderer expects it.
-     *
-     * Public because the same block is drawn by a second reading of the same
-     * catalog — `SolutionGraphService` groups solutions by directorate, owner
-     * or vendor instead of by who talks to whom, and a block that changed
-     * shape between the two readings would be a different thing on screen for
-     * no reason the user could name.
+     * One solution as the map's renderer expects it — the same block in both
+     * views, so a system never changes shape when the view does.
      *
      * @return array<string, mixed>
      */
-    public function solutionNode(Solution $solution): array
+    private function solutionNode(Solution $solution): array
     {
         return [
             'id'               => "sol-{$solution->id}",
@@ -412,7 +333,69 @@ class DiagramGraphService
             'supportLabel'     => $solution->support_type_label,
             'directorate'      => $solution->directorate,
             'categoryFamily'   => CategoryPalette::family($solution->category),
+            'hosting'          => $this->hostingOf($solution),
         ];
+    }
+
+    /**
+     * Which container a system sits in on the "Por hospedagem" view.
+     *
+     * The CLOUD wins when there is one — "SaaS on AWS" runs on AWS, and that is
+     * the fact the picture is about — and the hosting model (SaaS, On-Premises…)
+     * answers for everything else. A system with neither lands in the "Não
+     * informado" container rather than nowhere, so the view still accounts for
+     * the whole catalog and shows what is left to fill in.
+     */
+    public function hostingOf(Solution $solution): string
+    {
+        return match (true) {
+            filled($solution->cloud)       => "cloud:{$solution->cloud}",
+            filled($solution->environment) => "environment:{$solution->environment}",
+            default                        => self::UNKNOWN_HOSTING,
+        };
+    }
+
+    /**
+     * The containers the given nodes fall into, with the look the attribute
+     * screen gives them (colour, picture, icon). Clouds first, then hosting
+     * models, then "Não informado" — the order they are laid out in.
+     *
+     * @param  array<int, array<string, mixed>>  $nodes
+     * @return array<int, array<string, mixed>>
+     */
+    private function hostings(array $nodes): array
+    {
+        $used = array_unique(array_column($nodes, 'hosting'));
+        $containers = [];
+
+        foreach (['cloud', 'environment'] as $group) {
+            foreach (AttributeOption::options($group) as $option) {
+                $id = "{$group}:{$option->value}";
+                if (! in_array($id, $used, true)) {
+                    continue;
+                }
+                $containers[] = [
+                    'id'    => $id,
+                    'label' => $option->label,
+                    'kind'  => $group,
+                    'color' => $option->color ?? AttributeOption::DEFAULT_COLOR,
+                    'image' => $option->imageUrl(),
+                    'icon'  => $option->icon,
+                ];
+                $used = array_diff($used, [$id]);
+            }
+        }
+
+        // Whatever is left is unknown, or a value whose option was deleted —
+        // both are "we do not know where this runs".
+        if ($used !== []) {
+            $containers[] = [
+                'id'    => self::UNKNOWN_HOSTING, 'label' => 'Não informado', 'kind' => null,
+                'color' => AttributeOption::DEFAULT_COLOR, 'image' => null, 'icon' => null,
+            ];
+        }
+
+        return $containers;
     }
 
     /**
@@ -435,6 +418,7 @@ class DiagramGraphService
             'direction'    => ($bidirectional ? Direction::Bidirectional : Direction::Unidirectional)->value,
             'slug'         => $diagram->slug,
             'diagram_name' => $diagram->name,
+            'diagram_url'  => route('diagrams.show', $diagram),
         ];
     }
 }

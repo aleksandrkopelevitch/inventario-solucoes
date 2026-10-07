@@ -929,35 +929,27 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
     pelo "Salvar". Arrastar blocos, escolher um tema e então apagar um deles
     revertia o desenho para o último estado gravado. O estado vivo agora é
     reindexado do mesmo jeito que o servidor reindexou o dele.
-- **Mapa do ecossistema** (`/map`): derivado (somente leitura), layout radial
-  hub-and-spoke — cada solução é um hub com seus vizinhos diretos num círculo
-  ao redor (`<x-ecosystem-map>`, DOM+SVG, mesmo visual do canvas de diagrama
-  de cada solução; posicionamento por grid empacotado, não por rank — a
-  maioria dos clusters é pequena e desconexa entre si). Ligações paralelas
-  entre o mesmo par de soluções são deduplicadas em uma só
-  (`DiagramGraphService`); hubs com muitas conexões nascem colapsados
-  (badge com a contagem, clique expande/colapsa). Filtros por status/
-  categoria/diretoria.
+- **Mapa do ecossistema** (`/map`): derivado (somente leitura), um canvas
+  (`ecosystem-map.js`) **sempre no nível da solução** — um bloco por sistema e
+  **uma seta por par de sistemas** (`DiagramGraphService::dedupePairs()`), que
+  respeita o sentido de todos os fluxos entre os dois, em todos os diagramas
+  (ida, volta ou ambos). Não há mais detalhamento por diagrama/fluxo nem
+  filtros: o cabeçalho tem só o seletor de visões.
 
-  A mesma tela tem uma **segunda leitura**: `?group[]=` troca a pergunta, não
-  o desenho. O mapa responde "quem conversa com quem"; agrupado por
-  **diretoria, responsável, fornecedor ou categoria**
-  (`SolutionGraphService::AXES`) ele responde as perguntas que se fazem ao
-  lado dela e que a topologia não mostra — quantos sistemas cada diretoria
-  tem, de quem é a responsabilidade, de qual fornecedor o catálogo mais
-  depende. O serviço
-  devolve **o mesmo contrato** do `DiagramGraphService` com um campo a mais
-  (`groups`) e os dois do drill-down vazios, então o renderer desenha hub e
-  raio com o código que já tinha, em vez de a tela virar um segundo mapa
-  parecido com o primeiro.
+  - **Por ligações** (padrão): órbitas (o mais conectado no centro) ou
+    simulação de força.
+  - **Por hospedagem**: um container colorido por nuvem/hospedagem, com os
+    sistemas dentro (a Cloud ganha; sem Cloud vale a Hospedagem; sem nenhuma,
+    "Não informado"). A cor e a imagem de cada container são definidas no modal
+    de **Atributos** (grupos Hospedagem e Cloud). Por padrão as setas saem e
+    entram nos containers — **uma por ligação** —, com o botão "Setas por
+    solução" para desenhá-las entre os sistemas. Essa visão mostra o catálogo
+    inteiro, inclusive sistemas sem ligação.
 
-  **O `status` das duas leituras não é o mesmo vocabulário**, e foi assim que
-  o filtro chegou a mentir: o mapa filtra os **diagramas** que ele desenha
-  como aresta (`DiagramStatus`), a leitura agrupada filtra as **soluções**.
-  Uma solução nunca é `in_development` e um diagrama nunca é `evaluating` —
-  medido no catálogo de dev, "Em desenvolvimento" devolvia 0 de 109 e apagava
-  o mapa sem dizer nada. Cada leitura tem sua própria lista de opções agora, e
-  a inativa fica `disabled`, o que a tira da query string.
+  A busca ("Buscar sistema") marca o sistema com um anel laranja e centraliza
+  o mapa nele, até o Esc. Clicar num sistema abre o card dele; numa seta, o
+  sentido, o protocolo e os diagramas por trás dela (links só para quem pode
+  abrir diagramas). O mapa não pertence a nenhum módulo: toda conta o lê.
 - **Documentação rica (estilo GitBook)**: editor Editor.js persistido como
   Markdown + notação estendida GitBook (`hint`, `tabs`, `embed`, imagens com
   preset de largura) numa coluna `documentation` só de texto — sem tabela de

@@ -8,7 +8,8 @@
      plus the controls that sit on top of it. Everything that MOVES is drawn by
      `resources/js/modules/ecosystem-map.js` into the single <canvas> — this
      file owns the frame, the buttons and the two overlays the module fills
-     (`data-ak-map-tip`, `data-ak-map-card`).
+     (`data-ak-map-tip`, `data-ak-map-card`). The view selector and the arrows
+     toggle live in the page's own bar (`solutions/map.blade.php`).
 
      The surface is dark on purpose and it is the app's own dark: the same
      near-black the sidebar is built from, not a second theme. A graph reads
@@ -23,6 +24,7 @@
     @if ($id) id="{{ $id }}" @endif
     data-ak-ecosystem-map
     data-ak-map-url="{{ $sourceUrl }}"
+    data-ak-map-diagrams="{{ auth()->user()?->can('viewAny', \App\Models\Diagram::class) ? '1' : '0' }}"
     {{ $attributes->class(['relative overflow-hidden rounded-card bg-[#0b0e11] shadow-card ring-1 ring-black/15']) }}
     style="height: {{ $height }}"
 >
@@ -37,8 +39,9 @@
                 <x-forms.input
                     data-ak-map-search
                     type="search"
-                    placeholder="Buscar sistema ou diagrama…"
+                    placeholder="Buscar sistema…"
                     autocomplete="off"
+                    aria-label="Buscar sistema"
                     class="!border-white/15 !bg-white/10 !py-1.5 !text-[13px] !text-white placeholder:!text-white/40 focus:!border-lime focus:!shadow-[0_0_0_3px_rgba(170,219,30,0.18)]"
                 />
                 <div
@@ -47,11 +50,12 @@
                     class="absolute inset-x-0 top-full z-10 mt-1 overflow-hidden rounded-field border border-white/15 bg-[#11161a]/95 shadow-xl backdrop-blur"
                 ></div>
             </div>
-
-            <div data-ak-map-crumb class="mt-2 flex flex-wrap gap-1.5"></div>
         </div>
 
         <div class="pointer-events-auto flex shrink-0 items-center gap-1 rounded-field border border-white/10 bg-white/5 p-1 backdrop-blur">
+            {{-- Layout controls of the links view; the hosting view lays its
+                 containers out on a grid and hides them. --}}
+            <span data-ak-map-links-only class="contents">
             <x-forms.button type="button" variant="ghost" data-ak-map-action="layout" title="Alternar entre órbitas e simulação de força"
                 class="!rounded-md !px-2.5 !py-1 !text-[11px] !font-medium !text-white/70 hover:!bg-white/10 hover:!text-white">
                 <span data-label>Órbitas</span>
@@ -61,6 +65,7 @@
                 Girar
             </x-forms.button>
             <span class="mx-0.5 h-4 w-px bg-white/10"></span>
+            </span>
             <x-forms.button type="button" variant="ghost" data-ak-map-action="zoom-out" title="Diminuir zoom"
                 class="!rounded-md !px-2.5 !py-1 !text-base !leading-none !text-white/70 hover:!bg-white/10 hover:!text-white">−</x-forms.button>
             <x-forms.button type="button" variant="ghost" data-ak-map-action="zoom-in" title="Aumentar zoom"
@@ -68,10 +73,6 @@
             <x-forms.button type="button" variant="ghost" data-ak-map-action="fit" title="Centralizar"
                 class="!rounded-md !px-2 !py-1 !text-white/70 hover:!bg-white/10 hover:!text-white">
                 <x-heroicon-o-viewfinder-circle class="size-4" />
-            </x-forms.button>
-            <x-forms.button type="button" variant="ghost" data-ak-map-action="collapse" title="Recolher tudo (Esc)"
-                class="!rounded-md !px-2 !py-1 !text-white/70 hover:!bg-white/10 hover:!text-white">
-                <x-heroicon-o-arrows-pointing-in class="size-4" />
             </x-forms.button>
             <x-forms.button type="button" variant="ghost" data-ak-map-action="fullscreen" title="Tela cheia"
                 class="!rounded-md !px-2 !py-1 !text-white/70 hover:!bg-white/10 hover:!text-white">
@@ -100,8 +101,8 @@
         <div class="rounded-lg border border-white/10 bg-black/30 px-3 py-2 backdrop-blur">
             <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] uppercase tracking-wider text-white/45">
                 <span class="flex items-center gap-1.5"><span class="size-2.5 rounded-full bg-white/70"></span>Sistema</span>
-                <span class="flex items-center gap-1.5"><span class="size-2.5 rotate-90 bg-lime/80 [clip-path:polygon(25%_0,75%_0,100%_50%,75%_100%,25%_100%,0_50%)]"></span>Diagrama</span>
-                <span class="flex items-center gap-1.5"><span class="size-2.5 rounded-[3px] bg-white/40"></span>Bloco do fluxo</span>
+                <span class="flex items-center gap-1.5"><span class="h-px w-4 bg-white/60"></span>▸ Fluxo (ida, volta ou ambos)</span>
+                <span class="flex items-center gap-1.5"><span class="size-2.5 rounded-full ring-2 ring-[#ff8a1f]"></span>Busca</span>
             </div>
             <p data-ak-map-status class="mt-1 text-[10px] text-white/35"></p>
         </div>

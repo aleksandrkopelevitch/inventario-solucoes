@@ -48,13 +48,12 @@ hardcode a hex color or a one-off `border-radius` that already has a token.
   blocks" below.
 - Global browser-chrome overrides that have no per-element target, e.g. the
   scrollbar styling in `resources/css/components/scrollbar.css`.
-- `resources/views/components/ecosystem-map.blade.php` (the DOM+SVG ecosystem
-  map, radial hub-and-spoke layout) and
-  `resources/views/components/chain/viz.blade.php` (the F3 diagram canvas,
-  shared by a `Diagram` and a submission's drawings) share the same scoped
-  `--viz-*` token set and `.ak-viz-node`/`.ak-viz-node-avatar` classes, so both
-  render nodes identically — a legitimate exception since the content (JS-built
-  graph nodes/edges) never passes through Blade.
+- `resources/views/components/chain/viz.blade.php` (the F3 diagram canvas,
+  shared by a `Diagram` and a submission's drawings) uses a scoped `--viz-*`
+  token set and `.ak-viz-node`/`.ak-viz-node-avatar` classes — a legitimate
+  exception since the content (JS-built graph nodes/edges) never passes
+  through Blade. (The ecosystem map is a `<canvas>`, drawn in
+  `ecosystem-map.js`; it has no CSS of its own to speak of.)
 
 Before adding a new custom class or `<style>` block, check whether the same
 result is reachable with `@class([...])`, arbitrary-value utilities (`w-[172px]`),
