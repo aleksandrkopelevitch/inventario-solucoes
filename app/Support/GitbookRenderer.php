@@ -7,6 +7,7 @@ use App\Support\Documentation\BeforeAfterScene;
 use App\Support\Documentation\PageLinks;
 use App\Support\Documentation\SecretText;
 use App\Support\Documentation\StepScene;
+use App\Support\Documentation\TreeScene;
 use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
 use League\CommonMark\Extension\GithubFlavoredMarkdownExtension;
@@ -39,6 +40,8 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  *       → an animated "fluxo em etapas" (ours) — see renderScene()
  *   {% scene type="before-after" from="…" to="…" %}{% change aspect="…" before="…" after="…" %} … {% endscene %}
  *       → an animated "antes → depois" (ours) — see renderScene()
+ *   {% scene type="tree" %}{% node level="0" label="…" detail="…" %} … {% endscene %}
+ *       → an animated "árvore" (ours) — see renderScene()
  *   {% secret %} … {% endsecret %}   (inline, ours)
  *       → a lock the value is NOT inside — see App\Support\Documentation\SecretText
  *
@@ -606,11 +609,12 @@ class GitbookRenderer
     }
 
     /**
-     * An animated SCENE — `type="steps"` (the "fluxo em etapas") or
-     * `type="before-after"` (the "antes → depois").
+     * An animated SCENE — `type="steps"` (the "fluxo em etapas"),
+     * `type="before-after"` (the "antes → depois") or `type="tree"` (the
+     * "árvore").
      *
      * What this emits is the scene's TEXT — the steps as an ordered list, the
-     * changes as a table — because that is what a reader without JavaScript
+     * changes as a table, a tree as nested lists — because that is what a reader without JavaScript
      * sees, what a screen reader reads, and what the search index and the MCP
      * server pick up. The animation is drawn over it by docs-scene.js from the
      * same data, carried as JSON on the figure — so there is one renderer of
@@ -630,6 +634,7 @@ class GitbookRenderer
 
         $steps = [];
         $changes = [];
+        $nodes = [];
         $i = 0;
         $n = count($lines);
 
@@ -645,6 +650,21 @@ class GitbookRenderer
                     'detail'    => trim(implode(' ', array_map('trim', $inner))),
                     'highlight' => ($stepAttrs['highlight'] ?? '') === 'true',
                 ];
+
+                continue;
+            }
+
+            // `{% node %}` is self-closing too: one line of an outline, its
+            // depth in `level` (the flat shape TreeScene stores).
+            if (preg_match('/^\{%\s*node(?:\s+(.*?))?\s*%\}$/', $line, $m)) {
+                $nodeAttrs = $this->parseAttrs($m[1] ?? '');
+                $nodes[] = [
+                    'label'     => $decode($nodeAttrs, 'label'),
+                    'detail'    => $decode($nodeAttrs, 'detail'),
+                    'level'     => (int) ($nodeAttrs['level'] ?? 1),
+                    'highlight' => ($nodeAttrs['highlight'] ?? '') === 'true',
+                ];
+                $i++;
 
                 continue;
             }
@@ -665,7 +685,9 @@ class GitbookRenderer
         $steps = array_values(array_filter($steps, fn (array $step) => $step['title'] !== '' || $step['detail'] !== ''));
         $changes = array_values(array_filter($changes, fn (array $change) => $change['before'] !== '' || $change['after'] !== ''));
 
-        if ($steps === [] && $changes === []) {
+        $nodes = TreeScene::normalizeLevels(array_values(array_filter($nodes, fn (array $node) => $node['label'] !== '')));
+
+        if ($steps === [] && $changes === [] && $nodes === []) {
             return '';
         }
 
@@ -677,6 +699,7 @@ class GitbookRenderer
         $scene = match (true) {
             $type === StepScene::TYPE && $steps !== []          => ['type' => $type, 'caption' => $caption, 'steps' => $steps],
             $type === BeforeAfterScene::TYPE && $changes !== [] => ['type' => $type, 'caption' => $caption, 'from' => $from, 'to' => $to, 'changes' => $changes],
+            $type === TreeScene::TYPE && $nodes !== []          => ['type' => $type, 'caption' => $caption, 'nodes' => $nodes],
             default                                             => null,
         };
 
@@ -713,6 +736,10 @@ class GitbookRenderer
                 . '<tbody>' . $rows . '</tbody></table>';
         }
 
+        if ($nodes !== []) {
+            $text .= $this->renderOutline($nodes);
+        }
+
         $data = $scene !== null
             ? ' data-ak-scene="' . e(json_encode($scene, JSON_UNESCAPED_UNICODE)) . '"'
             : '';
@@ -724,6 +751,35 @@ class GitbookRenderer
             . $text
             . ($caption !== '' ? '<figcaption>' . e($caption) . '</figcaption>' : '')
             . '</figure>';
+    }
+
+    /**
+     * A tree's flat outline (levels already normalized) as nested lists — the
+     * text a reader without JavaScript, a screen reader and the search index
+     * get. Nested by walking the levels: one `<ul>` opens per step down and
+     * closes per step back up.
+     *
+     * @param  list<array{label: string, detail: string, level: int, highlight: bool}>  $nodes
+     */
+    private function renderOutline(array $nodes): string
+    {
+        $html = '';
+        $depth = -1;
+
+        foreach ($nodes as $node) {
+            if ($node['level'] > $depth) {
+                $html .= '<ul' . ($depth === -1 ? ' class="ak-scene__text ak-scene__tree"' : '') . '>';
+            } else {
+                $html .= '</li>' . str_repeat('</ul></li>', $depth - $node['level']);
+            }
+            $depth = $node['level'];
+
+            $html .= '<li' . ($node['highlight'] ? ' class="is-highlight"' : '') . '>'
+                . '<span class="ak-scene__title">' . e($node['label']) . '</span>'
+                . ($node['detail'] !== '' ? ' <span class="ak-scene__detail">' . e($node['detail']) . '</span>' : '');
+        }
+
+        return $html . '</li>' . str_repeat('</ul></li>', $depth) . '</ul>';
     }
 
     /**

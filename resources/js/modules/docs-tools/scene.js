@@ -1,13 +1,15 @@
 // Editor.js SCENE tool — an animated figure (docs-scene.js) inside the page.
-// One tool, two entries in the "/" menu, one per scene type:
+// One tool, one entry in the "/" menu per scene type:
 //
 // - "Fluxo em etapas" → `{% scene type="steps" %}{% step title="…"
 //   highlight="true" %}detalhe{% endstep %}…{% endscene %}`
 // - "Antes → depois" → `{% scene type="before-after" from="Hoje" to="…" %}
 //   {% change aspect="…" before="…" after="…" %}…{% endscene %}`
+// - "Árvore" → `{% scene type="tree" %}{% node level="0" label="…" %}…
+//   {% endscene %}` — rows with a depth, indented, ⇤/⇥ to change it
 //
 // (docs-markdown.js writes and reads both; GitbookRenderer emits them as an
-// ordered list / a table that the reader animates.)
+// ordered list / a table / nested lists that the reader animates.)
 //
 // One tool rather than one per type because everything around the rows is the
 // same: "Gerar a partir da página" asks the model (Gemini Flash, via
@@ -32,6 +34,8 @@ import {mountScene} from '../docs-scene.js'
 const STEPS_ICON = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="8" width="5.5" height="8" rx="1.5"/><rect x="16" y="8" width="5.5" height="8" rx="1.5"/><path d="M8 12h7M12.5 9.5 15 12l-2.5 2.5"/></svg>'
 
 const BEFORE_AFTER_ICON = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="7" height="14" rx="1.5" stroke-dasharray="2.5 2.5"/><rect x="14.5" y="5" width="7" height="14" rx="1.5"/><path d="M10.5 12h3M12.3 10.5 13.8 12l-1.5 1.5"/></svg>'
+
+const TREE_ICON = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8.5" y="2.5" width="7" height="5" rx="1.2"/><rect x="2.5" y="16.5" width="7" height="5" rx="1.2"/><rect x="14.5" y="16.5" width="7" height="5" rx="1.2"/><path d="M12 7.5v4.5M6 16.5V12h12v4.5"/></svg>'
 
 const SPARKLES = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.8 15.9 9 18.8l-.8-2.9a4.5 4.5 0 0 0-3.1-3.1L2.2 12l2.9-.8a4.5 4.5 0 0 0 3.1-3.1L9 5.2l.8 2.9a4.5 4.5 0 0 0 3.1 3.1l2.9.8-2.9.8a4.5 4.5 0 0 0-3.1 3.1ZM18.3 8.7 18 9.8l-.3-1.1a3.4 3.4 0 0 0-2.4-2.4L14.2 6l1.1-.3a3.4 3.4 0 0 0 2.4-2.4L18 2.2l.3 1.1a3.4 3.4 0 0 0 2.4 2.4l1.1.3-1.1.3a3.4 3.4 0 0 0-2.4 2.4Z"/></svg>'
 
@@ -81,6 +85,44 @@ const TYPES = {
         labels: true,
         filled: (row) => row.before.trim() || row.after.trim(),
     },
+    tree: {
+        name: 'Árvore',
+        icon: TREE_ICON,
+        list: 'nodes',
+        max: 16,
+        add: 'Adicionar item',
+        focus: 'Sobre o quê? (opcional) — ex.: os módulos do SAP',
+        caption: 'Legenda (opcional) — ex.: como o SAP se organiza na Leo',
+        highlight: ['Marcar como destaque', 'Desmarcar destaque'],
+        replace: 'Substituir os itens atuais pela árvore gerada a partir da página?',
+        done: 'Árvore gerada. Confira os itens — dá para editar, mudar o nível (⇤ ⇥), reordenar e marcar o destaque.',
+        fields: [
+            {key: 'label', placeholder: 'Nome do item', max: 32, cls: 'ak-scene-tool__title'},
+            {key: 'detail', placeholder: 'Detalhe (opcional)', max: 80, cls: 'ak-scene-tool__detail'},
+        ],
+        labels: false,
+        // Rows carry a depth (0 = the one root, at most 2) and are drawn
+        // indented; ⇤/⇥ change it. TreeScene stores the same flat outline.
+        levels: true,
+        filled: (row) => row.label.trim(),
+    },
+}
+
+/**
+ * The outline rule TreeScene::normalizeLevels() applies on the server: the
+ * first row is the one root, nothing sits more than one step below the row
+ * before it, nothing past level 2. Re-applied after every gesture, so a move or
+ * a removal can never leave an orphan.
+ */
+function clampLevels(rows) {
+    let previous = -1
+
+    return rows.map((row, i) => {
+        const level = i === 0 ? 0 : Math.max(1, Math.min(row.level, previous + 1, 2))
+        previous = level
+
+        return {...row, level}
+    })
 }
 
 function csrf() {
@@ -134,16 +176,24 @@ export default class SceneTool {
     }
 
     normalizeRows(rows) {
-        return (Array.isArray(rows) ? rows : []).map((row) => {
-            const clean = {highlight: row.highlight === true}
-            this.spec.fields.forEach(({key}) => { clean[key] = String(row[key] || '') })
+        const clean = (Array.isArray(rows) ? rows : []).map((row) => {
+            const copy = {highlight: row.highlight === true}
+            this.spec.fields.forEach(({key}) => { copy[key] = String(row[key] || '') })
+            if (this.spec.levels) copy.level = Number(row.level) || 0
 
-            return clean
+            return copy
         })
+
+        return this.spec.levels ? clampLevels(clean) : clean
     }
 
     blankRow() {
-        return this.normalizeRows([{}])[0]
+        const row = this.normalizeRows([{}])[0]
+        // A new item joins the tree where the last one is (a sibling), and the
+        // very first is the root.
+        if (this.spec.levels) row.level = this.rows.length ? Math.max(1, this.rows[this.rows.length - 1].level) : 0
+
+        return row
     }
 
     render() {
@@ -309,7 +359,12 @@ export default class SceneTool {
 
     buildRow(row, i) {
         const item = el('li', 'ak-scene-tool__step' + (row.highlight ? ' is-highlight' : ''))
-        const number = el('span', 'ak-scene-tool__num', {text: String(i + 1), 'aria-hidden': 'true'})
+        // A tree's rows show their depth, not a count: the number of an item
+        // in an outline means nothing.
+        const number = this.spec.levels
+            ? el('span', `ak-scene-tool__num is-level-${row.level}`, {'aria-hidden': 'true', title: ['Topo', 'Nível 1', 'Nível 2'][row.level]})
+            : el('span', 'ak-scene-tool__num', {text: String(i + 1), 'aria-hidden': 'true'})
+        if (this.spec.levels) item.style.marginLeft = `${row.level * 1.6}rem`
 
         const fields = el('div', 'ak-scene-tool__fields')
         const pair = el('div', 'ak-scene-tool__pair')
@@ -341,6 +396,9 @@ export default class SceneTool {
 
         const [on, off] = this.spec.highlight
         const actions = el('div', 'ak-scene-tool__actions')
+        // In a tree the root stays first: it cannot move, and nothing moves
+        // above it.
+        const fixed = this.spec.levels && i === 0
         actions.append(
             this.action('★', row.highlight ? off : on, () => {
                 const value = !row.highlight
@@ -348,9 +406,30 @@ export default class SceneTool {
                 this.rows.forEach((other) => { other.highlight = false })
                 row.highlight = value
             }, row.highlight ? 'is-on' : ''),
-            this.action('↑', 'Subir', () => this.move(i, -1), '', i === 0),
-            this.action('↓', 'Descer', () => this.move(i, 1), '', i === this.rows.length - 1),
-            this.action('×', 'Remover', () => this.rows.splice(i, 1), 'is-danger'),
+        )
+        if (this.spec.levels) {
+            const previous = this.rows[i - 1]
+            // A gesture moves the BRANCH: the item and everything under it,
+            // so indenting a parent never turns its children into siblings.
+            // Which is also why ⇥ is refused for an item with children deeper
+            // than the tree's last level allows.
+            const branch = this.branch(i)
+            const deepest = Math.max(row.level, ...branch.map((k) => this.rows[k].level))
+            actions.append(
+                this.action('⇤', 'Subir um nível', () => this.shift(i, -1), '', fixed || row.level <= 1),
+                this.action('⇥', 'Descer um nível', () => this.shift(i, 1), '', fixed || !previous || row.level >= Math.min(previous.level + 1, 2) || deepest >= 2),
+            )
+        }
+        actions.append(
+            this.action('↑', 'Subir', () => this.move(i, -1), '', i === 0 || (this.spec.levels && i === 1)),
+            this.action('↓', 'Descer', () => this.move(i, 1), '', fixed || i === this.rows.length - 1),
+            this.action('×', 'Remover', () => {
+                // Removing a parent lifts its children one level, into the
+                // place it leaves — they are not deleted with it, and they do
+                // not become children of whatever happened to be above.
+                if (this.spec.levels) this.branch(i).forEach((k) => { this.rows[k].level -= 1 })
+                this.rows.splice(i, 1)
+            }, 'is-danger'),
         )
 
         item.append(number, fields, actions)
@@ -363,6 +442,7 @@ export default class SceneTool {
         button.disabled = disabled
         button.addEventListener('click', () => {
             run()
+            if (this.spec.levels) this.rows = clampLevels(this.rows)
             this.drawRows()
             this.changed()
         })
@@ -370,7 +450,19 @@ export default class SceneTool {
         return button
     }
 
-    move(i, delta) {
+    /** The rows under row `i` in the outline — the contiguous ones deeper than it. */
+    branch(i) {
+        const rows = []
+        for (let k = i + 1; k < this.rows.length && this.rows[k].level > this.rows[i].level; k++) rows.push(k)
+
+        return rows
+    }
+
+    shift(i, delta) {
+        ;[i, ...this.branch(i)].forEach((k) => { this.rows[k].level += delta })
+    }
+
+        move(i, delta) {
         const j = i + delta
         if (j < 0 || j >= this.rows.length) return
         ;[this.rows[i], this.rows[j]] = [this.rows[j], this.rows[i]]
@@ -396,6 +488,7 @@ export default class SceneTool {
         scene[this.spec.list] = this.rows.map((row) => {
             const copy = {highlight: row.highlight}
             this.spec.fields.forEach(({key}) => { copy[key] = text(row[key]) })
+            if (this.spec.levels) copy.level = row.level
 
             return copy
         })

@@ -7,6 +7,7 @@ use App\Support\Documentation\BeforeAfterScene;
 use App\Support\Documentation\BlockVault;
 use App\Support\Documentation\SecretText;
 use App\Support\Documentation\StepScene;
+use App\Support\Documentation\TreeScene;
 
 /**
  * Prompts for the animated scenes of a page — one system prompt per SceneType,
@@ -29,6 +30,7 @@ class SceneDraftPromptBuilder
         $body = match ($type) {
             SceneType::Steps       => $this->stepsPrompt(),
             SceneType::BeforeAfter => $this->beforeAfterPrompt(),
+            SceneType::Tree        => $this->treePrompt(),
         };
 
         return <<<PROMPT
@@ -148,6 +150,66 @@ class SceneDraftPromptBuilder
         Se a página NÃO descreve uma mudança (só explica como as coisas são,
         sem um "antes" e um "depois"), não force: responda
         `{"error": "<em uma frase, por que não há uma mudança aqui>"}`.
+        PROMPT;
+    }
+
+    private function treePrompt(): string
+    {
+        $min = TreeScene::MIN_NODES;
+        $max = TreeScene::MAX_NODES;
+        $children = TreeScene::MAX_CHILDREN;
+        $label = TreeScene::MAX_LABEL;
+        $detail = TreeScene::MAX_DETAIL;
+        $caption = TreeScene::MAX_CAPTION;
+
+        return <<<PROMPT
+        A FIGURA É UMA ÁRVORE: um item no topo e, abaixo dele, o que ele contém
+        ou organiza — a hierarquia que a página descreve (um sistema e seus
+        módulos, as camadas de uma arquitetura e o que vive em cada uma, uma
+        classificação, uma área e suas frentes).
+
+        FORMATO (aninhado: cada item pode ter `children`):
+
+        ```json
+        {
+          "caption": "Como o SAP S/4HANA se organiza na Leo",
+          "root": {
+            "label": "SAP S/4HANA",
+            "detail": "ERP corporativo",
+            "children": [
+              {"label": "SD — Vendas", "children": [
+                {"label": "Pedidos ZMOB", "detail": "Pedidos do Leomob"},
+                {"label": "Faturamento"}
+              ]},
+              {"label": "MM — Materiais", "children": [
+                {"label": "Dados mestres", "highlight": true}
+              ]},
+              {"label": "FI — Financeiro"}
+            ]
+          }
+        }
+        ```
+
+        REGRAS:
+        - UM item no topo (`root`). No MÁXIMO 3 níveis: o topo, os filhos dele
+          e os filhos dos filhos. Netos não têm filhos.
+        - Entre {$min} e {$max} itens no total, e no máximo {$children} filhos
+          por item. Agrupe o que for miúdo; a árvore mostra a ESTRUTURA, não
+          cada detalhe.
+        - `label`: curto, até {$label} caracteres — o nome da coisa, como a
+          página escreve.
+        - `detail`: opcional, até {$detail} caracteres, só quando ajuda a
+          entender o item. Na maioria dos itens, deixe de fora.
+        - `highlight`: true em NO MÁXIMO UM item — o que a página trata como o
+          mais importante. Na dúvida, nenhum.
+        - `caption`: uma linha de até {$caption} caracteres dizendo o que a
+          árvore organiza. Pode ficar vazio.
+        - Só pai → filho de verdade ("contém", "é parte de", "é um tipo de").
+          Uma sequência no tempo não é uma árvore.
+
+        Se a página NÃO descreve uma hierarquia (é um processo passo a passo,
+        uma comparação, um texto corrido), não force: responda
+        `{"error": "<em uma frase, por que não há uma hierarquia aqui>"}`.
         PROMPT;
     }
 

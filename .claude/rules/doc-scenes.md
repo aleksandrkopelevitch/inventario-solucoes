@@ -2,6 +2,7 @@
 paths:
   - "app/Support/Documentation/StepScene.php"
   - "app/Support/Documentation/BeforeAfterScene.php"
+  - "app/Support/Documentation/TreeScene.php"
   - "app/Enums/SceneType.php"
   - "app/Services/Documentation/SceneDraftService.php"
   - "app/Services/Documentation/SceneDraftPromptBuilder.php"
@@ -15,7 +16,7 @@ paths:
 ### Animated scenes — the model picks the words, the code draws the picture
 
 A SCENE is an animated figure inside a documentation page — the seventh
-construct of the dialect, the third of our own. Two types exist, and
+construct of the dialect, the third of our own. Three types exist, and
 `App\Enums\SceneType` is the one switch everything turns on (prompt, IR,
 editor form, renderer):
 
@@ -28,6 +29,19 @@ editor form, renderer):
   statement, not a gap: empty `before` = new ("Novo"), empty `after` = it stops
   existing ("Sai"); both empty or both equal is refused as "not a change".
   `from`/`to` name the two columns and default to "Antes"/"Depois".
+- **"Árvore"** — `{% scene type="tree" %}` with one self-closing
+  `{% node level="0|1|2" label="…" detail="…" %}` per item, in reading order
+  (`TreeScene`: 3–16 items, at most 6 children each, three levels). The model
+  answers NESTED (`root` + `children` — nothing can dangle) and the page stores
+  a FLAT outline with depths (what the editor's ⇤/⇥ rows and the reader both
+  speak); `TreeScene` is the bridge, and `normalizeLevels()` (mirrored by
+  `treeNodes()`/`clampLevels()` in JS) repairs a ragged hand-edited outline:
+  one root, no jump of more than one level, nothing past level 2. In the
+  editor every gesture moves the BRANCH — removing a parent lifts its children,
+  ⇤/⇥ carry the subtree, and ⇥ is refused where it would push a child past the
+  last level. Drawn as an org chart when 2–4 branches fit side by side, as an
+  indented outline (capped at 620px, centred) otherwise; its lines have no
+  arrowheads and no streaming dots — they mean "contains", not "goes to".
 
 A new type is a new `SceneType` case plus its IR, its prompt section
 (`SceneDraftPromptBuilder`), its row spec in the editor tool's `TYPES` table and
@@ -40,7 +54,10 @@ everything around the rows — generate, preview, caption — is the same.
 changes, in what order, which one matters most — as a small JSON object
 validated by the type's IR (short labels, at most one highlight), with one repair
 round, the same shape as `DiagramDraftService` (and a way out, `{"error": …}`,
-for a page with no sequence / no change in it). It never returns a coordinate,
+for a page with no sequence / change / hierarchy in it). A provider that does
+not answer within `scene_timeout` becomes `SceneDraftFailed::unavailable()` — a
+422 saying "tente de novo", not a 500: a real run hung for 45s on a small page
+that answered in 7s next time. It never returns a coordinate,
 a colour or SVG. `docs-scene.js` decides all of that. This is what makes a fast
 model enough, and what keeps a scene from ever coming out crooked or off-brand:
 a model asked to draw SVG directly varies wildly per call and hands the page
@@ -49,7 +66,8 @@ markup that could carry a script.
 Four things that are easy to undo:
 
 - **ONE renderer, in the browser.** GitbookRenderer emits the text (the steps as
-  an `<ol>`, the changes as a `<table>`, both `.ak-scene__text`) plus the same
+  an `<ol>`, the changes as a `<table>`, a tree as nested `<ul>`s, all
+  `.ak-scene__text`) plus the same
   data as JSON on the figure (`data-ak-scene`), and
   `docs-scene.js` draws over it; the editor's block calls the same
   `mountScene()` for its live preview. A PHP copy of the picture would drift,
