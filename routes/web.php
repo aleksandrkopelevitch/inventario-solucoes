@@ -419,7 +419,7 @@ Route::middleware('auth')->group(function () {
          | Submission::diagrams(), so a diagram belonging to another submission
          | 404s instead of being edited through the wrong parent.
          |
-         | The eleven chain endpoints mirror the diagrams module's ONE FOR ONE
+         | The twelve chain endpoints mirror the diagrams module's ONE FOR ONE
          | — same request classes, same controller trait (Concerns\EditsChain),
          | same response shapes — because it is the same canvas over a
          | different owner. `chain-viz.js` never learns which one it is
@@ -449,6 +449,7 @@ Route::middleware('auth')->group(function () {
             Route::patch('chain/protocol/{edge}', [SubmissionDiagramController::class, 'updateProtocol'])->whereNumber('edge')->name('chain.protocol.update');
             Route::patch('chain/edge/{edge}', [SubmissionDiagramController::class, 'retargetEdge'])->whereNumber('edge')->name('chain.edge.retarget');
             Route::delete('chain/edge/{edge}', [SubmissionDiagramController::class, 'removeEdge'])->whereNumber('edge')->name('chain.edge.remove');
+            Route::put('chain', [SubmissionDiagramController::class, 'restoreChainState'])->name('chain.restore');
         });
     });
 
@@ -511,7 +512,7 @@ Route::middleware('auth')->group(function () {
      | being renamed. Nothing here CREATES one: that is
      | `notebooks/{notebook}/diagrams` and the page's "Desenhar esta página".
      |
-     | The eleven chain endpoints are the canvas's, and they mirror the
+     | The twelve chain endpoints are the canvas's, and they mirror the
      | submission-diagram ones ONE FOR ONE: same payloads, same responses, same
      | FormRequests. `chain-viz.js` never learns which owner it is editing,
      | because every URL it calls arrives inside the graph payload
@@ -565,6 +566,9 @@ Route::middleware('auth')->group(function () {
         // Removes a link without removing its blocks.
         Route::delete('chain/edge/{edge}', [DiagramController::class, 'removeEdge'])
             ->whereNumber('edge')->name('chain.edge.remove');
+        // A whole earlier state (chain + layout) written back — the canvas's
+        // Ctrl+Z / Ctrl+Y for a step that touched the topology.
+        Route::put('chain', [DiagramController::class, 'restoreChainState'])->name('chain.restore');
     });
 
     // Documentation Hub — the cross-cutting view of what's documented and

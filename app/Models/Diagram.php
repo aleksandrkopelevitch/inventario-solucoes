@@ -200,6 +200,7 @@ class Diagram extends Model implements ChainCanvas
             'edgeUpdateUrl'   => route('diagrams.chain.protocol.update', [$this, 'EDGE_INDEX']),
             'edgeRetargetUrl' => route('diagrams.chain.edge.retarget', [$this, 'EDGE_INDEX']),
             'edgeRemoveUrl'   => route('diagrams.chain.edge.remove', [$this, 'EDGE_INDEX']),
+            'restoreUrl'      => route('diagrams.chain.restore', $this),
         ];
     }
 

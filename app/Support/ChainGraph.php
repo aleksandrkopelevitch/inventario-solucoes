@@ -72,6 +72,7 @@ class ChainGraph
                 ->values()
                 ->all(),
             'layout'   => $owner->vizLayout(),
+            'chain'    => $chain, // as stored — what the canvas's undo history records (`EditsChain::answer()`)
             'editable' => Gate::allows('update', $owner),
             ...$owner->chainUrls(),
         ];

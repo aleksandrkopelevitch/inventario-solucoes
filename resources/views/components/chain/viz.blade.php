@@ -233,8 +233,7 @@
 <div data-ak-chain-viz
     class="ak-viz relative flex min-h-[360px] flex-1 flex-col overflow-hidden bg-surface">
 
-    {{-- Top bar: view actions (organize default layout / center / fullscreen /
-         save). No topology-authoring action lives here — only the topology,
+    {{-- Top bar: view actions (center / fullscreen / save). No topology-authoring action lives here — only the topology,
          always the chain, decides nodes and edges.
 
          It doesn't name the diagram either: the canvas is always mounted
@@ -274,6 +273,8 @@
                     <li><strong class="font-semibold">Puxe</strong> a bolinha da borda até outro bloco pra ligar</li>
                     <li><strong class="font-semibold">Roda do mouse</strong> dá zoom</li>
                     <li><strong class="font-semibold">Ctrl+V</strong> cola uma imagem direto no canvas</li>
+                    <li><strong class="font-semibold">Ctrl+Z</strong> desfaz e <strong class="font-semibold">Ctrl+Y</strong> refaz (⌘ no Mac)</li>
+                    <li><strong class="font-semibold">Arraste</strong> o rótulo de uma seta pra deslizá-lo ao longo dela</li>
                 </ul>
                 <ul class="hidden flex-col gap-1.5 [@media(pointer:coarse)]:flex">
                     <li><strong class="font-semibold">Toque</strong> seleciona um bloco ou uma seta</li>
@@ -285,7 +286,7 @@
             </div>
         </div>
 
-        {{-- Authoring cluster: add block, organize layout, save. Viewport
+        {{-- Authoring cluster: add block, lane, note, save. Viewport
              controls (zoom / center / fullscreen) live ONLY in the floating
              bottom bar now — they used to be duplicated here.
 
@@ -328,10 +329,6 @@
                 class="!hidden !rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
                 <x-heroicon-o-document-text class="size-4" />
             </x-forms.button>
-            <x-forms.button type="button" variant="ghost" data-viz-organize title="Organizar layout padrão"
-                class="!rounded-md !p-1.5 !text-ink hover:!bg-accent-soft">
-                <x-heroicon-o-squares-2x2 class="size-4" />
-            </x-forms.button>
             {{-- Save layout — the JS reveals it (removes `hidden`) only when
                  the diagram is editable, and enables it when there's an
                  unsaved change. --}}
@@ -356,18 +353,20 @@
             <div data-viz-world class="ak-viz-world">
                 {{-- The links' pointer targets (`chain-viz.js::drawEdgeHit()`), in a
                      layer of their own rather than inside the edges SVG below.
-                     They are 16px wide and follow every route, and the edges SVG
-                     is a LATER sibling of the lanes — so in a lane drawing they
-                     sat on top of the 10px strip you drag a lane's edge by, and
-                     killed the resize wherever a link crossed a lane boundary,
-                     which is everywhere. Here they are the LAST thing to claim a
-                     click: block, lane handle and lane label all win, and a link
-                     answers only where there is nothing but line.
+                     The lanes are PREPENDED before this layer, so a link is
+                     above a lane's body and below every block: an arrow
+                     crossing a lane is clicked, hovered and selected like any
+                     other, instead of the click falling through to the lane and
+                     dragging it away (this layer used to sit at `z-index: -1`,
+                     behind the lanes, and every arrow inside a lane was out of
+                     reach — "a seta está sempre atrás da raia").
 
-                     `z-index: -1` is safe in THIS parent and would not be on the
-                     lanes: `.ak-viz-world` carries a transform, so it is a real
-                     stacking context and the negative layer cannot escape behind
-                     the viewport. --}}
+                     The 16px targets still cross the thin strips a lane is
+                     resized by, and its title strip, wherever a link runs over a
+                     lane's border — which is everywhere. Those keep winning: a
+                     target's `pointerdown` looks underneath itself and hands the
+                     gesture to the lane handle or label it covers
+                     (`laneChromeUnder()`). --}}
                 <svg data-viz-hits class="ak-viz-hits" xmlns="http://www.w3.org/2000/svg"></svg>
                 <svg data-viz-edges class="ak-viz-edges" xmlns="http://www.w3.org/2000/svg">
                     {{-- Duplicates (deliberately) the edge/marker/pill rules from
@@ -1402,12 +1401,14 @@
             .ak-viz-lane.is-rounded.is-vertical .ak-viz-lane-label {
                 border-radius: var(--ak-lane-radius) var(--ak-lane-radius) 0 0;
             }
-            /* Resize handles — thin invisible strips (edges) or a small
-               square (corner), all children of `.ak-viz-lane`: `-e` (right
-               edge) changes only `width`, `-s` (bottom edge) only `height`,
-               `-se` (corner) both at once — same 3-handle convention as any
-               rectangle editor (Figma, Miro, Excalidraw). Read-only mode
-               turns every one of them off entirely (nothing to drag). */
+            /* Resize handles — thin invisible strips (the four edges) or a
+               small square (the four corners), all children of `.ak-viz-lane`:
+               an edge changes one dimension, a corner both — the same
+               convention as any rectangle editor (Figma, Miro, Excalidraw). A
+               handle on the top or left edge moves that edge, so it changes
+               `x`/`y` along with the size and the opposite edge stays put.
+               Read-only mode turns every one of them off entirely (nothing to
+               drag). */
             .ak-viz-lane-resize {
                 position: absolute;
                 pointer-events: none;
@@ -1418,6 +1419,11 @@
             .ak-viz-lane-resize-e { top: 0; right: -5px; width: 10px; height: 100%; cursor: ew-resize; }
             .ak-viz-lane-resize-s { left: 0; bottom: -5px; width: 100%; height: 10px; cursor: ns-resize; }
             .ak-viz-lane-resize-se { right: -6px; bottom: -6px; width: 14px; height: 14px; border-radius: 4px; cursor: nwse-resize; }
+            .ak-viz-lane-resize-w { top: 0; left: -5px; width: 10px; height: 100%; cursor: ew-resize; }
+            .ak-viz-lane-resize-n { left: 0; top: -5px; width: 100%; height: 10px; cursor: ns-resize; }
+            .ak-viz-lane-resize-nw { left: -6px; top: -6px; width: 14px; height: 14px; border-radius: 4px; cursor: nwse-resize; }
+            .ak-viz-lane-resize-ne { right: -6px; top: -6px; width: 14px; height: 14px; border-radius: 4px; cursor: nesw-resize; }
+            .ak-viz-lane-resize-sw { left: -6px; bottom: -6px; width: 14px; height: 14px; border-radius: 4px; cursor: nesw-resize; }
             [data-ak-chain-viz][data-editable] .ak-viz-lane-resize:hover,
             [data-ak-chain-viz][data-editable] .ak-viz-lane-resize.is-resizing {
                 background: rgba(16, 24, 40, .18);
@@ -1526,6 +1532,11 @@
                `pointer-events: none` (shouldn't capture pan clicks), so only
                the clickable pill re-enables events here. */
             .ak-viz-edges .ak-viz-plabel.is-editable { cursor: pointer; pointer-events: auto; }
+            /* A written label is also dragged ALONG its arrow
+               (`chain-viz.js::startLabelDrag()`); a click still selects the
+               link and a double click still edits the text. */
+            .ak-viz-edges .ak-viz-plabel.is-editable:not(.is-empty) { cursor: grab; }
+            .ak-viz-edges .ak-viz-plabel.is-dragging { cursor: grabbing; }
             .ak-viz-edges .ak-viz-plabel.is-empty .ak-viz-plabel-box {
                 fill: transparent;
                 stroke-dasharray: 3 2;
@@ -1576,7 +1587,6 @@
                 left: 0;
                 overflow: visible;
                 pointer-events: none;
-                z-index: -1;
             }
             /* Alvo de ponteiro da ligação (`drawEdgeHit()`): invisível, largo,
                e o único elemento desta camada que recebe eventos.
@@ -1606,13 +1616,17 @@
                 filter: drop-shadow(0 0 4px currentColor) drop-shadow(0 0 8px currentColor);
             }
             /* The action block — the reference profile's white card: a #B9C2CE
-               hairline, 10px corners, centred text on a 20px line, and the
-               board's own FIXED 200×96 card. Fixed on purpose, and measured
-               (63 of the reference's white blocks are exactly 200×96): sized by
-               its content, "Aprovado" came out a 150×60 chip beside a
-               three-line neighbour, and a flow read as a scatter of sizes
-               instead of a column of equal steps. A long text wraps inside the
-               200px and the card only grows taller.
+               hairline, 10px corners, centred text on a 20px line, and a FIXED
+               card. Fixed on purpose: sized by its content, "Aprovado" came out
+               a 150×60 chip beside a three-line neighbour, and a flow read as a
+               scatter of sizes instead of a column of equal steps. A long text
+               wraps inside the width and the card only grows taller.
+
+               160×76, a fifth smaller than the reference board's measured
+               200×96 (2026-10-10): at the board's size the cards read as too
+               big on the canvas, mostly empty room around one or two lines.
+               The proportion is the board's; only the scale changed, and the
+               diamond, the pill and the picture slot shrank with it.
 
                The outline is a real BORDER, not a box-shadow ring: the tones
                below widen it to 2px in their own hue, and a ring painted over a
@@ -1624,9 +1638,9 @@
                 flex-direction: column;
                 justify-content: center;
                 gap: 4px;
-                width: 200px;
-                min-height: 96px;
-                padding: 10px 12px;
+                width: 160px;
+                min-height: 76px;
+                padding: 8px 10px;
                 border: 1px solid var(--viz-node-border);
                 border-radius: 10px;
                 background: var(--viz-node);
@@ -1818,7 +1832,7 @@
             }
             {{-- Wider by the picture's slot, so the text keeps the room a
                  plain card gives it. --}}
-            .ak-viz-node.has-picture:not(.is-picture-top) { width: 260px; }
+            .ak-viz-node.has-picture:not(.is-picture-top) { width: 208px; }
             .ak-viz-node-avatar {
                 display: flex;
                 align-items: center;
@@ -1929,11 +1943,13 @@
                exactly on the diamond's four tips.
 
                Text fits a diamond only inside its middle: a W×H rhombus holds a
-               w×h rectangle while w/W + h/H ≤ 1. The reference's own 200×112
-               with its 44px side padding leaves a 112px column, which two lines
-               fit; the vertical padding is what keeps a third and fourth line
-               inside the tips too (three lines make it 136px tall, the size
-               the rule asks for). Width stays fixed like the action card's —
+               w×h rectangle while w/W + h/H ≤ 1. The reference's own 200×112,
+               scaled by the same fifth as the card (160×90), with its 35px side
+               padding leaves a 90px column, and the 25px vertical padding fits
+               two lines of it inside the 90px height exactly — the common
+               question ("Precisa de aprovação?") keeps the diamond at the
+               height `ModelLayout` centres it by. A third line grows it
+               downwards. Width stays fixed like the action card's —
                a longer question grows the diamond down, not sideways. No
                outline: a solid fill on the light ground needs none, which is
                also what retired the two-layer hexagon this used to be. */
@@ -1941,9 +1957,9 @@
                 background: transparent;
                 border: none;
                 box-shadow: none;
-                width: 200px;
-                min-height: 112px;
-                padding: 38px 44px;
+                width: 160px;
+                min-height: 90px;
+                padding: 25px 35px;
                 color: var(--viz-decision-ink);
                 font-weight: 600;
             }
@@ -2253,7 +2269,7 @@
             }
             [data-ak-chain-viz] .ak-viz-world .ak-viz-node.is-picture-top.has-picture {
                 width: max-content;
-                max-width: 200px;
+                max-width: 160px;
                 min-width: 0;
                 min-height: 0;
                 padding: 4px;
@@ -2331,7 +2347,7 @@
                logada". Dark whatever the theme; `applyNodeStyle()` never sets a
                tone alongside it. */
             [data-ak-chain-viz] .ak-viz-world .ak-viz-node.is-pill {
-                padding: 10px 14px;
+                padding: 8px 12px;
                 border-color: var(--viz-pill);
                 border-radius: 999px;
                 background: var(--viz-pill);
@@ -2508,6 +2524,11 @@
                 .ak-viz-lane-resize-e { right: -11px; width: 22px; }
                 .ak-viz-lane-resize-s { bottom: -11px; height: 22px; }
                 .ak-viz-lane-resize-se { right: -12px; bottom: -12px; width: 26px; height: 26px; }
+                .ak-viz-lane-resize-w { left: -11px; width: 22px; }
+                .ak-viz-lane-resize-n { top: -11px; height: 22px; }
+                .ak-viz-lane-resize-nw { left: -12px; top: -12px; width: 26px; height: 26px; }
+                .ak-viz-lane-resize-ne { right: -12px; top: -12px; width: 26px; height: 26px; }
+                .ak-viz-lane-resize-sw { left: -12px; bottom: -12px; width: 26px; height: 26px; }
             }
             .ak-viz-anchor {
                 position: absolute;

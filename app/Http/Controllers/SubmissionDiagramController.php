@@ -9,6 +9,7 @@ use App\Http\Requests\AddChainNodeRequest;
 use App\Http\Requests\RemoveChainEdgeRequest;
 use App\Http\Requests\RemoveChainNodeImageRequest;
 use App\Http\Requests\RemoveChainNodeRequest;
+use App\Http\Requests\RestoreChainRequest;
 use App\Http\Requests\RetargetChainEdgeRequest;
 use App\Http\Requests\SaveChainLayoutRequest;
 use App\Http\Requests\SetChainNodeImageRequest;
@@ -74,6 +75,11 @@ class SubmissionDiagramController extends Controller
             $diagram,
             $request->safe()->only(['nodes', 'edges', 'comments', 'lanes', 'notes', 'theme']),
         );
+    }
+
+    public function restoreChainState(RestoreChainRequest $request, Submission $submission, SubmissionDiagram $diagram): JsonResponse
+    {
+        return $this->restoreChain($diagram, $request->validated('chain'), $request->validated('layout'));
     }
 
     public function updateNode(UpdateChainNodeRequest $request, Submission $submission, SubmissionDiagram $diagram, int $node): JsonResponse

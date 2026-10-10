@@ -13,6 +13,7 @@ paths:
   - "app/Http/Controllers/DiagramPictureController.php"
   - "app/Http/Controllers/SubmissionDiagramController.php"
   - "app/Http/Requests/*Chain*.php"
+  - "app/Support/ChainGraph.php"
   - "app/Policies/DiagramPolicy.php"
   - "resources/js/modules/chain-viz.js"
   - "resources/js/modules/chain-select.js"
@@ -69,10 +70,14 @@ keep a fill of their own, green/red.
 (IBM Plex Sans 15/20, `#F4F6F8` ground, `#5A6675` arrows, `#B9C2CE` hairline,
 `#F6C453` diamond, `#17212B` pill) — the values sit as `--viz-*` tokens on
 `[data-ak-chain-viz]`, and the other five themes stay as alternatives. The
-SIZES are the board's too, and fixed: an action card and the pill are 200×96, a
-decision 200×112, and a long text wraps and grows the block taller, never wider
-(260px only with a picture beside the text). Content-sized blocks were the first
-version, and the user rejected it: "Aprovado" came out a 150×60 chip. An
+SIZES are fixed, in the board's proportion: an action card and the pill are
+160×76, a decision 160×90, and a long text wraps and grows the block taller,
+never wider (208px only with a picture beside the text). Those are the board's
+measured 200×96 / 200×112 / 260 scaled down by a fifth on 2026-10-10 — at full
+size the user found the blocks too big, mostly empty room around a line or two.
+`ModelLayout` centres blocks in their lanes by these numbers, so a change here is
+a change there. Content-sized blocks were the first version, and the user
+rejected it: "Aprovado" came out a 150×60 chip. An
 ACTION block (`system`/`step`, `chain-viz.js::isActionKind()`) is the only kind
 that takes any of the author's styling, and all of it is `viz_layout`, never
 the chain:
@@ -127,7 +132,7 @@ is the ONLY thing that writes the derived columns (`participants` pivot with
 `position`, `source/target_solution_id`, `direction`, and the summary scalar
 `protocol` = first non-null edge protocol) — it runs after every mutation to
 `chain`, via `Diagram::afterChainMutation()`, which
-`Concerns\EditsChain` calls for every one of the eleven endpoints. The ecosystem
+`Concerns\EditsChain` calls for every one of the twelve endpoints. The ecosystem
 map is a reading of those columns, which is what makes it a reading of the
 drawings rather than a second truth. `Diagram.viz_layout`
 (`{nodes: [{x,y}], edges: [{from,to}], comments}`) is a purely **visual**
@@ -184,14 +189,16 @@ being a fraction of it.
 scale jumps and threw away the zoom the person had chosen to work at. It calls
 `panIntoView()` instead: the minimum pan that brings the new block into the
 viewport, scale untouched, and nothing at all when it was already visible. Only
-"Organizar", "Centralizar" and the initial load re-frame. (Do not confuse
+"Centralizar" and the initial load re-frame. (Do not confuse
 `panIntoView()` with `revealNode()` in the same file — that one is presentation
 mode's fade-in. The two names collided in the first version of this and the
-second declaration silently won.)
+second declaration silently won.) There used to be an "Organizar" button that
+reset every block to a left-to-right row; the user had it removed on 2026-10-10,
+since on any real drawing it threw the author's layout away.
 
 **The canvas is owner-agnostic, and there are two owners.**
 `App\Contracts\ChainCanvas` is the contract; `Concerns\EditsChain` performs
-all eleven mutations against anything implementing it. `Diagram` re-derives its
+all twelve mutations against anything implementing it. `Diagram` re-derives its
 columns in `afterChainMutation()`; a `SubmissionDiagram` (a proposal's AS IS /
 TO BE) derives nothing, deliberately. The client never learns which it is
 editing, because every endpoint it calls arrives inside the graph payload
@@ -214,3 +221,42 @@ person would draw. A lifeline is never passed as a box: its anchor sits on the
 dashed line inside it by design. The corridor fan-out (`corridorOffsets()`)
 reads the corridor of the route actually drawn, and a detour offset that would
 run into a block is dropped rather than applied.
+
+**Undo is a stack of whole STATES, and half of it is server-side.**
+Ctrl+Z / Ctrl+Y (Ctrl+Shift+Z; ⌘ on a Mac) step through `{chain, layout}`
+snapshots (`chain-viz.js::stepHistory()`), not through operations with an
+inverse each. The layout is local until "Salvar", so a step between two states
+with the same chain is a local redraw. The chain is written the moment it
+changes, so a step across a chain change PUTs the whole state back
+(`restoreUrl` → `EditsChain::restoreChain()`, `RestoreChainRequest`) — undoing a
+deleted block only on screen would leave the database without it. Three things
+hold it together:
+
+- **Every mutation answers with the stored `chain`** (`EditsChain::answer()`),
+  and so does the graph payload. The resolved graph the canvas draws from has
+  labels and URLs where the chain has ids and cannot be turned back into one.
+  The mutating fetches all go through `chainFetch()`, which hands that chain to
+  the history; a new endpoint that skips it is a mutation Ctrl+Z cannot see.
+- **A state is recorded only when CONSISTENT** — as many layout entries as the
+  chain has nodes and edges. Between a mutation's answer and the redraw the two
+  disagree, and restoring such a state would hand one block's position to
+  another; `RestoreChainRequest` refuses one for the same reason.
+- **The restore trusts the payload's shape, not its content**: the root node is
+  kept as stored, and a `media_id` that is not one of this owner's pictures is
+  dropped. A picture removed from a block was DELETED with it, so undoing that
+  brings the block back without its picture — a known limit, not a bug.
+
+**A link sits above a lane, and the lane's thin parts win over the link.** The
+hit layer (`.ak-viz-hits`) used to sit at `z-index: -1`, behind the lanes, so an
+arrow inside a lane could not be clicked at all — the press grabbed the lane.
+It now sits in plain DOM order above the (prepended) lanes and below the blocks;
+where a 16px hit target covers a lane's resize strip or title strip, its
+`pointerdown` hands the gesture to what it covers (`laneChromeUnder()`). Lanes
+resize from all four edges and corners; a top/left handle moves that edge and
+the opposite one stays put.
+
+**An arrow's label can be dragged along it**, stored as
+`viz_layout.edges[i].labelT` — a fraction of the route's LENGTH, so it keeps its
+place on the arrow when a block moves and the route changes shape. Null means
+the default (middle of the longest straight run). `spreadProtocolPills()` never
+pushes a placed label; it only steps the others around it.
