@@ -8,6 +8,10 @@ paths:
   - "app/View/Components/Notebooks/Index.php"
   - "app/Policies/NotebookPolicy.php"
   - "resources/views/docs/**"
+  - "resources/views/components/docs/**"
+  - "resources/js/modules/docs-switcher.js"
+  - "database/seeders/KnowledgeBaseHomeSeeder.php"
+  - "database/data/knowledge-base-home/**"
   - "resources/views/public/**"
 ---
 
@@ -85,3 +89,37 @@ fillable column is one posted field away from collapsing the two.
 The share panel states both audiences side by side on purpose. They are
 constantly mistaken for each other, and an admin reaching for "compartilhar"
 almost always means the internal one.
+
+### The landing is a caderno's page, not a view
+
+`/docs` renders the first page of the HOME caderno (`notebooks.is_home`,
+`Notebook::scopeHome()`) beside a rail listing every other published caderno
+(`x-docs.notebooks-rail`, filter always shown). The text is a page so that the
+front door is edited in Cadernos with the same editor, blocks and images as
+everything behind it — and rendered by the same `DocumentationReader` +
+`x-documentation.reader-body` (with `copyable: false`).
+
+- **A home is only a home while it is PUBLISHED.** Its pictures are served by
+  `docs.file`, which re-asks publication like every `/docs` endpoint, so an
+  unpublished home would render broken images. Unpublished (or deleted), `/docs`
+  falls back to the cadernos as cards.
+- **One address.** `knowledgeBaseUrl()` of the home is `/docs`, and
+  `docs/{home}` redirects there; `publishedNotebooks()` leaves it out of the
+  rail and the switcher. Its OTHER pages, if anyone adds some, are still
+  `docs/{home}/{page}`.
+- **`is_home` is not fillable** (like `published_at`): what every reader sees
+  first is not a choice the rename panel makes in passing. Nothing in the UI
+  sets it; the catalog only labels the row ("Página inicial").
+- **Created once by `KnowledgeBaseHomeSeeder`** (`envoy run kb-home` on the
+  droplet), never by a migration (the test suite would start with a published
+  caderno) nor by every deploy (a home somebody deleted would come back). It
+  refuses to touch an existing home. The source is
+  `database/data/knowledge-base-home/`: `home.md` with `{{figure:x.svg|legenda}}`
+  placeholders, uploaded as ordinary `docs` media so an editor can replace them.
+  The SVGs are self-animated (CSS keyframes on one shared cycle, like
+  `pending-drawing.js`), which works inside an `<img>` because they carry no
+  script; each one honours `prefers-reduced-motion` by showing the finished
+  picture still.
+- **Below `md` there is no rail**, so the landing's top bar keeps the caderno
+  switcher for that width only (`md:hidden`); on a wide screen it would be the
+  rail's list a second time.

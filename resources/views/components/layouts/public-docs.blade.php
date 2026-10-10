@@ -42,7 +42,16 @@
              With a switcher it becomes a BUTTON carrying the same name plus a
              chevron: the name stays exactly where it was and in the same type,
              so the magic link and the knowledge base read as one screen. --}}
-        @if ($notebooks)
+        @if ($notebooks && isset($rail))
+            {{-- The landing lists every caderno in its rail, so on a wide
+                 screen the switcher would be the same list twice. The rail is
+                 hidden below `md`, though, and there the switcher is the only
+                 way to the cadernos — so it stays, for that width only. --}}
+            <div class="min-w-0 md:hidden">
+                <x-docs.notebook-switcher :notebooks="$notebooks" :current="$current" :heading="$heading" :home-url="$homeUrl" />
+            </div>
+            <p class="hidden min-w-0 truncate font-display text-base font-semibold leading-tight text-ink md:block">{{ $heading }}</p>
+        @elseif ($notebooks)
             <x-docs.notebook-switcher :notebooks="$notebooks" :current="$current" :heading="$heading" :home-url="$homeUrl" />
         @else
             <div class="min-w-0">
@@ -171,6 +180,14 @@
                         </div>
                     @endforeach
                 </nav>
+            </aside>
+        @elseif (isset($rail))
+            {{-- A rail the page brings itself — the landing's list of
+                 cadernos. Same column, same stickiness as the page tree, so
+                 moving from the landing into a caderno swaps what the rail
+                 lists without moving the reading column an inch. --}}
+            <aside class="ak-sidebar ak-sidebar-scroll hidden w-64 shrink-0 md:sticky md:top-14 md:block md:max-h-[calc(100vh_-_3.5rem)] md:overflow-y-auto md:pb-10">
+                {{ $rail }}
             </aside>
         @endif
 

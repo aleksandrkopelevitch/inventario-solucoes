@@ -288,3 +288,20 @@
     sudo -u www-data php artisan passport:keys
     ls -l storage/oauth-private.key storage/oauth-public.key
 @endtask
+
+{{--
+    Outside the 'deploy' story: run ONCE, by hand, to create the knowledge
+    base's landing (the home caderno behind `/docs`). After that the page is
+    edited in Cadernos like any other, and the seeder refuses to touch an
+    existing home — so a second run is harmless, and it is still not something
+    a deploy should do: a home somebody deliberately deleted would come back.
+
+    `sudo -u www-data` for the same reason as 'passport': the seeder uploads the
+    page's pictures into storage, and files written as root are files php-fpm
+    cannot serve. `--force` because SeedCommand refuses to run in production
+    without it, and there is no TTY here to confirm.
+--}}
+@task('kb-home', ['on' => 'web'])
+    cd {{ $appDir }}
+    sudo -u www-data php artisan db:seed --force --class=KnowledgeBaseHomeSeeder
+@endtask

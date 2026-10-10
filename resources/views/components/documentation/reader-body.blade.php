@@ -6,6 +6,10 @@
     'secretRevealUrl' => null,
     'secretScope' => '',
     'childPages' => [],
+    // "Copiar Markdown". Off on the knowledge base's landing only: there the
+    // page is the front door of the whole base, not documentation somebody
+    // would take somewhere else.
+    'copyable' => true,
 ])
 
 {{-- The reading column, shared BYTE FOR BYTE by the two read-only surfaces:
@@ -33,7 +37,7 @@
         @endif
     </div>
 
-    @if (trim($renderedHtml) !== '')
+    @if ($copyable && trim($renderedHtml) !== '')
         <x-forms.button type="button" variant="ghost" data-ak-docs-copy
             class="!h-9 shrink-0 !gap-1.5 !px-3 !text-sm" aria-label="Copiar Markdown">
             <x-heroicon-o-clipboard-document class="size-4" />

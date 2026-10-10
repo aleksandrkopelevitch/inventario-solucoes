@@ -71,7 +71,7 @@ class Index extends Component
         $canPublish = auth()->user()?->can('administerAny', Notebook::class) ?? false;
 
         $notebooks = Notebook::query()
-            ->select('id', 'name', 'slug', 'public_token', 'published_at')
+            ->select('id', 'name', 'slug', 'public_token', 'published_at', 'is_home')
             // The page counts are no longer a column: they feed the two
             // confirmations, which say what deleting or publishing costs.
             ->withCount([
@@ -104,6 +104,10 @@ class Index extends Component
                 'url'      => route('notebooks.show', $notebook),
                 'panelUrl' => route('notebooks.panel.edit', $notebook),
                 'isShared' => $notebook->public_token !== null,
+                // The caderno `/docs` opens on. Said on the row because it is
+                // otherwise invisible from here, and it is the one caderno whose
+                // edits every reader sees first.
+                'isHome' => $notebook->is_home,
                 // The knowledge base (`/docs`). The filters ride on the toggle
                 // for the same reason they ride on the delete below.
                 'published'      => $notebook->isPublished(),
@@ -187,6 +191,10 @@ class Index extends Component
             $sentence .= ' O link público para de funcionar.';
         }
 
+        if ($notebook->is_home) {
+            $sentence .= ' Ele é a página inicial de /docs, que volta a mostrar só a lista de cadernos.';
+        }
+
         return $sentence . ' Isso não pode ser desfeito.';
     }
 
@@ -204,7 +212,9 @@ class Index extends Component
     {
         if ($notebook->isPublished()) {
             return sprintf(
-                'Tirar "%s" da base de conhecimento? Ele deixa de aparecer em /docs para todo mundo da Leo.',
+                $notebook->is_home
+                    ? 'Tirar "%s" da base de conhecimento? Ele é a página inicial de /docs, que passa a mostrar só a lista de cadernos.'
+                    : 'Tirar "%s" da base de conhecimento? Ele deixa de aparecer em /docs para todo mundo da Leo.',
                 $notebook->name,
             );
         }

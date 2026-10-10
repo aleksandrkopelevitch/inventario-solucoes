@@ -17,6 +17,7 @@ use App\Support\Documentation\ReaderUrls;
 use App\View\Components\Documentation\SearchResults;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Collection;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -60,34 +61,46 @@ class KnowledgeBaseController extends Controller
     ) {}
 
     /**
-     * The landing: every published caderno, as a card.
+     * The landing: the home caderno's first page, beside a rail listing every
+     * published caderno.
      *
-     * A real screen rather than a redirect into the first caderno, because the
-     * question somebody arriving at `/docs` has is usually "what is here" — and
-     * because there is a state a redirect cannot express, which is that nothing
-     * has been published yet.
+     * The text is a caderno's page (`Notebook::scopeHome()`) rather than a
+     * view, so whoever maintains the knowledge base edits its front door in the
+     * same editor as everything behind it — images, hints, cards and all — and
+     * it is rendered by the same `DocumentationReader` as every other page,
+     * links and media scoped to the home caderno like anywhere else.
+     *
+     * Without a published home it falls back to the plain list of cadernos as
+     * cards: there is still a real question to answer ("o que tem aqui") and a
+     * state a redirect could not express, which is that nothing is published.
      */
     public function index(): View
     {
+        $home = Notebook::query()->home()->first();
+        $page = $home ? $this->pages->firstPage($home) : null;
+
         return view('docs.index', [
-            'notebooks' => $this->published()
-                ->loadCount([
-                    'pages as documented_count' => fn ($q) => $q
-                        ->whereNotNull('documentation')->where('documentation', '<>', ''),
-                ])
-                ->map(fn (Notebook $notebook) => [
-                    'name'       => $notebook->name,
-                    'url'        => $notebook->knowledgeBaseUrl(),
-                    'documented' => $notebook->documented_count,
-                    'solutions'  => $notebook->solutions->pluck('name')->all(),
-                ]),
+            'notebooks' => $this->published(),
+            'home'      => $page
+                ? $this->reader->payload($home, $page, ReaderUrls::knowledgeBase($home))
+                : null,
         ]);
     }
 
-    /** First page of the caderno's tree (or none, if it has no page yet). */
-    public function notebook(Notebook $notebook): View
+    /**
+     * First page of the caderno's tree (or none, if it has no page yet).
+     *
+     * The home caderno is sent to `/docs`, which is where its first page is
+     * read: answering here too would be the same text under a second address,
+     * with the page tree in the rail instead of the cadernos.
+     */
+    public function notebook(Notebook $notebook): View|RedirectResponse
     {
         $this->guard($notebook);
+
+        if ($notebook->is_home) {
+            return redirect()->route('docs.index');
+        }
 
         return $this->render($notebook, $this->pages->firstPage($notebook));
     }
@@ -193,7 +206,12 @@ class KnowledgeBaseController extends Controller
     }
 
     /**
-     * The cadernos `/docs` shows, ordered by name.
+     * The cadernos `/docs` lists, ordered by name — the landing's rail and the
+     * switcher.
+     *
+     * Without the home caderno: it is the landing itself, reached through the
+     * brand and "Ver todos os cadernos", and listing it among the others would
+     * offer "the page you came from" as one more caderno to read.
      *
      * @return Collection<int, Notebook>
      */
@@ -201,6 +219,7 @@ class KnowledgeBaseController extends Controller
     {
         return Notebook::query()
             ->published()
+            ->where('is_home', false)
             ->with('solutions:id,name')
             ->orderBy('name')
             ->get();
