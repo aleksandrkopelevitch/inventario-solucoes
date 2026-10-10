@@ -156,6 +156,7 @@ class SubmissionDiagram extends Model implements ChainCanvas, HasMedia
             'edgeUpdateUrl'   => route('submissions.diagrams.chain.protocol.update', [...$self, 'EDGE_INDEX']),
             'edgeRetargetUrl' => route('submissions.diagrams.chain.edge.retarget', [...$self, 'EDGE_INDEX']),
             'edgeRemoveUrl'   => route('submissions.diagrams.chain.edge.remove', [...$self, 'EDGE_INDEX']),
+            'restoreUrl'      => route('submissions.diagrams.chain.restore', $self),
         ];
     }
 }

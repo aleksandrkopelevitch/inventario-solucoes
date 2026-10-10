@@ -7,7 +7,7 @@ use App\Contracts\ChainCanvas;
 /**
  * Authorizes a chain mutation against whichever `ChainCanvas` the route bound.
  *
- * The eleven chain requests are shared by two route groups —
+ * The twelve chain requests are shared by two route groups —
  * `diagrams/{diagram}/chain/…` and
  * `submissions/{submission}/diagrams/{diagram}/chain/…` — because the payload
  * they validate is identical: it describes a node or an edge, not who owns
@@ -17,7 +17,7 @@ use App\Contracts\ChainCanvas;
  * to spell the parameter `{diagram}` today, and it binds a different model in
  * each — which is exactly the coincidence a name-based lookup would be resting
  * on. A name (`$this->route('diagram')`) would also have to grow a branch per
- * owner, in eleven files, and the branch that was forgotten would fail open: an
+ * owner, in twelve files, and the branch that was forgotten would fail open: an
  * `authorize()` that returns false is a visible 403, but one that looks at the
  * wrong parameter and finds null is a 403 on the WORKING path, which reads as
  * a broken canvas.

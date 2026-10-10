@@ -25,14 +25,20 @@ use Illuminate\Support\Collection;
 final class ModelLayout
 {
     /**
-     * Distance between two lifelines, and between two columns of a data flow.
-     *
-     * Every pitch below is sized to the canvas's blocks, which grew on
-     * 2026-10-03 (the reference profile: a 200×96 card, 260px wide with a
-     * picture beside its text, and a 200×112 decision diamond). A lane column
-     * is this minus 40, and a step sits `LANE_PAD` inside it, so the widest
-     * card still fits its lane.
+     * The canvas's block sizes (`components/chain/viz.blade.php`): a 160×76
+     * card, 208px wide with a picture beside its text, and a 160×90 decision
+     * diamond. Every distance below is derived from these, so a lane is sized
+     * by what goes in it — change one there and change it here.
      */
+    private const BLOCK_WIDTH = 160;
+
+    private const WIDEST_BLOCK = 208;
+
+    private const BLOCK_HEIGHT = 76;
+
+    private const DIAMOND_HEIGHT = 90;
+
+    /** Distance between two lifelines. */
     private const COLUMN_PITCH = 340;
 
     /** Vertical distance between two messages on a lifeline. */
@@ -47,13 +53,29 @@ final class ModelLayout
     /** Distance between two steps along a flow — a card's width plus room for the arrow and its label. */
     private const STEP_PITCH = 320;
 
-    /** Distance between two lanes; a step sits 60px into its lane, and a diamond is 112px tall. */
-    private const LANE_PITCH = 220;
+    /**
+     * A lane's thickness across the flow — its height in a process, its width
+     * in a data flow — and the gap between two of them.
+     *
+     * Generous on purpose (2026-10-10): at 196px around a 96–112px block the
+     * lanes read as a tight sleeve, the blocks touching the band they belong
+     * to. A block now sits centred in roughly two and a half times its own
+     * height, with room left for an arrow's label to pass above or below it.
+     */
+    private const LANE_THICKNESS = 260;
+
+    private const STAGE_THICKNESS = 340;
+
+    private const LANE_GAP = 40;
 
     /** Distance between two steps down a vertical (data flow) lane. */
-    private const ROW_PITCH = 150;
+    private const ROW_PITCH = 170;
 
-    private const LANE_PAD = 28;
+    /** The title strip a lane draws along its leading edge (`.ak-viz-lane-label`). */
+    private const LANE_HEADER = 26;
+
+    /** Empty room between a lane's edge (past its title strip) and the first and last block in it. */
+    private const LANE_INSET = 64;
 
     private const ORIGIN_X = 60;
 
@@ -193,11 +215,21 @@ final class ModelLayout
             $lane = $laneOrder[$item[$laneKey]] ?? 0;
             $slot = $seen[$lane] = ($seen[$lane] ?? -1) + 1;
             $cells[] = ['lane' => $lane, 'slot' => $slot];
+            $kind = self::kindFor($item);
 
-            $nodes[] = self::node($item, self::kindFor($item), $solutions);
+            // Centred ACROSS the lane by its own size, so a card and a diamond
+            // in the same lane share a centre line and the arrow between them
+            // runs straight instead of stepping by the difference in height.
+            $nodes[] = self::node($item, $kind, $solutions);
             $positions[] = $vertical
-                ? ['x' => self::ORIGIN_X + $lane * self::COLUMN_PITCH + self::LANE_PAD, 'y' => self::ORIGIN_Y + 70 + $slot * self::ROW_PITCH]
-                : ['x' => self::ORIGIN_X + 40 + $slot * self::STEP_PITCH, 'y' => self::ORIGIN_Y + $lane * self::LANE_PITCH + 60];
+                ? [
+                    'x' => self::ORIGIN_X + $lane * (self::STAGE_THICKNESS + self::LANE_GAP) + intdiv(self::STAGE_THICKNESS - self::BLOCK_WIDTH, 2),
+                    'y' => self::ORIGIN_Y + self::LANE_HEADER + self::LANE_INSET + $slot * self::ROW_PITCH,
+                ]
+                : [
+                    'x' => self::ORIGIN_X + self::LANE_HEADER + self::LANE_INSET + $slot * self::STEP_PITCH,
+                    'y' => self::ORIGIN_Y + $lane * (self::LANE_THICKNESS + self::LANE_GAP) + intdiv(self::LANE_THICKNESS - self::heightOf($kind), 2),
+                ];
         }
 
         $edges = [];
@@ -230,24 +262,29 @@ final class ModelLayout
         $span = max(1, count($seen) ? max($seen) + 1 : 1);
         $lanes = [];
 
+        // Along the flow, a lane reaches past its last block by the same inset
+        // it leaves before the first.
+        $alongHorizontal = self::LANE_HEADER + 2 * self::LANE_INSET + ($span - 1) * self::STEP_PITCH + self::WIDEST_BLOCK;
+        $alongVertical = self::LANE_HEADER + 2 * self::LANE_INSET + ($span - 1) * self::ROW_PITCH + self::DIAMOND_HEIGHT;
+
         foreach ($spec->lanes() as $i => $lane) {
             $lanes[] = $vertical
                 ? [
                     'label'       => self::text($lane['label']) ?? 'Etapa',
                     'color'       => '#e8eefc',
-                    'x'           => self::ORIGIN_X + $i * self::COLUMN_PITCH,
+                    'x'           => self::ORIGIN_X + $i * (self::STAGE_THICKNESS + self::LANE_GAP),
                     'y'           => self::ORIGIN_Y,
-                    'width'       => self::COLUMN_PITCH - 40,
-                    'height'      => max(220, 130 + $span * self::ROW_PITCH),
+                    'width'       => self::STAGE_THICKNESS,
+                    'height'      => max(self::LANE_THICKNESS, $alongVertical),
                     'orientation' => 'vertical',
                 ]
                 : [
                     'label'       => self::text($lane['label']) ?? 'Raia',
                     'color'       => '#e8eefc',
                     'x'           => self::ORIGIN_X,
-                    'y'           => self::ORIGIN_Y + $i * self::LANE_PITCH,
-                    'width'       => max(400, 120 + $span * self::STEP_PITCH),
-                    'height'      => self::LANE_PITCH - 24,
+                    'y'           => self::ORIGIN_Y + $i * (self::LANE_THICKNESS + self::LANE_GAP),
+                    'width'       => max(480, $alongHorizontal),
+                    'height'      => self::LANE_THICKNESS,
                     'orientation' => 'horizontal',
                 ];
         }
@@ -387,6 +424,12 @@ final class ModelLayout
         }
 
         return filled($item['solution'] ?? null) ? ChainNodeKind::System : ChainNodeKind::Step;
+    }
+
+    /** How tall a block of this kind is drawn — a decision's diamond is the one taller than a card. */
+    private static function heightOf(ChainNodeKind $kind): int
+    {
+        return $kind === ChainNodeKind::Decision ? self::DIAMOND_HEIGHT : self::BLOCK_HEIGHT;
     }
 
     /**

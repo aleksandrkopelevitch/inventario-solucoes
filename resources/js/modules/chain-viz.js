@@ -63,8 +63,9 @@ async function resolveGifWorkerUrl() {
 // viewport, with no panel or dialog in the way) and selects it. Position and
 // size are edited on the canvas itself (`rebuildLanes()`): dragging the lane's
 // BODY (label included) moves it (`drag.type === 'lane-move'`), dragging one of
-// its 3 handles resizes it — right (width only), bottom (height only) or the
-// corner (both, `drag.type === 'lane-resize'`). Only a click WITHOUT a drag ON
+// its 8 handles resizes it — an edge (one dimension) or a corner (both,
+// `drag.type === 'lane-resize'`); the top and left ones move that edge, so the
+// opposite one stays put. Only a click WITHOUT a drag ON
 // THE LABEL (`drag.onLabel`) opens the colour/name/remove toolbar
 // (`selectLane()`) — clicking without dragging anywhere else on the body does
 // nothing, on purpose: the dark label is the only selection target.
@@ -75,8 +76,8 @@ async function resolveGifWorkerUrl() {
 // — which disappears as soon as the block is deselected. It works with or
 // without `editable`. Editing position (when `editable`): drag a block to
 // reposition it; drag an arrow end's handle to stick it to one of the node's 8
-// anchors (4 main ones plus 2 on the top and 2 on the bottom). "Organizar"
-// recomputes the default left-to-right layout. The "Salvar" button persists
+// anchors (4 main ones plus 2 on the top and 2 on the bottom). The "Salvar"
+// button persists
 // layout, anchors and comments (`viz_layout`) on the server — it is
 // presentation only and never touches the topology.
 //
@@ -503,6 +504,79 @@ function labelAnchor(points) {
     }
 
     return best
+}
+
+/**
+ * Deep equality for the plain JSON the undo history holds — key order
+ * ignored, since the server and the canvas need not agree on it.
+ */
+function sameValue(a, b) {
+    if (a === b) return true
+    if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+    if (Array.isArray(a) !== Array.isArray(b)) return false
+    const keysA = Object.keys(a)
+    const keysB = Object.keys(b)
+    if (keysA.length !== keysB.length) return false
+    return keysA.every((key) => Object.prototype.hasOwnProperty.call(b, key) && sameValue(a[key], b[key]))
+}
+
+/**
+ * The point at fraction `t` of a route's length, in the shape `labelAnchor()`
+ * returns — where a label the author dragged by hand sits (`labelT`). Measured
+ * along the polyline, so a label keeps its place relative to the whole arrow
+ * when a block moves and the route stretches or bends differently.
+ */
+function pointOnRoute(points, t) {
+    const segments = []
+    let total = 0
+
+    for (let i = 1; i < points.length; i++) {
+        const [a, b] = [points[i - 1], points[i]]
+        const length = Math.hypot(b.x - a.x, b.y - a.y)
+        if (length === 0) continue
+        segments.push({ a, b, length })
+        total += length
+    }
+
+    if (!segments.length) return null
+
+    let remaining = Math.max(0, Math.min(1, t)) * total
+
+    for (const { a, b, length } of segments) {
+        if (remaining <= length) {
+            const f = remaining / length
+            return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, horiz: Math.abs(b.x - a.x) >= Math.abs(b.y - a.y), pinned: true }
+        }
+        remaining -= length
+    }
+
+    const { a, b } = segments[segments.length - 1]
+    return { x: b.x, y: b.y, horiz: Math.abs(b.x - a.x) >= Math.abs(b.y - a.y), pinned: true }
+}
+
+/**
+ * The inverse of `pointOnRoute()`: the fraction of the route's length at the
+ * point of the route nearest to (`px`, `py`). This is what dragging a label
+ * does — the pointer goes wherever it likes and the label slides along its own
+ * arrow to the nearest spot, never off it. Null for a route with no length.
+ */
+function projectOnRoute(points, px, py) {
+    let total = 0
+    let best = null
+
+    for (let i = 1; i < points.length; i++) {
+        const [a, b] = [points[i - 1], points[i]]
+        const [dx, dy] = [b.x - a.x, b.y - a.y]
+        const length = Math.hypot(dx, dy)
+        if (length === 0) continue
+
+        const f = Math.max(0, Math.min(1, ((px - a.x) * dx + (py - a.y) * dy) / (length * length)))
+        const distance = Math.hypot(a.x + dx * f - px, a.y + dy * f - py)
+        if (!best || distance < best.distance) best = { distance, at: total + f * length }
+        total += length
+    }
+
+    return best && total > 0 ? best.at / total : null
 }
 
 /**
@@ -1063,6 +1137,9 @@ function paintNode(el, data) {
 const mounted = new WeakSet()
 const roots = new Set()
 const savedLayouts = new Map() // slug -> último layout salvo na sessão (mantém consistência sem reload)
+// The canvas the person last pressed on — Ctrl+Z belongs to it alone when a
+// page mounts more than one (a submission's AS IS and TO BE).
+let activeCanvas = null
 let uidCounter = 0
 let solutionsListCache = null // [{id,name}] — lido uma vez de [data-ak-solutions] (diagrams/workspace.blade.php)
 let protocolsListCache = null // [{value,label}] — lido uma vez de [data-ak-protocols] (diagrams/workspace.blade.php)
@@ -1223,7 +1300,6 @@ function mount(root) {
     // state's label still uses it, and `removeNode()`'s re-render needs it
     // without having to read it back out of the DOM.
     let currentName = ''
-    const organizeBtn = root.querySelector('[data-viz-organize]')
     const addNodeBtn = root.querySelector('[data-viz-add-node]')
     const lanesBtn = root.querySelector('[data-viz-lanes]')
     const notesBtn = root.querySelector('[data-viz-add-note]')
@@ -1307,7 +1383,7 @@ function mount(root) {
     let graphRef = null
     let edgeAnchors = []    // [{from, to, dashed}] por índice de edge (âncora visual — from/to aqui são anchor keys, não nós)
     let lanes = []          // [{label, color, x, y, width, height}] — raias (viz_layout.lanes), puramente visual
-    let laneEls = []        // [{wrap, label, handles:{e,s,se}}] — elementos DOM das raias, paralelos a `lanes`
+    let laneEls = []        // [{wrap, label, handles:{e,s,w,n,se,sw,ne,nw}}] — elementos DOM das raias, paralelos a `lanes`
     let notes = []          // [{x, y, text}] — anotações "post-it" (viz_layout.notes), puramente visuais como as raias
     let noteEls = []        // [{wrap, body}] — elementos DOM das anotações, paralelos a `notes`
     let selectedLane = null // index of the lane whose toolbar (colour/name/remove) is open, or null
@@ -1334,11 +1410,30 @@ function mount(root) {
     let presentFallbackFired = false  // já revelou tudo que sobrou ao fim da 1ª volta de todas
     let drag = null         // {type:'handle'|'node', ...} — 'handle' carrega edge/end/origNode/otherNode/targetNode
     let dirty = false
+    // ── undo history — see `stepHistory()` ──
+    const HISTORY_LIMIT = 100
+    // Edits closer together than this are one step — a slider dragged, a
+    // comment typed — or Ctrl+Z would walk back one pixel or one letter at a time.
+    const HISTORY_COALESCE_MS = 300
+    let currentChain = null    // the stored chain, exactly as the server last answered with it
+    let undoStack = []
+    let redoStack = []
+    let committed = null       // the state on screen as last recorded — what an undo steps away from
+    let historyPending = false // a chain mutation landed; the drawing has not caught up yet
+    let lastRecordAt = 0
+    let historyBusy = false    // a restore is on its way to the server
+    let suppressRecord = false // the canvas is being redrawn BY an undo, which records nothing
     let selectedIndex = null
     let hoveredEdge = null  // índice da ligação sob o ponteiro (`drawEdgeHit()`) — revela o pill vazio dela
     let commentIndex = null
     let selectedEdge = null // índice em chain.edges com o editor de protocolo aberto
     let edgeLabelEls = []   // <g> de cada pill de protocolo desenhada no draw() atual — base p/ ancorar o input inline de edição de protocolo
+    // Each link's route as the last `draw()` laid it out (world points, by edge
+    // index) — what dragging a label projects the pointer onto.
+    let edgeRoutes = []
+    // When a label drag last ended: the `click` that may follow the release is
+    // the end of that drag, not a request to open the link's editor.
+    let labelDragEndedAt = 0
     // A local mirror of the link editor's two direction toggles
     // (`data-viz-protocol-arrow-left/right`) — `left` = arrowhead at the origin
     // (`<-`), `right` = arrowhead at the destination (`->`); both together make
@@ -1531,6 +1626,9 @@ function mount(root) {
     function setDirty(value) {
         dirty = value
         if (saveBtn) saveBtn.disabled = !value
+        // Every edit of the layout ends here, which makes it the one place the
+        // undo history needs to listen to.
+        if (value) record()
     }
 
     // Applies the theme (Original/Casual/Corporativo/Tech) to the LIVE canvas,
@@ -1582,12 +1680,22 @@ function mount(root) {
         }
     }
 
-    function render(graph, name, slugArg) {
+    /**
+     * `options.layout` draws this layout instead of the saved one (an undo
+     * step), and `options.keepView` leaves pan and zoom where they are instead
+     * of re-framing — both only ever passed by `stepHistory()`.
+     */
+    function render(graph, name, slugArg, options = {}) {
         // Switching the selected drawing re-renders this SAME mounted instance
         // (`clearWorld()` just below destroys every node and edge) — without
         // leaving the presentation first, `presentTick()`'s rAF would go on
         // running against detached elements.
         if (presenting) exitPresentation()
+        // Re-rendering the SAME drawing (a deleted block, an undo step) keeps
+        // its history; any other drawing starts a new one, from the chain it
+        // arrived with.
+        if (!graphRef || (slugArg || '') !== slug) resetHistory(graph?.chain ?? null)
+        const keptView = options.keepView ? { ...view } : null
         selectNode(null)
         closeComment()
         closeAddEditor()
@@ -1650,7 +1758,7 @@ function mount(root) {
         // independent of the number of nodes.
         edgeAnchors = Array.from({ length: (graph.edges || []).length }, () => ({ from: 'r', to: 'l', dashed: false }))
 
-        const layoutToApply = savedLayouts.get(slug) ?? graph.layout
+        const layoutToApply = options.layout ?? savedLayouts.get(slug) ?? graph.layout
         // The same condition `applyLayout()` uses internally to know whether
         // it will OVERWRITE `layoutDefault()` with saved positions — the
         // "hidden tab" `ResizeObserver` further down reads this SAME variable
@@ -1681,7 +1789,13 @@ function mount(root) {
 
         draw()
         setDirty(false)
-        fit()
+        if (keptView) {
+            Object.assign(view, keptView)
+            applyView()
+        } else {
+            fit()
+        }
+        record()
 
         // The blocks were measured in whatever font was ready — on a first
         // visit that is the fallback, and IBM Plex arriving a moment later
@@ -1749,22 +1863,6 @@ function mount(root) {
         })
     }
 
-    // "Organizar": repositions the blocks and resets the arrows' anchors to
-    // the default, nothing else — labels and topology are untouched. Each
-    // edge's `dashed` is preserved (only from/to go back to the default).
-    function organize() {
-        if (!nodes.length) return
-        layoutDefault()
-        edgeAnchors = edgeAnchors.map((a) => ({ from: 'r', to: 'l', dashed: !!a.dashed }))
-        nodes.forEach((n) => {
-            n.el.style.left = n.x + 'px'
-            n.el.style.top = n.y + 'px'
-        })
-        draw()
-        setDirty(true)
-        fit()
-    }
-
     // Applies a saved layout (positions + anchors + comments + lanes) when it
     // is compatible with the current chain. `lanes` was already reset by
     // `clearWorld()` at the start of `render()` — this only overwrites when the
@@ -1807,6 +1905,7 @@ function mount(root) {
                         dashed: !!e.dashed,
                         fromT: Number.isFinite(e.fromT) ? e.fromT : null,
                         toT: Number.isFinite(e.toT) ? e.toT : null,
+                        labelT: Number.isFinite(e.labelT) ? e.labelT : null,
                     }
                 }
             })
@@ -2014,15 +2113,16 @@ function mount(root) {
             })
             wrap.appendChild(label)
 
-            // 3 resize handles — right (width only), bottom (height only)
-            // and the corner (both at once), the same pattern as any rectangle
-            // editor (Figma, Miro, Excalidraw). Interactive only when editable,
-            // through the same CSS attribute the label above uses. The corner
-            // is appended last (after CSS has positioned it) purely so it beats
-            // the bottom and right handles on the exact pixel where all three
-            // meet.
+            // 8 resize handles — the four edges (one dimension each) and
+            // the four corners (both at once), the same pattern as any
+            // rectangle editor (Figma, Miro, Excalidraw). The top and left ones
+            // MOVE that edge: `x`/`y` follow the pointer and the size changes
+            // the other way, so the opposite edge stays where it was.
+            // Interactive only when editable, through the same CSS attribute
+            // the label above uses. The corners are appended last purely so
+            // they beat the two edge strips on the pixels where they meet.
             const handles = {}
-            ;['e', 's', 'se'].forEach((dir) => {
+            ;['e', 's', 'w', 'n', 'se', 'sw', 'ne', 'nw'].forEach((dir) => {
                 const handle = document.createElement('div')
                 handle.className = `ak-viz-lane-resize ak-viz-lane-resize-${dir}`
                 handle.addEventListener('pointerdown', (e) => {
@@ -2037,6 +2137,8 @@ function mount(root) {
                         startClientY: e.clientY,
                         startW: lane.width,
                         startH: lane.height,
+                        startX: lane.x,
+                        startY: lane.y,
                     }
                     handle.classList.add('is-resizing')
                 })
@@ -2487,6 +2589,7 @@ function mount(root) {
         // at all — and neither does pan or zoom, through that same CSS
         // transform.
         edgeLabelEls = []
+        edgeRoutes = []
         const edgeList = graphRef.edges || []
 
         // The two readability fixes below are COLLECTIVE: an end only knows
@@ -2549,6 +2652,7 @@ function mount(root) {
             const { fromIndex, toIndex, anchors, a0, a3, p0, p3 } = end
             const route = orthogonalPoints(p0, p3, EDGE_STUB, detour[i], end.boxes)
             const d = roundedPath(route)
+            edgeRoutes[i] = route
 
             // A wide invisible target, underneath the stroke. A 2px line is
             // nearly impossible to hit with a mouse, and it was the only way to
@@ -2573,8 +2677,11 @@ function mount(root) {
             // The protocol pill — always visible when the link has one
             // defined; when it has none, a dashed "+ protocolo" pill is drawn
             // for whoever may edit (a viewer sees nothing, as before).
+            // Where the author dragged it (`labelT`), or else the middle of the
+            // longest straight run, which is where it always went.
             const proto = edge.protocol
-            if (proto || editable) drawProtocolPill(labelAnchor(route), i, proto)
+            const spot = Number.isFinite(anchors.labelT) ? pointOnRoute(route, anchors.labelT) : labelAnchor(route)
+            if (proto || editable) drawProtocolPill(spot, i, proto)
 
             if (editable) {
                 drawHandle(a0, i, 'from')
@@ -2602,6 +2709,10 @@ function mount(root) {
         // have to be repainted — otherwise they vanish on the first drag.
         highlightLinkedEdges(selectedIndex)
         setHoveredEdge(hoveredEdge)
+        // A chain mutation just landed and left the history waiting for the
+        // drawing to catch up with it (`adoptChain()`); this is the first
+        // moment it may have.
+        if (historyPending) record()
     }
 
     // ── presentation mode ────────────────────────────────────────────
@@ -3026,6 +3137,9 @@ function mount(root) {
         // Which way the run it landed on goes: `spreadProtocolPills()` pushes
         // two stacked labels apart PERPENDICULAR to their own line.
         g.dataset.labelAxis = spot.horiz ? 'h' : 'v'
+        // Put there by hand: `spreadProtocolPills()` leaves it where it is.
+        if (spot.pinned) g.dataset.pinned = '1'
+        if (drag?.type === 'label' && drag.edge === edgeIndex) g.classList.add('is-dragging')
 
         const rect = document.createElementNS(SVG_NS, 'rect')
         rect.setAttribute('class', 'ak-viz-plabel-box')
@@ -3052,9 +3166,18 @@ function mount(root) {
         if (editable && !isEmpty) {
             g.addEventListener('pointerenter', () => setHoveredEdge(edgeIndex))
             g.addEventListener('pointerleave', () => setHoveredEdge(null))
-            g.addEventListener('pointerdown', (e) => e.stopPropagation())
+            // A press here is the start of a drag ALONG the arrow
+            // (`drag.type === 'label'`); the click that follows a press
+            // without movement still selects the link.
+            g.addEventListener('pointerdown', (e) => {
+                e.stopPropagation()
+                if (e.button !== 0) return
+                e.preventDefault()
+                drag = { type: 'label', edge: edgeIndex, startClientX: e.clientX, startClientY: e.clientY, moved: false }
+            })
             g.addEventListener('click', (e) => {
                 e.stopPropagation()
+                if (performance.now() - labelDragEndedAt < 300) return
                 selectEdge(edgeIndex)
             })
             // A double click edits the protocol ON the label itself — the same
@@ -3089,6 +3212,13 @@ function mount(root) {
             const [w, h] = [Number(rect.getAttribute('width')), Number(rect.getAttribute('height'))]
             const [x0, y0] = [Number(rect.getAttribute('x')), Number(rect.getAttribute('y'))]
             let box = { x: x0, y: y0, w, h }
+
+            // A label the author placed is an obstacle for the others, never
+            // pushed itself — it would jump away from where it was just put.
+            if (g.dataset.pinned) {
+                placed.push(box)
+                return
+            }
 
             // Step perpendicular to the line, alternating sides: a label
             // pushed along its own line would still sit in front of whoever was
@@ -3142,7 +3272,29 @@ function mount(root) {
         // to pan, and the target is wide enough to fall under the pointer by
         // accident. That is why the click confirms the pointer stayed put —
         // otherwise every pan begun near a line would select the link.
-        hit.addEventListener('pointerdown', (e) => { downAt = { x: e.clientX, y: e.clientY } })
+        hit.addEventListener('pointerdown', (e) => {
+            // A lane's resize strip or title under the line keeps the
+            // gesture — see `laneChromeUnder()`.
+            const chrome = laneChromeUnder(e.clientX, e.clientY)
+            if (chrome) {
+                downAt = null
+                e.stopPropagation()
+                e.preventDefault()
+                chrome.dispatchEvent(new PointerEvent('pointerdown', {
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: e.clientX,
+                    clientY: e.clientY,
+                    button: e.button,
+                    buttons: e.buttons,
+                    pointerId: e.pointerId,
+                    pointerType: e.pointerType,
+                    isPrimary: e.isPrimary,
+                }))
+                return
+            }
+            downAt = { x: e.clientX, y: e.clientY }
+        })
         hit.addEventListener('click', (e) => {
             if (!downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 4) return
             e.stopPropagation()
@@ -3150,10 +3302,32 @@ function mount(root) {
         })
         hit.addEventListener('dblclick', (e) => {
             e.stopPropagation()
+            const chrome = laneChromeUnder(e.clientX, e.clientY)
+            if (chrome) {
+                chrome.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, clientX: e.clientX, clientY: e.clientY }))
+                return
+            }
             startInlineProtocolEdit(edgeIndex)
         })
 
         hits.appendChild(hit)
+    }
+
+    /**
+     * The lane handle or lane title lying under a link's hit target, if any.
+     *
+     * The hit layer sits ABOVE the lanes, so an arrow crossing a lane can be
+     * clicked at all (behind them, every arrow inside a lane was out of
+     * reach). But a 16px target running over a lane's border covers the 10px
+     * strip that resizes it, and over its title strip covers what selects and
+     * renames it — and a link crosses a lane border wherever it enters one.
+     * Those small targets keep priority: the hit hands its gesture to whatever
+     * of them it covers. The lane BODY is not on the list — over it, the line
+     * wins, which is the point.
+     */
+    function laneChromeUnder(clientX, clientY) {
+        return document.elementsFromPoint(clientX, clientY)
+            .find((el) => el.classList?.contains('ak-viz-lane-resize') || el.classList?.contains('ak-viz-lane-label')) ?? null
     }
 
     /** Lights the link under the pointer and reveals its empty pill. */
@@ -3459,7 +3633,7 @@ function mount(root) {
         try {
             const formData = new FormData()
             formData.append('image', file)
-            const res = await fetch(graphRef.nodeImageUrl.replace('NODE_INDEX', String(index)), {
+            const res = await chainFetch(graphRef.nodeImageUrl.replace('NODE_INDEX', String(index)), {
                 method: 'POST',
                 headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
                 body: formData,
@@ -3485,7 +3659,7 @@ function mount(root) {
         const n = nodes[index]
         if (!editable || !n?.mediaUrl || !graphRef?.nodeImageUrl) return
         try {
-            const res = await fetch(graphRef.nodeImageUrl.replace('NODE_INDEX', String(index)), {
+            const res = await chainFetch(graphRef.nodeImageUrl.replace('NODE_INDEX', String(index)), {
                 method: 'DELETE',
                 headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrfToken(), 'X-Requested-With': 'XMLHttpRequest' },
             })
@@ -3543,7 +3717,7 @@ function mount(root) {
         const origin = quickAddOrigin
 
         try {
-            const res = await fetch(graphRef.nodeAddUrl, {
+            const res = await chainFetch(graphRef.nodeAddUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -3746,7 +3920,7 @@ function mount(root) {
 
         nodeFieldSaving = true
         try {
-            const res = await fetch(url, {
+            const res = await chainFetch(url, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
@@ -4130,14 +4304,14 @@ function mount(root) {
     // ligar", or re-pointing an existing arrow at it) — EXCEPT when it comes
     // from `openQuickAddEditor()` (an arrow dropped on empty canvas), which
     // links right after (see `createNodeFromKind()` above). It leaves the
-    // drawing dirty (the position is not in `viz_layout` yet), the same spirit
-    // as `organize()`. `pos` (a WORLD point) centres the block there — it only
+    // drawing dirty (the position is not in `viz_layout` yet). `pos` (a WORLD
+    // point) centres the block there — it only
     // arrives from that drop flow; without it the block is born to the right of
     // the last one (the default layout's own spacing), which is what the
     // topbar's "+" has always done.
     //
     // The zoom does NOT change here (see `panIntoView()` at the end): only
-    // "Organizar", "Centralizar" and the initial load re-frame.
+    // "Centralizar" and the initial load re-frame.
     function appendNode(data, pos) {
         const index = nodes.length
         const el = document.createElement('div')
@@ -4398,7 +4572,7 @@ function mount(root) {
 
         edgeFieldSaving = true
         try {
-            const res = await fetch(url, {
+            const res = await chainFetch(url, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
@@ -4617,7 +4791,7 @@ function mount(root) {
 
         protocolDelete.disabled = true
         try {
-            const res = await fetch(url, {
+            const res = await chainFetch(url, {
                 method: 'DELETE',
                 headers: {
                     Accept: 'application/json',
@@ -4675,6 +4849,7 @@ function mount(root) {
                 dashed: !!a.dashed,
                 fromT: Number.isFinite(a.fromT) ? a.fromT : null,
                 toT: Number.isFinite(a.toT) ? a.toT : null,
+                labelT: Number.isFinite(a.labelT) ? a.labelT : null,
             })),
             comments: nodes.map((n) => n.comment || null),
             // `rounded`/`dashed`/`opacity`/`orientation`/`showTitle`/`fontSize`
@@ -4702,6 +4877,200 @@ function mount(root) {
             theme: currentTheme,
         }
     }
+
+    // ── undo / redo (Ctrl+Z, Ctrl+Y / Ctrl+Shift+Z, Cmd on a Mac) ──────
+    // The history is a stack of whole STATES — `{chain, layout}` — rather than
+    // of operations with an inverse each: the canvas has a dozen kinds of edit
+    // and a state is one thing to restore whichever of them happened.
+    //
+    // Two halves, because the canvas writes in two ways. The LAYOUT is local
+    // until "Salvar", so stepping between two states with the same chain is a
+    // local redraw that leaves "Salvar" lit. The CHAIN is written to the server
+    // the moment it changes (a block added, deleted or renamed, an arrow
+    // created), so stepping across a chain change PUTs the whole state back
+    // (`restoreUrl`, `EditsChain::restoreChain()`) — undoing it only on screen
+    // would leave a canvas showing a drawing the database no longer has.
+    //
+    // The chain recorded is the server's own: every mutation answers with the
+    // stored chain (`chainFetch()` → `adoptChain()`), since the resolved graph
+    // the canvas draws from has labels where the chain has ids.
+    //
+    // A state is only recorded when it is CONSISTENT — as many layout entries
+    // as the chain has nodes and edges. Between a mutation's answer and the
+    // moment the canvas has drawn it, the two disagree (a block the chain has
+    // and the screen does not yet), and restoring such a state would hand one
+    // block's position to another. `historyPending` covers that gap.
+    // (The history's state lives with the rest of the canvas's state, at the
+    // top: `render()` touches it, and may run before this point is reached.)
+
+    function resetHistory(chain) {
+        currentChain = chain
+        undoStack = []
+        redoStack = []
+        committed = null
+        historyPending = false
+        lastRecordAt = 0
+    }
+
+    function historySnapshot() {
+        return { chain: currentChain, layout: layoutPayload() }
+    }
+
+    function isConsistent(state) {
+        if (!state.chain) return true
+        return (state.chain.nodes?.length ?? 0) === state.layout.nodes.length
+            && (state.chain.edges?.length ?? 0) === state.layout.edges.length
+    }
+
+    function record() {
+        if (!editable || suppressRecord || presenting || !graphRef || !nodes.length) return
+        const now = historySnapshot()
+        if (!isConsistent(now)) return
+        if (committed === null || historyPending) {
+            committed = now
+            historyPending = false
+            return
+        }
+        if (sameValue(now, committed)) return
+        const t = performance.now()
+        if (t - lastRecordAt > HISTORY_COALESCE_MS) pushHistory(undoStack, committed)
+        lastRecordAt = t
+        redoStack = []
+        committed = now
+    }
+
+    function pushHistory(stack, state) {
+        stack.push(state)
+        if (stack.length > HISTORY_LIMIT) stack.shift()
+    }
+
+    // A chain mutation's answer. The state BEFORE it is what `committed`
+    // still holds (a gesture that changed the screen ahead of the server —
+    // a retargeted arrow — was never recorded, being inconsistent), so that
+    // is the step pushed; the state after it is recorded once drawn.
+    function adoptChain(chain) {
+        if (sameValue(chain, currentChain)) return
+        if (editable && !suppressRecord && committed && !historyPending) {
+            pushHistory(undoStack, committed)
+            redoStack = []
+            historyPending = true
+            lastRecordAt = 0
+        }
+        currentChain = chain
+        patchRowChain(slug, chain)
+    }
+
+    // Every request that mutates the chain goes through here, so none of them
+    // can forget to tell the history.
+    async function chainFetch(url, init) {
+        const res = await fetch(url, init)
+        if (res.ok) {
+            const data = await res.clone().json().catch(() => null)
+            if (data?.chain) adoptChain(data.chain)
+        }
+        return res
+    }
+
+    // The row's cached graph carries the chain too; a drawing selected again
+    // from the list must start its history from the chain as it is now.
+    function patchRowChain(slugArg, chain) {
+        if (!slugArg) return
+        const row = document.querySelector(`[data-ak-chain-select="${CSS.escape(slugArg)}"]`)
+        const raw = row?.getAttribute('data-ak-chain-graph')
+        if (!raw) return
+        try {
+            const g = JSON.parse(raw)
+            if (g) {
+                g.chain = chain
+                row.setAttribute('data-ak-chain-graph', JSON.stringify(g))
+            }
+        } catch {
+            // A row whose cache does not parse is redrawn from the server on its next selection.
+        }
+    }
+
+    async function stepHistory(back) {
+        if (!editable || presenting || historyBusy || !graphRef || drag) return
+        record()
+        if (!committed || historyPending) return
+        const from = back ? undoStack : redoStack
+        const to = back ? redoStack : undoStack
+        const target = from.pop()
+        if (!target) return
+        const current = committed
+
+        if (!target.chain || sameValue(target.chain, currentChain)) {
+            // Same topology: the layout alone goes back, on screen. The
+            // nodes are rebuilt from what is drawn now rather than from
+            // `graphRef`, which a block's rename or picture does not update;
+            // the comment comes from the layout being restored.
+            suppressRecord = true
+            try {
+                const drawn = nodes.map(({ el, w, h, x, y, ...data }) => ({ ...data, comment: null }))
+                render({ ...graphRef, nodes: drawn }, currentName, slug, { layout: target.layout, keepView: true })
+                setDirty(true)
+            } finally {
+                suppressRecord = false
+            }
+        } else {
+            if (!graphRef.restoreUrl) {
+                from.push(target)
+                return
+            }
+            historyBusy = true
+            try {
+                const res = await fetch(graphRef.restoreUrl, {
+                    method: 'PUT',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken(),
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({ chain: target.chain, layout: target.layout }),
+                })
+                const data = await res.json().catch(() => null)
+                if (!res.ok || !data?.graph) throw new Error(data?.message || (back ? 'Não foi possível desfazer.' : 'Não foi possível refazer.'))
+
+                // The restore SAVED the layout along with the chain, so this
+                // is the stored state now and "Salvar" goes dark.
+                suppressRecord = true
+                currentChain = data.chain
+                savedLayouts.set(slug, data.graph.layout)
+                patchRowGraphReplace(slug, data.graph, data.summary)
+                render(data.graph, currentName, slug, { keepView: true })
+            } catch (err) {
+                from.push(target)
+                window.Toast?.show?.(err.message, 'error')
+                return
+            } finally {
+                historyBusy = false
+                suppressRecord = false
+            }
+        }
+
+        pushHistory(to, current)
+        committed = historySnapshot()
+        lastRecordAt = 0
+    }
+
+    root.addEventListener('pointerdown', () => { activeCanvas = root }, true)
+
+    window.addEventListener('keydown', (e) => {
+        if (!(e.ctrlKey || e.metaKey) || e.altKey) return
+        const key = e.key.toLowerCase()
+        const redo = key === 'y' || (key === 'z' && e.shiftKey)
+        if (key !== 'z' && !redo) return
+        if (!editable || !graphRef || root.getClientRects().length === 0) return
+        if (activeCanvas && activeCanvas !== root && activeCanvas.isConnected && activeCanvas.getClientRects().length) return
+        // A text field keeps its own undo — the block's label, a lane's
+        // name, a comment, the protocol being typed.
+        const active = document.activeElement
+        const typing = active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT' || active.tagName === 'SELECT' || active.isContentEditable) && active.offsetParent !== null
+        if (typing) return
+        e.preventDefault()
+        stepHistory(!redo)
+    })
 
     // ── deleting a block ──────────────────────────────────────────────
     // Unlike everything else that edits the chain, no local patch is possible
@@ -4741,7 +5110,7 @@ function mount(root) {
 
         toolbarRemoveBtn.disabled = true
         try {
-            const res = await fetch(url, {
+            const res = await chainFetch(url, {
                 method: 'DELETE',
                 headers: {
                     Accept: 'application/json',
@@ -4906,7 +5275,7 @@ function mount(root) {
         creatingEdge = true
 
         try {
-            const res = await fetch(graphRef.edgeAddUrl, {
+            const res = await chainFetch(graphRef.edgeAddUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -4970,7 +5339,7 @@ function mount(root) {
         if (!url) return
 
         try {
-            const res = await fetch(url, {
+            const res = await chainFetch(url, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
@@ -5224,26 +5593,47 @@ function mount(root) {
             draw()
             return
         }
+        if (drag?.type === 'label') {
+            if (Math.abs(e.clientX - drag.startClientX) > MOVE_TOLERANCE || Math.abs(e.clientY - drag.startClientY) > MOVE_TOLERANCE) drag.moved = true
+            const route = edgeRoutes[drag.edge]
+            if (!drag.moved || !editable || !route || !edgeAnchors[drag.edge]) return
+            const w = screenToWorld(e.clientX, e.clientY)
+            const t = projectOnRoute(route, w.x, w.y)
+            // Kept off the very ends, where the label would sit on the
+            // arrowhead or inside the block's handle.
+            if (t !== null) edgeAnchors[drag.edge].labelT = Math.round(Math.max(0.03, Math.min(0.97, t)) * 1000) / 1000
+            draw()
+            return
+        }
         if (drag?.type === 'lane-resize') {
             // A SCREEN delta converted to WORLD (`/ view.scale`), the same
             // reasoning as `screenToWorld()`: dragging 10 screen px should
             // change the size by less "world" the further you are zoomed in, or
             // a lane would grow and shrink far too fast at high zoom. `dir`
-            // decides which axes move: 'e' width only, 's' height only, 'se'
-            // both (one lane, one drag).
+            // names the edges that move (a compass point: 'e', 'nw', …). On
+            // 'w'/'n' the size is clamped FIRST and the position derived from
+            // it, so hitting the minimum stops the edge instead of sliding the
+            // whole lane along.
             const lane = lanes[drag.index]
             const entry = laneEls[drag.index]
             if (!lane || !entry) return
-            if (drag.dir.includes('e')) {
-                const dx = (e.clientX - drag.startClientX) / view.scale
-                lane.width = Math.round(Math.max(LANE_MIN_SIZE, Math.min(LANE_MAX_SIZE, drag.startW + dx)))
-                entry.wrap.style.width = lane.width + 'px'
+            const clamp = (v) => Math.round(Math.max(LANE_MIN_SIZE, Math.min(LANE_MAX_SIZE, v)))
+            const dx = (e.clientX - drag.startClientX) / view.scale
+            const dy = (e.clientY - drag.startClientY) / view.scale
+            if (drag.dir.includes('e')) lane.width = clamp(drag.startW + dx)
+            if (drag.dir.includes('w')) {
+                lane.width = clamp(drag.startW - dx)
+                lane.x = drag.startX + drag.startW - lane.width
             }
-            if (drag.dir.includes('s')) {
-                const dy = (e.clientY - drag.startClientY) / view.scale
-                lane.height = Math.round(Math.max(LANE_MIN_SIZE, Math.min(LANE_MAX_SIZE, drag.startH + dy)))
-                entry.wrap.style.height = lane.height + 'px'
+            if (drag.dir.includes('s')) lane.height = clamp(drag.startH + dy)
+            if (drag.dir.includes('n')) {
+                lane.height = clamp(drag.startH - dy)
+                lane.y = drag.startY + drag.startH - lane.height
             }
+            entry.wrap.style.left = lane.x + 'px'
+            entry.wrap.style.top = lane.y + 'px'
+            entry.wrap.style.width = lane.width + 'px'
+            entry.wrap.style.height = lane.height + 'px'
             return
         }
         if (drag?.type === 'lane-move') {
@@ -5325,6 +5715,11 @@ function mount(root) {
                     // Give up: neither create the link nor open "Adicionar bloco".
                 } else if (drag.targetNode !== null) createEdgeFrom(drag.from, drag.targetNode, drag.side, drag.toSide)
                 else openQuickAddEditor(drag.from, drag.side, drag.wx, drag.wy)
+            } else if (drag.type === 'label') {
+                if (drag.moved) {
+                    labelDragEndedAt = performance.now()
+                    setDirty(true)
+                }
             } else if (drag.type === 'lane-resize') {
                 laneEls[drag.index]?.handles[drag.dir]?.classList.remove('is-resizing')
                 setDirty(true)
@@ -5387,7 +5782,6 @@ function mount(root) {
     root.querySelector('[data-viz-zoom-in]')?.addEventListener('click', () => zoomAt(1.12, lastPointerX, lastPointerY))
     root.querySelector('[data-viz-zoom-out]')?.addEventListener('click', () => zoomAt(1 / 1.12, lastPointerX, lastPointerY))
     root.querySelector('[data-viz-fit]')?.addEventListener('click', fit)
-    organizeBtn?.addEventListener('click', organize)
     saveBtn?.addEventListener('click', save)
 
     presentToggleBtn?.addEventListener('click', () => { presenting ? exitPresentation() : enterPresentation() })
@@ -5516,7 +5910,7 @@ function mount(root) {
         try {
             const formData = new FormData()
             formData.append('image', file)
-            const res = await fetch(graphRef.imageAddUrl, {
+            const res = await chainFetch(graphRef.imageAddUrl, {
                 method: 'POST',
                 headers: {
                     Accept: 'application/json',

@@ -90,6 +90,18 @@ class SaveChainLayoutRequest extends FormRequest
      */
     public function rules(): array
     {
+        return self::layoutRules();
+    }
+
+    /**
+     * The layout's shape, on its own so `RestoreChainRequest` can validate the
+     * same object nested under `layout` — a second copy of this list is how a
+     * field would end up saved by one door and refused by the other.
+     *
+     * @return array<string, mixed>
+     */
+    public static function layoutRules(): array
+    {
         return [
             'theme'        => ['nullable', Rule::in(self::THEMES)],
             'nodes'        => ['present', 'array'],
@@ -120,8 +132,14 @@ class SaveChainLayoutRequest extends FormRequest
             // block's height (0 = top, 1 = bottom). The eight anchors alone
             // cannot say "halfway down this lifeline", which is exactly what a
             // message at a moment in time needs; every other block ignores it.
+            //
+            // `labelT` is the same idea for the arrow's LABEL: where along its
+            // own route it sits, as a fraction of the route's length, once
+            // somebody dragged it there. Null leaves the canvas to pick the
+            // longest straight run, as it always did.
             'edges.*.fromT'       => ['nullable', 'numeric', 'between:0,1'],
             'edges.*.toT'         => ['nullable', 'numeric', 'between:0,1'],
+            'edges.*.labelT'      => ['nullable', 'numeric', 'between:0,1'],
             'comments'            => ['sometimes', 'array'],
             'comments.*'          => ['nullable', 'string', 'max:4000'],
             'lanes'               => ['sometimes', 'array'],

@@ -6,12 +6,11 @@ use App\Contracts\ChainCanvas;
 use App\Enums\ChainNodeKind;
 use App\Support\ChainGraph;
 use App\Support\ChainLabeler;
-use App\View\Components\Solutions\Diagrams;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\UploadedFile;
 
 /**
- * The eleven mutations the F3 canvas performs, against any `ChainCanvas`.
+ * The twelve mutations the F3 canvas performs, against any `ChainCanvas`.
  *
  * These used to live in `DiagramController`, spelled against
  * `Diagram` directly. They moved here when a submission's AS IS / TO BE
@@ -28,7 +27,9 @@ use Illuminate\Http\UploadedFile;
  *
  * Every method answers in the exact shape the canvas expects. The client
  * patches its own DOM from these fields, so the names are a contract, not an
- * implementation detail.
+ * implementation detail. Every mutation also carries the stored `chain` as it
+ * now is (`answer()`): that is what the canvas's undo history records, and
+ * what `restoreChain()` is handed back.
  */
 trait EditsChain
 {
@@ -78,7 +79,7 @@ trait EditsChain
         $solutions = $this->chainLabeler()->resolveSolutions(collect([$owner->chainData()]));
         $comment = $owner->vizLayout()['comments'][$node] ?? null;
 
-        return response()->json([
+        return $this->answer($owner, [
             'type'    => 'success',
             'message' => 'Bloco atualizado.',
             'node'    => ChainGraph::resolveNode($owner->chainData()['nodes'][$node], $solutions, $comment),
@@ -158,7 +159,7 @@ trait EditsChain
         $labeler = $this->chainLabeler();
         $solutions = $labeler->resolveSolutions(collect([$owner->chainData()]));
 
-        return response()->json([
+        return $this->answer($owner, [
             'type'    => 'success',
             'message' => 'Bloco excluído.',
             'graph'   => ChainGraph::for($owner, $labeler, $solutions),
@@ -191,7 +192,7 @@ trait EditsChain
         $owner->writeChain(chain: $chain);
         $owner->afterChainMutation();
 
-        return response()->json([
+        return $this->answer($owner, [
             'type'     => 'success',
             'message'  => 'Ligação atualizada.',
             'protocol' => ChainGraph::resolveProtocol($edges[$edge]['protocol']),
@@ -294,7 +295,7 @@ trait EditsChain
         $solutions = $this->chainLabeler()->resolveSolutions(collect([$owner->chainData()]));
         $comment = $owner->vizLayout()['comments'][$node] ?? null;
 
-        return response()->json([
+        return $this->answer($owner, [
             'type'    => 'success',
             'message' => $message,
             'node'    => ChainGraph::resolveNode($owner->chainData()['nodes'][$node], $solutions, $comment),
@@ -331,7 +332,7 @@ trait EditsChain
         $owner->refresh();
         $labeler = $this->chainLabeler();
 
-        return response()->json([
+        return $this->answer($owner, [
             'type'    => 'success',
             'message' => 'Ligação atualizada.',
             'from'    => $edges[$edge]['from'],
@@ -365,7 +366,7 @@ trait EditsChain
         $owner->refresh();
         $labeler = $this->chainLabeler();
 
-        return response()->json([
+        return $this->answer($owner, [
             'type'    => 'success',
             'message' => 'Ligação criada.',
             // The index this edge got in `chain.edges` — every other edge
@@ -409,16 +410,92 @@ trait EditsChain
         $owner->refresh();
         $labeler = $this->chainLabeler();
 
-        return response()->json([
+        return $this->answer($owner, [
             'type'    => 'success',
             'message' => 'Ligação removida.',
             'summary' => $labeler->label($owner->chainData(), $labeler->resolveSolutions(collect([$owner->chainData()]))),
         ]);
     }
 
+    /**
+     * Writes a whole earlier state back — chain and layout together. This is
+     * the server half of the canvas's Ctrl+Z / Ctrl+Y, used when the step
+     * being undone touched the topology: every other mutation was persisted
+     * the moment it happened, so the only honest undo of one is to persist the
+     * state before it.
+     *
+     * Two things in the payload are not taken at its word (the request has
+     * already checked the shape and that every index lines up):
+     *
+     *  - the ROOT node is kept as stored — no mutation can change it, so no
+     *    state worth going back to differs there, and taking it from the
+     *    client would be a back door around the protection every other
+     *    endpoint enforces;
+     *  - a `media_id` that is not one of THIS owner's pictures is dropped. A
+     *    picture removed from a block was deleted with it, so undoing that
+     *    removal brings the block back without it rather than pointing at a
+     *    file that is gone — or, with a forged id, at somebody else's.
+     *
+     * Answers like `removeChainNode()`, with a whole graph: positions,
+     * indices and anchors may all have moved, so the client re-renders.
+     *
+     * @param  array{nodes: list<array<string, mixed>>, edges: list<array<string, mixed>>}  $chain
+     * @param  array<string, mixed>  $layout
+     */
+    protected function restoreChain(ChainCanvas $owner, array $chain, array $layout): JsonResponse
+    {
+        $current = $owner->chainData();
+        abort_if(! $current || empty($current['nodes']), 404);
+
+        $mediaIds = collect($chain['nodes'])->pluck('media_id')->filter()->map(fn ($id) => (int) $id)->unique()->values();
+        $ownMedia = $mediaIds->isEmpty()
+            ? collect()
+            : $owner->media()->where('collection_name', $owner->chainImageCollection())->whereKey($mediaIds)->pluck('id');
+
+        $nodes = array_map(function (array $node) use ($ownMedia): array {
+            $mediaId = isset($node['media_id']) ? (int) $node['media_id'] : null;
+
+            return $this->chainNodeShape($node) + array_filter(['media_id' => $ownMedia->contains($mediaId) ? $mediaId : null]);
+        }, array_values($chain['nodes']));
+        $nodes[0] = $current['nodes'][0];
+
+        $edges = array_map(fn (array $edge): array => [
+            'from'     => (int) $edge['from'],
+            'to'       => (int) $edge['to'],
+            'arrow'    => $edge['arrow'],
+            'protocol' => filled($edge['protocol'] ?? null) ? (string) $edge['protocol'] : null,
+        ], array_values($chain['edges']));
+
+        $owner->writeChain(chain: ['nodes' => $nodes, 'edges' => $edges] + $current, layout: $layout);
+        $owner->afterChainMutation();
+
+        $owner->refresh();
+        $labeler = $this->chainLabeler();
+        $solutions = $labeler->resolveSolutions(collect([$owner->chainData()]));
+
+        return $this->answer($owner, [
+            'type'    => 'success',
+            'graph'   => ChainGraph::for($owner, $labeler, $solutions),
+            'summary' => $labeler->label($owner->chainData(), $solutions),
+        ]);
+    }
+
     /* ------------------------------------------------------------------ */
     /*  Shared internals */
     /* ------------------------------------------------------------------ */
+
+    /**
+     * A mutation's answer, plus the chain exactly as stored after it. The
+     * canvas keeps that copy for its undo history: the resolved graph it draws
+     * from has labels and URLs where the chain has ids, and cannot be turned
+     * back into one.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function answer(ChainCanvas $owner, array $payload): JsonResponse
+    {
+        return response()->json($payload + ['chain' => $owner->chainData()]);
+    }
 
     /** Writes an appended node and answers in the canvas's append-in-place shape. */
     private function appendedNode(ChainCanvas $owner, array $chain, string $message): JsonResponse
@@ -432,7 +509,7 @@ trait EditsChain
         $labeler = $this->chainLabeler();
         $solutions = $labeler->resolveSolutions(collect([$owner->chainData()]));
 
-        return response()->json([
+        return $this->answer($owner, [
             'type'    => 'success',
             'message' => $message,
             'node'    => ChainGraph::resolveNode($owner->chainData()['nodes'][$newIndex], $solutions, null),
