@@ -29,6 +29,7 @@ import * as docsChat from './modules/docs-chat.js'
 import * as docsSearch from './modules/docs-search.js'
 import * as docsSwitcher from './modules/docs-switcher.js'
 import * as docsSecret from './modules/docs-secret.js'
+import * as docsScene from './modules/docs-scene.js'
 import * as copyField from './modules/copy-field.js'
 import * as flowspecChat from './modules/flowspec-chat.js'
 import * as lifecyclePoll from './modules/lifecycle-poll.js'
@@ -72,6 +73,7 @@ window.globalModules = {
     "docsSearch"        : docsSearch,
     "docsSwitcher"      : docsSwitcher,
     "docsSecret"        : docsSecret,
+    "docsScene"         : docsScene,
     "copyField"         : copyField,
     "flowspecChat"      : flowspecChat,
     "lifecyclePoll"     : lifecyclePoll,

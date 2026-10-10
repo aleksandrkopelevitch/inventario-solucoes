@@ -964,3 +964,179 @@
     font-size: 0.68rem;
     color: var(--color-faint);
 }
+
+/* ------------------------------------------------------------------------ */
+/*  "Fluxo em etapas" (docs-tools/scene.js) — the editor's half of a scene.  */
+/*  The figure in the preview is drawn by docs-scene.js, exactly as the      */
+/*  reader draws it; only the block's own chrome lives here.                 */
+/* ------------------------------------------------------------------------ */
+.ak-scene-tool {
+    margin: 0.75rem 0;
+    padding: 0.9rem;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card, 14px);
+    background: var(--color-surface);
+}
+.ak-scene-tool__head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+}
+.ak-scene-tool__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 0.45rem;
+    background: var(--color-accent);
+    color: #fff;
+}
+.ak-scene-tool__icon svg { width: 15px; height: 15px; }
+
+.ak-scene-tool input {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid var(--color-line-2);
+    border-radius: var(--radius-field, 8px);
+    background: var(--color-surface);
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+    color: var(--color-ink);
+    outline: none;
+}
+.ak-scene-tool input:focus {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+.ak-scene-tool input::placeholder { color: var(--color-faint); }
+
+.ak-scene-tool__ask {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+.ak-scene-tool__generate {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: var(--radius-field, 8px);
+    background: var(--color-btn, #1a201d);
+    color: #fff;
+    font-size: 0.82rem;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: var(--shadow-btn);
+}
+.ak-scene-tool__generate svg { width: 15px; height: 15px; color: var(--color-lime); }
+.ak-scene-tool__generate:hover:not(:disabled) { background: var(--color-btn-hover, #252d29); }
+.ak-scene-tool__generate:disabled { opacity: 0.6; cursor: not-allowed; }
+.ak-scene-tool.is-busy .ak-scene-tool__generate svg { animation: ak-scene-spark 1s ease-in-out infinite; }
+@keyframes ak-scene-spark { 50% { transform: scale(0.75) rotate(20deg); opacity: 0.6; } }
+.ak-scene-tool__status {
+    grid-column: 1 / -1;
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--color-muted);
+}
+.ak-scene-tool__status:empty { display: none; }
+
+/* The preview — the same dotted board the reader frames the figure with. */
+.ak-scene-tool__stage {
+    margin-top: 0.75rem;
+    padding: 1rem;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-field, 8px);
+    background-color: var(--color-canvas, #f5f8f5);
+    background-image: radial-gradient(var(--color-line) 1px, transparent 1px);
+    background-size: 16px 16px;
+}
+/* A class rather than `:empty`: an empty stage hidden by `:empty` measures 0px
+   wide, and docs-scene.js lays the figure out from that width. */
+.ak-scene-tool.no-preview .ak-scene-tool__stage { display: none; }
+
+.ak-scene-tool__caption { margin-top: 0.75rem; }
+
+.ak-scene-tool__steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin: 0.6rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+.ak-scene-tool__step {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 0.55rem;
+    padding: 0.45rem;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-field, 8px);
+    background: var(--color-surface);
+}
+.ak-scene-tool__step.is-highlight {
+    border-color: var(--color-lime);
+    background: var(--color-lime-soft);
+}
+.ak-scene-tool__num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    margin-top: 0.3rem;
+    border-radius: 999px;
+    background: var(--color-accent);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+.ak-scene-tool__step.is-highlight .ak-scene-tool__num {
+    background: var(--color-lime);
+    color: var(--color-lime-ink);
+}
+.ak-scene-tool__fields { display: flex; flex-direction: column; gap: 0.3rem; }
+.ak-scene-tool__title { font-weight: 600; }
+.ak-scene-tool__detail { font-size: 0.8rem !important; color: var(--color-body) !important; }
+.ak-scene-tool__actions { display: flex; gap: 0.15rem; padding-top: 0.25rem; }
+.ak-scene-tool__action {
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 0.4rem;
+    font-size: 0.85rem;
+    line-height: 1;
+    color: var(--color-faint);
+}
+.ak-scene-tool__action:hover:not(:disabled) { background: var(--color-raised); color: var(--color-ink); }
+.ak-scene-tool__action:disabled { opacity: 0.3; cursor: default; }
+.ak-scene-tool__action.is-on { color: var(--color-lime-ink); background: var(--color-lime); }
+.ak-scene-tool__action.is-danger:hover { background: var(--color-crit-soft); color: var(--color-crit); }
+
+.ak-scene-tool__add {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    width: 100%;
+    margin-top: 0.4rem;
+    padding: 0.5rem;
+    border: 1px dashed var(--color-line-2);
+    border-radius: var(--radius-field, 8px);
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--color-muted);
+}
+.ak-scene-tool__add:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+    background: var(--color-accent-soft);
+}
+.ak-scene-tool.is-empty .ak-scene-tool__caption { display: none; }

@@ -36,13 +36,18 @@
              this one's pages. A card that a given reader has no address for
              degrades to a card with no link, so it is allowed to leave the
              caderno where a sentence is not — see
-             App\Support\Documentation\PageLinks::notebookUrlFor(). --}}
+             App\Support\Documentation\PageLinks::notebookUrlFor().
+
+             `sceneUrl` is where the "Fluxo em etapas" block asks the model for
+             the steps of this page (NotebookPageSceneController); null outside
+             a caderno, which leaves the block hand-written only. --}}
         <div class="ak-docs-editor" data-ak-docs-editor
             data-config="{{ json_encode([
                 'uploadUrl'      => $uploadUrl,
                 'catalogUrl'     => route('diagrams.catalog', isset($notebook) ? ['notebook' => $notebook->slug] : []),
                 'linkTargetsUrl' => isset($notebook) ? route('notebooks.link-targets', $notebook) : null,
                 'cardTargetsUrl' => isset($notebook) ? route('notebooks.card-targets', $notebook) : null,
+                'sceneUrl'       => isset($notebook, $titlePage) ? route('notebooks.pages.scene', [$notebook, $titlePage]) : null,
                 'pageSlug'       => $titlePage->slug ?? null,
             ]) }}"></div>
 

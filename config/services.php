@@ -417,6 +417,9 @@ return [
         // timeout there — it is a hung tab. Two calls at most (draft + one
         // repair round) fit inside it.
         'diagram_timeout' => env('DOCS_AI_DIAGRAM_TIMEOUT', 60),
+        // "Fluxo em etapas" (SceneDraftService): synchronous too, and smaller —
+        // a handful of short labels — so a tighter ceiling than the diagram.
+        'scene_timeout' => env('DOCS_AI_SCENE_TIMEOUT', 45),
         // Character budget for TEXT context documents embedded in the prompt
         // (PDF/image go as attachments, outside this limit).
         'doc_budget_chars'      => env('DOCS_AI_DOC_BUDGET_CHARS', 60000),
