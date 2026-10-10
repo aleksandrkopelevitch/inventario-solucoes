@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Diagram;
+use App\Support\Documentation\BeforeAfterScene;
 use App\Support\Documentation\PageLinks;
 use App\Support\Documentation\SecretText;
 use App\Support\Documentation\StepScene;
@@ -36,6 +37,8 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  *       → a regular grid of product cards (ours) — see renderCards()
  *   {% scene type="steps" caption="…" %}{% step title="…" highlight="true" %} … {% endstep %} … {% endscene %}
  *       → an animated "fluxo em etapas" (ours) — see renderScene()
+ *   {% scene type="before-after" from="…" to="…" %}{% change aspect="…" before="…" after="…" %} … {% endscene %}
+ *       → an animated "antes → depois" (ours) — see renderScene()
  *   {% secret %} … {% endsecret %}   (inline, ours)
  *       → a lock the value is NOT inside — see App\Support\Documentation\SecretText
  *
@@ -603,18 +606,20 @@ class GitbookRenderer
     }
 
     /**
-     * An animated SCENE — today only `type="steps"`, the "fluxo em etapas".
+     * An animated SCENE — `type="steps"` (the "fluxo em etapas") or
+     * `type="before-after"` (the "antes → depois").
      *
-     * What this emits is the scene's TEXT, as an ordered list: that is what a
-     * reader without JavaScript sees, what a screen reader reads, and what the
-     * search index and the MCP server pick up. The animation is drawn over it
-     * by docs-scene.js from the same data, carried as JSON on the figure — so
-     * there is one renderer of the picture (in the browser, where text can be
-     * measured to wrap inside a card) and no second copy of it here to drift.
+     * What this emits is the scene's TEXT — the steps as an ordered list, the
+     * changes as a table — because that is what a reader without JavaScript
+     * sees, what a screen reader reads, and what the search index and the MCP
+     * server pick up. The animation is drawn over it by docs-scene.js from the
+     * same data, carried as JSON on the figure — so there is one renderer of
+     * the picture (in the browser, where text can be measured to wrap inside a
+     * card) and no second copy of it here to drift.
      *
-     * A type this renderer does not know keeps its steps as the list and loses
-     * only the animation, the same degradation a card makes for a link nobody
-     * can follow: the words are the documentation.
+     * A type this renderer does not know keeps whatever rows it has as text and
+     * loses only the animation, the same degradation a card makes for a link
+     * nobody can follow: the words are the documentation.
      *
      * @param  array<string, string>  $attrs
      * @param  array<int, string>  $lines
@@ -624,12 +629,15 @@ class GitbookRenderer
         $decode = fn (array $from, string $key): string => trim(html_entity_decode($from[$key] ?? '', ENT_QUOTES));
 
         $steps = [];
+        $changes = [];
         $i = 0;
         $n = count($lines);
 
         while ($i < $n) {
+            $line = trim($lines[$i]);
+
             // `{% step %}` carries its detail as a BODY, like `{% card %}`.
-            if (preg_match('/^\{%\s*step(?:\s+(.*?))?\s*%\}$/', trim($lines[$i]), $m)) {
+            if (preg_match('/^\{%\s*step(?:\s+(.*?))?\s*%\}$/', $line, $m)) {
                 $stepAttrs = $this->parseAttrs($m[1] ?? '');
                 [$inner, $i] = $this->consumeUntil($lines, $i + 1, 'step');
                 $steps[] = [
@@ -640,33 +648,80 @@ class GitbookRenderer
 
                 continue;
             }
+
+            // `{% change %}` is self-closing: both sides are one short line.
+            if (preg_match('/^\{%\s*change(?:\s+(.*?))?\s*%\}$/', $line, $m)) {
+                $changeAttrs = $this->parseAttrs($m[1] ?? '');
+                $changes[] = [
+                    'aspect'    => $decode($changeAttrs, 'aspect'),
+                    'before'    => $decode($changeAttrs, 'before'),
+                    'after'     => $decode($changeAttrs, 'after'),
+                    'highlight' => ($changeAttrs['highlight'] ?? '') === 'true',
+                ];
+            }
             $i++;
         }
 
         $steps = array_values(array_filter($steps, fn (array $step) => $step['title'] !== '' || $step['detail'] !== ''));
+        $changes = array_values(array_filter($changes, fn (array $change) => $change['before'] !== '' || $change['after'] !== ''));
 
-        if ($steps === []) {
+        if ($steps === [] && $changes === []) {
             return '';
         }
 
-        $caption = $decode($attrs, 'caption');
         $type = $attrs['type'] ?? '';
+        $caption = $decode($attrs, 'caption');
+        $from = $decode($attrs, 'from') ?: BeforeAfterScene::DEFAULT_FROM;
+        $to = $decode($attrs, 'to') ?: BeforeAfterScene::DEFAULT_TO;
 
-        $items = '';
-        foreach ($steps as $step) {
-            $items .= '<li class="ak-scene__step' . ($step['highlight'] ? ' is-highlight' : '') . '">'
-                . ($step['title'] !== '' ? '<span class="ak-scene__title">' . e($step['title']) . '</span>' : '')
-                . ($step['detail'] !== '' ? ' <span class="ak-scene__detail">' . e($step['detail']) . '</span>' : '')
-                . '</li>';
+        $scene = match (true) {
+            $type === StepScene::TYPE && $steps !== []          => ['type' => $type, 'caption' => $caption, 'steps' => $steps],
+            $type === BeforeAfterScene::TYPE && $changes !== [] => ['type' => $type, 'caption' => $caption, 'from' => $from, 'to' => $to, 'changes' => $changes],
+            default                                             => null,
+        };
+
+        $text = '';
+
+        if ($steps !== []) {
+            $items = '';
+            foreach ($steps as $step) {
+                $items .= '<li class="ak-scene__step' . ($step['highlight'] ? ' is-highlight' : '') . '">'
+                    . ($step['title'] !== '' ? '<span class="ak-scene__title">' . e($step['title']) . '</span>' : '')
+                    . ($step['detail'] !== '' ? ' <span class="ak-scene__detail">' . e($step['detail']) . '</span>' : '')
+                    . '</li>';
+            }
+            $text .= '<ol class="ak-scene__text ak-scene__steps">' . $items . '</ol>';
         }
 
-        $data = $type === StepScene::TYPE
-            ? ' data-ak-scene="' . e(json_encode(['type' => $type, 'caption' => $caption, 'steps' => $steps], JSON_UNESCAPED_UNICODE)) . '"'
+        if ($changes !== []) {
+            // An empty side is MEANINGFUL (new / no longer exists), so it is
+            // said in words rather than left as a blank cell.
+            $side = fn (string $value, string $empty): string => $value !== ''
+                ? e($value)
+                : '<em class="ak-scene__none">' . $empty . '</em>';
+
+            $rows = '';
+            foreach ($changes as $change) {
+                $rows .= '<tr' . ($change['highlight'] ? ' class="is-highlight"' : '') . '>'
+                    . '<th scope="row">' . e($change['aspect']) . '</th>'
+                    . '<td>' . $side($change['before'], 'não existia') . '</td>'
+                    . '<td>' . $side($change['after'], 'deixa de existir') . '</td>'
+                    . '</tr>';
+            }
+            $text .= '<table class="ak-scene__text ak-scene__changes"><thead><tr><th scope="col"></th>'
+                . '<th scope="col">' . e($from) . '</th><th scope="col">' . e($to) . '</th></tr></thead>'
+                . '<tbody>' . $rows . '</tbody></table>';
+        }
+
+        $data = $scene !== null
+            ? ' data-ak-scene="' . e(json_encode($scene, JSON_UNESCAPED_UNICODE)) . '"'
             : '';
 
         return '<figure class="ak-scene"' . $data . '>'
-            . '<div class="ak-scene__stage" data-ak-scene-stage aria-hidden="true"></div>'
-            . '<ol class="ak-scene__steps">' . $items . '</ol>'
+            // Not aria-hidden: the figure's pause button lives in here. The SVG
+            // hides itself; the text below is what assistive technology reads.
+            . '<div class="ak-scene__stage" data-ak-scene-stage></div>'
+            . $text
             . ($caption !== '' ? '<figcaption>' . e($caption) . '</figcaption>' : '')
             . '</figure>';
     }

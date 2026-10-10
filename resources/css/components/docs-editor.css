@@ -1050,6 +1050,7 @@
 
 /* The preview — the same dotted board the reader frames the figure with. */
 .ak-scene-tool__stage {
+    position: relative; /* the pause button sits in its corner */
     margin-top: 0.75rem;
     padding: 1rem;
     border: 1px solid var(--color-line);
@@ -1139,4 +1140,22 @@
     color: var(--color-accent);
     background: var(--color-accent-soft);
 }
-.ak-scene-tool.is-empty .ak-scene-tool__caption { display: none; }
+.ak-scene-tool.is-empty .ak-scene-tool__caption,
+.ak-scene-tool.is-empty .ak-scene-tool__labels { display: none; }
+
+/* "Antes → depois": the two column names, and each row's two sides on one line
+   with an arrow between them. */
+.ak-scene-tool__labels,
+.ak-scene-tool__pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.4rem;
+}
+.ak-scene-tool__labels { margin-top: 0.5rem; }
+.ak-scene-tool__labels input { font-weight: 600; }
+.ak-scene-tool__arrow { color: var(--color-faint); font-size: 0.9rem; }
+@media (max-width: 640px) {
+    .ak-scene-tool__pair { grid-template-columns: minmax(0, 1fr); }
+    .ak-scene-tool__pair .ak-scene-tool__arrow { display: none; }
+}

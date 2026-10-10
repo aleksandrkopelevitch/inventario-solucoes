@@ -9,7 +9,8 @@ use App\Services\Documentation\SceneDraftService;
 use Illuminate\Http\JsonResponse;
 
 /**
- * Proposes an animated SCENE for a page — today the "fluxo em etapas".
+ * Proposes an animated SCENE for a page — a "fluxo em etapas" or an "antes →
+ * depois", whichever `type` the editor's block asks for.
  *
  * It answers with the scene and writes nothing: the editor drops it into the
  * block the author is working on and saves the page the way it saves any other
@@ -24,10 +25,8 @@ class NotebookPageSceneController extends Controller
     {
         $content = $request->validated('content') ?? (string) $page->documentation;
 
-        $scene = $this->scenes->draft($page->title, $content, $request->validated('focus'));
-
         return response()->json([
-            'scene' => $scene->toArray(),
+            'scene' => $this->scenes->draft($request->sceneType(), $page->title, $content, $request->validated('focus')),
         ]);
     }
 }

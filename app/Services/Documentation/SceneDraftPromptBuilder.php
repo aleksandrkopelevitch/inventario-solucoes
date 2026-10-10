@@ -2,12 +2,15 @@
 
 namespace App\Services\Documentation;
 
+use App\Enums\SceneType;
+use App\Support\Documentation\BeforeAfterScene;
 use App\Support\Documentation\BlockVault;
 use App\Support\Documentation\SecretText;
 use App\Support\Documentation\StepScene;
 
 /**
- * Prompts for "montar um fluxo em etapas a partir desta página".
+ * Prompts for the animated scenes of a page — one system prompt per SceneType,
+ * sharing the frame (JSON only, words only, nothing the page does not say).
  *
  * The model is asked for CONTENT only — which steps, in what order, which one
  * matters most — and never for a coordinate, a colour or a size. Those belong
@@ -21,7 +24,32 @@ use App\Support\Documentation\StepScene;
  */
 class SceneDraftPromptBuilder
 {
-    public function systemPrompt(): string
+    public function systemPrompt(SceneType $type): string
+    {
+        $body = match ($type) {
+            SceneType::Steps       => $this->stepsPrompt(),
+            SceneType::BeforeAfter => $this->beforeAfterPrompt(),
+        };
+
+        return <<<PROMPT
+        Você lê uma página de documentação técnica da Leo Madeiras e resume o
+        que ela descreve numa FIGURA ANIMADA que vai dentro da própria página.
+        Você escolhe só as PALAVRAS; o desenho é feito por um programa.
+
+        Responda APENAS com um objeto JSON dentro de um bloco ```json. Nenhum
+        texto antes ou depois — quem lê a sua resposta é um programa.
+
+        {$body}
+
+        Escreva em português, com os nomes de sistemas exatamente como a página
+        os escreve.
+
+        REGRA MAIS IMPORTANTE: só o que a página diz. Não complete com o que
+        costuma existir, não invente sistemas, prazos, números ou responsáveis.
+        PROMPT;
+    }
+
+    private function stepsPrompt(): string
     {
         $min = StepScene::MIN_STEPS;
         $max = StepScene::MAX_STEPS;
@@ -30,13 +58,8 @@ class SceneDraftPromptBuilder
         $caption = StepScene::MAX_CAPTION;
 
         return <<<PROMPT
-        Você lê uma página de documentação técnica da Leo Madeiras e resume, em
-        ETAPAS, o processo que ela descreve. As etapas viram uma figura animada
-        dentro da própria página: cards numerados, um depois do outro, ligados
-        por setas.
-
-        Responda APENAS com um objeto JSON dentro de um bloco ```json. Nenhum
-        texto antes ou depois — quem lê a sua resposta é um programa.
+        A FIGURA É UM FLUXO EM ETAPAS: cards numerados, um depois do outro,
+        ligados por setas — o processo que a página descreve, na ordem.
 
         FORMATO:
 
@@ -66,16 +89,65 @@ class SceneDraftPromptBuilder
           nenhuma.
         - `caption`: uma linha de até {$caption} caracteres que diga do quê ao
           quê o fluxo vai. Pode ficar vazio.
-        - Escreva em português, com os nomes de sistemas exatamente como a
-          página os escreve.
-
-        REGRA MAIS IMPORTANTE: só o que a página diz. Não complete o processo
-        com etapas que costumam existir, não invente sistemas, prazos ou
-        responsáveis.
 
         Se a página NÃO descreve uma sequência de etapas (é uma referência de
         campos, uma lista de contatos, um glossário…), não force: responda
         `{"error": "<em uma frase, por que não há um fluxo aqui>"}`.
+        PROMPT;
+    }
+
+    private function beforeAfterPrompt(): string
+    {
+        $min = BeforeAfterScene::MIN_CHANGES;
+        $max = BeforeAfterScene::MAX_CHANGES;
+        $aspect = BeforeAfterScene::MAX_ASPECT;
+        $side = BeforeAfterScene::MAX_SIDE;
+        $label = BeforeAfterScene::MAX_LABEL;
+        $caption = BeforeAfterScene::MAX_CAPTION;
+
+        return <<<PROMPT
+        A FIGURA É UM ANTES → DEPOIS: duas colunas, como ERA e como FICA, uma
+        linha para cada aspecto que muda — o que a página descreve como mudança
+        (um AS IS e um TO BE, uma migração, a versão nova de um processo, um
+        sistema que substitui outro).
+
+        FORMATO:
+
+        ```json
+        {
+          "caption": "O pedido do Leomob com a integração ao Leo360",
+          "from": "Hoje",
+          "to": "Com a integração",
+          "changes": [
+            {"aspect": "Criação do pedido", "before": "Vendedor digita o pedido à mão no SVL.", "after": "O 2020 Manager envia um webhook e o pedido nasce sozinho.", "highlight": true},
+            {"aspect": "Confirmação de pagamento", "before": "Conferida por e-mail com o financeiro.", "after": "O SAP avisa SVL e Leomob pelo RabbitMQ."},
+            {"aspect": "Etiquetas de produção", "before": "", "after": "Exportadas pelo PromobERP junto com o pedido."},
+            {"aspect": "Planilha de controle", "before": "Atualizada à mão todo dia.", "after": ""}
+          ]
+        }
+        ```
+
+        REGRAS:
+        - Entre {$min} e {$max} mudanças. Uma por ASPECTO, e só aspectos que
+          de fato mudam — o que fica igual não entra.
+        - `aspect`: o assunto da linha, curto, no máximo {$aspect} caracteres
+          ("Pagamento", "Cadastro de vendedores").
+        - `before` e `after`: uma frase de até {$side} caracteres cada, dizendo
+          COMO é naquele mundo — quem faz, onde, de que jeito.
+        - `before` vazio ("") quer dizer que aquilo é NOVO; `after` vazio quer
+          dizer que deixa de existir. Os dois vazios, ou os dois iguais, não é
+          uma mudança — não escreva.
+        - `from` e `to`: os nomes das duas colunas, até {$label} caracteres —
+          como a página chama os dois momentos ("Hoje" e "Com o Leo360", "AS IS"
+          e "TO BE"). Na falta de algo melhor, "Antes" e "Depois".
+        - `highlight`: true em NO MÁXIMO UMA mudança — a principal, a que a
+          página trata como o motivo da mudança. Na dúvida, nenhuma.
+        - `caption`: uma linha de até {$caption} caracteres dizendo o que muda.
+          Pode ficar vazio.
+
+        Se a página NÃO descreve uma mudança (só explica como as coisas são,
+        sem um "antes" e um "depois"), não force: responda
+        `{"error": "<em uma frase, por que não há uma mudança aqui>"}`.
         PROMPT;
     }
 
@@ -96,8 +168,8 @@ class SceneDraftPromptBuilder
         ];
 
         if (filled($focus)) {
-            $sections[] = "O AUTOR PEDIU QUE O FLUXO MOSTRE:\n\n" . trim($focus)
-                . "\n\n(Use a página como fonte; isto só diz QUAL processo dela desenhar.)";
+            $sections[] = "O AUTOR PEDIU QUE A FIGURA MOSTRE:\n\n" . trim($focus)
+                . "\n\n(Use a página como fonte; isto só diz QUAL parte dela desenhar.)";
         }
 
         return implode("\n\n---\n\n", $sections);
@@ -120,7 +192,7 @@ class SceneDraftPromptBuilder
         {$list}
 
         Corrija APENAS esses pontos e devolva o objeto JSON completo de novo,
-        no mesmo bloco ```json. Não reescreva as etapas que estão certas.
+        no mesmo bloco ```json. Não reescreva o que está certo.
 
         JSON anterior:
 

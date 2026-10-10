@@ -2,13 +2,13 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\SceneType;
 use App\Models\Notebook;
-use App\Support\Documentation\StepScene;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * "Gerar a partir da página" on a scene block of the editor.
+ * "Gerar a partir da página" on a scene block of the editor (any SceneType).
  *
  * Authorized like saving the page (`update` on the caderno): the proposal is
  * only ever dropped into a block of a page this person is editing, and is
@@ -29,13 +29,18 @@ class DraftPageSceneRequest extends FormRequest
         return $notebook !== null && (bool) $this->user()?->can('update', $notebook);
     }
 
+    public function sceneType(): SceneType
+    {
+        return SceneType::from((string) $this->validated('type'));
+    }
+
     /** @return array<string, array<int, mixed>> */
     public function rules(): array
     {
         return [
-            // One scene type today; the field exists so the next one is a new
-            // value here rather than a new endpoint.
-            'type'    => ['required', 'string', Rule::in([StepScene::TYPE])],
+            // Which scene: a new kind is a new SceneType case, never a new
+            // endpoint.
+            'type'    => ['required', 'string', Rule::enum(SceneType::class)],
             'focus'   => ['nullable', 'string', 'max:300'],
             'content' => ['nullable', 'string', 'max:500000'],
         ];

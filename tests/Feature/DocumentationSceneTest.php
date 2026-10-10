@@ -1,10 +1,12 @@
 <?php
 
+use App\Enums\SceneType;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Models\User;
 use App\Services\Documentation\SceneDraftPromptBuilder;
 use App\Services\Documentation\SceneDraftService;
+use App\Support\Documentation\BeforeAfterScene;
 use App\Support\Documentation\BlockVault;
 use App\Support\Documentation\StepScene;
 use App\Support\GitbookRenderer;
@@ -16,9 +18,9 @@ use Laravel\Ai\Responses\Data\Usage;
 uses(LazilyRefreshDatabase::class);
 
 /**
- * The "fluxo em etapas" — the first animated scene of a documentation page:
- * the IR the model and the page agree on, the dialect the renderer reads, and
- * the endpoint the editor's block asks for a proposal.
+ * The animated scenes of a documentation page — the "fluxo em etapas" and the
+ * "antes → depois": the IRs the model and the page agree on, the dialect the
+ * renderer reads, and the endpoint the editor's block asks for a proposal.
  */
 function fakeSceneService(string ...$replies): SceneDraftService
 {
@@ -27,15 +29,19 @@ function fakeSceneService(string ...$replies): SceneDraftService
         /** @var list<string> */
         public array $capturedPrompts = [];
 
+        /** @var list<SceneType> */
+        public array $capturedTypes = [];
+
         /** @param list<string> $replies */
         public function __construct(private array $replies)
         {
             parent::__construct(app(SceneDraftPromptBuilder::class));
         }
 
-        protected function prompt(string $prompt): AgentResponse
+        protected function prompt(SceneType $type, string $prompt): AgentResponse
         {
             $this->capturedPrompts[] = $prompt;
+            $this->capturedTypes[] = $type;
 
             return new AgentResponse('fake', array_shift($this->replies) ?? '', new Usage(10, 20), new Meta('gemini', 'gemini-3.8-flash'));
         }
@@ -243,4 +249,103 @@ it('is for whoever may edit the page', function () {
         ->postJson(route('notebooks.pages.scene', [$page->notebook, $page]), ['type' => 'orbit'])
         ->assertUnprocessable()
         ->assertJsonPath('type', 'warning');
+});
+
+// ---------------------------------------------------------------------------
+// "Antes → depois"
+// ---------------------------------------------------------------------------
+
+function validComparison(): array
+{
+    return [
+        'caption' => 'O pedido do Leomob com o Leo360',
+        'from'    => 'Hoje',
+        'to'      => 'Com a integração',
+        'changes' => [
+            ['aspect' => 'Criação do pedido', 'before' => 'Digitado à mão no SVL.', 'after' => 'Nasce de um webhook do 2020 Manager.', 'highlight' => true],
+            ['aspect' => 'Etiquetas', 'before' => '', 'after' => 'Exportadas pelo PromobERP.'],
+            ['aspect' => 'Planilha de controle', 'before' => 'Atualizada à mão.', 'after' => ''],
+        ],
+    ];
+}
+
+it('accepts a comparison and fills the column names it leaves blank', function () {
+    expect(BeforeAfterScene::validate(validComparison()))->toBe([]);
+
+    $scene = SceneType::BeforeAfter->normalize([...validComparison(), 'from' => '', 'to' => ' ']);
+
+    expect($scene['type'])->toBe('before-after')
+        ->and($scene['from'])->toBe('Antes')
+        ->and($scene['to'])->toBe('Depois')
+        ->and($scene['changes'][1]['before'])->toBe('');
+});
+
+it('refuses a row that compares nothing', function () {
+    $problems = implode(' ', BeforeAfterScene::validate(['changes' => [
+        ['aspect' => 'Pagamento', 'before' => '', 'after' => ''],
+        ['aspect' => 'Frete', 'before' => 'Calculado no SAP', 'after' => 'calculado no SAP'],
+        ['before' => 'Algo', 'after' => 'Outra coisa', 'highlight' => true],
+        ['aspect' => 'X', 'before' => 'a', 'after' => 'b', 'highlight' => true],
+    ]]));
+
+    expect($problems)
+        ->toContain('A mudança 1 precisa de "before" ou de "after"')
+        ->toContain('Na mudança 2, "before" e "after" são iguais')
+        ->toContain('A mudança 3 precisa de um "aspect"')
+        ->toContain('No máximo UMA mudança');
+});
+
+it('renders a comparison as a table carrying the scene for the animation', function () {
+    $html = app(GitbookRenderer::class)->render(<<<'MD'
+        {% scene type="before-after" caption="O que muda" from="Hoje" to="Com o &quot;Leo360&quot;" %}
+        {% change aspect="Pedido" before="Digitado à mão" after="Nasce sozinho" highlight="true" %}
+        {% change aspect="Etiquetas" before="" after="Exportadas" %}
+        {% change aspect="Planilha" before="<b>Manual</b>" after="" %}
+        {% endscene %}
+        MD);
+
+    expect($html)
+        ->toContain('<table class="ak-scene__text ak-scene__changes">')
+        ->toContain('<th scope="col">Hoje</th><th scope="col">Com o &quot;Leo360&quot;</th>')
+        ->toContain('<tr class="is-highlight"><th scope="row">Pedido</th><td>Digitado à mão</td><td>Nasce sozinho</td></tr>')
+        // An empty side is a statement, said in words.
+        ->toContain('<td><em class="ak-scene__none">não existia</em></td><td>Exportadas</td>')
+        ->toContain('<td>&lt;b&gt;Manual&lt;/b&gt;</td><td><em class="ak-scene__none">deixa de existir</em></td>');
+
+    preg_match('/data-ak-scene="([^"]*)"/', $html, $m);
+    $scene = json_decode(html_entity_decode($m[1], ENT_QUOTES), true);
+
+    expect($scene['type'])->toBe('before-after')
+        ->and($scene['to'])->toBe('Com o "Leo360"')
+        ->and($scene['changes'])->toHaveCount(3)
+        ->and($scene['changes'][0]['highlight'])->toBeTrue();
+});
+
+it('proposes a comparison with its own prompt', function () {
+    $page = scenePage('Hoje o vendedor digita o pedido; com a integração ele nasce de um webhook.');
+    $service = fakeSceneService(sceneJson(validComparison()));
+    app()->instance(SceneDraftService::class, $service);
+
+    $this->actingAs(User::factory()->editor()->create())
+        ->postJson(route('notebooks.pages.scene', [$page->notebook, $page]), ['type' => 'before-after'])
+        ->assertOk()
+        ->assertJsonPath('scene.type', 'before-after')
+        ->assertJsonPath('scene.from', 'Hoje')
+        ->assertJsonCount(3, 'scene.changes');
+
+    expect($service->capturedTypes)->toBe([SceneType::BeforeAfter])
+        ->and(app(SceneDraftPromptBuilder::class)->systemPrompt(SceneType::BeforeAfter))
+        ->toContain('ANTES → DEPOIS')
+        ->toContain('"changes"')
+        ->not->toContain('"steps"');
+});
+
+it('passes on the model saying the page describes no change', function () {
+    $page = scenePage();
+    app()->instance(SceneDraftService::class, fakeSceneService(sceneJson(['error' => 'A página só descreve o processo atual.'])));
+
+    $this->actingAs(User::factory()->editor()->create())
+        ->postJson(route('notebooks.pages.scene', [$page->notebook, $page]), ['type' => 'before-after'])
+        ->assertStatus(422)
+        ->assertJsonPath('message', 'Não dá para montar um antes e depois a partir desta página: A página só descreve o processo atual.');
 });
