@@ -39,7 +39,7 @@ final class BeforeAfterScene
     public const DEFAULT_TO = 'Depois';
 
     /**
-     * @param  list<array{aspect: string, before: string, after: string, highlight: bool}>  $changes
+     * @param  list<array{aspect: string, before: string, after: string, highlight: bool, icon: string}>  $changes
      */
     private function __construct(
         public readonly string $caption,
@@ -146,11 +146,12 @@ final class BeforeAfterScene
                 'before'    => trim((string) ($change['before'] ?? '')),
                 'after'     => trim((string) ($change['after'] ?? '')),
                 'highlight' => ($change['highlight'] ?? false) === true,
+                'icon'      => SceneIcons::sanitize($change['icon'] ?? null),
             ], $payload['changes']),
         );
     }
 
-    /** @return array{type: string, caption: string, from: string, to: string, changes: list<array{aspect: string, before: string, after: string, highlight: bool}>} */
+    /** @return array{type: string, caption: string, from: string, to: string, changes: list<array{aspect: string, before: string, after: string, highlight: bool, icon: string}>} */
     public function toArray(): array
     {
         return [

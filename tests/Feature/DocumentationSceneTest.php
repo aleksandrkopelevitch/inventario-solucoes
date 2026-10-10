@@ -8,6 +8,7 @@ use App\Services\Documentation\SceneDraftPromptBuilder;
 use App\Services\Documentation\SceneDraftService;
 use App\Support\Documentation\BeforeAfterScene;
 use App\Support\Documentation\BlockVault;
+use App\Support\Documentation\SceneIcons;
 use App\Support\Documentation\StepScene;
 use App\Support\Documentation\TreeScene;
 use App\Support\GitbookRenderer;
@@ -140,7 +141,7 @@ it('renders the steps as a list carrying the scene for the animation', function 
     expect($scene['type'])->toBe('steps')
         ->and($scene['caption'])->toBe('Do pedido "A" ao SAP')
         ->and($scene['steps'])->toHaveCount(2)
-        ->and($scene['steps'][1])->toBe(['title' => '<b>Faturamento</b>', 'detail' => '', 'highlight' => true]);
+        ->and($scene['steps'][1])->toBe(['title' => '<b>Faturamento</b>', 'detail' => '', 'highlight' => true, 'icon' => '']);
 });
 
 it('keeps the words of a scene type it does not know, without the animation', function () {
@@ -484,4 +485,65 @@ it('turns a model that does not answer in time into a message, not a 500', funct
         ->postJson(route('notebooks.pages.scene', [$page->notebook, $page]), ['type' => 'tree'])
         ->assertStatus(422)
         ->assertJsonPath('message', 'O especialista demorou demais para responder. Tente de novo em instantes.');
+});
+
+// ---------------------------------------------------------------------------
+// Icons
+// ---------------------------------------------------------------------------
+
+it('ships a catalogue of icons, each with a label and a drawing', function () {
+    $icons = SceneIcons::all();
+
+    expect(count($icons))->toBeGreaterThan(40)
+        ->and($icons)->toHaveKeys(['documento', 'pessoa', 'equipe', 'check', 'alerta', 'banco-de-dados', 'seta']);
+
+    foreach ($icons as $key => $icon) {
+        // A key is what the model and the dialect write: plain ASCII kebab.
+        expect($key)->toMatch('/^[a-z0-9]+(-[a-z0-9]+)*$/')
+            ->and($icon['label'])->not->toBe('')
+            ->and($icon['paths'])->not->toBeEmpty();
+    }
+});
+
+it('keeps a known icon and drops an unknown one, without refusing the scene', function () {
+    $payload = validScene();
+    $payload['steps'][0]['icon'] = 'pessoa';
+    $payload['steps'][1]['icon'] = 'unicornio';
+
+    expect(StepScene::validate($payload))->toBe([]);
+
+    $steps = SceneType::Steps->normalize($payload)['steps'];
+
+    expect($steps[0]['icon'])->toBe('pessoa')
+        ->and($steps[1]['icon'])->toBe('')
+        ->and($steps[2]['icon'])->toBe('');
+
+    $tree = validTree();
+    $tree['root']['icon'] = 'servidor';
+    $tree['root']['children'][0]['icon'] = 'nao-existe';
+
+    expect(array_column(SceneType::Tree->normalize($tree)['nodes'], 'icon'))->toBe(['servidor', '', '', '', '']);
+});
+
+it('passes a known icon to the animation and drops an unknown one', function () {
+    $html = app(GitbookRenderer::class)->render(<<<'MD'
+        {% scene type="before-after" %}
+        {% change aspect="Pagamento" before="Boleto" after="Pix" icon="dinheiro" %}
+        {% change aspect="Frete" before="Fixo" after="Por região" icon="&lt;script&gt;" %}
+        {% endscene %}
+        MD);
+
+    preg_match('/data-ak-scene="([^"]*)"/', $html, $m);
+    $scene = json_decode(html_entity_decode($m[1], ENT_QUOTES), true);
+
+    expect(array_column($scene['changes'], 'icon'))->toBe(['dinheiro', '']);
+});
+
+it('offers the model the catalogue, by name', function () {
+    $prompt = app(SceneDraftPromptBuilder::class)->systemPrompt(SceneType::Steps);
+
+    expect($prompt)
+        ->toContain('documento (Documento)')
+        ->toContain('banco-de-dados (Banco de dados)')
+        ->toContain('Nunca invente um nome fora da lista');
 });

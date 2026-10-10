@@ -42,7 +42,7 @@ final class TreeScene
     public const MAX_CAPTION = 120;
 
     /**
-     * @param  list<array{label: string, detail: string, level: int, highlight: bool}>  $nodes
+     * @param  list<array{label: string, detail: string, level: int, highlight: bool, icon: string}>  $nodes
      */
     private function __construct(
         public readonly string $caption,
@@ -163,7 +163,7 @@ final class TreeScene
 
     /**
      * @param  array<mixed>  $node
-     * @param  list<array{label: string, detail: string, level: int, highlight: bool}>  $nodes
+     * @param  list<array{label: string, detail: string, level: int, highlight: bool, icon: string}>  $nodes
      */
     private static function flatten(array $node, int $level, array &$nodes): void
     {
@@ -172,6 +172,7 @@ final class TreeScene
             'detail'    => trim((string) ($node['detail'] ?? '')),
             'level'     => $level,
             'highlight' => ($node['highlight'] ?? false) === true,
+            'icon'      => SceneIcons::sanitize($node['icon'] ?? null),
         ];
 
         foreach ($node['children'] ?? [] as $child) {
@@ -201,7 +202,7 @@ final class TreeScene
         return $nodes;
     }
 
-    /** @return array{type: string, caption: string, nodes: list<array{label: string, detail: string, level: int, highlight: bool}>} */
+    /** @return array{type: string, caption: string, nodes: list<array{label: string, detail: string, level: int, highlight: bool, icon: string}>} */
     public function toArray(): array
     {
         return ['type' => self::TYPE, 'caption' => $this->caption, 'nodes' => $this->nodes];

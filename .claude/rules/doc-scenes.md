@@ -3,6 +3,8 @@ paths:
   - "app/Support/Documentation/StepScene.php"
   - "app/Support/Documentation/BeforeAfterScene.php"
   - "app/Support/Documentation/TreeScene.php"
+  - "app/Support/Documentation/SceneIcons.php"
+  - "resources/data/scene-icons.json"
   - "app/Enums/SceneType.php"
   - "app/Services/Documentation/SceneDraftService.php"
   - "app/Services/Documentation/SceneDraftPromptBuilder.php"
@@ -110,3 +112,16 @@ keeps it. The button straddles the corner of the FRAME (its nearest positioned
 ancestor), never the cards; the SVG itself is `aria-hidden`, since the text
 beside it is what assistive technology reads — which is also why the stage
 must NOT be `aria-hidden` (the button lives in it).
+
+**Icons come from a closed catalogue, and ONE file is it.**
+`resources/data/scene-icons.json` (key → PT-BR label + Heroicons v2 outline
+paths, the set the app's own interface draws with) is read by `SceneIcons` to
+validate and to list in the prompt, imported by `docs-scene.js` to draw, and
+offered by the editor's picker (search + grid + "Sem ícone"). Two lists would
+drift the first time an icon was added to one. Any step, change or tree node
+may carry `icon="…"`. An icon is DECORATION: a name outside the catalogue is
+dropped (`SceneIcons::sanitize()`), never a validation error — failing a scene
+or spending a repair round over a picture is the wrong trade. Adding an icon is
+one entry in the JSON (copy the paths from `o-{name}.svg` in
+vendor/blade-ui-kit/blade-heroicons); keys stay ASCII kebab-case, since the
+model writes them.

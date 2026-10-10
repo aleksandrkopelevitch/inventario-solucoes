@@ -37,7 +37,7 @@ final class StepScene
     public const MAX_CAPTION = 120;
 
     /**
-     * @param  list<array{title: string, detail: string, highlight: bool}>  $steps
+     * @param  list<array{title: string, detail: string, highlight: bool, icon: string}>  $steps
      */
     private function __construct(
         public readonly string $caption,
@@ -123,11 +123,13 @@ final class StepScene
                 'title'     => trim((string) $step['title']),
                 'detail'    => trim((string) ($step['detail'] ?? '')),
                 'highlight' => ($step['highlight'] ?? false) === true,
+                // Decoration: a name outside the catalogue is dropped, never refused.
+                'icon' => SceneIcons::sanitize($step['icon'] ?? null),
             ], $payload['steps']),
         );
     }
 
-    /** @return array{type: string, caption: string, steps: list<array{title: string, detail: string, highlight: bool}>} */
+    /** @return array{type: string, caption: string, steps: list<array{title: string, detail: string, highlight: bool, icon: string}>} */
     public function toArray(): array
     {
         return ['type' => self::TYPE, 'caption' => $this->caption, 'steps' => $this->steps];

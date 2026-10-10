@@ -1074,8 +1074,9 @@
     list-style: none;
 }
 .ak-scene-tool__step {
+    position: relative; /* the icon picker opens under its row */
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
     align-items: start;
     gap: 0.55rem;
     padding: 0.45rem;
@@ -1166,3 +1167,72 @@
 .ak-scene-tool__num.is-level-1 { background: transparent; box-shadow: inset 0 0 0 2px var(--color-accent); }
 .ak-scene-tool__num.is-level-2 { width: 0.7rem; height: 0.7rem; margin: 0.7rem 0.4rem 0; background: var(--color-faint); }
 .ak-scene-tool__step { transition: margin-left 0.15s; }
+
+/* The row's icon: a square button beside the marker, dashed while empty. */
+.ak-scene-tool__icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.1rem;
+    height: 2.1rem;
+    border: 1px dashed var(--color-line-2);
+    border-radius: 0.5rem;
+    color: var(--color-faint);
+    background: var(--color-surface);
+}
+.ak-scene-tool__icon-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
+.ak-scene-tool__icon-btn.has-icon {
+    border-style: solid;
+    border-color: var(--color-accent-line);
+    background: var(--color-accent-soft);
+    color: var(--color-accent);
+}
+
+/* The picker: search, a grid of the catalogue, "Sem ícone". */
+.ak-scene-tool__icons {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% - 0.25rem);
+    left: 2.6rem;
+    width: 19rem;
+    padding: 0.5rem;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-field, 8px);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card-hover, 0 8px 24px rgba(10, 15, 12, 0.14));
+}
+.ak-scene-tool__icons-grid {
+    display: grid;
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    gap: 0.15rem;
+    max-height: 12rem;
+    margin-top: 0.4rem;
+    overflow-y: auto;
+}
+.ak-scene-tool__icons-item {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 1;
+    border-radius: 0.4rem;
+    color: var(--color-body);
+}
+.ak-scene-tool__icons-item:hover { background: var(--color-raised); color: var(--color-accent); }
+.ak-scene-tool__icons-item.is-on { background: var(--color-accent-soft); color: var(--color-accent); box-shadow: inset 0 0 0 1px var(--color-accent-line); }
+.ak-scene-tool__icons-item[hidden] { display: none; }
+.ak-scene-tool__icons-hint {
+    margin: 0.35rem 0 0;
+    min-height: 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-muted);
+}
+.ak-scene-tool__icons-none {
+    width: 100%;
+    margin-top: 0.4rem;
+    padding: 0.3rem;
+    border-top: 1px solid var(--color-line);
+    font-size: 0.75rem;
+    color: var(--color-muted);
+}
+.ak-scene-tool__icons-none:hover { color: var(--color-crit); }
