@@ -220,25 +220,20 @@ function notebookCatalogOrder(array $filters, string ...$names): array
     return array_values(array_map(fn (int $i) => $names[$i], array_keys($positions)));
 }
 
-it('sorts the catalog by written pages, then by total', function () {
-    $none = Notebook::factory()->create(['name' => 'Alfa']);
-    $some = Notebook::factory()->create(['name' => 'Beta']);
-    $most = Notebook::factory()->create(['name' => 'Gama']);
-    $tied = Notebook::factory()->create(['name' => 'Delta']);
-
-    DocumentationPage::factory()->for($none)->create();
-    DocumentationPage::factory()->for($some)->create(['documentation' => 'texto']);
-    DocumentationPage::factory()->count(2)->for($most)->create(['documentation' => 'texto']);
-    // One written like Beta, but out of two — the total breaks the tie.
-    DocumentationPage::factory()->for($tied)->create(['documentation' => 'texto']);
-    DocumentationPage::factory()->for($tied)->create();
+it('shows no page-count column and ignores a stale sort by it', function () {
+    $written = Notebook::factory()->create(['name' => 'Beta']);
+    Notebook::factory()->create(['name' => 'Alfa']);
+    DocumentationPage::factory()->count(2)->for($written)->create(['documentation' => 'texto']);
 
     $this->actingAs(notebookAdmin());
 
-    expect(notebookCatalogOrder(['sort' => 'pages'], 'Alfa', 'Beta', 'Gama', 'Delta'))
-        ->toBe(['Alfa', 'Beta', 'Delta', 'Gama'])
-        ->and(notebookCatalogOrder(['sort' => '-pages'], 'Alfa', 'Beta', 'Gama', 'Delta'))
-        ->toBe(['Gama', 'Delta', 'Beta', 'Alfa']);
+    $html = (string) (new NotebooksIndex([]))->render()->render();
+
+    expect($html)->not->toContain('Páginas')
+        ->not->toContain('escritas');
+
+    // A bookmarked `filter[sort]=-pages` falls back to name order.
+    expect(notebookCatalogOrder(['sort' => '-pages'], 'Alfa', 'Beta'))->toBe(['Alfa', 'Beta']);
 });
 
 it('sorts the catalog by how many solutions a caderno documents', function () {
