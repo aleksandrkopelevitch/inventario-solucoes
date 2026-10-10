@@ -41,6 +41,12 @@
                                         <span class="min-w-0 truncate font-display text-[15px] font-semibold text-ink hover:text-accent">
                                             {{ $notebook['name'] }}
                                         </span>
+                                        @if ($notebook['isHome'])
+                                            <span class="shrink-0 whitespace-nowrap rounded-full bg-lime-soft px-2 py-0.5 text-[11px] font-semibold text-lime-ink ring-1 ring-lime-line"
+                                                title="A primeira página deste caderno é a página inicial de /docs">
+                                                Página inicial
+                                            </span>
+                                        @endif
                                         @if ($notebook['isShared'])
                                             <span class="shrink-0 text-accent" title="Tem link público">
                                                 <x-heroicon-o-globe-alt class="size-4" />

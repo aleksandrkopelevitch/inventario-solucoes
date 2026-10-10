@@ -1,10 +1,12 @@
-// docs-switcher.js — the filter field inside the knowledge base's caderno
-// switcher (`x-docs.notebook-switcher`).
+// docs-switcher.js — the filter field over the knowledge base's list of
+// cadernos: inside the top bar's switcher (`x-docs.notebook-switcher`, past six
+// cadernos) and in the landing's rail (`x-docs.notebooks-rail`, always). One
+// module for both, so the two answer a query the same way.
 //
 // Opening and closing the popover is toggle.js's, like every other popover in
-// the app; this module owns ONE thing, which is narrowing the list as somebody
-// types. It only exists at all past six cadernos — below that the component
-// renders no field and this never runs.
+// the app; this module owns narrowing the list as somebody types, and Enter,
+// which opens the first caderno still listed — the field is a way to GO
+// somewhere, and typing "dig" + Enter should land in the Digibee manual.
 //
 // Folded on both sides (`fold.js`), which is the rule every client-side filter
 // in this app follows: a list narrowed in the browser has to answer a query the
@@ -34,6 +36,20 @@ document.addEventListener('input', (e) => {
 
     const empty = root.querySelector('[data-ak-docs-switcher-empty]')
     if (empty) empty.hidden = visible > 0
+})
+
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing) return
+
+    const input = e.target.closest('[data-ak-docs-switcher-input]')
+    const root = input?.closest('[data-ak-docs-switcher]')
+    if (!root) return
+
+    const first = [...root.querySelectorAll('[data-ak-docs-switcher-item]')].find((item) => !item.hidden)
+    if (!first) return
+
+    e.preventDefault()
+    window.location.assign(first.href)
 })
 
 // Pure delegation — nothing to mount, and the popover's markup arrives with the

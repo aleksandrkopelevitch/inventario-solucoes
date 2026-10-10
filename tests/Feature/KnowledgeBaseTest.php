@@ -5,6 +5,7 @@ use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Models\User;
+use Database\Seeders\KnowledgeBaseHomeSeeder;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 
 uses(LazilyRefreshDatabase::class);
@@ -230,4 +231,119 @@ it('sends a guest to the login screen when SSO is off', function () {
     pageIn($notebook, 'Página');
 
     $this->get(route('docs.notebook', $notebook))->assertRedirect(route('login.create'));
+});
+
+/*
+ * The landing (`/docs`): the home caderno's first page beside a rail of every
+ * published caderno.
+ */
+function homeNotebook(string $body = '# Bem-vindo' . "\n\nTexto da página inicial."): Notebook
+{
+    $home = publishedNotebook('Base de conhecimento');
+    $home->forceFill(['is_home' => true])->save();
+    pageIn($home, 'Bem-vindo', $body);
+
+    return $home;
+}
+
+it('renders the home caderno on the landing, beside a filterable rail of the other cadernos', function () {
+    homeNotebook();
+    $other = publishedNotebook('Manual do SAP');
+    pageIn($other, 'Página');
+
+    $this->actingAs(reader())
+        ->get(route('docs.index'))
+        ->assertOk()
+        ->assertSee('Texto da página inicial.')
+        ->assertSee('data-ak-docs-switcher-input', false)
+        ->assertSee('Filtrar cadernos')
+        ->assertSee($other->knowledgeBaseUrl(), false)
+        // The landing is the front door, not documentation to copy elsewhere.
+        ->assertDontSee('data-ak-docs-copy', false);
+});
+
+it('leaves the home caderno out of the lists and gives it /docs as its address', function () {
+    $home = homeNotebook();
+    $other = publishedNotebook('Manual do SAP');
+    pageIn($other, 'Página');
+
+    expect($home->knowledgeBaseUrl())->toBe(route('docs.index'));
+
+    // The switcher inside another caderno lists the others, not the landing.
+    $this->actingAs(reader())
+        ->get(route('docs.notebook', $other))
+        ->assertOk()
+        ->assertDontSee(route('docs.notebook', $home), false);
+
+    // And its own caderno address sends the reader to the landing.
+    $this->actingAs(reader())
+        ->get(route('docs.notebook', $home))
+        ->assertRedirect(route('docs.index'));
+});
+
+it('serves the landing pictures from the home caderno', function () {
+    Storage::fake('public');
+    $home = homeNotebook();
+    $page = $home->pages()->first();
+    $media = $page->addMediaFromString('<svg xmlns="http://www.w3.org/2000/svg"/>')
+        ->usingFileName('figura.svg')
+        ->toMediaCollection(Documentable::DOCS_COLLECTION);
+    $page->update(['documentation' => '<figure><img src="/files/' . $media->id . '" alt="Figura"><figcaption>Figura</figcaption></figure>']);
+
+    $this->actingAs(reader())
+        ->get(route('docs.index'))
+        ->assertOk()
+        ->assertSee(route('docs.file', [$home, $media->id]), false);
+
+    $this->actingAs(reader())
+        ->get(route('docs.file', [$home, $media->id]))
+        ->assertOk();
+});
+
+it('falls back to the cadernos as cards while the home is not published', function () {
+    $home = homeNotebook();
+    $home->forceFill(['published_at' => null])->save();
+    $other = publishedNotebook('Manual do SAP');
+    pageIn($other, 'Página');
+
+    $this->actingAs(reader())
+        ->get(route('docs.index'))
+        ->assertOk()
+        ->assertDontSee('Texto da página inicial.')
+        ->assertSee('A documentação que o time de Arquitetura publicou')
+        ->assertSee('Manual do SAP');
+});
+
+it('marks the home caderno on the cadernos catalog', function () {
+    homeNotebook();
+
+    $this->actingAs(User::factory()->admin()->create())
+        ->get(route('notebooks.index'))
+        ->assertOk()
+        ->assertSee('Página inicial');
+});
+
+it('seeds the landing once and never overwrites it', function () {
+    Storage::fake('public');
+    $this->seed(KnowledgeBaseHomeSeeder::class);
+
+    $home = Notebook::query()->home()->sole();
+    $page = $home->pages()->sole();
+
+    // Every figure became an ordinary image block over the page's own media.
+    expect($page->documentation)
+        ->not->toContain('{{figure:')
+        ->toContain('<figure><img src="/files/')
+        ->and($page->getMedia(Documentable::DOCS_COLLECTION))->toHaveCount(6);
+
+    $page->update(['documentation' => 'Editado no caderno.']);
+    $this->seed(KnowledgeBaseHomeSeeder::class);
+
+    expect(Notebook::query()->where('is_home', true)->count())->toBe(1)
+        ->and($page->fresh()->documentation)->toBe('Editado no caderno.');
+
+    $this->actingAs(reader())
+        ->get(route('docs.index'))
+        ->assertOk()
+        ->assertSee('Editado no caderno.');
 });

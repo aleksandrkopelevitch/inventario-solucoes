@@ -87,10 +87,17 @@ class Notebook extends Model implements HasMedia
      * (admin), while `update` (editor) is what reaches the panel a caderno is
      * renamed from. A fillable column is one posted field away from letting an
      * editor publish the caderno they are editing.
+     *
+     * `is_home` is absent for the same reason: which caderno IS the landing of
+     * `/docs` decides what every reader sees first, and that is not a choice an
+     * editor's rename panel gets to make in passing.
      */
     protected function casts(): array
     {
-        return ['published_at' => 'datetime'];
+        return [
+            'published_at' => 'datetime',
+            'is_home'      => 'boolean',
+        ];
     }
 
     public function getRouteKeyName(): string
@@ -174,10 +181,34 @@ class Notebook extends Model implements HasMedia
         return $this->published_at !== null;
     }
 
-    /** URL of this caderno in the internal knowledge base. */
+    /**
+     * The caderno `/docs` opens on — its first page is the knowledge base's
+     * landing, written in the editor like any other page.
+     *
+     * PUBLISHED as well as flagged, and that is not redundant: the landing's
+     * images are served by `docs.file`, which (like every `/docs` endpoint)
+     * re-asks publication. A home nobody published would render with broken
+     * pictures — so it is simply not a home until it is published, and `/docs`
+     * falls back to its plain list of cadernos.
+     */
+    public function scopeHome(Builder $query): void
+    {
+        $query->where('is_home', true)->published();
+    }
+
+    /**
+     * URL of this caderno in the internal knowledge base.
+     *
+     * The home caderno's address is `/docs` itself: it IS the landing, and a
+     * second address for the same page (`/docs/{slug}`) would be a copy of it
+     * with a different rail. `KnowledgeBaseController::notebook()` redirects
+     * that one here.
+     */
     public function knowledgeBaseUrl(): string
     {
-        return route('docs.notebook', $this);
+        return $this->is_home
+            ? route('docs.index')
+            : route('docs.notebook', $this);
     }
 
     /**
