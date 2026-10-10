@@ -1,7 +1,7 @@
-// sortable-table.js — click-to-sort table column headers (Solutions
-// catalog). Toggles the hidden `filter[sort]` field (`name`, `-name`,
-// `category`, ...) then re-fires the existing filter pipeline
-// (`execute-filters.js`'s `executeFilters()`) — same URL-state + AJAX
+// sortable-table.js — click-to-sort table column headers (`x-ui.sortable-th`,
+// on the Solutions and Cadernos catalogs). Toggles the hidden `filter[sort]`
+// field (`name`, `-name`, `category`, ...) then re-fires the existing filter
+// pipeline (`execute-filters.js`'s `executeFilters()`) — same URL-state + AJAX
 // slot-swap mechanism as every other `filter[...]` field, just triggered by
 // a table header instead of a form control. Pure delegation, so headers
 // re-rendered by a slot swap work without re-initialization.

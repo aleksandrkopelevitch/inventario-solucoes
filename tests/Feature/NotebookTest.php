@@ -204,6 +204,65 @@ it('states what a delete costs before it happens', function () {
         ->and($html)->toContain('Excluir o caderno &quot;Vazio&quot;? Isso não pode ser desfeito.');
 });
 
+/*
+|--------------------------------------------------------------------------
+| Sorting the catalog by its column headers (`filter[sort]`)
+|--------------------------------------------------------------------------
+*/
+
+/** The caderno names in the order the catalog renders them. */
+function notebookCatalogOrder(array $filters, string ...$names): array
+{
+    $html = (string) (new NotebooksIndex($filters))->render()->render();
+    $positions = array_map(fn (string $name) => strpos($html, $name), $names);
+    asort($positions);
+
+    return array_values(array_map(fn (int $i) => $names[$i], array_keys($positions)));
+}
+
+it('sorts the catalog by written pages, then by total', function () {
+    $none = Notebook::factory()->create(['name' => 'Alfa']);
+    $some = Notebook::factory()->create(['name' => 'Beta']);
+    $most = Notebook::factory()->create(['name' => 'Gama']);
+    $tied = Notebook::factory()->create(['name' => 'Delta']);
+
+    DocumentationPage::factory()->for($none)->create();
+    DocumentationPage::factory()->for($some)->create(['documentation' => 'texto']);
+    DocumentationPage::factory()->count(2)->for($most)->create(['documentation' => 'texto']);
+    // One written like Beta, but out of two — the total breaks the tie.
+    DocumentationPage::factory()->for($tied)->create(['documentation' => 'texto']);
+    DocumentationPage::factory()->for($tied)->create();
+
+    $this->actingAs(notebookAdmin());
+
+    expect(notebookCatalogOrder(['sort' => 'pages'], 'Alfa', 'Beta', 'Gama', 'Delta'))
+        ->toBe(['Alfa', 'Beta', 'Delta', 'Gama'])
+        ->and(notebookCatalogOrder(['sort' => '-pages'], 'Alfa', 'Beta', 'Gama', 'Delta'))
+        ->toBe(['Gama', 'Delta', 'Beta', 'Alfa']);
+});
+
+it('sorts the catalog by how many solutions a caderno documents', function () {
+    Notebook::factory()->create(['name' => 'Alfa'])->solutions()->attach(Solution::factory()->count(2)->create());
+    Notebook::factory()->create(['name' => 'Beta']);
+    Notebook::factory()->create(['name' => 'Gama'])->solutions()->attach(Solution::factory()->create());
+
+    $this->actingAs(notebookAdmin());
+
+    expect(notebookCatalogOrder(['sort' => '-solutions'], 'Alfa', 'Beta', 'Gama'))
+        ->toBe(['Alfa', 'Gama', 'Beta']);
+});
+
+it('falls back to name order on an unknown or malformed sort', function () {
+    Notebook::factory()->create(['name' => 'Beta']);
+    Notebook::factory()->create(['name' => 'Alfa']);
+
+    $this->actingAs(notebookAdmin());
+
+    expect(notebookCatalogOrder(['sort' => 'public_token'], 'Alfa', 'Beta'))->toBe(['Alfa', 'Beta'])
+        ->and(notebookCatalogOrder(['sort' => ['pages']], 'Alfa', 'Beta'))->toBe(['Alfa', 'Beta'])
+        ->and(notebookCatalogOrder(['sort' => '-name'], 'Alfa', 'Beta'))->toBe(['Beta', 'Alfa']);
+});
+
 it('forbids a viewer from renaming or deleting a caderno', function () {
     $notebook = Notebook::factory()->create();
 

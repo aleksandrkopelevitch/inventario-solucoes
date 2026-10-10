@@ -1,4 +1,7 @@
 @use('App\Support\CategoryPalette')
+@php
+    [$sortForm, $sortUrl] = ['solutions-filter-form', route('solutions.index')];
+@endphp
 <div id="{{ $domId }}">
     @if ($solutions->isEmpty())
         <div class="animate-ak-pop flex flex-col items-center rounded-card border border-dashed border-line-2 bg-surface p-12 text-center text-sm text-muted">
@@ -19,11 +22,11 @@
                 <table class="w-full min-w-[760px] text-sm">
                     <thead>
                         <tr class="border-b border-line bg-raised/40">
-                            <x-solutions.sortable-th column="name" :filters="$filters" class="pl-4">Nome</x-solutions.sortable-th>
-                            <x-solutions.sortable-th column="category" :filters="$filters">Categoria</x-solutions.sortable-th>
-                            <x-solutions.sortable-th column="status" :filters="$filters">Status</x-solutions.sortable-th>
-                            <x-solutions.sortable-th column="environment" :filters="$filters">Ambiente</x-solutions.sortable-th>
-                            <x-solutions.sortable-th column="vendor" :filters="$filters">Fornecedor</x-solutions.sortable-th>
+                            <x-ui.sortable-th column="name" :filters="$filters" :form-id="$sortForm" :url="$sortUrl" class="pl-4">Nome</x-ui.sortable-th>
+                            <x-ui.sortable-th column="category" :filters="$filters" :form-id="$sortForm" :url="$sortUrl">Categoria</x-ui.sortable-th>
+                            <x-ui.sortable-th column="status" :filters="$filters" :form-id="$sortForm" :url="$sortUrl">Status</x-ui.sortable-th>
+                            <x-ui.sortable-th column="environment" :filters="$filters" :form-id="$sortForm" :url="$sortUrl">Ambiente</x-ui.sortable-th>
+                            <x-ui.sortable-th column="vendor" :filters="$filters" :form-id="$sortForm" :url="$sortUrl">Fornecedor</x-ui.sortable-th>
                             <th scope="col" class="py-2.5 pr-4"><span class="sr-only">Ações</span></th>
                         </tr>
                     </thead>
