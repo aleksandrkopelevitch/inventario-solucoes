@@ -56,8 +56,8 @@ puts a wildcard where static segments also live:
 - **Every one of them is reserved as a slug.** `DocumentationPageService::RESERVED_SLUGS`
   refuses `pages`/`share`/`context`/`context-pages`/`chat`/`solutions`/`panel`/
   `secret-code`/`link-targets` for a page, and
-  `NotebookController::RESERVED_SLUGS` refuses `panel` and `settings` for a
-  caderno (there are real `notebooks/panel` and `docs/settings` routes). That
+  `NotebookController::RESERVED_SLUGS` refuses `panel` for a caderno (there is
+  a real `notebooks/panel` route; `settings` was dropped with `docs/settings`). That
   list was PT-BR and stale for months — reserving five words no route used while
   leaving the five that mattered free to collide — so check it against
   `route:list` when adding a segment.

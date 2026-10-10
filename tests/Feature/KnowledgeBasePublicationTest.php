@@ -3,9 +3,10 @@
 use App\Enums\UserRole;
 use App\Models\Notebook;
 use App\Models\User;
-use App\View\Components\Docs\PublicationList;
+use App\View\Components\Notebooks\Index;
 use App\View\Components\Notebooks\SharePanel;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\Route;
 
 uses(LazilyRefreshDatabase::class);
 
@@ -32,7 +33,7 @@ it('publishes a caderno and takes it back out', function () {
 });
 
 it('answers with both screens that can flip the switch', function () {
-    // The settings list and the caderno's own share panel are different
+    // The cadernos catalog and the caderno's own share panel are different
     // screens; `ajax-slot.js` no-ops on an id that is not on the current page,
     // so sending both is safe and sending one leaves the other stale.
     $notebook = Notebook::factory()->create();
@@ -42,7 +43,7 @@ it('answers with both screens that can flip the switch', function () {
         ->assertOk();
 
     expect(array_column($response->json('updatableSlots'), 'id'))
-        ->toContain(PublicationList::DOM_ID)
+        ->toContain(Index::DOM_ID)
         ->toContain(SharePanel::DOM_ID);
 });
 
@@ -77,33 +78,75 @@ it('cannot be published by posting the column to the panel an editor can reach',
         ->and($notebook->fresh()->name)->toBe('Renomeado');
 });
 
-it('shows the publication state and the filters on the settings screen', function () {
+it('narrows the catalog to what is and is not published', function () {
     Notebook::factory()->published()->create(['name' => 'Caderno publicado']);
     Notebook::factory()->create(['name' => 'Caderno guardado']);
 
     $this->actingAs(publisher())
-        ->get(route('docs.settings'))
+        ->get(route('notebooks.index'))
         ->assertOk()
         ->assertSee('Caderno publicado')
         ->assertSee('Caderno guardado');
 
     $this->actingAs(publisher())
-        ->get(route('docs.settings', ['filter' => ['status' => 'published']]))
+        ->get(route('notebooks.index', ['filter' => ['status' => 'published']]))
         ->assertOk()
         ->assertSee('Caderno publicado')
         ->assertDontSee('Caderno guardado');
+
+    $this->actingAs(publisher())
+        ->get(route('notebooks.index', ['filter' => ['status' => 'unpublished']]))
+        ->assertOk()
+        ->assertSee('Caderno guardado')
+        ->assertDontSee('Caderno publicado');
 });
 
-it('narrows the settings list with the same folded search the catalog uses', function () {
-    Notebook::factory()->create(['name' => 'Integração de Pedidos']);
-    Notebook::factory()->create(['name' => 'Outro assunto']);
+it('gives the catalog switch to an admin and only the state to everybody else', function () {
+    $published = Notebook::factory()->published()->create(['name' => 'Caderno publicado']);
+    $draft = Notebook::factory()->create(['name' => 'Caderno guardado']);
 
-    // Folded on both sides: written without accents, found with them.
+    $admin = $this->actingAs(publisher())->get(route('notebooks.index'))->assertOk()->getContent();
+
+    expect($admin)
+        ->toContain(route('notebooks.publication', $published))
+        ->toContain(route('notebooks.publication', $draft))
+        ->toContain($published->knowledgeBaseUrl());
+
+    // An EDITOR writes every page and still does not decide what the whole
+    // company reads: they see that it is published, with no switch.
+    $editor = $this->actingAs(User::factory()->editor()->create())
+        ->get(route('notebooks.index'))->assertOk()->getContent();
+
+    expect($editor)
+        ->not->toContain(route('notebooks.publication', $published))
+        ->not->toContain(route('notebooks.publication', $draft))
+        ->toContain($published->knowledgeBaseUrl());
+});
+
+it('keeps the catalog filters on the slot the switch rebuilds', function () {
+    Notebook::factory()->published()->create(['name' => 'Caderno publicado']);
+    $draft = Notebook::factory()->create(['name' => 'Caderno guardado']);
+
+    // Publishing from the "Não publicados" view: the rebuilt slot is that
+    // view, so the row the admin just published leaves it.
+    $response = $this->actingAs(publisher())
+        ->patchJson(route('notebooks.publication', ['notebook' => $draft, 'filter' => ['status' => 'unpublished']]), ['published' => true])
+        ->assertOk();
+
+    $slot = collect($response->json('updatableSlots'))->firstWhere('id', Index::DOM_ID)['content'];
+
+    expect($slot)->not->toContain('Caderno guardado')
+        ->not->toContain('Caderno publicado');
+});
+
+it('no longer has a settings screen of its own', function () {
+    // Folded into the catalog. `docs/settings` now reads as a caderno slug,
+    // and there is no caderno called that.
+    expect(Route::has('docs.settings'))->toBeFalse();
+
     $this->actingAs(publisher())
-        ->get(route('docs.settings', ['filter' => ['search' => 'integracao']]))
-        ->assertOk()
-        ->assertSee('Integração de Pedidos')
-        ->assertDontSee('Outro assunto');
+        ->get('/docs/settings')
+        ->assertNotFound();
 });
 
 it('rejects a payload without the boolean', function () {

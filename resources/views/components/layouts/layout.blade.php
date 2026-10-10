@@ -24,12 +24,10 @@
             ['route' => 'companies.index', 'label' => 'Empresas', 'icon' => 'building-office-2', 'active' => 'companies.*', 'can' => 'viewAny', 'canModel' => \App\Models\Company::class],
         ],
         'Governança' => [
+            // `/docs` itself gets no entry: it is its own shell with its own top
+            // bar, reached from the cadernos catalog (which is also where an
+            // admin decides what it shows) and from the switcher inside it.
             ['route' => 'notebooks.index', 'label' => 'Cadernos', 'icon' => 'book-open', 'active' => 'notebooks.*', 'can' => 'viewAny'],
-            // Admin only (`can`), because deciding what the whole company reads
-            // is `NotebookPolicy::administer`. `/docs` itself gets no entry: it
-            // is its own shell with its own top bar, reached from here and from
-            // the switcher inside it.
-            ['route' => 'docs.settings', 'label' => 'Base de conhecimento', 'icon' => 'building-library', 'active' => 'docs.settings', 'can' => 'administerAny'],
             ['route' => 'documentation.index', 'label' => 'Cobertura da documentação', 'icon' => 'chart-bar-square', 'active' => 'documentation.*', 'can' => 'viewAny'],
             ['route' => 'diagrams.index', 'label' => 'Diagramas', 'icon' => 'share', 'active' => 'diagrams.*', 'can' => 'viewAny', 'canModel' => \App\Models\Diagram::class],
             ['route' => 'solutions.map', 'label' => 'Mapa do ecossistema', 'icon' => 'globe-alt', 'active' => 'solutions.map'],

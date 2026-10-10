@@ -18,6 +18,13 @@ use Illuminate\View\Component;
  * caderno: its own name, a page title inside it, and the name of a solution it
  * describes. The last one is what makes "where is the Digibee documentation?"
  * answerable without knowing what the caderno holding it was called.
+ *
+ * It is also where an admin decides what the internal knowledge base (`/docs`)
+ * shows: the "Em /docs" column carries the publication switch, and the status
+ * filter narrows to what is (or is not) published. That used to be a screen of
+ * its own (`/docs/settings`) listing the same cadernos a second time, with the
+ * same search, to flip one column — so it was folded in here. Everybody sees
+ * the column; only `NotebookPolicy::administerAny` gets the switch.
  */
 class Index extends Component
 {
@@ -51,13 +58,17 @@ class Index extends Component
     public function render(): View
     {
         $search = trim((string) ($this->filters['search'] ?? ''));
-        $status = in_array($this->filters['status'] ?? null, ['documented', 'empty', 'shared', 'unlinked'], true)
+        $status = in_array($this->filters['status'] ?? null, ['documented', 'empty', 'shared', 'unlinked', 'published', 'unpublished'], true)
             ? $this->filters['status']
             : null;
         [$sort, $direction] = $this->parseSort($this->filters['sort'] ?? null);
+        // Once for the collection, not per row: publishing is the admin's
+        // whatever the caderno, so there is no row this could answer
+        // differently for.
+        $canPublish = auth()->user()?->can('administerAny', Notebook::class) ?? false;
 
         $notebooks = Notebook::query()
-            ->select('id', 'name', 'slug', 'public_token')
+            ->select('id', 'name', 'slug', 'public_token', 'published_at')
             ->withCount([
                 'pages',
                 'diagrams',
@@ -74,6 +85,8 @@ class Index extends Component
             ->when($status === 'empty', fn (Builder $q) => $q->whereDoesntHave('documentedPages'))
             ->when($status === 'shared', fn (Builder $q) => $q->whereNotNull('public_token'))
             ->when($status === 'unlinked', fn (Builder $q) => $q->whereDoesntHave('solutions'))
+            ->when($status === 'published', fn (Builder $q) => $q->published())
+            ->when($status === 'unpublished', fn (Builder $q) => $q->whereNull('published_at'))
             ->tap(fn (Builder $q) => collect(self::SORTS[$sort])
                 ->each(fn (string $column) => $q->orderBy($column, $direction)))
             ->orderBy('name')
@@ -88,6 +101,13 @@ class Index extends Component
                 'pages'      => $notebook->pages_count,
                 'documented' => $notebook->documented_count,
                 'isShared'   => $notebook->public_token !== null,
+                // The knowledge base (`/docs`). The filters ride on the toggle
+                // for the same reason they ride on the delete below.
+                'published'      => $notebook->isPublished(),
+                'publishedAt'    => $notebook->published_at?->format('d/m/Y'),
+                'readUrl'        => $notebook->knowledgeBaseUrl(),
+                'toggleUrl'      => route('notebooks.publication', ['notebook' => $notebook, 'filter' => $this->filters]),
+                'publishConfirm' => $this->publishConfirm($notebook),
                 // Per row, and against the real model: `update` on
                 // NotebookPolicy takes a Notebook, so a `@can('update',
                 // Notebook::class)` in the view is a TypeError, not a denial.
@@ -115,6 +135,7 @@ class Index extends Component
             ]),
             'filters'    => $this->filters,
             'hasFilters' => $search !== '' || $status !== null,
+            'canPublish' => $canPublish,
         ]);
     }
 
@@ -164,5 +185,36 @@ class Index extends Component
         }
 
         return $sentence . ' Isso não pode ser desfeito.';
+    }
+
+    /**
+     * What flipping the "Em /docs" switch actually does, said before it happens.
+     *
+     * Publishing is the one act in this app whose audience is "everybody at
+     * Leo Madeiras", and a switch that silently does that is a switch somebody
+     * flips while scrolling a table. Unpublishing gets one too, for the
+     * opposite reason: the caderno disappears from a place people have started
+     * linking to. The empty case is named because publishing a caderno with
+     * nothing written in it is allowed and is almost always a mistake.
+     */
+    private function publishConfirm(Notebook $notebook): string
+    {
+        if ($notebook->isPublished()) {
+            return sprintf(
+                'Tirar "%s" da base de conhecimento? Ele deixa de aparecer em /docs para todo mundo da Leo.',
+                $notebook->name,
+            );
+        }
+
+        $sentence = sprintf(
+            'Publicar "%s"? Qualquer pessoa logada com a conta Leo Madeiras vai poder ler esse caderno em /docs.',
+            $notebook->name,
+        );
+
+        if ($notebook->documented_count === 0) {
+            $sentence .= ' Atenção: ele ainda não tem nenhuma página escrita.';
+        }
+
+        return $sentence;
     }
 }

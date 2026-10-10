@@ -1,7 +1,6 @@
 <?php
 
 use App\Contracts\Documentable;
-use App\Enums\UserRole;
 use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
@@ -231,18 +230,4 @@ it('sends a guest to the login screen when SSO is off', function () {
     pageIn($notebook, 'Página');
 
     $this->get(route('docs.notebook', $notebook))->assertRedirect(route('login.create'));
-});
-
-it('withholds the settings screen from everybody but an admin', function () {
-    // `NotebookPolicy::administerAny` answers: a documentation Editor writes
-    // cadernos but does not decide what the whole company reads.
-    foreach ([User::factory()->create(), User::factory()->editor()->create()] as $user) {
-        $this->actingAs($user)
-            ->get(route('docs.settings'))
-            ->assertForbidden();
-    }
-
-    $this->actingAs(User::factory()->create(['role' => UserRole::Admin]))
-        ->get(route('docs.settings'))
-        ->assertOk();
 });

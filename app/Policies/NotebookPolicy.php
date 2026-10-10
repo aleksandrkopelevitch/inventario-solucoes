@@ -54,8 +54,8 @@ class NotebookPolicy
 
     /**
      * The same authority, asked about the COLLECTION rather than about one
-     * caderno: the knowledge-base settings screen, which lists every caderno
-     * and decides which ones `/docs` shows.
+     * caderno: the cadernos catalog asks it once to decide whether its "Em
+     * /docs" column is a switch or only a state.
      *
      * A second method rather than a nullable argument on `administer()`,
      * because a policy method's signature is what Laravel matches on — a

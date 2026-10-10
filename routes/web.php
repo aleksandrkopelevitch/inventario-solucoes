@@ -22,7 +22,6 @@ use App\Http\Controllers\Inventory\PersonController;
 use App\Http\Controllers\Inventory\SolutionController;
 use App\Http\Controllers\Inventory\SolutionSpreadsheetController;
 use App\Http\Controllers\KnowledgeBaseController;
-use App\Http\Controllers\KnowledgeBaseSettingsController;
 use App\Http\Controllers\Mcp\ConnectController;
 use App\Http\Controllers\McpTokenController;
 use App\Http\Controllers\MediaController;
@@ -31,6 +30,7 @@ use App\Http\Controllers\NotebookController;
 use App\Http\Controllers\NotebookDiagramController;
 use App\Http\Controllers\NotebookPageController;
 use App\Http\Controllers\NotebookPageDiagramController;
+use App\Http\Controllers\NotebookPublicationController;
 use App\Http\Controllers\PipelineRunController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicDocumentationController;
@@ -107,10 +107,6 @@ Route::middleware(['entra.silent', 'auth'])->group(function () {
     Route::delete('mcp/connections/{token}', [ConnectController::class, 'destroy'])->name('mcp.connections.destroy');
 
     Route::get('docs', [KnowledgeBaseController::class, 'index'])->name('docs.index');
-
-    // Admin: which cadernos `/docs` shows. Before `docs/{notebook}` — same
-    // segment shape, and `settings` is reserved as a caderno slug.
-    Route::get('docs/settings', [KnowledgeBaseSettingsController::class, 'index'])->name('docs.settings');
 
     Route::get('docs/{notebook}', [KnowledgeBaseController::class, 'notebook'])->name('docs.notebook');
     Route::get('docs/{notebook}/search', [KnowledgeBaseController::class, 'search'])->name('docs.search');
@@ -612,8 +608,8 @@ Route::middleware('auth')->group(function () {
     // Public documentation link ("magic link"): generate/revoke (admin).
     // Publication into the internal knowledge base. `administer` (admin), like
     // the magic link beside it, and reachable from two screens: this caderno's
-    // share panel and the `/docs` settings list.
-    Route::patch('notebooks/{notebook}/publication', [KnowledgeBaseSettingsController::class, 'update'])->name('notebooks.publication');
+    // share panel and the cadernos catalog's "Em /docs" column.
+    Route::patch('notebooks/{notebook}/publication', [NotebookPublicationController::class, 'update'])->name('notebooks.publication');
 
     Route::post('notebooks/{notebook}/share', [NotebookController::class, 'share'])->name('notebooks.share');
     Route::delete('notebooks/{notebook}/share', [NotebookController::class, 'unshare'])->name('notebooks.unshare');

@@ -26,6 +26,11 @@
             <x-forms.button href="{{ route('documentation.index') }}" variant="glass" class="!rounded-full">
                 Ver cobertura <x-heroicon-o-arrow-right class="size-4" />
             </x-forms.button>
+            {{-- `/docs` has no rail entry — it is its own shell — so the
+                 catalog that decides what it shows is where it is reached from. --}}
+            <x-forms.button href="{{ route('docs.index') }}" target="_blank" rel="noopener" variant="glass" class="!rounded-full">
+                Abrir a base de conhecimento <x-heroicon-o-arrow-top-right-on-square class="size-4" />
+            </x-forms.button>
         </div>
     </x-ui.hero-panel>
 
@@ -49,6 +54,8 @@
             <option value="empty" @selected(($filters['status'] ?? '') === 'empty')>Sem conteúdo</option>
             <option value="shared" @selected(($filters['status'] ?? '') === 'shared')>Com link público</option>
             <option value="unlinked" @selected(($filters['status'] ?? '') === 'unlinked')>Sem solução vinculada</option>
+            <option value="published" @selected(($filters['status'] ?? '') === 'published')>Publicados em /docs</option>
+            <option value="unpublished" @selected(($filters['status'] ?? '') === 'unpublished')>Não publicados em /docs</option>
         </x-forms.select>
     </x-ui.filter-bar>
 

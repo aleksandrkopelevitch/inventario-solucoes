@@ -66,7 +66,7 @@
                 <ul class="mt-1.5 space-y-1 text-xs leading-relaxed text-muted">
                     <li>· Todo o catálogo: soluções, diagramas, pessoas (com contatos) e empresas.</li>
                     <li>· Da documentação, <strong class="font-semibold text-ink">só os cadernos publicados</strong> em
-                        <a href="{{ route('docs.settings') }}" class="text-accent hover:underline">/docs</a>.
+                        <a href="{{ route('docs.index') }}" class="text-accent hover:underline">/docs</a>.
                         Caderno não publicado é invisível, inclusive para quem tem o token.</li>
                     <li>· Valores protegidos (<code class="font-mono text-[11px]">{% secret %}</code>) nunca saem — o modelo vê só que existe um.</li>
                     <li>· Nada é criado, alterado ou apagado por aqui.</li>
