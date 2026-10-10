@@ -66,6 +66,8 @@ export const EDITOR_I18N = {
             // it is found by typing either "card" or "grade" in the toolbox
             // filter — what somebody reaches for is the grid of logos.
             Cards: 'Grade de cards',
+            // Already PT-BR in the tool itself; listed to keep this complete.
+            'Fluxo em etapas': 'Fluxo em etapas',
             // Already PT-BR in the tool itself (SecretInlineTool::title), so
             // this entry is here only to keep the list complete: Editor.js
             // looks every inline tool's name up by its own string.

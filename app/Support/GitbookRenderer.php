@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Diagram;
 use App\Support\Documentation\PageLinks;
 use App\Support\Documentation\SecretText;
+use App\Support\Documentation\StepScene;
 use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
 use League\CommonMark\Extension\GithubFlavoredMarkdownExtension;
@@ -33,6 +34,8 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  *       → download card pointing to the authenticated files.show route
  *   {% cards cols="3" %}{% card title="…" image="…" fit="…" link="…" %} … {% endcard %} … {% endcards %}
  *       → a regular grid of product cards (ours) — see renderCards()
+ *   {% scene type="steps" caption="…" %}{% step title="…" highlight="true" %} … {% endstep %} … {% endscene %}
+ *       → an animated "fluxo em etapas" (ours) — see renderScene()
  *   {% secret %} … {% endsecret %}   (inline, ours)
  *       → a lock the value is NOT inside — see App\Support\Documentation\SecretText
  *
@@ -274,6 +277,14 @@ class GitbookRenderer
                 $flush();
                 [$inner, $i] = $this->consumeUntil($lines, $i + 1, 'tabs');
                 $html .= $this->renderTabs($inner);
+
+                continue;
+            }
+
+            if (preg_match('/^\{%\s*scene\b\s*(.*?)\s*%\}$/', $trimmed, $m)) {
+                $flush();
+                [$inner, $i] = $this->consumeUntil($lines, $i + 1, 'scene');
+                $html .= $this->renderScene($this->parseAttrs($m[1]), $inner);
 
                 continue;
             }
@@ -589,6 +600,75 @@ class GitbookRenderer
         // so a two-line blurb in the first row left the second row 20px
         // shorter and the grid stopped reading as regular.
         return '<div class="ak-doc-cards my-6 grid auto-rows-fr grid-cols-1 gap-4 ' . $columns . '">' . $html . '</div>';
+    }
+
+    /**
+     * An animated SCENE — today only `type="steps"`, the "fluxo em etapas".
+     *
+     * What this emits is the scene's TEXT, as an ordered list: that is what a
+     * reader without JavaScript sees, what a screen reader reads, and what the
+     * search index and the MCP server pick up. The animation is drawn over it
+     * by docs-scene.js from the same data, carried as JSON on the figure — so
+     * there is one renderer of the picture (in the browser, where text can be
+     * measured to wrap inside a card) and no second copy of it here to drift.
+     *
+     * A type this renderer does not know keeps its steps as the list and loses
+     * only the animation, the same degradation a card makes for a link nobody
+     * can follow: the words are the documentation.
+     *
+     * @param  array<string, string>  $attrs
+     * @param  array<int, string>  $lines
+     */
+    private function renderScene(array $attrs, array $lines): string
+    {
+        $decode = fn (array $from, string $key): string => trim(html_entity_decode($from[$key] ?? '', ENT_QUOTES));
+
+        $steps = [];
+        $i = 0;
+        $n = count($lines);
+
+        while ($i < $n) {
+            // `{% step %}` carries its detail as a BODY, like `{% card %}`.
+            if (preg_match('/^\{%\s*step(?:\s+(.*?))?\s*%\}$/', trim($lines[$i]), $m)) {
+                $stepAttrs = $this->parseAttrs($m[1] ?? '');
+                [$inner, $i] = $this->consumeUntil($lines, $i + 1, 'step');
+                $steps[] = [
+                    'title'     => $decode($stepAttrs, 'title'),
+                    'detail'    => trim(implode(' ', array_map('trim', $inner))),
+                    'highlight' => ($stepAttrs['highlight'] ?? '') === 'true',
+                ];
+
+                continue;
+            }
+            $i++;
+        }
+
+        $steps = array_values(array_filter($steps, fn (array $step) => $step['title'] !== '' || $step['detail'] !== ''));
+
+        if ($steps === []) {
+            return '';
+        }
+
+        $caption = $decode($attrs, 'caption');
+        $type = $attrs['type'] ?? '';
+
+        $items = '';
+        foreach ($steps as $step) {
+            $items .= '<li class="ak-scene__step' . ($step['highlight'] ? ' is-highlight' : '') . '">'
+                . ($step['title'] !== '' ? '<span class="ak-scene__title">' . e($step['title']) . '</span>' : '')
+                . ($step['detail'] !== '' ? ' <span class="ak-scene__detail">' . e($step['detail']) . '</span>' : '')
+                . '</li>';
+        }
+
+        $data = $type === StepScene::TYPE
+            ? ' data-ak-scene="' . e(json_encode(['type' => $type, 'caption' => $caption, 'steps' => $steps], JSON_UNESCAPED_UNICODE)) . '"'
+            : '';
+
+        return '<figure class="ak-scene"' . $data . '>'
+            . '<div class="ak-scene__stage" data-ak-scene-stage aria-hidden="true"></div>'
+            . '<ol class="ak-scene__steps">' . $items . '</ol>'
+            . ($caption !== '' ? '<figcaption>' . e($caption) . '</figcaption>' : '')
+            . '</figure>';
     }
 
     /**

@@ -8,7 +8,8 @@
 // quote, code, delimiter, table, image (<figure>). With no native Markdown,
 // through GitBook notation: hint ({% hint %}), tabs ({% tabs %}), file
 // ({% file %}), diagram ({% diagram %} — a citation of a catalog drawing,
-// ours) and cards ({% cards %} — a grid of product cards, also ours).
+// ours), cards ({% cards %} — a grid of product cards, also ours) and scenes
+// ({% scene type="steps" %} — an animated "fluxo em etapas", ours too).
 //
 // secret ({% secret %}…{% endsecret %}) is the only INLINE construct: it lives
 // inside a block's text rather than as a block of its own, so it is handled in
@@ -357,6 +358,8 @@ function serializeBlock(block) {
             return serializeTabs(d)
         case 'cards':
             return serializeCards(d)
+        case 'scene':
+            return serializeScene(d)
         default:
             return null
     }
@@ -498,6 +501,35 @@ function fileSrc(file) {
     return file.url || ''
 }
 
+/**
+ * An animated scene — today the "fluxo em etapas". The scene's own settings are
+ * its type and caption; each step is `{% step %}` with the detail as its BODY,
+ * the way a card carries its description (text somebody wrote has no business
+ * being escaped into a quoted attribute). `highlight` is written only when on.
+ *
+ * Steps with nothing in them are dropped, and a scene with no step left
+ * serializes to nothing — the same call an empty card grid makes.
+ */
+function serializeScene(d) {
+    const inner = (d.steps || [])
+        .filter((step) => (step.title || '').trim() || (step.detail || '').trim())
+        .map((step) => {
+            const attrs = [`title="${escapeAttr((step.title || '').trim())}"`]
+            if (step.highlight) attrs.push('highlight="true"')
+            const body = (step.detail || '').replace(/\s+/g, ' ').trim()
+
+            return `{% step ${attrs.join(' ')} %}\n${body === '' ? '' : body + '\n'}{% endstep %}`
+        })
+        .join('\n')
+
+    if (inner === '') return ''
+
+    const caption = (d.caption || '').replace(/\s+/g, ' ').trim()
+    const captionAttr = caption ? ` caption="${escapeAttr(caption)}"` : ''
+
+    return `{% scene type="${escapeAttr(d.type || 'steps')}"${captionAttr} %}\n${inner}\n{% endscene %}`
+}
+
 function escapeAttr(s) {
     return String(s).replace(/"/g, '&quot;')
 }
@@ -575,6 +607,19 @@ function parseLines(lines) {
                     cols: CARD_COLUMNS.includes(cols) ? cols : DEFAULT_CARD_COLUMNS,
                     items: parseCards(inner),
                 },
+            })
+            continue
+        }
+
+        // scene — an animated figure (today the "fluxo em etapas")
+        m = trimmed.match(/^\{%\s*scene\b\s*(.*?)\s*%\}$/)
+        if (m) {
+            const attrs = parseAttrs(m[1])
+            const [inner, next] = consumeUntil(lines, i + 1, 'scene')
+            i = next
+            blocks.push({
+                type: 'scene',
+                data: {type: attrs.type || 'steps', caption: decodeAttr(attrs.caption || ''), steps: parseSceneSteps(inner)},
             })
             continue
         }
@@ -675,7 +720,7 @@ function startsNewBlock(line) {
     return (
         /^(#{1,6})\s+/.test(t) ||
         /^(```|~~~)/.test(t) ||
-        /^\{%\s*(hint|tabs|cards|file|embed|diagram)/.test(t) ||
+        /^\{%\s*(hint|tabs|cards|scene|file|embed|diagram)/.test(t) ||
         /^<figure/.test(t) ||
         /^<img\s/i.test(t) ||
         /^(\*\*\*+|---+|___+)$/.test(t) ||
@@ -745,6 +790,28 @@ function parseCards(lines) {
         i++
     }
     return items
+}
+
+/** The steps inside one `{% scene %}` — `{% step %}`'s body is its detail. */
+function parseSceneSteps(lines) {
+    const steps = []
+    let i = 0
+    while (i < lines.length) {
+        const m = lines[i].trim().match(/^\{%\s*step(?:\s+(.*?))?\s*%\}$/)
+        if (m) {
+            const attrs = parseAttrs(m[1] || '')
+            const [inner, next] = consumeUntil(lines, i + 1, 'step')
+            i = next
+            steps.push({
+                title: decodeAttr(attrs.title || ''),
+                detail: inner.map((l) => l.trim()).join(' ').trim(),
+                highlight: attrs.highlight === 'true',
+            })
+            continue
+        }
+        i++
+    }
+    return steps
 }
 
 function isListItem(line) {

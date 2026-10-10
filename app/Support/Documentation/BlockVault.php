@@ -4,7 +4,7 @@ namespace App\Support\Documentation;
 
 /**
  * Freezes the blocks the Documentation Assistant may neither write nor lose:
- * images, file cards, embeds, diagram citations and card grids.
+ * images, file cards, embeds, diagram citations, card grids and scenes.
  *
  * A reply rewrites the WHOLE page (the 4-backtick draft block), so everything
  * the model is not handed back comes out deleted. These constructs are the
@@ -55,6 +55,11 @@ final class BlockVault
      * blurb, which is the right trade against handing it four attributes it
      * would be delighted to invent.
      *
+     * `scene` (the "fluxo em etapas") is frozen whole for a different reason:
+     * nothing in it needs an id, but it is a nested notation the editor writes
+     * and the model has never been taught, and a rewrite that turns it into a
+     * numbered list would quietly take the animation away from the page.
+     *
      * @var array<int, array{0: string, 1: string}> [label, pattern]
      */
     private const PATTERNS = [
@@ -64,6 +69,7 @@ final class BlockVault
         ['vídeo/embed', '/\{%\s*embed\b[^%]*%\}/i'],
         ['diagrama', '/\{%\s*diagram\b[^%]*%\}/i'],
         ['grade de cards', '/\{%\s*cards\b.*?\{%\s*endcards\s*%\}/is'],
+        ['fluxo em etapas', '/\{%\s*scene\b.*?\{%\s*endscene\s*%\}/is'],
     ];
 
     /** @var array<string, string> marker => block */

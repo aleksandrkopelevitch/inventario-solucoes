@@ -116,7 +116,7 @@ function makeImageTool(Base) {
 
 // Editor.js and its plugins are heavy (~400 kB) and only used on this page, so
 // they're loaded on demand (separate chunk) only when an editor is on screen.
-async function loadTools({uploadUrl = '', catalogUrl = '', linkTargetsUrl = '', cardTargetsUrl = '', pageSlug = ''} = {}) {
+async function loadTools({uploadUrl = '', catalogUrl = '', linkTargetsUrl = '', cardTargetsUrl = '', sceneUrl = '', pageSlug = ''} = {}) {
     const [
         {default: EditorJS},
         {default: Header},
@@ -133,6 +133,7 @@ async function loadTools({uploadUrl = '', catalogUrl = '', linkTargetsUrl = '', 
         {default: HintTool},
         {default: DiagramTool},
         {default: CardsTool},
+        {default: SceneTool},
         {default: SecretInlineTool},
         {default: DocsLinkTool},
         {default: TabsTool},
@@ -153,6 +154,7 @@ async function loadTools({uploadUrl = '', catalogUrl = '', linkTargetsUrl = '', 
         import('./docs-tools/hint'),
         import('./docs-tools/diagram'),
         import('./docs-tools/cards'),
+        import('./docs-tools/scene'),
         import('./docs-tools/secret'),
         import('./docs-tools/link'),
         import('./docs-tools/tabs'),
@@ -241,6 +243,9 @@ async function loadTools({uploadUrl = '', catalogUrl = '', linkTargetsUrl = '', 
         // invitation to write markup the renderer has to throw away. Title and
         // description are plain text on both ends (see docs-tools/cards.js).
         cards: {class: CardsTool, config: {uploadUrl, cardTargetsUrl}},
+        // "Fluxo em etapas" — the first animated scene. No `inlineToolbar`: its
+        // fields are plain text the figure draws inside fixed cards.
+        scene: {class: SceneTool, config: {sceneUrl}},
         tabs: {class: TabsTool, config: {EditorJS, getTools: buildTools, wire, onChange: markDirty, uploadUrl, i18n: EDITOR_I18N}},
         inlineCode: {class: InlineCode},
         marker: {class: Marker},

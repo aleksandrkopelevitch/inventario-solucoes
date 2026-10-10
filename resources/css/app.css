@@ -736,6 +736,46 @@ dialog[open]::backdrop {
     .html-content figure[data-width] { width: 100%; }
 }
 
+/* Scenes (the {% scene %} block) — today the "fluxo em etapas". GitbookRenderer
+   emits the steps as an ordered list, which is what a reader without
+   JavaScript, a screen reader and the search index get; docs-scene.js draws the
+   animated figure into the stage above it from the same data and then marks
+   the figure `is-drawn`, which takes the list off the SCREEN only (sr-only) —
+   it stays in the document. The figure's own look (cards, arrows, colours) is
+   inside the SVG; only the frame lives here. */
+.html-content figure.ak-scene {
+    position: relative;
+    margin-block: 1.75rem;
+    padding: 1.25rem;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    background-color: var(--color-canvas, #f5f8f5);
+    background-image: radial-gradient(var(--color-line) 1px, transparent 1px);
+    background-size: 16px 16px;
+}
+/* Hidden until docs-scene.js takes the figure over — NOT with `:empty`, which
+   would also hide it from the measurement that lays the figure out (a hidden
+   stage is 0px wide, and a 0px figure draws nothing). */
+.html-content figure.ak-scene:not([data-ak-scene-ready]) .ak-scene__stage { display: none; }
+.html-content .ak-scene__steps { margin: 0; padding-left: 1.25rem; }
+.html-content .ak-scene__step { margin: 0.35rem 0; }
+.html-content .ak-scene__title { font-weight: 600; color: var(--color-ink); }
+.html-content .ak-scene__detail { color: var(--color-muted); }
+.html-content .ak-scene__step.is-highlight .ak-scene__title {
+    background: var(--color-lime-soft);
+    box-shadow: 0 0 0 2px var(--color-lime-soft);
+    border-radius: 3px;
+}
+.html-content figure.ak-scene.is-drawn .ak-scene__steps {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+.html-content figure.ak-scene figcaption { margin-top: 0.85rem; }
+
 /* Cards (the {% cards %} block) — a regular grid of product cards: a logo, a
    name, an optional line of description and a destination.
 
