@@ -1,7 +1,7 @@
 {{-- The cadernos catalog, as one updatable slot. A row per caderno, in the same
-     table chrome as the solutions catalog: what it is called, how much of it is
-     written, and which solutions it documents — that last column is the whole
-     reason this module exists, so it is on the row rather than one level in.
+     table chrome as the solutions catalog: what it is called and which solutions
+     it documents — that column is the whole reason this module exists, so it is
+     on the row rather than one level in.
 
      "Em /docs" is whether the internal knowledge base shows the caderno. An
      admin gets the switch that decides it; everybody else reads the state. --}}
@@ -18,11 +18,10 @@
     @else
         <div class="overflow-hidden rounded-card border border-line bg-surface shadow-card">
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[860px] text-sm">
+                <table class="w-full min-w-[720px] text-sm">
                     <thead>
                         <tr class="border-b border-line bg-raised/40">
                             <x-ui.sortable-th column="name" :filters="$filters" :form-id="$sortForm" :url="$sortUrl" class="pl-4">Nome</x-ui.sortable-th>
-                            <x-ui.sortable-th column="pages" :filters="$filters" :form-id="$sortForm" :url="$sortUrl">Páginas</x-ui.sortable-th>
                             <x-ui.sortable-th column="solutions" :filters="$filters" :form-id="$sortForm" :url="$sortUrl">Soluções</x-ui.sortable-th>
                             <th scope="col" class="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted">Em /docs</th>
                             <th scope="col" class="py-2.5 pr-4"><span class="sr-only">Ações</span></th>
@@ -48,14 +47,6 @@
                                             </span>
                                         @endif
                                     </a>
-                                </td>
-                                <td class="whitespace-nowrap px-3 py-2.5 text-muted">
-                                    @if ($notebook['pages'] === 0)
-                                        <span class="text-faint">Nenhuma página ainda</span>
-                                    @else
-                                        <span class="font-display font-semibold text-ink">{{ $notebook['documented'] }}</span>
-                                        de {{ $notebook['pages'] }} {{ $notebook['pages'] === 1 ? 'escrita' : 'escritas' }}
-                                    @endif
                                 </td>
                                 <td class="px-3 py-2.5">
                                     @if ($notebook['solutions'] !== [])

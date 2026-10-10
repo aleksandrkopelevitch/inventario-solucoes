@@ -11,8 +11,13 @@ use Illuminate\View\Component;
 
 /**
  * The cadernos catalog, renderable as an updatable slot
- * (`notebooks-index-slot`) — one table row per notebook with its page
- * coverage and the solutions it documents.
+ * (`notebooks-index-slot`) — one table row per notebook with the solutions
+ * it documents and whether `/docs` shows it.
+ *
+ * There is no page-count column. It was here, and it answered nothing this
+ * screen is for: how much of a caderno is written is the coverage screen's
+ * question (`documentation.index`), and the "Com conteúdo"/"Sem conteúdo"
+ * filter still narrows by it.
  *
  * The search deliberately spans three things a person might remember about a
  * caderno: its own name, a page title inside it, and the name of a solution it
@@ -33,16 +38,14 @@ class Index extends Component
     public const DOM_ID = 'notebooks-index-slot';
 
     /**
-     * Table columns the catalog is sortable by (`filter[sort]`, e.g. `pages`
-     * or `-pages` for descending — the header toggle is `x-ui.sortable-th`).
-     * Each maps to what it actually orders by, most significant first:
-     * "Páginas" leads with the written count, the number the cell puts in
-     * bold, and breaks ties on the total; "Soluções" orders by how many a
-     * caderno documents, since a list of names has no single value to sort.
+     * Table columns the catalog is sortable by (`filter[sort]`, e.g.
+     * `solutions` or `-solutions` for descending — the header toggle is
+     * `x-ui.sortable-th`). Each maps to what it actually orders by: "Soluções"
+     * orders by how many a caderno documents, since a list of names has no
+     * single value to sort.
      */
     private const SORTS = [
         'name'      => ['name'],
-        'pages'     => ['documented_count', 'pages_count'],
         'solutions' => ['solutions_count'],
     ];
 
@@ -69,6 +72,8 @@ class Index extends Component
 
         $notebooks = Notebook::query()
             ->select('id', 'name', 'slug', 'public_token', 'published_at')
+            // The page counts are no longer a column: they feed the two
+            // confirmations, which say what deleting or publishing costs.
             ->withCount([
                 'pages',
                 'diagrams',
@@ -95,12 +100,10 @@ class Index extends Component
         return view('components.notebooks.index', [
             'domId'     => self::DOM_ID,
             'notebooks' => $notebooks->map(fn (Notebook $notebook) => [
-                'name'       => $notebook->name,
-                'url'        => route('notebooks.show', $notebook),
-                'panelUrl'   => route('notebooks.panel.edit', $notebook),
-                'pages'      => $notebook->pages_count,
-                'documented' => $notebook->documented_count,
-                'isShared'   => $notebook->public_token !== null,
+                'name'     => $notebook->name,
+                'url'      => route('notebooks.show', $notebook),
+                'panelUrl' => route('notebooks.panel.edit', $notebook),
+                'isShared' => $notebook->public_token !== null,
                 // The knowledge base (`/docs`). The filters ride on the toggle
                 // for the same reason they ride on the delete below.
                 'published'      => $notebook->isPublished(),
