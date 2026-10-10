@@ -11,8 +11,8 @@ use Illuminate\View\Component;
 
 /**
  * The cadernos catalog, renderable as an updatable slot
- * (`notebooks-index-slot`) — one card per notebook with its page coverage and
- * the solutions it documents.
+ * (`notebooks-index-slot`) — one table row per notebook with its page
+ * coverage and the solutions it documents.
  *
  * The search deliberately spans three things a person might remember about a
  * caderno: its own name, a page title inside it, and the name of a solution it
@@ -24,6 +24,20 @@ class Index extends Component
     use Renderable;
 
     public const DOM_ID = 'notebooks-index-slot';
+
+    /**
+     * Table columns the catalog is sortable by (`filter[sort]`, e.g. `pages`
+     * or `-pages` for descending — the header toggle is `x-ui.sortable-th`).
+     * Each maps to what it actually orders by, most significant first:
+     * "Páginas" leads with the written count, the number the cell puts in
+     * bold, and breaks ties on the total; "Soluções" orders by how many a
+     * caderno documents, since a list of names has no single value to sort.
+     */
+    private const SORTS = [
+        'name'      => ['name'],
+        'pages'     => ['documented_count', 'pages_count'],
+        'solutions' => ['solutions_count'],
+    ];
 
     /** @param  array<string, mixed>  $filters */
     public function __construct(public array $filters = []) {}
@@ -40,12 +54,14 @@ class Index extends Component
         $status = in_array($this->filters['status'] ?? null, ['documented', 'empty', 'shared', 'unlinked'], true)
             ? $this->filters['status']
             : null;
+        [$sort, $direction] = $this->parseSort($this->filters['sort'] ?? null);
 
         $notebooks = Notebook::query()
             ->select('id', 'name', 'slug', 'public_token')
             ->withCount([
                 'pages',
                 'diagrams',
+                'solutions',
                 'pages as documented_count' => fn (Builder $q) => $q
                     ->whereNotNull('documentation')->where('documentation', '<>', ''),
             ])
@@ -58,6 +74,8 @@ class Index extends Component
             ->when($status === 'empty', fn (Builder $q) => $q->whereDoesntHave('documentedPages'))
             ->when($status === 'shared', fn (Builder $q) => $q->whereNotNull('public_token'))
             ->when($status === 'unlinked', fn (Builder $q) => $q->whereDoesntHave('solutions'))
+            ->tap(fn (Builder $q) => collect(self::SORTS[$sort])
+                ->each(fn (string $column) => $q->orderBy($column, $direction)))
             ->orderBy('name')
             ->get();
 
@@ -95,8 +113,26 @@ class Index extends Component
                     'url'  => route('solutions.show', $solution),
                 ])->all(),
             ]),
+            'filters'    => $this->filters,
             'hasFilters' => $search !== '' || $status !== null,
         ]);
+    }
+
+    /**
+     * Splits `filter[sort]` (e.g. `-pages`) into a whitelisted column key and
+     * direction — an unknown, absent or malformed (an array via
+     * `filter[sort][]=`) value falls back to `name` asc, the same default the
+     * headers render as inactive.
+     *
+     * @return array{0: string, 1: 'asc'|'desc'}
+     */
+    private function parseSort(mixed $sort): array
+    {
+        $sort = is_string($sort) && $sort !== '' ? $sort : 'name';
+        $direction = str_starts_with($sort, '-') ? 'desc' : 'asc';
+        $sort = ltrim($sort, '-');
+
+        return array_key_exists($sort, self::SORTS) ? [$sort, $direction] : ['name', 'asc'];
     }
 
     /**

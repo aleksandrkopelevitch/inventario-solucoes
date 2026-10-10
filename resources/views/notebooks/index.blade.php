@@ -38,6 +38,10 @@
                 :value="$filters['search'] ?? null" />
         </x-slot:search>
 
+        {{-- Driven by the table's column headers (`x-ui.sortable-th`), not a
+             control of its own — see the same field on /solutions. --}}
+        <input type="hidden" name="filter[sort]" value="{{ $filters['sort'] ?? 'name' }}">
+
         <x-forms.select auto name="filter[status]" data-ak-filters="{{ json_encode($filterBind) }}"
             class="{{ filled($filters['status'] ?? null) ? $activeClass : '' }}">
             <option value="">Situação</option>

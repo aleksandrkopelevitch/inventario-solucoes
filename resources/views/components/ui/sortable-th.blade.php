@@ -1,4 +1,12 @@
-@props(['column', 'filters' => []])
+@props([
+    'column',
+    'filters' => [],
+    // The list's filter form and the URL it re-fetches: the header toggles
+    // that form's hidden `filter[sort]` field (`sortable-table.js`), so it
+    // only sorts a page that carries one.
+    'formId',
+    'url',
+])
 
 @php
     $current = $filters['sort'] ?? 'name';
@@ -23,7 +31,7 @@
 --}}
 <th scope="col" {{ $attributes->merge(['class' => 'px-3 py-2.5 text-left']) }}>
     <button type="button"
-        data-ak-sort="{{ json_encode(['column' => $column, 'formId' => 'solutions-filter-form', 'url' => route('solutions.index')]) }}"
+        data-ak-sort="{{ json_encode(['column' => $column, 'formId' => $formId, 'url' => $url]) }}"
         class="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted transition-colors hover:text-ink {{ $isActive ? '!text-accent' : '' }}">
         {{ $slot }}
         @if ($isActive)

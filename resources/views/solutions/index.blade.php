@@ -77,7 +77,7 @@
         </x-slot:search>
 
         {{-- `filter[sort]` has no control of its own: sorting is driven by
-             clicking the table's column headers (`x-solutions.sortable-th`),
+             clicking the table's column headers (`x-ui.sortable-th`),
              which toggle this same field and re-fire the AJAX filter pipeline
              (`sortable-table.js`). It only needs to sit inside this form for
              `executeFilters()` to serialize it. `type="hidden"` inputs aren't
