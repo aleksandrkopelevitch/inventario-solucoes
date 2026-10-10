@@ -1,7 +1,10 @@
 {{-- The cadernos catalog, as one updatable slot. A row per caderno, in the same
      table chrome as the solutions catalog: what it is called, how much of it is
      written, and which solutions it documents — that last column is the whole
-     reason this module exists, so it is on the row rather than one level in. --}}
+     reason this module exists, so it is on the row rather than one level in.
+
+     "Em /docs" is whether the internal knowledge base shows the caderno. An
+     admin gets the switch that decides it; everybody else reads the state. --}}
 @php
     [$sortForm, $sortUrl] = ['notebooks-filter-form', route('notebooks.index')];
 @endphp
@@ -15,12 +18,13 @@
     @else
         <div class="overflow-hidden rounded-card border border-line bg-surface shadow-card">
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[760px] text-sm">
+                <table class="w-full min-w-[860px] text-sm">
                     <thead>
                         <tr class="border-b border-line bg-raised/40">
                             <x-ui.sortable-th column="name" :filters="$filters" :form-id="$sortForm" :url="$sortUrl" class="pl-4">Nome</x-ui.sortable-th>
                             <x-ui.sortable-th column="pages" :filters="$filters" :form-id="$sortForm" :url="$sortUrl">Páginas</x-ui.sortable-th>
                             <x-ui.sortable-th column="solutions" :filters="$filters" :form-id="$sortForm" :url="$sortUrl">Soluções</x-ui.sortable-th>
+                            <th scope="col" class="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted">Em /docs</th>
                             <th scope="col" class="py-2.5 pr-4"><span class="sr-only">Ações</span></th>
                         </tr>
                     </thead>
@@ -69,6 +73,52 @@
                                             Sem solução vinculada
                                         </span>
                                     @endif
+                                </td>
+                                <td class="whitespace-nowrap px-3 py-2.5">
+                                    <div class="flex items-center gap-2">
+                                        @if ($canPublish)
+                                            {{-- The switch. An `x-forms.button` rather than
+                                                 `x-forms.toggle`, because this one WRITES on
+                                                 click: the toggle component is a CSS-only
+                                                 checkbox for a form submitted later, and there
+                                                 is no later here. `aria-pressed` is what says
+                                                 "switch" to a screen reader.
+
+                                                 The hidden form is what `data-ak-ajax` builds
+                                                 its FormData from: the CSRF token, the PATCH
+                                                 spoof and the value being written. --}}
+                                            <form id="notebook-publication-{{ $loop->index }}" class="hidden">
+                                                @csrf
+                                                @method('PATCH')
+                                                <input type="hidden" name="published" value="{{ $notebook['published'] ? '0' : '1' }}">
+                                            </form>
+                                            <x-forms.button type="button" variant="ghost"
+                                                data-ak-ajax="notebook-publication-{{ $loop->index }}"
+                                                data-ak-action="{{ $notebook['toggleUrl'] }}"
+                                                data-ak-confirm="{{ $notebook['publishConfirm'] }}"
+                                                aria-pressed="{{ $notebook['published'] ? 'true' : 'false' }}"
+                                                class="shrink-0 !h-6 !w-11 !rounded-full !p-0 {{ $notebook['published'] ? '!bg-accent' : '!bg-line-2' }}"
+                                                :aria-label="($notebook['published'] ? 'Tirar' : 'Publicar') . ' ' . $notebook['name'] . ' na base de conhecimento'"
+                                                :title="$notebook['published'] ? 'Publicado em /docs desde ' . $notebook['publishedAt'] : 'Não publicado em /docs'">
+                                                <span @class([
+                                                    'block size-5 rounded-full bg-white shadow transition-transform',
+                                                    'translate-x-[10px]' => $notebook['published'],
+                                                    '-translate-x-[10px]' => ! $notebook['published'],
+                                                ])></span>
+                                            </x-forms.button>
+                                        @endif
+
+                                        @if ($notebook['published'])
+                                            <a href="{{ $notebook['readUrl'] }}" target="_blank" rel="noopener"
+                                                class="inline-flex items-center gap-1 text-xs font-medium text-accent no-underline hover:underline"
+                                                title="Abrir em /docs">
+                                                {{ $canPublish ? 'Abrir' : 'Publicado' }}
+                                                <x-heroicon-o-arrow-top-right-on-square class="size-3.5" />
+                                            </a>
+                                        @elseif (! $canPublish)
+                                            <span class="text-faint">—</span>
+                                        @endif
+                                    </div>
                                 </td>
                                 <td class="py-2.5 pl-3 pr-4">
                                     <div class="flex items-center justify-end gap-1">

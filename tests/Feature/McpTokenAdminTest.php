@@ -135,8 +135,8 @@ it('lights the sidebar entry for an admin and hides it from everyone else', func
 
     $writer = $this->actingAs(User::factory()->editor()->create())->get(route('solutions.index'))->getContent();
     expect($writer)->not->toContain(route('mcp-tokens.index'))
-        // The sibling gated entry still works — the per-item model did not
-        // break the one that was already there.
+        // The sibling entries gated on another model still work — the
+        // per-item model did not break the ones that default to Notebook.
         ->and($this->actingAs(mcpUser(UserRole::Admin))->get(route('solutions.index'))->getContent())
-        ->toContain(route('docs.settings'));
+        ->toContain(route('notebooks.index'));
 });

@@ -21,8 +21,8 @@ use Illuminate\View\Component;
  * the internal knowledge base (`/docs`, any Leo account) and the magic link
  * (no account at all). They are routinely mistaken for each other, and an admin
  * reaching for "compartilhar" almost always means the first. The knowledge-base
- * switch posts to `KnowledgeBaseSettingsController::update()`, which answers
- * with this slot AND with the settings list — the other screen that can flip
+ * switch posts to `NotebookPublicationController::update()`, which answers
+ * with this slot AND with the cadernos catalog — the other screen that can flip
  * the same column.
  */
 class SharePanel extends Component

@@ -4,7 +4,8 @@ paths:
   - "app/Support/Documentation/ReaderUrls.php"
   - "app/Http/Controllers/PublicDocumentationController.php"
   - "app/Http/Controllers/KnowledgeBaseController.php"
-  - "app/Http/Controllers/KnowledgeBaseSettingsController.php"
+  - "app/Http/Controllers/NotebookPublicationController.php"
+  - "app/View/Components/Notebooks/Index.php"
   - "app/Policies/NotebookPolicy.php"
   - "resources/views/docs/**"
   - "resources/views/public/**"
@@ -67,10 +68,14 @@ Five rules that are easy to half-implement:
   link is an editing affordance.
 
 **Publishing is `NotebookPolicy::administer` (admin), and it is flipped from two
-screens.** `/docs/settings` lists every caderno with its switch and answers
-"what is published today"; the switch on each caderno's own share panel is how
-it is normally flipped, because that is where an admin already is when the
-question occurs to them. One column, one endpoint
+screens.** The cadernos catalog (`/notebooks`) carries an "Em /docs" column —
+a switch for an admin (`administerAny`, asked once per render), the state for
+everybody else — and its status filter answers "what is published today"; the
+switch on each caderno's own share panel is the other caller, because that is
+where an admin already is when the question occurs to them. There is no
+`/docs/settings` screen any more: it listed the same cadernos a second time,
+with the same search, to flip this one column, and was folded into the catalog
+(2026-10-10). One column, one endpoint
 (`notebooks.publication`), and the response carries BOTH slots — forgetting one
 leaves the other screen showing a switch in the wrong position. `published_at`
 is deliberately outside `$fillable`, like `parent_id` on a page: the rename
