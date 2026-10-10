@@ -7,6 +7,9 @@
 //   {% change aspect="…" before="…" after="…" %}…{% endscene %}`
 // - "Árvore" → `{% scene type="tree" %}{% node level="0" label="…" %}…
 //   {% endscene %}` — rows with a depth, indented, ⇤/⇥ to change it
+// - "Comparação lado a lado" → `{% scene type="compare" %}{% option name="…" %}…
+//   {% criterion name="…" %}+ valor{% endcriterion %}…{% endscene %}` — two
+//   linked lists, so its rows are CompareForm's rather than the generic kind
 //
 // (docs-markdown.js writes and reads both; GitbookRenderer emits them as an
 // ordered list / a table / nested lists that the reader animates.)
@@ -41,6 +44,8 @@ const STEPS_ICON = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" 
 const BEFORE_AFTER_ICON = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="7" height="14" rx="1.5" stroke-dasharray="2.5 2.5"/><rect x="14.5" y="5" width="7" height="14" rx="1.5"/><path d="M10.5 12h3M12.3 10.5 13.8 12l-1.5 1.5"/></svg>'
 
 const TREE_ICON = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8.5" y="2.5" width="7" height="5" rx="1.2"/><rect x="2.5" y="16.5" width="7" height="5" rx="1.2"/><rect x="14.5" y="16.5" width="7" height="5" rx="1.2"/><path d="M12 7.5v4.5M6 16.5V12h12v4.5"/></svg>'
+
+const COMPARE_ICON = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16M3 10h18"/></svg>'
 
 const SPARKLES = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.8 15.9 9 18.8l-.8-2.9a4.5 4.5 0 0 0-3.1-3.1L2.2 12l2.9-.8a4.5 4.5 0 0 0 3.1-3.1L9 5.2l.8 2.9a4.5 4.5 0 0 0 3.1 3.1l2.9.8-2.9.8a4.5 4.5 0 0 0-3.1 3.1ZM18.3 8.7 18 9.8l-.3-1.1a3.4 3.4 0 0 0-2.4-2.4L14.2 6l1.1-.3a3.4 3.4 0 0 0 2.4-2.4L18 2.2l.3 1.1a3.4 3.4 0 0 0 2.4 2.4l1.1.3-1.1.3a3.4 3.4 0 0 0-2.4 2.4Z"/></svg>'
 
@@ -113,6 +118,20 @@ const TYPES = {
         levels: true,
         filled: (row) => row.label.trim(),
     },
+    compare: {
+        name: 'Comparação lado a lado',
+        icon: COMPARE_ICON,
+        focus: 'Sobre o quê? (opcional) — ex.: as opções para isolar SAP e Viasoft',
+        caption: 'Legenda (opcional) — ex.: como isolar as integrações do SAP e da Viasoft',
+        replace: 'Substituir as opções e os critérios atuais pela comparação gerada a partir da página?',
+        done: 'Comparação gerada. Confira opções, critérios e marcas — dá para editar tudo e marcar a recomendada.',
+        // Two lists that depend on each other (each criterion holds one value
+        // per option), so the rows are not the generic kind: CompareForm owns
+        // them. Assigned below, once the class exists.
+        form: null,
+        fields: [],
+        labels: false,
+    },
 }
 
 /**
@@ -178,8 +197,14 @@ export default class SceneTool {
         this.caption = String(data?.caption || '')
         this.from = String(data?.from || '')
         this.to = String(data?.to || '')
-        this.rows = this.normalizeRows(data?.[this.spec.list])
+        this.rows = this.spec.form ? [] : this.normalizeRows(data?.[this.spec.list])
+        this.form = this.spec.form ? new this.spec.form(this, data || {}) : null
         this.previewTimer = null
+    }
+
+    /** Whether there is anything to draw (and to protect from a regeneration). */
+    hasContent() {
+        return this.form ? this.form.filled() : this.rows.some(this.spec.filled)
     }
 
     normalizeRows(rows) {
@@ -226,6 +251,13 @@ export default class SceneTool {
         this.wrapper.append(this.captionField)
 
         if (this.spec.labels) this.wrapper.append(this.buildLabels())
+
+        if (this.form) {
+            this.wrapper.append(this.form.render())
+            requestAnimationFrame(() => this.preview())
+
+            return this.wrapper
+        }
 
         this.list = el('ol', 'ak-scene-tool__steps')
         this.addBtn = el('button', 'ak-scene-tool__add', {type: 'button'})
@@ -305,7 +337,7 @@ export default class SceneTool {
     async generate() {
         if (!this.config.sceneUrl || this.busy) return
 
-        if (this.rows.some(this.spec.filled) && !window.confirm(this.spec.replace)) return
+        if (this.hasContent() && !window.confirm(this.spec.replace)) return
 
         this.setBusy(true)
 
@@ -326,7 +358,8 @@ export default class SceneTool {
                 throw new Error(data?.message || 'Não foi possível gerar agora. Tente de novo.')
             }
 
-            this.rows = this.normalizeRows(data.scene[this.spec.list])
+            if (this.form) this.form.load(data.scene)
+            else this.rows = this.normalizeRows(data.scene[this.spec.list])
             this.caption = data.scene.caption || ''
             this.captionField.value = this.caption
             if (this.spec.labels) {
@@ -335,7 +368,7 @@ export default class SceneTool {
                 this.fromField.value = this.from
                 this.toField.value = this.to
             }
-            this.drawRows()
+            if (!this.form) this.drawRows()
             this.changed()
             this.status.textContent = this.spec.done
         } catch (error) {
@@ -454,7 +487,7 @@ export default class SceneTool {
      * (resources/data/scene-icons.json, the same file the model is offered),
      * so the picker IS the vocabulary — there is no field to type a name into.
      */
-    iconButton(row) {
+    iconButton(row, redraw = () => this.drawRows()) {
         const label = row.icon ? iconChoices().find(([key]) => key === row.icon)?.[1] : null
         const button = el('button', 'ak-scene-tool__icon-btn' + (label ? ' has-icon' : ''), {
             type: 'button',
@@ -464,13 +497,13 @@ export default class SceneTool {
         button.innerHTML = label ? iconSvg(row.icon, 18) : ICON_PLACEHOLDER
         button.addEventListener('click', (e) => {
             e.stopPropagation()
-            this.picker?.anchor === button ? this.closeIconPicker() : this.openIconPicker(button, row)
+            this.picker?.anchor === button ? this.closeIconPicker() : this.openIconPicker(button, row, redraw)
         })
 
         return button
     }
 
-    openIconPicker(anchor, row) {
+    openIconPicker(anchor, row, redraw = () => this.drawRows()) {
         this.closeIconPicker()
 
         const panel = el('div', 'ak-scene-tool__icons')
@@ -487,7 +520,7 @@ export default class SceneTool {
         const choose = (key) => {
             row.icon = key
             this.closeIconPicker()
-            this.drawRows()
+            redraw()
             this.changed()
         }
 
@@ -544,13 +577,13 @@ export default class SceneTool {
         this.picker = null
     }
 
-    action(glyph, label, run, extra = '', disabled = false) {
+    action(glyph, label, run, extra = '', disabled = false, redraw = () => this.drawRows()) {
         const button = el('button', `ak-scene-tool__action ${extra}`.trim(), {type: 'button', title: label, 'aria-label': label, text: glyph})
         button.disabled = disabled
         button.addEventListener('click', () => {
             run()
             if (this.spec.levels) this.rows = clampLevels(this.rows)
-            this.drawRows()
+            redraw()
             this.changed()
         })
 
@@ -592,6 +625,8 @@ export default class SceneTool {
             scene.from = text(this.from)
             scene.to = text(this.to)
         }
+        if (this.form) return {...scene, ...this.form.scene(trim)}
+
         scene[this.spec.list] = this.rows.map((row) => {
             const copy = {highlight: row.highlight}
             this.spec.fields.forEach(({key}) => { copy[key] = text(row[key]) })
@@ -608,7 +643,7 @@ export default class SceneTool {
     preview() {
         if (!this.stage) return
         // Shown before drawing, so the stage has a width to lay the figure out in.
-        this.wrapper.classList.toggle('no-preview', !this.rows.some(this.spec.filled))
+        this.wrapper.classList.toggle('no-preview', !this.hasContent())
         mountScene(this.stage, this.scene())
     }
 
@@ -617,6 +652,213 @@ export default class SceneTool {
     }
 
     validate(data) {
-        return (data[this.spec.list] || []).some(this.spec.filled)
+        return this.form ? CompareForm.hasContent(data) : (data[this.spec.list] || []).some(this.spec.filled)
     }
 }
+
+/* ======================================================================== */
+/*  "Comparação lado a lado" — options × criteria                           */
+/* ======================================================================== */
+
+const MARKS = ['', 'good', 'partial', 'bad'] // the order a mark button cycles through
+const MARK_LABEL = {'': 'Sem marca', good: 'Atende', partial: 'Atende em parte', bad: 'Não atende'}
+const MARK_GLYPH = {'': '·', good: '✓', partial: '◐', bad: '✗'}
+const LETTERS = ['A', 'B', 'C', 'D']
+const MAX_OPTIONS = 4 // ComparisonScene::MAX_OPTIONS
+const MAX_CRITERIA = 6 // ComparisonScene::MAX_CRITERIA
+
+/**
+ * The rows of a comparison. Two lists that depend on each other: every
+ * criterion holds ONE value per option, in option order — so adding, removing
+ * or moving an option does the same to that column of every criterion. A value
+ * that drifted into its neighbour's column would be a wrong answer that looks
+ * right, which is the failure this class is shaped around.
+ *
+ * It borrows the tool's chrome (rows, actions, the icon picker) and reports
+ * every change through `tool.changed()`.
+ */
+class CompareForm {
+    static hasContent(data) {
+        return (data.options || []).some((o) => String(o.name || '').trim())
+            && (data.criteria || []).some((c) => String(c.name || '').trim())
+    }
+
+    constructor(tool, data) {
+        this.tool = tool
+        this.root = null
+        this.load(data)
+    }
+
+    load(scene) {
+        this.options = (scene.options || []).map((o) => ({
+            name: String(o.name || ''),
+            detail: String(o.detail || ''),
+            icon: String(o.icon || ''),
+            highlight: o.highlight === true,
+        }))
+        this.criteria = (scene.criteria || []).map((c) => ({
+            name: String(c.name || ''),
+            icon: String(c.icon || ''),
+            values: this.options.map((_, j) => ({
+                text: String(c.values?.[j]?.text || ''),
+                mark: MARKS.includes(c.values?.[j]?.mark) ? c.values[j].mark : '',
+            })),
+        }))
+        if (this.root) this.draw()
+    }
+
+    filled() {
+        return CompareForm.hasContent(this)
+    }
+
+    scene(trim = false) {
+        const text = (value) => (trim ? value.trim() : value)
+
+        return {
+            options: this.options.map((o) => ({name: text(o.name), detail: text(o.detail), icon: o.icon, highlight: o.highlight})),
+            criteria: this.criteria.map((c) => ({
+                name: text(c.name),
+                icon: c.icon,
+                values: c.values.map((v) => ({text: text(v.text), mark: v.mark})),
+            })),
+        }
+    }
+
+    render() {
+        this.root = el('div', 'ak-scene-tool__compare')
+        this.draw()
+
+        return this.root
+    }
+
+    draw() {
+        this.tool.closeIconPicker()
+        const redraw = () => this.draw()
+
+        const options = el('ol', 'ak-scene-tool__steps')
+        this.options.forEach((option, j) => options.append(this.optionRow(option, j, redraw)))
+
+        const criteria = el('ol', 'ak-scene-tool__steps')
+        this.criteria.forEach((criterion, r) => criteria.append(this.criterionRow(criterion, r, redraw)))
+
+        this.root.replaceChildren(
+            el('p', 'ak-scene-tool__section', {text: 'Opções — as colunas'}),
+            options,
+            this.addButton('Adicionar opção', this.options.length >= MAX_OPTIONS, () => {
+                this.options.push({name: '', detail: '', icon: '', highlight: false})
+                this.criteria.forEach((c) => c.values.push({text: '', mark: ''}))
+            }),
+            el('p', 'ak-scene-tool__section', {text: 'Critérios — as linhas'}),
+            criteria,
+            this.addButton('Adicionar critério', this.criteria.length >= MAX_CRITERIA, () => {
+                this.criteria.push({name: '', icon: '', values: this.options.map(() => ({text: '', mark: ''}))})
+            }),
+        )
+        this.tool.wrapper?.classList.toggle('is-empty', !this.options.length && !this.criteria.length)
+    }
+
+    addButton(label, hidden, run) {
+        const button = el('button', 'ak-scene-tool__add', {type: 'button'})
+        button.innerHTML = '<span aria-hidden="true">+</span> '
+        button.append(document.createTextNode(label))
+        button.hidden = hidden
+        button.addEventListener('click', () => {
+            run()
+            this.draw()
+            this.tool.changed()
+        })
+
+        return button
+    }
+
+    field(target, key, {placeholder, max, cls}, onInput = null) {
+        const field = input(cls, {placeholder, value: target[key], max})
+        field.addEventListener('input', () => {
+            target[key] = field.value
+            onInput?.()
+            this.tool.changed()
+        })
+
+        return field
+    }
+
+    optionRow(option, j, redraw) {
+        const item = el('li', 'ak-scene-tool__step' + (option.highlight ? ' is-highlight' : ''))
+        const fields = el('div', 'ak-scene-tool__fields')
+        fields.append(
+            // Typing a name relabels that column in every criterion as you go.
+            this.field(option, 'name', {placeholder: `Nome da opção ${LETTERS[j]} — ex.: Opção ${LETTERS[j]}`, max: 28, cls: 'ak-scene-tool__title'}, () => {
+                this.root.querySelectorAll(`[data-option-label="${j}"]`).forEach((label) => { label.textContent = option.name.trim() || `Opção ${LETTERS[j]}` })
+            }),
+            this.field(option, 'detail', {placeholder: 'Detalhe (opcional) — ex.: uma pipeline por ERP', max: 60, cls: 'ak-scene-tool__detail'}),
+        )
+
+        const swap = (a, b) => {
+            ;[this.options[a], this.options[b]] = [this.options[b], this.options[a]]
+            this.criteria.forEach((c) => { [c.values[a], c.values[b]] = [c.values[b], c.values[a]] })
+        }
+        const actions = el('div', 'ak-scene-tool__actions')
+        actions.append(
+            this.tool.action('★', option.highlight ? 'Desmarcar recomendada' : 'Marcar como recomendada', () => {
+                const value = !option.highlight
+                this.options.forEach((other) => { other.highlight = false })
+                option.highlight = value
+            }, option.highlight ? 'is-on' : '', false, redraw),
+            this.tool.action('↑', 'Mover para a esquerda', () => swap(j, j - 1), '', j === 0, redraw),
+            this.tool.action('↓', 'Mover para a direita', () => swap(j, j + 1), '', j === this.options.length - 1, redraw),
+            this.tool.action('×', 'Remover opção', () => {
+                this.options.splice(j, 1)
+                this.criteria.forEach((c) => c.values.splice(j, 1))
+            }, 'is-danger', false, redraw),
+        )
+
+        item.append(el('span', 'ak-scene-tool__num is-letter', {text: LETTERS[j], 'aria-hidden': 'true'}), this.tool.iconButton(option, redraw), fields, actions)
+
+        return item
+    }
+
+    criterionRow(criterion, r, redraw) {
+        const item = el('li', 'ak-scene-tool__step')
+        const fields = el('div', 'ak-scene-tool__fields')
+        fields.append(this.field(criterion, 'name', {placeholder: 'Critério — ex.: Esforço', max: 32, cls: 'ak-scene-tool__title'}))
+
+        const values = el('div', 'ak-scene-tool__values')
+        criterion.values.forEach((value, j) => {
+            const cell = el('div', 'ak-scene-tool__value')
+            const label = el('span', 'ak-scene-tool__value-label', {text: this.options[j].name.trim() || `Opção ${LETTERS[j]}`})
+            label.dataset.optionLabel = String(j)
+
+            const mark = el('button', '', {type: 'button'})
+            const paint = () => {
+                mark.className = `ak-scene-tool__mark is-${value.mark || 'none'}`
+                mark.textContent = MARK_GLYPH[value.mark]
+                mark.title = `${MARK_LABEL[value.mark]} — clique para trocar`
+                mark.setAttribute('aria-label', mark.title)
+            }
+            paint()
+            mark.addEventListener('click', () => {
+                value.mark = MARKS[(MARKS.indexOf(value.mark) + 1) % MARKS.length]
+                paint()
+                this.tool.changed()
+            })
+
+            cell.append(label, mark, this.field(value, 'text', {placeholder: 'Valor — ex.: Baixo', max: 60, cls: 'ak-scene-tool__detail'}))
+            values.append(cell)
+        })
+        fields.append(values)
+
+        const move = (a, b) => { [this.criteria[a], this.criteria[b]] = [this.criteria[b], this.criteria[a]] }
+        const actions = el('div', 'ak-scene-tool__actions')
+        actions.append(
+            this.tool.action('↑', 'Subir', () => move(r, r - 1), '', r === 0, redraw),
+            this.tool.action('↓', 'Descer', () => move(r, r + 1), '', r === this.criteria.length - 1, redraw),
+            this.tool.action('×', 'Remover critério', () => this.criteria.splice(r, 1), 'is-danger', false, redraw),
+        )
+
+        item.append(el('span', 'ak-scene-tool__num', {text: String(r + 1), 'aria-hidden': 'true'}), this.tool.iconButton(criterion, redraw), fields, actions)
+
+        return item
+    }
+}
+
+TYPES.compare.form = CompareForm

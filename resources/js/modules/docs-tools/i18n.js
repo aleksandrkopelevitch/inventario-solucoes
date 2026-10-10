@@ -70,6 +70,7 @@ export const EDITOR_I18N = {
             'Fluxo em etapas': 'Fluxo em etapas',
             'Antes → depois': 'Antes → depois',
             'Árvore': 'Árvore',
+            'Comparação lado a lado': 'Comparação lado a lado',
             // Already PT-BR in the tool itself (SecretInlineTool::title), so
             // this entry is here only to keep the list complete: Editor.js
             // looks every inline tool's name up by its own string.

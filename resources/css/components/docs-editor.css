@@ -1236,3 +1236,49 @@
     color: var(--color-muted);
 }
 .ak-scene-tool__icons-none:hover { color: var(--color-crit); }
+
+/* "Comparação lado a lado": two sections (options, criteria), and in each
+   criterion a grid with one value per option — its option's name, the mark
+   button (· ✓ ◐ ✗, click to cycle) and the text. */
+.ak-scene-tool__section {
+    margin: 0.9rem 0 0;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+}
+.ak-scene-tool__num.is-letter { border-radius: 0.4rem; }
+.ak-scene-tool__values {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 0.4rem;
+}
+.ak-scene-tool__value {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.25rem 0.3rem;
+}
+.ak-scene-tool__value-label {
+    grid-column: 1 / -1;
+    overflow: hidden;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--color-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ak-scene-tool__mark {
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    line-height: 1;
+    color: #fff;
+}
+.ak-scene-tool__mark.is-none { background: var(--color-raised); color: var(--color-faint); }
+.ak-scene-tool__mark.is-good { background: var(--color-accent); }
+.ak-scene-tool__mark.is-partial { background: var(--color-hot); }
+.ak-scene-tool__mark.is-bad { background: var(--color-crit); }

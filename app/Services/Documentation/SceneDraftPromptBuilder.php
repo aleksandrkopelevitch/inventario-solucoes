@@ -5,6 +5,7 @@ namespace App\Services\Documentation;
 use App\Enums\SceneType;
 use App\Support\Documentation\BeforeAfterScene;
 use App\Support\Documentation\BlockVault;
+use App\Support\Documentation\ComparisonScene;
 use App\Support\Documentation\SceneIcons;
 use App\Support\Documentation\SecretText;
 use App\Support\Documentation\StepScene;
@@ -34,6 +35,7 @@ class SceneDraftPromptBuilder
             SceneType::Steps       => $this->stepsPrompt(),
             SceneType::BeforeAfter => $this->beforeAfterPrompt(),
             SceneType::Tree        => $this->treePrompt(),
+            SceneType::Compare     => $this->comparePrompt(),
         };
 
         return <<<PROMPT
@@ -220,6 +222,68 @@ class SceneDraftPromptBuilder
         Se a página NÃO descreve uma hierarquia (é um processo passo a passo,
         uma comparação, um texto corrido), não force: responda
         `{"error": "<em uma frase, por que não há uma hierarquia aqui>"}`.
+        PROMPT;
+    }
+
+    private function comparePrompt(): string
+    {
+        $minOptions = ComparisonScene::MIN_OPTIONS;
+        $maxOptions = ComparisonScene::MAX_OPTIONS;
+        $minCriteria = ComparisonScene::MIN_CRITERIA;
+        $maxCriteria = ComparisonScene::MAX_CRITERIA;
+        $name = ComparisonScene::MAX_NAME;
+        $detail = ComparisonScene::MAX_DETAIL;
+        $criterion = ComparisonScene::MAX_CRITERION;
+        $value = ComparisonScene::MAX_VALUE;
+        $caption = ComparisonScene::MAX_CAPTION;
+
+        return <<<PROMPT
+        A FIGURA É UMA COMPARAÇÃO LADO A LADO: as OPÇÕES que a página compara
+        (alternativas de solução, ferramentas para o mesmo trabalho, planos de
+        um fornecedor) em colunas, e os CRITÉRIOS em linhas — cada célula diz
+        como aquela opção se sai naquele critério.
+
+        FORMATO:
+
+        ```json
+        {
+          "caption": "Como isolar as integrações do SAP e da Viasoft",
+          "options": [
+            {"name": "Opção A", "detail": "Ajustes na pipeline atual", "icon": "configuracao"},
+            {"name": "Opção B", "detail": "Uma pipeline por ERP desde o SVL", "icon": "integracao", "highlight": true}
+          ],
+          "criteria": [
+            {"name": "Isolamento entre ERPs", "icon": "escudo", "values": [
+              {"text": "Filas ainda compartilhadas", "mark": "bad"},
+              {"text": "Total, do trigger à entrega", "mark": "good"}
+            ]},
+            {"name": "Esforço", "icon": "relogio", "values": [
+              {"text": "Baixo, já em produção", "mark": "good"},
+              {"text": "Médio: duas pipelines novas", "mark": "partial"}
+            ]}
+          ]
+        }
+        ```
+
+        REGRAS:
+        - Entre {$minOptions} e {$maxOptions} opções e entre {$minCriteria} e
+          {$maxCriteria} critérios — os que a página de fato usa para comparar.
+        - Opção: `name` curto (até {$name} caracteres), `detail` opcional (até
+          {$detail}). Critério: `name` curto (até {$criterion}).
+        - Cada critério tem `values` com EXATAMENTE um valor por opção, NA
+          MESMA ORDEM das opções.
+        - Cada valor: `text` curto (até {$value} caracteres) e `mark`: "good"
+          (atende bem), "partial" (atende em parte), "bad" (não atende) ou ""
+          (sem juízo — quando a página só descreve). Só marque quando a página
+          disser ou deixar claro; não dê nota por conta própria.
+        - `highlight`: true em NO MÁXIMO UMA opção — a que a página recomenda
+          ou escolheu. Se a página não escolhe, nenhuma.
+        - `caption`: uma linha de até {$caption} caracteres dizendo o que se
+          compara. Pode ficar vazio.
+
+        Se a página NÃO compara alternativas (descreve uma coisa só, um
+        processo, uma mudança no tempo), não force: responda
+        `{"error": "<em uma frase, por que não há uma comparação aqui>"}`.
         PROMPT;
     }
 

@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\Diagram;
 use App\Support\Documentation\BeforeAfterScene;
+use App\Support\Documentation\ComparisonScene;
 use App\Support\Documentation\PageLinks;
 use App\Support\Documentation\SceneIcons;
 use App\Support\Documentation\SecretText;
@@ -43,6 +44,8 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  *       → an animated "antes → depois" (ours) — see renderScene()
  *   {% scene type="tree" %}{% node level="0" label="…" detail="…" %} … {% endscene %}
  *       → an animated "árvore" (ours) — see renderScene()
+ *   {% scene type="compare" %}{% option name="…" detail="…" %} … {% criterion name="…" %}+ texto{% endcriterion %} … {% endscene %}
+ *       → an animated "comparação lado a lado" (ours) — see renderScene()
  *   (every step / change / node may also carry `icon="…"`, a key of SceneIcons)
  *   {% secret %} … {% endsecret %}   (inline, ours)
  *       → a lock the value is NOT inside — see App\Support\Documentation\SecretText
@@ -612,11 +615,11 @@ class GitbookRenderer
 
     /**
      * An animated SCENE — `type="steps"` (the "fluxo em etapas"),
-     * `type="before-after"` (the "antes → depois") or `type="tree"` (the
-     * "árvore").
+     * `type="before-after"` (the "antes → depois"), `type="tree"` (the
+     * "árvore") or `type="compare"` (the "comparação lado a lado").
      *
      * What this emits is the scene's TEXT — the steps as an ordered list, the
-     * changes as a table, a tree as nested lists — because that is what a reader without JavaScript
+     * changes and a comparison as tables, a tree as nested lists — because that is what a reader without JavaScript
      * sees, what a screen reader reads, and what the search index and the MCP
      * server pick up. The animation is drawn over it by docs-scene.js from the
      * same data, carried as JSON on the figure — so there is one renderer of
@@ -637,6 +640,8 @@ class GitbookRenderer
         $steps = [];
         $changes = [];
         $nodes = [];
+        $options = [];
+        $criteria = [];
         $i = 0;
         $n = count($lines);
 
@@ -652,6 +657,34 @@ class GitbookRenderer
                     'detail'    => trim(implode(' ', array_map('trim', $inner))),
                     'highlight' => ($stepAttrs['highlight'] ?? '') === 'true',
                     'icon'      => SceneIcons::sanitize($decode($stepAttrs, 'icon')),
+                ];
+
+                continue;
+            }
+
+            // `{% option %}` is self-closing: one column of a comparison.
+            if (preg_match('/^\{%\s*option(?:\s+(.*?))?\s*%\}$/', $line, $m)) {
+                $optionAttrs = $this->parseAttrs($m[1] ?? '');
+                $options[] = [
+                    'name'      => $decode($optionAttrs, 'name'),
+                    'detail'    => $decode($optionAttrs, 'detail'),
+                    'icon'      => SceneIcons::sanitize($decode($optionAttrs, 'icon')),
+                    'highlight' => ($optionAttrs['highlight'] ?? '') === 'true',
+                ];
+                $i++;
+
+                continue;
+            }
+
+            // `{% criterion %}` carries one value per option as its BODY, one
+            // line each, in option order, each led by its mark (MARK_PREFIXES).
+            if (preg_match('/^\{%\s*criterion(?:\s+(.*?))?\s*%\}$/', $line, $m)) {
+                $criterionAttrs = $this->parseAttrs($m[1] ?? '');
+                [$inner, $i] = $this->consumeUntil($lines, $i + 1, 'criterion');
+                $criteria[] = [
+                    'name'   => $decode($criterionAttrs, 'name'),
+                    'icon'   => SceneIcons::sanitize($decode($criterionAttrs, 'icon')),
+                    'values' => $this->parseCriterionValues($inner),
                 ];
 
                 continue;
@@ -692,7 +725,25 @@ class GitbookRenderer
 
         $nodes = TreeScene::normalizeLevels(array_values(array_filter($nodes, fn (array $node) => $node['label'] !== '')));
 
-        if ($steps === [] && $changes === [] && $nodes === []) {
+        $options = array_values(array_filter($options, fn (array $option) => $option['name'] !== ''));
+        $criteria = array_values(array_filter($criteria, fn (array $criterion) => $criterion['name'] !== ''));
+
+        // A hand-edited criterion may hold more or fewer lines than there are
+        // options: each column gets exactly its own value, padded or cut, so
+        // a value can never slide into a neighbour's column.
+        foreach ($criteria as $k => $criterion) {
+            $criteria[$k]['values'] = array_slice(
+                array_pad($criterion['values'], count($options), ['text' => '', 'mark' => '']),
+                0,
+                count($options),
+            );
+        }
+
+        if ($options === [] || $criteria === []) {
+            $options = $criteria = [];
+        }
+
+        if ($steps === [] && $changes === [] && $nodes === [] && $options === []) {
             return '';
         }
 
@@ -705,6 +756,7 @@ class GitbookRenderer
             $type === StepScene::TYPE && $steps !== []          => ['type' => $type, 'caption' => $caption, 'steps' => $steps],
             $type === BeforeAfterScene::TYPE && $changes !== [] => ['type' => $type, 'caption' => $caption, 'from' => $from, 'to' => $to, 'changes' => $changes],
             $type === TreeScene::TYPE && $nodes !== []          => ['type' => $type, 'caption' => $caption, 'nodes' => $nodes],
+            $type === ComparisonScene::TYPE && $options !== []  => ['type' => $type, 'caption' => $caption, 'options' => $options, 'criteria' => $criteria],
             default                                             => null,
         };
 
@@ -745,6 +797,10 @@ class GitbookRenderer
             $text .= $this->renderOutline($nodes);
         }
 
+        if ($options !== []) {
+            $text .= $this->renderComparisonTable($options, $criteria);
+        }
+
         $data = $scene !== null
             ? ' data-ak-scene="' . e(json_encode($scene, JSON_UNESCAPED_UNICODE)) . '"'
             : '';
@@ -756,6 +812,83 @@ class GitbookRenderer
             . $text
             . ($caption !== '' ? '<figcaption>' . e($caption) . '</figcaption>' : '')
             . '</figure>';
+    }
+
+    /**
+     * How a comparison value's line starts, and what that start means. Every
+     * line carries one, the neutral `·` included, so a value whose text
+     * happens to begin with "-" is never read as a mark.
+     */
+    private const MARK_PREFIXES = ['+' => 'good', '~' => 'partial', '-' => 'bad', '·' => ''];
+
+    /** The words a screen reader says for each mark, and the glyph it stands beside. */
+    private const MARK_LABELS = [
+        'good'    => ['✓', 'Atende'],
+        'partial' => ['◐', 'Atende em parte'],
+        'bad'     => ['✗', 'Não atende'],
+    ];
+
+    /**
+     * @param  array<int, string>  $lines
+     * @return list<array{text: string, mark: string}>
+     */
+    private function parseCriterionValues(array $lines): array
+    {
+        $values = [];
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+
+            if ($line === '') {
+                continue;
+            }
+
+            $prefix = mb_substr($line, 0, 1);
+            $mark = self::MARK_PREFIXES[$prefix] ?? null;
+
+            $values[] = $mark === null
+                // No recognised prefix: the whole line is the text, unmarked.
+                ? ['text' => $line, 'mark' => '']
+                : ['text' => trim(mb_substr($line, 1)), 'mark' => $mark];
+        }
+
+        return $values;
+    }
+
+    /**
+     * A comparison as a table — options across, criteria down — the text a
+     * reader without JavaScript, a screen reader and the search index get.
+     * Each mark is a glyph for the eye and a word for the ear.
+     *
+     * @param  list<array{name: string, detail: string, icon: string, highlight: bool}>  $options
+     * @param  list<array{name: string, icon: string, values: list<array{text: string, mark: string}>}>  $criteria
+     */
+    private function renderComparisonTable(array $options, array $criteria): string
+    {
+        $head = '';
+        foreach ($options as $option) {
+            $head .= '<th scope="col"' . ($option['highlight'] ? ' class="is-highlight"' : '') . '>'
+                . e($option['name'])
+                . ($option['highlight'] ? ' <em class="ak-scene__badge">Recomendada</em>' : '')
+                . ($option['detail'] !== '' ? '<br><span class="ak-scene__detail">' . e($option['detail']) . '</span>' : '')
+                . '</th>';
+        }
+
+        $rows = '';
+        foreach ($criteria as $criterion) {
+            $cells = '';
+            foreach ($criterion['values'] as $k => $value) {
+                $mark = self::MARK_LABELS[$value['mark']] ?? null;
+                $cells .= '<td' . (($options[$k]['highlight'] ?? false) ? ' class="is-highlight"' : '') . '>'
+                    . ($mark ? '<span class="ak-scene__mark is-' . $value['mark'] . '" aria-hidden="true">' . $mark[0] . '</span><span class="sr-only">' . $mark[1] . ': </span>' : '')
+                    . e($value['text'])
+                    . '</td>';
+            }
+            $rows .= '<tr><th scope="row">' . e($criterion['name']) . '</th>' . $cells . '</tr>';
+        }
+
+        return '<table class="ak-scene__text ak-scene__compare"><thead><tr><th scope="col"></th>' . $head . '</tr></thead>'
+            . '<tbody>' . $rows . '</tbody></table>';
     }
 
     /**

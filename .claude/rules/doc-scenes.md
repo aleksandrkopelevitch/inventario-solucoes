@@ -3,6 +3,7 @@ paths:
   - "app/Support/Documentation/StepScene.php"
   - "app/Support/Documentation/BeforeAfterScene.php"
   - "app/Support/Documentation/TreeScene.php"
+  - "app/Support/Documentation/ComparisonScene.php"
   - "app/Support/Documentation/SceneIcons.php"
   - "resources/data/scene-icons.json"
   - "app/Enums/SceneType.php"
@@ -18,7 +19,7 @@ paths:
 ### Animated scenes — the model picks the words, the code draws the picture
 
 A SCENE is an animated figure inside a documentation page — the seventh
-construct of the dialect, the third of our own. Three types exist, and
+construct of the dialect, the third of our own. Four types exist, and
 `App\Enums\SceneType` is the one switch everything turns on (prompt, IR,
 editor form, renderer):
 
@@ -44,6 +45,24 @@ editor form, renderer):
   last level. Drawn as an org chart when 2–4 branches fit side by side, as an
   indented outline (capped at 620px, centred) otherwise; its lines have no
   arrowheads and no streaming dots — they mean "contains", not "goes to".
+- **"Comparação lado a lado"** — `{% scene type="compare" %}` with one
+  self-closing `{% option name detail icon highlight %}` per column, then one
+  `{% criterion name icon %}` per row whose BODY is one value per option, in
+  option order, each line led by its mark: `+` good (atende), `~` partial,
+  `-` bad, `·` none — EVERY line carries one, so a text that starts with "-"
+  is never misread (`GitbookRenderer::MARK_PREFIXES`, mirrored in
+  docs-markdown.js). `ComparisonScene`: 2–4 options, 2–6 criteria, at most one
+  recommended option. Unlike an icon, a MARK is content — an unknown one is a
+  validation error — and a criterion whose value count does not match the
+  options is refused, since a value in the wrong column is a wrong answer
+  that looks right; a hand-edited one is padded/cut to the column count on
+  both ends instead. It is not the "antes → depois": that compares two
+  moments of one thing, this compares alternatives. Drawn as a matrix (rows
+  fill in, marks stamp, then the recommended column's lime band + "Recomendada"
+  land last as the verdict), stacked per criterion on a narrow screen. Its
+  editor is CompareForm, not the generic rows: two linked lists, so adding,
+  moving or removing an option does the same to that column of every
+  criterion.
 
 A new type is a new `SceneType` case plus its IR, its prompt section
 (`SceneDraftPromptBuilder`), its row spec in the editor tool's `TYPES` table and
@@ -68,8 +87,8 @@ markup that could carry a script.
 Four things that are easy to undo:
 
 - **ONE renderer, in the browser.** GitbookRenderer emits the text (the steps as
-  an `<ol>`, the changes as a `<table>`, a tree as nested `<ul>`s, all
-  `.ak-scene__text`) plus the same
+  an `<ol>`, the changes and a comparison as `<table>`s, a tree as nested
+  `<ul>`s, all `.ak-scene__text`) plus the same
   data as JSON on the figure (`data-ak-scene`), and
   `docs-scene.js` draws over it; the editor's block calls the same
   `mountScene()` for its live preview. A PHP copy of the picture would drift,

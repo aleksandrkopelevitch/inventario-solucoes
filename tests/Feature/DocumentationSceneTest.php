@@ -8,6 +8,7 @@ use App\Services\Documentation\SceneDraftPromptBuilder;
 use App\Services\Documentation\SceneDraftService;
 use App\Support\Documentation\BeforeAfterScene;
 use App\Support\Documentation\BlockVault;
+use App\Support\Documentation\ComparisonScene;
 use App\Support\Documentation\SceneIcons;
 use App\Support\Documentation\StepScene;
 use App\Support\Documentation\TreeScene;
@@ -546,4 +547,115 @@ it('offers the model the catalogue, by name', function () {
         ->toContain('documento (Documento)')
         ->toContain('banco-de-dados (Banco de dados)')
         ->toContain('Nunca invente um nome fora da lista');
+});
+
+// ---------------------------------------------------------------------------
+// "Comparação lado a lado"
+// ---------------------------------------------------------------------------
+
+function validComparisonMatrix(): array
+{
+    return [
+        'caption' => 'Como isolar as integrações',
+        'options' => [
+            ['name' => 'Opção A', 'detail' => 'Ajustes na pipeline atual', 'icon' => 'configuracao'],
+            ['name' => 'Opção B', 'detail' => 'Uma pipeline por ERP', 'highlight' => true],
+        ],
+        'criteria' => [
+            ['name' => 'Isolamento', 'icon' => 'escudo', 'values' => [['text' => 'Filas compartilhadas', 'mark' => 'bad'], ['text' => 'Total', 'mark' => 'good']]],
+            ['name' => 'Esforço', 'values' => [['text' => 'Baixo', 'mark' => 'good'], ['text' => 'Médio', 'mark' => 'partial']]],
+        ],
+    ];
+}
+
+it('accepts a comparison of options against criteria', function () {
+    expect(ComparisonScene::validate(validComparisonMatrix()))->toBe([]);
+
+    $scene = SceneType::Compare->normalize(validComparisonMatrix());
+
+    expect($scene['type'])->toBe('compare')
+        ->and($scene['options'][1]['highlight'])->toBeTrue()
+        ->and($scene['options'][0]['icon'])->toBe('configuracao')
+        ->and($scene['criteria'][1]['values'][1])->toBe(['text' => 'Médio', 'mark' => 'partial']);
+});
+
+it('refuses a value in the wrong column, an unknown mark or an empty cell', function () {
+    $payload = validComparisonMatrix();
+    $payload['criteria'][0]['values'][] = ['text' => 'Sobrando', 'mark' => 'good'];
+    $payload['criteria'][1]['values'][0]['mark'] = 'otimo';
+    $payload['criteria'][1]['values'][1] = ['text' => '', 'mark' => ''];
+    $payload['options'][0]['highlight'] = true;
+
+    $problems = implode(' ', ComparisonScene::validate($payload));
+
+    expect($problems)
+        ->toContain('O critério "Isolamento" tem 3 valores, mas há 2 opções')
+        ->toContain('O "mark" do valor 1 do critério "Esforço" deve ser "good", "partial", "bad" ou vazio')
+        ->toContain('O valor 2 do critério "Esforço" está vazio')
+        ->toContain('No máximo UMA opção');
+});
+
+it('renders a comparison as a table, with each mark said in words too', function () {
+    $html = app(GitbookRenderer::class)->render(<<<'MD'
+        {% scene type="compare" caption="Isolamento" %}
+        {% option name="Opção A" detail="Pipeline atual" %}
+        {% option name="Opção B" highlight="true" icon="integracao" %}
+        {% criterion name="Isolamento" icon="escudo" %}
+        - Filas compartilhadas
+        + Total
+        {% endcriterion %}
+        {% criterion name="Custo" %}
+        · -10% no frete
+        ~ Médio
+        + Sobrando numa coluna que não existe
+        {% endcriterion %}
+        {% criterion name="Prazo" %}
+        + Imediato
+        {% endcriterion %}
+        {% endscene %}
+        MD);
+
+    expect($html)
+        ->toContain('<table class="ak-scene__text ak-scene__compare">')
+        ->toContain('<th scope="col" class="is-highlight">Opção B <em class="ak-scene__badge">Recomendada</em></th>')
+        ->toContain('<td><span class="ak-scene__mark is-bad" aria-hidden="true">✗</span><span class="sr-only">Não atende: </span>Filas compartilhadas</td>')
+        // The neutral marker keeps a text that itself starts with "-" a text.
+        ->toContain('<td>-10% no frete</td>');
+
+    preg_match('/data-ak-scene="([^"]*)"/', $html, $m);
+    $scene = json_decode(html_entity_decode($m[1], ENT_QUOTES), true);
+
+    // Every criterion holds exactly one value per option: the extra is cut,
+    // the missing one padded — nothing slides into a neighbour's column.
+    expect($scene['type'])->toBe('compare')
+        ->and(array_map(fn (array $c) => count($c['values']), $scene['criteria']))->toBe([2, 2, 2])
+        ->and($scene['criteria'][1]['values'][0])->toBe(['text' => '-10% no frete', 'mark' => ''])
+        ->and($scene['criteria'][2]['values'][1])->toBe(['text' => '', 'mark' => ''])
+        ->and($scene['options'][1]['icon'])->toBe('integracao');
+});
+
+it('proposes options against criteria with its own prompt', function () {
+    $page = scenePage('A Opção A ajusta a pipeline atual; a Opção B separa por ERP e foi a escolhida.');
+    $service = fakeSceneService(sceneJson(validComparisonMatrix()));
+    app()->instance(SceneDraftService::class, $service);
+
+    $this->actingAs(User::factory()->editor()->create())
+        ->postJson(route('notebooks.pages.scene', [$page->notebook, $page]), ['type' => 'compare'])
+        ->assertOk()
+        ->assertJsonPath('scene.type', 'compare')
+        ->assertJsonCount(2, 'scene.criteria.0.values');
+
+    expect(app(SceneDraftPromptBuilder::class)->systemPrompt(SceneType::Compare))
+        ->toContain('COMPARAÇÃO LADO A LADO')
+        ->toContain('EXATAMENTE um valor por opção');
+});
+
+it('says when a page compares nothing', function () {
+    $page = scenePage();
+    app()->instance(SceneDraftService::class, fakeSceneService(sceneJson(['error' => 'A página descreve um sistema só.'])));
+
+    $this->actingAs(User::factory()->editor()->create())
+        ->postJson(route('notebooks.pages.scene', [$page->notebook, $page]), ['type' => 'compare'])
+        ->assertStatus(422)
+        ->assertJsonPath('message', 'Não dá para montar uma comparação lado a lado a partir desta página: A página descreve um sistema só.');
 });

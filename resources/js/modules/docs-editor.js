@@ -244,7 +244,7 @@ async function loadTools({uploadUrl = '', catalogUrl = '', linkTargetsUrl = '', 
         // description are plain text on both ends (see docs-tools/cards.js).
         cards: {class: CardsTool, config: {uploadUrl, cardTargetsUrl}},
         // The animated scenes — one "/" entry per type ("Fluxo em etapas",
-        // "Antes → depois", "Árvore") of one tool. No `inlineToolbar`: their fields are plain text
+        // "Antes → depois", "Árvore", "Comparação lado a lado") of one tool. No `inlineToolbar`: their fields are plain text
         // the figure draws inside fixed cards.
         scene: {class: SceneTool, config: {sceneUrl}},
         tabs: {class: TabsTool, config: {EditorJS, getTools: buildTools, wire, onChange: markDirty, uploadUrl, i18n: EDITOR_I18N}},
