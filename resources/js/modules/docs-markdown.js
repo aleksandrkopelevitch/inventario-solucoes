@@ -9,7 +9,8 @@
 // through GitBook notation: hint ({% hint %}), tabs ({% tabs %}), file
 // ({% file %}), diagram ({% diagram %} — a citation of a catalog drawing,
 // ours), cards ({% cards %} — a grid of product cards, also ours) and scenes
-// ({% scene type="steps" %} — an animated "fluxo em etapas", ours too).
+// ({% scene type="steps|before-after" %} — an animated "fluxo em etapas" or
+// "antes → depois", ours too).
 //
 // secret ({% secret %}…{% endsecret %}) is the only INLINE construct: it lives
 // inside a block's text rather than as a block of its own, so it is handled in
@@ -502,32 +503,59 @@ function fileSrc(file) {
 }
 
 /**
- * An animated scene — today the "fluxo em etapas". The scene's own settings are
- * its type and caption; each step is `{% step %}` with the detail as its BODY,
- * the way a card carries its description (text somebody wrote has no business
- * being escaped into a quoted attribute). `highlight` is written only when on.
+ * An animated scene. Its own settings are its type and caption (plus, for an
+ * "antes → depois", the two column labels `from`/`to`); then one line per row:
  *
- * Steps with nothing in them are dropped, and a scene with no step left
+ * - "fluxo em etapas": `{% step %}` with the detail as its BODY, the way a card
+ *   carries its description. `highlight` is written only when on.
+ * - "antes → depois": `{% change aspect before after %}`, self-closing — both
+ *   sides are one short line, and an empty side is meaningful (new / gone), so
+ *   it is written as an empty attribute rather than left out.
+ *
+ * Rows with nothing in them are dropped, and a scene with no row left
  * serializes to nothing — the same call an empty card grid makes.
  */
 function serializeScene(d) {
-    const inner = (d.steps || [])
-        .filter((step) => (step.title || '').trim() || (step.detail || '').trim())
-        .map((step) => {
-            const attrs = [`title="${escapeAttr((step.title || '').trim())}"`]
-            if (step.highlight) attrs.push('highlight="true"')
-            const body = (step.detail || '').replace(/\s+/g, ' ').trim()
+    const oneLine = (value) => String(value || '').replace(/\s+/g, ' ').trim()
+    const type = d.type || 'steps'
+    let inner = ''
+    let extra = ''
 
-            return `{% step ${attrs.join(' ')} %}\n${body === '' ? '' : body + '\n'}{% endstep %}`
-        })
-        .join('\n')
+    if (type === 'before-after') {
+        inner = (d.changes || [])
+            .filter((change) => oneLine(change.before) || oneLine(change.after))
+            .map((change) => {
+                const attrs = [
+                    `aspect="${escapeAttr(oneLine(change.aspect))}"`,
+                    `before="${escapeAttr(oneLine(change.before))}"`,
+                    `after="${escapeAttr(oneLine(change.after))}"`,
+                ]
+                if (change.highlight) attrs.push('highlight="true"')
+
+                return `{% change ${attrs.join(' ')} %}`
+            })
+            .join('\n')
+        if (oneLine(d.from)) extra += ` from="${escapeAttr(oneLine(d.from))}"`
+        if (oneLine(d.to)) extra += ` to="${escapeAttr(oneLine(d.to))}"`
+    } else {
+        inner = (d.steps || [])
+            .filter((step) => oneLine(step.title) || oneLine(step.detail))
+            .map((step) => {
+                const attrs = [`title="${escapeAttr(oneLine(step.title))}"`]
+                if (step.highlight) attrs.push('highlight="true"')
+                const body = oneLine(step.detail)
+
+                return `{% step ${attrs.join(' ')} %}\n${body === '' ? '' : body + '\n'}{% endstep %}`
+            })
+            .join('\n')
+    }
 
     if (inner === '') return ''
 
-    const caption = (d.caption || '').replace(/\s+/g, ' ').trim()
+    const caption = oneLine(d.caption)
     const captionAttr = caption ? ` caption="${escapeAttr(caption)}"` : ''
 
-    return `{% scene type="${escapeAttr(d.type || 'steps')}"${captionAttr} %}\n${inner}\n{% endscene %}`
+    return `{% scene type="${escapeAttr(type)}"${captionAttr}${extra} %}\n${inner}\n{% endscene %}`
 }
 
 function escapeAttr(s) {
@@ -619,7 +647,14 @@ function parseLines(lines) {
             i = next
             blocks.push({
                 type: 'scene',
-                data: {type: attrs.type || 'steps', caption: decodeAttr(attrs.caption || ''), steps: parseSceneSteps(inner)},
+                data: {
+                    type: attrs.type || 'steps',
+                    caption: decodeAttr(attrs.caption || ''),
+                    from: decodeAttr(attrs.from || ''),
+                    to: decodeAttr(attrs.to || ''),
+                    steps: parseSceneSteps(inner),
+                    changes: parseSceneChanges(inner),
+                },
             })
             continue
         }
@@ -812,6 +847,23 @@ function parseSceneSteps(lines) {
         i++
     }
     return steps
+}
+
+/** The rows of an "antes → depois" — `{% change %}` is self-closing. */
+function parseSceneChanges(lines) {
+    return lines
+        .map((line) => line.trim().match(/^\{%\s*change(?:\s+(.*?))?\s*%\}$/))
+        .filter(Boolean)
+        .map((m) => {
+            const attrs = parseAttrs(m[1] || '')
+
+            return {
+                aspect: decodeAttr(attrs.aspect || ''),
+                before: decodeAttr(attrs.before || ''),
+                after: decodeAttr(attrs.after || ''),
+                highlight: attrs.highlight === 'true',
+            }
+        })
 }
 
 function isListItem(line) {

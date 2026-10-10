@@ -243,8 +243,9 @@ async function loadTools({uploadUrl = '', catalogUrl = '', linkTargetsUrl = '', 
         // invitation to write markup the renderer has to throw away. Title and
         // description are plain text on both ends (see docs-tools/cards.js).
         cards: {class: CardsTool, config: {uploadUrl, cardTargetsUrl}},
-        // "Fluxo em etapas" — the first animated scene. No `inlineToolbar`: its
-        // fields are plain text the figure draws inside fixed cards.
+        // The animated scenes — two "/" entries ("Fluxo em etapas", "Antes →
+        // depois") of one tool. No `inlineToolbar`: their fields are plain text
+        // the figure draws inside fixed cards.
         scene: {class: SceneTool, config: {sceneUrl}},
         tabs: {class: TabsTool, config: {EditorJS, getTools: buildTools, wire, onChange: markDirty, uploadUrl, i18n: EDITOR_I18N}},
         inlineCode: {class: InlineCode},

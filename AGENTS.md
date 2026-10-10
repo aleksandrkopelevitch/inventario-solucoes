@@ -58,7 +58,7 @@ if a rule you expect is not here, it is in one of these:
 | `docs-secrets.md` | `{% secret %}`, the reveal action, the throttle |
 | `documentation-assistant.md` | the Assiste IA chat, its vaults and its prompt contract |
 | `page-to-diagram-draft.md` | drawing a page: the draft IR, exact name resolution, the one synchronous model call |
-| `doc-scenes.md` | animated scenes in a page ("Fluxo em etapas"): the model picks words, `docs-scene.js` draws |
+| `doc-scenes.md` | animated scenes in a page ("Fluxo em etapas", "Antes → depois"): the model picks words, `docs-scene.js` draws; the pause button |
 | `diagram-models.md` | the four diagram models, the semantics/geometry split, the lifeline and the AS IS × TO BE diff |
 | `cati-submissions.md` | the committee module: stages, the checklist, the interview, the deck, the approved topology |
 | `digibee-knowledge-base.md` | the two Digibee corpora, redaction, `digibeectl` boundaries |

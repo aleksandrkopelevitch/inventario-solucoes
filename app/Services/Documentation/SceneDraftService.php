@@ -2,15 +2,16 @@
 
 namespace App\Services\Documentation;
 
+use App\Enums\SceneType;
 use App\Exceptions\SceneDraftFailed;
 use App\Support\Documentation\ModelJson;
-use App\Support\Documentation\StepScene;
 use Laravel\Ai\Responses\AgentResponse;
 
 use function Laravel\Ai\agent;
 
 /**
- * Proposes a "fluxo em etapas" from a page's text.
+ * Proposes an animated scene — a "fluxo em etapas" or an "antes → depois" —
+ * from a page's text.
  *
  * The same shape as DiagramDraftService, for the same reasons: one model call
  * and at most ONE repair round (the IR is small, and a payload still wrong
@@ -29,49 +30,52 @@ class SceneDraftService
 {
     public function __construct(private readonly SceneDraftPromptBuilder $prompts) {}
 
-    public function draft(string $title, string $content, ?string $focus = null): StepScene
+    /**
+     * @return array<string, mixed> the scene in its stored shape (SceneType::normalize())
+     */
+    public function draft(SceneType $type, string $title, string $content, ?string $focus = null): array
     {
         if (trim($content) === '') {
-            throw SceneDraftFailed::emptyPage();
+            throw SceneDraftFailed::emptyPage($type);
         }
 
-        $payload = ModelJson::extract($this->prompt($this->prompts->userPrompt($title, $content, $focus))->text);
+        $payload = ModelJson::extract($this->prompt($type, $this->prompts->userPrompt($title, $content, $focus))->text);
 
         if ($payload === null) {
             throw SceneDraftFailed::noJson();
         }
 
-        // The prompt's way out: "this page describes no sequence of steps".
-        if (filled($payload['error'] ?? null) && ! isset($payload['steps'])) {
-            throw SceneDraftFailed::notDescribed((string) $payload['error']);
+        // The prompt's way out: "this page describes no sequence / no change".
+        if (filled($payload['error'] ?? null) && ! isset($payload[$type->listKey()])) {
+            throw SceneDraftFailed::notDescribed($type, (string) $payload['error']);
         }
 
-        $problems = StepScene::validate($payload);
+        $problems = $type->validate($payload);
 
         if ($problems !== []) {
             $retry = ModelJson::extract(
-                $this->prompt($this->prompts->repairPrompt(ModelJson::encode($payload), $problems))->text
+                $this->prompt($type, $this->prompts->repairPrompt(ModelJson::encode($payload), $problems))->text
             );
 
             if ($retry === null) {
-                throw SceneDraftFailed::invalidDraft($problems);
+                throw SceneDraftFailed::invalidDraft($type, $problems);
             }
 
             $payload = $retry;
-            $problems = StepScene::validate($payload);
+            $problems = $type->validate($payload);
         }
 
         if ($problems !== []) {
-            throw SceneDraftFailed::invalidDraft($problems);
+            throw SceneDraftFailed::invalidDraft($type, $problems);
         }
 
-        return StepScene::fromArray($payload);
+        return $type->normalize($payload);
     }
 
     /** Protected so tests can substitute the real API call with a test double. */
-    protected function prompt(string $prompt): AgentResponse
+    protected function prompt(SceneType $type, string $prompt): AgentResponse
     {
-        return agent(instructions: $this->prompts->systemPrompt())->prompt(
+        return agent(instructions: $this->prompts->systemPrompt($type))->prompt(
             $prompt,
             provider: config('services.documentation_ai.provider'),
             model: config('services.documentation_ai.model'),
