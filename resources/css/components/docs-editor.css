@@ -1159,3 +1159,10 @@
     .ak-scene-tool__pair { grid-template-columns: minmax(0, 1fr); }
     .ak-scene-tool__pair .ak-scene-tool__arrow { display: none; }
 }
+
+/* "Árvore": a row's marker is its DEPTH, not a count — the root solid green,
+   a branch outlined, a leaf a small grey dot. */
+.ak-scene-tool__num.is-level-0 { background: var(--color-accent); }
+.ak-scene-tool__num.is-level-1 { background: transparent; box-shadow: inset 0 0 0 2px var(--color-accent); }
+.ak-scene-tool__num.is-level-2 { width: 0.7rem; height: 0.7rem; margin: 0.7rem 0.4rem 0; background: var(--color-faint); }
+.ak-scene-tool__step { transition: margin-left 0.15s; }

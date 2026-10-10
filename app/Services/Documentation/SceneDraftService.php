@@ -5,13 +5,14 @@ namespace App\Services\Documentation;
 use App\Enums\SceneType;
 use App\Exceptions\SceneDraftFailed;
 use App\Support\Documentation\ModelJson;
+use Illuminate\Http\Client\ConnectionException;
 use Laravel\Ai\Responses\AgentResponse;
 
 use function Laravel\Ai\agent;
 
 /**
- * Proposes an animated scene — a "fluxo em etapas" or an "antes → depois" —
- * from a page's text.
+ * Proposes an animated scene — a "fluxo em etapas", an "antes → depois" or an
+ * "árvore" — from a page's text.
  *
  * The same shape as DiagramDraftService, for the same reasons: one model call
  * and at most ONE repair round (the IR is small, and a payload still wrong
@@ -39,14 +40,15 @@ class SceneDraftService
             throw SceneDraftFailed::emptyPage($type);
         }
 
-        $payload = ModelJson::extract($this->prompt($type, $this->prompts->userPrompt($title, $content, $focus))->text);
+        $payload = ModelJson::extract($this->ask($type, $this->prompts->userPrompt($title, $content, $focus)));
 
         if ($payload === null) {
             throw SceneDraftFailed::noJson();
         }
 
-        // The prompt's way out: "this page describes no sequence / no change".
-        if (filled($payload['error'] ?? null) && ! isset($payload[$type->listKey()])) {
+        // The prompt's way out: "this page describes no sequence / no change /
+        // no hierarchy".
+        if (filled($payload['error'] ?? null) && ! isset($payload[$type->answerKey()])) {
             throw SceneDraftFailed::notDescribed($type, (string) $payload['error']);
         }
 
@@ -54,7 +56,7 @@ class SceneDraftService
 
         if ($problems !== []) {
             $retry = ModelJson::extract(
-                $this->prompt($type, $this->prompts->repairPrompt(ModelJson::encode($payload), $problems))->text
+                $this->ask($type, $this->prompts->repairPrompt(ModelJson::encode($payload), $problems))
             );
 
             if ($retry === null) {
@@ -70,6 +72,24 @@ class SceneDraftService
         }
 
         return $type->normalize($payload);
+    }
+
+    /**
+     * One call, with the one failure that is nobody's fault turned into words.
+     *
+     * The call answers inside a request with a ceiling (`scene_timeout`), and
+     * the provider does sometimes hang on a two-thousand-character page: a
+     * real run timed out at 45s on one page and answered in 7s on the next. As
+     * a raw 500 the editor could only say "não foi possível"; as this it says
+     * what happened and that trying again is the fix.
+     */
+    private function ask(SceneType $type, string $prompt): string
+    {
+        try {
+            return $this->prompt($type, $prompt)->text;
+        } catch (ConnectionException) {
+            throw SceneDraftFailed::unavailable();
+        }
     }
 
     /** Protected so tests can substitute the real API call with a test double. */

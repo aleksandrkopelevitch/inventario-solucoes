@@ -4,6 +4,7 @@ namespace App\Enums;
 
 use App\Support\Documentation\BeforeAfterScene;
 use App\Support\Documentation\StepScene;
+use App\Support\Documentation\TreeScene;
 
 /**
  * The kinds of animated SCENE a documentation page can carry — the `type` of a
@@ -21,12 +22,14 @@ enum SceneType: string
 {
     case Steps = 'steps';
     case BeforeAfter = 'before-after';
+    case Tree = 'tree';
 
     public function label(): string
     {
         return match ($this) {
             self::Steps       => 'Fluxo em etapas',
             self::BeforeAfter => 'Antes → depois',
+            self::Tree        => 'Árvore',
         };
     }
 
@@ -39,6 +42,7 @@ enum SceneType: string
         return match ($this) {
             self::Steps       => 'um fluxo em etapas',
             self::BeforeAfter => 'um antes e depois',
+            self::Tree        => 'uma árvore',
         };
     }
 
@@ -48,15 +52,21 @@ enum SceneType: string
         return match ($this) {
             self::Steps       => 'O fluxo proposto',
             self::BeforeAfter => 'A comparação proposta',
+            self::Tree        => 'A árvore proposta',
         };
     }
 
-    /** The list a real answer carries — what tells it apart from `{"error": …}`. */
-    public function listKey(): string
+    /**
+     * The key a real answer from the model carries — what tells it apart from
+     * `{"error": …}`. Not always the stored list: a tree is answered nested
+     * (`root`) and stored flat (`nodes`), see TreeScene.
+     */
+    public function answerKey(): string
     {
         return match ($this) {
             self::Steps       => 'steps',
             self::BeforeAfter => 'changes',
+            self::Tree        => 'root',
         };
     }
 
@@ -69,6 +79,7 @@ enum SceneType: string
         return match ($this) {
             self::Steps       => StepScene::validate($payload),
             self::BeforeAfter => BeforeAfterScene::validate($payload),
+            self::Tree        => TreeScene::validate($payload),
         };
     }
 
@@ -84,6 +95,7 @@ enum SceneType: string
         return match ($this) {
             self::Steps       => StepScene::fromArray($payload)->toArray(),
             self::BeforeAfter => BeforeAfterScene::fromArray($payload)->toArray(),
+            self::Tree        => TreeScene::fromArray($payload)->toArray(),
         };
     }
 }

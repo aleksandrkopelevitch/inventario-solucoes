@@ -1,7 +1,8 @@
 // docs-scene.js — draws an animated SCENE inside a documentation page: the
-// "fluxo em etapas" (`{% scene type="steps" %}`) and the "antes → depois"
-// (`{% scene type="before-after" %}`), one renderer per type (RENDERERS) over
-// one shared figure builder (`figure()`).
+// "fluxo em etapas" (`{% scene type="steps" %}`), the "antes → depois"
+// (`{% scene type="before-after" %}`) and the "árvore" (`{% scene type="tree"
+// %}`), one renderer per type (RENDERERS) over one shared figure builder
+// (`figure()`).
 //
 // The ONE renderer of the picture, used in two places: the reader (/docs, the
 // magic link, the editor's read-only views), where GitbookRenderer emits the
@@ -286,8 +287,14 @@ function figure(time) {
 
     const pop = (start) => keyframes('opacity:0;transform:scale(.86)', 'opacity:1;transform:scale(1)', start, start + CARD_IN)
 
-    /** Arrows along `links`, each drawn during its window in `times`. */
-    const arrows = (links, times) => {
+    /**
+     * Arrows along `links`, each drawn during its window in `times` (which
+     * must be in time order — the riding marker walks them one after the
+     * other). A tree passes `heads: false, flow: false`: its lines say
+     * "contains", not "goes to", and data streaming down a hierarchy would say
+     * something it does not mean.
+     */
+    const arrows = (links, times, {heads = true, flow = true} = {}) => {
         if (!links.length) return
 
         links.forEach((points, i) => {
@@ -296,21 +303,25 @@ function figure(time) {
             // until its turn, since at offset 1 a round cap still leaves a dot.
             const line = keyframes('opacity:0;stroke-dashoffset:1', 'opacity:1;stroke-dashoffset:0', start, end, `${pct(start + 0.01)}%{opacity:1;stroke-dashoffset:1}`)
             back.push(`<path class="mk line ${line}" d="${pathOf(points)}" pathLength="1" stroke-dasharray="1 1"/>`)
-            const tip = keyframes('opacity:0', 'opacity:1', end - 0.05, end + 0.05)
-            body.push(`<g class="mk ${tip}">${head(points[points.length - 1], points[points.length - 2])}</g>`)
+            if (heads) {
+                const tip = keyframes('opacity:0', 'opacity:1', end - 0.05, end + 0.05)
+                body.push(`<g class="mk ${tip}">${head(points[points.length - 1], points[points.length - 2])}</g>`)
+            }
         })
 
         const token = named(tokenKeyframes(links, times, pct), 'linear')
         body.push(`<g class="fx ${token}"><circle class="halo" r="9"/><circle class="token" r="4.5"/></g>`)
 
+        if (!flow) return
+
         // Once everything is drawn, data keeps travelling along the arrows.
         // SMIL, with NEGATIVE begins so the dots are already under way: a dot
         // whose motion has not started sits at the svg's top-left corner.
-        const flow = keyframes('opacity:0', 'opacity:1', time.drawnAt, time.drawnAt + 0.4)
+        const streaming = keyframes('opacity:0', 'opacity:1', time.drawnAt, time.drawnAt + 0.4)
         const dots = links.map((points, i) => [0, 0.5].map((offset) =>
             `<circle class="token" r="3.5"><animateMotion dur="1.4s" begin="-${r1(i * 0.27 + offset * 1.4)}s" repeatCount="indefinite" path="${pathOf(points)}"/></circle>`,
         ).join('')).join('')
-        body.push(`<g class="fx ${flow}">${dots}</g>`)
+        body.push(`<g class="fx ${streaming}">${dots}</g>`)
     }
 
     const svg = (width, height, label) => {
@@ -347,6 +358,15 @@ function figure(time) {
             `${u} .detail{fill:var(--color-muted,#5c7563);font-size:${DETAIL.size}px}`,
             `${u} .text{fill:var(--color-ink,#0b0d10);font-size:${SIDE.size}px}`,
             `${u} .text.old{fill:var(--color-muted,#5c7563)}`,
+            `${u} .node-root{fill:var(--color-accent,#1b4d2e)}`,
+            `${u} .node-root.hl{stroke:var(--color-lime,#aadb1e);stroke-width:3}`,
+            `${u} .bar{fill:var(--color-accent,#1b4d2e)}`,
+            `${u} .label-root{fill:#fff;font-size:${TREE_TEXT[0].label.size}px;font-weight:${TREE_TEXT[0].label.weight}}`,
+            `${u} .detail-root{fill:#fff;fill-opacity:.78;font-size:${TREE_TEXT[0].detail.size}px}`,
+            `${u} .label-1{fill:var(--color-ink,#0b0d10);font-size:${TREE_TEXT[1].label.size}px;font-weight:${TREE_TEXT[1].label.weight}}`,
+            `${u} .label-2{fill:var(--color-ink,#0b0d10);font-size:${TREE_TEXT[2].label.size}px;font-weight:${TREE_TEXT[2].label.weight}}`,
+            `${u} .detail-1{fill:var(--color-muted,#5c7563);font-size:${TREE_TEXT[1].detail.size}px}`,
+            `${u} .detail-2{fill:var(--color-muted,#5c7563);font-size:${TREE_TEXT[2].detail.size}px}`,
             `${u} .line{fill:none;stroke:var(--color-muted,#5c7563);stroke-opacity:.55;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}`,
             `${u} .head{fill:var(--color-muted,#5c7563);fill-opacity:.75}`,
             `${u} .token{fill:var(--color-lime,#aadb1e);stroke:var(--color-accent,#1b4d2e);stroke-width:1.5}`,
@@ -552,11 +572,200 @@ function renderBeforeAfter(scene, width, measure) {
     return f.svg(width, height, `${from} → ${to}: ` + rows.map((row) => row.aspect).join('; '))
 }
 
+/* -------------------------------------------------------------- árvore -- */
+
+const TREE_TEXT = {
+    0: {label: {size: 14.5, weight: 700, line: 19, maxLines: 2}, detail: {size: 12, weight: 400, line: 16, maxLines: 2}},
+    1: {label: {size: 13.5, weight: 600, line: 18, maxLines: 2}, detail: {size: 12, weight: 400, line: 16, maxLines: 3}},
+    2: {label: {size: 12.5, weight: 600, line: 17, maxLines: 2}, detail: {size: 11.5, weight: 400, line: 15, maxLines: 2}},
+}
+const TREE_PAD = [13, 12, 9]
+const TREE_GAP = 18 // between the columns of the chart
+const TREE_INDENT = 26 // per level, in the outline
+const TREE_STEP = 10 // between stacked nodes
+
+/**
+ * The outline as the reader may receive it — edited by hand, so possibly
+ * ragged — made into a tree: the first item is the one root, nothing sits more
+ * than one step below the item before it or past level 2 (TreeScene::
+ * normalizeLevels() is the same rule on the server), and every item learns its
+ * parent.
+ */
+function treeNodes(nodes) {
+    const parents = []
+    let previous = -1
+
+    return nodes.map((node, i) => {
+        const level = i === 0 ? 0 : Math.max(1, Math.min(Number(node.level) || 0, previous + 1, 2))
+        previous = level
+        parents[level] = i
+
+        return {...node, level, parent: level === 0 ? null : parents[level - 1]}
+    })
+}
+
+/** A node's text, wrapped for a card `w` wide, and the card's height. */
+function sizeNode(node, w, measure) {
+    const spec = TREE_TEXT[node.level]
+    const pad = TREE_PAD[node.level]
+    const inner = w - pad * 2 - (node.level === 1 ? 6 : 0)
+    const label = wrap(node.label, spec.label, inner, measure)
+    const detail = wrap(node.detail, spec.detail, inner, measure)
+
+    return {
+        label,
+        detail,
+        h: pad * 2 + spec.label.size + (label.length - 1) * spec.label.line + (detail.length ? 5 + detail.length * spec.detail.line : 0) + 2,
+    }
+}
+
+function layoutTree(nodes, width, measure) {
+    const kids = nodes.map((n, i) => i).filter((i) => nodes[i].level === 1)
+    const colW = kids.length ? (width - EDGE * 2 - (kids.length - 1) * TREE_GAP) / kids.length : 0
+    // The chart needs room for every branch side by side; past four, or on a
+    // narrow column, the outline reads better than a row of slivers.
+    const chart = width >= 520 && kids.length >= 2 && kids.length <= 4 && colW >= 140
+
+    const boxes = []
+    const links = []
+
+    if (chart) {
+        const rootW = Math.min(Math.max(width * 0.42, 220), 360, width - EDGE * 2)
+        const root = {x: (width - rootW) / 2, y: EDGE, w: rootW, ...sizeNode(nodes[0], rootW, measure)}
+        boxes[0] = root
+        const busY = root.y + root.h + 20
+        const top = busY + 20
+        const rcx = root.x + root.w / 2
+
+        const firstRow = kids.map((i, c) => ({x: EDGE + c * (colW + TREE_GAP), y: top, w: colW, ...sizeNode(nodes[i], colW, measure)}))
+        const rowH = Math.max(...firstRow.map((b) => b.h))
+        let bottom = top + rowH
+
+        kids.forEach((i, c) => {
+            const box = {...firstRow[c], h: rowH}
+            boxes[i] = box
+            const kcx = box.x + box.w / 2
+            links[i] = Math.abs(kcx - rcx) < 1
+                ? [[rcx, root.y + root.h], [kcx, box.y - 2]]
+                : [[rcx, root.y + root.h], [rcx, busY], [kcx, busY], [kcx, box.y - 2]]
+
+            let y = box.y + box.h + 12
+            const spine = box.x + 12
+            nodes.forEach((node, j) => {
+                if (node.parent !== i) return
+                const child = {x: box.x + 24, y, w: box.w - 24, ...sizeNode(node, box.w - 24, measure)}
+                boxes[j] = child
+                links[j] = [[spine, box.y + box.h], [spine, child.y + child.h / 2], [child.x - 2, child.y + child.h / 2]]
+                y += child.h + TREE_STEP
+            })
+            bottom = Math.max(bottom, y - TREE_STEP)
+        })
+
+        // Breadth first: the root, every branch, then what each branch holds.
+        const order = [0, ...kids, ...kids.flatMap((i) => nodes.map((n, j) => j).filter((j) => nodes[j].parent === i))]
+
+        return {boxes, links, order, chart, height: bottom + EDGE}
+    }
+
+    // The outline is a column, not a banner: on a wide screen a one-word item
+    // stretched across 700px is mostly empty card, so the block is capped and
+    // centred.
+    const blockW = Math.min(width - EDGE * 2, 620)
+    const left = (width - blockW) / 2
+    let y = EDGE
+    nodes.forEach((node, i) => {
+        const x = left + node.level * TREE_INDENT
+        const w = left + blockW - x
+        const box = {x, y, w, ...sizeNode(node, w, measure)}
+        boxes[i] = box
+        if (node.parent !== null) {
+            const parent = boxes[node.parent]
+            const spine = parent.x + 14
+            links[i] = [[spine, parent.y + parent.h], [spine, box.y + box.h / 2], [box.x - 2, box.y + box.h / 2]]
+        }
+        y += box.h + TREE_STEP
+    })
+
+    // Depth first — reading order, the way the outline is written.
+    return {boxes, links, order: nodes.map((n, i) => i), chart, height: y - TREE_STEP + EDGE}
+}
+
+function treeNode(node, box, measure) {
+    const spec = TREE_TEXT[node.level]
+    const pad = TREE_PAD[node.level]
+    const hl = node.highlight ? ' hl' : ''
+    const x = box.x + pad + (node.level === 1 ? 6 : 0)
+    let svg = ''
+
+    if (node.highlight && node.level > 0) {
+        svg += `<rect class="glow" x="${r1(box.x - 3)}" y="${r1(box.y - 3)}" width="${r1(box.w + 6)}" height="${r1(box.h + 6)}" rx="13"/>`
+    }
+
+    if (node.level === 0) {
+        svg += `<rect class="node-root${hl}" x="${r1(box.x)}" y="${r1(box.y)}" width="${r1(box.w)}" height="${r1(box.h)}" rx="12"/>`
+    } else {
+        svg += `<rect class="card${hl}" x="${r1(box.x)}" y="${r1(box.y)}" width="${r1(box.w)}" height="${r1(box.h)}" rx="${node.level === 1 ? 10 : 8}"/>`
+        // A branch carries a green edge on its left: the sections of the tree
+        // read as sections at a glance.
+        if (node.level === 1) svg += `<rect class="bar" x="${r1(box.x + 5)}" y="${r1(box.y + 9)}" width="3.5" height="${r1(box.h - 18)}" rx="1.75"/>`
+    }
+
+    const cls = node.level === 0 ? 'root' : String(node.level)
+    let ty = box.y + pad + spec.label.size
+    box.label.forEach((line) => {
+        svg += `<text class="label-${cls}" x="${r1(x)}" y="${r1(ty)}">${esc(line)}</text>`
+        ty += spec.label.line
+    })
+    if (box.detail.length) {
+        ty += 5 - spec.label.line + spec.detail.line
+        box.detail.forEach((line) => {
+            svg += `<text class="detail-${cls}" x="${r1(x)}" y="${r1(ty)}">${esc(line)}</text>`
+            ty += spec.detail.line
+        })
+    }
+
+    if (node.highlight) svg += tag(box.x + box.w - 10, box.y, 'Destaque', measure)
+
+    return svg
+}
+
+function renderTree(scene, width, measure) {
+    const nodes = treeNodes((scene.nodes || []).filter((n) => (n.label || '').trim()))
+    if (!nodes.length) return ''
+
+    const {boxes, links, order, height} = layoutTree(nodes, width, measure)
+
+    // The tree grows from the top: the root lands, then each link draws down
+    // to its node and the node lands as the line arrives.
+    const appear = []
+    const windows = []
+    let t = LEAD
+    appear[0] = t
+    t += CARD_IN
+    order.slice(1).forEach((i) => {
+        const d = nodes[i].level === 1 ? 0.42 : 0.3
+        windows.push([i, t, t + d])
+        appear[i] = t + d
+        // Room after each line for the riding marker to fade before the next
+        // one starts — its keyframes must stay in time order.
+        t += d + 0.25
+    })
+    const drawnAt = t + CARD_IN
+    const time = {drawnAt, holdUntil: drawnAt + 3, goneAt: drawnAt + 3 + FADE, cycle: drawnAt + 3 + FADE + BLANK}
+    const f = figure(time)
+
+    order.forEach((i) => f.body.push(`<g class="mk ${f.pop(appear[i])}">${treeNode(nodes[i], boxes[i], measure)}</g>`))
+    f.arrows(windows.map(([i]) => links[i]), windows.map(([, start, end]) => [start, end]), {heads: false, flow: false})
+
+    return f.svg(width, height, nodes.map((n) => '  '.repeat(n.level) + n.label).join('; '))
+}
+
 /* ------------------------------------------------------------ dispatch -- */
 
 const RENDERERS = {
     steps: renderSteps,
     'before-after': renderBeforeAfter,
+    tree: renderTree,
 }
 
 /** The whole figure as an <svg> string, for a container `width` pixels wide. */

@@ -9,8 +9,8 @@
 // through GitBook notation: hint ({% hint %}), tabs ({% tabs %}), file
 // ({% file %}), diagram ({% diagram %} — a citation of a catalog drawing,
 // ours), cards ({% cards %} — a grid of product cards, also ours) and scenes
-// ({% scene type="steps|before-after" %} — an animated "fluxo em etapas" or
-// "antes → depois", ours too).
+// ({% scene type="steps|before-after|tree" %} — an animated "fluxo em etapas",
+// "antes → depois" or "árvore", ours too).
 //
 // secret ({% secret %}…{% endsecret %}) is the only INLINE construct: it lives
 // inside a block's text rather than as a block of its own, so it is handled in
@@ -511,6 +511,8 @@ function fileSrc(file) {
  * - "antes → depois": `{% change aspect before after %}`, self-closing — both
  *   sides are one short line, and an empty side is meaningful (new / gone), so
  *   it is written as an empty attribute rather than left out.
+ * - "árvore": `{% node level label detail %}`, self-closing — the outline in
+ *   reading order, its depth in `level` (0 = the root).
  *
  * Rows with nothing in them are dropped, and a scene with no row left
  * serializes to nothing — the same call an empty card grid makes.
@@ -521,7 +523,20 @@ function serializeScene(d) {
     let inner = ''
     let extra = ''
 
-    if (type === 'before-after') {
+    if (type === 'tree') {
+        // One line per item of the outline, its depth in `level` — the flat
+        // shape the editor's indent/outdent rows already are.
+        inner = (d.nodes || [])
+            .filter((node) => oneLine(node.label))
+            .map((node) => {
+                const attrs = [`level="${Math.max(0, Math.min(2, Number(node.level) || 0))}"`, `label="${escapeAttr(oneLine(node.label))}"`]
+                if (oneLine(node.detail)) attrs.push(`detail="${escapeAttr(oneLine(node.detail))}"`)
+                if (node.highlight) attrs.push('highlight="true"')
+
+                return `{% node ${attrs.join(' ')} %}`
+            })
+            .join('\n')
+    } else if (type === 'before-after') {
         inner = (d.changes || [])
             .filter((change) => oneLine(change.before) || oneLine(change.after))
             .map((change) => {
@@ -654,6 +669,7 @@ function parseLines(lines) {
                     to: decodeAttr(attrs.to || ''),
                     steps: parseSceneSteps(inner),
                     changes: parseSceneChanges(inner),
+                    nodes: parseSceneNodes(inner),
                 },
             })
             continue
@@ -847,6 +863,23 @@ function parseSceneSteps(lines) {
         i++
     }
     return steps
+}
+
+/** The outline of an "árvore" — `{% node %}` is self-closing, its depth in `level`. */
+function parseSceneNodes(lines) {
+    return lines
+        .map((line) => line.trim().match(/^\{%\s*node(?:\s+(.*?))?\s*%\}$/))
+        .filter(Boolean)
+        .map((m) => {
+            const attrs = parseAttrs(m[1] || '')
+
+            return {
+                label: decodeAttr(attrs.label || ''),
+                detail: decodeAttr(attrs.detail || ''),
+                level: Number(attrs.level) || 0,
+                highlight: attrs.highlight === 'true',
+            }
+        })
 }
 
 /** The rows of an "antes → depois" — `{% change %}` is self-closing. */

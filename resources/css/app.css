@@ -736,8 +736,9 @@ dialog[open]::backdrop {
     .html-content figure[data-width] { width: 100%; }
 }
 
-/* Scenes (the {% scene %} block) — the "fluxo em etapas" and the "antes →
-   depois". GitbookRenderer emits their text (an ordered list / a table), which
+/* Scenes (the {% scene %} block) — the "fluxo em etapas", the "antes → depois"
+   and the "árvore". GitbookRenderer emits their text (an ordered list / a table
+   / nested lists), which
    is what a reader without JavaScript, a screen reader and the search index
    get; docs-scene.js draws the animated figure into the stage above it from the
    same data and then marks the figure `is-drawn`, which takes the text
@@ -762,7 +763,9 @@ dialog[open]::backdrop {
 .html-content .ak-scene__step { margin: 0.35rem 0; }
 .html-content .ak-scene__title { font-weight: 600; color: var(--color-ink); }
 .html-content .ak-scene__detail { color: var(--color-muted); }
-.html-content .ak-scene__step.is-highlight .ak-scene__title {
+.html-content .ak-scene__tree { margin: 0; }
+.html-content .ak-scene__step.is-highlight .ak-scene__title,
+.html-content .ak-scene__tree li.is-highlight > .ak-scene__title {
     background: var(--color-lime-soft);
     box-shadow: 0 0 0 2px var(--color-lime-soft);
     border-radius: 3px;

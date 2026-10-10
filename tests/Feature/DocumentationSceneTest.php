@@ -9,8 +9,10 @@ use App\Services\Documentation\SceneDraftService;
 use App\Support\Documentation\BeforeAfterScene;
 use App\Support\Documentation\BlockVault;
 use App\Support\Documentation\StepScene;
+use App\Support\Documentation\TreeScene;
 use App\Support\GitbookRenderer;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Laravel\Ai\Responses\AgentResponse;
 use Laravel\Ai\Responses\Data\Meta;
 use Laravel\Ai\Responses\Data\Usage;
@@ -18,8 +20,8 @@ use Laravel\Ai\Responses\Data\Usage;
 uses(LazilyRefreshDatabase::class);
 
 /**
- * The animated scenes of a documentation page — the "fluxo em etapas" and the
- * "antes → depois": the IRs the model and the page agree on, the dialect the
+ * The animated scenes of a documentation page — the "fluxo em etapas", the
+ * "antes → depois" and the "árvore": the IRs the model and the page agree on, the dialect the
  * renderer reads, and the endpoint the editor's block asks for a proposal.
  */
 function fakeSceneService(string ...$replies): SceneDraftService
@@ -348,4 +350,138 @@ it('passes on the model saying the page describes no change', function () {
         ->postJson(route('notebooks.pages.scene', [$page->notebook, $page]), ['type' => 'before-after'])
         ->assertStatus(422)
         ->assertJsonPath('message', 'Não dá para montar um antes e depois a partir desta página: A página só descreve o processo atual.');
+});
+
+// ---------------------------------------------------------------------------
+// "Árvore"
+// ---------------------------------------------------------------------------
+
+function validTree(): array
+{
+    return [
+        'caption' => 'Como o SAP se organiza',
+        'root'    => [
+            'label'    => 'SAP S/4HANA',
+            'detail'   => 'ERP corporativo',
+            'children' => [
+                ['label' => 'SD — Vendas', 'children' => [
+                    ['label' => 'Pedidos ZMOB'],
+                    ['label' => 'Faturamento', 'highlight' => true],
+                ]],
+                ['label' => 'MM — Materiais'],
+            ],
+        ],
+    ];
+}
+
+it('reads a nested tree and stores it as a flat outline', function () {
+    expect(TreeScene::validate(validTree()))->toBe([]);
+
+    $scene = SceneType::Tree->normalize(validTree());
+
+    expect($scene['type'])->toBe('tree')
+        ->and(array_map(fn (array $node) => [$node['level'], $node['label']], $scene['nodes']))->toBe([
+            [0, 'SAP S/4HANA'],
+            [1, 'SD — Vendas'],
+            [2, 'Pedidos ZMOB'],
+            [2, 'Faturamento'],
+            [1, 'MM — Materiais'],
+        ])
+        ->and($scene['nodes'][3]['highlight'])->toBeTrue();
+});
+
+it('refuses a tree that is too deep, too wide or nameless, naming where', function () {
+    $tree = validTree();
+    $tree['root']['children'][0]['children'][0]['children'] = [['label' => 'Bisneto']];
+    $tree['root']['children'][1]['children'] = array_fill(0, 7, ['label' => 'Filho']);
+    $tree['root']['children'][] = ['detail' => 'sem nome'];
+
+    $problems = implode(' ', TreeScene::validate($tree));
+
+    expect($problems)
+        ->toContain('"Pedidos ZMOB" está no terceiro nível e não pode ter filhos')
+        ->toContain('"MM — Materiais" tem 7 filhos; o máximo é 6')
+        ->toContain('O item "SAP S/4HANA › 3" precisa de um "label"');
+
+    expect(TreeScene::validate(['root' => ['label' => 'Só', 'children' => [['label' => 'um']]]]))
+        ->toContain('A árvore deve ter entre 3 e 16 itens no total (tem 2).');
+});
+
+it('repairs a ragged outline into a tree', function () {
+    $levels = fn (array $raw) => array_column(TreeScene::normalizeLevels(array_map(fn (int $level) => ['level' => $level], $raw)), 'level');
+
+    // A second root, a jump of two levels, a level past the cap.
+    expect($levels([1, 0, 2, 3, 2, 1]))->toBe([0, 1, 2, 2, 2, 1]);
+});
+
+it('renders a tree as nested lists carrying the outline for the animation', function () {
+    $html = app(GitbookRenderer::class)->render(<<<'MD'
+        {% scene type="tree" caption="Módulos" %}
+        {% node level="0" label="SAP" detail="ERP" %}
+        {% node level="1" label="SD" %}
+        {% node level="2" label="<b>Pedidos</b>" highlight="true" %}
+        {% node level="2" label="Fatura" %}
+        {% node level="1" label="MM" %}
+        {% endscene %}
+        MD);
+
+    expect($html)
+        ->toContain('<ul class="ak-scene__text ak-scene__tree"><li><span class="ak-scene__title">SAP</span> <span class="ak-scene__detail">ERP</span><ul>')
+        ->toContain('<ul><li class="is-highlight"><span class="ak-scene__title">&lt;b&gt;Pedidos&lt;/b&gt;</span></li><li><span class="ak-scene__title">Fatura</span></li></ul></li><li><span class="ak-scene__title">MM</span></li></ul></li></ul>')
+        ->toContain('<figcaption>Módulos</figcaption>');
+
+    preg_match('/data-ak-scene="([^"]*)"/', $html, $m);
+    $scene = json_decode(html_entity_decode($m[1], ENT_QUOTES), true);
+
+    expect($scene['type'])->toBe('tree')
+        ->and(array_column($scene['nodes'], 'level'))->toBe([0, 1, 2, 2, 1]);
+});
+
+it('proposes a tree with its own prompt, and passes on "no hierarchy here"', function () {
+    $page = scenePage('O SAP tem os módulos SD e MM; o SD cuida de pedidos e faturamento.');
+    $service = fakeSceneService(sceneJson(validTree()));
+    app()->instance(SceneDraftService::class, $service);
+
+    $this->actingAs(User::factory()->editor()->create())
+        ->postJson(route('notebooks.pages.scene', [$page->notebook, $page]), ['type' => 'tree'])
+        ->assertOk()
+        ->assertJsonPath('scene.type', 'tree')
+        ->assertJsonPath('scene.nodes.2.level', 2)
+        ->assertJsonCount(5, 'scene.nodes');
+
+    expect($service->capturedTypes)->toBe([SceneType::Tree])
+        ->and(app(SceneDraftPromptBuilder::class)->systemPrompt(SceneType::Tree))
+        ->toContain('UMA ÁRVORE')
+        ->toContain('"root"');
+});
+
+it('says when a page describes no hierarchy', function () {
+    $page = scenePage();
+    app()->instance(SceneDraftService::class, fakeSceneService(sceneJson(['error' => 'A página é um processo passo a passo.'])));
+
+    $this->actingAs(User::factory()->editor()->create())
+        ->postJson(route('notebooks.pages.scene', [$page->notebook, $page]), ['type' => 'tree'])
+        ->assertStatus(422)
+        ->assertJsonPath('message', 'Não dá para montar uma árvore a partir desta página: A página é um processo passo a passo.');
+});
+
+it('turns a model that does not answer in time into a message, not a 500', function () {
+    $page = scenePage();
+    app()->instance(SceneDraftService::class, new class extends SceneDraftService
+    {
+        public function __construct()
+        {
+            parent::__construct(app(SceneDraftPromptBuilder::class));
+        }
+
+        protected function prompt(SceneType $type, string $prompt): AgentResponse
+        {
+            throw new ConnectionException('cURL error 28: Operation timed out after 45002 milliseconds');
+        }
+    });
+
+    $this->actingAs(User::factory()->editor()->create())
+        ->postJson(route('notebooks.pages.scene', [$page->notebook, $page]), ['type' => 'tree'])
+        ->assertStatus(422)
+        ->assertJsonPath('message', 'O especialista demorou demais para responder. Tente de novo em instantes.');
 });

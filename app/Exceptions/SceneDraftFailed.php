@@ -24,6 +24,12 @@ class SceneDraftFailed extends RuntimeException
         return new self('O especialista não devolveu uma resposta legível. Tente de novo.');
     }
 
+    /** The model did not answer in time (or at all) — a retry usually works. */
+    public static function unavailable(): self
+    {
+        return new self('O especialista demorou demais para responder. Tente de novo em instantes.');
+    }
+
     /** @param  list<string>  $problems */
     public static function invalidDraft(SceneType $type, array $problems): self
     {
