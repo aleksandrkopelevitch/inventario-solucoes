@@ -25,6 +25,11 @@
 // still. Colours are the app's own tokens (CSS variables), so the figure
 // follows the theme it sits in.
 
+// The closed catalogue a scene's rows may name (`icon="…"`): Heroicons v2
+// outline paths, the same set the app's interface uses. The SAME file is what
+// App\Support\Documentation\SceneIcons validates and lists in the prompt.
+import SCENE_ICONS from '../../data/scene-icons.json'
+
 const CARD_MIN = 168
 const MAX_COLUMNS = 4
 const GAP_X = 44
@@ -45,6 +50,32 @@ const FADE = 0.5
 const BLANK = 0.35
 
 let sequence = 0
+
+/* --------------------------------------------------------------- icons -- */
+
+
+/** An icon drawn at (x, y), `size` px square, inside a figure; '' when unknown. */
+function icon(key, x, y, size, cls = '') {
+    const spec = SCENE_ICONS.icons[key]
+    if (!spec) return ''
+
+    return `<g class="ico ${cls}" transform="translate(${r1(x)} ${r1(y)}) scale(${r1(size / 24 * 1000) / 1000})">`
+        + spec.paths.map((d) => `<path d="${d}"/>`).join('') + '</g>'
+}
+
+/** A standalone icon <svg> — what the editor's picker shows on its buttons. */
+export function iconSvg(key, size = 18) {
+    const spec = SCENE_ICONS.icons[key]
+    if (!spec) return ''
+
+    return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">`
+        + spec.paths.map((d) => `<path d="${d}"/>`).join('') + '</svg>'
+}
+
+/** [key, label] for every icon, in catalogue order — the picker's list. */
+export function iconChoices() {
+    return Object.entries(SCENE_ICONS.icons).map(([key, spec]) => [key, spec.label])
+}
 
 /* ------------------------------------------------------------- measure -- */
 
@@ -197,7 +228,7 @@ function head([x, y], [px, py]) {
     return `<polygon class="head" points="${r1(x)},${r1(y)} ${r1(a[0])},${r1(a[1])} ${r1(b[0])},${r1(b[1])}"/>`
 }
 
-function card(c) {
+function card(c, measure) {
     const hl = c.highlight ? ' hl' : ''
     const bx = c.x + PAD + BADGE / 2
     const by = c.y + PAD + BADGE / 2
@@ -211,10 +242,17 @@ function card(c) {
     svg += `<circle class="badge${hl}" cx="${r1(bx)}" cy="${r1(by)}" r="${BADGE / 2}"/>`
     svg += `<text class="num${hl}" x="${r1(bx)}" y="${r1(by + 4.2)}" text-anchor="middle">${c.n}</text>`
 
-    if (c.highlight) {
-        svg += `<rect class="tag" x="${r1(bx + BADGE / 2 + 8)}" y="${r1(by - 9)}" width="74" height="18" rx="9"/>`
-            + `<text class="tag-text" x="${r1(bx + BADGE / 2 + 45)}" y="${r1(by + 3.6)}" text-anchor="middle">Ponto-chave</text>`
+    // The icon sits in a small tile beside the number: the number says WHEN,
+    // the icon says WHAT.
+    if (c.icon && SCENE_ICONS.icons[c.icon]) {
+        const tx = bx + BADGE / 2 + 8
+        svg += `<rect class="ico-tile" x="${r1(tx)}" y="${r1(by - 13)}" width="26" height="26" rx="7"/>`
+            + icon(c.icon, tx + 4, by - 9, 18)
     }
+
+    // On the card's top edge, like every other scene's tags — beside the
+    // number it would collide with the icon.
+    if (c.highlight) svg += tag(c.x + c.w - 10, c.y, 'Ponto-chave', measure)
 
     c.title.forEach((line) => {
         svg += `<text class="title" x="${r1(c.x + PAD)}" y="${r1(ty)}">${esc(line)}</text>`
@@ -358,6 +396,9 @@ function figure(time) {
             `${u} .detail{fill:var(--color-muted,#5c7563);font-size:${DETAIL.size}px}`,
             `${u} .text{fill:var(--color-ink,#0b0d10);font-size:${SIDE.size}px}`,
             `${u} .text.old{fill:var(--color-muted,#5c7563)}`,
+            `${u} .ico path{fill:none;stroke:var(--color-accent,#1b4d2e);stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}`,
+            `${u} .ico.on-dark path{stroke:#fff}`,
+            `${u} .ico-tile{fill:var(--color-accent-soft,#eaf2ec)}`,
             `${u} .node-root{fill:var(--color-accent,#1b4d2e)}`,
             `${u} .node-root.hl{stroke:var(--color-lime,#aadb1e);stroke-width:3}`,
             `${u} .bar{fill:var(--color-accent,#1b4d2e)}`,
@@ -407,7 +448,7 @@ function renderSteps(scene, width, measure) {
     const time = timeline(cards.length)
     const f = figure(time)
 
-    cards.forEach((c, i) => f.body.push(`<g class="mk ${f.pop(time.cards[i])}">${card(c)}</g>`))
+    cards.forEach((c, i) => f.body.push(`<g class="mk ${f.pop(time.cards[i])}">${card(c, measure)}</g>`))
     f.arrows(links, time.links)
 
     return f.svg(width, height, steps.map((s, i) => `${i + 1}. ${s.title}`).join('; '))
@@ -527,8 +568,10 @@ function renderBeforeAfter(scene, width, measure) {
 
         // The aspect lands with the row and stays as it is: it names the row,
         // it is not part of the old world.
+        const aspectIcon = row.icon && SCENE_ICONS.icons[row.icon] ? icon(row.icon, row.b.x + 1, row.aspectY - 12, 15) : ''
         f.body.push(`<g class="mk ${f.keyframes('opacity:0', 'opacity:1', s, s + CARD_IN)}">`
-            + `<text class="aspect" x="${r1(row.b.x + 2)}" y="${r1(row.aspectY)}">${esc(row.aspect)}</text></g>`)
+            + aspectIcon
+            + `<text class="aspect" x="${r1(row.b.x + (aspectIcon ? 22 : 2))}" y="${r1(row.aspectY)}">${esc(row.aspect)}</text></g>`)
 
         // The old side.
         const oldId = f.named(
@@ -605,10 +648,14 @@ function treeNodes(nodes) {
 }
 
 /** A node's text, wrapped for a card `w` wide, and the card's height. */
+/** The icon's size at each depth, and the room it takes before the text. */
+const TREE_ICON = [18, 16, 14]
+const treeIconRoom = (node) => (node.icon && SCENE_ICONS.icons[node.icon] ? TREE_ICON[node.level] + 7 : 0)
+
 function sizeNode(node, w, measure) {
     const spec = TREE_TEXT[node.level]
     const pad = TREE_PAD[node.level]
-    const inner = w - pad * 2 - (node.level === 1 ? 6 : 0)
+    const inner = w - pad * 2 - (node.level === 1 ? 6 : 0) - treeIconRoom(node)
     const label = wrap(node.label, spec.label, inner, measure)
     const detail = wrap(node.detail, spec.detail, inner, measure)
 
@@ -711,15 +758,22 @@ function treeNode(node, box, measure) {
     }
 
     const cls = node.level === 0 ? 'root' : String(node.level)
+    const room = treeIconRoom(node)
+    if (room) {
+        const size = TREE_ICON[node.level]
+        // Centred on the first line of the label.
+        svg += icon(node.icon, x, box.y + pad + spec.label.size / 2 - size / 2 - 1, size, node.level === 0 ? 'on-dark' : '')
+    }
+    const tx = x + room
     let ty = box.y + pad + spec.label.size
     box.label.forEach((line) => {
-        svg += `<text class="label-${cls}" x="${r1(x)}" y="${r1(ty)}">${esc(line)}</text>`
+        svg += `<text class="label-${cls}" x="${r1(tx)}" y="${r1(ty)}">${esc(line)}</text>`
         ty += spec.label.line
     })
     if (box.detail.length) {
         ty += 5 - spec.label.line + spec.detail.line
         box.detail.forEach((line) => {
-            svg += `<text class="detail-${cls}" x="${r1(x)}" y="${r1(ty)}">${esc(line)}</text>`
+            svg += `<text class="detail-${cls}" x="${r1(tx)}" y="${r1(ty)}">${esc(line)}</text>`
             ty += spec.detail.line
         })
     }

@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Diagram;
 use App\Support\Documentation\BeforeAfterScene;
 use App\Support\Documentation\PageLinks;
+use App\Support\Documentation\SceneIcons;
 use App\Support\Documentation\SecretText;
 use App\Support\Documentation\StepScene;
 use App\Support\Documentation\TreeScene;
@@ -42,6 +43,7 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  *       → an animated "antes → depois" (ours) — see renderScene()
  *   {% scene type="tree" %}{% node level="0" label="…" detail="…" %} … {% endscene %}
  *       → an animated "árvore" (ours) — see renderScene()
+ *   (every step / change / node may also carry `icon="…"`, a key of SceneIcons)
  *   {% secret %} … {% endsecret %}   (inline, ours)
  *       → a lock the value is NOT inside — see App\Support\Documentation\SecretText
  *
@@ -649,6 +651,7 @@ class GitbookRenderer
                     'title'     => $decode($stepAttrs, 'title'),
                     'detail'    => trim(implode(' ', array_map('trim', $inner))),
                     'highlight' => ($stepAttrs['highlight'] ?? '') === 'true',
+                    'icon'      => SceneIcons::sanitize($decode($stepAttrs, 'icon')),
                 ];
 
                 continue;
@@ -663,6 +666,7 @@ class GitbookRenderer
                     'detail'    => $decode($nodeAttrs, 'detail'),
                     'level'     => (int) ($nodeAttrs['level'] ?? 1),
                     'highlight' => ($nodeAttrs['highlight'] ?? '') === 'true',
+                    'icon'      => SceneIcons::sanitize($decode($nodeAttrs, 'icon')),
                 ];
                 $i++;
 
@@ -677,6 +681,7 @@ class GitbookRenderer
                     'before'    => $decode($changeAttrs, 'before'),
                     'after'     => $decode($changeAttrs, 'after'),
                     'highlight' => ($changeAttrs['highlight'] ?? '') === 'true',
+                    'icon'      => SceneIcons::sanitize($decode($changeAttrs, 'icon')),
                 ];
             }
             $i++;

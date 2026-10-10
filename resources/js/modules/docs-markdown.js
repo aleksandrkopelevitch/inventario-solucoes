@@ -514,6 +514,9 @@ function fileSrc(file) {
  * - "árvore": `{% node level label detail %}`, self-closing — the outline in
  *   reading order, its depth in `level` (0 = the root).
  *
+ * Any row may also carry `icon="…"` (a key of resources/data/scene-icons.json),
+ * written only when one was chosen.
+ *
  * Rows with nothing in them are dropped, and a scene with no row left
  * serializes to nothing — the same call an empty card grid makes.
  */
@@ -531,6 +534,7 @@ function serializeScene(d) {
             .map((node) => {
                 const attrs = [`level="${Math.max(0, Math.min(2, Number(node.level) || 0))}"`, `label="${escapeAttr(oneLine(node.label))}"`]
                 if (oneLine(node.detail)) attrs.push(`detail="${escapeAttr(oneLine(node.detail))}"`)
+                if (oneLine(node.icon)) attrs.push(`icon="${escapeAttr(oneLine(node.icon))}"`)
                 if (node.highlight) attrs.push('highlight="true"')
 
                 return `{% node ${attrs.join(' ')} %}`
@@ -545,6 +549,7 @@ function serializeScene(d) {
                     `before="${escapeAttr(oneLine(change.before))}"`,
                     `after="${escapeAttr(oneLine(change.after))}"`,
                 ]
+                if (oneLine(change.icon)) attrs.push(`icon="${escapeAttr(oneLine(change.icon))}"`)
                 if (change.highlight) attrs.push('highlight="true"')
 
                 return `{% change ${attrs.join(' ')} %}`
@@ -557,6 +562,7 @@ function serializeScene(d) {
             .filter((step) => oneLine(step.title) || oneLine(step.detail))
             .map((step) => {
                 const attrs = [`title="${escapeAttr(oneLine(step.title))}"`]
+                if (oneLine(step.icon)) attrs.push(`icon="${escapeAttr(oneLine(step.icon))}"`)
                 if (step.highlight) attrs.push('highlight="true"')
                 const body = oneLine(step.detail)
 
@@ -857,6 +863,7 @@ function parseSceneSteps(lines) {
                 title: decodeAttr(attrs.title || ''),
                 detail: inner.map((l) => l.trim()).join(' ').trim(),
                 highlight: attrs.highlight === 'true',
+                icon: decodeAttr(attrs.icon || ''),
             })
             continue
         }
@@ -878,6 +885,7 @@ function parseSceneNodes(lines) {
                 detail: decodeAttr(attrs.detail || ''),
                 level: Number(attrs.level) || 0,
                 highlight: attrs.highlight === 'true',
+                icon: decodeAttr(attrs.icon || ''),
             }
         })
 }
@@ -895,6 +903,7 @@ function parseSceneChanges(lines) {
                 before: decodeAttr(attrs.before || ''),
                 after: decodeAttr(attrs.after || ''),
                 highlight: attrs.highlight === 'true',
+                icon: decodeAttr(attrs.icon || ''),
             }
         })
 }

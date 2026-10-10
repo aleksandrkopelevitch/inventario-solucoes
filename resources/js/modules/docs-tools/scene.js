@@ -19,6 +19,10 @@
 // reader's own drawing. What differs per type is only the shape of a row, and
 // that is the TYPES table below.
 //
+// Every row may carry an ICON from a closed catalogue
+// (resources/data/scene-icons.json — the same one the model is offered), picked
+// from a small grid beside the row's marker.
+//
 // Every field is a native <input>, deliberately, and every change is reported
 // by hand through `block.dispatchChange()`: typing in a native input mutates no
 // DOM, so Editor.js would otherwise never notice it. The preview and the status
@@ -29,7 +33,8 @@
 // Depends on config injected by docs-editor.js:
 //   sceneUrl — POST endpoint that proposes the rows (null outside a caderno)
 
-import {mountScene} from '../docs-scene.js'
+import {fold} from '../fold.js'
+import {iconChoices, iconSvg, mountScene} from '../docs-scene.js'
 
 const STEPS_ICON = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="8" width="5.5" height="8" rx="1.5"/><rect x="16" y="8" width="5.5" height="8" rx="1.5"/><path d="M8 12h7M12.5 9.5 15 12l-2.5 2.5"/></svg>'
 
@@ -38,6 +43,8 @@ const BEFORE_AFTER_ICON = '<svg width="17" height="17" viewBox="0 0 24 24" fill=
 const TREE_ICON = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8.5" y="2.5" width="7" height="5" rx="1.2"/><rect x="2.5" y="16.5" width="7" height="5" rx="1.2"/><rect x="14.5" y="16.5" width="7" height="5" rx="1.2"/><path d="M12 7.5v4.5M6 16.5V12h12v4.5"/></svg>'
 
 const SPARKLES = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.8 15.9 9 18.8l-.8-2.9a4.5 4.5 0 0 0-3.1-3.1L2.2 12l2.9-.8a4.5 4.5 0 0 0 3.1-3.1L9 5.2l.8 2.9a4.5 4.5 0 0 0 3.1 3.1l2.9.8-2.9.8a4.5 4.5 0 0 0-3.1 3.1ZM18.3 8.7 18 9.8l-.3-1.1a3.4 3.4 0 0 0-2.4-2.4L14.2 6l1.1-.3a3.4 3.4 0 0 0 2.4-2.4L18 2.2l.3 1.1a3.4 3.4 0 0 0 2.4 2.4l1.1.3-1.1.3a3.4 3.4 0 0 0-2.4 2.4Z"/></svg>'
+
+const ICON_PLACEHOLDER = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg>'
 
 const MAX_CAPTION = 120 // StepScene::MAX_CAPTION = BeforeAfterScene::MAX_CAPTION
 
@@ -177,7 +184,7 @@ export default class SceneTool {
 
     normalizeRows(rows) {
         const clean = (Array.isArray(rows) ? rows : []).map((row) => {
-            const copy = {highlight: row.highlight === true}
+            const copy = {highlight: row.highlight === true, icon: String(row.icon || '')}
             this.spec.fields.forEach(({key}) => { copy[key] = String(row[key] || '') })
             if (this.spec.levels) copy.level = Number(row.level) || 0
 
@@ -352,6 +359,7 @@ export default class SceneTool {
     /* ---------------------------------------------------------------- */
 
     drawRows() {
+        this.closeIconPicker()
         this.list.replaceChildren(...this.rows.map((row, i) => this.buildRow(row, i)))
         this.addBtn.hidden = this.rows.length >= this.spec.max
         this.wrapper.classList.toggle('is-empty', this.rows.length === 0)
@@ -432,9 +440,108 @@ export default class SceneTool {
             }, 'is-danger'),
         )
 
-        item.append(number, fields, actions)
+        item.append(number, this.iconButton(row), fields, actions)
 
         return item
+    }
+
+    /* ---------------------------------------------------------------- */
+    /*  The icon picker                                                 */
+    /* ---------------------------------------------------------------- */
+
+    /**
+     * The row's icon, or an invitation to pick one. The catalogue is closed
+     * (resources/data/scene-icons.json, the same file the model is offered),
+     * so the picker IS the vocabulary — there is no field to type a name into.
+     */
+    iconButton(row) {
+        const label = row.icon ? iconChoices().find(([key]) => key === row.icon)?.[1] : null
+        const button = el('button', 'ak-scene-tool__icon-btn' + (label ? ' has-icon' : ''), {
+            type: 'button',
+            title: label ? `Ícone: ${label} — clique para trocar` : 'Escolher um ícone',
+            'aria-label': label ? `Ícone: ${label}. Trocar` : 'Escolher um ícone',
+        })
+        button.innerHTML = label ? iconSvg(row.icon, 18) : ICON_PLACEHOLDER
+        button.addEventListener('click', (e) => {
+            e.stopPropagation()
+            this.picker?.anchor === button ? this.closeIconPicker() : this.openIconPicker(button, row)
+        })
+
+        return button
+    }
+
+    openIconPicker(anchor, row) {
+        this.closeIconPicker()
+
+        const panel = el('div', 'ak-scene-tool__icons')
+        // Opening, filtering and closing it are not edits; choosing is, and
+        // that one is reported by hand.
+        panel.dataset.mutationFree = 'true'
+
+        const search = input('ak-scene-tool__icons-search', {placeholder: 'Buscar ícone…', max: 40})
+        const grid = el('div', 'ak-scene-tool__icons-grid')
+        // The grid is pictures only; this line names the one under the pointer
+        // (or the first match, which is what Enter would pick).
+        const hint = el('p', 'ak-scene-tool__icons-hint')
+        const name = (label) => { hint.textContent = label || '' }
+        const choose = (key) => {
+            row.icon = key
+            this.closeIconPicker()
+            this.drawRows()
+            this.changed()
+        }
+
+        iconChoices().forEach(([key, label]) => {
+            const option = el('button', 'ak-scene-tool__icons-item' + (row.icon === key ? ' is-on' : ''), {type: 'button', title: label, 'aria-label': label})
+            option.innerHTML = iconSvg(key, 20)
+            // Folded on both sides, like every client-side filter here:
+            // "notificacao" finds "Notificação".
+            option.dataset.search = fold(`${key} ${label}`)
+            option.addEventListener('click', () => choose(key))
+            option.addEventListener('mouseenter', () => name(label))
+            option.addEventListener('focus', () => name(label))
+            grid.append(option)
+        })
+
+        const none = el('button', 'ak-scene-tool__icons-none', {type: 'button', text: 'Sem ícone'})
+        none.addEventListener('click', () => choose(''))
+
+        search.addEventListener('input', () => {
+            const term = fold(search.value.trim())
+            grid.querySelectorAll('button').forEach((option) => {
+                option.hidden = term !== '' && !option.dataset.search.includes(term)
+            })
+            const first = grid.querySelector('button:not([hidden])')
+            name(first ? first.title : 'Nenhum ícone com esse nome')
+        })
+        search.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault()
+                this.closeIconPicker()
+                anchor.focus()
+            } else if (e.key === 'Enter') {
+                e.preventDefault()
+                grid.querySelector('button:not([hidden])')?.click()
+            }
+        })
+
+        name(row.icon ? iconChoices().find(([key]) => key === row.icon)?.[1] : 'Passe o mouse para ver o nome')
+        panel.append(search, grid, hint, none)
+        anchor.closest('li').append(panel)
+
+        const outside = (e) => {
+            if (!panel.contains(e.target) && !anchor.contains(e.target)) this.closeIconPicker()
+        }
+        document.addEventListener('mousedown', outside)
+        this.picker = {panel, anchor, outside}
+        search.focus()
+    }
+
+    closeIconPicker() {
+        if (!this.picker) return
+        document.removeEventListener('mousedown', this.picker.outside)
+        this.picker.panel.remove()
+        this.picker = null
     }
 
     action(glyph, label, run, extra = '', disabled = false) {
@@ -489,6 +596,8 @@ export default class SceneTool {
             const copy = {highlight: row.highlight}
             this.spec.fields.forEach(({key}) => { copy[key] = text(row[key]) })
             if (this.spec.levels) copy.level = row.level
+            // Written only when chosen, like `highlight`.
+            if (row.icon) copy.icon = row.icon
 
             return copy
         })

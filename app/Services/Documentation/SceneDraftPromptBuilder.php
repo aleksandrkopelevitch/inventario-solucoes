@@ -5,6 +5,7 @@ namespace App\Services\Documentation;
 use App\Enums\SceneType;
 use App\Support\Documentation\BeforeAfterScene;
 use App\Support\Documentation\BlockVault;
+use App\Support\Documentation\SceneIcons;
 use App\Support\Documentation\SecretText;
 use App\Support\Documentation\StepScene;
 use App\Support\Documentation\TreeScene;
@@ -27,6 +28,8 @@ class SceneDraftPromptBuilder
 {
     public function systemPrompt(SceneType $type): string
     {
+        $icons = SceneIcons::promptList();
+
         $body = match ($type) {
             SceneType::Steps       => $this->stepsPrompt(),
             SceneType::BeforeAfter => $this->beforeAfterPrompt(),
@@ -42,6 +45,12 @@ class SceneDraftPromptBuilder
         texto antes ou depois — quem lê a sua resposta é um programa.
 
         {$body}
+
+        ÍCONES: cada item pode ter um `icon` — opcional, e sempre um destes
+        nomes, escrito exatamente assim: {$icons}.
+        Use quando o ícone ajuda a reconhecer o item num relance (uma pessoa,
+        um documento, um banco de dados, um pagamento). Nem todo item precisa
+        de um; na dúvida, deixe sem. Nunca invente um nome fora da lista.
 
         Escreva em português, com os nomes de sistemas exatamente como a página
         os escreve.
@@ -69,10 +78,10 @@ class SceneDraftPromptBuilder
         {
           "caption": "Da solicitação do cliente ao crédito no SAP",
           "steps": [
-            {"title": "Cliente solicita a devolução", "detail": "Pelo site ou pela loja, informando o pedido e o motivo."},
-            {"title": "Loja confere a mercadoria", "detail": "A devolução só segue se o produto voltar em condições."},
-            {"title": "Nota fiscal de devolução", "detail": "Emitida no SAP e enviada à SEFAZ.", "highlight": true},
-            {"title": "Crédito ao cliente", "detail": "Estorno no cartão ou vale-troca."}
+            {"title": "Cliente solicita a devolução", "detail": "Pelo site ou pela loja, informando o pedido e o motivo.", "icon": "pessoa"},
+            {"title": "Loja confere a mercadoria", "detail": "A devolução só segue se o produto voltar em condições.", "icon": "loja"},
+            {"title": "Nota fiscal de devolução", "detail": "Emitida no SAP e enviada à SEFAZ.", "highlight": true, "icon": "nota-fiscal"},
+            {"title": "Crédito ao cliente", "detail": "Estorno no cartão ou vale-troca.", "icon": "dinheiro"}
           ]
         }
         ```
@@ -121,10 +130,10 @@ class SceneDraftPromptBuilder
           "from": "Hoje",
           "to": "Com a integração",
           "changes": [
-            {"aspect": "Criação do pedido", "before": "Vendedor digita o pedido à mão no SVL.", "after": "O 2020 Manager envia um webhook e o pedido nasce sozinho.", "highlight": true},
-            {"aspect": "Confirmação de pagamento", "before": "Conferida por e-mail com o financeiro.", "after": "O SAP avisa SVL e Leomob pelo RabbitMQ."},
-            {"aspect": "Etiquetas de produção", "before": "", "after": "Exportadas pelo PromobERP junto com o pedido."},
-            {"aspect": "Planilha de controle", "before": "Atualizada à mão todo dia.", "after": ""}
+            {"aspect": "Criação do pedido", "before": "Vendedor digita o pedido à mão no SVL.", "after": "O 2020 Manager envia um webhook e o pedido nasce sozinho.", "highlight": true, "icon": "carrinho"},
+            {"aspect": "Confirmação de pagamento", "before": "Conferida por e-mail com o financeiro.", "after": "O SAP avisa SVL e Leomob pelo RabbitMQ.", "icon": "dinheiro"},
+            {"aspect": "Etiquetas de produção", "before": "", "after": "Exportadas pelo PromobERP junto com o pedido.", "icon": "etiqueta"},
+            {"aspect": "Planilha de controle", "before": "Atualizada à mão todo dia.", "after": "", "icon": "planilha"}
           ]
         }
         ```
@@ -176,15 +185,16 @@ class SceneDraftPromptBuilder
           "root": {
             "label": "SAP S/4HANA",
             "detail": "ERP corporativo",
+            "icon": "servidor",
             "children": [
-              {"label": "SD — Vendas", "children": [
+              {"label": "SD — Vendas", "icon": "carrinho", "children": [
                 {"label": "Pedidos ZMOB", "detail": "Pedidos do Leomob"},
-                {"label": "Faturamento"}
+                {"label": "Faturamento", "icon": "nota-fiscal"}
               ]},
-              {"label": "MM — Materiais", "children": [
+              {"label": "MM — Materiais", "icon": "produto", "children": [
                 {"label": "Dados mestres", "highlight": true}
               ]},
-              {"label": "FI — Financeiro"}
+              {"label": "FI — Financeiro", "icon": "dinheiro"}
             ]
           }
         }
