@@ -736,8 +736,8 @@ dialog[open]::backdrop {
     .html-content figure[data-width] { width: 100%; }
 }
 
-/* Scenes (the {% scene %} block) — the "fluxo em etapas", the "antes → depois"
-   and the "árvore". GitbookRenderer emits their text (an ordered list / a table
+/* Scenes (the {% scene %} block) — the "fluxo em etapas", the "antes → depois",
+   the "árvore" and the "comparação lado a lado". GitbookRenderer emits their text (an ordered list / a table
    / nested lists), which
    is what a reader without JavaScript, a screen reader and the search index
    get; docs-scene.js draws the animated figure into the stage above it from the
@@ -764,6 +764,13 @@ dialog[open]::backdrop {
 .html-content .ak-scene__title { font-weight: 600; color: var(--color-ink); }
 .html-content .ak-scene__detail { color: var(--color-muted); }
 .html-content .ak-scene__tree { margin: 0; }
+.html-content .ak-scene__compare { margin: 0; }
+.html-content .ak-scene__compare .is-highlight { background: var(--color-lime-soft); }
+.html-content .ak-scene__mark { margin-right: 0.3rem; font-weight: 700; }
+.html-content .ak-scene__mark.is-good { color: var(--color-accent); }
+.html-content .ak-scene__mark.is-partial { color: var(--color-hot); }
+.html-content .ak-scene__mark.is-bad { color: var(--color-crit); }
+.html-content .ak-scene__badge { font-size: 0.7rem; font-style: normal; font-weight: 700; color: var(--color-lime-ink); }
 .html-content .ak-scene__step.is-highlight .ak-scene__title,
 .html-content .ak-scene__tree li.is-highlight > .ak-scene__title {
     background: var(--color-lime-soft);

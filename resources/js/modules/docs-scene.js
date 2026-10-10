@@ -1,8 +1,8 @@
 // docs-scene.js — draws an animated SCENE inside a documentation page: the
 // "fluxo em etapas" (`{% scene type="steps" %}`), the "antes → depois"
-// (`{% scene type="before-after" %}`) and the "árvore" (`{% scene type="tree"
-// %}`), one renderer per type (RENDERERS) over one shared figure builder
-// (`figure()`).
+// (`{% scene type="before-after" %}`), the "árvore" (`{% scene type="tree" %}`)
+// and the "comparação lado a lado" (`{% scene type="compare" %}`), one renderer
+// per type (RENDERERS) over one shared figure builder (`figure()`).
 //
 // The ONE renderer of the picture, used in two places: the reader (/docs, the
 // magic link, the editor's read-only views), where GitbookRenderer emits the
@@ -396,6 +396,18 @@ function figure(time) {
             `${u} .detail{fill:var(--color-muted,#5c7563);font-size:${DETAIL.size}px}`,
             `${u} .text{fill:var(--color-ink,#0b0d10);font-size:${SIDE.size}px}`,
             `${u} .text.old{fill:var(--color-muted,#5c7563)}`,
+            `${u} .m-good{fill:var(--color-accent,#1b4d2e)}`,
+            `${u} .m-bad{fill:var(--color-crit,#b23b3b)}`,
+            `${u} .m-part{fill:var(--color-hot,#b26a11)}`,
+            `${u} .m-ring{fill:#fff;stroke:var(--color-hot,#b26a11);stroke-width:1.6}`,
+            `${u} .m-glyph{fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}`,
+            `${u} .band{fill:var(--color-lime-soft,#f3f9db);stroke:var(--color-lime,#aadb1e);stroke-width:2}`,
+            `${u} .opt-name{fill:var(--color-ink,#0b0d10);font-size:${CMP.name.size}px;font-weight:${CMP.name.weight}}`,
+            `${u} .side.hl{fill:var(--color-lime-ink,#3f5708)}`,
+            `${u} .opt-detail{fill:var(--color-muted,#5c7563);font-size:${CMP.detail.size}px}`,
+            `${u} .crit{fill:var(--color-ink,#0b0d10);font-size:${CMP.crit.size}px;font-weight:${CMP.crit.weight}}`,
+            `${u} .cell{fill:var(--color-surface,#fff);stroke:var(--color-line,#d9e1da);stroke-width:1.2}`,
+            `${u} .cell-text{fill:var(--color-body,#384439);font-size:${CMP.cell.size}px}`,
             `${u} .ico path{fill:none;stroke:var(--color-accent,#1b4d2e);stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}`,
             `${u} .ico.on-dark path{stroke:#fff}`,
             `${u} .ico-tile{fill:var(--color-accent-soft,#eaf2ec)}`,
@@ -427,7 +439,7 @@ function figure(time) {
             + `<style>${style}</style>${back.join('')}${body.join('')}</svg>`
     }
 
-    return {pct, named, keyframes, pop, arrows, body, svg}
+    return {pct, named, keyframes, pop, arrows, back, body, svg}
 }
 
 /** A small rounded label sitting on a card's top edge, right-aligned. */
@@ -814,12 +826,222 @@ function renderTree(scene, width, measure) {
     return f.svg(width, height, nodes.map((n) => '  '.repeat(n.level) + n.label).join('; '))
 }
 
+/* ---------------------------------------------- comparação lado a lado -- */
+
+const CMP = {
+    name: {size: 13.5, weight: 700, line: 18, maxLines: 2},
+    detail: {size: 11.5, weight: 400, line: 15, maxLines: 2},
+    crit: {size: 12.5, weight: 700, line: 17, maxLines: 3},
+    cell: {size: 12.5, weight: 400, line: 17, maxLines: 3},
+}
+const CMP_PAD = 11
+const CMP_GAP = 10 // between columns
+const CMP_ROW_GAP = 8
+const CMP_MIN_COL = 118 // narrower than this, the matrix stacks
+const CMP_MARK = 22 // room a mark takes before a cell's text
+
+/**
+ * A mark: a filled circle with a white tick or cross, or half a circle for
+ * "em parte" — drawn in absolute coordinates, so the group that animates it can
+ * own the transform.
+ */
+function markGlyph(kind, cx, cy) {
+    const c = (x, y) => `${r1(cx + x)} ${r1(cy + y)}`
+
+    if (kind === 'good') {
+        return `<circle class="m-good" cx="${r1(cx)}" cy="${r1(cy)}" r="8"/><path class="m-glyph" d="M${c(-3.6, 0.2)} L${c(-1.2, 2.6)} L${c(3.6, -2.6)}"/>`
+    }
+    if (kind === 'bad') {
+        return `<circle class="m-bad" cx="${r1(cx)}" cy="${r1(cy)}" r="8"/><path class="m-glyph" d="M${c(-3, -3)} L${c(3, 3)} M${c(3, -3)} L${c(-3, 3)}"/>`
+    }
+    if (kind === 'partial') {
+        return `<circle class="m-ring" cx="${r1(cx)}" cy="${r1(cy)}" r="7.2"/><path class="m-part" d="M${c(0, -7.2)} A7.2 7.2 0 0 0 ${c(0, 7.2)} Z"/>`
+    }
+
+    return ''
+}
+
+/** Text lines from (x, y) — the first baseline at y + size. */
+function lines(list, x, y, spec, cls) {
+    return list.map((line, k) => `<text class="${cls}" x="${r1(x)}" y="${r1(y + spec.size + k * spec.line)}">${esc(line)}</text>`).join('')
+}
+
+const textHeight = (count, spec) => (count ? spec.size + (count - 1) * spec.line : 0)
+
+function layoutCompare(options, criteria, width, measure) {
+    const n = options.length
+    const labelW = Math.max(110, Math.min(width * 0.22, 180))
+    const optW = (width - EDGE * 2 - labelW - CMP_GAP * n) / n
+    const wide = optW >= CMP_MIN_COL
+
+    const option = (o, w) => {
+        const room = o.icon && SCENE_ICONS.icons[o.icon] ? 25 : 0
+        const name = wrap(o.name, CMP.name, w - CMP_PAD * 2 - room, measure)
+        const detail = wrap(o.detail, CMP.detail, w - CMP_PAD * 2, measure)
+
+        return {...o, room, name, detail, h: CMP_PAD * 2 + textHeight(name.length, CMP.name) + (detail.length ? 4 + detail.length * CMP.detail.line : 0)}
+    }
+    const cell = (v, w) => {
+        const text = wrap(v.text, CMP.cell, w - CMP_PAD * 2 - (v.mark ? CMP_MARK : 0), measure)
+
+        return {...v, text, h: Math.max(CMP_PAD * 2 + textHeight(text.length, CMP.cell), 38)}
+    }
+
+    if (wide) {
+        const xOf = (j) => EDGE + labelW + CMP_GAP + j * (optW + CMP_GAP)
+        const top = EDGE + 12 // room for the "Recomendada" tag on the card's edge
+        const heads = options.map((o) => option(o, optW))
+        const headH = Math.max(...heads.map((h) => h.h))
+        heads.forEach((h, j) => Object.assign(h, {x: xOf(j), y: top, w: optW, h: headH}))
+
+        let y = top + headH + 12
+        const rows = criteria.map((cr) => {
+            const room = cr.icon && SCENE_ICONS.icons[cr.icon] ? 21 : 0
+            const label = wrap(cr.name, CMP.crit, labelW - 6 - room, measure)
+            const cells = cr.values.map((v) => cell(v, optW))
+            const h = Math.max(CMP_PAD * 2 + textHeight(label.length, CMP.crit), ...cells.map((c) => c.h))
+            cells.forEach((c, j) => Object.assign(c, {x: xOf(j), y, w: optW, h}))
+            const row = {...cr, room, label, cells, x: EDGE, y, h}
+            y += h + CMP_ROW_GAP
+
+            return row
+        })
+
+        return {wide, heads, rows, bottom: y - CMP_ROW_GAP, height: y - CMP_ROW_GAP + EDGE + 6}
+    }
+
+    // Stacked: the options as cards, then one card per criterion listing what
+    // each option does for it.
+    const w = width - EDGE * 2
+    let y = EDGE + 12
+    const heads = options.map((o) => {
+        const h = option(o, w)
+        Object.assign(h, {x: EDGE, y, w})
+        y += h.h + 8
+
+        return h
+    })
+    y += 8
+
+    const rows = criteria.map((cr) => {
+        const room = cr.icon && SCENE_ICONS.icons[cr.icon] ? 21 : 0
+        const label = wrap(cr.name, CMP.crit, w - CMP_PAD * 2 - room, measure)
+        const start = y
+        let inner = y + CMP_PAD + textHeight(label.length, CMP.crit) + 10
+        const cells = cr.values.map((v, j) => {
+            const text = wrap(v.text, CMP.cell, w - CMP_PAD * 2 - (v.mark ? CMP_MARK : 0), measure)
+            const c = {...v, text, owner: options[j], y: inner}
+            inner += 15 + Math.max(textHeight(text.length, CMP.cell), 16) + 10
+
+            return c
+        })
+        const h = inner - start + CMP_PAD - 10
+        y += h + CMP_ROW_GAP
+
+        return {...cr, room, label, cells, x: EDGE, y: start, w, h}
+    })
+
+    return {wide, heads, rows, bottom: y - CMP_ROW_GAP, height: y - CMP_ROW_GAP + EDGE + 6}
+}
+
+function renderCompare(scene, width, measure) {
+    const options = (scene.options || []).filter((o) => (o.name || '').trim())
+    const criteria = (scene.criteria || []).filter((c) => (c.name || '').trim())
+        .map((c) => ({...c, values: options.map((_, j) => c.values?.[j] || {text: '', mark: ''})}))
+    if (!options.length || !criteria.length) return ''
+
+    const {wide, heads, rows, bottom, height} = layoutCompare(options, criteria, width, measure)
+
+    // The options land left to right; then the matrix fills row by row, each
+    // mark stamped a beat after its cell; the verdict — the recommended column
+    // — comes last.
+    let t = LEAD
+    const headAt = heads.map((_, j) => t + j * 0.18)
+    t += heads.length * 0.18 + 0.3
+    const rowAt = rows.map(() => {
+        const at = t
+        t += 0.55 + 0.1 * options.length
+
+        return at
+    })
+    const verdictAt = t
+    const drawnAt = t + 0.6
+    const time = {drawnAt, holdUntil: drawnAt + 3, goneAt: drawnAt + 3 + FADE, cycle: drawnAt + 3 + FADE + BLANK}
+    const f = figure(time)
+    const stamp = (start) => f.keyframes('opacity:0;transform:scale(.3)', 'opacity:1;transform:scale(1)', start, start + 0.25)
+
+    const recommended = heads.findIndex((h) => h.highlight)
+
+    // The verdict's band sits BEHIND the column: the cells are opaque, so it
+    // shows as a lime frame around the recommended option's whole column.
+    if (recommended >= 0) {
+        const h = heads[recommended]
+        const band = wide
+            ? {x: h.x - 5, y: h.y - 5, w: h.w + 10, h: bottom - h.y + 10}
+            : {x: h.x - 4, y: h.y - 4, w: h.w + 8, h: h.h + 8}
+        f.back.push(`<g class="mk ${f.keyframes('opacity:0', 'opacity:1', verdictAt, verdictAt + 0.45)}"><rect class="band" x="${r1(band.x)}" y="${r1(band.y)}" width="${r1(band.w)}" height="${r1(band.h)}" rx="14"/></g>`)
+    }
+
+    heads.forEach((h, j) => {
+        let svg = `<rect class="card" x="${r1(h.x)}" y="${r1(h.y)}" width="${r1(h.w)}" height="${r1(h.h)}" rx="10"/>`
+        if (h.room) svg += icon(h.icon, h.x + CMP_PAD, h.y + CMP_PAD - 1, 18)
+        svg += lines(h.name, h.x + CMP_PAD + h.room, h.y + CMP_PAD, CMP.name, 'opt-name')
+        if (h.detail.length) svg += lines(h.detail, h.x + CMP_PAD, h.y + CMP_PAD + textHeight(h.name.length, CMP.name) + 4 - CMP.detail.size + CMP.detail.line, CMP.detail, 'opt-detail')
+        f.body.push(`<g class="mk ${f.pop(headAt[j])}">${svg}</g>`)
+    })
+
+    rows.forEach((row, r) => {
+        const at = rowAt[r]
+
+        if (wide) {
+            let label = row.room ? icon(row.icon, row.x, row.y + CMP_PAD - 1, 15) : ''
+            label += lines(row.label, row.x + row.room, row.y + CMP_PAD, CMP.crit, 'crit')
+            f.body.push(`<g class="mk ${f.keyframes('opacity:0', 'opacity:1', at, at + 0.3)}">${label}</g>`)
+
+            row.cells.forEach((c, j) => {
+                const cellAt = at + 0.12 * (j + 1)
+                const tx = c.x + CMP_PAD + (c.mark ? CMP_MARK : 0)
+                f.body.push(`<g class="mk ${f.pop(cellAt)}"><rect class="cell" x="${r1(c.x)}" y="${r1(c.y)}" width="${r1(c.w)}" height="${r1(c.h)}" rx="8"/>`
+                    + lines(c.text, tx, c.y + CMP_PAD, CMP.cell, 'cell-text') + '</g>')
+                if (c.mark) f.body.push(`<g class="mk ${stamp(cellAt + 0.2)}">${markGlyph(c.mark, c.x + CMP_PAD + 8, c.y + CMP_PAD + CMP.cell.size / 2 + 1)}</g>`)
+            })
+
+            return
+        }
+
+        // Stacked: one card per criterion, a line per option inside it.
+        let svg = `<rect class="card" x="${r1(row.x)}" y="${r1(row.y)}" width="${r1(row.w)}" height="${r1(row.h)}" rx="10"/>`
+        if (row.room) svg += icon(row.icon, row.x + CMP_PAD, row.y + CMP_PAD - 1, 15)
+        svg += lines(row.label, row.x + CMP_PAD + row.room, row.y + CMP_PAD, CMP.crit, 'crit')
+        f.body.push(`<g class="mk ${f.pop(at)}">${svg}</g>`)
+
+        row.cells.forEach((c, j) => {
+            const cellAt = at + 0.12 * (j + 1)
+            const x = row.x + CMP_PAD
+            // The recommended option's name in its own colour, same size — the
+            // verdict is a colour, not a bigger font.
+            let line = `<text class="side${c.owner.highlight ? ' hl' : ''}" x="${r1(x)}" y="${r1(c.y + 10)}">${esc(c.owner.name)}${c.owner.highlight ? ' · Recomendada' : ''}</text>`
+            line += lines(c.text, x + (c.mark ? CMP_MARK : 0), c.y + 15, CMP.cell, 'cell-text')
+            f.body.push(`<g class="mk ${f.keyframes('opacity:0', 'opacity:1', cellAt, cellAt + 0.25)}">${line}</g>`)
+            if (c.mark) f.body.push(`<g class="mk ${stamp(cellAt + 0.2)}">${markGlyph(c.mark, x + 8, c.y + 15 + CMP.cell.size / 2 + 1)}</g>`)
+        })
+    })
+
+    if (recommended >= 0) {
+        const h = heads[recommended]
+        f.body.push(`<g class="mk ${f.pop(verdictAt + 0.2)}">${tag(h.x + h.w - 10, h.y, 'Recomendada', measure)}</g>`)
+    }
+
+    return f.svg(width, height, options.map((o) => o.name).join(' × ') + ': ' + criteria.map((c) => c.name).join('; '))
+}
+
 /* ------------------------------------------------------------ dispatch -- */
 
 const RENDERERS = {
     steps: renderSteps,
     'before-after': renderBeforeAfter,
     tree: renderTree,
+    compare: renderCompare,
 }
 
 /** The whole figure as an <svg> string, for a container `width` pixels wide. */

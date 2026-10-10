@@ -9,8 +9,8 @@
 // through GitBook notation: hint ({% hint %}), tabs ({% tabs %}), file
 // ({% file %}), diagram ({% diagram %} — a citation of a catalog drawing,
 // ours), cards ({% cards %} — a grid of product cards, also ours) and scenes
-// ({% scene type="steps|before-after|tree" %} — an animated "fluxo em etapas",
-// "antes → depois" or "árvore", ours too).
+// ({% scene type="steps|before-after|tree|compare" %} — an animated "fluxo em
+// etapas", "antes → depois", "árvore" or "comparação lado a lado", ours too).
 //
 // secret ({% secret %}…{% endsecret %}) is the only INLINE construct: it lives
 // inside a block's text rather than as a block of its own, so it is handled in
@@ -520,13 +520,48 @@ function fileSrc(file) {
  * Rows with nothing in them are dropped, and a scene with no row left
  * serializes to nothing — the same call an empty card grid makes.
  */
+// A comparison value's line starts with its mark — mirrored by
+// GitbookRenderer::MARK_PREFIXES. Every line has one, the neutral `·` too, so
+// a text that begins with "-" is never mistaken for a mark.
+const MARK_PREFIX = {good: '+', partial: '~', bad: '-', '': '·'}
+const PREFIX_MARK = {'+': 'good', '~': 'partial', '-': 'bad', '·': ''}
+
 function serializeScene(d) {
     const oneLine = (value) => String(value || '').replace(/\s+/g, ' ').trim()
     const type = d.type || 'steps'
     let inner = ''
     let extra = ''
 
-    if (type === 'tree') {
+    if (type === 'compare') {
+        // Options first (one line each), then each criterion with one value
+        // per option as its body, each line led by its mark.
+        const options = (d.options || []).filter((option) => oneLine(option.name))
+        const optionLines = options.map((option) => {
+            const attrs = [`name="${escapeAttr(oneLine(option.name))}"`]
+            if (oneLine(option.detail)) attrs.push(`detail="${escapeAttr(oneLine(option.detail))}"`)
+            if (oneLine(option.icon)) attrs.push(`icon="${escapeAttr(oneLine(option.icon))}"`)
+            if (option.highlight) attrs.push('highlight="true"')
+
+            return `{% option ${attrs.join(' ')} %}`
+        })
+        // Values follow their option, so a dropped (nameless) option takes its
+        // column with it.
+        const kept = (d.options || []).map((option, k) => (oneLine(option.name) ? k : -1)).filter((k) => k >= 0)
+        const criterionLines = (d.criteria || [])
+            .filter((criterion) => oneLine(criterion.name))
+            .map((criterion) => {
+                const attrs = [`name="${escapeAttr(oneLine(criterion.name))}"`]
+                if (oneLine(criterion.icon)) attrs.push(`icon="${escapeAttr(oneLine(criterion.icon))}"`)
+                const values = kept.map((k) => {
+                    const value = (criterion.values || [])[k] || {}
+
+                    return `${MARK_PREFIX[value.mark] ?? '·'} ${oneLine(value.text)}`.trimEnd()
+                })
+
+                return `{% criterion ${attrs.join(' ')} %}\n${values.join('\n')}\n{% endcriterion %}`
+            })
+        inner = options.length && criterionLines.length ? [...optionLines, ...criterionLines].join('\n') : ''
+    } else if (type === 'tree') {
         // One line per item of the outline, its depth in `level` — the flat
         // shape the editor's indent/outdent rows already are.
         inner = (d.nodes || [])
@@ -676,6 +711,7 @@ function parseLines(lines) {
                     steps: parseSceneSteps(inner),
                     changes: parseSceneChanges(inner),
                     nodes: parseSceneNodes(inner),
+                    ...parseSceneComparison(inner),
                 },
             })
             continue
@@ -870,6 +906,52 @@ function parseSceneSteps(lines) {
         i++
     }
     return steps
+}
+
+/** The options and criteria of a "comparação lado a lado". */
+function parseSceneComparison(lines) {
+    const options = []
+    const criteria = []
+    let i = 0
+    while (i < lines.length) {
+        const t = lines[i].trim()
+        let m = t.match(/^\{%\s*option(?:\s+(.*?))?\s*%\}$/)
+        if (m) {
+            const attrs = parseAttrs(m[1] || '')
+            options.push({
+                name: decodeAttr(attrs.name || ''),
+                detail: decodeAttr(attrs.detail || ''),
+                icon: decodeAttr(attrs.icon || ''),
+                highlight: attrs.highlight === 'true',
+            })
+            i++
+            continue
+        }
+        m = t.match(/^\{%\s*criterion(?:\s+(.*?))?\s*%\}$/)
+        if (m) {
+            const attrs = parseAttrs(m[1] || '')
+            const [inner, next] = consumeUntil(lines, i + 1, 'criterion')
+            i = next
+            criteria.push({
+                name: decodeAttr(attrs.name || ''),
+                icon: decodeAttr(attrs.icon || ''),
+                values: inner.map((line) => line.trim()).filter(Boolean).map((line) => {
+                    const mark = PREFIX_MARK[line[0]]
+
+                    return mark === undefined ? {text: line, mark: ''} : {text: line.slice(1).trim(), mark}
+                }),
+            })
+            continue
+        }
+        i++
+    }
+    // Each criterion holds exactly one value per option, padded or cut — the
+    // same repair the renderer makes, so the editor shows what the reader sees.
+    criteria.forEach((criterion) => {
+        criterion.values = options.map((_, k) => criterion.values[k] || {text: '', mark: ''})
+    })
+
+    return {options, criteria}
 }
 
 /** The outline of an "árvore" — `{% node %}` is self-closing, its depth in `level`. */
