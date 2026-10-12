@@ -9,6 +9,7 @@ use App\Support\Documentation\PageLinks;
 use App\Support\Documentation\SceneIcons;
 use App\Support\Documentation\SecretText;
 use App\Support\Documentation\StepScene;
+use App\Support\Documentation\TimelineScene;
 use App\Support\Documentation\TreeScene;
 use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
@@ -46,6 +47,8 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  *       → an animated "árvore" (ours) — see renderScene()
  *   {% scene type="compare" %}{% option name="…" detail="…" %} … {% criterion name="…" %}+ texto{% endcriterion %} … {% endscene %}
  *       → an animated "comparação lado a lado" (ours) — see renderScene()
+ *   {% scene type="timeline" %}{% event when="…" title="…" status="done|current|planned" %} … {% endevent %} … {% endscene %}
+ *       → an animated "linha do tempo" (ours) — see renderScene()
  *   (every step / change / node may also carry `icon="…"`, a key of SceneIcons)
  *   {% secret %} … {% endsecret %}   (inline, ours)
  *       → a lock the value is NOT inside — see App\Support\Documentation\SecretText
@@ -616,10 +619,12 @@ class GitbookRenderer
     /**
      * An animated SCENE — `type="steps"` (the "fluxo em etapas"),
      * `type="before-after"` (the "antes → depois"), `type="tree"` (the
-     * "árvore") or `type="compare"` (the "comparação lado a lado").
+     * "árvore"), `type="compare"` (the "comparação lado a lado") or
+     * `type="timeline"` (the "linha do tempo").
      *
-     * What this emits is the scene's TEXT — the steps as an ordered list, the
-     * changes and a comparison as tables, a tree as nested lists — because that is what a reader without JavaScript
+     * What this emits is the scene's TEXT — the steps and a timeline as ordered
+     * lists, the changes and a comparison as tables, a tree as nested lists —
+     * because that is what a reader without JavaScript
      * sees, what a screen reader reads, and what the search index and the MCP
      * server pick up. The animation is drawn over it by docs-scene.js from the
      * same data, carried as JSON on the figure — so there is one renderer of
@@ -642,6 +647,7 @@ class GitbookRenderer
         $nodes = [];
         $options = [];
         $criteria = [];
+        $events = [];
         $i = 0;
         $n = count($lines);
 
@@ -657,6 +663,23 @@ class GitbookRenderer
                     'detail'    => trim(implode(' ', array_map('trim', $inner))),
                     'highlight' => ($stepAttrs['highlight'] ?? '') === 'true',
                     'icon'      => SceneIcons::sanitize($decode($stepAttrs, 'icon')),
+                ];
+
+                continue;
+            }
+
+            // `{% event %}` carries its detail as a BODY, like `{% step %}`.
+            if (preg_match('/^\{%\s*event(?:\s+(.*?))?\s*%\}$/', $line, $m)) {
+                $eventAttrs = $this->parseAttrs($m[1] ?? '');
+                [$inner, $i] = $this->consumeUntil($lines, $i + 1, 'event');
+                $status = $eventAttrs['status'] ?? '';
+                $events[] = [
+                    'when'      => $decode($eventAttrs, 'when'),
+                    'title'     => $decode($eventAttrs, 'title'),
+                    'detail'    => trim(implode(' ', array_map('trim', $inner))),
+                    'status'    => in_array($status, TimelineScene::STATUSES, true) ? $status : '',
+                    'highlight' => ($eventAttrs['highlight'] ?? '') === 'true',
+                    'icon'      => SceneIcons::sanitize($decode($eventAttrs, 'icon')),
                 ];
 
                 continue;
@@ -743,7 +766,9 @@ class GitbookRenderer
             $options = $criteria = [];
         }
 
-        if ($steps === [] && $changes === [] && $nodes === [] && $options === []) {
+        $events = array_values(array_filter($events, fn (array $event) => $event['title'] !== '' || $event['when'] !== ''));
+
+        if ($steps === [] && $changes === [] && $nodes === [] && $options === [] && $events === []) {
             return '';
         }
 
@@ -757,6 +782,7 @@ class GitbookRenderer
             $type === BeforeAfterScene::TYPE && $changes !== [] => ['type' => $type, 'caption' => $caption, 'from' => $from, 'to' => $to, 'changes' => $changes],
             $type === TreeScene::TYPE && $nodes !== []          => ['type' => $type, 'caption' => $caption, 'nodes' => $nodes],
             $type === ComparisonScene::TYPE && $options !== []  => ['type' => $type, 'caption' => $caption, 'options' => $options, 'criteria' => $criteria],
+            $type === TimelineScene::TYPE && $events !== []     => ['type' => $type, 'caption' => $caption, 'events' => $events],
             default                                             => null,
         };
 
@@ -799,6 +825,10 @@ class GitbookRenderer
 
         if ($options !== []) {
             $text .= $this->renderComparisonTable($options, $criteria);
+        }
+
+        if ($events !== []) {
+            $text .= $this->renderTimelineList($events);
         }
 
         $data = $scene !== null
@@ -889,6 +919,33 @@ class GitbookRenderer
 
         return '<table class="ak-scene__text ak-scene__compare"><thead><tr><th scope="col"></th>' . $head . '</tr></thead>'
             . '<tbody>' . $rows . '</tbody></table>';
+    }
+
+    /** What each timeline status is called, on screen and to a screen reader. */
+    private const STATUS_LABELS = ['done' => 'Concluído', 'current' => 'Agora', 'planned' => 'Previsto'];
+
+    /**
+     * A timeline as an ordered list — when, what, its status in words — the
+     * text a reader without JavaScript, a screen reader and the search index
+     * get.
+     *
+     * @param  list<array{when: string, title: string, detail: string, status: string, highlight: bool, icon: string}>  $events
+     */
+    private function renderTimelineList(array $events): string
+    {
+        $items = '';
+        foreach ($events as $event) {
+            $classes = array_filter([$event['status'] !== '' ? 'is-' . $event['status'] : null, $event['highlight'] ? 'is-highlight' : null]);
+            $status = self::STATUS_LABELS[$event['status']] ?? null;
+            $items .= '<li' . ($classes ? ' class="' . implode(' ', $classes) . '"' : '') . '>'
+                . ($event['when'] !== '' ? '<span class="ak-scene__when">' . e($event['when']) . '</span> ' : '')
+                . '<span class="ak-scene__title">' . e($event['title']) . '</span>'
+                . ($status ? ' <em class="ak-scene__status">(' . $status . ')</em>' : '')
+                . ($event['detail'] !== '' ? ' <span class="ak-scene__detail">' . e($event['detail']) . '</span>' : '')
+                . '</li>';
+        }
+
+        return '<ol class="ak-scene__text ak-scene__timeline">' . $items . '</ol>';
     }
 
     /**

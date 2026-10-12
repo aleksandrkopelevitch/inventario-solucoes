@@ -9,8 +9,9 @@
 // through GitBook notation: hint ({% hint %}), tabs ({% tabs %}), file
 // ({% file %}), diagram ({% diagram %} — a citation of a catalog drawing,
 // ours), cards ({% cards %} — a grid of product cards, also ours) and scenes
-// ({% scene type="steps|before-after|tree|compare" %} — an animated "fluxo em
-// etapas", "antes → depois", "árvore" or "comparação lado a lado", ours too).
+// ({% scene type="steps|before-after|tree|compare|timeline" %} — an animated
+// "fluxo em etapas", "antes → depois", "árvore", "comparação lado a lado" or
+// "linha do tempo", ours too).
 //
 // secret ({% secret %}…{% endsecret %}) is the only INLINE construct: it lives
 // inside a block's text rather than as a block of its own, so it is handled in
@@ -523,6 +524,9 @@ function fileSrc(file) {
 // A comparison value's line starts with its mark — mirrored by
 // GitbookRenderer::MARK_PREFIXES. Every line has one, the neutral `·` too, so
 // a text that begins with "-" is never mistaken for a mark.
+// A timeline event's status — mirrored by TimelineScene::STATUSES.
+const TIMELINE_STATUSES = ['done', 'current', 'planned']
+
 const MARK_PREFIX = {good: '+', partial: '~', bad: '-', '': '·'}
 const PREFIX_MARK = {'+': 'good', '~': 'partial', '-': 'bad', '·': ''}
 
@@ -532,7 +536,21 @@ function serializeScene(d) {
     let inner = ''
     let extra = ''
 
-    if (type === 'compare') {
+    if (type === 'timeline') {
+        // Like a step: attributes on the tag, the detail as its body.
+        inner = (d.events || [])
+            .filter((event) => oneLine(event.title) || oneLine(event.when))
+            .map((event) => {
+                const attrs = [`when="${escapeAttr(oneLine(event.when))}"`, `title="${escapeAttr(oneLine(event.title))}"`]
+                if (TIMELINE_STATUSES.includes(event.status)) attrs.push(`status="${event.status}"`)
+                if (oneLine(event.icon)) attrs.push(`icon="${escapeAttr(oneLine(event.icon))}"`)
+                if (event.highlight) attrs.push('highlight="true"')
+                const body = oneLine(event.detail)
+
+                return `{% event ${attrs.join(' ')} %}\n${body === '' ? '' : body + '\n'}{% endevent %}`
+            })
+            .join('\n')
+    } else if (type === 'compare') {
         // Options first (one line each), then each criterion with one value
         // per option as its body, each line led by its mark.
         const options = (d.options || []).filter((option) => oneLine(option.name))
@@ -712,6 +730,7 @@ function parseLines(lines) {
                     changes: parseSceneChanges(inner),
                     nodes: parseSceneNodes(inner),
                     ...parseSceneComparison(inner),
+                    events: parseSceneEvents(inner),
                 },
             })
             continue
@@ -906,6 +925,31 @@ function parseSceneSteps(lines) {
         i++
     }
     return steps
+}
+
+/** The events of a "linha do tempo" — `{% event %}`'s body is its detail. */
+function parseSceneEvents(lines) {
+    const events = []
+    let i = 0
+    while (i < lines.length) {
+        const m = lines[i].trim().match(/^\{%\s*event(?:\s+(.*?))?\s*%\}$/)
+        if (m) {
+            const attrs = parseAttrs(m[1] || '')
+            const [inner, next] = consumeUntil(lines, i + 1, 'event')
+            i = next
+            events.push({
+                when: decodeAttr(attrs.when || ''),
+                title: decodeAttr(attrs.title || ''),
+                detail: inner.map((l) => l.trim()).join(' ').trim(),
+                status: TIMELINE_STATUSES.includes(attrs.status) ? attrs.status : '',
+                highlight: attrs.highlight === 'true',
+                icon: decodeAttr(attrs.icon || ''),
+            })
+            continue
+        }
+        i++
+    }
+    return events
 }
 
 /** The options and criteria of a "comparação lado a lado". */

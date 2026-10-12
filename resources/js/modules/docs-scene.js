@@ -1,8 +1,9 @@
 // docs-scene.js — draws an animated SCENE inside a documentation page: the
 // "fluxo em etapas" (`{% scene type="steps" %}`), the "antes → depois"
 // (`{% scene type="before-after" %}`), the "árvore" (`{% scene type="tree" %}`)
-// and the "comparação lado a lado" (`{% scene type="compare" %}`), one renderer
-// per type (RENDERERS) over one shared figure builder (`figure()`).
+// the "comparação lado a lado" (`{% scene type="compare" %}`) and the "linha do
+// tempo" (`{% scene type="timeline" %}`), one renderer per type (RENDERERS)
+// over one shared figure builder (`figure()`).
 //
 // The ONE renderer of the picture, used in two places: the reader (/docs, the
 // magic link, the editor's read-only views), where GitbookRenderer emits the
@@ -396,6 +397,20 @@ function figure(time) {
             `${u} .detail{fill:var(--color-muted,#5c7563);font-size:${DETAIL.size}px}`,
             `${u} .text{fill:var(--color-ink,#0b0d10);font-size:${SIDE.size}px}`,
             `${u} .text.old{fill:var(--color-muted,#5c7563)}`,
+            `${u} .axis{fill:none;stroke:var(--color-muted,#5c7563);stroke-opacity:.6;stroke-width:2.5;stroke-linecap:round}`,
+            `${u} .axis.future{stroke-dasharray:6 6;stroke-opacity:.45}`,
+            `${u} .stem{stroke:var(--color-line-2,#cbd6cd);stroke-width:1.5}`,
+            `${u} .dot{fill:#fff;stroke:var(--color-line-2,#cbd6cd);stroke-width:2}`,
+            `${u} .dot.done{fill:var(--color-accent,#1b4d2e);stroke:var(--color-accent,#1b4d2e)}`,
+            `${u} .dot.current{fill:var(--color-lime,#aadb1e);stroke:var(--color-accent,#1b4d2e)}`,
+            `${u} .dot.planned{fill:#fff;stroke:var(--color-accent,#1b4d2e);stroke-dasharray:3 2.5}`,
+            `${u} .pulse{fill:none;stroke:var(--color-lime,#aadb1e);stroke-width:2.5}`,
+            `${u} .card.planned{stroke-dasharray:5 4;fill:var(--color-surface,#fff)}`,
+            `${u} .when{fill:var(--color-accent,#1b4d2e);font-size:${TL.when.size}px;font-weight:${TL.when.weight}}`,
+            `${u} .when.planned{fill:var(--color-muted,#5c7563)}`,
+            `${u} .ev-title{fill:var(--color-ink,#0b0d10);font-size:${TL.title.size}px;font-weight:${TL.title.weight}}`,
+            `${u} .ev-title.planned{fill:var(--color-body,#384439)}`,
+            `${u} .ev-detail{fill:var(--color-muted,#5c7563);font-size:${TL.detail.size}px}`,
             `${u} .m-good{fill:var(--color-accent,#1b4d2e)}`,
             `${u} .m-bad{fill:var(--color-crit,#b23b3b)}`,
             `${u} .m-part{fill:var(--color-hot,#b26a11)}`,
@@ -1035,6 +1050,198 @@ function renderCompare(scene, width, measure) {
     return f.svg(width, height, options.map((o) => o.name).join(' × ') + ': ' + criteria.map((c) => c.name).join('; '))
 }
 
+/* ------------------------------------------------------- linha do tempo -- */
+
+const TL = {
+    when: {size: 11.5, weight: 700, line: 15, maxLines: 1},
+    title: {size: 13, weight: 700, line: 17, maxLines: 2},
+    detail: {size: 11.5, weight: 400, line: 15, maxLines: 3},
+}
+const TL_PAD = 11
+const TL_STEM = 24 // from the axis to a card
+const TL_MIN_CARD = 120 // narrower than this, the axis turns vertical
+const TL_SEGMENT = 0.42 // seconds to draw the axis up to the next event
+const TL_EVENT = 0.78 // seconds between one event and the next
+
+/** An event's card text, wrapped for `w`, and its height. */
+function sizeEvent(event, w, measure) {
+    const room = event.icon && SCENE_ICONS.icons[event.icon] ? 22 : 0
+    const when = wrap(event.when, TL.when, w - TL_PAD * 2, measure)
+    const title = wrap(event.title, TL.title, w - TL_PAD * 2 - room, measure)
+    const detail = wrap(event.detail, TL.detail, w - TL_PAD * 2, measure)
+
+    return {
+        room,
+        when,
+        title,
+        detail,
+        h: TL_PAD * 2 + textHeight(when.length, TL.when) + (when.length ? 5 : 0)
+            + textHeight(title.length, TL.title) + (detail.length ? 4 + detail.length * TL.detail.line : 0),
+    }
+}
+
+/**
+ * Where "now" is: the current event, else the last one done, else — when the
+ * page said nothing about status — the end, so the whole axis reads as one
+ * solid line rather than a future nobody claimed.
+ */
+function nowIndex(events) {
+    const current = events.findIndex((e) => e.status === 'current')
+    if (current >= 0) return current
+    const done = events.map((e) => e.status).lastIndexOf('done')
+    if (done >= 0) return done
+
+    return events.some((e) => e.status === 'planned') ? -1 : events.length - 1
+}
+
+function layoutTimeline(events, width, measure) {
+    const n = events.length
+    const spacing = (width - EDGE * 2) / n
+    // Neighbours sit on opposite sides of the axis, so a card may be almost
+    // two spacings wide — but the first and last cards are pushed inwards to
+    // stay inside the figure, and the card two places along must still clear
+    // the pushed one: 1.5 cards fit in 2.5 spacings. (Without that second
+    // bound a five-event timeline in the editor's narrower preview overlapped
+    // its first two top cards.)
+    const cardW = Math.min(spacing * 2 - 14, (spacing * 2.5 - 14) / 1.5, 230)
+
+    if (cardW >= TL_MIN_CARD && width >= 520) {
+        const sized = events.map((e) => ({...e, ...sizeEvent(e, cardW, measure)}))
+        const topH = Math.max(0, ...sized.filter((_, i) => i % 2 === 0).map((e) => e.h))
+        const axisY = EDGE + 12 + topH + TL_STEM
+        let bottom = axisY
+
+        const boxes = sized.map((e, i) => {
+            const x = EDGE + spacing * (i + 0.5)
+            const up = i % 2 === 0
+            const cx = Math.max(EDGE, Math.min(x - cardW / 2, width - EDGE - cardW))
+            const y = up ? axisY - TL_STEM - e.h : axisY + TL_STEM
+            bottom = Math.max(bottom, y + e.h)
+
+            return {...e, dot: [x, axisY], stem: up ? [[x, axisY - 9], [x, y + e.h]] : [[x, axisY + 9], [x, y]], x: cx, y, w: cardW}
+        })
+
+        return {boxes, start: [EDGE, axisY], end: [width - EDGE, axisY], height: bottom + EDGE + 4}
+    }
+
+    // Vertical: the axis down the left, a card beside each dot.
+    const axisX = EDGE + 12
+    const x = axisX + 22
+    const w = width - EDGE - x
+    let y = EDGE + 12
+    const boxes = events.map((e) => {
+        const sized = {...e, ...sizeEvent(e, w, measure)}
+        const dotY = y + TL_PAD + 7
+        const box = {...sized, dot: [axisX, dotY], stem: [[axisX + 9, dotY], [x, dotY]], x, y, w}
+        y += sized.h + 14
+
+        return box
+    })
+
+    return {boxes, start: [axisX, EDGE + 4], end: [axisX, y + 6], height: y + 6 + EDGE + 8, vertical: true}
+}
+
+/** A dot on the axis — a diamond for the milestone. */
+function eventDot(e) {
+    const [x, y] = e.dot
+    const cls = `dot ${e.status || ''}`.trim()
+
+    if (e.highlight) {
+        const r = 9.5
+
+        return `<polygon class="${cls}" points="${r1(x)},${r1(y - r)} ${r1(x + r)},${r1(y)} ${r1(x)},${r1(y + r)} ${r1(x - r)},${r1(y)}"/>`
+    }
+
+    return `<circle class="${cls}" cx="${r1(x)}" cy="${r1(y)}" r="${e.status === 'current' ? 8 : 7}"/>`
+}
+
+function eventCard(e, measure) {
+    const planned = e.status === 'planned' ? ' planned' : ''
+    const hl = e.highlight || e.status === 'current' ? ' hl' : ''
+    let svg = ''
+
+    if (hl) svg += `<rect class="glow" x="${r1(e.x - 3)}" y="${r1(e.y - 3)}" width="${r1(e.w + 6)}" height="${r1(e.h + 6)}" rx="13"/>`
+    svg += `<rect class="card${planned}${hl}" x="${r1(e.x)}" y="${r1(e.y)}" width="${r1(e.w)}" height="${r1(e.h)}" rx="10"/>`
+
+    let y = e.y + TL_PAD
+    svg += lines(e.when, e.x + TL_PAD, y, TL.when, `when${planned}`)
+    y += textHeight(e.when.length, TL.when) + (e.when.length ? 5 : 0)
+    if (e.room) svg += icon(e.icon, e.x + TL_PAD, y, 16)
+    svg += lines(e.title, e.x + TL_PAD + e.room, y, TL.title, `ev-title${planned}`)
+    if (e.detail.length) svg += lines(e.detail, e.x + TL_PAD, y + textHeight(e.title.length, TL.title) + 4 - TL.detail.size + TL.detail.line, TL.detail, 'ev-detail')
+
+    const label = [e.status === 'current' ? 'Agora' : null, e.highlight ? 'Marco' : null].filter(Boolean).join(' · ')
+    if (label) svg += tag(e.x + e.w - 10, e.y, label, measure)
+
+    return svg
+}
+
+function renderTimeline(scene, width, measure) {
+    const events = (scene.events || []).filter((e) => (e.title || '').trim() || (e.when || '').trim())
+    if (!events.length) return ''
+
+    const {boxes, start, end, height} = layoutTimeline(events, width, measure)
+    const now = nowIndex(events)
+
+    // The axis is drawn segment by segment, each one ending on the next event,
+    // then a tail into what comes after — solid through the past, dashed past
+    // "now". The marker rides it like it rides a flow's arrows.
+    const points = [start, ...boxes.map((b) => b.dot), end]
+    const segments = points.slice(1).map((p, k) => ({from: points[k], to: p, future: k > now}))
+    const times = []
+    let t = LEAD
+    const eventAt = []
+    segments.forEach((_, k) => {
+        times.push([t, t + TL_SEGMENT])
+        if (k < boxes.length) eventAt.push(t + TL_SEGMENT)
+        t += k < boxes.length ? TL_EVENT : TL_SEGMENT
+    })
+    const drawnAt = t + 0.3
+    const time = {drawnAt, holdUntil: drawnAt + 3, goneAt: drawnAt + 3 + FADE, cycle: drawnAt + 3 + FADE + BLANK}
+    const f = figure(time)
+    const {pct} = f
+
+    segments.forEach((seg, k) => {
+        const [s0, s1] = times[k]
+        const d = pathOf([seg.from, seg.to])
+        // A dashed segment cannot use the dash-offset draw trick (that IS its
+        // dash array), so it fades in instead — pending-drawing.js's rule.
+        if (seg.future) {
+            f.back.push(`<path class="mk axis future ${f.keyframes('opacity:0', 'opacity:1', s0, s1)}" d="${d}"/>`)
+        } else {
+            const id = f.keyframes('opacity:0;stroke-dashoffset:1', 'opacity:1;stroke-dashoffset:0', s0, s1, `${pct(s0 + 0.01)}%{opacity:1;stroke-dashoffset:1}`)
+            f.back.push(`<path class="mk axis ${id}" d="${d}" pathLength="1" stroke-dasharray="1 1"/>`)
+        }
+    })
+    // Where the axis is going — an arrowhead on the tail.
+    const tail = segments[segments.length - 1]
+    f.body.push(`<g class="mk ${f.keyframes('opacity:0', 'opacity:1', times[times.length - 1][1] - 0.05, times[times.length - 1][1] + 0.1)}">${head(tail.to, tail.from)}</g>`)
+
+    boxes.forEach((b, i) => {
+        const at = eventAt[i]
+        f.back.push(`<path class="mk stem ${f.keyframes('opacity:0', 'opacity:1', at + 0.1, at + 0.3)}" d="${pathOf(b.stem)}"/>`)
+        f.body.push(`<g class="mk ${f.keyframes('opacity:0;transform:scale(.3)', 'opacity:1;transform:scale(1)', at, at + 0.25)}">${eventDot(b)}</g>`)
+        f.body.push(`<g class="mk ${f.pop(at + 0.15)}">${eventCard(b, measure)}</g>`)
+
+        // "Agora" keeps pulsing once everything is drawn.
+        if (b.status === 'current') {
+            const [x, y] = b.dot
+            const frames = [`0%,${pct(drawnAt)}%{opacity:0;transform:scale(1)}`]
+            for (let k = 0; k < 3; k++) {
+                const p0 = drawnAt + k * 0.95
+                frames.push(`${pct(p0 + 0.01)}%{opacity:.85;transform:scale(1)}`, `${pct(p0 + 0.9)}%{opacity:0;transform:scale(2.4)}`)
+            }
+            frames.push('100%{opacity:0;transform:scale(2.4)}')
+            f.body.push(`<g class="fx ${f.named(frames.join(''), 'ease-out')}"><circle class="pulse" cx="${r1(x)}" cy="${r1(y)}" r="8"/></g>`)
+        }
+    })
+
+    const token = f.named(tokenKeyframes(segments.map((seg) => [seg.from, seg.to]), times, pct), 'linear')
+    f.body.push(`<g class="fx ${token}"><circle class="halo" r="9"/><circle class="token" r="4.5"/></g>`)
+
+    return f.svg(width, height, events.map((e) => `${e.when} — ${e.title}`).join('; '))
+}
+
 /* ------------------------------------------------------------ dispatch -- */
 
 const RENDERERS = {
@@ -1042,6 +1249,7 @@ const RENDERERS = {
     'before-after': renderBeforeAfter,
     tree: renderTree,
     compare: renderCompare,
+    timeline: renderTimeline,
 }
 
 /** The whole figure as an <svg> string, for a container `width` pixels wide. */

@@ -5,6 +5,7 @@ namespace App\Enums;
 use App\Support\Documentation\BeforeAfterScene;
 use App\Support\Documentation\ComparisonScene;
 use App\Support\Documentation\StepScene;
+use App\Support\Documentation\TimelineScene;
 use App\Support\Documentation\TreeScene;
 
 /**
@@ -25,6 +26,7 @@ enum SceneType: string
     case BeforeAfter = 'before-after';
     case Tree = 'tree';
     case Compare = 'compare';
+    case Timeline = 'timeline';
 
     public function label(): string
     {
@@ -33,6 +35,7 @@ enum SceneType: string
             self::BeforeAfter => 'Antes → depois',
             self::Tree        => 'Árvore',
             self::Compare     => 'Comparação lado a lado',
+            self::Timeline    => 'Linha do tempo',
         };
     }
 
@@ -47,6 +50,7 @@ enum SceneType: string
             self::BeforeAfter => 'um antes e depois',
             self::Tree        => 'uma árvore',
             self::Compare     => 'uma comparação lado a lado',
+            self::Timeline    => 'uma linha do tempo',
         };
     }
 
@@ -58,6 +62,7 @@ enum SceneType: string
             self::BeforeAfter => 'A comparação proposta',
             self::Tree        => 'A árvore proposta',
             self::Compare     => 'A comparação lado a lado proposta',
+            self::Timeline    => 'A linha do tempo proposta',
         };
     }
 
@@ -73,6 +78,7 @@ enum SceneType: string
             self::BeforeAfter => 'changes',
             self::Tree        => 'root',
             self::Compare     => 'options',
+            self::Timeline    => 'events',
         };
     }
 
@@ -87,6 +93,7 @@ enum SceneType: string
             self::BeforeAfter => BeforeAfterScene::validate($payload),
             self::Tree        => TreeScene::validate($payload),
             self::Compare     => ComparisonScene::validate($payload),
+            self::Timeline    => TimelineScene::validate($payload),
         };
     }
 
@@ -104,6 +111,7 @@ enum SceneType: string
             self::BeforeAfter => BeforeAfterScene::fromArray($payload)->toArray(),
             self::Tree        => TreeScene::fromArray($payload)->toArray(),
             self::Compare     => ComparisonScene::fromArray($payload)->toArray(),
+            self::Timeline    => TimelineScene::fromArray($payload)->toArray(),
         };
     }
 }

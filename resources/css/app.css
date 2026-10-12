@@ -737,7 +737,7 @@ dialog[open]::backdrop {
 }
 
 /* Scenes (the {% scene %} block) — the "fluxo em etapas", the "antes → depois",
-   the "árvore" and the "comparação lado a lado". GitbookRenderer emits their text (an ordered list / a table
+   the "árvore", the "comparação lado a lado" and the "linha do tempo". GitbookRenderer emits their text (an ordered list / a table
    / nested lists), which
    is what a reader without JavaScript, a screen reader and the search index
    get; docs-scene.js draws the animated figure into the stage above it from the
@@ -765,6 +765,10 @@ dialog[open]::backdrop {
 .html-content .ak-scene__detail { color: var(--color-muted); }
 .html-content .ak-scene__tree { margin: 0; }
 .html-content .ak-scene__compare { margin: 0; }
+.html-content .ak-scene__timeline { margin: 0; }
+.html-content .ak-scene__when { font-weight: 700; color: var(--color-accent); }
+.html-content .ak-scene__status { font-size: 0.8em; color: var(--color-muted); }
+.html-content .ak-scene__timeline li.is-highlight > .ak-scene__title { background: var(--color-lime-soft); }
 .html-content .ak-scene__compare .is-highlight { background: var(--color-lime-soft); }
 .html-content .ak-scene__mark { margin-right: 0.3rem; font-weight: 700; }
 .html-content .ak-scene__mark.is-good { color: var(--color-accent); }

@@ -9,6 +9,7 @@ use App\Support\Documentation\ComparisonScene;
 use App\Support\Documentation\SceneIcons;
 use App\Support\Documentation\SecretText;
 use App\Support\Documentation\StepScene;
+use App\Support\Documentation\TimelineScene;
 use App\Support\Documentation\TreeScene;
 
 /**
@@ -36,6 +37,7 @@ class SceneDraftPromptBuilder
             SceneType::BeforeAfter => $this->beforeAfterPrompt(),
             SceneType::Tree        => $this->treePrompt(),
             SceneType::Compare     => $this->comparePrompt(),
+            SceneType::Timeline    => $this->timelinePrompt(),
         };
 
         return <<<PROMPT
@@ -284,6 +286,57 @@ class SceneDraftPromptBuilder
         Se a página NÃO compara alternativas (descreve uma coisa só, um
         processo, uma mudança no tempo), não force: responda
         `{"error": "<em uma frase, por que não há uma comparação aqui>"}`.
+        PROMPT;
+    }
+
+    private function timelinePrompt(): string
+    {
+        $min = TimelineScene::MIN_EVENTS;
+        $max = TimelineScene::MAX_EVENTS;
+        $when = TimelineScene::MAX_WHEN;
+        $title = TimelineScene::MAX_TITLE;
+        $detail = TimelineScene::MAX_DETAIL;
+        $caption = TimelineScene::MAX_CAPTION;
+
+        return <<<PROMPT
+        A FIGURA É UMA LINHA DO TEMPO: os acontecimentos que a página DATA — os
+        marcos de um projeto, a história de um sistema, um cronograma ou um
+        roadmap — ao longo de um eixo, do passado para o futuro.
+
+        FORMATO:
+
+        ```json
+        {
+          "caption": "Migração do SVL para o S/4HANA",
+          "events": [
+            {"when": "Out/2025", "title": "Levantamento dos fluxos", "detail": "Mapeados os 14 fluxos do SVL com o SAP ECC.", "status": "done", "icon": "busca"},
+            {"when": "Jan/2026", "title": "Go-live do S/4HANA", "status": "done", "highlight": true, "icon": "marco"},
+            {"when": "Mar/2026", "title": "Pedidos pelo Digibee", "detail": "Integração nova em homologação.", "status": "current", "icon": "integracao"},
+            {"when": "Jun/2026", "title": "Desligar o ECC", "status": "planned", "icon": "servidor"}
+          ]
+        }
+        ```
+
+        REGRAS:
+        - Entre {$min} e {$max} eventos, NA ORDEM em que acontecem (ou vão
+          acontecer). Agrupe o que for miúdo.
+        - `when`: a data ou o período, EXATAMENTE como a página escreve
+          ("Jan/2026", "15/03", "Sprint 3", "Q2 2026", "Fase 2"), até {$when}
+          caracteres. Não invente data, não converta formato.
+        - `title`: curto, até {$title} caracteres — o que acontece. `detail`:
+          opcional, até {$detail} caracteres.
+        - `status`: "done" (já aconteceu), "current" (está acontecendo agora —
+          no MÁXIMO UM evento), "planned" (ainda vai acontecer) ou "" quando a
+          página não deixa claro. Não deduza pela data de hoje: use o que a
+          página diz.
+        - `highlight`: true em NO MÁXIMO UM evento — o marco principal que a
+          página destaca (um go-live, uma entrega). Na dúvida, nenhum.
+        - `caption`: uma linha de até {$caption} caracteres dizendo do que é a
+          linha do tempo. Pode ficar vazio.
+
+        Se a página NÃO data os acontecimentos (é um processo que se repete,
+        uma comparação, uma estrutura), não force: responda
+        `{"error": "<em uma frase, por que não há uma linha do tempo aqui>"}`.
         PROMPT;
     }
 
