@@ -11,6 +11,7 @@ use App\Support\Documentation\BlockVault;
 use App\Support\Documentation\ComparisonScene;
 use App\Support\Documentation\SceneIcons;
 use App\Support\Documentation\StepScene;
+use App\Support\Documentation\TimelineScene;
 use App\Support\Documentation\TreeScene;
 use App\Support\GitbookRenderer;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -658,4 +659,99 @@ it('says when a page compares nothing', function () {
         ->postJson(route('notebooks.pages.scene', [$page->notebook, $page]), ['type' => 'compare'])
         ->assertStatus(422)
         ->assertJsonPath('message', 'Não dá para montar uma comparação lado a lado a partir desta página: A página descreve um sistema só.');
+});
+
+// ---------------------------------------------------------------------------
+// "Linha do tempo"
+// ---------------------------------------------------------------------------
+
+function validTimeline(): array
+{
+    return [
+        'caption' => 'Migração do SVL para o S/4HANA',
+        'events'  => [
+            ['when' => 'Out/2025', 'title' => 'Levantamento', 'status' => 'done', 'icon' => 'busca'],
+            ['when' => 'Jan/2026', 'title' => 'Go-live do S/4HANA', 'status' => 'done', 'highlight' => true],
+            ['when' => 'Mar/2026', 'title' => 'Pedidos pelo Digibee', 'detail' => 'Em homologação.', 'status' => 'current'],
+            ['when' => 'Jun/2026', 'title' => 'Desligar o ECC', 'status' => 'planned'],
+        ],
+    ];
+}
+
+it('accepts dated events with a status each', function () {
+    expect(TimelineScene::validate(validTimeline()))->toBe([]);
+
+    $events = SceneType::Timeline->normalize(validTimeline())['events'];
+
+    expect(array_column($events, 'status'))->toBe(['done', 'done', 'current', 'planned'])
+        ->and($events[0]['icon'])->toBe('busca')
+        ->and($events[1]['highlight'])->toBeTrue();
+});
+
+it('refuses an undated event, an unknown status or two "agora"', function () {
+    $payload = validTimeline();
+    $payload['events'][0]['when'] = '';
+    $payload['events'][1]['status'] = 'feito';
+    $payload['events'][3]['status'] = 'current';
+
+    $problems = implode(' ', TimelineScene::validate($payload));
+
+    expect($problems)
+        ->toContain('O evento 1 precisa de "when"')
+        ->toContain('O "status" do evento 2 deve ser "done", "current", "planned" ou vazio')
+        ->toContain('No máximo UM evento pode ter "status": "current"');
+});
+
+it('renders a timeline as an ordered list with each status in words', function () {
+    $html = app(GitbookRenderer::class)->render(<<<'MD'
+        {% scene type="timeline" caption="Migração" %}
+        {% event when="Jan/2026" title="Go-live" status="done" highlight="true" icon="marco" %}
+        S/4 no ar.
+        {% endevent %}
+        {% event when="Mar/2026" title="Pedidos" status="current" %}
+        {% endevent %}
+        {% event when="Jun/2026" title="<b>Desligar</b>" status="talvez" %}
+        {% endevent %}
+        {% endscene %}
+        MD);
+
+    expect($html)
+        ->toContain('<ol class="ak-scene__text ak-scene__timeline">')
+        ->toContain('<li class="is-done is-highlight"><span class="ak-scene__when">Jan/2026</span> <span class="ak-scene__title">Go-live</span> <em class="ak-scene__status">(Concluído)</em> <span class="ak-scene__detail">S/4 no ar.</span></li>')
+        ->toContain('<em class="ak-scene__status">(Agora)</em>')
+        // An unknown status is not drawn as one, and a title stays text.
+        ->toContain('<li><span class="ak-scene__when">Jun/2026</span> <span class="ak-scene__title">&lt;b&gt;Desligar&lt;/b&gt;</span></li>');
+
+    preg_match('/data-ak-scene="([^"]*)"/', $html, $m);
+    $scene = json_decode(html_entity_decode($m[1], ENT_QUOTES), true);
+
+    expect($scene['type'])->toBe('timeline')
+        ->and(array_column($scene['events'], 'status'))->toBe(['done', 'current', ''])
+        ->and($scene['events'][0]['icon'])->toBe('marco');
+});
+
+it('proposes a timeline with its own prompt', function () {
+    $page = scenePage('Em Jan/2026 o S/4 entrou no ar; em Mar/2026 os pedidos passam pelo Digibee.');
+    app()->instance(SceneDraftService::class, fakeSceneService(sceneJson(validTimeline())));
+
+    $this->actingAs(User::factory()->editor()->create())
+        ->postJson(route('notebooks.pages.scene', [$page->notebook, $page]), ['type' => 'timeline'])
+        ->assertOk()
+        ->assertJsonPath('scene.type', 'timeline')
+        ->assertJsonPath('scene.events.2.status', 'current')
+        ->assertJsonCount(4, 'scene.events');
+
+    expect(app(SceneDraftPromptBuilder::class)->systemPrompt(SceneType::Timeline))
+        ->toContain('UMA LINHA DO TEMPO')
+        ->toContain('EXATAMENTE como a página escreve');
+});
+
+it('says when a page dates nothing', function () {
+    $page = scenePage();
+    app()->instance(SceneDraftService::class, fakeSceneService(sceneJson(['error' => 'A página descreve um processo sem datas.'])));
+
+    $this->actingAs(User::factory()->editor()->create())
+        ->postJson(route('notebooks.pages.scene', [$page->notebook, $page]), ['type' => 'timeline'])
+        ->assertStatus(422)
+        ->assertJsonPath('message', 'Não dá para montar uma linha do tempo a partir desta página: A página descreve um processo sem datas.');
 });

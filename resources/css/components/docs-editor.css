@@ -1282,3 +1282,25 @@
 .ak-scene-tool__mark.is-good { background: var(--color-accent); }
 .ak-scene-tool__mark.is-partial { background: var(--color-hot); }
 .ak-scene-tool__mark.is-bad { background: var(--color-crit); }
+
+/* "Linha do tempo": the first line holds the status button, the date and the
+   title; the status is a button that says what it is (· ✓ ● ○). */
+.ak-scene-tool__head-line {
+    display: grid;
+    grid-template-columns: auto minmax(5.5rem, 8rem) minmax(0, 1fr);
+    align-items: center;
+    gap: 0.35rem;
+}
+.ak-scene-tool__when { font-weight: 600; color: var(--color-accent) !important; }
+.ak-scene-tool__status-btn {
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    line-height: 1;
+}
+.ak-scene-tool__status-btn.is-none { background: var(--color-raised); color: var(--color-faint); }
+.ak-scene-tool__status-btn.is-done { background: var(--color-accent); color: #fff; }
+.ak-scene-tool__status-btn.is-current { background: var(--color-lime); color: var(--color-accent); }
+.ak-scene-tool__status-btn.is-planned { background: #fff; color: var(--color-accent); box-shadow: inset 0 0 0 1.5px var(--color-accent); }

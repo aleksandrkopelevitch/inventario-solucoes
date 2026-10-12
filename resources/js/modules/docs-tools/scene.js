@@ -7,6 +7,9 @@
 //   {% change aspect="…" before="…" after="…" %}…{% endscene %}`
 // - "Árvore" → `{% scene type="tree" %}{% node level="0" label="…" %}…
 //   {% endscene %}` — rows with a depth, indented, ⇤/⇥ to change it
+// - "Linha do tempo" → `{% scene type="timeline" %}{% event when="…" title="…"
+//   status="done|current|planned" %}detalhe{% endevent %}…{% endscene %}` — each
+//   row's status cycled by a button; one "agora"
 // - "Comparação lado a lado" → `{% scene type="compare" %}{% option name="…" %}…
 //   {% criterion name="…" %}+ valor{% endcriterion %}…{% endscene %}` — two
 //   linked lists, so its rows are CompareForm's rather than the generic kind
@@ -46,6 +49,8 @@ const BEFORE_AFTER_ICON = '<svg width="17" height="17" viewBox="0 0 24 24" fill=
 const TREE_ICON = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8.5" y="2.5" width="7" height="5" rx="1.2"/><rect x="2.5" y="16.5" width="7" height="5" rx="1.2"/><rect x="14.5" y="16.5" width="7" height="5" rx="1.2"/><path d="M12 7.5v4.5M6 16.5V12h12v4.5"/></svg>'
 
 const COMPARE_ICON = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16M3 10h18"/></svg>'
+
+const TIMELINE_ICON = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12h19"/><circle cx="6" cy="12" r="2.2" fill="currentColor"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/><circle cx="18" cy="12" r="2.2"/><path d="M6 9.5V5M12 14.5V19M18 9.5V5"/></svg>'
 
 const SPARKLES = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.8 15.9 9 18.8l-.8-2.9a4.5 4.5 0 0 0-3.1-3.1L2.2 12l2.9-.8a4.5 4.5 0 0 0 3.1-3.1L9 5.2l.8 2.9a4.5 4.5 0 0 0 3.1 3.1l2.9.8-2.9.8a4.5 4.5 0 0 0-3.1 3.1ZM18.3 8.7 18 9.8l-.3-1.1a3.4 3.4 0 0 0-2.4-2.4L14.2 6l1.1-.3a3.4 3.4 0 0 0 2.4-2.4L18 2.2l.3 1.1a3.4 3.4 0 0 0 2.4 2.4l1.1.3-1.1.3a3.4 3.4 0 0 0-2.4 2.4Z"/></svg>'
 
@@ -117,6 +122,34 @@ const TYPES = {
         // indented; ⇤/⇥ change it. TreeScene stores the same flat outline.
         levels: true,
         filled: (row) => row.label.trim(),
+    },
+    timeline: {
+        name: 'Linha do tempo',
+        icon: TIMELINE_ICON,
+        list: 'events',
+        max: 8,
+        add: 'Adicionar evento',
+        focus: 'Sobre o quê? (opcional) — ex.: a migração para o S/4HANA',
+        caption: 'Legenda (opcional) — ex.: migração do SVL para o S/4HANA',
+        highlight: ['Marcar como marco', 'Desmarcar marco'],
+        replace: 'Substituir os eventos atuais pela linha do tempo gerada a partir da página?',
+        done: 'Linha do tempo gerada. Confira datas e status — dá para editar, reordenar e marcar o marco.',
+        fields: [
+            // `head` fields share the first line with the status button.
+            {key: 'when', placeholder: 'Quando — ex.: Jan/2026', max: 20, cls: 'ak-scene-tool__when', head: true},
+            {key: 'title', placeholder: 'O que acontece', max: 40, cls: 'ak-scene-tool__title', head: true},
+            {key: 'detail', placeholder: 'Detalhe (opcional)', max: 100, cls: 'ak-scene-tool__detail'},
+        ],
+        // A cycling button per row (TimelineScene::STATUSES); `single` is the
+        // one value only one row may hold — "agora" is where the reader stands.
+        status: {
+            values: ['', 'done', 'current', 'planned'],
+            glyph: {'': '·', done: '✓', current: '●', planned: '○'},
+            label: {'': 'Sem status', done: 'Concluído', current: 'Agora', planned: 'Previsto'},
+            single: 'current',
+        },
+        labels: false,
+        filled: (row) => row.title.trim() || row.when.trim(),
     },
     compare: {
         name: 'Comparação lado a lado',
@@ -212,6 +245,7 @@ export default class SceneTool {
             const copy = {highlight: row.highlight === true, icon: String(row.icon || '')}
             this.spec.fields.forEach(({key}) => { copy[key] = String(row[key] || '') })
             if (this.spec.levels) copy.level = Number(row.level) || 0
+            if (this.spec.status) copy.status = this.spec.status.values.includes(row.status) ? row.status : ''
 
             return copy
         })
@@ -409,6 +443,8 @@ export default class SceneTool {
 
         const fields = el('div', 'ak-scene-tool__fields')
         const pair = el('div', 'ak-scene-tool__pair')
+        const headLine = el('div', 'ak-scene-tool__head-line')
+        if (this.spec.status) headLine.append(this.statusButton(row))
         const inputs = this.spec.fields.map((spec) => {
             const field = input(spec.cls, {placeholder: spec.placeholder, value: row[spec.key], max: spec.max})
             field.addEventListener('input', () => {
@@ -418,12 +454,15 @@ export default class SceneTool {
             if (spec.pair) {
                 if (pair.childElementCount) pair.append(el('span', 'ak-scene-tool__arrow', {text: '→', 'aria-hidden': 'true'}))
                 pair.append(field)
+            } else if (spec.head) {
+                headLine.append(field)
             } else {
                 fields.append(field)
             }
 
             return field
         })
+        if (headLine.childElementCount) fields.prepend(headLine)
         if (pair.childElementCount) fields.append(pair)
 
         // Enter walks forward through the row, then to the next row's first field.
@@ -590,6 +629,30 @@ export default class SceneTool {
         return button
     }
 
+    /**
+     * A row's status (a timeline's concluído / agora / previsto), cycled by
+     * click. Status is content, not decoration, so it is a button that says
+     * what it is rather than a colour to decode. Choosing the `single` value
+     * clears it from every other row — there is one "agora".
+     */
+    statusButton(row) {
+        const spec = this.spec.status
+        const button = el('button', `ak-scene-tool__status-btn is-${row.status || 'none'}`, {type: 'button'})
+        const label = spec.label[row.status]
+        button.textContent = spec.glyph[row.status]
+        button.title = `${label} — clique para trocar`
+        button.setAttribute('aria-label', button.title)
+        button.addEventListener('click', () => {
+            const next = spec.values[(spec.values.indexOf(row.status) + 1) % spec.values.length]
+            if (next === spec.single) this.rows.forEach((other) => { if (other.status === spec.single) other.status = '' })
+            row.status = next
+            this.drawRows()
+            this.changed()
+        })
+
+        return button
+    }
+
     /** The rows under row `i` in the outline — the contiguous ones deeper than it. */
     branch(i) {
         const rows = []
@@ -631,6 +694,7 @@ export default class SceneTool {
             const copy = {highlight: row.highlight}
             this.spec.fields.forEach(({key}) => { copy[key] = text(row[key]) })
             if (this.spec.levels) copy.level = row.level
+            if (this.spec.status) copy.status = row.status
             // Written only when chosen, like `highlight`.
             if (row.icon) copy.icon = row.icon
 

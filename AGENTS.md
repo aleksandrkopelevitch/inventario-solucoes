@@ -2,11 +2,13 @@
 
 Catalog of Leo Madeiras' solutions/integrations: solution, people and company
 records, a documentation module (**cadernos** — a page tree per `Notebook`,
-each linked to 0..N solutions),
+each linked to 0..N solutions, whose pages may carry animated **scenes**: a
+flow of steps, a before/after, a tree, a side-by-side comparison, a timeline),
 a **diagrams** module (the graphical topology editor, one drawing at a time;
 every diagram belongs to a caderno and is created only from inside one),
 an internal **knowledge base** (`/docs` — the cadernos an admin published, read
-by anybody with a Leo account, most of whom arrive through Entra SSO),
+by anybody with a Leo account, most of whom arrive through Entra SSO, opening on
+a home caderno's page beside a filterable rail of every caderno),
 a read-only map of the ecosystem derived from those drawings, the **Comitê de
 Arquitetura** module (`/submissions` — a proposal prepared, interviewed,
 rendered as a deck and deliberated), an **Especialista em Integrações**
@@ -58,7 +60,7 @@ if a rule you expect is not here, it is in one of these:
 | `docs-secrets.md` | `{% secret %}`, the reveal action, the throttle |
 | `documentation-assistant.md` | the Assiste IA chat, its vaults and its prompt contract |
 | `page-to-diagram-draft.md` | drawing a page: the draft IR, exact name resolution, the one synchronous model call |
-| `doc-scenes.md` | animated scenes in a page ("Fluxo em etapas", "Antes → depois", "Árvore", "Comparação lado a lado"): the model picks words, `docs-scene.js` draws; the icon catalogue; the pause button |
+| `doc-scenes.md` | animated scenes in a page ("Fluxo em etapas", "Antes → depois", "Árvore", "Comparação lado a lado", "Linha do tempo"): the model picks words, `docs-scene.js` draws; the icon catalogue; the pause button |
 | `diagram-models.md` | the four diagram models, the semantics/geometry split, the lifeline and the AS IS × TO BE diff |
 | `cati-submissions.md` | the committee module: stages, the checklist, the interview, the deck, the approved topology |
 | `digibee-knowledge-base.md` | the two Digibee corpora, redaction, `digibeectl` boundaries |

@@ -4,6 +4,7 @@ paths:
   - "app/Support/Documentation/BeforeAfterScene.php"
   - "app/Support/Documentation/TreeScene.php"
   - "app/Support/Documentation/ComparisonScene.php"
+  - "app/Support/Documentation/TimelineScene.php"
   - "app/Support/Documentation/SceneIcons.php"
   - "resources/data/scene-icons.json"
   - "app/Enums/SceneType.php"
@@ -19,7 +20,7 @@ paths:
 ### Animated scenes — the model picks the words, the code draws the picture
 
 A SCENE is an animated figure inside a documentation page — the seventh
-construct of the dialect, the third of our own. Four types exist, and
+construct of the dialect, the third of our own. Five types exist, and
 `App\Enums\SceneType` is the one switch everything turns on (prompt, IR,
 editor form, renderer):
 
@@ -63,6 +64,27 @@ editor form, renderer):
   editor is CompareForm, not the generic rows: two linked lists, so adding,
   moving or removing an option does the same to that column of every
   criterion.
+- **"Linha do tempo"** — `{% scene type="timeline" %}` with one
+  `{% event when="…" title="…" status="done|current|planned" %}detalhe
+  {% endevent %}` per event, in order (`TimelineScene`: 2–8 events). It is not
+  the "fluxo em etapas": a process repeats and has no date, a timeline happens
+  once — every event carries `when`, written EXACTLY as the page writes it
+  ("Jan/2026", "Sprint 3", "Curto prazo"), never parsed or converted, since
+  the order is the list's and the corpus dates things a dozen ways; a page
+  with no dates gets the model's refusal. `status` is content like a mark (an
+  unknown one is a validation error) and at most ONE event is `current` —
+  where the reader stands; the model is told not to infer it from today's
+  date. Drawn along an axis, solid through the past and dashed past "now"
+  (the current event, else the last done one, else — when the page gave no
+  status — all solid), with an arrowhead into the future; events alternate
+  above and below it, "Agora" pulses, a milestone (`highlight`, "Marco") is a
+  diamond. Vertical below ~560px. A card may be wider than one spacing since
+  neighbours sit on opposite sides, but NOT wider than `(2.5·spacing − 14) /
+  1.5`: the first card is pushed inwards to stay in the figure, and the next
+  card on its side must still clear it — the editor's narrower preview is
+  where that overlap first showed. The editor's rows carry a status button
+  (· ✓ ● ○) on the first line with the date and the title; choosing "agora"
+  clears it from every other row.
 
 A new type is a new `SceneType` case plus its IR, its prompt section
 (`SceneDraftPromptBuilder`), its row spec in the editor tool's `TYPES` table and

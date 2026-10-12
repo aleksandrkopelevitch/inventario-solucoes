@@ -5,8 +5,11 @@ Madeiras: cadastro de soluções/pessoas/empresas, um módulo de **Diagramas**
 (editor gráfico de topologia, um desenho por vez — todo diagrama pertence a um
 caderno), um mapa read-only do
 ecossistema derivado desses desenhos, documentação rica (estilo GitBook) em
-árvore de páginas — com um assistente de IA que gera rascunhos e com valores
-sensíveis atrás de cadeado —, um hub que reúne a cobertura dessa documentação,
+árvore de páginas — com um assistente de IA que gera rascunhos, com **cenas
+animadas** montadas a partir do texto (fluxo em etapas, antes → depois, árvore,
+comparação lado a lado, linha do tempo) e com valores sensíveis atrás de
+cadeado —, uma **base de conhecimento** interna (`/docs`) com os cadernos
+publicados, um hub que reúne a cobertura dessa documentação,
 um Especialista em Integrações que gera flowSpec Digibee em formato de chat — e
 que sabe **escrever** esse documento num pipeline, implantá-lo em `test`,
 testá-lo e corrigi-lo em rodadas — e o módulo do **Comitê de Arquitetura**,
@@ -1234,6 +1237,55 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   imagem renderizada, que mostraria o desenho antigo até alguém abrir o canvas.
   Um diagrama de **outro** caderno não pode ser o alvo. O resultado abre numa
   aba nova, e a página que está sendo escrita fica como estava.
+- **Base de conhecimento** (`/docs`): os cadernos que um administrador
+  publicou (a coluna "Em /docs" do catálogo de Cadernos), lidos por qualquer
+  conta Leo — a maioria chega pelo SSO da Entra. É a mesma tela do link público
+  (`DocumentationReader` + `x-documentation.reader-body`), mudando só os
+  endereços e o seletor de cadernos na barra de cima.
+
+  A **página inicial** é a primeira página de um caderno marcado como
+  `notebooks.is_home` — escrita no editor como qualquer outra, com imagens,
+  avisos e cenas —, ao lado de um menu com **todos os cadernos publicados** e um
+  campo **"Filtrar cadernos…"** que procura pelo nome do caderno e pelos
+  sistemas que ele descreve (Enter abre o primeiro resultado). A home só vale
+  enquanto estiver **publicada**; sem ela, `/docs` mostra os cadernos em cards.
+  O caderno inicial é criado **uma vez por ambiente** por
+  `KnowledgeBaseHomeSeeder` (`envoy run kb-home` no droplet), a partir de
+  `database/data/knowledge-base-home/` (texto + SVGs animados), e o seeder nunca
+  mexe numa home que já existe.
+
+- **Cenas animadas**: figuras animadas dentro de uma página, montadas a partir
+  do texto dela. No editor, `/` → o tipo de cena → opcionalmente **"Sobre o
+  quê?"** → **"Gerar a partir da página"**; ou tudo à mão. Cinco tipos:
+
+  | cena | a pergunta | como é desenhada |
+  |---|---|---|
+  | Fluxo em etapas | **em que ordem** as coisas acontecem | cards numerados ligados por setas, um marcador lima percorrendo-as |
+  | Antes → depois | **o que muda**, aspecto por aspecto | duas colunas; o novo entra com um brilho lima, o antigo esmaece |
+  | Árvore | **o que contém o quê** | organograma (2–4 ramos) ou árvore indentada |
+  | Comparação lado a lado | **qual alternativa** atende cada critério | matriz de opções × critérios com ✓ ◐ ✗; a recomendada ganha a faixa lima no fim |
+  | Linha do tempo | **quando** cada coisa aconteceu ou vai acontecer | eixo sólido no passado e tracejado no futuro; "Agora" pulsa, o marco é um losango |
+
+  **O modelo escolhe as palavras; o código desenha.** O Gemini Flash
+  (`services.documentation_ai`) devolve só um JSON pequeno — quais etapas,
+  mudanças, itens, valores ou eventos, em que ordem, qual o principal —,
+  validado por um IR por tipo (`StepScene`, `BeforeAfterScene`, `TreeScene`,
+  `ComparisonScene`, `TimelineScene`), com uma rodada de reparo e uma saída
+  (`{"error": …}`) para a página que não descreve aquilo. Nunca uma
+  coordenada, uma cor ou um SVG: o `docs-scene.js` decide tudo isso, então a
+  figura nunca sai torta nem fora da marca, e um modelo rápido basta.
+  `App\Enums\SceneType` é a chave de tudo; um tipo novo é um caso novo ali, não
+  um endpoint novo.
+
+  Cada linha pode ter um **ícone** de um catálogo fechado
+  (`resources/data/scene-icons.json`, Heroicons — o mesmo arquivo que o servidor
+  valida, o prompt lista, o desenho importa e o seletor do editor oferece). Toda
+  figura tem um botão de **pausar** (pausada, mostra a figura completa e
+  parada; sob redução de movimento, nem anima). Sem JavaScript, a cena é o seu
+  texto — lista, tabela ou lista aninhada —, que também é o que a busca, os
+  leitores de tela e o MCP leem. O Assiste IA não pode reescrever uma cena
+  (`BlockVault` a congela inteira). Detalhes em `.claude/rules/doc-scenes.md`.
+
 - **Especialista em Integrações** (`/flowspec`): chat que gera o JSON de
   flowSpec Digibee a partir de um pedido em linguagem natural. Contexto **sem
   RAG** — Solutions citadas (explícitas via chips, ou inferidas casando o nome
