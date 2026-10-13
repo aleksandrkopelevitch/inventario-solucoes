@@ -1,5 +1,6 @@
 // Editor.js SCENE tool — an animated figure (docs-scene.js) inside the page.
-// One tool, one entry in the "/" menu per scene type:
+// ONE entry in the "/" menu ("Cena animada"); the block then opens on a chooser
+// of the scene types (and its ⋮ menu switches type later):
 //
 // - "Fluxo em etapas" → `{% scene type="steps" %}{% step title="…"
 //   highlight="true" %}detalhe{% endstep %}…{% endscene %}`
@@ -52,6 +53,8 @@ const COMPARE_ICON = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none
 
 const TIMELINE_ICON = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12h19"/><circle cx="6" cy="12" r="2.2" fill="currentColor"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/><circle cx="18" cy="12" r="2.2"/><path d="M6 9.5V5M12 14.5V19M18 9.5V5"/></svg>'
 
+const SCENE_ICON = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M10 9.2v5.6l4.6-2.8z" fill="currentColor"/></svg>'
+
 const SPARKLES = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.8 15.9 9 18.8l-.8-2.9a4.5 4.5 0 0 0-3.1-3.1L2.2 12l2.9-.8a4.5 4.5 0 0 0 3.1-3.1L9 5.2l.8 2.9a4.5 4.5 0 0 0 3.1 3.1l2.9.8-2.9.8a4.5 4.5 0 0 0-3.1 3.1ZM18.3 8.7 18 9.8l-.3-1.1a3.4 3.4 0 0 0-2.4-2.4L14.2 6l1.1-.3a3.4 3.4 0 0 0 2.4-2.4L18 2.2l.3 1.1a3.4 3.4 0 0 0 2.4 2.4l1.1.3-1.1.3a3.4 3.4 0 0 0-2.4 2.4Z"/></svg>'
 
 const ICON_PLACEHOLDER = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg>'
@@ -66,6 +69,7 @@ const MAX_CAPTION = 120 // StepScene::MAX_CAPTION = BeforeAfterScene::MAX_CAPTIO
 const TYPES = {
     steps: {
         name: 'Fluxo em etapas',
+        question: 'Em que ordem as coisas acontecem',
         icon: STEPS_ICON,
         list: 'steps',
         max: 8,
@@ -84,6 +88,7 @@ const TYPES = {
     },
     'before-after': {
         name: 'Antes → depois',
+        question: 'O que muda, aspecto por aspecto',
         icon: BEFORE_AFTER_ICON,
         list: 'changes',
         max: 6,
@@ -104,6 +109,7 @@ const TYPES = {
     },
     tree: {
         name: 'Árvore',
+        question: 'O que contém o quê',
         icon: TREE_ICON,
         list: 'nodes',
         max: 16,
@@ -123,8 +129,24 @@ const TYPES = {
         levels: true,
         filled: (row) => row.label.trim(),
     },
+    compare: {
+        name: 'Comparação lado a lado',
+        question: 'Qual alternativa atende cada critério',
+        icon: COMPARE_ICON,
+        focus: 'Sobre o quê? (opcional) — ex.: as opções para isolar SAP e Viasoft',
+        caption: 'Legenda (opcional) — ex.: como isolar as integrações do SAP e da Viasoft',
+        replace: 'Substituir as opções e os critérios atuais pela comparação gerada a partir da página?',
+        done: 'Comparação gerada. Confira opções, critérios e marcas — dá para editar tudo e marcar a recomendada.',
+        // Two lists that depend on each other (each criterion holds one value
+        // per option), so the rows are not the generic kind: CompareForm owns
+        // them. Assigned below, once the class exists.
+        form: null,
+        fields: [],
+        labels: false,
+    },
     timeline: {
         name: 'Linha do tempo',
+        question: 'Quando cada coisa acontece',
         icon: TIMELINE_ICON,
         list: 'events',
         max: 8,
@@ -150,20 +172,6 @@ const TYPES = {
         },
         labels: false,
         filled: (row) => row.title.trim() || row.when.trim(),
-    },
-    compare: {
-        name: 'Comparação lado a lado',
-        icon: COMPARE_ICON,
-        focus: 'Sobre o quê? (opcional) — ex.: as opções para isolar SAP e Viasoft',
-        caption: 'Legenda (opcional) — ex.: como isolar as integrações do SAP e da Viasoft',
-        replace: 'Substituir as opções e os critérios atuais pela comparação gerada a partir da página?',
-        done: 'Comparação gerada. Confira opções, critérios e marcas — dá para editar tudo e marcar a recomendada.',
-        // Two lists that depend on each other (each criterion holds one value
-        // per option), so the rows are not the generic kind: CompareForm owns
-        // them. Assigned below, once the class exists.
-        form: null,
-        fields: [],
-        labels: false,
     },
 }
 
@@ -210,8 +218,16 @@ function input(className, {placeholder, value = '', max}) {
 }
 
 export default class SceneTool {
+    /**
+     * ONE entry in the "/" menu, not one per type. Five scene entries spread
+     * the block menu out, and Editor.js (2.31) cannot nest them: its toolbox
+     * maps each entry to {icon, title, name} and drops anything else, so a
+     * `children` submenu never reaches the popover. The submenu therefore
+     * lives one step later — the block opens on a chooser of the types
+     * (`buildChooser()`), and its settings menu (⋮) can switch type afterwards.
+     */
     static get toolbox() {
-        return Object.entries(TYPES).map(([type, spec]) => ({title: spec.name, icon: spec.icon, data: {type}}))
+        return {title: 'Cena animada', icon: SCENE_ICON}
     }
 
     static get enableLineBreaks() {
@@ -225,18 +241,27 @@ export default class SceneTool {
     constructor({data, config, block}) {
         this.config = config || {}
         this.block = block
-        this.type = TYPES[data?.type] ? data.type : 'steps'
-        this.spec = TYPES[this.type]
-        this.caption = String(data?.caption || '')
-        this.from = String(data?.from || '')
-        this.to = String(data?.to || '')
-        this.rows = this.spec.form ? [] : this.normalizeRows(data?.[this.spec.list])
-        this.form = this.spec.form ? new this.spec.form(this, data || {}) : null
         this.previewTimer = null
+        // A block inserted from the menu has no type yet: it renders the
+        // chooser. Every saved scene has one (docs-markdown.js).
+        this.load(TYPES[data?.type] ? data.type : null, data || {})
+    }
+
+    /** (Re)initialises the block for one scene type — or for none yet. */
+    load(type, data) {
+        this.type = type
+        this.spec = type ? TYPES[type] : null
+        this.caption = String(data.caption || '')
+        this.from = String(data.from || '')
+        this.to = String(data.to || '')
+        this.rows = this.spec && !this.spec.form ? this.normalizeRows(data[this.spec.list]) : []
+        this.form = this.spec?.form ? new this.spec.form(this, data) : null
     }
 
     /** Whether there is anything to draw (and to protect from a regeneration). */
     hasContent() {
+        if (!this.spec) return false
+
         return this.form ? this.form.filled() : this.rows.some(this.spec.filled)
     }
 
@@ -263,7 +288,31 @@ export default class SceneTool {
     }
 
     render() {
-        this.wrapper = el('div', 'ak-scene-tool no-preview')
+        this.wrapper = el('div', 'ak-scene-tool')
+        this.fill()
+
+        return this.wrapper
+    }
+
+    /**
+     * Builds the block's contents into the wrapper Editor.js already holds —
+     * the chooser while there is no type, the type's form once there is.
+     * Called again when a type is chosen or switched: the wrapper stays, only
+     * what is inside it is replaced.
+     */
+    fill() {
+        this.closeIconPicker()
+        this.wrapper.replaceChildren()
+        this.wrapper.className = 'ak-scene-tool no-preview'
+
+        if (!this.spec) {
+            delete this.wrapper.dataset.type
+            this.wrapper.classList.add('is-choosing')
+            this.wrapper.append(this.buildChooser())
+
+            return
+        }
+
         this.wrapper.dataset.type = this.type
 
         const head = el('div', 'ak-scene-tool__head')
@@ -290,7 +339,7 @@ export default class SceneTool {
             this.wrapper.append(this.form.render())
             requestAnimationFrame(() => this.preview())
 
-            return this.wrapper
+            return
         }
 
         this.list = el('ol', 'ak-scene-tool__steps')
@@ -309,8 +358,72 @@ export default class SceneTool {
         this.drawRows()
         // After the block is in the DOM, so the stage has a width to lay out in.
         requestAnimationFrame(() => this.preview())
+    }
 
-        return this.wrapper
+    /* ---------------------------------------------------------------- */
+    /*  Choosing (and switching) the type                               */
+    /* ---------------------------------------------------------------- */
+
+    /**
+     * The submenu the block menu cannot have: every type with the question it
+     * answers, so the choice is made by what the figure is FOR rather than by
+     * a name somebody has to already know.
+     */
+    buildChooser() {
+        const box = el('div', 'ak-scene-tool__chooser')
+        const head = el('div', 'ak-scene-tool__head')
+        const badge = el('span', 'ak-scene-tool__icon')
+        badge.innerHTML = SCENE_ICON
+        head.append(badge, el('span', 'ak-scene-tool__name', {text: 'Cena animada — escolha o tipo'}))
+
+        const grid = el('div', 'ak-scene-tool__types')
+        Object.entries(TYPES).forEach(([type, spec]) => {
+            const option = el('button', 'ak-scene-tool__type', {type: 'button'})
+            const icon = el('span', 'ak-scene-tool__type-icon')
+            icon.innerHTML = spec.icon
+            const text = el('span', 'ak-scene-tool__type-text')
+            text.append(el('strong', '', {text: spec.name}), el('span', '', {text: spec.question}))
+            option.append(icon, text)
+            // Enter on a focused option is a choice, not a new paragraph.
+            option.addEventListener('keydown', (e) => e.stopPropagation())
+            option.addEventListener('click', () => this.switchType(type))
+            grid.append(option)
+        })
+
+        box.append(head, grid)
+        requestAnimationFrame(() => grid.querySelector('button')?.focus())
+
+        return box
+    }
+
+    /**
+     * Turns the block into another scene type. The rows of one type are not
+     * the rows of another (steps, changes, nodes, options and events have
+     * different shapes), so switching a block that has content discards them
+     * — said before it happens. The caption is kept.
+     */
+    switchType(type) {
+        if (type === this.type) return
+        if (this.hasContent() && !window.confirm(`Trocar para "${TYPES[type].name}"? As linhas atuais serão descartadas — a legenda fica.`)) return
+
+        this.load(type, {caption: this.caption})
+        this.fill()
+        this.changed()
+        requestAnimationFrame(() => this.focusField?.focus())
+    }
+
+    /** The block's ⋮ menu: switch to any other type. */
+    renderSettings() {
+        if (!this.spec) return []
+
+        return Object.entries(TYPES)
+            .filter(([type]) => type !== this.type)
+            .map(([type, spec]) => ({
+                icon: spec.icon,
+                label: `Trocar para ${spec.name}`,
+                closeOnActivate: true,
+                onActivate: () => this.switchType(type),
+            }))
     }
 
     /** The two column names of an "antes → depois" ("Hoje" → "Com a integração"). */
@@ -705,18 +818,22 @@ export default class SceneTool {
     }
 
     preview() {
-        if (!this.stage) return
+        if (!this.spec || !this.stage?.isConnected) return
         // Shown before drawing, so the stage has a width to lay the figure out in.
         this.wrapper.classList.toggle('no-preview', !this.hasContent())
         mountScene(this.stage, this.scene())
     }
 
     save() {
-        return this.scene(true)
+        // A block whose type was never chosen saves as nothing (validate()).
+        return this.spec ? this.scene(true) : {type: ''}
     }
 
     validate(data) {
-        return this.form ? CompareForm.hasContent(data) : (data[this.spec.list] || []).some(this.spec.filled)
+        const spec = TYPES[data.type]
+        if (!spec) return false
+
+        return spec.form ? CompareForm.hasContent(data) : (data[spec.list] || []).some(spec.filled)
     }
 }
 

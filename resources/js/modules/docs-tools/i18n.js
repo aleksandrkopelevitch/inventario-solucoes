@@ -67,11 +67,9 @@ export const EDITOR_I18N = {
             // filter — what somebody reaches for is the grid of logos.
             Cards: 'Grade de cards',
             // Already PT-BR in the tool itself; listed to keep this complete.
-            'Fluxo em etapas': 'Fluxo em etapas',
-            'Antes → depois': 'Antes → depois',
-            'Árvore': 'Árvore',
-            'Comparação lado a lado': 'Comparação lado a lado',
-            'Linha do tempo': 'Linha do tempo',
+            // ONE entry for every scene type — the type is chosen inside the
+            // block (docs-tools/scene.js explains why it cannot be a submenu).
+            'Cena animada': 'Cena animada',
             // Already PT-BR in the tool itself (SecretInlineTool::title), so
             // this entry is here only to keep the list complete: Editor.js
             // looks every inline tool's name up by its own string.

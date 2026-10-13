@@ -89,8 +89,19 @@ editor form, renderer):
 A new type is a new `SceneType` case plus its IR, its prompt section
 (`SceneDraftPromptBuilder`), its row spec in the editor tool's `TYPES` table and
 its renderer in `docs-scene.js`'s `RENDERERS` — never a new endpoint. The editor
-has ONE tool with one "/" entry per type (an Editor.js toolbox array), because
-everything around the rows — generate, preview, caption — is the same.
+has ONE tool, because everything around the rows — generate, preview,
+caption — is the same, and ONE entry in the "/" menu ("Cena animada"). One
+entry per type (a toolbox array) spread five items through the block menu,
+and it cannot be a submenu there: Editor.js 2.31's toolbox maps each entry to
+`{icon, title, name}` and drops anything else, so `children` never reaches the
+popover (and patching its internals would break on the next upgrade). The
+submenu lives one step later instead — a block inserted with no type renders
+a chooser of the types, each with the QUESTION it answers (`question` in
+`TYPES`), and a typed block's ⋮ menu (`renderSettings`) offers "Trocar para
+…". Switching discards the rows (each type's rows have another shape) after a
+confirm, and keeps the caption; a block still on the chooser saves as nothing
+(`validate()` refuses an untyped scene). A new type's `TYPES` entry needs a
+`question`.
 
 **The split is the whole design.** The model (Gemini Flash, through
 `services.documentation_ai`) only ever returns CONTENT — which steps or

@@ -1255,8 +1255,10 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   mexe numa home que já existe.
 
 - **Cenas animadas**: figuras animadas dentro de uma página, montadas a partir
-  do texto dela. No editor, `/` → o tipo de cena → opcionalmente **"Sobre o
-  quê?"** → **"Gerar a partir da página"**; ou tudo à mão. Cinco tipos:
+  do texto dela. No editor, `/` → **"Cena animada"** (uma entrada só no menu
+  de blocos) → o bloco abre um seletor com o tipo e a pergunta que ele
+  responde → opcionalmente **"Sobre o quê?"** → **"Gerar a partir da
+  página"**; ou tudo à mão. O ⋮ do bloco troca o tipo depois. Cinco tipos:
 
   | cena | a pergunta | como é desenhada |
   |---|---|---|
