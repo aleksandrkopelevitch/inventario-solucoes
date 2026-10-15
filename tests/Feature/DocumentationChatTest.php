@@ -505,3 +505,112 @@ it('serves the paste threshold to the composer', function () {
         ->assertSee('data-ak-docs-chat-composer', escape: false)
         ->assertSee('pasteThreshold', escape: false);
 });
+
+/*
+|--------------------------------------------------------------------------
+| Context documents: unticked by default, previewed and renamed in a modal
+|--------------------------------------------------------------------------
+|
+| A caderno's documents pile up across pages and sessions, so the composer no
+| longer ticks all of them for every message — docs-chat.js ticks only what was
+| attached while the panel is open. The pill opens a preview that is also where
+| the document is renamed; the extension is not the person's to change, since it
+| decides how ContextDocumentResolver hands the document over.
+*/
+
+it('renders the caderno\'s context documents unticked', function () {
+    Storage::fake('public');
+    $notebook = Notebook::factory()->create();
+    $page = chatPage($notebook);
+    $notebook->addMediaFromString('x')->usingFileName('a.txt')->toMediaCollection(Notebook::CONTEXT_COLLECTION);
+
+    $content = $this->actingAs(chatAdmin())
+        ->getJson(route('notebooks.chat.panel', [$notebook, $page]))
+        ->assertOk()
+        ->json('content');
+
+    expect($content)->toContain('data-ak-context-doc')
+        ->and($content)->toContain('data-ak-docs-chat-dropzone')
+        ->and(preg_match('/<input[^>]*data-ak-context-doc[^>]*\bchecked\b/', $content))->toBe(0);
+});
+
+it('previews a text context document, pretty-printing a whole json', function () {
+    Storage::fake('public');
+    $notebook = Notebook::factory()->create();
+    $media = $notebook->addMediaFromString('{"a":{"b":1}}')->usingFileName('spec.json')->toMediaCollection(Notebook::CONTEXT_COLLECTION);
+
+    $content = $this->actingAs(chatAdmin())
+        ->getJson(route('notebooks.context.show', [$notebook, $media->id]))
+        ->assertOk()
+        ->json('content');
+
+    expect($content)->toContain('&quot;a&quot;: {')
+        ->and($content)->toContain('ctx-rename-form')
+        ->and($content)->toContain(route('notebooks.context.update', [$notebook, $media->id]));
+});
+
+it('previews an image from the file url, and still serves the file without json', function () {
+    Storage::fake('public');
+    $notebook = Notebook::factory()->create();
+    $media = $notebook->addMedia(UploadedFile::fake()->image('tela.png'))->toMediaCollection(Notebook::CONTEXT_COLLECTION);
+    $url = route('notebooks.context.show', [$notebook, $media->id]);
+
+    $content = $this->actingAs(chatAdmin())->getJson($url)->assertOk()->json('content');
+
+    expect($content)->toContain('<img src="' . $url . '"');
+
+    $this->actingAs(chatAdmin())->get($url)->assertOk()->assertHeader('Content-Type', 'image/png');
+});
+
+it('renames a context document, keeping its extension and moving the file', function () {
+    Storage::fake('public');
+    $notebook = Notebook::factory()->create();
+    $media = $notebook->addMediaFromString('x')->usingFileName('a.txt')->toMediaCollection(Notebook::CONTEXT_COLLECTION);
+
+    $response = $this->actingAs(chatAdmin())
+        ->patchJson(route('notebooks.context.update', [$notebook, $media->id]), ['name' => 'Regras de negócio.txt'])
+        ->assertOk();
+
+    $media->refresh();
+
+    expect($media->file_name)->toBe('Regras-de-negócio.txt')
+        ->and(file_exists($media->getPath()))->toBeTrue()
+        ->and($response->json('updatableSlots.0.id'))->toBe('context-documents-slot');
+});
+
+it('refuses a rename onto a name the caderno already uses', function () {
+    Storage::fake('public');
+    $notebook = Notebook::factory()->create();
+    $notebook->addMediaFromString('x')->usingFileName('spec.txt')->toMediaCollection(Notebook::CONTEXT_COLLECTION);
+    $media = $notebook->addMediaFromString('y')->usingFileName('outro.txt')->toMediaCollection(Notebook::CONTEXT_COLLECTION);
+
+    $this->actingAs(chatAdmin())
+        ->patchJson(route('notebooks.context.update', [$notebook, $media->id]), ['name' => 'spec'])
+        ->assertUnprocessable()
+        ->assertJsonPath('message', 'Já existe um documento com esse nome neste caderno.');
+
+    expect($media->fresh()->file_name)->toBe('outro.txt');
+});
+
+it('forbids a viewer from previewing or renaming, and 404s another caderno\'s document', function () {
+    Storage::fake('public');
+    $notebook = Notebook::factory()->create();
+    $media = $notebook->addMediaFromString('x')->usingFileName('a.txt')->toMediaCollection(Notebook::CONTEXT_COLLECTION);
+    $viewer = User::factory()->create(['role' => UserRole::Member->value]);
+
+    $this->actingAs($viewer)
+        ->getJson(route('notebooks.context.show', [$notebook, $media->id]))
+        ->assertForbidden();
+
+    $this->actingAs($viewer)
+        ->patchJson(route('notebooks.context.update', [$notebook, $media->id]), ['name' => 'b'])
+        ->assertForbidden();
+
+    $other = Notebook::factory()->create();
+
+    $this->actingAs(chatAdmin())
+        ->patchJson(route('notebooks.context.update', [$other, $media->id]), ['name' => 'b'])
+        ->assertNotFound();
+
+    expect($media->fresh()->file_name)->toBe('a.txt');
+});

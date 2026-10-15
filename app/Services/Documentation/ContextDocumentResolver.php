@@ -20,8 +20,12 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  */
 class ContextDocumentResolver
 {
-    /** Extensions treated as text inlined into the prompt. */
-    private const TEXT_EXTENSIONS = ['txt', 'md', 'csv', 'json', 'yaml', 'yml'];
+    /**
+     * Extensions treated as text inlined into the prompt. Public because the
+     * preview (NotebookContextDocumentController::show) has to agree with it on
+     * what a text document is.
+     */
+    public const TEXT_EXTENSIONS = ['txt', 'md', 'csv', 'json', 'yaml', 'yml'];
 
     /** @param  list<int>  $mediaIds */
     public function resolve(Notebook $notebook, array $mediaIds): ContextDocumentSet
@@ -41,9 +45,9 @@ class ContextDocumentResolver
     /**
      * Chosen context documents, in collection order (the `max_context_documents`
      * cap is applied by the caller, so it can flag the surplus). Empty list =
-     * NO documents: the panel's checkboxes come checked by default, so `[]`
-     * only happens when the user deliberately unchecked all of them — treating
-     * it as "all" would silently ignore that choice.
+     * NO documents: the panel's checkboxes come UNchecked (only what was just
+     * attached is checked), so `[]` is the ordinary case — treating it as "all"
+     * would send every document of the caderno the person did not pick.
      *
      * @param  list<int>  $ids
      * @return Collection<int, Media>

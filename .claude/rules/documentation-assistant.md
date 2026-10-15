@@ -10,6 +10,29 @@ paths:
   - "resources/js/modules/docs-chat.js"
 ---
 
+### Context documents: unticked by default, previewed and renamed in a modal
+
+A caderno's documents pile up across every page and every session, and they
+used to arrive TICKED for every message — so a turn about one page carried every
+PDF anybody had ever attached to the caderno. They render unchecked now, and
+`docs-chat.js` ticks only what was attached while the panel is open (picked,
+pasted or DROPPED anywhere on the panel). The ticks live client-side because a
+slot swap re-renders the whole list; `ContextDocumentResolver` already read `[]`
+as "none", so the server needed no change.
+
+Clicking a pill opens `#main-modal` on `notebooks.context.show` — the SAME action
+that serves the bytes, answering the preview when `wantsJson()`; the modal's
+`<img>`/`<iframe>` point back at it without JSON. A text document is read here,
+capped at 200 KB, and a whole JSON is pretty-printed (a pasted pipeline is stored
+minified). The modal's header is the rename (`RenameContextDocument`): only the
+BASE name is editable, because the extension is what the resolver reads to
+decide between inlining text and attaching a PDF/image, and a name the caderno
+already uses is refused, for the same reason `AttachContextText` numbers pastes.
+
+The composer's textarea is vertically resizable; `autoGrow()` treats a dragged
+height as a floor (detected by a `ResizeObserver` against the height it last
+wrote itself), or the next keystroke would undo the drag.
+
 ### The assistant reads other pages; it rewrites exactly one
 
 A Documentation Assistant turn can be handed OTHER documentation pages as

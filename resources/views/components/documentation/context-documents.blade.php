@@ -19,15 +19,26 @@
              plus the dim, which is one state on one control. --}}
         <div data-ak-ctx-pill
              class="inline-flex max-w-full items-center gap-1.5 rounded-full bg-raised py-1 pl-1.5 pr-1 text-xs font-medium text-body opacity-60 ring-1 ring-line transition-opacity has-checked:text-ink has-checked:opacity-100">
-            {{-- Unchecking withholds the document from THIS message without
-                 detaching it from the caderno — the ✕ below is what detaches. --}}
-            <x-forms.checkbox data-ak-context-doc :value="$media->id" checked class="shrink-0"
+            {{-- Rendered UNCHECKED: a caderno's documents accumulate across pages
+                 and sessions, and sending all of them with every message was the
+                 default nobody chose. docs-chat.js (`syncContextDocs`) checks the
+                 ones attached in this panel session — the only ones somebody has
+                 just reached for. Unchecked withholds the document from THIS
+                 message without detaching it from the caderno; the ✕ below is
+                 what detaches. --}}
+            <x-forms.checkbox data-ak-context-doc :value="$media->id" class="shrink-0"
                 title="Incluir esta mensagem" />
             <x-heroicon-o-paper-clip class="size-3.5 shrink-0 text-muted" />
-            <span class="max-w-[9rem] truncate"
-                  title="{{ $media->file_name }} · {{ $media->human_readable_size }} · documento do caderno, vale para todas as páginas">
+            {{-- Opens the preview (content + rename) in #main-modal. A real link
+                 to the file underneath, so a middle click still opens it in a
+                 tab; modal.js prevents the plain click. --}}
+            <a href="{{ route('notebooks.context.show', [$notebook, $media->id]) }}" target="_blank" rel="noopener"
+               data-ak-modal-open="main-modal"
+               data-ak-modal-url="{{ route('notebooks.context.show', [$notebook, $media->id]) }}"
+               class="max-w-[9rem] truncate text-inherit no-underline hover:underline"
+               title="{{ $media->file_name }} · {{ $media->human_readable_size }} · clique para ver o conteúdo ou renomear">
                 {{ $media->file_name }}
-            </span>
+            </a>
 
             <form id="ctx-remove-{{ $media->id }}">
                 @csrf
