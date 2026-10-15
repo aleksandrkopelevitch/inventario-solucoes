@@ -17,7 +17,41 @@ paths:
   - "resources/views/notebooks/**"
   - "resources/views/documentation/**"
   - "resources/views/components/documentation/**"
+  - "resources/js/modules/docs-editor.js"
+  - "app/Support/Documentation/Authorship.php"
+  - "app/View/Components/Notebooks/Index.php"
 ---
+
+### A page knows who created it and who saved it last; a visit is not a save
+
+`documentation_pages.created_by_id` / `updated_by_id` are written by
+`DocumentationPage::booted()`, never from a payload: `creating` records the
+signed-in user, and every `saving` with something dirty records whoever caused
+it. That is deliberately ONE rule for every save (content, title, a move in the
+tree), because it is the same save that moves `updated_at` — the person and the
+date must describe the same event, or the catalog would print one person's
+name beside another's date. A save with nobody signed in (the GitBook import,
+tinker) records NOBODY rather than leaving a name that no longer goes with the
+date. Everything older than the columns is null and reads "autor não
+registrado".
+
+Two places print it, both through `App\Support\Documentation\Authorship` so
+they cannot word or date it differently: the catalog's "Última atualização" (the
+caderno's `lastUpdatedPage`, a `latestOfMany('updated_at')`, so date and person
+come from one row) and the reading screen's right rail
+(`x-documentation.page-authorship`, an updatable slot every save and rename
+answers with). Times are RELATIVE because the app runs in UTC; the exact one is
+a tooltip converted to `app.display_timezone`.
+
+**That only means something because opening a page no longer saves it.**
+Editor.js reports changes nobody made (it normalises content on mount), and
+each one used to arm the autosave — rewriting the page through the serializer
+on a mere visit (the H4 incident) and, with authorship, naming the visitor as
+its last updater. `docs-editor.js` now ignores `onChange` until `userEdited`: a
+TRUSTED event inside the editor that is an edit — input, paste/cut/drop, an
+editing key, or a click on anything that is not the text itself (toolbox, tunes,
+a tool's button). Placing the caret is not an edit. Applying an assistant draft
+is. "Salvar" and Ctrl+S always work.
 
 ### Cadernos — a Notebook is the one container, and it documents 0..N Solutions
 

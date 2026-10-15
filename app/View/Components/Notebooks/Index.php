@@ -4,6 +4,7 @@ namespace App\View\Components\Notebooks;
 
 use App\Models\Notebook;
 use App\Models\Solution;
+use App\Support\Documentation\Authorship;
 use App\View\Components\Concerns\Renderable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -13,6 +14,10 @@ use Illuminate\View\Component;
  * The cadernos catalog, renderable as an updatable slot
  * (`notebooks-index-slot`) — one table row per notebook with the solutions
  * it documents and whether `/docs` shows it.
+ *
+ * "Última atualização" is the caderno's most recently saved PAGE — who saved
+ * it and when (`Notebook::lastUpdatedPage`). A caderno has no content of its
+ * own, so its pages are the only thing that can have been updated.
  *
  * There is no page-count column. It was here, and it answered nothing this
  * screen is for: how much of a caderno is written is the coverage screen's
@@ -81,7 +86,18 @@ class Index extends Component
                 'pages as documented_count' => fn (Builder $q) => $q
                     ->whereNotNull('documentation')->where('documentation', '<>', ''),
             ])
-            ->with('solutions:id,name,slug')
+            ->with([
+                'solutions:id,name,slug',
+                // Qualified: latestOfMany joins the table against its own
+                // aggregate, so a bare `id` would be ambiguous.
+                'lastUpdatedPage' => fn ($q) => $q->select(
+                    'documentation_pages.id',
+                    'documentation_pages.notebook_id',
+                    'documentation_pages.updated_at',
+                    'documentation_pages.updated_by_id',
+                ),
+                'lastUpdatedPage.updater:id,name',
+            ])
             ->when($search !== '', fn (Builder $q) => $q->where(fn (Builder $w) => $w
                 ->whereFolded('name', $search)
                 ->orWhereHas('pages', fn (Builder $p) => $p->whereFolded('title', $search))
@@ -135,7 +151,9 @@ class Index extends Component
                 // guessed: how many pages go with it, and whether a link
                 // somebody already holds stops working.
                 'deleteConfirm' => $this->confirm($notebook),
-                'solutions'     => $notebook->solutions->map(fn (Solution $solution) => [
+                // Null for a caderno with no page at all.
+                'lastUpdate' => Authorship::of($notebook->lastUpdatedPage?->updater, $notebook->lastUpdatedPage?->updated_at),
+                'solutions'  => $notebook->solutions->map(fn (Solution $solution) => [
                     'name' => $solution->name,
                     'url'  => route('solutions.show', $solution),
                 ])->all(),

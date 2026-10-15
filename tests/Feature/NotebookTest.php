@@ -554,3 +554,113 @@ it('offers the caderno name and the page title as inline editors', function () {
         ->toContain('data-ak-inline-edit-field="title"')
         ->toContain('id="documentation-page-title-slot"');
 });
+
+/*
+|--------------------------------------------------------------------------
+| Authorship: who created a page, who saved it last
+|--------------------------------------------------------------------------
+|
+| Recorded by DocumentationPage's own hooks on every save, so the person and
+| `updated_at` always describe the same event. The catalog reports a caderno's
+| most recently saved page; the reading screen's rail reports the page's own.
+*/
+
+it('records who created a page and who saved it last', function () {
+    $author = notebookEditor();
+    $reviewer = notebookEditor();
+    $notebook = Notebook::factory()->create();
+
+    $this->actingAs($author);
+    $page = DocumentationPage::factory()->for($notebook)->create();
+
+    expect($page->created_by_id)->toBe($author->id)
+        ->and($page->updated_by_id)->toBe($author->id);
+
+    $this->actingAs($reviewer)
+        ->patchJson(route('notebooks.pages.update', [$notebook, $page]), ['documentation' => '# Revisado'])
+        ->assertOk();
+
+    $page->refresh();
+    expect($page->created_by_id)->toBe($author->id)
+        ->and($page->updated_by_id)->toBe($reviewer->id);
+});
+
+it('does not name somebody whose save changed nothing', function () {
+    $author = notebookEditor();
+    $notebook = Notebook::factory()->create();
+
+    $this->actingAs($author);
+    $page = DocumentationPage::factory()->for($notebook)->create(['documentation' => '# Igual']);
+
+    $this->actingAs(notebookEditor())
+        ->patchJson(route('notebooks.pages.update', [$notebook, $page]), ['documentation' => '# Igual'])
+        ->assertOk();
+
+    expect($page->fresh()->updated_by_id)->toBe($author->id);
+});
+
+it('records nobody for a save made with no one signed in, like the GitBook import', function () {
+    $notebook = Notebook::factory()->create();
+
+    $this->actingAs(notebookEditor());
+    $page = DocumentationPage::factory()->for($notebook)->create();
+
+    auth()->logout();
+    $page->update(['documentation' => 'importado']);
+
+    expect($page->fresh()->updated_by_id)->toBeNull();
+});
+
+it('answers a save with the rail\'s authorship naming who just saved', function () {
+    $notebook = Notebook::factory()->create();
+    $page = DocumentationPage::factory()->for($notebook)->create();
+    $this->travel(5)->minutes();
+
+    $editor = User::factory()->editor()->create(['name' => 'Joana Revisora']);
+
+    $response = $this->actingAs($editor)
+        ->patchJson(route('notebooks.pages.update', [$notebook, $page]), ['documentation' => '# Novo'])
+        ->assertOk();
+
+    $slot = collect($response->json('updatableSlots'))->firstWhere('id', 'page-authorship-slot');
+
+    expect($slot['content'])->toContain('Atualizada')
+        ->toContain('Joana Revisora')
+        // The page predates authorship: a date, and no invented name.
+        ->toContain('autor não registrado');
+});
+
+it('shows the creator and the last updater in the page\'s rail', function () {
+    $notebook = Notebook::factory()->create();
+
+    $this->actingAs(User::factory()->editor()->create(['name' => 'Ana Autora']));
+    $page = DocumentationPage::factory()->for($notebook)->create();
+
+    $this->travel(2)->hours();
+    $this->actingAs(User::factory()->editor()->create(['name' => 'Bruno Editor']));
+    $page->update(['documentation' => '# Editado']);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('notebooks.pages.edit', [$notebook, $page]))
+        ->assertOk()
+        ->assertSeeInOrder(['Criada', 'Ana Autora', 'Atualizada', 'Bruno Editor']);
+});
+
+it('lists each caderno\'s latest page save, and says when a caderno has no page', function () {
+    $written = Notebook::factory()->create(['name' => 'Escrito']);
+    Notebook::factory()->create(['name' => 'Vazio']);
+
+    $this->actingAs(User::factory()->editor()->create(['name' => 'Primeira Pessoa']));
+    DocumentationPage::factory()->for($written)->create();
+
+    $this->travel(1)->hours();
+    $this->actingAs(User::factory()->editor()->create(['name' => 'Segunda Pessoa']));
+    DocumentationPage::factory()->for($written)->create();
+
+    $html = (string) (new NotebooksIndex([]))->render()->render();
+
+    expect($html)->toContain('Última atualização')
+        ->toContain('Segunda Pessoa')
+        ->not->toContain('Primeira Pessoa')
+        ->toContain('Sem páginas');
+});

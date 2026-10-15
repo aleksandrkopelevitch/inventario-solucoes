@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
@@ -116,6 +117,17 @@ class Notebook extends Model implements HasMedia
     public function pages(): HasMany
     {
         return $this->hasMany(DocumentationPage::class)->orderBy('position');
+    }
+
+    /**
+     * The page saved most recently — what the catalog reports as the caderno's
+     * last update, since a caderno has no content of its own to date. It is
+     * the PAGE rather than a max(updated_at), so the date and the person who
+     * saved it come from the same row.
+     */
+    public function lastUpdatedPage(): HasOne
+    {
+        return $this->hasOne(DocumentationPage::class)->latestOfMany('updated_at');
     }
 
     /**

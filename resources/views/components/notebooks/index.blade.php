@@ -18,11 +18,12 @@
     @else
         <div class="overflow-hidden rounded-card border border-line bg-surface shadow-card">
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[720px] text-sm">
+                <table class="w-full min-w-[880px] text-sm">
                     <thead>
                         <tr class="border-b border-line bg-raised/40">
                             <x-ui.sortable-th column="name" :filters="$filters" :form-id="$sortForm" :url="$sortUrl" class="pl-4">Nome</x-ui.sortable-th>
                             <x-ui.sortable-th column="solutions" :filters="$filters" :form-id="$sortForm" :url="$sortUrl">Soluções</x-ui.sortable-th>
+                            <th scope="col" class="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted">Última atualização</th>
                             <th scope="col" class="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted">Em /docs</th>
                             <th scope="col" class="py-2.5 pr-4"><span class="sr-only">Ações</span></th>
                         </tr>
@@ -69,6 +70,24 @@
                                             <x-heroicon-o-link-slash class="size-3.5" />
                                             Sem solução vinculada
                                         </span>
+                                    @endif
+                                </td>
+                                {{-- Who saved the caderno's latest page, and when. The
+                                     time is relative (the app runs in UTC, and "há 2
+                                     horas" is right in every timezone); the exact one
+                                     is in the tooltip. A page saved before authorship
+                                     was recorded, or by the GitBook import, has no
+                                     name to show. --}}
+                                <td class="whitespace-nowrap px-3 py-2.5">
+                                    @if ($notebook['lastUpdate'])
+                                        <div class="flex flex-col leading-tight" title="{{ $notebook['lastUpdate']->exact }}">
+                                            <span @class(['text-sm', 'text-ink' => $notebook['lastUpdate']->who, 'text-faint' => ! $notebook['lastUpdate']->who])>
+                                                {{ $notebook['lastUpdate']->who ?? 'Autor não registrado' }}
+                                            </span>
+                                            <span class="text-xs text-muted">{{ $notebook['lastUpdate']->when }}</span>
+                                        </div>
+                                    @else
+                                        <span class="text-faint">Sem páginas</span>
                                     @endif
                                 </td>
                                 <td class="whitespace-nowrap px-3 py-2.5">

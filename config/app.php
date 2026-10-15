@@ -67,6 +67,11 @@ return [
 
     'timezone' => 'UTC',
 
+    // Where the people reading the app are. Storage stays in UTC; this is only
+    // for printing a wall-clock time (App\Support\Documentation\Authorship),
+    // which in UTC reads three hours ahead for everybody at Leo Madeiras.
+    'display_timezone' => 'America/Sao_Paulo',
+
     /*
     |--------------------------------------------------------------------------
     | Application Locale Configuration
