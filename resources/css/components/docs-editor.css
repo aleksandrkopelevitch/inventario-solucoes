@@ -46,6 +46,12 @@
 .ak-docs-editor h1.ce-header { font-size: 2.25rem; padding: 0.9em 0 3px; color: var(--color-ink); }
 .ak-docs-editor h2.ce-header { font-size: 1.75rem; padding: 0.9em 0 3px; color: var(--color-ink); }
 .ak-docs-editor h3.ce-header { font-size: 1.25rem; padding: 0.7em 0 3px; color: var(--color-ink); }
+/* H4–H6 had no size here because the editor could not hold them: the Header
+   tool was limited to levels 1–3 and loaded anything deeper as an H2. They
+   step down from H3 the way .html-content does in app.css. */
+.ak-docs-editor h4.ce-header { font-size: 1.0625rem; padding: 0.6em 0 3px; color: var(--color-ink); }
+.ak-docs-editor h5.ce-header { font-size: 1rem; padding: 0.6em 0 3px; color: var(--color-ink); }
+.ak-docs-editor h6.ce-header { font-size: 0.9375rem; padding: 0.6em 0 3px; color: var(--color-ink); }
 
 /* `.ce-toolbar` (core) tem `will-change: opacity, top` sem `z-index` próprio —
    isso cria um novo contexto de empilhamento, mas sem valor explícito ele cai

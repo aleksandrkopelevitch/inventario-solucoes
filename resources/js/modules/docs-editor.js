@@ -212,7 +212,14 @@ async function loadTools({uploadUrl = '', catalogUrl = '', linkTargetsUrl = '', 
 
     // Factory reused by the tabs' nested editors (fresh for each tab).
     const buildTools = () => ({
-        header: {class: Header, inlineToolbar: true, config: {levels: [1, 2, 3], defaultLevel: 2}},
+        // Every level the Markdown can express (docs-markdown.js parses and
+        // writes `#` to `######`), not just the ones worth offering. The Header
+        // tool loads a level missing from `levels` at `defaultLevel` and SAVES
+        // it there: with [1, 2, 3], any save — an autosave included — rewrote
+        // every `####` of a page as `##`, and the imported GitBook corpus holds
+        // 1,890 H4s across 177 pages. A heading level is content, not a menu
+        // preference.
+        header: {class: Header, inlineToolbar: true, config: {levels: [1, 2, 3, 4, 5, 6], defaultLevel: 2}},
         list: {class: List, inlineToolbar: true, config: {defaultStyle: 'unordered'}},
         quote: {class: Quote, inlineToolbar: true},
         code: {class: CodeTool},
@@ -608,6 +615,9 @@ const MD_SPACE = {
     '#': ['header', {level: 1}],
     '##': ['header', {level: 2}],
     '###': ['header', {level: 3}],
+    '####': ['header', {level: 4}],
+    '#####': ['header', {level: 5}],
+    '######': ['header', {level: 6}],
     '-': ['list', {style: 'unordered'}],
     '*': ['list', {style: 'unordered'}],
     '1.': ['list', {style: 'ordered'}],

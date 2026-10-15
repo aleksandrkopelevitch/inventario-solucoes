@@ -110,6 +110,16 @@ export const EDITOR_I18N = {
                 'Couldn’t upload image. Please try another.':
                     'Não foi possível enviar a imagem. Use JPG, PNG, GIF, WEBP ou SVG de até 20 MB.',
             },
+            // The level switch in the heading's block menu (its tunes) — keyed
+            // `Heading <n>` by @editorjs/header, one entry per configured level.
+            header: {
+                'Heading 1': 'Título 1',
+                'Heading 2': 'Título 2',
+                'Heading 3': 'Título 3',
+                'Heading 4': 'Título 4',
+                'Heading 5': 'Título 5',
+                'Heading 6': 'Título 6',
+            },
             attaches: {
                 'File title': 'Nome do arquivo',
                 'Select file': 'Selecionar arquivo',
