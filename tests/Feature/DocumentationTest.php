@@ -367,6 +367,30 @@ it('forbids a viewer from uploading documentation media', function () {
         ->assertForbidden();
 });
 
+it('accepts documentation media up to 100 MB and refuses past it', function () {
+    Storage::fake('public');
+    $notebook = Notebook::factory()->create();
+    $page = notebookPage($notebook);
+
+    $this->actingAs(docsAdmin())
+        ->post(route('notebooks.pages.media', [$notebook, $page]), [
+            'file' => UploadedFile::fake()->create('manual.pdf', 90 * 1024, 'application/pdf'),
+        ])
+        ->assertOk()
+        ->assertJson(['success' => 1]);
+
+    $this->actingAs(docsAdmin())
+        ->postJson(route('notebooks.pages.media', [$notebook, $page]), [
+            'file' => UploadedFile::fake()->create('grande.pdf', 100 * 1024 + 1, 'application/pdf'),
+        ])
+        ->assertStatus(422);
+
+    // A fake upload is empty on disk, so Spatie's own ceiling never fires in a
+    // test — this is what keeps it from sitting below the request's rule, where
+    // an accepted upload would die inside the library as a 500.
+    expect(config('media-library.max_file_size'))->toBeGreaterThanOrEqual(100 * 1024 * 1024);
+});
+
 it('rejects a media upload with neither file nor url', function () {
     // Pasting an image from an external site sends `url`; upload sends `file`.
     // With neither, the reciprocal `required_without` rule blocks with a 422.

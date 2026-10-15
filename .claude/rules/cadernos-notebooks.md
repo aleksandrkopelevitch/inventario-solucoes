@@ -53,6 +53,16 @@ editing key, or a click on anything that is not the text itself (toolbox, tunes,
 a tool's button). Placing the caret is not an edit. Applying an assistant draft
 is. "Salvar" and Ctrl+S always work.
 
+The H4 incident itself is fixed at its cause (2026-10-15): the Header tool was
+configured with `levels: [1, 2, 3]`, and @editorjs/header loads a level missing
+from that list at `defaultLevel` and SAVES it there — so every save turned each
+`####` into `##` (1,890 H4s across 177 pages of the imported corpus). It takes
+`[1, 2, 3, 4, 5, 6]` now, every level `docs-markdown.js` parses and writes. The
+general rule: **a tool's config list must cover every value the parser can hand
+it**, or the tool silently rewrites the value on the next save. Image widths
+are safe from this only because the parser already clamps to the same presets
+the serializer writes.
+
 ### Cadernos — a Notebook is the one container, and it documents 0..N Solutions
 
 **A body of documentation is a `Notebook` ("Caderno"), modelled on a GitBook

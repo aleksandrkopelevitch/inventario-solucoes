@@ -338,7 +338,7 @@ export default class CardsTool {
         } catch (_) {
             Toast.open({
                 title: 'Atenção',
-                content: 'Não foi possível enviar a imagem. Use JPG, PNG, GIF, WEBP ou SVG de até 20 MB.',
+                content: 'Não foi possível enviar a imagem. Use JPG, PNG, GIF, WEBP ou SVG de até 100 MB.',
                 type: 'warning',
             })
         } finally {
