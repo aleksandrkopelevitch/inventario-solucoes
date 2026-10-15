@@ -6,10 +6,68 @@
 //
 // Only acts within `.html-content` (GitbookRenderer's read-only view), never
 // in the editor (`.ak-docs-editor`), where clicking the image edits it instead.
+//
+// The page shows an image's LIGHTER rendition (a WebP at most 1600px wide —
+// see DocumentationMediaResponse). The lightbox is where somebody asked to see
+// it properly, so it opens on the light one at once and swaps in the uploaded
+// file as soon as that arrives.
 
 let overlay = null
 let imgs = []
 let index = 0
+
+/** The original being fetched for the image on screen, if any. */
+let pending = null
+
+/**
+ * Where the uploaded file behind a documentation image lives: the same URL
+ * with `?original=1`. Every route that serves one answers that way —
+ * `/files/{id}`, `/docs/{caderno}/file/{id}`, `/public-docs/{token}/file/{id}`.
+ * Anything else (an external image, a diagram's picture) is its own original.
+ */
+function originalOf(src) {
+    let url
+    try {
+        url = new URL(src, window.location.href)
+    } catch (_) {
+        return null
+    }
+
+    if (url.origin !== window.location.origin || !/\/files?\/\d+$/.test(url.pathname)) return null
+
+    url.searchParams.set('original', '1')
+
+    return url.href
+}
+
+function forgetPending() {
+    if (pending) pending.onload = pending.onerror = null
+    pending = null
+    overlay?.querySelector('[data-lb-loading]')?.classList.add('hidden')
+}
+
+/** Swaps the full image in once it has loaded, unless the reader moved on. */
+function showOriginal(big) {
+    forgetPending()
+
+    const full = originalOf(big.src)
+    if (!full) return
+
+    const loader = new Image()
+    pending = loader
+    loader.onload = () => {
+        if (pending !== loader) return
+        big.src = full
+        forgetPending()
+    }
+    loader.onerror = () => {
+        if (pending === loader) forgetPending()
+    }
+    loader.src = full
+
+    // Already in the cache: no point announcing a wait that is not coming.
+    if (!loader.complete) overlay.querySelector('[data-lb-loading]').classList.remove('hidden')
+}
 
 function build() {
     if (overlay) return overlay
@@ -19,6 +77,7 @@ function build() {
     overlay.setAttribute('role', 'dialog')
     overlay.setAttribute('aria-modal', 'true')
     overlay.innerHTML = `
+        <span data-lb-loading class="absolute left-3 top-3 hidden animate-pulse rounded-full bg-white/10 px-3 py-1.5 text-xs text-white/80">Carregando imagem completa…</span>
         <button type="button" data-lb-close aria-label="Fechar" class="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-2xl leading-none text-white transition hover:bg-white/20">&times;</button>
         <button type="button" data-lb-prev aria-label="Imagem anterior" class="absolute left-2 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-3xl leading-none text-white transition hover:bg-white/20 sm:left-4">&lsaquo;</button>
         <button type="button" data-lb-next aria-label="Próxima imagem" class="absolute right-2 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-3xl leading-none text-white transition hover:bg-white/20 sm:right-4">&rsaquo;</button>
@@ -50,6 +109,7 @@ function render() {
 
     big.src = img.currentSrc || img.src
     big.alt = img.alt || ''
+    showOriginal(big)
 
     const text = img.closest('figure')?.querySelector('figcaption')?.textContent?.trim() || img.alt || ''
     cap.textContent = text
@@ -73,6 +133,7 @@ function open(img) {
 
 function close() {
     if (!overlay) return
+    forgetPending()
     overlay.classList.add('hidden')
     overlay.classList.remove('flex')
     document.body.style.overflow = ''

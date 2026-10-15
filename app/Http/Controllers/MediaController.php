@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Contracts\Documentable;
 use App\Models\Notebook;
+use App\Support\Documentation\DocumentationMediaResponse;
+use Illuminate\Http\Request;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -12,11 +14,12 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  * stable `/files/{id}` URL used inside Markdown (<img src="/files/{id}">,
  * {% file src="/files/{id}" %}). Lives under the `auth` group, so only
  * authenticated users can access it — the docs are private like the rest of
- * the inventory.
+ * the inventory. An image comes back as its lighter rendition when an `<img>`
+ * asks — see DocumentationMediaResponse.
  */
 class MediaController extends Controller
 {
-    public function show(Media $media): BinaryFileResponse
+    public function show(Request $request, Media $media): BinaryFileResponse
     {
         abort_unless($media->collection_name === Documentable::DOCS_COLLECTION, 404);
 
@@ -25,9 +28,6 @@ class MediaController extends Controller
         // serve published media through routes of their own.)
         $this->authorize('viewAny', Notebook::class);
 
-        return response()->file($media->getPath(), [
-            'Content-Type'        => $media->mime_type,
-            'Content-Disposition' => 'inline; filename="' . addslashes($media->file_name) . '"',
-        ]);
+        return DocumentationMediaResponse::for($media, $request);
     }
 }
