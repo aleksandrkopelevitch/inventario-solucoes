@@ -165,6 +165,22 @@
     echo "==> Bringing application back online"
     php artisan up
 
+    {{--
+        Every deploy, and harmless when there is nothing to do: it queues the
+        lighter web rendition of each documentation image that has none yet
+        (the whole existing corpus on the first run, a failed job on a later
+        one) and queues NOTHING once they all have one. It only dispatches —
+        the workers write the files. After `up`, because the app does not need
+        to wait for it.
+
+        `sudo -u www-data` although it writes no media: a command run as root
+        can still create today's log file as root, and php-fpm then cannot
+        append to it. `|| echo` because a failure here costs lighter images,
+        never the deploy.
+    --}}
+    echo "==> Queueing web renditions for documentation images"
+    sudo -u www-data php artisan documentation:web-images || echo "==> WARNING: documentation:web-images failed — images keep serving their originals."
+
     echo "==> Deployment completed!"
 @endtask
 

@@ -8,7 +8,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Spatie\Image\Enums\Fit;
 use Spatie\MediaLibrary\InteractsWithMedia;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 /**
  * A documentation page (Markdown + GitBook notation), the atomic unit edited by
@@ -67,6 +69,13 @@ class DocumentationPage extends Model implements Documentable
     public const MAX_DEPTH = 5;
 
     /**
+     * The uploads that get a WEB_CONVERSION. Not GIF, whose animation GD would
+     * flatten to its first frame; not SVG, which is already as small as it
+     * gets and would only lose its vectors.
+     */
+    public const WEB_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+
+    /**
      * `parent_id` and `notebook_id` are deliberately absent (§ Security: no
      * `$guarded = []`) — every relation this page holds is set through the
      * relation itself (`parent()->associate()`, `notebook()->associate()`),
@@ -89,6 +98,40 @@ class DocumentationPage extends Model implements Documentable
         // See Solution/Diagram — documentation media, served by
         // `files.show`, referenced as /files/{id} in the Markdown.
         $this->addMediaCollection(self::DOCS_COLLECTION);
+    }
+
+    /**
+     * A lighter copy of every raster image in the page: at most 1600px wide —
+     * twice the 768px reading column, so it stays sharp on a high-density
+     * screen — re-encoded as WebP. The original is never touched; the lightbox
+     * and a download still get it (DocumentationMediaResponse).
+     *
+     * Measured on the GitBook archives before shipping: the 40 heaviest images
+     * went from 57.9 MB to 3.4 MB, most of them 3000px+ screenshots shown in a
+     * 768px column, and a random 80 of the rest from 12.1 MB to 2.7 MB.
+     *
+     * - Queued: an upload answers before the work is done, and until it is,
+     *   the original is what gets served. The droplet's workers run as
+     *   www-data, which is also who must own the file.
+     * - `nonOptimized()`: the package would otherwise hand the WebP to `cwebp`
+     *   whenever that binary happens to be installed, re-encoding it at a
+     *   different quality — the server's toolbox would decide the output.
+     * - 16000px tall at most because GD cannot write a WebP past 16383px in
+     *   either direction, and a full-page screenshot gets there.
+     */
+    public function registerMediaConversions(?Media $media = null): void
+    {
+        if ($media !== null && ! in_array($media->mime_type, self::WEB_IMAGE_TYPES, true)) {
+            return;
+        }
+
+        $this->addMediaConversion(self::WEB_CONVERSION)
+            ->fit(Fit::Max, 1600, 16000)
+            ->format('webp')
+            ->quality(80)
+            ->nonOptimized()
+            ->queued()
+            ->performOnCollections(self::DOCS_COLLECTION);
     }
 
     public function documentationTitle(): string

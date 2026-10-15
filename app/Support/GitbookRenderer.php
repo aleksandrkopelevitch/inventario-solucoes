@@ -149,7 +149,24 @@ class GitbookRenderer
 
         $lines = preg_split('/\r\n|\r|\n/', $markdown);
 
-        return $this->resolvePageLinks($this->paintSecrets($this->renderLines($lines)));
+        return $this->resolvePageLinks($this->paintSecrets($this->deferImages($this->renderLines($lines))));
+    }
+
+    /**
+     * Every image in the page loads when it is about to be scrolled into view,
+     * not all of them up front: an imported page carries dozens of screenshots,
+     * and a reader who came for the first section paid for every one.
+     *
+     * After the parse, because a body image reaches the HTML as the raw
+     * `<figure><img …>` the Markdown holds, which commonmark passes through
+     * untouched — there is no image node to decorate. An `<img` written inside a
+     * code block is escaped by then, so it cannot match; an image that already
+     * says how it loads (a card's) is left alone. Appended LAST in the tag, so
+     * `<img src="…"` still reads the way everything downstream expects.
+     */
+    private function deferImages(string $html): string
+    {
+        return (string) preg_replace('#<img\b(?![^>]*\bloading=)([^>]*?)(\s*/?)>#i', '<img$1 loading="lazy"$2>', $html);
     }
 
     /**

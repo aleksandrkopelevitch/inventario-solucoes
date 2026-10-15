@@ -29,6 +29,13 @@ interface Documentable extends HasMedia
     /** Media collection where the documentation's images/files are stored. */
     public const DOCS_COLLECTION = 'docs';
 
+    /**
+     * The lighter rendition of a documentation image — what `<img>` gets by
+     * default, while the uploaded file stays untouched for the lightbox and for
+     * a download. See App\Support\Documentation\DocumentationMediaResponse.
+     */
+    public const WEB_CONVERSION = 'web';
+
     /** Human-readable label of the resource, for the editor page title. */
     public function documentationTitle(): string;
 }

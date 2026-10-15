@@ -13,10 +13,12 @@ use App\Services\Documentation\DocumentationReader;
 use App\Services\DocumentationPageService;
 use App\Services\DocumentationSearchService;
 use App\Support\Documentation\DiagramCitation;
+use App\Support\Documentation\DocumentationMediaResponse;
 use App\Support\Documentation\ReaderUrls;
 use App\View\Components\Documentation\SearchResults;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -143,7 +145,7 @@ class PublicDocumentationController extends Controller
         ]);
     }
 
-    public function file(string $token, Media $media): BinaryFileResponse
+    public function file(Request $request, string $token, Media $media): BinaryFileResponse
     {
         $notebook = $this->resolve($token);
         $owner = $media->model;
@@ -154,10 +156,7 @@ class PublicDocumentationController extends Controller
 
         abort_unless($allowed, 404);
 
-        return response()->file($media->getPath(), [
-            'Content-Type'        => $media->mime_type,
-            'Content-Disposition' => 'inline; filename="' . addslashes($media->file_name) . '"',
-        ]);
+        return DocumentationMediaResponse::for($media, $request);
     }
 
     /**

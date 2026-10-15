@@ -13,11 +13,13 @@ use App\Services\Documentation\DocumentationReader;
 use App\Services\DocumentationPageService;
 use App\Services\DocumentationSearchService;
 use App\Support\Documentation\DiagramCitation;
+use App\Support\Documentation\DocumentationMediaResponse;
 use App\Support\Documentation\ReaderUrls;
 use App\View\Components\Documentation\SearchResults;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -179,7 +181,7 @@ class KnowledgeBaseController extends Controller
      * pages of cadernos nobody published. `/docs` shows what was published and
      * nothing else, for every request it answers.
      */
-    public function file(Notebook $notebook, Media $media): BinaryFileResponse
+    public function file(Request $request, Notebook $notebook, Media $media): BinaryFileResponse
     {
         $this->guard($notebook);
 
@@ -191,10 +193,7 @@ class KnowledgeBaseController extends Controller
 
         abort_unless($allowed, 404);
 
-        return response()->file($media->getPath(), [
-            'Content-Type'        => $media->mime_type,
-            'Content-Disposition' => 'inline; filename="' . addslashes($media->file_name) . '"',
-        ]);
+        return DocumentationMediaResponse::for($media, $request);
     }
 
     /** The picture of a diagram this caderno cites — authorised by the citation. */
