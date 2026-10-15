@@ -33,6 +33,49 @@ let DragDrop = null
 // still-generating turn.
 let locked = false
 
+// Whether the person has EDITED this page since it was opened. Until they do,
+// a change Editor.js reports is ignored: it is not "Não salvo" and it arms no
+// autosave. Editor.js reports changes nobody made — it normalises content on
+// mount, and a tool that repaints itself can read as an edit — and each of
+// those used to autosave a page somebody had only opened, rewriting it through
+// the serializer (an admin's visit that never clicked the editor flattened 46
+// H4 headings on 2026-09-30) and, since authorship is recorded per save, would
+// now also name a mere reader as its last updater.
+//
+// What counts as an edit is a TRUSTED event inside the editor: text input,
+// paste/cut/drop, an editing key, or a click on anything that is not the text
+// itself (a toolbox item, a block tune, a tool's own button — placing the caret
+// is not an edit). Applying an assistant draft counts too (`__akDocsSetMarkdown`).
+// "Salvar" and Ctrl+S always work: an explicit save needs no permission.
+let userEdited = false
+
+const EDITING_KEYS = new Set(['Enter', 'Backspace', 'Delete'])
+const EDITING_SHORTCUTS = new Set(['z', 'y', 'x', 'v'])
+
+function inEditor(e) {
+    return e.isTrusted && !locked && !!e.target.closest?.('[data-ak-docs-editor]')
+}
+
+;['beforeinput', 'input', 'change', 'paste', 'cut', 'drop'].forEach((type) => {
+    document.addEventListener(type, (e) => {
+        if (inEditor(e)) userEdited = true
+    }, true)
+})
+
+document.addEventListener('keydown', (e) => {
+    if (!inEditor(e)) return
+    const shortcut = e.ctrlKey || e.metaKey
+    if (EDITING_KEYS.has(e.key)
+        || (!shortcut && !e.altKey && e.key.length === 1)
+        || (shortcut && EDITING_SHORTCUTS.has(e.key.toLowerCase()))) {
+        userEdited = true
+    }
+}, true)
+
+document.addEventListener('click', (e) => {
+    if (inEditor(e) && !e.target.closest('[contenteditable="true"]')) userEdited = true
+}, true)
+
 /**
  * Blocks/unblocks every save path. Exported (instead of another
  * `window.__akDocs*` global) because it only touches this module's state and
@@ -312,6 +355,7 @@ async function mount(holder) {
     // as unsaved (the user still has to Salvar).
     window.__akDocsSetMarkdown = async (md) => {
         await editor.blocks.render({blocks: parse(md)})
+        userEdited = true // pressing "Aplicar" is an edit
         markDirty()
     }
 
@@ -378,6 +422,8 @@ function installGlobalHandlers() {
 }
 
 function markDirty() {
+    // Not an edit yet — see `userEdited`.
+    if (!userEdited) return
     dirty = true
     setStatus('Não salvo')
     clearTimeout(autosaveTimer)

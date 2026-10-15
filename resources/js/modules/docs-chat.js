@@ -309,7 +309,7 @@ document.addEventListener('drop', (e) => {
     const picker = zone.querySelector('[data-ak-context-upload]')
     if (picker?.disabled) return // an upload is already running
 
-    uploadDroppedFiles(Array.from(e.dataTransfer.files), picker)
+    uploadContextFiles(Array.from(e.dataTransfer.files), picker)
 })
 
 // A drag cancelled with Esc, or dropped outside the window, never reaches `drop`.
@@ -319,12 +319,13 @@ document.addEventListener('dragend', () => {
 })
 
 /**
- * One at a time: each POST swaps the context-documents slot, and two in flight
- * would both render the list as it was before the other landed. Unsupported
- * types are named here rather than left to the server's validation message,
- * which would arrive once per file and in the validator's own words.
+ * Files that arrive without the picker — dropped or pasted. One at a time: each
+ * POST swaps the context-documents slot, and two in flight would both render
+ * the list as it was before the other landed. Unsupported types are named here
+ * rather than left to the server's validation message, which would arrive once
+ * per file and in the validator's own words.
  */
-async function uploadDroppedFiles(files, picker) {
+async function uploadContextFiles(files, picker) {
     const action = picker?.dataset.action
     if (!action || !files.length) return
 
@@ -349,6 +350,45 @@ async function uploadDroppedFiles(files, picker) {
         await postContextDoc(action, formData)
     }
 }
+
+/**
+ * A pasted IMAGE (a screenshot, an image copied from a page) becomes a context
+ * document too, wherever the focus is inside the chat panel.
+ *
+ * Only when the clipboard carries no plain text. Copying cells from Excel or a
+ * paragraph from Word puts a PNG rendering of them on the clipboard BESIDE the
+ * text, and that paste is meant as text — the long-paste handler below decides
+ * what happens to it.
+ *
+ * The browser names every pasted image "image.png", so a second one would sit
+ * beside the first under the same name; it is renamed by the moment it was
+ * pasted, and can be renamed properly from its preview. A type the composer
+ * does not take (a BMP) keeps its own extension, so uploadContextFiles()
+ * refuses it by name instead of the server refusing a mislabelled PNG.
+ */
+const PASTED_IMAGE_EXTENSIONS = {'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp'}
+
+document.addEventListener('paste', (e) => {
+    const zone = e.target.closest?.('[data-ak-docs-chat-dropzone]')
+    if (!zone || (e.clipboardData?.getData('text/plain') ?? '') !== '') return
+
+    const images = Array.from(e.clipboardData?.files ?? []).filter((file) => file.type.startsWith('image/'))
+    if (!images.length) return
+
+    e.preventDefault()
+
+    const picker = zone.querySelector('[data-ak-context-upload]')
+    if (picker?.disabled) return // an upload is already running
+
+    const stamp = new Date().toLocaleString('sv-SE').replace(/[: ]/g, '-') // 2026-10-15-14-32-05
+    const named = images.map((file, i) => new File(
+        [file],
+        `imagem-colada-${stamp}${images.length > 1 ? `-${i + 1}` : ''}.${PASTED_IMAGE_EXTENSIONS[file.type] ?? file.type.split('/')[1]}`,
+        {type: file.type},
+    ))
+
+    uploadContextFiles(named, picker)
+})
 
 /**
  * A long paste becomes a context document instead of a wall of text in the

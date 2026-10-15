@@ -176,8 +176,11 @@ it('returns a cadernos slot for every solution the caderno documents, after savi
         ->patchJson(route('notebooks.pages.update', [$notebook, $page]), ['documentation' => 'Oi'])
         ->assertOk();
 
-    expect($response->json('updatableSlots'))->toHaveCount(2)
-        ->and($response->json('updatableSlots.0.id'))->toBe('solution-notebooks-slot');
+    // Plus the page's own "atualizada por", which every save answers with.
+    $ids = collect($response->json('updatableSlots'))->pluck('id');
+
+    expect($ids->filter(fn (string $id) => $id === 'solution-notebooks-slot'))->toHaveCount(2)
+        ->and($ids)->toContain('page-authorship-slot');
 });
 
 it('forbids a viewer from saving page documentation', function () {
@@ -649,10 +652,10 @@ it('hands the editor a picture URL only for a drawing that has one', function ()
     // What makes the editor's diagram block a PREVIEW rather than a label. The
     // null is as load-bearing as the URL: it is what tells the block to draw
     // "sem imagem ainda" instead of an <img> that would 404.
-    \Illuminate\Support\Facades\Storage::fake('public');
+    Storage::fake('public');
 
     $drawn = Diagram::factory()->create(['name' => 'Com imagem']);
-    $drawn->addMedia(\Illuminate\Http\UploadedFile::fake()->image('canvas.png', 800, 600))
+    $drawn->addMedia(UploadedFile::fake()->image('canvas.png', 800, 600))
         ->toMediaCollection(Diagram::DIAGRAM_COLLECTION);
     Diagram::factory()->create(['name' => 'Sem imagem']);
 

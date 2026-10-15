@@ -16,7 +16,9 @@ A caderno's documents pile up across every page and every session, and they
 used to arrive TICKED for every message — so a turn about one page carried every
 PDF anybody had ever attached to the caderno. They render unchecked now, and
 `docs-chat.js` ticks only what was attached while the panel is open (picked,
-pasted or DROPPED anywhere on the panel). The ticks live client-side because a
+pasted or DROPPED anywhere on the panel; a pasted IMAGE — a screenshot — too,
+but only when the clipboard has no plain text, since Excel and Word put a PNG
+rendering beside the text they copy). The ticks live client-side because a
 slot swap re-renders the whole list; `ContextDocumentResolver` already read `[]`
 as "none", so the server needed no change.
 

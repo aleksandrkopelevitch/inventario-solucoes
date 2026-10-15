@@ -107,6 +107,21 @@ class DocumentationPage extends Model implements Documentable
         return $this->belongsTo(self::class, 'parent_id');
     }
 
+    /**
+     * Who created the page, and who saved it last — both written by the hooks
+     * in `booted()`, never from a payload. `withTrashed()` because users are
+     * soft-deleted and somebody who left is still who wrote the page.
+     */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by_id')->withTrashed();
+    }
+
+    public function updater(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'updated_by_id')->withTrashed();
+    }
+
     public function children(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id')->orderBy('position');
@@ -175,9 +190,24 @@ class DocumentationPage extends Model implements Documentable
      * delete of any group holding more than one page. An explicit query can't
      * violate anything. A subpage already removed with its parent earlier in
      * that same loop deletes a second time as a no-op (0 rows).
+     *
+     * Authorship rides on the same save that moves `updated_at`, so the two
+     * always describe ONE event: whoever caused this save is the last updater,
+     * whatever changed — content, title or place in the tree. A save with
+     * nothing dirty is not a save (Eloquent skips it), and one made with nobody
+     * signed in (the GitBook import, tinker) records nobody rather than keeping
+     * a name that no longer goes with the date.
      */
     protected static function booted(): void
     {
+        static::creating(fn (self $page) => $page->created_by_id ??= auth()->id());
+
+        static::saving(function (self $page) {
+            if ($page->isDirty()) {
+                $page->updated_by_id = auth()->id();
+            }
+        });
+
         static::deleting(fn (self $page) => $page->children()->get()->each->delete());
     }
 }

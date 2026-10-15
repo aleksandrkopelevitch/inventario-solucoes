@@ -182,6 +182,15 @@
                             <x-notebooks.documented-systems :notebook="$notebook" />
                         @endisset
 
+                        {{-- Who created this page and who saved it last. Below
+                             the caderno's sentence because it is about the PAGE,
+                             and above the headings for the same reason that
+                             sentence is: the navigator hides itself when there
+                             are none. --}}
+                        @isset($titlePage)
+                            <x-documentation.page-authorship :page="$titlePage" />
+                        @endisset
+
                         {{-- "Nesta página" headings navigator (H1–H3). Reads the
                              live Editor.js headings while editing, and the
                              .html-content permalinks when read-only. Built by

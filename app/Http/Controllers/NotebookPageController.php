@@ -22,6 +22,7 @@ use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Services\DocumentationPageService;
 use App\Services\DocumentationSearchService;
+use App\View\Components\Documentation\PageAuthorship;
 use App\View\Components\Documentation\PageTitle;
 use App\View\Components\Solutions\Notebooks;
 use Illuminate\Contracts\View\View;
@@ -143,9 +144,15 @@ class NotebookPageController extends Controller
         $response = $this->persistDocumentation($request, $page);
 
         return $response->setData($response->getData(true) + [
-            'updatableSlots' => $notebook->solutions
-                ->map(fn ($solution) => Notebooks::slot($solution))
-                ->all(),
+            // The rail's "atualizada por" goes with every save: the person who
+            // just saved is the last updater now, and their own screen should
+            // say so.
+            'updatableSlots' => [
+                PageAuthorship::slot($page),
+                ...$notebook->solutions
+                    ->map(fn ($solution) => Notebooks::slot($solution))
+                    ->all(),
+            ],
         ]);
     }
 
@@ -168,6 +175,7 @@ class NotebookPageController extends Controller
             'updatableSlots' => [
                 PageTitle::slot($notebook, $page->fresh()),
                 $this->pagesNavSlot($notebook, $page->fresh()),
+                PageAuthorship::slot($page->fresh()),
             ],
         ]);
     }
