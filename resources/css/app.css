@@ -837,7 +837,10 @@ dialog[open]::backdrop {
    Tailwind can see them) — only what a card looks like lives here.
 
    Every card is the same size on purpose: the frame around the logo is fixed
-   and it is the logo that adapts, per card, via data-fit. */
+   and it is the logo that adapts, per card, via data-fit.
+
+   The look: the frame sits INSET in the card, rounded on its own, on a tint a
+   step off the card's white, with the name and the blurb centred under it. */
 .html-content .ak-doc-cards { @apply my-6; }
 
 .html-content .ak-doc-card,
@@ -845,7 +848,7 @@ dialog[open]::backdrop {
     display: flex;
     flex-direction: column;
     height: 100%;
-    overflow: hidden;
+    padding: 0.625rem;
     border: 1px solid var(--color-line);
     border-radius: var(--radius-card);
     background: var(--color-surface);
@@ -855,13 +858,16 @@ dialog[open]::backdrop {
     color: inherit;
     font-weight: inherit;
     text-decoration: none;
-    transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
+/* Lifted, with a soft shadow BELOW it only (the negative spread keeps it off
+   the sides). A card with no destination does not move: rising under the
+   pointer is the promise of a click, and that card has none to keep. */
 .html-content a.ak-doc-card:hover {
-    border-color: var(--color-accent-line);
-    box-shadow: var(--shadow-card);
-    transform: translateY(-2px);
+    border-color: var(--color-line-2);
+    box-shadow: 0 14px 22px -14px color-mix(in srgb, var(--color-ink) 30%, transparent);
+    transform: translateY(-3px);
     text-decoration: none;
 }
 
@@ -878,10 +884,21 @@ dialog[open]::backdrop {
     aspect-ratio: 4 / 3;
     overflow: hidden;
     padding: 1rem;
-    border-bottom: 1px solid var(--color-line);
-    /* White rather than surface: a logo is authored against white far more
-       often than not, and a PNG with no background of its own needs one. */
-    background: #ffffff;
+    /* Concentric with the card's corner would be 14px − 10px of padding = 4px,
+       which reads as square; the frame keeps a softer corner of its own. */
+    border-radius: 10px;
+    background: var(--color-canvas);
+    /* The blend below mixes the logo with THIS background and nothing behind
+       the card. */
+    isolation: isolate;
+}
+
+/* One card has the row to itself (GitbookRenderer never draws more columns
+   than cards), and a 4:3 frame that wide would be taller than most screens.
+   From `sm` only: below it every grid is one column, and a lone card should
+   look like the others there. */
+@media (min-width: 640px) {
+    .html-content .ak-doc-cards[data-cols='1'] .ak-doc-card__media { aspect-ratio: 2 / 1; }
 }
 
 .html-content .ak-doc-card__media img {
@@ -894,6 +911,13 @@ dialog[open]::backdrop {
     /* Not zoom-in: docs-lightbox.js leaves an image inside a link alone, so the
        cursor has to say the same thing. */
     cursor: inherit;
+}
+
+/* A logo exported on a white box would sit in the tinted frame as a white
+   rectangle. Multiplied, its white takes the frame's tint and only the mark is
+   left. Not `cover`: that image IS the frame, there is nothing to blend into. */
+.html-content .ak-doc-card__media:not([data-fit='cover']) img {
+    mix-blend-mode: multiply;
 }
 
 /* The three fits, and they differ for real — see cards-format.js. `contain`
@@ -926,7 +950,14 @@ dialog[open]::backdrop {
     flex: 1 1 auto;
     flex-direction: column;
     gap: 0.25rem;
-    padding: 0.75rem 1rem;
+    padding: 0.75rem 0.5rem 0.375rem;
+    text-align: center;
+}
+
+/* A card with no logo is all text, in a box as tall as the logo cards beside
+   it: centred both ways rather than stuck to its top edge. */
+.html-content .ak-doc-card:not(:has(.ak-doc-card__media)) .ak-doc-card__body {
+    justify-content: center;
 }
 
 .html-content .ak-doc-card__title {

@@ -228,6 +228,23 @@ Two mechanics worth knowing before touching the block:
   rather than every card in a ROW — grid rows are sized independently, so one
   two-line blurb in the first row leaves the second row shorter and the grid
   stops reading as regular.
+- **A grid never draws more columns than it has cards** (since 2026-10-15, on
+  request): two cards in a `cols="3"` grid share the whole row, and a lone card
+  takes all of it, with a 2:1 frame from `sm` up so it doesn't tower over the
+  page. Only a grid that fits on ONE row changes; one that wraps keeps the
+  author's count, so its last row stays aligned under the full ones. What is
+  SAVED is still the author's `cols` — the cap is applied on draw, by
+  `GitbookRenderer::renderCards()` and by `cards.js` `layout()` alike, and both
+  write the count drawn to `data-cols`. That is also why the editor's
+  "Adicionar card" is a bar under the grid and no longer a ghost card in its
+  next cell: a ghost cell would widen the grid past what the reader gets.
+
+The look (same date): the logo frame sits INSET in the card, rounded on its own,
+on `--color-canvas`, with the name and the blurb centred under it. Logos are
+`mix-blend-mode: multiply` against that tint (except `cover`), which is what
+keeps a logo exported on a white box from showing as a white rectangle. Only a
+card WITH a destination lifts on hover; a card with none stays put, because
+rising under the pointer promises a click.
 
 And two traps the editor's tool had to be taught (both are the
 `data-mutation-free` rule from `.claude/rules/css-and-docs-rendering.md`, met a

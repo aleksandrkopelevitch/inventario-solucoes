@@ -552,7 +552,10 @@ class GitbookRenderer
      * regular grid any more, and the reading column is 3xl wide at most — so
      * `lg` (the viewport, not the column) is where a third card fits.
      *
-     * Mirrored by CARD_COLUMNS in resources/js/modules/docs-tools/cards-format.js.
+     * The keys are the counts an author may PICK, mirrored by CARD_COLUMNS in
+     * resources/js/modules/docs-tools/cards-format.js. A grid draws fewer when
+     * it holds fewer cards (see renderCards()), and one card has no entry: it
+     * is `grid-cols-1` at every width.
      */
     private const CARD_COLUMNS = [
         2 => 'sm:grid-cols-2',
@@ -601,8 +604,16 @@ class GitbookRenderer
             return '';
         }
 
-        $columns = self::CARD_COLUMNS[(int) ($attrs['cols'] ?? self::DEFAULT_CARD_COLUMNS)]
-            ?? self::CARD_COLUMNS[self::DEFAULT_CARD_COLUMNS];
+        $cols = (int) ($attrs['cols'] ?? self::DEFAULT_CARD_COLUMNS);
+        $cols = array_key_exists($cols, self::CARD_COLUMNS) ? $cols : self::DEFAULT_CARD_COLUMNS;
+
+        // Never more columns than cards. Two cards in a three-column grid left
+        // a third of the row empty beside them, which reads as a card missing
+        // rather than as a layout, so the grid narrows to what it holds and
+        // the cards share the whole width. Only a grid that FITS on one row
+        // changes: one that wraps keeps the author's count, so its last row
+        // stays aligned under the rows above it.
+        $shown = min($cols, count($cards));
 
         $html = '';
         foreach ($cards as [$cardAttrs, $body]) {
@@ -612,8 +623,11 @@ class GitbookRenderer
         // `auto-rows-fr` is what makes every card the same size rather than
         // every card in a ROW the same size: grid rows are sized independently,
         // so a two-line blurb in the first row left the second row 20px
-        // shorter and the grid stopped reading as regular.
-        return '<div class="ak-doc-cards my-6 grid auto-rows-fr grid-cols-1 gap-4 ' . $columns . '">' . $html . '</div>';
+        // shorter and the grid stopped reading as regular. `data-cols` is the
+        // count actually drawn, which app.css reads to widen a lone card's frame.
+        $classes = trim('ak-doc-cards my-6 grid auto-rows-fr grid-cols-1 gap-4 ' . (self::CARD_COLUMNS[$shown] ?? ''));
+
+        return '<div class="' . $classes . '" data-cols="' . $shown . '">' . $html . '</div>';
     }
 
     /**
