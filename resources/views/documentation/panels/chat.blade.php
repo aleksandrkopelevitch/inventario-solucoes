@@ -1,4 +1,14 @@
-<div class="flex h-full flex-col">
+<div class="relative flex h-full flex-col" data-ak-docs-chat-dropzone>
+    {{-- Drag-and-drop target: the WHOLE panel, so a file dropped anywhere in the
+         chat attaches. Shown by docs-chat.js while a file is dragged over it;
+         pointer-events-none so it never swallows the drop itself. --}}
+    <div data-ak-docs-chat-drop-overlay
+         class="pointer-events-none absolute inset-0 z-30 hidden flex-col items-center justify-center gap-2 border-2 border-dashed border-accent bg-surface/90 text-center">
+        <x-heroicon-o-arrow-up-tray class="size-8 text-accent" />
+        <p class="text-sm font-semibold text-ink">Solte para anexar ao caderno</p>
+        <p class="px-6 text-xs text-muted">PDF, imagem, txt, md, csv, json ou yaml — vale para todas as páginas.</p>
+    </div>
+
     <div class="flex items-center justify-between gap-3 bg-btn px-6 py-4">
         <div class="flex min-w-0 items-center gap-2.5">
             <span class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-lime text-lime-ink shadow-sm">
@@ -75,7 +85,7 @@
                       'pasteThreshold'  => (int) config('services.documentation_ai.paste_threshold_chars'),
                   ]) }}">
                 <x-forms.textarea data-ak-docs-chat-input rows="2"
-                    class="max-h-52 min-h-[3.25rem] !resize-none !rounded-none !border-0 !bg-transparent !px-4 !py-3 !shadow-none focus:!border-0 focus:!shadow-none"
+                    class="max-h-[60vh] min-h-[3.25rem] !rounded-none !border-0 !bg-transparent !px-4 !py-3 !shadow-none focus:!border-0 focus:!shadow-none"
                     placeholder="Peça para escrever, revisar ou pergunte algo sobre esta documentação…" />
 
                 {{-- The file uploads on selection (docs-chat.js) — no separate

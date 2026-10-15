@@ -70,6 +70,21 @@ let pendingButton = null
 const contextPages = new Map()
 const seenPageContainers = new WeakSet()
 
+/**
+ * Which context DOCUMENTS are ticked for the next message — by media id, as the
+ * strings the checkboxes carry.
+ *
+ * The server renders every pill unchecked and a slot swap (upload, remove)
+ * replaces the whole list, so the ticks have to live here to survive it.
+ * `knownDocs` is what tells "just attached" from "was already there": a pill
+ * whose id was not known at the last sync arrived during this panel session and
+ * is ticked; the ones the caderno already held when the panel opened stay
+ * unticked until somebody chooses them. Both are reset with `contextPages`,
+ * when a freshly rendered panel arrives.
+ */
+const checkedDocs = new Set()
+const knownDocs = new Set()
+
 let pageCatalogPromise = null
 let pageCatalogFetchedAt = 0
 let pageCatalogFailed = false
@@ -157,9 +172,41 @@ document.addEventListener('ak:docs-chat-composer-reset', (e) => {
     }
 })
 
+// Where automatic growth stops. It used to be a max-h-52 on the textarea, which
+// would also have capped a manual resize; the CSS ceiling is now 60vh and this
+// is only the point past which TYPING stops enlarging the box.
+const AUTO_GROW_MAX = 208
+
+// The textarea carries a native resize handle. `autoGrow` rewrites the inline
+// height on every input, so a size picked by dragging would be undone by the
+// next keystroke unless it is remembered: `userHeight` is the floor the box
+// never shrinks below, and is set when the observed height differs from the one
+// `autoGrow` itself last wrote.
+const userHeight = new WeakMap()
+const autoHeight = new WeakMap()
+const resizeObserved = new WeakSet()
+
 function autoGrow(el) {
+    observeUserResize(el)
+
     el.style.height = 'auto'
-    el.style.height = `${el.scrollHeight}px`
+    const height = Math.max(userHeight.get(el) ?? 0, Math.min(el.scrollHeight, AUTO_GROW_MAX))
+    el.style.height = `${height}px`
+    autoHeight.set(el, height)
+}
+
+function observeUserResize(el) {
+    if (resizeObserved.has(el) || typeof ResizeObserver === 'undefined') return
+    resizeObserved.add(el)
+
+    new ResizeObserver(() => {
+        const height = el.offsetHeight
+        // 0 = the panel is closed/hidden, not a choice somebody made.
+        if (height === 0 || Math.abs(height - (autoHeight.get(el) ?? height)) <= 1) return
+
+        userHeight.set(el, height)
+        autoHeight.set(el, height)
+    }).observe(el)
 }
 
 /* ------------------------------------------------------------------ */
@@ -184,6 +231,122 @@ async function uploadContextDoc(input) {
         await postContextDoc(action, formData)
     } finally {
         input.value = '' // let the same file be re-selected (e.g. after a failure)
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Which context documents are ticked                                  */
+/* ------------------------------------------------------------------ */
+
+document.addEventListener('change', (e) => {
+    const box = e.target.closest?.('[data-ak-context-doc]')
+    if (!box) return
+    if (box.checked) checkedDocs.add(box.value)
+    else checkedDocs.delete(box.value)
+})
+
+/**
+ * Re-applies the ticks onto freshly rendered pills and ticks the new ones.
+ * `fresh` is a panel that was just rendered: everything already in the caderno
+ * is "known" and stays unticked.
+ */
+function syncContextDocs(fresh) {
+    document.querySelectorAll('[data-ak-context-doc]').forEach((box) => {
+        if (!knownDocs.has(box.value)) {
+            knownDocs.add(box.value)
+            if (!fresh) checkedDocs.add(box.value)
+        }
+        box.checked = checkedDocs.has(box.value)
+    })
+}
+
+/* ------------------------------------------------------------------ */
+/*  Drag and drop a file anywhere in the chat                          */
+/* ------------------------------------------------------------------ */
+
+// dragenter/dragleave fire for every child the pointer crosses, so a plain
+// toggle flickers; the depth counter is what says "still inside the panel".
+let dragDepth = 0
+
+const carriesFiles = (e) => Array.from(e.dataTransfer?.types ?? []).includes('Files')
+
+function setDropOverlay(on) {
+    const zone = document.querySelector('[data-ak-docs-chat-dropzone]')
+    const overlay = zone?.querySelector('[data-ak-docs-chat-drop-overlay]')
+    if (!overlay) return
+    overlay.classList.toggle('hidden', !on)
+    overlay.classList.toggle('flex', on)
+}
+
+document.addEventListener('dragenter', (e) => {
+    if (!carriesFiles(e) || !e.target.closest?.('[data-ak-docs-chat-dropzone]')) return
+    e.preventDefault()
+    dragDepth++
+    setDropOverlay(true)
+})
+
+document.addEventListener('dragover', (e) => {
+    if (!carriesFiles(e) || !e.target.closest?.('[data-ak-docs-chat-dropzone]')) return
+    // Without this the browser treats the panel as a non-target and, on drop,
+    // navigates to the file.
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+})
+
+document.addEventListener('dragleave', (e) => {
+    if (!e.target.closest?.('[data-ak-docs-chat-dropzone]')) return
+    dragDepth = Math.max(0, dragDepth - 1)
+    if (dragDepth === 0) setDropOverlay(false)
+})
+
+document.addEventListener('drop', (e) => {
+    const zone = e.target.closest?.('[data-ak-docs-chat-dropzone]')
+    if (!zone || !carriesFiles(e)) return
+    e.preventDefault()
+    dragDepth = 0
+    setDropOverlay(false)
+
+    const picker = zone.querySelector('[data-ak-context-upload]')
+    if (picker?.disabled) return // an upload is already running
+
+    uploadDroppedFiles(Array.from(e.dataTransfer.files), picker)
+})
+
+// A drag cancelled with Esc, or dropped outside the window, never reaches `drop`.
+document.addEventListener('dragend', () => {
+    dragDepth = 0
+    setDropOverlay(false)
+})
+
+/**
+ * One at a time: each POST swaps the context-documents slot, and two in flight
+ * would both render the list as it was before the other landed. Unsupported
+ * types are named here rather than left to the server's validation message,
+ * which would arrive once per file and in the validator's own words.
+ */
+async function uploadDroppedFiles(files, picker) {
+    const action = picker?.dataset.action
+    if (!action || !files.length) return
+
+    const allowed = (picker.getAttribute('accept') || '')
+        .split(',')
+        .map((ext) => ext.trim().toLowerCase())
+        .filter(Boolean)
+    const supported = (file) => !allowed.length || allowed.some((ext) => file.name.toLowerCase().endsWith(ext))
+
+    const refused = files.filter((file) => !supported(file))
+    if (refused.length) {
+        Toast.open({
+            content: `Formato não aceito: ${refused.map((file) => file.name).join(', ')}.`,
+            title: 'Atenção',
+            type: 'warning',
+        })
+    }
+
+    for (const file of files.filter(supported)) {
+        const formData = new FormData()
+        formData.append('file', file)
+        await postContextDoc(action, formData)
     }
 }
 
@@ -815,11 +978,16 @@ export function init() {
     // which is exactly what distinguishes "the panel reopened" from "the thread
     // slot was swapped after a send".
     const pageHost = document.querySelector('[data-ak-context-pages]')
+    let freshPanel = false
     if (pageHost && !seenPageContainers.has(pageHost)) {
         seenPageContainers.add(pageHost)
         contextPages.clear()
+        checkedDocs.clear()
+        knownDocs.clear()
+        freshPanel = true
     }
     if (pageHost) renderContextPages()
+    syncContextDocs(freshPanel)
 
     // Also covers the swap that renderContextPages() can't see: a context
     // document uploaded or removed replaces its own slot and leaves the pages

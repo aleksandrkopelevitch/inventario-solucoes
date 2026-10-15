@@ -628,6 +628,7 @@ Route::middleware('auth')->group(function () {
     // it stays outside the {page} scopeBindings.
     Route::post('notebooks/{notebook}/context', [NotebookContextDocumentController::class, 'store'])->name('notebooks.context.store');
     Route::get('notebooks/{notebook}/context/{media}', [NotebookContextDocumentController::class, 'show'])->name('notebooks.context.show');
+    Route::patch('notebooks/{notebook}/context/{media}', [NotebookContextDocumentController::class, 'update'])->name('notebooks.context.update');
     Route::delete('notebooks/{notebook}/context/{media}', [NotebookContextDocumentController::class, 'destroy'])->name('notebooks.context.destroy');
 
     Route::post('notebooks/{notebook}/pages', [NotebookPageController::class, 'store'])->name('notebooks.pages.store');
