@@ -162,7 +162,6 @@ export default class CardsTool {
     render() {
         this.wrapper = document.createElement('div')
         this.wrapper.className = 'ak-cards'
-        this.wrapper.dataset.cols = String(this.cols)
 
         this.grid = document.createElement('div')
         this.grid.className = 'ak-cards__grid'
@@ -174,6 +173,7 @@ export default class CardsTool {
         this.addBtn.append(document.createTextNode(' Adicionar card'))
         this.addBtn.addEventListener('click', () => {
             const card = this.buildCard({fit: DEFAULT_CARD_FIT})
+            this.layout()
             card.title.focus()
             this.changed()
         })
@@ -185,16 +185,30 @@ export default class CardsTool {
         // either irrelevant to the document or already reported by hand.
         this.picker.dataset.mutationFree = 'true'
 
-        // The ghost card goes in FIRST: every card is inserted before it
-        // (`buildCard`), so it has to already be in the grid.
-        this.grid.append(this.addBtn)
-        this.wrapper.append(this.grid, this.picker)
+        // Under the grid, not in its next cell. It used to be a ghost card
+        // inside the grid, but the grid now narrows to the cards it holds (see
+        // `layout()`), and a ghost cell would either widen it past what the
+        // reader gets or wrap onto a row of its own, as tall as a card.
+        this.wrapper.append(this.grid, this.addBtn, this.picker)
         this.seed.forEach((item) => this.buildCard(item))
+        this.layout()
 
         // Fills in the labels of destinations this session did not pick itself.
         this.resolveLabels()
 
         return this.wrapper
+    }
+
+    /**
+     * How many columns the grid DRAWS: the author's count, but never more than
+     * there are cards — two cards in a three-column grid share the whole width
+     * instead of leaving a third of it empty. The same rule as
+     * GitbookRenderer::renderCards(), so the editor previews what the reader
+     * gets. `this.cols` stays the author's choice and is what is saved, so a
+     * third card added later lands in a three-column row again.
+     */
+    layout() {
+        this.wrapper.dataset.cols = String(Math.min(this.cols, Math.max(this.cards.length, 1)))
     }
 
     renderSettings() {
@@ -206,7 +220,7 @@ export default class CardsTool {
             isActive: this.cols === count,
             onActivate: () => {
                 this.cols = count
-                this.wrapper.dataset.cols = String(count)
+                this.layout()
                 this.changed()
             },
         }))
@@ -229,7 +243,7 @@ export default class CardsTool {
 
         el.append(this.buildMedia(card), this.buildBody(card, item), this.buildFoot(card))
 
-        this.grid.insertBefore(el, this.addBtn)
+        this.grid.append(el)
         this.cards.push(card)
 
         return card
@@ -457,6 +471,7 @@ export default class CardsTool {
         const [card] = this.cards.splice(index, 1)
         card.el.remove()
         if (this.picking === card) this.closePicker()
+        this.layout()
         this.changed()
     }
 
@@ -465,7 +480,7 @@ export default class CardsTool {
 
         const [moved] = this.cards.splice(from, 1)
         this.cards.splice(to, 0, moved)
-        this.cards.forEach((card) => this.grid.insertBefore(card.el, this.addBtn))
+        this.cards.forEach((card) => this.grid.append(card.el))
         this.changed()
     }
 

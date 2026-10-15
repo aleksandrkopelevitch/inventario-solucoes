@@ -34,37 +34,56 @@ function oneCard(string $attrs, string $body = ''): string
     return "{% card {$attrs} %}\n{$body}\n{% endcard %}";
 }
 
+/** `$count` plain cards, one per line of the grid's body. */
+function someCards(int $count): string
+{
+    return collect(range(1, $count))->map(fn (int $n) => oneCard("title=\"Card {$n}\""))->implode("\n");
+}
+
 it('renders one card per {% card %}, in the grid the author picked', function () {
     $markdown = cardsMarkdown(
         oneCard('title="Construshow" image="/files/12"', 'ERP de lojas.')
-        . "\n" . oneCard('title="SAP S/4 HANA" image="/files/13" fit="cover"'),
+        . "\n" . oneCard('title="SAP S/4 HANA" image="/files/13" fit="cover"')
+        . "\n" . oneCard('title="Digibee" image="/files/14"'),
     );
 
     $html = app(GitbookRenderer::class)->render($markdown);
 
     expect($html)->toContain('lg:grid-cols-3')
-        ->and(substr_count($html, 'ak-doc-card__body'))->toBe(2)
+        ->and(substr_count($html, 'ak-doc-card__body'))->toBe(3)
         ->and($html)->toContain('>Construshow</span>')
         ->and($html)->toContain('>ERP de lojas.</span>')
         ->and($html)->toContain('src="/files/12"');
 });
 
 it('asks for two or four columns and gets them', function () {
-    $card = oneCard('title="Um"');
-
-    expect(app(GitbookRenderer::class)->render(cardsMarkdown($card, 2)))
+    expect(app(GitbookRenderer::class)->render(cardsMarkdown(someCards(4), 2)))
         ->toContain('sm:grid-cols-2')
         ->not->toContain('lg:grid-cols')
-        ->and(app(GitbookRenderer::class)->render(cardsMarkdown($card, 4)))
+        ->and(app(GitbookRenderer::class)->render(cardsMarkdown(someCards(4), 4)))
         ->toContain('lg:grid-cols-4');
 });
 
 it('falls back to three columns when the count is one nothing styles', function () {
     // A `cols` nobody wrote a class for must not travel on as a class the
     // stylesheet never shipped — the grid would collapse to one column.
-    $html = app(GitbookRenderer::class)->render(cardsMarkdown(oneCard('title="Um"'), 7));
+    $html = app(GitbookRenderer::class)->render(cardsMarkdown(someCards(4), 7));
 
     expect($html)->toContain('lg:grid-cols-3');
+});
+
+it('never draws more columns than it has cards, so a short grid fills the width', function () {
+    $render = fn (int $cards, int $cols) => app(GitbookRenderer::class)->render(cardsMarkdown(someCards($cards), $cols));
+
+    // Two cards in a three-column grid share the row instead of leaving a
+    // third of it empty, and a lone card takes all of it.
+    expect($render(2, 3))->toContain('sm:grid-cols-2')->toContain('data-cols="2"')->not->toContain('lg:grid-cols')
+        ->and($render(1, 4))->toContain('data-cols="1"')->not->toContain('grid-cols-2')
+        ->and($render(3, 4))->toContain('lg:grid-cols-3')->not->toContain('lg:grid-cols-4');
+
+    // A grid that wraps keeps the author's count, so its last row stays
+    // aligned under the full rows above it.
+    expect($render(5, 3))->toContain('lg:grid-cols-3')->toContain('data-cols="3"');
 });
 
 it('carries the fit each card chose, and only the three that exist', function () {
