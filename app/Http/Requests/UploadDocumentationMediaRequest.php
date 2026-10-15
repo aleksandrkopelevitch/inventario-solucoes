@@ -26,7 +26,12 @@ class UploadDocumentationMediaRequest extends FormRequest
             'file' => [
                 'required_without:url',
                 'file',
-                'max:20480', // 20 MB
+                // 100 MB. Raised from 20 MB on request: a page is where a
+                // manual, a recording or a whole spreadsheet gets attached. The
+                // server has to agree — PHP's upload_max_filesize/post_max_size
+                // and nginx's client_max_body_size are set on the droplet, not
+                // here — and media-library.max_file_size has to stay above it.
+                'max:102400',
                 'mimes:jpg,jpeg,png,gif,webp,svg,pdf,doc,docx,xls,xlsx,ppt,pptx,csv,txt,zip,json,yaml,yml,md',
             ],
             'url' => [

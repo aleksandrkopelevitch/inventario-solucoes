@@ -257,7 +257,7 @@ async function loadTools({uploadUrl = '', catalogUrl = '', linkTargetsUrl = '', 
                 // own: the plugin's `uploadingFailed()` is what removes the
                 // block's loader. Limits from
                 // `UploadDocumentationMediaRequest`.
-                errorMessage: 'Não foi possível enviar o arquivo. Use PDF, Office, CSV, TXT, ZIP, JSON, YAML ou MD de até 20 MB.',
+                errorMessage: 'Não foi possível enviar o arquivo. Use PDF, Office, CSV, TXT, ZIP, JSON, YAML ou MD de até 100 MB.',
             },
         },
         embed: {
