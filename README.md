@@ -1008,7 +1008,7 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   cinco tentativas na frente estaria guardando uma porta com a chave colada do
   outro lado. Três consequências:
 
-    - **Todo mundo recebe marcadores `[[SECRET-n]]`, admin incluído.** O editor
+    - **Todo mundo recebe marcadores `[[SECRET-<id>]]`, admin incluído.** O editor
       round-trippa o Markdown cru, então uma cópia sem máscara colocaria a
       página inteira de credenciais na tela de quem abriu o arquivo — e no
       "Copiar Markdown", e no `existing_content` guardado da conversa com a IA.
@@ -1020,7 +1020,7 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
       erros anteriores.
     - **O valor mora dentro de `<code>` mais vezes do que fora**, e é ali que o
       round trip quebrou uma vez: o serializador achatava
-      `<code><span class="ak-secret-mark">` em `` `[[SECRET-n]]` `` e o valor
+      `<code><span class="ak-secret-mark">` em `` `[[SECRET-…]]` `` e o valor
       real era gravado em texto puro. Hoje as duas aninhagens saem numa forma só
       (backticks fora, construto dentro) e o `restore()` **re-embrulha** um
       marcador que perdeu o construto em vez de resolvê-lo — a proteção é do
@@ -1184,7 +1184,7 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
 
     - `[[LIT-n]]` (`LiteralVault`) congela literais opacos — token, hash,
       base64 —, porque o modelo os copia **errado** e erra em silêncio.
-    - `[[SECRET-n]]` (`SecretText`) congela valores protegidos, porque o modelo
+    - `[[SECRET-<id>]]` (`SecretText`) congela valores protegidos, porque o modelo
       (e quem está editando) **não pode ler** aquilo.
     - `[[BLOCK-n]]` (`BlockVault`) congela imagem, arquivo, embed e citação de
       diagrama, porque o modelo **não sabe escrever** um desses (o `/files/{id}`

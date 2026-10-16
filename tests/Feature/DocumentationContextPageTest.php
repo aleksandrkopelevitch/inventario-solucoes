@@ -123,7 +123,7 @@ it('masks a context page protected values', function () {
     // may not see in caderno A must not be quotable into caderno B.
     expect($service->capturedPrompt)
         ->not->toContain('s3nh4-de-verdade')
-        ->toContain('[[SECRET-1]]');
+        ->toMatch('/\[\[SECRET-[a-z0-9]{8}\]\]/');
 });
 
 it('strips a context page media and diagram blocks instead of freezing them', function () {

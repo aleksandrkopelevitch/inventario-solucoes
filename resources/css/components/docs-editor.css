@@ -576,7 +576,7 @@
 
 /* ── Valor protegido dentro do editor ──────────────────────────────────
    O construto {% secret %} vira <span class="ak-secret-mark"> no editor
-   (docs-tools/secret.js), e o que ele contém é um marcador [[SECRET-n]]:
+   (docs-tools/secret.js), e o que ele contém é um marcador [[SECRET-…]]:
    o valor real nunca é entregue ao navegador, nem para admin
    (App\Support\Documentation\SecretText). Este estilo é o que faz o
    marcador LER como um cadeado em vez de parecer texto quebrado — quem

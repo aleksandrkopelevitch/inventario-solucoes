@@ -5,11 +5,11 @@
      renderedHtml, childPages). --}}
 {{-- `data-ak-secret-*` sits on the COLUMN rather than on the rendered HTML
      because a protected value has two homes on this screen: a lock in the
-     read-only render, and a `[[SECRET-n]]` marker inside Editor.js. docs-secret.js
+     read-only render, and a `[[SECRET-…]]` marker inside Editor.js. docs-secret.js
      finds whichever was clicked with `closest('[data-ak-secret-url]')`, so both
      branches below are covered by one declaration.
 
-     `__INDEX__` in the URL is the lock's ordinal, substituted client-side.
+     `__SECRET__` in the URL is the value's id, substituted client-side.
      Absent (with the whole feature inert) on a screen with no page behind it. --}}
 <div class="min-w-0 max-w-3xl flex-1"
     @isset($secretRevealUrl) data-ak-secret-url="{{ $secretRevealUrl }}" @endisset

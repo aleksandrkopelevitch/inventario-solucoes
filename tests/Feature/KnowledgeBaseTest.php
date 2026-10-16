@@ -215,11 +215,13 @@ it('refuses search and media on an unpublished caderno too', function () {
 it('lets a reader unlock a protected value with the caderno code', function () {
     $notebook = publishedNotebook();
     $page = pageIn($notebook, 'Credenciais', 'Header: {% secret %}Bearer abc123{% endsecret %}');
+    // The id the value was stored under — what the lock on the page carries.
+    preg_match('/\{% secret id="([a-z0-9]{8})" %\}/', $page->documentation, $id);
 
     // `/docs` authorizes the lock by PUBLICATION, not by the caderno's own
     // policy (RevealPageSecretRequest).
     $this->actingAs(reader())
-        ->postJson(route('docs.secrets', [$notebook, $page, 'index' => 1]), ['code' => $notebook->secret_code])
+        ->postJson(route('docs.secrets', [$notebook, $page, 'secret' => $id[1]]), ['code' => $notebook->secret_code])
         ->assertOk()
         ->assertJson(['value' => 'Bearer abc123']);
 });

@@ -70,7 +70,9 @@ trait EditsDocumentation
             // clicking its lock and typing nothing; nobody reads a page's worth
             // of credentials by opening a screen.
             //
-            // `persistDocumentation()` puts the real bytes back on save.
+            // `persistDocumentation()` puts the real bytes back on save, by the
+            // id each marker carries — never by its position, which the
+            // editor's own saves keep changing under it.
             'documentation' => SecretText::mask($model->documentation),
             'canEdit'       => $canEdit,
             // Only users who can't edit receive the already-rendered HTML
@@ -90,24 +92,30 @@ trait EditsDocumentation
      * Saves the Markdown (+ GitBook notation) serialized by the editor.
      *
      * Protected values are restored from what is still in the database, ALWAYS
-     * — not only when the person editing was shown markers. An admin edits the
-     * real values, but the Documentation Assistant is fed masked content in
-     * every case, so an admin applying its draft is saving markers too. Getting
-     * this conditional wrong writes `[[SECRET-1]]` into the page as literal
-     * text, and the value it stood for is gone.
+     * — everybody is shown markers, and the Documentation Assistant is fed
+     * masked content in every case, so an admin applying its draft is saving
+     * markers too. Getting this conditional wrong writes `[[SECRET-…]]` into
+     * the page as literal text, and the value it stood for is gone.
+     *
+     * `secretIds` is the id each `{% secret %}` of the posted text was stored
+     * under, in order. The editor swaps a value somebody just typed for its
+     * marker with it, so that between saves it holds markers and nothing else
+     * — the assistant is handed that content, and a typed value it saw would
+     * come back as a marker no save could resolve.
      */
     protected function persistDocumentation(SaveDocumentationRequest $request, Documentable $model): JsonResponse
     {
-        $model->update([
-            'documentation' => SecretText::restore(
-                $request->validated()['documentation'] ?? null,
-                $model->documentation,
-            ),
-        ]);
+        [$documentation, $secretIds] = SecretText::restoreWithIds(
+            $request->validated()['documentation'] ?? null,
+            $model->documentation,
+        );
+
+        $model->update(['documentation' => $documentation]);
 
         return response()->json([
-            'type'    => 'success',
-            'message' => 'Documentação salva.',
+            'type'      => 'success',
+            'message'   => 'Documentação salva.',
+            'secretIds' => $secretIds,
         ]);
     }
 

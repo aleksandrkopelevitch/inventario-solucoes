@@ -54,8 +54,8 @@ final class DocumentationReader
             // `titleIsInContent()`: nearly every imported page opens with an H1
             // repeating its own title, and printing both says it twice.
             'showTitle' => ! $this->titleIsInContent($current),
-            // Where a lock posts its code, `__INDEX__` standing in for the
-            // ordinal (see NotebookPageController::edit()). Null when the
+            // Where a lock posts its code, `__SECRET__` standing in for its
+            // address (see NotebookPageController::edit()). Null when the
             // caderno has no page to ask about.
             'secretRevealUrl' => $current ? $urls->secret($current->slug) : null,
             'secretScope'     => $notebook->slug,
@@ -67,7 +67,7 @@ final class DocumentationReader
             // lose: the rendered HTML painted its locks, and this textarea
             // would have handed the same reader every plaintext value beside
             // it, in the page source, for a button labelled "copy". They copy
-            // `{% secret %}[[SECRET-1]]{% endsecret %}` instead.
+            // `{% secret %}[[SECRET-k3j9x2ab]]{% endsecret %}` instead.
             'markdown'  => $this->rewriteAssetUrls(SecretText::mask((string) $markdown), $urls),
             'nav'       => $this->nav($notebook, $current, $urls),
             'searchUrl' => $urls->search(),

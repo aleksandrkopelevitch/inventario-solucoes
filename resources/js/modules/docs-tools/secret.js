@@ -7,12 +7,12 @@
 // value is a token inside a sentence, a table cell or a line of a code sample,
 // so a BLOCK tool (the shape hint/tabs/diagram use) could not express it.
 //
-// What the author sees while editing depends on who they are, and that is
-// decided on the server, not here: an admin's editor holds the real values, and
-// everyone else's holds `[[SECRET-n]]` markers, restored on save by
-// EditsDocumentation::persistDocumentation(). This tool marks text either way —
-// an editor who cannot READ a value can still move it, and can still protect a
-// new one they just typed.
+// What the author sees while editing is decided on the server, not here:
+// every editor, an admin's included, holds `[[SECRET-<id>]]` markers, restored
+// on save by EditsDocumentation::persistDocumentation(). This tool marks text
+// either way — an editor who cannot READ a value can still move it, and can
+// still protect a new one they just typed, which becomes a marker of its own on
+// the next save (docs-editor.js, `adoptSecretIds`).
 
 import {SECRET_CLASS} from './secret-class'
 

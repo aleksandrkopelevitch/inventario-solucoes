@@ -155,7 +155,7 @@ class KnowledgeBaseController extends Controller
         RevealPageSecretRequest $request,
         Notebook $notebook,
         DocumentationPage $page,
-        int $index,
+        string $secret,
         RevealPageSecret $reveal,
     ): JsonResponse {
         $this->guard($notebook);
@@ -164,7 +164,7 @@ class KnowledgeBaseController extends Controller
             'value' => $reveal->handle(
                 $notebook,
                 $page,
-                $index,
+                $secret,
                 $request->validated()['code'] ?? null,
                 $request->user(),
                 'user' . $request->user()->id,

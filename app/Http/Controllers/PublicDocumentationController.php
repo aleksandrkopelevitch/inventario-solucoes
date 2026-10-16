@@ -123,7 +123,7 @@ class PublicDocumentationController extends Controller
         RevealPageSecretRequest $request,
         string $token,
         string $slug,
-        int $index,
+        string $secret,
         RevealPageSecret $reveal,
     ): JsonResponse {
         $notebook = $this->resolve($token);
@@ -133,7 +133,7 @@ class PublicDocumentationController extends Controller
             'value' => $reveal->handle(
                 $notebook,
                 $page,
-                $index,
+                $secret,
                 $request->validated()['code'] ?? null,
                 // No user, ever — a signed-in admin who happens to be reading a
                 // public link is a visitor here. Recognising them would make

@@ -238,13 +238,15 @@ class DocumentationChatPromptBuilder
             $parts[] = "BLOCOS PRESERVADOS:\n\n" . $blocks->legend();
         }
 
-        // The page's protected values arrive as `[[SECRET-n]]` markers
+        // The page's protected values arrive as `[[SECRET-k3j9x2ab]]` markers
         // (App\Support\Documentation\SecretText). Saying so is what stops the
         // model "tidying" them away or inventing a plausible value in their
-        // place: it can MOVE one, and it cannot know or write one.
+        // place: it can MOVE one, and it cannot know or write one. The id in a
+        // marker is how the save finds its value again, so a marker copied
+        // with one character wrong is a value lost — hence "exatamente".
         if (str_contains((string) $existing, '[[SECRET-')) {
             $parts[] = "VALORES OCULTOS DA PÁGINA:\n\n"
-                . 'Trechos escritos como {% secret %}[[SECRET-n]]{% endsecret %} são valores sensíveis '
+                . 'Trechos escritos como {% secret %}[[SECRET-…]]{% endsecret %} são valores sensíveis '
                 . 'que você NÃO pode ver. Mantenha cada marcador exatamente como está, dentro do seu '
                 . '{% secret %}…{% endsecret %}, e nunca invente um valor no lugar dele.';
         }

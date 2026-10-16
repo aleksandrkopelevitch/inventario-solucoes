@@ -18,8 +18,8 @@ use App\Models\Notebook;
  * renderer (`App\Services\Documentation\DocumentationReader`) takes one of
  * these and knows nothing else about who is reading.
  *
- * `__INDEX__` in `secret()` is the placeholder the client substitutes for a
- * lock's ordinal, the same convention `NotebookPageController::edit()` uses:
+ * `__SECRET__` in `secret()` is the placeholder the client substitutes for a
+ * lock's address, the same convention `NotebookPageController::edit()` uses:
  * a page has N locks and one endpoint shape, so the URL is built once with a
  * hole in it rather than N times.
  */
@@ -70,12 +70,12 @@ final class ReaderUrls
             : route('public.docs.search', $this->token);
     }
 
-    /** Where a lock on `$pageSlug` posts its code, `__INDEX__` standing in for the ordinal. */
+    /** Where a lock on `$pageSlug` posts its code, `__SECRET__` standing in for its address. */
     public function secret(string $pageSlug): string
     {
         return $this->token === null
-            ? route('docs.secrets', [$this->notebook, $pageSlug, 'index' => '__INDEX__'])
-            : route('public.docs.secrets', [$this->token, $pageSlug, 'index' => '__INDEX__']);
+            ? route('docs.secrets', [$this->notebook, $pageSlug, 'secret' => '__SECRET__'])
+            : route('public.docs.secrets', [$this->token, $pageSlug, 'secret' => '__SECRET__']);
     }
 
     public function pageLinks(): PageLinks
