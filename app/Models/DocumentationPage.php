@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Contracts\Documentable;
+use App\Support\Documentation\SecretText;
 use Database\Factories\DocumentationPageFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -240,12 +241,22 @@ class DocumentationPage extends Model implements Documentable
      * nothing dirty is not a save (Eloquent skips it), and one made with nobody
      * signed in (the GitBook import, tinker) records nobody rather than keeping
      * a name that no longer goes with the date.
+     *
+     * Every protected value is stored with its id (`SecretText::withIds()`),
+     * whoever wrote the text — the editor's saves already arrive with them, so
+     * this is for every OTHER writer. `SecretText::mask()` relies on it: a
+     * value stored without an id could only be masked with a marker no save
+     * can resolve. A no-op when nothing lacks one, so it marks nothing dirty.
      */
     protected static function booted(): void
     {
         static::creating(fn (self $page) => $page->created_by_id ??= auth()->id());
 
         static::saving(function (self $page) {
+            if ($page->isDirty('documentation')) {
+                $page->documentation = SecretText::withIds($page->documentation);
+            }
+
             if ($page->isDirty()) {
                 $page->updated_by_id = auth()->id();
             }

@@ -1,7 +1,7 @@
 // docs-secret.js — reveals ONE protected value of a documentation page.
 //
 // `GitbookRenderer` paints a `{% secret %}` as a lock button carrying no
-// plaintext, and the editor is fed `[[SECRET-n]]` markers in the same places
+// plaintext, and the editor is fed `[[SECRET-…]]` markers in the same places
 // (App\Support\Documentation\SecretText). This module is the only way a reader
 // gets the value: it asks the server for one, shows it in a popover, and takes
 // it back — on Esc, on a click elsewhere, on a scroll, or after RELOCK_MS.
@@ -12,8 +12,12 @@
 //  - `[data-ak-secret]`  — a lock in rendered documentation (a viewer, or a
 //    visitor on a magic link).
 //  - `.ak-secret-mark`   — the same value inside Editor.js, where an EDITOR or
-//    an admin spends their time. Its text is the marker, so the ordinal is
+//    an admin spends their time. Its text is the marker, so the address is
 //    read out of it.
+//
+// Either way the ADDRESS is the value's id (`k3j9x2ab`), the same one the
+// lock and the marker carry. A number still works: a page rendered before ids
+// existed asks by ordinal, and the server answers that too.
 //
 // The popover is appended to `document.body`, never beside the lock, and that
 // is load-bearing on the second shape: Editor.js decides a block changed by
@@ -22,7 +26,7 @@
 // `docs-tools/diagram.js` needs `data-mutation-free` for).
 //
 // The endpoint is not built here. It arrives as `data-ak-secret-url` with
-// `__INDEX__` where the ordinal goes — one template for the authenticated
+// `__SECRET__` where the address goes — one template for the authenticated
 // reader and the magic link, so this module has no route of its own and cannot
 // tell which surface it is running on (the contract `chain-viz.js` keeps).
 import * as ajaxModule from './ajax'
@@ -38,7 +42,7 @@ const RELOCK_MS = 30 * 1000
 const STORAGE_KEY = 'ak-docs-secret-attempts'
 
 /** The marker an editor sees in place of a value it may not read. */
-const MARKER = /^\s*\[\[SECRET-(\d+)\]\]\s*$/
+const MARKER = /^\s*\[\[SECRET-([a-z0-9]+)\]\]\s*$/
 
 /** The one popover on the page. Two open at once would mean two values on screen. */
 let popover = null
@@ -276,13 +280,14 @@ function request({url, scope, node, input}) {
 }
 
 /**
- * The lock's ordinal — the index of the value in the page's text.
+ * The lock's address — the id of the value it stands for.
  *
  * A rendered lock carries it in `data-ak-secret`; in the editor it is inside
  * the marker itself. A marked span whose text is NOT a marker holds a value
- * somebody just typed, and there is nothing to ask the server for.
+ * somebody just typed (it becomes a marker on the next save), and there is
+ * nothing to ask the server for.
  */
-function ordinalOf(trigger) {
+function addressOf(trigger) {
     if (trigger.dataset.akSecret) return trigger.dataset.akSecret
 
     return trigger.textContent.match(MARKER)?.[1] ?? null
@@ -300,13 +305,13 @@ document.addEventListener('click', (e) => {
     }
 
     const host = trigger.closest('[data-ak-secret-url]')
-    const ordinal = ordinalOf(trigger)
+    const address = addressOf(trigger)
 
     // No endpoint means no way to ask (a lock rendered outside a reader that
     // knows its page — the flowSpec chat renders `.html-content` too), and no
-    // ordinal means there is nothing to ask for. Inert either way: the value is
-    // still not on the page.
-    if (!host || ordinal === null) return
+    // address means there is nothing to ask for. Inert either way: the value
+    // is still not on the page.
+    if (!host || address === null) return
 
     const scope = host.dataset.akSecretScope ?? 'default'
     const until = lockedUntil(scope)
@@ -320,7 +325,7 @@ document.addEventListener('click', (e) => {
         return
     }
 
-    const url = host.dataset.akSecretUrl.replace('__INDEX__', ordinal)
+    const url = host.dataset.akSecretUrl.replace('__SECRET__', address)
     const node = open(trigger, scope)
 
     // An admin needs no code, and the server enforces that either way — this

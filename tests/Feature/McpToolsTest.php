@@ -286,9 +286,10 @@ it('MASKS every protected value, on every surface that can reach one', function 
 
     expect($result['text'])->not->toContain('super-secreto-123')
         ->and($result['text'])->not->toContain('p4ssw0rd')
-        // What it DOES see: that a protected value is there, and which one.
-        ->and($result['text'])->toContain('[[SECRET-1]]')
-        ->and($result['text'])->toContain('[[SECRET-2]]');
+        // What it DOES see: that a protected value is there, and which one —
+        // two values, two markers, each carrying its value's id.
+        ->and(preg_match_all('/\[\[SECRET-[a-z0-9]{8}\]\]/', $result['text'], $markers))->toBe(2)
+        ->and(array_unique($markers[0]))->toHaveCount(2);
 
     // The search index is built from the RENDERED html, which carries locks —
     // so there was never a path from here to a value. Asserted anyway: this is

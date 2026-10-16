@@ -154,7 +154,7 @@ Five things to keep:
   because a model that explains itself ("removi o [[BLOCK-2]]") would otherwise
   be counted as having kept it — which is precisely the turn this guard is for.
 - **Three vocabularies, deliberately separate**: `[[LIT-n]]` (LiteralVault,
-  opaque literals), `[[SECRET-n]]` (SecretText, protected values) and
+  opaque literals), `[[SECRET-<id>]]` (SecretText, protected values) and
   `[[BLOCK-n]]` (here). A shared prefix would let one restore resolve another's
   markers.
 
@@ -198,7 +198,7 @@ prompt against the code that consumes it (2026-09-02).
   `[em branco no cadastro da Solução]` now, and the prompt answers each
   separately.
 - **`{% secret %}` was invisible unless the page already had one.** It was
-  mentioned only when the current content contained a `[[SECRET-n]]` marker, so
+  mentioned only when the current content contained a `[[SECRET-…]]` marker, so
   "documenta esse header: `Authorization: Bearer …`" was written into the draft
   IN THE CLEAR — LiteralVault masks it on the way in and restores the real bytes
   on the way out, and the page saved a live credential with no lock. It is in

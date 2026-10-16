@@ -27,7 +27,7 @@ use App\Support\Documentation\SecretText;
  * building. A protected value exists so that an `Authorization` header can sit
  * in documentation without being readable by every editor who opens the page —
  * a bearer token in somebody's chat client is not the audience that rule was
- * relaxed for. What the model sees is `{% secret %}[[SECRET-1]]{% endsecret %}`:
+ * relaxed for. What the model sees is `{% secret %}[[SECRET-k3j9x2ab]]{% endsecret %}`:
  * enough to say "há um valor protegido aqui", nothing to quote.
  *
  * There is deliberately no reveal tool beside this one. The plaintext has
@@ -69,7 +69,7 @@ class GetDocumentationPage implements Tool
         diagrama, que se abre com get_diagram usando o slug citado. Links internos têm a
         forma [texto](page:slug-da-pagina) e apontam para outra página do mesmo caderno.
 
-        Valores protegidos aparecem como {% secret %}[[SECRET-n]]{% endsecret %}: existe
+        Valores protegidos aparecem como {% secret %}[[SECRET-…]]{% endsecret %}: existe
         um segredo ali (senha, token, header de autenticação) e ele não é entregue por
         esta interface. Diga que o valor é protegido e está na página; nunca o invente.
         TXT;

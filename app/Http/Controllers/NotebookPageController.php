@@ -100,12 +100,12 @@ class NotebookPageController extends Controller
                 'notebookDiagramsUrl'  => route('notebooks.diagrams.index', $notebook),
                 'notebookDiagramCount' => $notebook->diagrams()->count(),
             ] : []),
-            // Where a lock posts its code. A TEMPLATE, with the ordinal as a
-            // placeholder `docs-secret.js` substitutes: the reader holds many
+            // Where a lock posts its code. A TEMPLATE, with the value's address
+            // as a placeholder `docs-secret.js` substitutes: the reader holds many
             // locks and the module must not build a path of its own (same rule
             // that keeps `chain-viz.js` free of routes) — so the one route()
             // call happens here.
-            'secretRevealUrl' => route('notebooks.pages.secrets', [$notebook, $page, 'index' => '__INDEX__']),
+            'secretRevealUrl' => route('notebooks.pages.secrets', [$notebook, $page, 'secret' => '__SECRET__']),
             // Failed attempts are remembered per CADERNO, since that is what a
             // code unlocks.
             'secretScope' => $notebook->slug,
@@ -243,7 +243,7 @@ class NotebookPageController extends Controller
     /**
      * Reveals ONE protected value of this page (`{% secret %}`), for one reader,
      * once — see App\Actions\Documentation\RevealPageSecret for the rules and
-     * App\Support\Documentation\SecretText for what an ordinal is.
+     * App\Support\Documentation\SecretText for what the address is.
      *
      * Open to every signed-in account on purpose, viewers included: what gates
      * a value is the caderno's secret code, not a role. A role gate here would
@@ -254,14 +254,14 @@ class NotebookPageController extends Controller
         RevealPageSecretRequest $request,
         Notebook $notebook,
         DocumentationPage $page,
-        int $index,
+        string $secret,
         RevealPageSecret $reveal,
     ): JsonResponse {
         return response()->json([
             'value' => $reveal->handle(
                 $notebook,
                 $page,
-                $index,
+                $secret,
                 $request->validated()['code'] ?? null,
                 $request->user(),
                 'u' . $request->user()->id,

@@ -16,14 +16,17 @@
 import * as ajaxModule from './ajax'
 import {updateSlots} from './ajax-slot'
 import {setButtonLoading} from './button-loading'
-import {parse, serialize} from './docs-markdown'
+import {parse, secretBodies, serialize, SOLE_MARKER} from './docs-markdown'
 import {EDITOR_I18N} from './docs-tools/i18n'
+import {SECRET_CLASS} from './docs-tools/secret-class'
 
 const initialized = new WeakSet()
 const editors = new WeakMap()
 
 let dirty = false
 let autosaveTimer = null
+// The save whose request is still out, so `flushSave()` can wait for it.
+let inFlight = null
 let DragDrop = null
 // Editing lock, owned here and raised by docs-chat.js while the Documentation
 // Assistant is generating a reply: nothing may be saved (button, Ctrl+S or
@@ -74,6 +77,49 @@ document.addEventListener('keydown', (e) => {
 
 document.addEventListener('click', (e) => {
     if (inEditor(e) && !e.target.closest('[contenteditable="true"]')) userEdited = true
+}, true)
+
+// Two caret positions around an ATOMIC protected-value chip
+// (`contenteditable="false"`, see docs-markdown.js `secretChip()`) that the
+// browser and Editor.js get wrong, both rewritten here before either acts —
+// capture phase, so ahead of Editor.js's own keydown handlers:
+//
+// - INSIDE the chip's text. End at the end of a block that closes on a chip
+//   puts the caret there, and from there Backspace deletes nothing.
+// - On the block itself, past a chip that is its last child. Editor.js's caret
+//   helper assumes that child is text, asks for offset <chip text length>
+//   INSIDE the chip element and throws an IndexSizeError from its Backspace,
+//   Delete, arrow and Enter handlers.
+//
+// Either way the caret moves into a text node beside the chip — after it, or
+// before it when it sat at the chip's very start — created empty if there is
+// none, which is the same position written the way both of them expect.
+document.addEventListener('keydown', (e) => {
+    if (!e.target.closest?.('[data-ak-docs-editor]')) return
+
+    const selection = window.getSelection()
+    const node = selection?.focusNode
+    if (!selection?.isCollapsed || !node) return
+
+    const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement
+    const inside = element?.closest(`.${SECRET_CLASS}[contenteditable="false"]`)
+    const pastLast = node.nodeType === Node.ELEMENT_NODE
+        && selection.focusOffset === node.childNodes.length
+        && node.lastChild?.classList?.contains(SECRET_CLASS)
+    const chip = inside ?? (pastLast ? node.lastChild : null)
+    if (!chip) return
+
+    if (inside && node.nodeType === Node.TEXT_NODE && selection.focusOffset === 0) {
+        let before = chip.previousSibling
+        if (before?.nodeType !== Node.TEXT_NODE) chip.before((before = document.createTextNode('')))
+        selection.collapse(before, before.length)
+
+        return
+    }
+
+    let after = chip.nextSibling
+    if (after?.nodeType !== Node.TEXT_NODE) chip.after((after = document.createTextNode('')))
+    selection.collapse(after, 0)
 }, true)
 
 /**
@@ -444,7 +490,40 @@ function markDirty() {
     }, 1200)
 }
 
-async function save(btn, {silent = false} = {}) {
+/**
+ * Brings the page up to date before somebody else reads the editor's content:
+ * waits for a save already in flight, then saves whatever is still unsaved.
+ *
+ * docs-chat.js calls it before handing the content to the assistant. A value
+ * typed a second ago is still plain text in the editor, and only a save turns
+ * it into the marker the assistant has to be given instead (`adoptSecretIds`)
+ * — handed the plain text, the server would mask it with a marker no later
+ * save can resolve, and applying the draft would lose the value.
+ *
+ * So it saves when a typed value is still showing, too, not only when the page
+ * is dirty: the save that stored it may have skipped the swap because the
+ * caret was inside the chip (it is, right after "Valor protegido" wraps it).
+ */
+export async function flushSave() {
+    await inFlight
+    if (locked) return
+    if (!dirty && !holdsTypedSecret(document.querySelector('[data-ak-docs-editor]'))) return
+
+    const btn = document.querySelector('[data-ak-docs-save]')
+    if (btn) await save(btn, {silent: true})
+}
+
+async function save(btn, options) {
+    const run = runSave(btn, options)
+    inFlight = run
+    try {
+        await run
+    } finally {
+        if (inFlight === run) inFlight = null
+    }
+}
+
+async function runSave(btn, {silent = false} = {}) {
     // The button is `disabled` while locked, but Ctrl+S reaches here directly.
     if (locked) return
 
@@ -468,6 +547,7 @@ async function save(btn, {silent = false} = {}) {
 
         dirty = false
         updateSlots(data)
+        adoptSecretIds(holder, markdown, data.secretIds)
         // No Toast on success, manual save included: the status text beside the
         // button is the confirmation, and it blinks so the change registers
         // without a card sliding over the page every 2.5s of typing.
@@ -490,6 +570,101 @@ async function save(btn, {silent = false} = {}) {
         // the button unconditionally, which would silently release the lock.
         if (locked) btn.setAttribute('disabled', 'disabled')
     }
+}
+
+/** The construct as a code block's textarea holds it: raw text. */
+const SECRET_IN_CODE = /\{%\s*secret(?:\s+id="[^"]*")?\s*%\}([^\n]*?)\{%\s*endsecret\s*%\}/g
+
+/**
+ * After a save, every value typed since the last one becomes its MARKER — what
+ * the server would have handed out had the page been opened now.
+ *
+ * Two reasons, and the second is the one that loses data. The value stops
+ * sitting on screen in clear text; and the Documentation Assistant is handed
+ * this editor's content, so a typed value it received would come back in the
+ * draft as a marker no save can resolve.
+ *
+ * Paired by TEXT: the save answers with one id per `{% secret %}` it was sent,
+ * in order (`secretIds`), and `secretBodies()` reads the same list out of what
+ * was sent — so each typed body maps to the id it is now stored under. A chip
+ * edited while the request was out no longer matches and is left alone (the
+ * next save gives it an id of its own). So is the chip holding the caret: it
+ * is a value somebody is still typing, and turning it into an atomic marker
+ * under their caret would send the rest of what they type into the prose.
+ * Every chip that holds a marker comes out atomic (see `secretChip()`),
+ * including one that arrived without it, pasted. Editor.js reports the swap as
+ * a change, so one more autosave follows; it sends markers that resolve to
+ * exactly what is stored, and writes nothing.
+ *
+ * A code block's textarea is swapped even while focused, with the caret moved
+ * along: a value edited there, next to its marker, is stored under a NEW id,
+ * and a textarea still naming the old one would lose the value on the next
+ * save. Typing there while the save is still out remains a gap — that text no
+ * longer matches what was sent — narrow enough to leave.
+ */
+function adoptSecretIds(holder, markdown, ids) {
+    const bodies = secretBodies(markdown)
+    if (!holder || !Array.isArray(ids) || ids.length !== bodies.length) return
+
+    const markers = new Map()
+    bodies.forEach((body, i) => {
+        if (!SOLE_MARKER.test(body) && !markers.has(body)) markers.set(body, `[[SECRET-${ids[i]}]]`)
+    })
+    if (markers.size === 0) return
+
+    const caret = window.getSelection()?.anchorNode ?? null
+
+    // A chip holds the value as its text — or, when it wraps inline code, as
+    // the code's text (the same reading inlineToMd() serializes).
+    holder.querySelectorAll(`.${SECRET_CLASS}`).forEach((chip) => {
+        const target = chip.querySelector('code') ?? chip
+        const marker = markers.get(target.textContent)
+        if (marker && !(caret && chip.contains(caret))) target.textContent = marker
+
+        if (SOLE_MARKER.test(target.textContent)) chip.contentEditable = 'false'
+    })
+
+    // A code block holds the construct itself, as raw text.
+    holder.querySelectorAll('.ak-code-block textarea').forEach((area) => swapInCode(area, markers))
+}
+
+/** The same swap inside a textarea, keeping its caret where it was in the text. */
+function swapInCode(area, markers) {
+    const shifts = []
+    const next = area.value.replace(SECRET_IN_CODE, (whole, body, offset) => {
+        if (!markers.has(body)) return whole
+
+        const swapped = `{% secret %}${markers.get(body)}{% endsecret %}`
+        shifts.push({start: offset, end: offset + whole.length, length: swapped.length})
+
+        return swapped
+    })
+    if (next === area.value) return
+
+    // A position after a swapped construct moves by what it grew or shrank;
+    // one inside it lands at the end of its replacement.
+    const map = (pos) => shifts.reduce((moved, {start, end, length}) => {
+        if (pos >= end) return moved + length - (end - start)
+        if (pos > start) return moved - (pos - start) + length
+
+        return moved
+    }, pos)
+
+    const focused = area === document.activeElement
+    const [from, to] = [map(area.selectionStart), map(area.selectionEnd)]
+    area.value = next
+    if (focused) area.setSelectionRange(from, to)
+}
+
+/** Whether a value somebody typed is still on screen as plain text. */
+function holdsTypedSecret(holder) {
+    if (!holder) return false
+
+    const chips = Array.from(holder.querySelectorAll(`.${SECRET_CLASS}`))
+    if (chips.some((chip) => !SOLE_MARKER.test((chip.querySelector('code') ?? chip).textContent))) return true
+
+    return Array.from(holder.querySelectorAll('.ak-code-block textarea'))
+        .some((area) => secretBodies(area.value).some((body) => !SOLE_MARKER.test(body)))
 }
 
 function timeNow() {

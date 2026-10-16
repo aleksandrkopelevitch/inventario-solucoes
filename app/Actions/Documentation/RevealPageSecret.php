@@ -39,6 +39,9 @@ final class RevealPageSecret
     public const LOCKOUT_SECONDS = 12 * 60 * 60;
 
     /**
+     * @param  string  $address  The value's id — what every lock and marker
+     *                           carries — or the ordinal a page rendered before
+     *                           ids existed still asks with.
      * @param  string  $throttleScope  Who is being counted: the user id when
      *                                 signed in, the IP for a magic-link
      *                                 visitor. The IP is a blunt instrument (a
@@ -54,16 +57,16 @@ final class RevealPageSecret
     public function handle(
         Notebook $notebook,
         DocumentationPage $page,
-        int $ordinal,
+        string $address,
         ?string $code,
         ?User $user,
         string $throttleScope,
     ): string {
-        $value = SecretText::valueAt($page->documentation, $ordinal);
+        $value = SecretText::valueOf($page->documentation, $address);
 
-        // 404, not a refusal: an ordinal that isn't in the page is a stale
-        // render (somebody edited the text under the reader), and answering
-        // "wrong code" would spend one of their five attempts on it.
+        // 404, not a refusal: an address that isn't in the page is a value
+        // deleted under the reader (or a stale ordinal), and answering "wrong
+        // code" would spend one of their five attempts on it.
         abort_if($value === null, 404);
 
         // An admin needs no code and is not counted. They can already read

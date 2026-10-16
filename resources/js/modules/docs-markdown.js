@@ -15,7 +15,10 @@
 //
 // secret ({% secret %}…{% endsecret %}) is the only INLINE construct: it lives
 // inside a block's text rather than as a block of its own, so it is handled in
-// inlineToMd()/inlineToHtml() and not in serializeBlock()/parseLines().
+// inlineToMd()/inlineToHtml() and not in serializeBlock()/parseLines(). The
+// server stores it with an id (`{% secret id="…" %}`) that never reaches the
+// editor — the id travels inside the `[[SECRET-…]]` marker instead — so this
+// side WRITES the bare form, and only tolerates the attribute when reading.
 //
 // Media is referenced as /files/{id} (the files.show route); the image and
 // attaches blocks keep `mediaId` so that path can be rebuilt in the Markdown.
@@ -77,7 +80,7 @@ function nodeToMd(node) {
             case 'CODE': {
                 // A protected value can live INSIDE the inline code, and the
                 // construct has to come out with it: `textContent` flattened
-                // `<code><span class="ak-secret-mark">` into `` `[[SECRET-n]]` ``,
+                // `<code><span class="ak-secret-mark">` into `` `[[SECRET-…]]` ``,
                 // the marker went back to the server with no `{% secret %}`
                 // around it and the real value was written as plain text — the
                 // protection vanished on save, with no error at all and with
@@ -97,7 +100,7 @@ function nodeToMd(node) {
                 break
             case 'SPAN': {
                 // The protected value (SecretInlineTool). textContent, not
-                // `inner`: the body is a literal value — or the [[SECRET-n]]
+                // `inner`: the body is a literal value — or the [[SECRET-…]]
                 // marker the server hands to somebody who may not read the
                 // value — and formatting inside it would mean nothing.
                 if (! child.classList.contains(SECRET_CLASS)) {
@@ -188,7 +191,7 @@ export function inlineToHtml(md) {
     // editor and go back to the Markdown without those characters — the value
     // silently corrupted, in the editor of somebody who CAN read it.
     const secrets = []
-    text = text.replace(/\{%\s*secret\s*%\}([\s\S]*?)\{%\s*endsecret\s*%\}/g, (_, value) => {
+    text = text.replace(/\{%\s*secret(?:\s+id="[^"]*")?\s*%\}([\s\S]*?)\{%\s*endsecret\s*%\}/g, (_, value) => {
         secrets.push(value)
         return `\x01${secrets.length - 1}\x01`
     })
@@ -228,10 +231,7 @@ export function inlineToHtml(md) {
     // in the author's text.
     text = text.replace(/\x02(\d+)\x02/g, (_, i) => hrefs[i])
 
-    text = text.replace(
-        /\x01(\d+)\x01/g,
-        (_, i) => `<span class="${SECRET_CLASS}">${escapeHtml(secrets[i])}</span>`,
-    )
+    text = text.replace(/\x01(\d+)\x01/g, (_, i) => secretChip(secrets[i]))
 
     return text.replace(/\x00(\d+)\x00/g, (_, i) => `<code>${codeToHtml(codes[i])}</code>`)
 }
@@ -287,19 +287,51 @@ function wrapSecret(value) {
 }
 
 /**
+ * The body of every `{% secret %}` in `md`, in order — read EXACTLY the way
+ * App\Support\Documentation\SecretText reads it, because the save answers with
+ * one id per construct in that order and the editor pairs the two lists up
+ * (docs-editor.js). Hence the spelled-out whitespace (PHP's `\s` without the
+ * `u` flag is these six, JS's also takes a no-break space) and `[^\n]` (PHP's
+ * `.` without `s`). A list that came out a different length is not paired.
+ */
+/** A construct body that is one marker and nothing else — SecretText's own test. */
+export const SOLE_MARKER = /^\[\[SECRET-[a-z0-9]+\]\]$/
+
+/**
+ * The chip a `{% secret %}` becomes in the editor. One holding a MARKER is
+ * ATOMIC (`contenteditable="false"`): the person cannot read the value, so
+ * there is nothing in it to edit, and a caret allowed inside it is how text
+ * ends up in a value by accident — End at the end of a paragraph that closes
+ * on a chip leaves the caret INSIDE the span, and the next words typed become
+ * part of the protected value instead of the prose. Atomic, it is typed around
+ * and deleted whole (which deletes the value, as it always did). A value
+ * somebody is still typing stays editable until a save swaps it for its marker
+ * (docs-editor.js, `adoptSecretIds`).
+ */
+function secretChip(value) {
+    const atomic = SOLE_MARKER.test(value) ? ' contenteditable="false"' : ''
+
+    return `<span class="${SECRET_CLASS}"${atomic}>${escapeHtml(value)}</span>`
+}
+
+const SECRET_BODIES = /\{%[\t\n\v\f\r ]*secret(?:[\t\n\v\f\r ]+id="[^"]*")?[\t\n\v\f\r ]*%\}([^\n]*?)\{%[\t\n\v\f\r ]*endsecret[\t\n\v\f\r ]*%\}/g
+
+export function secretBodies(md) {
+    return Array.from(md.matchAll(SECRET_BODIES), (m) => m[1])
+}
+
+/**
  * The contents of an inline code span, becoming the editor's HTML.
  *
  * A `{% secret %}` inside backticks has to become a CHIP rather than raw text:
- * without that the author sees `{% secret %}[[SECRET-1]]{% endsecret %}` in the
+ * without that the author sees `{% secret %}[[SECRET-…]]{% endsecret %}` in the
  * middle of the code, has nothing to click to reveal it, and any touch-up in
  * there breaks the construct by hand.
  */
 function codeToHtml(code) {
-    const match = code.match(/^\s*\{%\s*secret\s*%\}([\s\S]*?)\{%\s*endsecret\s*%\}\s*$/)
+    const match = code.match(/^\s*\{%\s*secret(?:\s+id="[^"]*")?\s*%\}([\s\S]*?)\{%\s*endsecret\s*%\}\s*$/)
 
-    return match
-        ? `<span class="${SECRET_CLASS}">${escapeHtml(match[1])}</span>`
-        : escapeHtml(code)
+    return match ? secretChip(match[1]) : escapeHtml(code)
 }
 
 function escapeHtml(s) {

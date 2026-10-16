@@ -121,8 +121,8 @@ Route::middleware(['entra.silent', 'auth'])->group(function () {
     Route::scopeBindings()->group(function () {
         // `{page}` 404s unless it belongs to the `{notebook}` in the URL — a
         // page slug is unique per caderno, never globally.
-        Route::post('docs/{notebook}/secrets/{page}/{index}', [KnowledgeBaseController::class, 'revealSecret'])
-            ->whereNumber('index')
+        Route::post('docs/{notebook}/secrets/{page}/{secret}', [KnowledgeBaseController::class, 'revealSecret'])
+            ->where('secret', '[a-z0-9]+')
             ->name('docs.secrets');
         Route::get('docs/{notebook}/{page}', [KnowledgeBaseController::class, 'page'])->name('docs.page');
     });
@@ -671,13 +671,15 @@ Route::middleware('auth')->group(function () {
         // zone.
         Route::patch('notebooks/{notebook}/{page}/notebook', [NotebookPageController::class, 'moveToNotebook'])->name('notebooks.pages.notebook');
         Route::post('notebooks/{notebook}/{page}/media', [NotebookPageController::class, 'media'])->name('notebooks.pages.media');
-        // One protected value of this page, by its ORDINAL in the text — an
-        // index into the `{% secret %}` constructs, validated as numeric and
-        // range-checked by the action, exactly like the chain routes' node/edge
-        // indices. POST rather than GET: it carries the code, and a URL that
-        // ends in the code would be in every history and every access log.
-        Route::post('notebooks/{notebook}/{page}/secrets/{index}', [NotebookPageController::class, 'revealSecret'])
-            ->whereNumber('index')
+        // One protected value of this page, by the id its `{% secret %}`
+        // carries (App\Support\Documentation\SecretText) — or by its ordinal,
+        // which a page rendered before ids existed still asks with. Not a
+        // binding: the action looks it up in the page's text and 404s on an
+        // address the page doesn't have. POST rather than GET: it carries the
+        // code, and a URL that ends in the code would be in every history and
+        // every access log.
+        Route::post('notebooks/{notebook}/{page}/secrets/{secret}', [NotebookPageController::class, 'revealSecret'])
+            ->where('secret', '[a-z0-9]+')
             ->name('notebooks.pages.secrets');
         // The drawing this page describes, written into the page's CADERNO:
         // `target` is the dialog asking "new (named) or over one of this
@@ -732,8 +734,8 @@ Route::get('public-docs/{token}/diagram/{diagram}', [PublicDocumentationControll
 // carry the right to read it: the token grants the prose, the caderno's secret
 // code grants a value inside it, and the same five-per-twelve-hours limit
 // applies here as on the authenticated surface (App\Actions\Documentation\RevealPageSecret).
-Route::post('public-docs/{token}/secrets/{slug}/{index}', [PublicDocumentationController::class, 'revealSecret'])
-    ->whereNumber('index')
+Route::post('public-docs/{token}/secrets/{slug}/{secret}', [PublicDocumentationController::class, 'revealSecret'])
+    ->where('secret', '[a-z0-9]+')
     ->name('public.docs.secrets');
 // Search over the shared caderno's own corpus (docs-search.js). JSON
 // only, and on its own path — it never shares a URL with a document response,

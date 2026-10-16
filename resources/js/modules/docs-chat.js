@@ -3,7 +3,7 @@ import {updateSlots} from './ajax-slot.js'
 import {setButtonLoading} from './button-loading.js'
 import {fold} from './fold.js'
 import {renderMarkdownDiff} from './docs-diff.js'
-import {setEditorLocked} from './docs-editor.js'
+import {flushSave, setEditorLocked} from './docs-editor.js'
 
 /**
  * Documentation Assistant — a conversation about one page/diagram's
@@ -123,6 +123,10 @@ async function send(btn) {
     }
 
     const mediaIds = Array.from(document.querySelectorAll('[data-ak-context-doc]:checked')).map((c) => c.value)
+    // Saved FIRST: a protected value typed since the last save is still plain
+    // text in the editor, and only a save turns it into the marker the
+    // assistant may be shown (see flushSave()).
+    await flushSave()
     const existing = window.__akDocsGetMarkdown ? await window.__akDocsGetMarkdown() : ''
 
     const formData = new FormData()

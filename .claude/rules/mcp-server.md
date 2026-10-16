@@ -149,7 +149,7 @@ tool is the SEVENTH surface handing a page's text to somebody and by far the mos
 exposed — the text leaves the building. A protected value exists so an
 `Authorization` header can live in documentation without every editor reading it;
 a bearer token in somebody's chat client is not the audience that rule was
-relaxed for. What the model sees is `{% secret %}[[SECRET-1]]{% endsecret %}`:
+relaxed for. What the model sees is `{% secret %}[[SECRET-k3j9x2ab]]{% endsecret %}`:
 enough to say a value is there, nothing to quote. **There is deliberately no
 reveal tool** — the plaintext has exactly one door (`RevealPageSecret`, throttled
 per reader), and a second one reached by a static token would undo all of it.

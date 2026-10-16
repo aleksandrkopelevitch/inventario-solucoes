@@ -5,6 +5,9 @@ paths:
   - "app/Http/Requests/RevealPageSecretRequest.php"
   - "resources/js/modules/docs-secret.js"
   - "resources/js/modules/docs-tools/secret.js"
+  - "resources/js/modules/docs-editor.js"
+  - "resources/js/modules/docs-markdown.js"
+  - "database/migrations/2026_10_16_175559_assign_ids_to_documentation_secrets.php"
 ---
 
 ### A protected value leaves the server once, one value per request
@@ -23,15 +26,85 @@ plus `inlineToMd()`/`inlineToHtml()` in `docs-markdown.js`, not in
 `serializeBlock()`/`parseLines()`, and the editor writes it with the app's one
 INLINE Editor.js tool (`docs-tools/secret.js`, a `<span class="ak-secret-mark">`).
 
-**A value is addressed by its ORDINAL** — 1 for the first `{% secret %}` in the
-page's text, in document order. It lives inline in the Markdown, so there is no
-row to give it an id, and three surfaces have to agree on the number: the
-renderer that paints the locks, the reveal endpoint that re-parses the page, and
-the editor, which is shown `[[SECRET-n]]` markers (the same marker vocabulary as
-`LiteralVault`, one step further: that keeps a literal from the MODEL, this keeps
-it from the PERSON). Numbering by position costs one thing, accepted: a reader
-holding a page while somebody adds a value above it reveals the wrong one of the
-two.
+**A value is addressed by its ID, stored on the construct**:
+`{% secret id="k3j9x2ab" %}…{% endsecret %}` (eight of `[a-z0-9]`). Three
+surfaces use it: the renderer puts it on each lock (`data-ak-secret`), the reveal
+endpoint looks the value up by it, and the editor is shown it inside the marker,
+`[[SECRET-k3j9x2ab]]` (the same marker vocabulary as `LiteralVault`, one step
+further: that keeps a literal from the MODEL, this keeps it from the PERSON). The
+id never reaches the editor as an attribute; `mask()` moves it into the marker and
+`restore()` puts it back.
+
+**It used to be the value's ORDINAL, and that scrambled pages in the field**
+(fixed 2026-10-16). The editor is handed its markers once, when the page opens,
+and autosave saves ~1.2s after every pause. Adding, deleting or moving a value
+renumbered the page on the first save while the editor kept the old numbers, and
+every later save put values back in the wrong places: a value added above two
+others was the page's only value three saves later; a deleted one left a lock
+opening onto the literal text `[[SECRET-3]]`; two swapped values swapped back on
+every save. Nothing errored. `it('keeps every value in place across the saves of
+one editing session')` replays all three through the real endpoint, and fails on
+save 2 against the ordinal code. Pages already damaged that way stay damaged: the
+value was overwritten, and only a backup has it.
+
+Five things that keep the id honest:
+
+- **The id is RANDOM, never derived from the value.** An HMAC of the value was the
+  first design and it is an oracle: an editor who may not read a value types a
+  guess as a new protected value, saves, reloads and compares the two markers,
+  once per save and unthrottled. A random id says nothing.
+- **`restore()` never trusts a posted id.** A construct whose body is not exactly
+  one marker is a typed value, and gets a fresh id whatever its `id="…"` says.
+  Constructs and bare markers are read in ONE pass, so a marker inside a value
+  just put back (the `[[SECRET-3]]` dead lock above) is never read twice.
+- **Every stored construct has an id.** `DocumentationPage::booted()` runs
+  `SecretText::withIds()` on every write, and a migration gave the older rows
+  theirs (through the query builder, so nobody becomes the last updater).
+  `mask()` relies on it: a construct with no id and no marker can only be text
+  that was never saved, and it gets an id no save resolves, i.e. a visible dead
+  lock, never a number that could resolve to somebody else's value. That
+  migration's `down()` strips EVERY id, including those of pages saved since:
+  the code a rollback returns to does not recognise `{% secret id="…" %}`, and
+  would render the value as plain text.
+- **Numbered markers still resolve, by ordinal.** An editor tab open across the
+  deploy, or an assistant draft written before it, holds `[[SECRET-2]]`; without
+  the fallback its next autosave would turn every value on the page into a dead
+  lock. Ordinals are 1–7 digits and ids exactly eight characters, so the two
+  cannot be confused. The reveal endpoint accepts both (`[a-z0-9]+`) for the same
+  reason.
+- **After a save the editor holds markers only.** The save answers `secretIds`,
+  one id per `{% secret %}` posted, in order, and `docs-editor.js`
+  (`adoptSecretIds`) swaps each value typed since the last save for its marker,
+  pairing the two lists through `secretBodies()`. That regex matches exactly
+  what `SecretText::CONSTRUCT` matches (ASCII whitespace only, `[^\n]` for PHP's
+  `.`); a list of a different length is not paired at all. This matters for the
+  assistant, not only for hygiene: it is handed the editor's content, and a
+  typed value it received would come back as a marker no save resolves. So
+  `docs-chat.js` calls `flushSave()` before capturing that content. The chip
+  holding the caret is skipped (right after "Valor protegido" wraps the text,
+  that is the chip), which is why `flushSave()` also saves while any typed value
+  is still on screen, not only when the page is dirty.
+
+**A chip holding a marker is ATOMIC** (`contenteditable="false"`,
+`docs-markdown.js` `secretChip()`; `adoptSecretIds` sets it on the chips it
+swaps). Found driving the real editor: End at the end of a paragraph that closes
+on a chip leaves the caret INSIDE the span, so the next words typed went into
+the protected value instead of the prose. With ids that was worse than a stray
+suffix: the save stored `BRAVO x1` under a NEW id while the editor still named
+the old one, and the save after that lost BRAVO. Nobody can read the value, so
+there is nothing in it to edit; atomic, it is typed around and deleted whole. A
+value still being typed stays editable until a save swaps it for its marker.
+
+Atomic inline nodes have a cost in Editor.js, paid in `docs-editor.js`'s
+capture-phase keydown handler. Its caret helper assumes the node before a caret
+at the end of a block is TEXT, so with a chip as the block's last child it asks
+for offset `<chip text length>` inside the chip ELEMENT and throws an
+IndexSizeError from Backspace, Delete, the arrows and Enter (Enter then fails to
+create a block). And Chrome, on End, parks the caret inside the chip's own text,
+where Backspace deletes nothing. The handler moves the caret into a text node
+beside the chip (an empty one if there is none) before either of them acts.
+Verified in Chromium 2026-10-16: Enter, → / ↓ to the next block, Backspace
+removing the chip, typing after it, with zero page errors.
 
 Six things that are easy to undo, and all of them are the same rule seen from a
 different screen:
@@ -80,7 +153,7 @@ different screen:
 - **A protected value lives inside `<code>` more often than not, and that is
   where the round trip broke.** `nodeToMd`'s `CODE` branch serialized with
   `textContent`, flattening `<code><span class="ak-secret-mark">` into
-  `` `[[SECRET-n]]` `` — construct gone, marker bare — so a plain restore wrote
+  `` `[[SECRET-…]]` `` — construct gone, marker bare — so a plain restore wrote
   the real value into the page in the clear. Both nestings serialize to ONE
   shape now, backticks outside and the construct inside (the only order the
   renderer paints as a lock inside `<code>`), and `codeToHtml()` turns it back
@@ -89,7 +162,7 @@ different screen:
   resolving it into naked plaintext. That is what makes the protection the
   server's and not the client's: no serializer bug of the shape above can
   unprotect a value again, whatever the client posts. Nobody types
-  `[[SECRET-2]]` by hand, so a bare marker can only mean "the protected value
+  a marker by hand, so a bare marker can only mean "the protected value
   that was here"; deleting the marker is still how a value is unprotected, and
   that stays unambiguous.
 

@@ -145,7 +145,10 @@ class GitbookRenderer
         // substituted before the parse would arrive as `&lt;button`; a plain
         // token painted afterwards is the only order that works in prose and in
         // code at once.
-        $markdown = SecretText::replace($markdown, fn (int $ordinal): string => self::secretToken($ordinal));
+        //
+        // Each lock carries the value's ID, not its position, so a reader whose
+        // page was edited under them still opens the value they clicked.
+        $markdown = SecretText::replace($markdown, fn (string $address): string => self::secretToken($address));
 
         $lines = preg_split('/\r\n|\r|\n/', $markdown);
 
@@ -180,24 +183,25 @@ class GitbookRenderer
      * would satisfy the first half and collide with real content; markup would
      * satisfy neither.
      */
-    private static function secretToken(int $ordinal): string
+    private static function secretToken(string $address): string
     {
-        return "\x1Fak-secret:{$ordinal}\x1F";
+        return "\x1Fak-secret:{$address}\x1F";
     }
 
     /** Turns every token into the lock that stands in for its value. */
     private function paintSecrets(string $html): string
     {
         return (string) preg_replace_callback(
-            '/\x1Fak-secret:(\d+)\x1F/',
-            fn (array $m): string => $this->renderLockedSecret((int) $m[1]),
+            '/\x1Fak-secret:([a-z0-9]+)\x1F/',
+            fn (array $m): string => $this->renderLockedSecret($m[1]),
             $html,
         );
     }
 
-    private function renderLockedSecret(int $ordinal): string
+    /** `$address` is `[a-z0-9]+` — the only shape `paintSecrets()` lets through. */
+    private function renderLockedSecret(string $address): string
     {
-        return '<button type="button" data-ak-secret="' . $ordinal . '"'
+        return '<button type="button" data-ak-secret="' . $address . '"'
             . ' aria-label="Valor protegido — clique para informar o código e ver o valor"'
             . ' class="ak-secret inline-flex max-w-full items-center gap-1 rounded-field border border-dashed border-line'
             . ' bg-raised px-1.5 py-0.5 align-middle font-mono text-[0.85em] font-medium text-muted'
