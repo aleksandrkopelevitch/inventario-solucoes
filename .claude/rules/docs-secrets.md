@@ -8,6 +8,7 @@ paths:
   - "resources/js/modules/docs-editor.js"
   - "resources/js/modules/docs-markdown.js"
   - "database/migrations/2026_10_16_175559_assign_ids_to_documentation_secrets.php"
+  - "app/Console/Commands/AuditDocumentationSecretsCommand.php"
 ---
 
 ### A protected value leaves the server once, one value per request
@@ -46,6 +47,13 @@ every save. Nothing errored. `it('keeps every value in place across the saves of
 one editing session')` replays all three through the real endpoint, and fails on
 save 2 against the ordinal code. Pages already damaged that way stay damaged: the
 value was overwritten, and only a backup has it.
+
+`php artisan documentation:secrets-audit` (read-only; `--all`, `--notebook=`)
+lists what the bug left a trace of: a marker stored as text is BROKEN, two
+identical values on a page are SUSPECT (a repeat can be deliberate). Swapped
+values leave no trace, so `--all` adds every page with values and its last-save
+date, for comparing against a backup. It names values by ordinal and never prints
+one. Run it as `www-data` in production, like any artisan command there.
 
 Five things that keep the id honest:
 
