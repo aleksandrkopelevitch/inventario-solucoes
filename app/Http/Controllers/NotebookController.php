@@ -37,9 +37,11 @@ class NotebookController extends Controller
      * `panel` is refused for the same reason a page's slug refuses the segments
      * under `notebooks/{notebook}/`: `notebooks/panel` (the create side panel)
      * is a real route, registered first, so a caderno slugged that way would be
-     * permanently unreachable at its own URL.
+     * permanently unreachable at its own URL. `search` is the same thing under
+     * `/docs`: `docs/search` is the knowledge base's palette, ahead of
+     * `docs/{notebook}`.
      */
-    private const RESERVED_SLUGS = ['panel'];
+    private const RESERVED_SLUGS = ['panel', 'search'];
 
     /** Characters in a freshly generated public link token — see share(). */
     public const TOKEN_LENGTH = 12;

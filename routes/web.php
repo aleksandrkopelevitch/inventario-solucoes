@@ -108,9 +108,12 @@ Route::middleware(['entra.silent', 'auth'])->group(function () {
     Route::delete('mcp/connections/{token}', [ConnectController::class, 'destroy'])->name('mcp.connections.destroy');
 
     Route::get('docs', [KnowledgeBaseController::class, 'index'])->name('docs.index');
+    // The palette, over every published caderno or one of them (`?notebook=`).
+    // BEFORE `docs/{notebook}`, whose wildcard would otherwise take "search" for
+    // a caderno's slug — which is also why NotebookController reserves it.
+    Route::get('docs/search', [KnowledgeBaseController::class, 'search'])->name('docs.search');
 
     Route::get('docs/{notebook}', [KnowledgeBaseController::class, 'notebook'])->name('docs.notebook');
-    Route::get('docs/{notebook}/search', [KnowledgeBaseController::class, 'search'])->name('docs.search');
     // Media and diagram pictures get routes of their own rather than reusing
     // `files.show` / `diagrams.picture.show`: those authorize by collection
     // name and by `auth` — for every caderno in the app, published or not —

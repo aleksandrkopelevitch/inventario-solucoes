@@ -187,7 +187,7 @@ it('resolves a page: link to the knowledge base address, not the editor one', fu
         ->not->toContain(route('notebooks.pages.edit', [$notebook, $target]));
 });
 
-it('searches only the caderno being read', function () {
+it('searches only the caderno it is pointed at', function () {
     $mine = publishedNotebook('Meu');
     pageIn($mine, 'Autenticação', 'Use um token bearer.');
 
@@ -195,7 +195,7 @@ it('searches only the caderno being read', function () {
     pageIn($other, 'Autorização', 'Use um token bearer.');
 
     $response = $this->actingAs(reader())
-        ->getJson(route('docs.search', $mine) . '?q=bearer')
+        ->getJson(route('docs.search', ['notebook' => $mine->slug, 'q' => 'bearer']))
         ->assertOk();
 
     expect($response->json('updatableSlots.0.content'))
@@ -209,7 +209,7 @@ it('refuses search and media on an unpublished caderno too', function () {
 
     // These are reached by id rather than by browsing, so publication has to be
     // re-asked on each of them and not only on the page render.
-    $this->actingAs(reader())->getJson(route('docs.search', $notebook) . '?q=x')->assertNotFound();
+    $this->actingAs(reader())->getJson(route('docs.search', ['notebook' => $notebook->slug, 'q' => 'x']))->assertNotFound();
 });
 
 it('lets a reader unlock a protected value with the caderno code', function () {

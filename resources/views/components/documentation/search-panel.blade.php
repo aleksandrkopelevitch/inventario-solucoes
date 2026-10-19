@@ -1,4 +1,26 @@
-@props(['url', 'results' => null])
+@props([
+    'url',
+    'results' => null,
+    // `/docs` only: the published cadernos the palette can be pointed at, and
+    // the one being read. Null on the magic link, where a token grants one
+    // caderno and there is nothing to choose.
+    'notebooks' => null,
+    'current' => null,
+])
+
+@php
+    // Which caderno the palette starts on: the one being read, or all of them
+    // on the landing — and on a page of the home caderno, which is the landing's
+    // text rather than one of the cadernos listed here.
+    $selected = $notebooks && $current && $notebooks->contains('id', $current->id) ? $current->slug : '';
+
+    // The pre-rendered slot answers for the caderno being read. When the
+    // palette starts anywhere else it would be the wrong answer, so it ships
+    // the placeholder and fetches instead.
+    if ($notebooks && $selected === '') {
+        $results = null;
+    }
+@endphp
 
 {{--
     Search over the shared caderno's whole documentation — pages, the headings
@@ -32,6 +54,7 @@
 --}}
 <dialog data-ak-docs-search
         data-ak-docs-search-url="{{ $url }}"
+        @if ($notebooks) data-ak-docs-search-notebook="{{ $selected }}" @endif
         aria-label="Buscar na documentação"
         {{-- `mx-auto` + a top margin instead of `m-0`: a <dialog> centres
              itself through AUTO margins, so zeroing them pins it to the corner.
@@ -63,19 +86,42 @@
          is treated as "all" rather than "nowhere" (see
          DocumentationSearchService::scopeSelection()). --}}
     <div class="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-4 py-2.5">
-        <span class="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-faint">Buscar em</span>
-
-        @foreach ([
-            'prose' => 'Texto e títulos',
-            'table' => 'Tabelas',
-            'code'  => 'Código',
-        ] as $scope => $label)
-            <label class="inline-flex cursor-pointer select-none items-center gap-1.5 text-[13px] text-body">
-                <input type="checkbox" data-ak-docs-search-scope="{{ $scope }}" checked
-                       class="size-3.5 rounded border-line-2 text-accent focus:ring-accent">
-                {{ $label }}
+        {{-- WHICH caderno, before WHERE inside it. A select rather than a chip
+             row: it is one choice out of a list that can run to dozens, and it
+             has to read as the setting it is, on screen the whole time. The
+             result chips below narrow the same way (a caderno chip picks it
+             here too — docs-search.js keeps the two in step). --}}
+        @if ($notebooks)
+            <label class="inline-flex min-w-0 items-center gap-2">
+                <span class="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-faint">Caderno</span>
+                <x-forms.select auto data-ak-docs-search-notebook-select aria-label="Caderno em que buscar"
+                    class="!py-1 !pl-2 !text-[13px]">
+                    <option value="" @selected($selected === '')>Todos os cadernos</option>
+                    @foreach ($notebooks as $notebook)
+                        <option value="{{ $notebook->slug }}" @selected($selected === $notebook->slug)>{{ $notebook->name }}</option>
+                    @endforeach
+                </x-forms.select>
             </label>
-        @endforeach
+        @endif
+
+        {{-- One group, so it wraps as a unit: beside the caderno select the row
+             runs out of width, and loose items left "Código" alone on a line of
+             its own, read as a setting of nothing. --}}
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span class="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-faint">Buscar em</span>
+
+            @foreach ([
+                'prose' => 'Texto e títulos',
+                'table' => 'Tabelas',
+                'code'  => 'Código',
+            ] as $scope => $label)
+                <label class="inline-flex cursor-pointer select-none items-center gap-1.5 text-[13px] text-body">
+                    <input type="checkbox" data-ak-docs-search-scope="{{ $scope }}" checked
+                           class="size-3.5 rounded border-line-2 text-accent focus:ring-accent">
+                    {{ $label }}
+                </label>
+            @endforeach
+        </div>
     </div>
 
     {{-- Replaced wholesale by ajax-slot.js — keep the id in step with

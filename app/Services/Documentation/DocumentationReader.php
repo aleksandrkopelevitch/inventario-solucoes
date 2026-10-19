@@ -107,6 +107,30 @@ final class DocumentationReader
     }
 
     /**
+     * `resolveSearchUrls()` for a payload spanning several cadernos (the
+     * knowledge base's "Todos os cadernos"): each hit is addressed through ITS
+     * caderno's `/docs` URLs, which is the one thing a single `ReaderUrls`
+     * could not do.
+     *
+     * @param  array<string, mixed>  $payload
+     * @param  Collection<int, Notebook>  $notebooks
+     * @return array<string, mixed>
+     */
+    public function resolveSearchUrlsAcross(array $payload, Collection $notebooks): array
+    {
+        $urls = $notebooks->mapWithKeys(fn (Notebook $n): array => [$n->slug => ReaderUrls::knowledgeBase($n)]);
+
+        $payload['results'] = array_map(function (array $result) use ($urls): array {
+            $result['url'] = $urls[$result['notebook']]->page($result['slug'])
+                . ($result['anchor'] !== null ? '#' . $result['anchor'] : '');
+
+            return $result;
+        }, $payload['results']);
+
+        return $payload;
+    }
+
+    /**
      * The current page's direct sub-pages, as navigation cards.
      *
      * @return array<int, array{title: string, url: string, hasChildren: bool, hasContent: bool}>

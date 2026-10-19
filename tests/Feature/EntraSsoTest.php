@@ -208,7 +208,7 @@ it('never redirects an AJAX or JSON request off to Microsoft', function () {
 
     // A fetch would follow the redirect and try to parse Microsoft's login
     // page as JSON.
-    $this->getJson(route('docs.search', $notebook) . '?q=x')
+    $this->getJson(route('docs.search', ['notebook' => $notebook->slug, 'q' => 'x']))
         ->assertUnauthorized();
 });
 

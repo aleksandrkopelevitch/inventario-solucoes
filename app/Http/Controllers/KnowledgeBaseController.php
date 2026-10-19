@@ -122,24 +122,59 @@ class KnowledgeBaseController extends Controller
         return $this->render($notebook, $page);
     }
 
-    /** The command palette, over this caderno's corpus and no other. */
-    public function search(SearchDocumentationRequest $request, Notebook $notebook, DocumentationSearchService $search): JsonResponse
+    /**
+     * The command palette, over every published caderno or over one of them.
+     *
+     * One endpoint for both, chosen by `notebook`: the palette's caderno
+     * selector (and its chips) only change that one parameter. With a slug it
+     * is the caderno's own search, exactly what the magic link answers; without
+     * one it is `DocumentationSearchService::searchAll()` over the same list the
+     * rail shows — the home caderno left out, since its text is the landing
+     * itself rather than documentation.
+     *
+     * A slug that names no published caderno 404s, like every `/docs` endpoint
+     * reached by something other than browsing (see `guard()`).
+     */
+    public function search(SearchDocumentationRequest $request, DocumentationSearchService $search): JsonResponse
     {
-        $this->guard($notebook);
+        $query = (string) ($request->validated('q') ?? '');
+        $filters = (array) ($request->validated('filter') ?? []);
+        $notebooks = self::searchableNotebooks();
+        $slug = $request->validated('notebook');
 
-        $payload = $this->reader->resolveSearchUrls(
-            $search->search(
-                $notebook,
-                (string) ($request->validated('q') ?? ''),
-                (array) ($request->validated('filter') ?? []),
-            ),
-            ReaderUrls::knowledgeBase($notebook),
-        );
+        if (filled($slug)) {
+            $notebook = $notebooks->firstWhere('slug', $slug) ?? abort(404);
+
+            $payload = $this->reader->resolveSearchUrls(
+                $search->search($notebook, $query, $filters),
+                ReaderUrls::knowledgeBase($notebook),
+            );
+        } else {
+            $payload = $this->reader->resolveSearchUrlsAcross(
+                $search->searchAll($notebooks, $query, $filters),
+                $notebooks,
+            );
+        }
 
         return response()->json([
             'total'          => $payload['total'],
             'updatableSlots' => [SearchResults::slot($payload)],
         ]);
+    }
+
+    /**
+     * What the palette can search: the rail's cadernos, without the eager-loaded
+     * solutions the rail needs and the search does not.
+     *
+     * @return Collection<int, Notebook>
+     */
+    public static function searchableNotebooks(): Collection
+    {
+        return Notebook::query()
+            ->published()
+            ->where('is_home', false)
+            ->orderBy('name')
+            ->get();
     }
 
     /**
