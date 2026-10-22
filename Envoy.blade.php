@@ -181,6 +181,20 @@
     echo "==> Queueing web renditions for documentation images"
     sudo -u www-data php artisan documentation:web-images || echo "==> WARNING: documentation:web-images failed — images keep serving their originals."
 
+    {{--
+        Builds the documentation search indexes, so the first reader to search
+        after a deploy is not the one who pays for it ("Indexando N cadernos…"
+        on /docs). Seconds when nothing changed; the first run, or one after the
+        index format's VERSION is bumped, builds everything (~70 s on the dev
+        corpus). After `up` for the same reason as the line above: readers can
+        search meanwhile, and whoever gets there first builds what they need.
+        `|| echo` because a failure here costs a slow first search, never the
+        deploy. Also scheduled daily (routes/console.php), since an index
+        expires a week after it was built.
+    --}}
+    echo "==> Warming the documentation search indexes"
+    sudo -u www-data php artisan documentation:search-warm || echo "==> WARNING: documentation:search-warm failed — the first searches will build their own indexes."
+
     echo "==> Deployment completed!"
 @endtask
 

@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Http\Controllers\KnowledgeBaseController;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Models\User;
@@ -192,6 +193,92 @@ it('sees an edit at once — the global index is keyed by content', function () 
     $page->update(['documentation' => 'agora fala de girafa']);
 
     expect(kbsSearch(['q' => 'girafa']))->toContain('Pedido');
+});
+
+/*
+|--------------------------------------------------------------------------
+| documentation:search-warm — no reader pays for a build
+|--------------------------------------------------------------------------
+*/
+
+it('warms every caderno a reader can search, and the global index, ahead of the first search', function () {
+    kbsPage(kbsNotebook('A Primeiro'), 'Um', 'termo comum');
+    kbsPage(kbsNotebook('B Segundo'), 'Dois', 'termo comum');
+    $shared = Notebook::factory()->create(['name' => 'Fornecedor', 'public_token' => 'tok123456789']);
+    kbsPage($shared, 'Três', 'termo');
+    $draft = kbsNotebook('Rascunho', published: false);
+    kbsPage($draft, 'Quatro', 'termo');
+
+    $this->artisan('documentation:search-warm')
+        ->expectsOutputToContain('A Primeiro')
+        ->expectsOutputToContain('Fornecedor')
+        ->doesntExpectOutputToContain('Rascunho')
+        ->expectsOutputToContain('3 built, 0 already warm')
+        ->assertSuccessful();
+
+    $search = app(DocumentationSearchService::class);
+    $searchable = KnowledgeBaseController::searchableNotebooks();
+
+    // The magic link reads the same per-caderno index; a caderno nobody can
+    // reach is left alone.
+    expect($search->isWarm($shared))->toBeTrue()
+        ->and($search->isWarm($draft))->toBeFalse()
+        ->and($search->warmAll($searchable))->toBe(['built' => false, 'pending' => []]);
+
+    // A reader's search with no build budget at all still finds nothing cold.
+    $noBudget = new class(app(DocumentationPageService::class)) extends DocumentationSearchService
+    {
+        protected function globalBuildBudget(): float
+        {
+            return 0.0;
+        }
+    };
+
+    $result = $noBudget->searchAll($searchable, 'termo');
+
+    expect($result['pending'])->toBe([])
+        ->and($result['total'])->toBe(2);
+
+    $this->artisan('documentation:search-warm')
+        ->expectsOutputToContain('0 built, 3 already warm')
+        ->assertSuccessful();
+});
+
+it('pushes back the expiry of what is already warm, so the daily run keeps it warm', function () {
+    $this->freezeTime();
+    $sap = kbsNotebook('Integrações SAP');
+    kbsPage($sap, 'Pedido', 'texto');
+    $search = app(DocumentationSearchService::class);
+
+    $this->artisan('documentation:search-warm')->assertSuccessful();
+    $this->travel(6)->days();
+    $this->artisan('documentation:search-warm')->assertSuccessful();
+
+    // Twelve days after it was built, six after the second run touched it.
+    $this->travel(6)->days();
+
+    expect($search->isWarm($sap))->toBeTrue()
+        ->and($search->warmAll(KnowledgeBaseController::searchableNotebooks())['built'])->toBeFalse();
+
+    // A full TTL after the last run, it is gone: the TTL is what was pushed.
+    $this->travel(2)->days();
+
+    expect($search->isWarm($sap))->toBeFalse();
+});
+
+it('rebuilds a caderno whose content changed since it was warmed', function () {
+    $sap = kbsNotebook('Integrações SAP');
+    $page = kbsPage($sap, 'Pedido', 'texto antigo');
+
+    $this->artisan('documentation:search-warm')->assertSuccessful();
+    $page->update(['documentation' => 'texto novo']);
+
+    $this->artisan('documentation:search-warm')
+        ->expectsOutputToContain('1 built, 0 already warm')
+        ->assertSuccessful();
+
+    expect(app(DocumentationSearchService::class)->warmAll(KnowledgeBaseController::searchableNotebooks())['built'])
+        ->toBeFalse();
 });
 
 /*
