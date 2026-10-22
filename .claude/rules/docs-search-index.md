@@ -5,6 +5,7 @@ paths:
   - "resources/js/modules/docs-search.js"
   - "resources/views/components/documentation/search-*.blade.php"
   - "app/Http/Controllers/KnowledgeBaseController.php"
+  - "app/Console/Commands/WarmDocumentationSearchCommand.php"
 ---
 
 ### Public documentation search — the corpus is an INDEX, not a query
@@ -128,6 +129,17 @@ Result: ~130–170 ms for all 45 cadernos with a file-like store (Redis in
 production); dev's `database` cache store adds ~200 ms just moving the 10 MB
 blob. `docs/search` sits before `docs/{notebook}` in the routes, and
 `NotebookController::RESERVED_SLUGS` refuses `search` as a caderno slug.
+
+**`php artisan documentation:search-warm` keeps readers off the build path.**
+It runs on every deploy (after `up`) and daily at 04:00. It calls `warm()` for
+every caderno on `/docs` plus every one shared by magic link (same per-caderno
+index), then `warmAll()` for the global index. An index that is already warm is
+`Cache::touch()`ed, not rebuilt, and that part matters: the TTL (`INDEX_TTL_DAYS`)
+counts from the WRITE, so an index read every day still went cold a week after
+it was built. Warming must use `searchableNotebooks()` itself, because the global
+key hashes that list; any other list warms an index no request reads. Measured
+over the dev corpus with the file store: 9.5 s with page renders cached, 0.4 s
+when everything was warm, ~95 MB peak.
 
 Cost, measured 2026-08-26 on the largest corpus in the dev DB (132 pages /
 2 MB / 111k words): ~6 s to build cold, ~50–65 ms per warm search. The cold

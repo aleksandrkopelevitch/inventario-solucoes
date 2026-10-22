@@ -41,3 +41,21 @@ Schedule::command('digibee:docs:import')
     ->onOneServer()
     ->withoutOverlapping()
     ->runInBackground();
+
+/*
+|--------------------------------------------------------------------------
+| Documentation search
+|--------------------------------------------------------------------------
+|
+| An index expires seven days after it was written, however often it is read,
+| and a cold one is built by whichever reader searches first. Daily keeps every
+| index a reader can reach inside its TTL; a run with nothing to build only
+| pushes expiries back. After the Sunday Digibee import, which can rewrite a
+| caderno. The deploy runs it too (Envoy.blade.php).
+|
+*/
+Schedule::command('documentation:search-warm')
+    ->dailyAt('04:00')
+    ->onOneServer()
+    ->withoutOverlapping()
+    ->runInBackground();

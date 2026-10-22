@@ -94,6 +94,14 @@ class DocumentationSearchService
      */
     private const GLOBAL_BUILD_BUDGET = 3.0;
 
+    /**
+     * How long an index — a caderno's or the global one — stays cached, in days.
+     * Counted from when it was written, not from when it was last read: a busy
+     * index expires as surely as an idle one, which is what
+     * `documentation:search-warm` (daily) pushes back.
+     */
+    private const INDEX_TTL_DAYS = 7;
+
     /** Characters of context kept on each side of the first hit in a snippet. */
     private const SNIPPET_RADIUS = 80;
 
@@ -138,7 +146,27 @@ class DocumentationSearchService
     {
         [$key, $tree] = $this->indexKey($notebook);
 
-        return Cache::remember($key, now()->addDays(7), fn (): array => $this->build($tree));
+        return Cache::remember($key, now()->addDays(self::INDEX_TTL_DAYS), fn (): array => $this->build($tree));
+    }
+
+    /**
+     * Makes sure the caderno's index is cached for another full TTL: built if
+     * it is cold, its expiry pushed back if it is not (`touch()`, which moves no
+     * data). For `documentation:search-warm`, so a reader never pays for a build.
+     *
+     * @return bool whether the index had to be built
+     */
+    public function warm(Notebook $notebook): bool
+    {
+        [$key, $tree] = $this->indexKey($notebook);
+
+        if (Cache::touch($key, now()->addDays(self::INDEX_TTL_DAYS))) {
+            return false;
+        }
+
+        Cache::put($key, $this->build($tree), now()->addDays(self::INDEX_TTL_DAYS));
+
+        return true;
     }
 
     /**
@@ -762,7 +790,7 @@ class DocumentationSearchService
                 }
 
                 $index = $this->build($tree);
-                Cache::put($notebookKey, $index, now()->addDays(7));
+                Cache::put($notebookKey, $index, now()->addDays(self::INDEX_TTL_DAYS));
                 $coldBuilt++;
             }
 
@@ -772,10 +800,33 @@ class DocumentationSearchService
         }
 
         if ($pending === []) {
-            Cache::put($key, $entries, now()->addDays(7));
+            Cache::put($key, $entries, now()->addDays(self::INDEX_TTL_DAYS));
         }
 
         return ['entries' => $entries, 'pending' => $pending];
+    }
+
+    /**
+     * `warm()` for the global index: built if cold, its expiry pushed back if
+     * not. Meant to run after `warm()` has been called for every caderno in
+     * `$notebooks`, so building it only compacts — but it goes through
+     * `globalIndex()` all the same, so a caderno edited in the meantime is
+     * built (or left pending) exactly as a reader's request would.
+     *
+     * `$notebooks` must be the very list the palette searches
+     * (`KnowledgeBaseController::searchableNotebooks()`): the key hashes it, so
+     * any other list warms an index nobody reads.
+     *
+     * @param  Collection<int, Notebook>  $notebooks
+     * @return array{built: bool, pending: array<int, string>}
+     */
+    public function warmAll(Collection $notebooks): array
+    {
+        if (Cache::touch($this->globalKey($notebooks), now()->addDays(self::INDEX_TTL_DAYS))) {
+            return ['built' => false, 'pending' => []];
+        }
+
+        return ['built' => true, 'pending' => $this->globalIndex($notebooks)['pending']];
     }
 
     /**
