@@ -32,10 +32,12 @@ merely in appearance:
 
 That is deliberate and it is the requirement: the second copy is how "o mesmo
 layout" stops being true, on the day somebody fixes a bug on one of them. What
-the two surfaces genuinely do not share is one affordance — the caderno
-SWITCHER in the top bar — and the layout takes it as an optional prop
-(`:notebooks`), null on the magic link because a token grants exactly one
-caderno and there is nothing to switch to.
+the two surfaces genuinely do not share is the list of cadernos, and two
+affordances hang off it: the caderno SWITCHER in the top bar and the palette's
+CADERNO select ("Todos os cadernos" or one of them, see
+`.claude/rules/docs-search-index.md`). The layout takes the list as one optional
+prop (`:notebooks`), null on the magic link because a token grants exactly one
+caderno and there is nothing to switch to or choose between.
 
 **SEMI-public is the whole design of `/docs`.** The magic link carries no
 identity at all, which is what makes it right for a vendor and wrong for
@@ -120,6 +122,9 @@ everything behind it — and rendered by the same `DocumentationReader` +
   `pending-drawing.js`), which works inside an `<img>` because they carry no
   script; each one honours `prefers-reduced-motion` by showing the finished
   picture still.
+- **The landing has the search** (since 2026-10-19), starting on "Todos os
+  cadernos". It used to have none, because the palette answered for one caderno
+  and on the landing that would have searched only the landing's own text.
 - **Below `md` there is no rail**, so the landing's top bar keeps the caderno
   switcher for that width only (`md:hidden`); on a wide screen it would be the
   rail's list a second time.

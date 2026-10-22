@@ -3,6 +3,8 @@ paths:
   - "app/Services/DocumentationSearchService.php"
   - "app/View/Components/Documentation/**"
   - "resources/js/modules/docs-search.js"
+  - "resources/views/components/documentation/search-*.blade.php"
+  - "app/Http/Controllers/KnowledgeBaseController.php"
 ---
 
 ### Public documentation search — the corpus is an INDEX, not a query
@@ -81,6 +83,51 @@ accident:
   (`SearchResults::DOM_ID`), so a page's own text is escaped by Blade on the way
   out and there is no path from authored content to `innerHTML`. The query input
   lives OUTSIDE that slot — swapping it per keystroke would drop the caret.
+
+### `/docs` searches every caderno at once — from ONE compact index
+
+The knowledge base's palette has a CADERNO select ("Todos os cadernos" or one
+of them) and one endpoint, `GET docs/search` (`?notebook=<slug>`; absent = all).
+With a slug it is exactly the per-caderno search above. Without one it is
+`DocumentationSearchService::searchAll()` over `KnowledgeBaseController::
+searchableNotebooks()` — the rail's list, so the HOME caderno is left out (its
+text is the landing). The magic link renders no select: its token grants one
+caderno. The palette starts on the caderno being read, or on all of them on the
+landing, which got the search in its top bar with this. A caderno chip (the
+chip row switches from sections to cadernos in "Todos") picks that caderno in
+the select too; `docs-search.js` keeps the two in step.
+
+**It does NOT run `search()` per caderno.** Measured 2026-10-19 over the dev
+corpus (45 cadernos, 622 pages, 5 MB of Markdown): that is ~350 ms and ~120 MB
+per keystroke — ~170 ms proving each index fresh (`indexKey()` walks a tree and
+hashes every page, per caderno) and ~200 ms unserializing 16.7 MB, because an
+entry carries its text four times. What it does instead:
+
+- **One compact index** (`globalIndex()`/`compact()`), cached as one entry: the
+  text twice (the scope buckets, original and folded), rebuilt into
+  `text`/`foldText` only for the hits that are scored or shown. A global
+  snippet therefore reads the buckets in prose → table → code order, not in
+  document order. Matching runs on the buckets (`matchesBuckets()`), which is
+  the same answer, since a term never contains whitespace.
+- **One query proves it fresh** (`globalKey()`): every page's id, parent,
+  position, title, slug and an md5 of its text, unhydrated, plus the cadernos'
+  ids, slugs and names. That is still CONTENT, never `updated_at`. `md5()` in
+  SQL was measured too (~40 ms vs ~60 ms) and not worth a second SQLite
+  function.
+- **The caderno's name is in every entry's breadcrumb**, so "digibee timeout"
+  finds the Digibee manual's "Timeout", not SAP's.
+- **Building it has a time BUDGET** (`GLOBAL_BUILD_BUDGET`, 3 s). Indexing every
+  cold caderno in one request took ~70 s, which is past any web timeout. Past
+  the budget, the cold cadernos are left out and named in `pending`. The partial
+  index is not cached, the slot carries `data-ak-docs-search-indexing`, and the
+  palette asks again every 1.5 s while open (20 tries, then a Toast). At least
+  one COLD caderno is built per request, counted rather than read off the clock:
+  counting warm ones is how a request makes no progress.
+
+Result: ~130–170 ms for all 45 cadernos with a file-like store (Redis in
+production); dev's `database` cache store adds ~200 ms just moving the 10 MB
+blob. `docs/search` sits before `docs/{notebook}` in the routes, and
+`NotebookController::RESERVED_SLUGS` refuses `search` as a caderno slug.
 
 Cost, measured 2026-08-26 on the largest corpus in the dev DB (132 pages /
 2 MB / 111k words): ~6 s to build cold, ~50–65 ms per warm search. The cold

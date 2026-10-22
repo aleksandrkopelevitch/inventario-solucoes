@@ -66,17 +66,29 @@ class SearchResults extends Component
             || $filters['section'] !== null
             || $filters['tag'] !== null;
 
+        // ONE chip row, on whichever axis narrows a step further: the
+        // cadernos when the search spans all of them (`searchAll()`), a
+        // caderno's top-level pages when it is inside one. Choosing a caderno
+        // chip hands the palette to that caderno's search, so the row then
+        // becomes its sections — the same gesture, one level down.
+        $global = (bool) ($payload['global'] ?? false);
+        $facets = $payload['facets'] ?? ['sections' => [], 'tags' => []];
+
         return view('components.documentation.search-results', [
-            'domId'     => self::DOM_ID,
-            'results'   => $payload['results'] ?? [],
-            'facets'    => $payload['facets'] ?? ['sections' => [], 'tags' => []],
-            'filters'   => $filters,
-            'total'     => (int) ($payload['total'] ?? 0),
-            'shown'     => (int) ($payload['shown'] ?? 0),
-            'overview'  => $payload['overview'] ?? ['pages' => 0, 'sections' => 0, 'words' => 0],
-            'narrowed'  => $narrowed,
-            'tagLabels' => self::TAG_LABELS,
-            'tagBadges' => self::TAG_BADGES,
+            'domId'      => self::DOM_ID,
+            'results'    => $payload['results'] ?? [],
+            'global'     => $global,
+            'pending'    => $payload['pending'] ?? [],
+            'chipAxis'   => $global ? 'notebook' : 'section',
+            'chipAll'    => $global ? 'Todos' : 'Todas',
+            'chips'      => $global ? ($facets['notebooks'] ?? []) : ($facets['sections'] ?? []),
+            'chipActive' => $global ? null : $filters['section'],
+            'total'      => (int) ($payload['total'] ?? 0),
+            'shown'      => (int) ($payload['shown'] ?? 0),
+            'overview'   => $payload['overview'] ?? ['pages' => 0, 'sections' => 0, 'words' => 0],
+            'narrowed'   => $narrowed,
+            'tagLabels'  => self::TAG_LABELS,
+            'tagBadges'  => self::TAG_BADGES,
         ]);
     }
 }

@@ -13,7 +13,9 @@ use Illuminate\Support\Facades\Cache;
 
 /**
  * Turns a `Notebook` into a searchable, faceted DATASET — the corpus behind the
- * search panel on the public "magic link" documentation.
+ * documentation palette, on the public "magic link" and on `/docs`. `/docs` can
+ * also search every published caderno at once (`searchAll()`), from a compact
+ * index of its own — see "The global index" below.
  *
  * ## Sub-page granularity, with no overlap
  *
@@ -83,6 +85,14 @@ class DocumentationSearchService
      * block, headings included.
      */
     public const SCOPES = ['prose', 'table', 'code'];
+
+    /**
+     * How long one request may spend indexing cadernos for the GLOBAL search
+     * before it answers with what it has (see `globalIndex()`), in seconds.
+     * A single caderno is never cut short, so the worst request is this plus
+     * the largest cold caderno (~6 s measured) — well inside a web timeout.
+     */
+    private const GLOBAL_BUILD_BUDGET = 3.0;
 
     /** Characters of context kept on each side of the first hit in a snippet. */
     private const SNIPPET_RADIUS = 80;
@@ -231,6 +241,82 @@ class DocumentationSearchService
             'results'  => $results,
             'facets'   => $facets,
             'overview' => $this->overview($entries),
+        ];
+    }
+
+    /**
+     * The same palette payload, over SEVERAL cadernos at once — the knowledge
+     * base's "Todos os cadernos" (`/docs`).
+     *
+     * It does not run `search()` once per caderno. That would load every
+     * caderno's full index on every keystroke, and measured over the dev corpus
+     * (45 cadernos, 622 pages, 5 MB of Markdown) that is ~350 ms and 120 MB per
+     * request: ~170 ms of it proving each index fresh (one tree query and a hash
+     * of every page, per caderno) and ~200 ms unserializing 16.7 MB, because an
+     * entry holds its text four times. So it reads ONE compact index instead
+     * (`globalIndex()`), proved fresh by one query.
+     *
+     * The chips narrow by CADERNO here, where `search()`'s narrow by top-level
+     * page: picking one hands the palette over to that caderno's own search.
+     * And every entry's breadcrumb carries its caderno's name, so "digibee
+     * timeout" finds the "Timeout" section of the Digibee manual.
+     *
+     * `pending` names the cadernos not indexed yet — the results are partial
+     * and the palette asks again (see `globalIndex()`).
+     *
+     * @param  Collection<int, Notebook>  $notebooks  in the order the chips list them
+     * @param  array<string, mixed>  $filters
+     * @return array<string, mixed>
+     */
+    public function searchAll(Collection $notebooks, string $query, array $filters = []): array
+    {
+        ['entries' => $entries, 'pending' => $pending] = $this->globalIndex($notebooks);
+
+        $scopes = $this->scopeSelection($filters);
+        $terms = $this->terms($query);
+
+        // Matched against the buckets themselves: the text is put back
+        // together (`withScopeText()`) only for what gets scored or shown,
+        // never for the whole corpus on every keystroke.
+        $matched = $terms === []
+            ? $entries
+            : array_values(array_filter($entries, fn (array $e): bool => $this->matchesBuckets($e, $terms, $scopes)));
+
+        $tag = $this->filterValue($filters, 'tag');
+        $filtered = $this->applyTag($matched, $tag);
+
+        if ($terms !== []) {
+            $scored = array_map(function (array $e) use ($scopes, $terms): array {
+                $e = $this->withScopeText($e, $scopes);
+
+                return $e + ['score' => $this->score($e, $terms)];
+            }, $filtered);
+            usort($scored, fn (array $a, array $b): int => [$b['score'], $a['order']] <=> [$a['score'], $b['order']]);
+            $filtered = $scored;
+        }
+
+        $results = array_map(
+            fn (array $e): array => $this->result(isset($e['foldText']) ? $e : $this->withScopeText($e, $scopes), $terms) + [
+                'notebook'     => $e['notebook'],
+                'notebookName' => $e['notebookName'],
+            ],
+            array_slice($filtered, 0, self::MAX_RESULTS),
+        );
+
+        return [
+            'query'   => $query,
+            'global'  => true,
+            'pending' => $pending,
+            'filters' => ['section' => null, 'tag' => $tag, 'scopes' => $scopes],
+            'total'   => count($filtered),
+            'shown'   => count($results),
+            'results' => $results,
+            'facets'  => [
+                'sections'  => [],
+                'tags'      => $this->tagFacets($entries, $matched),
+                'notebooks' => $this->notebookFacets($notebooks, $filtered),
+            ],
+            'overview' => ['notebooks' => $notebooks->count(), ...$this->overview($entries)],
         ];
     }
 
@@ -614,6 +700,226 @@ class DocumentationSearchService
     private function collapse(string $text): string
     {
         return trim((string) preg_replace('/\s+/u', ' ', $text));
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | The global index — every caderno at once
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Every given caderno's entries, compacted, as ONE cache entry.
+     *
+     * Built from the per-caderno indexes (`index()`), so it inherits their
+     * content hashing and costs nothing to parse; what it adds is the shape a
+     * per-keystroke read can afford (`compact()`) and a key one query can prove
+     * fresh (`globalKey()`).
+     *
+     * **Building it has a time BUDGET.** A caderno nobody has searched is cold,
+     * and indexing all of them in one request took ~70 s on the dev corpus —
+     * past any web timeout. So once `GLOBAL_BUILD_BUDGET` is spent, the cadernos
+     * still cold are left out and named in `pending`, and the partial index is
+     * NOT cached: the palette shows what it has and asks again, and each request
+     * indexes a few more (every per-caderno index it finishes is cached on its
+     * own). At least one cold caderno is built per request, so every request
+     * makes progress.
+     *
+     * @param  Collection<int, Notebook>  $notebooks
+     * @return array{entries: array<int, array<string, mixed>>, pending: array<int, string>}
+     */
+    private function globalIndex(Collection $notebooks): array
+    {
+        $key = $this->globalKey($notebooks);
+        $cached = Cache::get($key);
+
+        if (is_array($cached)) {
+            return ['entries' => $cached, 'pending' => []];
+        }
+
+        // hrtime, not microtime: it is monotonic, and this box's wall clock has
+        // been seen to step by a minute between two lines.
+        $started = hrtime(true);
+        $entries = [];
+        $pending = [];
+        $coldBuilt = 0;
+
+        foreach ($notebooks as $notebook) {
+            // `index()` spelled out, so the key is computed once and a warm
+            // caderno can be told from a cold one before paying for it.
+            [$notebookKey, $tree] = $this->indexKey($notebook);
+            $index = Cache::get($notebookKey);
+
+            if (! is_array($index)) {
+                // Counted, not inferred from the clock: until one COLD caderno
+                // has been built the budget is never "spent", whatever it is.
+                // Warm ones don't count — they cost nothing to include, and
+                // counting them is how a request would make no progress at all.
+                if ($coldBuilt > 0 && (hrtime(true) - $started) / 1e9 > $this->globalBuildBudget()) {
+                    $pending[] = $notebook->name;
+
+                    continue;
+                }
+
+                $index = $this->build($tree);
+                Cache::put($notebookKey, $index, now()->addDays(7));
+                $coldBuilt++;
+            }
+
+            foreach ($index as $entry) {
+                $entries[] = $this->compact($entry, $notebook, count($entries));
+            }
+        }
+
+        if ($pending === []) {
+            Cache::put($key, $entries, now()->addDays(7));
+        }
+
+        return ['entries' => $entries, 'pending' => $pending];
+    }
+
+    /**
+     * `GLOBAL_BUILD_BUDGET`, behind a method so a test can spend it at once
+     * instead of racing the clock.
+     */
+    protected function globalBuildBudget(): float
+    {
+        return self::GLOBAL_BUILD_BUDGET;
+    }
+
+    /**
+     * The global index's key, proved fresh by ONE query.
+     *
+     * The per-caderno key reads the caderno's tree through the page service and
+     * hashes each page — fine for one caderno, ~170 ms for all of them on every
+     * keystroke. This reads the same facts straight off the table, unhydrated,
+     * for every caderno at once (~60 ms over the whole dev corpus). Still
+     * CONTENT, never `updated_at`, for the reason the class docblock gives; and
+     * `parent_id`/`position` are in it because a move changes breadcrumbs. The
+     * cadernos' names are in it too: they are part of every entry now.
+     *
+     * @param  Collection<int, Notebook>  $notebooks
+     */
+    private function globalKey(Collection $notebooks): string
+    {
+        $pages = DocumentationPage::query()
+            ->whereIn('notebook_id', $notebooks->modelKeys())
+            ->orderBy('id')
+            ->toBase()
+            ->get(['id', 'notebook_id', 'parent_id', 'position', 'title', 'slug', 'documentation']);
+
+        $fingerprint = md5(
+            $notebooks->map(fn (Notebook $n): string => $n->id . "\0" . $n->slug . "\0" . $n->name)->implode('|')
+            . '#'
+            . $pages->map(fn (object $p): string => implode("\0", [
+                $p->id, $p->notebook_id, $p->parent_id, $p->position, $p->title, $p->slug, md5((string) $p->documentation),
+            ]))->implode('|'),
+        );
+
+        return self::VERSION . ':docs-search:global:' . $fingerprint;
+    }
+
+    /**
+     * An entry as the global index keeps it: its text TWICE (the scope buckets,
+     * original and folded) instead of four times. `text`/`foldText` are put back
+     * at query time from the buckets the request selected (`withScopeText()`),
+     * which roughly halves what every keystroke has to unserialize.
+     *
+     * The price: a global snippet reads the buckets in prose → table → code
+     * order rather than in document order — the same words around the same hit,
+     * a table's cells after the paragraph instead of between two.
+     *
+     * @param  array<string, mixed>  $entry
+     * @return array<string, mixed>
+     */
+    private function compact(array $entry, Notebook $notebook, int $order): array
+    {
+        return [
+            'order'        => $order,
+            'notebook'     => $notebook->slug,
+            'notebookName' => $notebook->name,
+            'kind'         => $entry['kind'],
+            'title'        => $entry['title'],
+            'pageTitle'    => $entry['pageTitle'],
+            'slug'         => $entry['slug'],
+            'anchor'       => $entry['anchor'],
+            'level'        => $entry['level'],
+            'trail'        => $entry['trail'],
+            'tags'         => $entry['tags'],
+            'words'        => $entry['words'],
+            'foldTitle'    => $entry['foldTitle'],
+            // The caderno's name joins the breadcrumb a query can match, so a
+            // search can name WHICH caderno it means.
+            'foldTrail'  => self::fold($notebook->name) . ' ' . $entry['foldTrail'],
+            'scopes'     => $entry['scopes'],
+            'foldScopes' => $entry['foldScopes'],
+        ];
+    }
+
+    /**
+     * A compact entry's `text`/`foldText`, rebuilt from the buckets this request
+     * searches. One separator for both copies, so the folded and the original
+     * concatenation stay aligned character for character (see `inScope()`).
+     *
+     * @param  array<string, mixed>  $entry
+     * @param  array<int, string>  $scopes
+     * @return array<string, mixed>
+     */
+    private function withScopeText(array $entry, array $scopes): array
+    {
+        $entry['text'] = trim(implode(' ', array_map(fn (string $s): string => $entry['scopes'][$s] ?? '', $scopes)));
+        $entry['foldText'] = trim(implode(' ', array_map(fn (string $s): string => $entry['foldScopes'][$s] ?? '', $scopes)));
+
+        return $entry;
+    }
+
+    /**
+     * `matches()` for a compact entry: every term in the title, the breadcrumb
+     * or one of the searched buckets. The same answer as matching their
+     * concatenation — a term never holds whitespace, so it can never straddle
+     * the space that would have joined two of them.
+     *
+     * @param  array<string, mixed>  $entry
+     * @param  array<int, string>  $terms
+     * @param  array<int, string>  $scopes
+     */
+    private function matchesBuckets(array $entry, array $terms, array $scopes): bool
+    {
+        foreach ($terms as $term) {
+            if (str_contains($entry['foldTitle'], $term) || str_contains($entry['foldTrail'], $term)) {
+                continue;
+            }
+
+            foreach ($scopes as $scope) {
+                if (str_contains($entry['foldScopes'][$scope] ?? '', $term)) {
+                    continue 2;
+                }
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * One chip per caderno, in the order given, counting this query's hits —
+     * every caderno listed even at zero, so the row doesn't move under the
+     * caret, as `sectionFacets()` does for sections.
+     *
+     * @param  Collection<int, Notebook>  $notebooks
+     * @param  array<int, array<string, mixed>>  $matched
+     * @return array<int, array{value: string, label: string, count: int}>
+     */
+    private function notebookFacets(Collection $notebooks, array $matched): array
+    {
+        $counts = array_count_values(array_column($matched, 'notebook'));
+
+        return $notebooks->map(fn (Notebook $n): array => [
+            'value' => $n->slug,
+            'label' => $n->name,
+            'count' => $counts[$n->slug] ?? 0,
+        ])->values()->all();
     }
 
     /*

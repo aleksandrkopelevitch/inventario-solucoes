@@ -24,19 +24,33 @@
 //   - Everything below the input is delegated at the document level, because
 //     the slot node is REPLACED (not refilled) on every request; a listener
 //     bound to the old node would be swapped away with it.
+//
+// On `/docs` the palette also has a CADERNO: "Todos os cadernos" or one of them,
+// sent as `notebook` (absent = all). It is client state like the scopes, set by
+// the palette's select or by a caderno chip, and the two are kept in step here.
+// The magic link renders no select and never sends it.
 
 import * as ajaxModule from './ajax'
 import { updateSlots } from './ajax-slot'
 
 const DEBOUNCE_MS = 140
 
+// While cadernos are still being indexed (a cold "Todos os cadernos"), the
+// server answers with what it has and the palette asks again — each request
+// indexes a few more. Bounded, so a stuck index ends in a Toast rather than in
+// polling forever.
+const INDEXING_RETRY_MS = 1500
+const MAX_INDEXING_RETRIES = 20
+
 // `scopes` is a Set the CLIENT owns: the switches sit outside the swapped slot
 // (like the query field), so nothing server-rendered can contradict them.
-const state = { q: '', section: '', tag: '', scopes: new Set(['prose', 'table', 'code']) }
+const state = { q: '', section: '', tag: '', notebook: '', scopes: new Set(['prose', 'table', 'code']) }
 
 let sequence = 0
 let debounce = null
 let activeIndex = 0
+let indexingRetries = 0
+let indexingTimer = null
 
 const bound = new WeakSet()
 
@@ -83,11 +97,28 @@ function close() {
     panel()?.close()
 }
 
+function notebookSelect() {
+    return panel()?.querySelector('[data-ak-docs-search-notebook-select]') ?? null
+}
+
+// A different caderno is a different corpus: its sections are not this one's,
+// so a section chosen in the last one is dropped with it.
+function chooseNotebook(slug) {
+    state.notebook = slug
+    state.section = ''
+
+    const select = notebookSelect()
+    if (select) select.value = slug
+}
+
 function request() {
     const container = panel()
     if (!container) return
 
+    clearTimeout(indexingTimer)
+
     const url = new URL(container.dataset.akDocsSearchUrl, window.location.origin)
+    if (state.notebook) url.searchParams.set('notebook', state.notebook)
     if (state.q) url.searchParams.set('q', state.q)
     if (state.section) url.searchParams.set('filter[section]', state.section)
     if (state.tag) url.searchParams.set('filter[tag]', state.tag)
@@ -112,12 +143,35 @@ function request() {
             updateSlots(data)
             activeIndex = 0
             highlightActive({ scroll: false })
+            followIndexing()
         })
         .catch(() => {
             if (ticket !== sequence) return
             spinner(false)
             window.Toast?.show('Não foi possível buscar agora. Tente de novo.', 'warning')
         })
+}
+
+// The answer named cadernos it has not indexed yet. Ask again while somebody
+// is looking at the palette; a closed palette does not keep the server busy.
+function followIndexing() {
+    const dialog = panel()
+    if (!dialog?.querySelector('[data-ak-docs-search-indexing]')) {
+        indexingRetries = 0
+
+        return
+    }
+
+    if (!dialog.open) return
+
+    if (++indexingRetries > MAX_INDEXING_RETRIES) {
+        indexingRetries = 0
+        window.Toast?.show('A indexação dos cadernos está demorando. Os resultados podem estar incompletos — tente de novo em instantes.', 'warning')
+
+        return
+    }
+
+    indexingTimer = setTimeout(request, INDEXING_RETRY_MS)
 }
 
 function scheduleRequest() {
@@ -132,9 +186,9 @@ function clearSearch() {
     state.q = ''
     state.section = ''
     state.tag = ''
-    // The scopes are deliberately NOT reset: they are how this person searches,
-    // not what they searched for. Clearing them with the query would undo the
-    // setup on every new question.
+    // The scopes and the caderno are deliberately NOT reset: they are how and
+    // where this person searches, not what they searched for. Clearing them
+    // with the query would undo the setup on every new question.
     clearTimeout(debounce)
     request()
     field?.focus()
@@ -178,7 +232,14 @@ document.addEventListener('click', (event) => {
         const axis = chip.dataset.akDocsSearchFacet
         const value = chip.dataset.akDocsSearchValue ?? ''
 
-        state[axis] = state[axis] === value ? '' : value
+        // A caderno chip PICKS that caderno, like the select does, and "Todos"
+        // goes back to all of them. Re-clicking the active one is a no-op
+        // rather than a toggle: there is nothing "off" for a corpus to be.
+        if (axis === 'notebook') {
+            chooseNotebook(value)
+        } else {
+            state[axis] = state[axis] === value ? '' : value
+        }
         request()
 
         // The chip is inside the slot, so the swap that follows would leave
@@ -219,6 +280,16 @@ document.addEventListener('click', (event) => {
         event.preventDefault()
         clearSearch()
     }
+})
+
+// The caderno select.
+document.addEventListener('change', (event) => {
+    const select = event.target.closest?.('[data-ak-docs-search-notebook-select]')
+    if (!select) return
+
+    chooseNotebook(select.value)
+    request()
+    input()?.focus()
 })
 
 // The scope switches. `change`, not `click`: a checkbox is also toggled by the
@@ -323,6 +394,10 @@ export function init() {
     if (!field || bound.has(field)) return
 
     bound.add(field)
+
+    // Where the palette starts: the caderno being read, or '' (all of them).
+    state.notebook = panel()?.dataset.akDocsSearchNotebook ?? ''
+
     field.addEventListener('input', () => {
         state.q = field.value.trim()
         scheduleRequest()

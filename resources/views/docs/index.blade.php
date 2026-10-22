@@ -2,14 +2,15 @@
 
      The rail lists every published caderno (with a filter); the reading column
      is the HOME caderno's first page — a page like any other, edited in
-     Cadernos, rendered by the same body as every page behind it. No search in
-     the top bar: the palette answers for one caderno, and here it would have
-     searched only the landing's own text.
+     Cadernos, rendered by the same body as every page behind it. The top bar's
+     search starts on "Todos os cadernos" here: the palette spans every
+     published caderno (or any one of them), and the landing is where somebody
+     arrives not yet knowing which caderno holds the answer.
 
      Without a published home the column falls back to the cadernos as cards,
      which is also what a reader on a narrow screen (no rail) needs most. --}}
 <x-layouts.public-docs :title="$home['title'] ?? 'Base de conhecimento'" heading="Base de conhecimento"
-    :notebooks="$notebooks" :home-url="route('docs.index')">
+    :notebooks="$notebooks" :home-url="route('docs.index')" :search-url="route('docs.search')">
 
     <x-slot:rail>
         <x-docs.notebooks-rail :notebooks="$notebooks" :home-url="route('docs.index')" />

@@ -212,7 +212,10 @@
          ancestor's stacking or overflow, which is what the inline panel had to
          fight when it sat inside the sticky header's flow. --}}
     @if ($searchUrl)
-        <x-documentation.search-panel :url="$searchUrl" :results="$searchResults" />
+        {{-- On `/docs` it also gets the cadernos, for its "Caderno" selector:
+             one palette over all of them or any one. The magic link passes
+             none, and its palette searches the one caderno its token grants. --}}
+        <x-documentation.search-panel :url="$searchUrl" :results="$searchResults" :notebooks="$notebooks" :current="$current" />
     @endif
 
     {{-- Toast — same shell as the main layout (Toast.show for "Copiar Markdown"). --}}

@@ -63,10 +63,15 @@ final class ReaderUrls
             : route('public.docs.diagram', [$this->token, $slug]);
     }
 
+    /**
+     * The palette's endpoint. On `/docs` it is ONE address for every caderno —
+     * which one is searched travels as `?notebook=`, set by the palette's own
+     * selector (`x-documentation.search-panel`) — so it carries none here.
+     */
     public function search(): string
     {
         return $this->token === null
-            ? route('docs.search', $this->notebook)
+            ? route('docs.search')
             : route('public.docs.search', $this->token);
     }
 

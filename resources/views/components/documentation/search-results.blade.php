@@ -1,8 +1,12 @@
 @props([
     'domId',
     'results' => [],
-    'facets' => ['sections' => [], 'tags' => []],
-    'filters' => ['section' => null, 'tag' => null],
+    'global' => false,
+    'pending' => [],
+    'chipAxis' => 'section',
+    'chipAll' => 'Todas',
+    'chips' => [],
+    'chipActive' => null,
     'total' => 0,
     'shown' => 0,
     'overview' => ['pages' => 0, 'sections' => 0, 'words' => 0],
@@ -36,27 +40,44 @@
      is being narrowed, and deciding it twice is how the two drift apart. --}}
 <div id="{{ $domId }}" @if ($narrowed) data-ak-docs-search-active @endif>
 
-    {{-- Section chips, unlabelled.
+    {{-- Cadernos still being indexed. The results above them are real but
+         partial, and saying which cadernos are missing is what keeps "Nenhum
+         resultado" from reading as an answer. The marker is what docs-search.js
+         keys its re-request on: each request indexes a few more cadernos (see
+         DocumentationSearchService::globalIndex()). --}}
+    @if ($pending !== [])
+        <p data-ak-docs-search-indexing class="mt-3 flex items-start gap-2 rounded-field border border-line bg-canvas px-3 py-2 text-[12px] text-muted">
+            <x-heroicon-o-arrow-path class="mt-px size-3.5 shrink-0 animate-spin text-accent" />
+            <span>
+                Indexando {{ count($pending) }} {{ count($pending) === 1 ? 'caderno' : 'cadernos' }} — os resultados ainda não incluem
+                {{ Str::limit(implode(', ', $pending), 120) }}.
+            </span>
+        </p>
+    @endif
+
+    {{-- One chip row, unlabelled: the cadernos when the search spans all of
+         them, a caderno's top-level pages when it is inside one (the component
+         decides which — SearchResults::render()).
 
          The "Conteúdo" row that sat above these is gone: it answered "show me
          results that CONTAIN a table", which the palette's scope toggles now
          answer better as "search INSIDE tables". Two rows of table/code
          vocabulary asking subtly different questions was the confusing part.
-         Sections stay because they narrow a different axis — WHERE in the
+         These stay because they narrow a different axis — WHERE in the
          corpus — and nothing else offers it. --}}
-    @if (count($facets['sections']) > 1)
+    @if (count($chips) > 1)
         <div class="ak-docs-scroll flex min-w-0 gap-1.5 overflow-x-auto pt-3">
-            <x-forms.button type="button" variant="ghost" data-ak-docs-search-facet="section" data-ak-docs-search-value=""
-                class="{{ $chipBase }} {{ $filters['section'] === null ? $chipOn : $chipOff }}">Todas</x-forms.button>
-            @foreach ($facets['sections'] as $facet)
+            <x-forms.button type="button" variant="ghost" data-ak-docs-search-facet="{{ $chipAxis }}" data-ak-docs-search-value=""
+                class="{{ $chipBase }} {{ $chipActive === null ? $chipOn : $chipOff }}">{{ $chipAll }}</x-forms.button>
+            @foreach ($chips as $facet)
                 {{-- The label is shortened in PHP, not with `truncate`:
                      x-forms.button wraps the slot in its own flex
                      `[data-label]` span, which has no `min-w-0`, so a
                      truncating child never shrinks and a long page
                      title overflows the pill onto its neighbour. --}}
-                <x-forms.button type="button" variant="ghost" data-ak-docs-search-facet="section" data-ak-docs-search-value="{{ $facet['value'] }}"
+                <x-forms.button type="button" variant="ghost" data-ak-docs-search-facet="{{ $chipAxis }}" data-ak-docs-search-value="{{ $facet['value'] }}"
                     title="{{ $facet['label'] }}"
-                    class="{{ $chipBase }} {{ $filters['section'] === $facet['value'] ? $chipOn : $chipOff }} {{ $facet['count'] === 0 ? $chipEmpty : '' }}">
+                    class="{{ $chipBase }} {{ $chipActive === $facet['value'] ? $chipOn : $chipOff }} {{ $facet['count'] === 0 ? $chipEmpty : '' }}">
                     {{ Str::limit($facet['label'], 26) }}
                     <span class="opacity-60">{{ $facet['count'] }}</span>
                 </x-forms.button>
@@ -68,6 +89,9 @@
          so the documentation itself stays above the fold. --}}
     @unless ($narrowed)
         <p class="pt-2 font-mono text-[10px] text-faint">
+            @if ($global)
+                {{ $overview['notebooks'] }} {{ $overview['notebooks'] === 1 ? 'caderno' : 'cadernos' }} ·
+            @endif
             {{ $overview['pages'] }} {{ $overview['pages'] === 1 ? 'página' : 'páginas' }} ·
             {{ $overview['sections'] }} {{ $overview['sections'] === 1 ? 'seção' : 'seções' }} ·
             {{ number_format($overview['words'], 0, ',', '.') }} palavras
@@ -122,9 +146,14 @@
 
                     {{-- Breadcrumb: which page (and which pages above it) this hit
                          lives in — a heading title alone is rarely enough to tell
-                         two similar sections apart. --}}
-                    @if (filled($result['trail']))
+                         two similar sections apart. Across cadernos it starts
+                         with the caderno, in the accent: the same "Introdução"
+                         exists in a dozen of them. --}}
+                    @if ($global || filled($result['trail']))
                         <p class="mt-0.5 truncate font-mono text-[10px] text-faint">
+                            @if ($global)
+                                <span class="text-accent">{{ $result['notebookName'] }}</span>@if (filled($result['trail'])) › @endif
+                            @endif
                             {{ implode(' › ', $result['trail']) }}
                         </p>
                     @endif
@@ -137,9 +166,11 @@
                 </a>
             @empty
                 <div class="px-4 py-12 text-center">
-                    @if ($overview['pages'] === 0)
+                    @if ($overview['pages'] === 0 && $pending === [])
                         <p class="text-sm font-medium text-ink">Nada para buscar ainda</p>
-                        <p class="mt-1 text-[13px] text-muted">Esta documentação ainda não tem páginas publicadas.</p>
+                        <p class="mt-1 text-[13px] text-muted">
+                            {{ $global ? 'Nenhum caderno publicado tem páginas ainda.' : 'Esta documentação ainda não tem páginas publicadas.' }}
+                        </p>
                     @else
                         <p class="text-sm font-medium text-ink">Nenhum resultado</p>
                         <p class="mt-1 text-[13px] text-muted">Tente outro termo ou remova os filtros de conteúdo e seção.</p>

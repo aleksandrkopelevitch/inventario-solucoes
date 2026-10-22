@@ -14,8 +14,9 @@ use Illuminate\Validation\Rule;
  * `authorize()` is `true` because authorization is not a property of the QUERY
  * on either of them: on the magic link the opaque `public_token` in the path IS
  * the authorization, and on `/docs` it is the route's `auth` middleware plus the
- * caderno being published. Both are settled before this runs, and both are
- * settled by the path rather than by what was typed into the box.
+ * caderno being published — which the controller settles by resolving
+ * `notebook` among the published cadernos only (404 otherwise), and by searching
+ * nothing else when it is absent.
  *
  * `q` is capped because it is scanned against every entry in the corpus, and
  * both `filter.tag` and `filter.scopes` are closed to their known vocabularies
@@ -48,6 +49,10 @@ class SearchDocumentationRequest extends FormRequest
             // dropped and every scoped search answers as if unscoped.
             'filter.scopes'   => ['nullable', 'array'],
             'filter.scopes.*' => ['string', Rule::in(DocumentationSearchService::SCOPES)],
+            // `/docs` only: WHICH caderno, by slug, or absent for all of them.
+            // Not a filter — it picks the corpus, and a slug that names no
+            // published caderno is a 404 there rather than an empty answer.
+            'notebook' => ['nullable', 'string', 'max:255'],
         ];
     }
 
