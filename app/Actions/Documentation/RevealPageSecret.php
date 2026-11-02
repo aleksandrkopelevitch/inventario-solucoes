@@ -54,6 +54,19 @@ final class RevealPageSecret
      *
      * @throws SecretRevealRejected
      */
+    /**
+     * The throttle scope of a signed-in reader — the same on every surface.
+     *
+     * The rule is five attempts per READER per caderno per twelve hours, and
+     * the editor and `/docs` spelled this key differently (`u7` and `user7`),
+     * so a reader got five attempts on each. The magic link counts per IP and
+     * keeps its own scope.
+     */
+    public static function readerScope(User $user): string
+    {
+        return 'u' . $user->id;
+    }
+
     public function handle(
         Notebook $notebook,
         DocumentationPage $page,

@@ -179,6 +179,6 @@ class McpServer
             throw new InvalidToolArguments("Ferramenta \"{$name}\" não existe.");
         }
 
-        return $tool->handle((array) ($params['arguments'] ?? []))->toArray();
+        return $tool->handle((array) ($params['arguments'] ?? []), $actor)->toArray();
     }
 }

@@ -53,6 +53,10 @@ Four more things, each of which was a way in that had to be closed:
   (the `oid`, which survives a rename) and by e-mail exactly ONCE, on the visit
   that links the two — without that one match, an editor invited last year
   arrives as a brand-new account with their submissions stranded on the old row.
+  "Once" is enforced since 2026-11-02: an account that already carries an
+  `entra_id` is never rebound by e-mail (`EntraSignInRejected::
+  boundToAnotherIdentity()`). Before, a recycled mailbox — a new `oid`, the
+  same address — signed straight into the old account and its role.
 
 Socialite owns the `state` parameter, which is the CSRF protection for the whole
 flow — `stateless()` is therefore never called here, since it would turn a login

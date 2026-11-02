@@ -128,7 +128,7 @@ entry carries its text four times. What it does instead:
 Result: ~130–170 ms for all 45 cadernos with a file-like store (Redis in
 production); dev's `database` cache store adds ~200 ms just moving the 10 MB
 blob. `docs/search` sits before `docs/{notebook}` in the routes, and
-`NotebookController::RESERVED_SLUGS` refuses `search` as a caderno slug.
+`Notebook::RESERVED_SLUGS` refuses `search` as a caderno slug.
 
 **`php artisan documentation:search-warm` keeps readers off the build path.**
 It runs on every deploy (after `up`) and daily at 04:00. It calls `warm()` for

@@ -13,6 +13,7 @@ use App\View\Components\Submissions\ComposerContext;
 use App\View\Components\Submissions\Sources;
 use App\View\Components\Submissions\StageStrip;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SubmissionSourceController extends Controller
@@ -27,8 +28,10 @@ class SubmissionSourceController extends Controller
                 $request->validated('label'),
             ),
             default => $submission->sources()->create([
-                'kind'  => SubmissionSourceKind::Link,
-                'label' => $request->validated('label') ?: $request->validated('url'),
+                'kind' => SubmissionSourceKind::Link,
+                // The link stands in for a missing label, cut to the column:
+                // a SharePoint link runs far past 255 characters.
+                'label' => $request->validated('label') ?: Str::limit((string) $request->validated('url'), 250),
                 'url'   => $request->validated('url'),
                 // A link isn't fetched server-side — doing so would be an SSRF
                 // surface for no gain here, since the person can paste the text

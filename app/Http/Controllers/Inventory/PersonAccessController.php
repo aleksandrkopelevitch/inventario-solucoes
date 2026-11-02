@@ -7,6 +7,7 @@ use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\GrantPersonAccessRequest;
 use App\Http\Requests\LinkPersonAccountRequest;
+use App\Http\Requests\RevokePersonAccessRequest;
 use App\Http\Requests\UpdateUserRoleRequest;
 use App\Models\Person;
 use App\Models\User;
@@ -121,10 +122,8 @@ class PersonAccessController extends Controller
     }
 
     /** Ends access: the account is soft-deleted and unlinked (see the Action). */
-    public function destroy(Person $person): JsonResponse
+    public function destroy(RevokePersonAccessRequest $request, Person $person): JsonResponse
     {
-        $this->authorize('manage', User::class);
-
         $this->access->revoke($person);
 
         return $this->saved($person, 'Acesso removido. A pessoa continua no catálogo.');

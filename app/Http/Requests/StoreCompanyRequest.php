@@ -22,7 +22,7 @@ class StoreCompanyRequest extends FormRequest
     {
         return [
             'name'    => ['required', 'string', 'max:255'],
-            'slug'    => ['nullable', 'string', 'max:255', new AsciiSlug, Rule::unique('companies', 'slug')],
+            'slug'    => ['nullable', 'string', 'max:255', new AsciiSlug, Rule::unique('companies', 'slug'), Rule::notIn(Company::RESERVED_SLUGS)],
             'kind'    => ['required', Rule::enum(CompanyKind::class)],
             'website' => ['nullable', 'url', 'max:255'],
             'notes'   => ['nullable', 'string'],

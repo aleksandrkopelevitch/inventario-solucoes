@@ -160,6 +160,19 @@ class Submission extends Model implements HasMedia
         return $this->hasMany(SubmissionChat::class);
     }
 
+    /**
+     * The drawings go through the model, not the database cascade: each one
+     * owns media (pasted images, the C4 upload, the canvas PNG), and Spatie
+     * removes media only when the OWNING model's delete event fires. Left to
+     * the cascade, every deleted submission left those rows and files behind.
+     */
+    protected static function booted(): void
+    {
+        static::deleting(function (Submission $submission): void {
+            $submission->diagrams()->each(fn (SubmissionDiagram $diagram) => $diagram->delete());
+        });
+    }
+
     public function diagrams(): HasMany
     {
         return $this->hasMany(SubmissionDiagram::class);

@@ -33,16 +33,6 @@ class NotebookController extends Controller
 {
     use BuildsPagesNav;
 
-    /**
-     * `panel` is refused for the same reason a page's slug refuses the segments
-     * under `notebooks/{notebook}/`: `notebooks/panel` (the create side panel)
-     * is a real route, registered first, so a caderno slugged that way would be
-     * permanently unreachable at its own URL. `search` is the same thing under
-     * `/docs`: `docs/search` is the knowledge base's palette, ahead of
-     * `docs/{notebook}`.
-     */
-    private const RESERVED_SLUGS = ['panel', 'search'];
-
     /** Characters in a freshly generated public link token — see share(). */
     public const TOKEN_LENGTH = 12;
 
@@ -70,7 +60,7 @@ class NotebookController extends Controller
 
         $notebook = Notebook::create([
             'name' => $name,
-            'slug' => $this->uniqueSlug($name),
+            'slug' => Notebook::uniqueSlug($name),
         ]);
 
         return response()->json([
@@ -279,18 +269,5 @@ class NotebookController extends Controller
             'message'        => 'Novo código gerado. O código anterior deixou de funcionar.',
             'updatableSlots' => [SharePanel::slot($notebook->fresh())],
         ]);
-    }
-
-    private function uniqueSlug(string $name): string
-    {
-        $base = Str::slug($name) ?: 'caderno';
-        $slug = $base;
-        $suffix = 1;
-
-        while (in_array($slug, self::RESERVED_SLUGS, true) || Notebook::where('slug', $slug)->exists()) {
-            $slug = $base . '-' . (++$suffix);
-        }
-
-        return $slug;
     }
 }

@@ -202,7 +202,7 @@ class KnowledgeBaseController extends Controller
                 $secret,
                 $request->validated()['code'] ?? null,
                 $request->user(),
-                'user' . $request->user()->id,
+                RevealPageSecret::readerScope($request->user()),
             ),
         ]);
     }

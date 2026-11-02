@@ -47,6 +47,13 @@ interface Tool
     /** JSON Schema for `arguments`. @return array<string, mixed> */
     public function inputSchema(): array;
 
-    /** @param array<string, mixed> $arguments */
-    public function handle(array $arguments): ToolResult;
+    /**
+     * `$actor` is who is calling. The registry already hides a tool whose
+     * module the caller cannot read; a tool needs the actor itself only when
+     * its answer carries ANOTHER module's records (`get_solution` lists the
+     * solution's diagrams, which are the documentation module's).
+     *
+     * @param  array<string, mixed>  $arguments
+     */
+    public function handle(array $arguments, Actor $actor): ToolResult;
 }

@@ -78,25 +78,12 @@ class PromoteApprovedSubmission
 
         $notebook = Notebook::create([
             'name' => $solution->name,
-            'slug' => $this->uniqueSlug($solution->slug ?: Str::slug($solution->name)),
+            'slug' => Notebook::uniqueSlug($solution->slug ?: $solution->name),
         ]);
 
         $solution->notebooks()->attach($notebook);
 
         return $notebook;
-    }
-
-    private function uniqueSlug(string $base): string
-    {
-        $base = $base ?: 'caderno';
-        $slug = $base;
-        $suffix = 1;
-
-        while (Notebook::where('slug', $slug)->exists()) {
-            $slug = $base . '-' . (++$suffix);
-        }
-
-        return $slug;
     }
 
     /** @return DocumentationPage|null the page written, or null when there was nothing to promote */
@@ -195,6 +182,26 @@ class PromoteApprovedSubmission
      * re-promoting refreshes a still-pending row and never resurrects one
      * somebody already applied or dismissed.
      */
+    /**
+     * The decision stopped being an approval (re-recorded as rejected): the TO
+     * BE it would have handed the catalog is withdrawn.
+     *
+     * Only a PENDING snapshot goes — one already applied or dismissed is a
+     * record of what was done to the catalog, and stays. It is deleted rather
+     * than dismissed because "dismissed" means "the catalog was already
+     * right", and because a dismissed row would stop a later re-approval from
+     * recording a fresh one (`recordApprovedTopology()` leaves settled rows
+     * alone). Without this, "Aplicar" still wrote a rejected proposal's TO BE
+     * into a catalog diagram.
+     */
+    public function withdraw(Submission $submission): void
+    {
+        ApprovedTopology::query()
+            ->where('submission_id', $submission->id)
+            ->pending()
+            ->delete();
+    }
+
     private function recordApprovedTopology(Submission $submission, Solution $solution): void
     {
         $diagram = $submission->diagrams

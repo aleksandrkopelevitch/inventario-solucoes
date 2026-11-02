@@ -3,6 +3,7 @@
 namespace App\Mcp\Tools;
 
 use App\Enums\AccessModule;
+use App\Mcp\Actor;
 use App\Mcp\Support\Arguments;
 use App\Mcp\Support\Presenter;
 use App\Mcp\Support\PublishedNotebooks;
@@ -93,7 +94,7 @@ class GetDocumentationPage implements Tool
         ];
     }
 
-    public function handle(array $arguments): ToolResult
+    public function handle(array $arguments, Actor $actor): ToolResult
     {
         $args = new Arguments($arguments);
         $notebookSlug = $args->required('notebook');

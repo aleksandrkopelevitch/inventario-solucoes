@@ -65,6 +65,20 @@ class EntraSignInRejected extends Exception
         return new self('Esse acesso foi removido. Fale com um administrador.');
     }
 
+    /**
+     * The account this e-mail names is already bound to a DIFFERENT Microsoft
+     * identity. The rule is "match by e-mail exactly once": after that the
+     * immutable `oid` is the identity. Rebinding on e-mail let a recycled or
+     * re-created mailbox inherit the old account and its role — or let a
+     * member who set their own e-mail to a colleague's (profile, before that
+     * colleague's first SSO visit) have the colleague signed into an account
+     * whose password the member knows.
+     */
+    public static function boundToAnotherIdentity(): self
+    {
+        return new self('Essa conta já está vinculada a outra identidade Microsoft. Fale com um administrador.');
+    }
+
     /** Entra returned a profile with no usable mailbox. */
     public static function noEmail(): self
     {

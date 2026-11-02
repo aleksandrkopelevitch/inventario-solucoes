@@ -44,6 +44,36 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  */
 class Notebook extends Model implements HasMedia
 {
+    /**
+     * Slugs a caderno may never take. `panel` collides with `notebooks/panel`
+     * (the create side panel, a real route registered first) and `search` with
+     * `docs/search` (the knowledge base's palette, ahead of `docs/{notebook}`):
+     * a caderno slugged either way would be unreachable at its own URL.
+     * Check against `php artisan route:list` when a static segment is added.
+     */
+    public const RESERVED_SLUGS = ['panel', 'search'];
+
+    /**
+     * A free slug for a caderno called `$name`, `-2`, `-3`… on collision.
+     *
+     * The ONE generator: the create form, the GitBook import, the Digibee docs
+     * import and the committee's promotion each had a loop of their own, and
+     * only the form's knew about the reserved words — an imported space
+     * named "Search" became a caderno nobody could open.
+     */
+    public static function uniqueSlug(string $name, string $fallback = 'caderno'): string
+    {
+        $base = Str::slug($name) ?: $fallback;
+        $slug = $base;
+        $suffix = 1;
+
+        while (in_array($slug, self::RESERVED_SLUGS, true) || self::where('slug', $slug)->exists()) {
+            $slug = $base . '-' . (++$suffix);
+        }
+
+        return $slug;
+    }
+
     /** @use HasFactory<NotebookFactory> */
     use HasFactory, InteractsWithMedia;
 

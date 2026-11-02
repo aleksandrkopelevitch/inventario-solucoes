@@ -23,7 +23,7 @@ class StorePersonRequest extends FormRequest
     {
         return [
             'name'       => ['required', 'string', 'max:255'],
-            'slug'       => ['nullable', 'string', 'max:255', new AsciiSlug, Rule::unique('people', 'slug')],
+            'slug'       => ['nullable', 'string', 'max:255', new AsciiSlug, Rule::unique('people', 'slug'), Rule::notIn(Person::RESERVED_SLUGS)],
             'company_id' => ['nullable', 'integer', 'exists:companies,id'],
             'job_title'  => ['nullable', 'string', 'max:255'],
             'email'      => ['nullable', 'email', 'max:255'],

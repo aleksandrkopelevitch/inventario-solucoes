@@ -137,10 +137,12 @@ final class DocumentationReader
      */
     private function childPages(DocumentationPage $page, ReaderUrls $urls): array
     {
-        return $page->children()->get()->map(fn (DocumentationPage $child) => [
+        // `withExists`: one query for the whole row of cards, not one per child
+        // (a section page with 30 subpages cost 30 more on every render).
+        return $page->children()->withExists('children')->get()->map(fn (DocumentationPage $child) => [
             'title'       => $child->title,
             'url'         => $urls->page($child->slug),
-            'hasChildren' => $child->children()->exists(),
+            'hasChildren' => (bool) $child->children_exists,
             'hasContent'  => trim((string) $child->documentation) !== '',
         ])->all();
     }

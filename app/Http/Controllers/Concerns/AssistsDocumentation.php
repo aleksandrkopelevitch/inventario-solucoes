@@ -104,7 +104,11 @@ trait AssistsDocumentation
     protected function chatStatusResponse(Notebook $notebook, DocumentationChat $chat): JsonResponse
     {
         $this->authorize('update', $notebook);
-        abort_unless($chat->notebook_id === $notebook->id, 404);
+        // A chat is one per user per page, and what it holds can include
+        // values its owner pasted (restored from the LiteralVault). Editing the
+        // caderno is not reading a colleague's conversation: 404, so an id
+        // that is somebody else's reads like one that does not exist.
+        abort_unless($chat->notebook_id === $notebook->id && (int) $chat->user_id === (int) auth()->id(), 404);
 
         $pending = $chat->isAwaitingReply();
 
@@ -123,7 +127,7 @@ trait AssistsDocumentation
     {
         $this->authorize('update', $notebook);
         $message->loadMissing('chat');
-        abort_unless($message->chat->notebook_id === $notebook->id, 404);
+        abort_unless($message->chat->notebook_id === $notebook->id && (int) $message->chat->user_id === (int) auth()->id(), 404);
 
         if ($message->applied_at === null) {
             $message->update(['applied_at' => now()]);

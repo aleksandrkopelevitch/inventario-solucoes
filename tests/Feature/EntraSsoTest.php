@@ -227,3 +227,13 @@ it('says so out loud when an INTERACTIVE sign-in is refused', function () {
 
     $response->assertRedirect(route('login.create'))->assertSessionHas('error');
 });
+
+it('refuses a second Microsoft identity on an account already bound to one', function () {
+    // The e-mail matches ONCE; after that the oid is the identity. A recycled
+    // mailbox (a new oid, the same address) used to inherit the old account.
+    $first = signIn(entraProfile(['id' => 'oid-original']));
+
+    expect($first->fresh()->entra_id)->toBe('oid-original');
+
+    signIn(entraProfile(['id' => 'oid-recycled']));
+})->throws(EntraSignInRejected::class, 'outra identidade');

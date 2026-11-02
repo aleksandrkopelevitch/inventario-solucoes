@@ -56,7 +56,8 @@ puts a wildcard where static segments also live:
 - **Every one of them is reserved as a slug.** `DocumentationPageService::RESERVED_SLUGS`
   refuses `pages`/`share`/`context`/`context-pages`/`chat`/`solutions`/`panel`/
   `secret-code`/`link-targets` for a page, and
-  `NotebookController::RESERVED_SLUGS` refuses `panel` and `search` for a
+  `Notebook::RESERVED_SLUGS` (through `Notebook::uniqueSlug()`, the one generator
+  every caderno creator uses) refuses `panel` and `search` for a
   caderno (there is a real `notebooks/panel` route, and `docs/search` is the
   knowledge base's palette, ahead of `docs/{notebook}`; `settings` was dropped
   with `docs/settings`). That

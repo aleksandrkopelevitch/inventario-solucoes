@@ -1,6 +1,10 @@
 <?php
 
+use App\Contracts\Documentable;
+use App\Enums\AccessLevel;
+use App\Enums\AccessModule;
 use App\Enums\ContextExtractionState;
+use App\Enums\SubmissionDiagramKind;
 use App\Enums\SubmissionSectionKey;
 use App\Enums\SubmissionSectionState;
 use App\Enums\SubmissionSourceKind;
@@ -724,4 +728,37 @@ it('hands the chat a submission that is already in memory', function () {
     expect($chat->relationLoaded('submission'))->toBeTrue()
         ->and($chat->submission->relationLoaded('sections'))->toBeTrue()
         ->and($chat->submission->relationLoaded('solution'))->toBeTrue();
+});
+
+it('removes the drawings\' media with the submission', function () {
+    Storage::fake('public');
+    $submission = ownedSubmission();
+    $diagram = $submission->diagram(SubmissionDiagramKind::ToBe);
+    $media = $diagram->addMediaFromString('png-bytes')->usingFileName('colado.png')
+        ->toMediaCollection(Documentable::DOCS_COLLECTION);
+
+    $this->deleteJson(route('submissions.destroy', $submission))->assertOk();
+
+    $this->assertModelMissing($submission);
+    $this->assertModelMissing($diagram);
+    $this->assertModelMissing($media);
+});
+
+it('serves a committee drawing\'s image by the committee module, not the documentation one', function () {
+    Storage::fake('public');
+    $submission = ownedSubmission();
+    $media = $submission->diagram(SubmissionDiagramKind::ToBe)
+        ->addMediaFromString('png-bytes')->usingFileName('colado.png')
+        ->toMediaCollection(Documentable::DOCS_COLLECTION);
+
+    // The default account: Reader of the documentation, nothing in the committee.
+    $outsider = User::factory()->create(['role' => UserRole::Member]);
+    $this->actingAs($outsider)->get(route('files.show', $media))->assertForbidden();
+
+    // A committee reader with no documentation level still sees the drawing.
+    $member = User::factory()->create(['role' => UserRole::Member, 'access' => [
+        AccessModule::Committee->value     => AccessLevel::Reader->value,
+        AccessModule::Documentation->value => AccessLevel::None->value,
+    ]]);
+    $this->actingAs($member)->get(route('files.show', $media))->assertOk();
 });

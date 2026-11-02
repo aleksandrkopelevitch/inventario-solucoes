@@ -226,15 +226,7 @@ class ImportDigibeeDocsNotebook
         $notebook = Notebook::where('name', $name)->first();
 
         if ($notebook === null) {
-            $base = Str::slug($name) ?: 'digibee';
-            $slug = $base;
-            $suffix = 1;
-
-            while (Notebook::where('slug', $slug)->exists()) {
-                $slug = $base . '-' . (++$suffix);
-            }
-
-            $notebook = Notebook::create(['name' => $name, 'slug' => $slug]);
+            $notebook = Notebook::create(['name' => $name, 'slug' => Notebook::uniqueSlug($name, 'digibee')]);
         }
 
         $solution = Solution::query()->whereFolded('name', 'digibee')->first();

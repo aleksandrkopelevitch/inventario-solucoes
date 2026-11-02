@@ -31,6 +31,14 @@ class StoreFlowspecChatRequest extends FormRequest
         return [
             'message' => ['required', 'string', 'max:8000'],
             ...$this->contextRules(),
+            // The single-attachment shape the attach endpoint uses. The shared
+            // accessors (uploadedFiles(), pastedTexts()) read it here too, so
+            // it must be validated here too: unvalidated, a `file` skipped the
+            // type and size checks, `text` the length cap, and `label[]` was a
+            // 500.
+            'file'  => ['nullable', 'file', 'mimes:' . self::ACCEPTED_MIMES, 'max:20480'],
+            'text'  => ['nullable', 'string', 'max:' . config('services.flowspec.max_reference_chars')],
+            'label' => ['nullable', 'string', 'max:255'],
         ];
     }
 
