@@ -614,3 +614,25 @@ it('forbids a viewer from previewing or renaming, and 404s another caderno\'s do
 
     expect($media->fresh()->file_name)->toBe('a.txt');
 });
+
+it('404s another editor\'s chat — editing the caderno is not reading their conversation', function () {
+    $notebook = Notebook::factory()->create();
+    $page = chatPage($notebook);
+    $owner = chatAdmin();
+    $chat = DocumentationChat::create([
+        'user_id'     => $owner->id,
+        'target_type' => $page->getMorphClass(),
+        'target_id'   => $page->getKey(),
+        'notebook_id' => $notebook->id,
+    ]);
+    $message = $chat->messages()->create(['role' => 'assistant', 'content' => 'Rascunho.']);
+
+    $colleague = chatAdmin();
+
+    $this->actingAs($colleague)->getJson(route('notebooks.chat.status', [$notebook, $chat]))->assertNotFound();
+    $this->actingAs($colleague)->postJson(route('notebooks.chat.messages.apply', [$notebook, $message]))->assertNotFound();
+
+    expect($message->fresh()->applied_at)->toBeNull();
+
+    $this->actingAs($owner)->getJson(route('notebooks.chat.status', [$notebook, $chat]))->assertOk();
+});

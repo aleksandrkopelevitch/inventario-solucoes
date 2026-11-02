@@ -4,7 +4,9 @@ use App\Enums\AccessLevel;
 use App\Enums\AccessModule;
 use App\Enums\UserRole;
 use App\Mcp\OAuth;
+use App\Models\Diagram;
 use App\Models\McpToken;
+use App\Models\Solution;
 use App\Models\User;
 use Illuminate\Auth\GuardHelpers;
 use Illuminate\Contracts\Auth\Guard;
@@ -309,4 +311,24 @@ it('shows a person only the tools of the modules they read, and says so', functi
 
     expect(mcpAs($user, 'initialize')->json('result.instructions'))
         ->toContain('NÃO alcança: Soluções, Pessoas e Empresas');
+});
+
+it('leaves the diagrams out of get_solution for a person who cannot read the documentation', function () {
+    // The browser hides the solution page's diagrams card behind the
+    // documentation module; the connector listed every diagram anyway.
+    $solution = Solution::factory()->create(['slug' => 'skbridge']);
+    $diagram = Diagram::factory()->create(['name' => 'Fluxo interno']);
+    $diagram->participants()->attach($solution->id, ['position' => 0]);
+
+    $catalogOnly = User::factory()->create(['role' => UserRole::Member->value, 'access' => [
+        AccessModule::Catalog->value       => AccessLevel::Reader->value,
+        AccessModule::Documentation->value => AccessLevel::None->value,
+    ]]);
+    $reader = oauthUser();
+
+    $hidden = mcpAs($catalogOnly, 'tools/call', ['name' => 'get_solution', 'arguments' => ['slug' => 'skbridge']])->assertOk();
+    $shown = mcpAs($reader, 'tools/call', ['name' => 'get_solution', 'arguments' => ['slug' => 'skbridge']])->assertOk();
+
+    expect($hidden->json('result.content.0.text'))->not->toContain('Fluxo interno')
+        ->and($shown->json('result.content.0.text'))->toContain('Fluxo interno');
 });

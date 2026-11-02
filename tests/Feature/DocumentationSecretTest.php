@@ -801,3 +801,24 @@ it('refuses `secret-code` as a page slug, since a real route owns that segment',
 afterEach(function () {
     RateLimiter::clear('docs-secret');
 });
+
+it('counts a reader\'s attempts once across the editor and the knowledge base', function () {
+    // Two surfaces spelled the reader's throttle key differently, so a reader
+    // had five attempts on each.
+    $this->freezeTime();
+
+    $page = secretPage();
+    $page->notebook->forceFill(['published_at' => now()])->save();
+    $user = secretUser();
+    $id = secretIdsOf($page->documentation)[0];
+
+    foreach (range(1, RevealPageSecret::MAX_ATTEMPTS) as $attempt) {
+        $this->actingAs($user)
+            ->postJson(route('notebooks.pages.secrets', [$page->notebook, $page, $id]), ['code' => 'nope00'])
+            ->assertStatus(422);
+    }
+
+    $this->actingAs($user)
+        ->postJson(route('docs.secrets', [$page->notebook, $page, $id]), ['code' => 'X6h2dG'])
+        ->assertStatus(429);
+});

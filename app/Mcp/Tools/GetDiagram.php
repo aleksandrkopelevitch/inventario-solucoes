@@ -3,6 +3,7 @@
 namespace App\Mcp\Tools;
 
 use App\Enums\AccessModule;
+use App\Mcp\Actor;
 use App\Mcp\Support\Arguments;
 use App\Mcp\Support\Presenter;
 use App\Mcp\Tool;
@@ -65,7 +66,7 @@ class GetDiagram implements Tool
         ];
     }
 
-    public function handle(array $arguments): ToolResult
+    public function handle(array $arguments, Actor $actor): ToolResult
     {
         $slug = (new Arguments($arguments))->required('slug');
 

@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Contracts\Documentable;
 use App\Enums\ChainNodeKind;
 use App\Enums\DiagramStatus;
 use App\Enums\Direction;
@@ -46,8 +47,10 @@ class WriteNotebookDiagram
             // brings none: `viz_layout` is keyed by NODE INDEX, and the old
             // positions laid over a different chain would put each new block
             // where some unrelated old one used to be.
-            $target->writeChain(chain: $chain ?? $this->blankChain($target->name), layout: $layout ?? []);
+            $newChain = $chain ?? $this->blankChain($target->name);
+            $target->writeChain(chain: $newChain, layout: $layout ?? []);
             $target->clearMediaCollection(Diagram::DIAGRAM_COLLECTION);
+            $this->dropUnreferencedPictures($target, $newChain);
             $target->afterChainMutation();
 
             return $target->fresh();
@@ -79,5 +82,23 @@ class WriteNotebookDiagram
             'nodes' => [['solution_id' => null, 'label' => $name, 'kind' => ChainNodeKind::System->value]],
             'edges' => [],
         ];
+    }
+
+    /**
+     * Pictures pasted onto the OLD drawing (the `docs` collection, addressed
+     * by a node's `media_id`) that the new chain no longer references.
+     * Overwriting cleared only the canvas PNG, so every overwrite left the
+     * old images attached to the diagram — still served by `files.show`, and
+     * referenced by nothing.
+     *
+     * @param  array{nodes?: array<int, array<string, mixed>>}  $chain
+     */
+    private function dropUnreferencedPictures(Diagram $diagram, array $chain): void
+    {
+        $kept = collect($chain['nodes'] ?? [])->pluck('media_id')->filter()->map(fn ($id) => (int) $id)->all();
+
+        $diagram->getMedia(Documentable::DOCS_COLLECTION)
+            ->reject(fn ($media) => in_array((int) $media->getKey(), $kept, true))
+            ->each->delete();
     }
 }

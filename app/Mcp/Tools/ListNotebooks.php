@@ -3,6 +3,7 @@
 namespace App\Mcp\Tools;
 
 use App\Enums\AccessModule;
+use App\Mcp\Actor;
 use App\Mcp\Support\Presenter;
 use App\Mcp\Support\PublishedNotebooks;
 use App\Mcp\Tool;
@@ -58,7 +59,7 @@ class ListNotebooks implements Tool
         return ['type' => 'object', 'properties' => (object) [], 'required' => []];
     }
 
-    public function handle(array $arguments): ToolResult
+    public function handle(array $arguments, Actor $actor): ToolResult
     {
         // `documentation` non-blank, the same definition of "tem conteúdo" as
         // `Notebook::documentedPages()` — a page with an empty body is a

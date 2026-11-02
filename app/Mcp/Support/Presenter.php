@@ -58,7 +58,7 @@ class Presenter
     }
 
     /** @return array<string, mixed> */
-    public function solution(Solution $solution): array
+    public function solution(Solution $solution, bool $withDiagrams = true): array
     {
         return $this->compact([
             ...$this->solutionSummary($solution),
@@ -77,9 +77,9 @@ class Presenter
                     'is_primary' => (bool) $person->pivot->is_primary,
                 ]))
                 ->all(),
-            'diagrams' => $solution->diagrams
-                ->map(fn (Diagram $diagram) => $this->diagramSummary($diagram))
-                ->all(),
+            'diagrams' => $withDiagrams
+                ? $solution->diagrams->map(fn (Diagram $diagram) => $this->diagramSummary($diagram))->all()
+                : null,
             // Published cadernos only — the same reading `/docs` makes. A
             // solution documented exclusively in an unpublished caderno answers
             // with an empty list here, which is why the tool's own description

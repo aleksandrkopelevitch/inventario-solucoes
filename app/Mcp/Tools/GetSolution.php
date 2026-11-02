@@ -3,6 +3,7 @@
 namespace App\Mcp\Tools;
 
 use App\Enums\AccessModule;
+use App\Mcp\Actor;
 use App\Mcp\Support\Arguments;
 use App\Mcp\Support\Presenter;
 use App\Mcp\Tool;
@@ -65,17 +66,24 @@ class GetSolution implements Tool
         ];
     }
 
-    public function handle(array $arguments): ToolResult
+    public function handle(array $arguments, Actor $actor): ToolResult
     {
         $slug = (new Arguments($arguments))->required('slug');
+
+        // The diagrams are the documentation module's: a caller at level None
+        // there gets the solution without them, as the solution page in the
+        // browser hides that card behind `viewAny` on Notebook.
+        $withDiagrams = $actor->canRead(AccessModule::Documentation);
 
         $solution = Solution::query()
             ->with([
                 'vendor',
                 'people:id,slug,name',
-                'diagrams:id,notebook_id,slug,name,status',
-                'diagrams.notebook:id,name,slug,published_at',
                 'notebooks',
+                ...($withDiagrams ? [
+                    'diagrams:id,notebook_id,slug,name,status',
+                    'diagrams.notebook:id,name,slug,published_at',
+                ] : []),
             ])
             ->where('slug', $slug)
             ->first();
@@ -86,6 +94,6 @@ class GetSolution implements Tool
             );
         }
 
-        return ToolResult::json($this->presenter->solution($solution));
+        return ToolResult::json($this->presenter->solution($solution, $withDiagrams));
     }
 }
