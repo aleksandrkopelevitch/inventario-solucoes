@@ -96,11 +96,7 @@
                 <x-heroicon-o-sparkles class="size-4" />
             </span>
             <span class="flex items-center gap-2.5 text-sm text-muted">
-                <span class="flex gap-1">
-                    <span class="size-1.5 animate-bounce rounded-full bg-accent [animation-delay:0ms]"></span>
-                    <span class="size-1.5 animate-bounce rounded-full bg-accent [animation-delay:150ms]"></span>
-                    <span class="size-1.5 animate-bounce rounded-full bg-accent [animation-delay:300ms]"></span>
-                </span>
+                <x-ui.typing-dots />
                 Preparando a próxima pergunta…
             </span>
         </div>
