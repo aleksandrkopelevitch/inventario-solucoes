@@ -177,11 +177,7 @@
         <div data-ak-poll="{{ route('flowspec.status', $chat) }}"
              data-ak-poll-give-up="A geração está demorando mais que o esperado — atualize a página para conferir o status."
              class="mr-auto flex items-center gap-2.5 rounded-card rounded-bl-sm border border-line bg-surface px-4 py-3 text-sm text-muted">
-            <span class="flex gap-1">
-                <span class="size-1.5 animate-bounce rounded-full bg-accent [animation-delay:0ms]"></span>
-                <span class="size-1.5 animate-bounce rounded-full bg-accent [animation-delay:150ms]"></span>
-                <span class="size-1.5 animate-bounce rounded-full bg-accent [animation-delay:300ms]"></span>
-            </span>
+            <x-ui.typing-dots />
             O especialista está montando o flowSpec — reúne o contexto, chama o modelo e valida (pode levar alguns minutos)…
         </div>
     @endif

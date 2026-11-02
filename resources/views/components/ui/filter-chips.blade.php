@@ -1,4 +1,7 @@
 {{--
+    The active-filters row of a catalog index, rendered by a subclass of
+    App\View\Components\Concerns\FilterChipsSlot (one per catalog).
+
     This element is the FOOTER of x-ui.filter-bar, not a standalone row: it
     carries the bar's bottom chrome itself (border-t, recessed ground, the
     card's inner bottom radius) and keeps hiding itself when there is nothing
@@ -27,7 +30,7 @@
             @endif
             {{ $chip['value'] }}
             <x-forms.button type="button" variant="ghost"
-                data-ak-filters-clear="{{ json_encode(['formId' => 'companies-filter-form', 'field' => $chip['field'], 'url' => route('companies.index')]) }}"
+                data-ak-filters-clear="{{ json_encode(['formId' => $formId, 'field' => $chip['field'], 'url' => $url]) }}"
                 aria-label="Remover filtro {{ $chip['value'] }}"
                 class="!rounded-full !p-0 !text-xs size-4 shrink-0 bg-black/[0.06] !text-current hover:!bg-black/15">
                 &times;
@@ -37,7 +40,7 @@
 
     @if (count($chips))
         <x-forms.button type="button" variant="ghost"
-            data-ak-filters-clear-all="{{ json_encode(['formId' => 'companies-filter-form', 'url' => route('companies.index')]) }}"
+            data-ak-filters-clear-all="{{ json_encode(['formId' => $formId, 'url' => $url]) }}"
             class="!rounded-none !p-0 !text-xs ml-auto underline decoration-line-2 underline-offset-2 hover:!bg-transparent">
             Limpar tudo
         </x-forms.button>

@@ -4,35 +4,24 @@ namespace App\View\Components\Solutions;
 
 use App\Models\AttributeOption;
 use App\Support\CategoryPalette;
-use App\View\Components\Concerns\Renderable;
-use Illuminate\Contracts\View\View;
-use Illuminate\View\Component;
+use App\View\Components\Concerns\FilterChipsSlot;
 
 /**
  * Chips for the active filters in the catalog (F1), each individually removable.
  * Own slot (not part of the grid) to update alongside each filter/search.
  */
-class FilterChips extends Component
+class FilterChips extends FilterChipsSlot
 {
-    use Renderable;
-
     public const DOM_ID = 'solutions-chips-slot';
 
-    /** @param  array<string, mixed>  $filters */
-    public function __construct(public array $filters = []) {}
-
-    /** @param  array<string, mixed>  $filters */
-    public static function slot(array $filters = []): array
+    protected function formId(): string
     {
-        return (new static($filters))->toSlot(self::DOM_ID);
+        return 'solutions-filter-form';
     }
 
-    public function render(): View
+    protected function indexUrl(): string
     {
-        return view('components.solutions.filter-chips', [
-            'domId' => self::DOM_ID,
-            'chips' => $this->chips(),
-        ]);
+        return route('solutions.index');
     }
 
     /**
@@ -45,7 +34,7 @@ class FilterChips extends Component
      *
      * @return array<int, array{field: string, label: ?string, value: string, chip: string, icon: string}>
      */
-    private function chips(): array
+    protected function chips(): array
     {
         $f = $this->filters;
         $chips = [];
@@ -83,19 +72,5 @@ class FilterChips extends Component
         }
 
         return $chips;
-    }
-
-    /**
-     * @return array{field: string, label: ?string, value: string, chip: string, icon: string}
-     */
-    private function chip(string $field, ?string $label, string $value, string $family, string $icon): array
-    {
-        return [
-            'field' => $field,
-            'label' => $label,
-            'value' => $value,
-            'chip'  => CategoryPalette::chipClassForFamily($family),
-            'icon'  => $icon,
-        ];
     }
 }

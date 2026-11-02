@@ -137,16 +137,8 @@
                             Link para definir a senha — vale até
                             {{ $expiresAt->translatedFormat('d/M/Y \à\s H:i') }}
                         </p>
-                        <div class="mt-1.5 flex items-center gap-2" data-ak-copy>
-                            <x-forms.input type="text" readonly data-ak-copy-field
-                                value="{{ $accessLink }}" class="!h-9 flex-1 !text-xs"
-                                aria-label="Link de acesso" />
-                            <x-forms.button type="button" variant="ghost" data-ak-copy-trigger
-                                data-ak-copy-message="Link de acesso copiado."
-                                class="!h-9 !w-9 shrink-0 !p-0" aria-label="Copiar link">
-                                <x-heroicon-o-clipboard-document class="size-5" />
-                            </x-forms.button>
-                        </div>
+                        <x-ui.copy-field class="mt-1.5" :value="$accessLink" label="Link de acesso"
+                            message="Link de acesso copiado." copy-label="Copiar link" />
                         <p class="mt-1.5 text-[11px] text-faint">
                             O link abre a tela de definir senha — não entra na conta. Ele deixa de funcionar
                             assim que a pessoa define a senha.

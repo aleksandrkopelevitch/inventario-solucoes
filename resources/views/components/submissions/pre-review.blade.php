@@ -16,11 +16,7 @@
         <div data-ak-poll="{{ $statusUrl }}"
              data-ak-poll-give-up="A revisão está demorando mais que o esperado — atualize a página para conferir."
              class="flex items-center gap-2.5 text-sm text-muted">
-            <span class="flex gap-1">
-                <span class="size-1.5 animate-bounce rounded-full bg-accent [animation-delay:0ms]"></span>
-                <span class="size-1.5 animate-bounce rounded-full bg-accent [animation-delay:150ms]"></span>
-                <span class="size-1.5 animate-bounce rounded-full bg-accent [animation-delay:300ms]"></span>
-            </span>
+            <x-ui.typing-dots />
             Lendo como o comitê leria…
         </div>
     @elseif ($submission->pre_reviewed_at && $findings === [])

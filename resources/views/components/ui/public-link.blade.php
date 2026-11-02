@@ -24,19 +24,8 @@
     @if ($publicUrl)
         <p class="mt-1 text-sm text-muted">{{ $shared }}</p>
 
-        <div class="mt-3 flex items-center gap-2" data-ak-copy>
-            <x-forms.input
-                type="text"
-                readonly
-                data-ak-copy-field
-                value="{{ $publicUrl }}"
-                class="!h-9 flex-1 !text-xs"
-                aria-label="{{ $fieldLabel }}" />
-            <x-forms.button type="button" variant="ghost" data-ak-copy-trigger data-ak-copy-message="Link copiado."
-                class="!h-9 !w-9 shrink-0 !p-0" aria-label="Copiar link">
-                <x-heroicon-o-clipboard-document class="size-5" />
-            </x-forms.button>
-        </div>
+        <x-ui.copy-field class="mt-3" :value="$publicUrl" :label="$fieldLabel"
+            message="Link copiado." copy-label="Copiar link" />
 
         <div class="mt-3 flex items-center justify-between gap-2">
             <a href="{{ $publicUrl }}" target="_blank" rel="noopener"
