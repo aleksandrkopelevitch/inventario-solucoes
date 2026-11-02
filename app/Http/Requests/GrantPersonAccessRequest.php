@@ -63,19 +63,27 @@ class GrantPersonAccessRequest extends FormRequest
                     return;
                 }
 
-                // A LIVE account already using this email belongs to somebody
-                // else's row (or to an orphan on the accounts list): linking is
-                // the gesture for that, not granting, and creating a second
-                // account would hit the unique index anyway. A SOFT-DELETED one
-                // is the revoke/re-grant case and is restored by the action.
-                $taken = User::where('email', $person->email)
-                    ->whereHas('person', fn ($query) => $query->whereKeyNot($person->getKey()))
-                    ->exists();
+                // ANY live account already using this email is refused, the
+                // orphans included. Granting re-roles the account it finds and
+                // mints a fresh access link for it, so letting an orphan through
+                // handed an existing login — an SSO account, the seeded admin —
+                // to whoever received that link, and the person's e-mail is a
+                // field an EDITOR can set. "É a mesma pessoa" is the gesture for
+                // an orphan: it links the account and touches nothing else. A
+                // SOFT-DELETED account is the revoke/re-grant case and is
+                // restored by the action. Folded, like every identity match:
+                // `Fulano@…` is the same login as `fulano@…`.
+                $live = User::query()
+                    ->whereFoldedIs('email', $person->email)
+                    ->with('person:id,user_id')
+                    ->first(['id']);
 
-                if ($taken) {
+                if ($live) {
                     $validator->errors()->add(
                         'role',
-                        'Já existe uma conta com este e-mail, vinculada a outra pessoa.',
+                        $live->person
+                            ? 'Já existe uma conta com este e-mail, vinculada a outra pessoa.'
+                            : 'Já existe uma conta com este e-mail, sem pessoa vinculada — se for desta pessoa, use "É a mesma pessoa".',
                     );
                 }
             },

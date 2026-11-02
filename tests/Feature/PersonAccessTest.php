@@ -94,6 +94,34 @@ it('refuses to grant when a live account already belongs to another person', fun
     expect($response->json('message'))->toContain('outra pessoa');
 });
 
+it('refuses to grant over a live ORPHAN account, which would hand that login to the link holder', function () {
+    // An SSO-created account, say: live, no person, with its own role.
+    $orphan = User::factory()->create(['email' => 'alvo@leomadeiras.com.br', 'role' => UserRole::Admin->value]);
+    $person = personWithEmail('Alvo@leomadeiras.com.br');
+
+    $response = $this->actingAs(accessAdmin())
+        ->postJson(route('people.access.store', $person), ['role' => 'member'])
+        ->assertStatus(422);
+
+    $orphan->refresh();
+
+    expect($response->json('message'))->toContain('É a mesma pessoa')
+        ->and($person->fresh()->user_id)->toBeNull()
+        ->and($orphan->role)->toBe(UserRole::Admin)
+        ->and($orphan->access_token)->toBeNull();
+});
+
+it('refuses to grant over the acting admin\'s own account', function () {
+    $admin = accessAdmin();
+    $person = personWithEmail($admin->email);
+
+    $this->actingAs($admin)
+        ->postJson(route('people.access.store', $person), ['role' => 'member'])
+        ->assertStatus(422);
+
+    expect($admin->fresh()->role)->toBe(UserRole::Admin);
+});
+
 /*
 |--------------------------------------------------------------------------
 | Who may do it
