@@ -4,12 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Actions\Cati\ApplyApprovedTopology;
 use App\Http\Requests\ApplyApprovedTopologyRequest;
+use App\Http\Requests\DismissApprovedTopologyRequest;
 use App\Models\ApprovedTopology;
 use App\Models\Submission;
 use App\View\Components\Submissions\Deliberation;
 use App\View\Components\Submissions\TopologyHandoff;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 /**
  * Closing the loop the committee opened: a topology it approved either lands on
@@ -43,13 +43,12 @@ class ApprovedTopologyController extends Controller
         );
     }
 
-    public function dismiss(Request $request, Submission $submission, ApprovedTopology $topology, ApplyApprovedTopology $action): JsonResponse
+    public function dismiss(DismissApprovedTopologyRequest $request, Submission $submission, ApprovedTopology $topology, ApplyApprovedTopology $action): JsonResponse
     {
-        $this->authorize('update', $submission);
         $this->belongsToSubmission($topology, $submission);
         abort_unless($topology->isPending(), 409);
 
-        $action->dismiss($topology, $request->user(), $request->string('reason')->trim()->value() ?: null);
+        $action->dismiss($topology, $request->user(), trim((string) $request->validated('reason')) ?: null);
 
         return $this->answered($submission, 'Marcada como já refletida no catálogo.');
     }

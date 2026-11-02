@@ -111,6 +111,8 @@ class SubmissionDecisionController extends Controller
 
         if ($status === SubmissionStatus::Approved || $status === SubmissionStatus::ApprovedWithConditions) {
             $page = $promote->handle($submission->fresh(['sections', 'solution']));
+        } else {
+            $promote->withdraw($submission);
         }
 
         return response()->json([

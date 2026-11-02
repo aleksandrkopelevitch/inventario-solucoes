@@ -394,3 +394,34 @@ it('leaves an applied record readable after its diagram is deleted', function ()
         ->and(ApprovedTopology::find($topology->id)->applied_at)->not->toBeNull()
         ->and(ApprovedTopology::find($topology->id)->diagram_id)->toBeNull();
 });
+
+it('withdraws the pending topology when the decision is changed to rejected', function () {
+    // "Aplicar" used to stay on screen and write the rejected TO BE into a
+    // catalog diagram.
+    $submission = approvableSubmission();
+    approve($submission);
+    expect($submission->fresh()->approvedTopology)->not->toBeNull();
+
+    $this->postJson(route('submissions.decision.store', $submission), [
+        'status' => SubmissionStatus::Rejected->value, 'decision' => 'Reprovada na revisão.',
+    ])->assertOk();
+
+    expect($submission->fresh()->approvedTopology)->toBeNull();
+
+    // And approving again records a fresh snapshot.
+    approve($submission);
+    expect($submission->fresh()->approvedTopology?->isPending())->toBeTrue();
+});
+
+it('keeps a topology that was already applied when the decision changes', function () {
+    $submission = approvableSubmission();
+    approve($submission);
+    $topology = $submission->fresh()->approvedTopology;
+    $topology->update(['applied_at' => now()]);
+
+    $this->postJson(route('submissions.decision.store', $submission), [
+        'status' => SubmissionStatus::Rejected->value, 'decision' => 'Reprovada.',
+    ])->assertOk();
+
+    $this->assertModelExists($topology);
+});
