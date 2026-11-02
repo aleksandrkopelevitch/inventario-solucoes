@@ -69,6 +69,15 @@ config-driven** (`services.digibee.cards_path` / `vocabulary_path`) purely so a
 test that rebuilds them from a two-page fixture does not leave the repo holding
 one card instead of thirty-four — which is exactly what happened the first time.
 
+**In production the scheduled sync rewrites the cards file in place, as
+www-data** (the scheduler sits in www-data's crontab since 2026-11-02). It is the
+one git-tracked file the app writes at runtime, so `Envoy.blade.php` chowns it
+along with `storage/`: the deploy's `git reset --hard` recreates it as root
+whenever the sync changed it. While the scheduler still ran as root, the sync
+left `storage/app/private/digibee-docs/` as `0700 root:root`, which www-data
+cannot even enter. Since the disk is `throw => false`, a sync blocked that way
+writes nothing and reports nothing, and the import then stops at "No corpus yet".
+
 #### `digibeectl` never runs on the server
 
 The credential is the interactive one a developer logs in with, and its scope

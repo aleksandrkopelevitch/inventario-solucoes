@@ -152,12 +152,20 @@
         correct and deliberate; a recursive chmod would make every protected
         document on the box world-readable, which is the opposite of the fix.
 
+        One file outside those directories: the connector cards. The scheduler
+        runs as www-data (www-data's crontab, since 2026-11-02), and its weekly
+        `digibee:docs:sync` rewrites database/data/digibee_connector_cards.json
+        in place. That file is in git, so the `git reset --hard` above recreates
+        it as root whenever the sync had changed it, and the next Sunday's sync
+        dies with permission denied. Only that file: everything else in
+        database/data is written on a workstation and travels through git.
+
         `|| echo` rather than letting it abort: this sits before `artisan up`,
         and a deploy run by a user who cannot chown must not leave the app in
         maintenance mode over a step that is preventative.
     --}}
     echo "==> Normalising ownership to www-data"
-    chown -R www-data:www-data storage bootstrap/cache public/build || echo "==> WARNING: chown failed — see README § Comandos."
+    chown -R www-data:www-data storage bootstrap/cache public/build database/data/digibee_connector_cards.json || echo "==> WARNING: chown failed — see README § Comandos."
 
     echo "==> Restarting queue workers"
     php artisan queue:restart
@@ -232,9 +240,10 @@
     php artisan icons:cache
 
     {{-- Same reason as in the deploy task above, and needed for the same
-         reason: a rollback rebuilds all of it as root too. --}}
+         reason: a rollback rebuilds all of it as root too, and its
+         `git reset --hard` rewrites the connector cards just the same. --}}
     echo "==> Normalising ownership to www-data"
-    chown -R www-data:www-data storage bootstrap/cache public/build || echo "==> WARNING: chown failed — see README § Comandos."
+    chown -R www-data:www-data storage bootstrap/cache public/build database/data/digibee_connector_cards.json || echo "==> WARNING: chown failed — see README § Comandos."
 
     echo "==> Restarting queue workers"
     php artisan queue:restart
