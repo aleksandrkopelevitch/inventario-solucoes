@@ -8,7 +8,8 @@ a **diagrams** module (the graphical topology editor, one drawing at a time;
 every diagram belongs to a caderno and is created only from inside one),
 an internal **knowledge base** (`/docs` — the cadernos an admin published, read
 by anybody with a Leo account, most of whom arrive through Entra SSO, opening on
-a home caderno's page beside a filterable rail of every caderno),
+a home caderno's page beside a filterable rail of every caderno, with a ⌘K
+palette that searches one caderno or all of them at once),
 a read-only map of the ecosystem derived from those drawings, the **Comitê de
 Arquitetura** module (`/submissions` — a proposal prepared, interviewed,
 rendered as a deck and deliberated), an **Especialista em Integrações**
@@ -56,7 +57,7 @@ if a rule you expect is not here, it is in one of these:
 | `diagram-chain-canvas.md` | the `chain` topology invariant, node kinds, the owner-agnostic canvas |
 | `cadernos-notebooks.md` | `Notebook` as the one container, the page tree, `page:` links, `{% diagram %}` |
 | `docs-reader-surfaces.md` | the magic link and `/docs`, one screen in two audiences |
-| `docs-search-index.md` | the documentation search index and its ⌘K palette |
+| `docs-search-index.md` | the documentation search index and its ⌘K palette, the `/docs` global index, `documentation:search-warm` |
 | `docs-secrets.md` | `{% secret %}`, the reveal action, the throttle |
 | `documentation-assistant.md` | the Assiste IA chat, its vaults and its prompt contract |
 | `page-to-diagram-draft.md` | drawing a page: the draft IR, exact name resolution, the one synchronous model call |
@@ -348,6 +349,20 @@ Two traps live in that macro, both found the hard way on the first real import:
 - Use `onOneServer()` for multi-server deployments
 - Use `runInBackground()` for non-blocking tasks
 - Group related scheduled tasks with Schedule Groups
+- **In production a scheduled command runs as `www-data`**, from www-data's
+  crontab (`schedule:run` every minute), like php-fpm and the queue workers.
+  It ran from root's until 2026-11-02. The Digibee docs sync then left its
+  mirror as `0700 root:root`, a directory the app could not even enter, and the
+  local disk's `throw => false` turns a blocked write into silence. Two
+  consequences for a new scheduled command:
+  - Whatever it writes outside `storage/` must be added to the `chown` in
+    `Envoy.blade.php`, since the deploy runs as root. Today the only such file is
+    `database/data/digibee_connector_cards.json`, a git-tracked file the app
+    rewrites, which `git reset --hard` recreates as root.
+  - Anything that must be ready before a reader asks (an index, a cache) belongs
+    BOTH in the schedule and after `up` in the deploy, like
+    `documentation:search-warm`. A cache TTL counts from the write, not from the
+    last read, so "it is read every day" does not keep it alive.
 
 ## Error Handling
 
