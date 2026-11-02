@@ -100,8 +100,12 @@ class DigibeeAuthResolver
      * response fails, jumping straight over the `$response->failed()` checks
      * that let the probe report WHICH route answered what. That reporting is
      * the entire product of Phase 1.
+     *
+     * `$repeatable` false is for the writes that must not happen twice
+     * (creating a pipeline, deploying one): they are retried only when the
+     * request provably never reached the platform — see `UnsentRequest`.
      */
-    public function pendingRequest(): PendingRequest
+    public function pendingRequest(bool $repeatable = true): PendingRequest
     {
         $credentials = $this->credentials();
 
@@ -114,7 +118,9 @@ class DigibeeAuthResolver
             ->retry(
                 (int) config('services.digibee.design.retries'),
                 (int) config('services.digibee.design.retry_sleep'),
-                fn (Throwable $e) => TransientHttpFailure::matches($e),
+                fn (Throwable $e) => $repeatable
+                    ? TransientHttpFailure::matches($e)
+                    : UnsentRequest::matches($e),
                 throw: false,
             );
     }

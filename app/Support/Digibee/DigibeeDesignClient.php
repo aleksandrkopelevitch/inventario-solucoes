@@ -110,10 +110,12 @@ class DigibeeDesignClient
      */
     public function create(string $name, string $description = ''): string
     {
+        // Not repeatable: a create whose answer was lost already made the
+        // pipeline, and a second POST makes a twin nothing can delete.
         $body = $this->json('POST', "/design/realms/{$this->realm()}/pipelines", [
             'name'        => $name,
             'description' => $description,
-        ]);
+        ], repeatable: false);
 
         $id = is_array($body) ? ($body['pipeline']['id'] ?? $body['id'] ?? null) : null;
 
@@ -253,6 +255,7 @@ class DigibeeDesignClient
             'POST',
             "/runtime/realms/{$this->realm()}/deployments?" . http_build_query(['environment' => $environment]),
             $payload,
+            repeatable: false,
         );
 
         return is_array($body) ? $body : [];
@@ -265,13 +268,14 @@ class DigibeeDesignClient
 
     /**
      * @param  array<string, mixed>  $payload  query for GET, body for POST
+     * @param  bool  $repeatable  false for a write that must not happen twice
      * @return array<string, mixed>|list<mixed>
      */
-    private function json(string $method, string $path, array $payload = []): array
+    private function json(string $method, string $path, array $payload = [], bool $repeatable = true): array
     {
         $response = $method === 'GET'
             ? Http::digibeeDesign()->get($path, $payload)
-            : Http::digibeeDesign()->post($path, $payload);
+            : Http::digibeeDesign($repeatable)->post($path, $payload);
 
         if ($response->failed()) {
             throw DigibeeApiException::fromResponse($method, $path, $response);
