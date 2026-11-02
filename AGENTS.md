@@ -400,7 +400,7 @@ such writes gets the same treatment: `RunPipelineLifecycle` has
 - Define `report()` and `render()` directly on custom Exception classes for domain-specific handling
 - Application exceptions should be self-contained
 - Custom error PAGES live in `resources/views/errors/{status}.blade.php` (403, 404). They are deliberately self-contained (own `<html>`, no `x-layouts.layout`): the app shell renders a sidebar with `auth()->user()`, and a 404 also serves the one unauthenticated surface in the app — an expired public-documentation magic link
-- Flash messages (`->with('error'|'status', …)` on a redirect) surface as a Toast, rendered once at the bottom of `layout.blade.php`. Nothing read them at all before that existed, so `back()->with('error', …)` used to be written and silently dropped
+- Flash messages (`->with('error'|'status', …)` on a redirect) surface as a Toast, rendered by `x-layouts.toast` — the one Toast shell every layout includes (main, auth, both public ones), with `x-layouts.alert-modal` beside it in the main and auth layouts. Nothing read them at all before that existed, so `back()->with('error', …)` used to be written and silently dropped
 
 ## Collections
 
