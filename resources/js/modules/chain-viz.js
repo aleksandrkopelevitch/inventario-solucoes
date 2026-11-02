@@ -1410,6 +1410,10 @@ function mount(root) {
     let presentFallbackFired = false  // já revelou tudo que sobrou ao fim da 1ª volta de todas
     let drag = null         // {type:'handle'|'node', ...} — 'handle' carrega edge/end/origNode/otherNode/targetNode
     let dirty = false
+    // Bumped by every edit (setDirty(true)). A save may only call the canvas
+    // clean if nothing moved while it was out — a block dragged during the
+    // PATCH was otherwise marked saved and lost with the tab.
+    let layoutRevision = 0
     // ── undo history — see `stepHistory()` ──
     const HISTORY_LIMIT = 100
     // Edits closer together than this are one step — a slider dragged, a
@@ -1625,6 +1629,7 @@ function mount(root) {
 
     function setDirty(value) {
         dirty = value
+        if (value) layoutRevision++
         if (saveBtn) saveBtn.disabled = !value
         // Every edit of the layout ends here, which makes it the one place the
         // undo history needs to listen to.
@@ -5427,6 +5432,7 @@ function mount(root) {
 
     async function save() {
         if (!editable || !saveUrl || !dirty) return
+        const savedRevision = layoutRevision
         const payload = layoutPayload()
         saveBtn.disabled = true
         if (saveLabel) saveLabel.textContent = 'Salvando…'
@@ -5443,6 +5449,13 @@ function mount(root) {
             })
             if (!res.ok) throw new Error('save failed')
             savedLayouts.set(slug, payload)
+            if (layoutRevision !== savedRevision) {
+                // Edited meanwhile: what was sent is stored, what is on screen
+                // is not yet — the button stays live for it.
+                if (saveLabel) saveLabel.textContent = 'Salvar'
+                saveBtn.disabled = false
+                return
+            }
             if (saveLabel) saveLabel.textContent = 'Salvo'
             setDirty(false)
             window.Toast?.show?.('Layout salvo.')

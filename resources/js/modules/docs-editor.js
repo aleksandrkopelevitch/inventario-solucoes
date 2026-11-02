@@ -24,6 +24,11 @@ const initialized = new WeakSet()
 const editors = new WeakMap()
 
 let dirty = false
+// Bumped by every edit. A save remembers the revision it serialized, and only
+// a save of the LATEST one may call the page clean: `dirty = false` used to run
+// unconditionally when the response came back, so whatever was typed while
+// the request was out was marked saved — status "Salvo", never sent.
+let revision = 0
 let autosaveTimer = null
 // The save whose request is still out, so `flushSave()` can wait for it.
 let inFlight = null
@@ -478,15 +483,18 @@ function markDirty() {
     // Not an edit yet — see `userEdited`.
     if (!userEdited) return
     dirty = true
+    revision++
     setStatus('Não salvo')
     clearTimeout(autosaveTimer)
     if (locked) return // no autosave while "Assiste IA" holds the editor
     // 1.2s, down from 2.5s: with the exit dialog gone this window IS the
     // exposure to losing a keystroke, and with the save Toast gone there is no
     // longer a cost to saving more often.
+    // Through flushSave(), which waits for a save already in flight: firing
+    // beside one sent two PATCHes that could land in either order, the older
+    // text last.
     autosaveTimer = setTimeout(() => {
-        const btn = document.querySelector('[data-ak-docs-save]')
-        if (btn && dirty) save(btn, {silent: true})
+        if (dirty) flushSave()
     }, 1200)
 }
 
@@ -535,6 +543,7 @@ async function runSave(btn, {silent = false} = {}) {
     setButtonLoading(btn, true)
     setStatus('Salvando…')
     try {
+        const savedRevision = revision
         const output = await editor.save()
         const markdown = serialize(output.blocks)
 
@@ -545,13 +554,17 @@ async function runSave(btn, {silent = false} = {}) {
         const response = await ajaxModule.init('POST', btn.dataset.action, formData)
         const data = await response.json()
 
-        dirty = false
+        const current = revision === savedRevision
+        if (current) dirty = false
         updateSlots(data)
         adoptSecretIds(holder, markdown, data.secretIds)
         // No Toast on success, manual save included: the status text beside the
         // button is the confirmation, and it blinks so the change registers
-        // without a card sliding over the page every 2.5s of typing.
-        setStatus('Salvo ' + timeNow(), {blink: true})
+        // without a card sliding over the page every 2.5s of typing. Typed
+        // while this was out: still unsaved, and the autosave markDirty() armed
+        // for it is what sends it.
+        if (current) setStatus('Salvo ' + timeNow(), {blink: true})
+        else setStatus('Não salvo')
     } catch (error) {
         let message = 'Erro ao salvar a documentação.'
         if (error.response) {
