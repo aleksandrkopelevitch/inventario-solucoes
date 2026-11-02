@@ -3,36 +3,25 @@
 namespace App\View\Components\Submissions;
 
 use App\Models\Submission;
-use App\View\Components\Concerns\Renderable;
-use Illuminate\Contracts\View\View;
-use Illuminate\View\Component;
+use App\View\Components\Concerns\ResultsCountSlot;
 
-/**
- * Live counter next to the list title — its own slot, since it sits outside
- * the list's container in the DOM and must update in lockstep with it.
- */
-class ResultsCount extends Component
+/** Live counter ("N submissões") above the committee's list — on the canvas, not a hero panel. */
+class ResultsCount extends ResultsCountSlot
 {
-    use Renderable;
-
     public const DOM_ID = 'submissions-count-slot';
 
-    /** @param  array<string, mixed>  $filters */
-    public function __construct(public array $filters = []) {}
-
-    /** @param  array<string, mixed>  $filters */
-    public static function slot(array $filters = []): array
+    protected function count(): int
     {
-        return (new static($filters))->toSlot(self::DOM_ID);
+        return Submission::query()->filter($this->filters)->count();
     }
 
-    public function render(): View
+    protected function noun(): array
     {
-        return view('components.submissions.results-count', [
-            'domId' => self::DOM_ID,
-            // Same local scope the list uses — a new filter field is added in
-            // one place, not two.
-            'count' => Submission::query()->filter($this->filters)->count(),
-        ]);
+        return ['submissão', 'submissões'];
+    }
+
+    protected function variant(): string
+    {
+        return 'plain';
     }
 }
