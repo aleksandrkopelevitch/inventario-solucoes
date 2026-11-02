@@ -1,18 +1,25 @@
 // Pure event delegation — registered once at module load, works with dynamic content.
-// Supported trigger events via data-ak-toggle-event: click (default), mouseenter.
-// Mouseout handled separately via data-ak-toggle-mouseout attribute.
 
-document.addEventListener('click',      handleToggleEvent)
-document.addEventListener('mouseenter', handleToggleEvent, true)
+document.addEventListener('click', handleToggleEvent)
 
-document.addEventListener('mouseout', (e) => {
-    if (!(e.target instanceof Element)) return
-    const trigger = e.target.closest('[data-ak-toggle][data-ak-toggle-mouseout]')
-    if (!trigger) return
+/**
+ * Popovers opened with `data-ak-toggle-blur` that are open right now, so Esc
+ * can close them: id → the classes their trigger toggles. Every popover in the
+ * app goes through this module, so this is where Esc is given to all of them
+ * at once rather than to each menu by hand.
+ */
+const openBlurTargets = new Map()
 
-    const id            = trigger.dataset.akToggle
-    const toggleClasses = (trigger.dataset.akToggleClasses || '').split(' ')
-    toggleElement(id, toggleClasses, e)
+// On `window`, after every document-level handler: an Esc something inside
+// the popover already used (inline-edit cancelling a field) is left alone.
+window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || e.defaultPrevented || openBlurTargets.size === 0) return
+
+    openBlurTargets.forEach((toggleClasses, id) => {
+        const target = document.getElementById(id)
+        openBlurTargets.delete(id)
+        if (target && !target.classList.contains('hidden')) toggleElement(id, toggleClasses, e)
+    })
 })
 
 function handleToggleEvent(e) {
@@ -20,18 +27,10 @@ function handleToggleEvent(e) {
     const trigger = e.target.closest('[data-ak-toggle]')
     if (!trigger) return
 
-    const configuredEvent = trigger.dataset.akToggleEvent || 'click'
-    if (configuredEvent !== e.type) return
-    if (trigger.hasAttribute('data-ak-toggle-fired')) return
-
     const id            = trigger.dataset.akToggle
     const toggleClasses = (trigger.dataset.akToggleClasses || '').split(' ')
 
     toggleElement(id, toggleClasses, e)
-
-    if (trigger.hasAttribute('data-ak-toggle-once')) {
-        trigger.setAttribute('data-ak-toggle-fired', '')
-    }
 
     if (trigger.dataset.akToggleBlur === 'true') {
         const targetElement = document.getElementById(id)
@@ -43,6 +42,8 @@ function handleToggleEvent(e) {
         // `hidden` back, reopening the popover on every click on the page.
         // Also avoids stacking a new listener on every open/close.
         if (targetElement && !targetElement.classList.contains('hidden')) {
+            openBlurTargets.set(id, toggleClasses)
+
             const handleClickOutside = (ev) => {
                 // The event's PATH, not just its target. `composedPath()` is
                 // built when the event is dispatched, so it still names the

@@ -106,35 +106,6 @@ function hideResults(container) {
     highlightedIndex.set(container, -1)
 }
 
-// Centered overlay (`centered` config — chips.blade.php). Only exists
-// when the field was rendered with `centered`; opens on a trigger click,
-// never via keyboard shortcut.
-function overlayOf(container) {
-    return container.querySelector('[data-ak-chips-overlay]')
-}
-
-function openOverlay(container) {
-    const overlay = overlayOf(container)
-    if (!overlay) return
-
-    overlay.style.display = 'flex'
-
-    const input = container.querySelector('[data-ak-chips-input]')
-    if (input) {
-        input.value = ''
-        requestAnimationFrame(() => input.focus())
-    }
-    hideResults(container)
-}
-
-function closeOverlay(container) {
-    const overlay = overlayOf(container)
-    if (!overlay) return
-
-    overlay.style.display = 'none'
-    hideResults(container)
-}
-
 function renderResults(container, items) {
     const results = resultsContainerOf(container)
     if (!results) return
@@ -238,8 +209,7 @@ document.addEventListener('keydown', (e) => {
             highlightAt(container, (highlightedIndex.get(container) ?? 0) - 1)
         } else if (e.key === 'Escape') {
             invalidateSearch(container)
-            if (cfg.centered) closeOverlay(container)
-            else hideResults(container)
+            hideResults(container)
         } else if (e.key === 'Enter') {
             e.preventDefault()
             if (selectHighlighted(container, cfg)) {
@@ -262,50 +232,6 @@ document.addEventListener('keydown', (e) => {
 })
 
 document.addEventListener('click', (e) => {
-    // External "add documentation" button (e.g. flowSpec suggestions in
-    // thread.blade.php) — finds the chips field by `name` (not by DOM: the
-    // button lives in the message bubble, the field lives in the composer,
-    // elsewhere on the page) and adds it by reusing addChip().
-    const addBtn = e.target.closest('[data-ak-chips-add]')
-    if (addBtn) {
-        let payload = {}
-        try {
-            payload = JSON.parse(addBtn.dataset.akChipsAdd || '{}')
-        } catch {
-            payload = {}
-        }
-
-        const container = Array.from(document.querySelectorAll('[data-ak-chips]')).find((el) => configOf(el).name === payload.name)
-        if (container && payload.value) {
-            addChip(container, configOf(container), payload.value, payload.label ?? payload.value)
-            addBtn.disabled = true
-        }
-        return
-    }
-
-    const trigger = e.target.closest('[data-ak-chips-trigger]')
-    if (trigger) {
-        const container = trigger.closest('[data-ak-chips]')
-        if (container) openOverlay(container)
-        return
-    }
-
-    const overlayCloseBtn = e.target.closest('[data-ak-chips-overlay-close]')
-    if (overlayCloseBtn) {
-        const container = overlayCloseBtn.closest('[data-ak-chips]')
-        if (container) closeOverlay(container)
-        return
-    }
-
-    // Clicking the backdrop itself (not the panel) closes it — same pattern
-    // as `data-eco-search-overlay` in ecosystem-map.js.
-    const overlay = e.target.closest('[data-ak-chips-overlay]')
-    if (overlay && e.target === overlay) {
-        const container = overlay.closest('[data-ak-chips]')
-        if (container) closeOverlay(container)
-        return
-    }
-
     const resultBtn = e.target.closest('[data-ak-chips-result]')
     if (resultBtn) {
         const container = resultBtn.closest('[data-ak-chips]')
@@ -335,24 +261,6 @@ document.addEventListener('click', (e) => {
         if (container && !container.contains(e.target)) {
             hideResults(container)
         }
-    })
-})
-
-// Clears the chips of one or more fields (by `name`) — e.g. after sending a
-// flowSpec message, whose context only applies to that message ("next
-// message", see flowspec/show.blade.php), otherwise the systems/documents
-// chosen for a question would be resent on every following one. Without
-// `detail.names`, clears every chips field on the page.
-document.addEventListener('ak:chips-reset', (e) => {
-    const names = e.detail?.names
-    document.querySelectorAll('[data-ak-chips]').forEach((container) => {
-        if (Array.isArray(names) && names.length && !names.includes(configOf(container).name)) return
-
-        const list = container.querySelector('[data-ak-chips-list]')
-        if (!list) return
-
-        list.querySelectorAll('[data-ak-chip]').forEach((chip) => chip.remove())
-        syncListVisibility(list)
     })
 })
 

@@ -79,50 +79,15 @@ export function init() {
 
             let data = trigger.dataset.akFilters ? JSON.parse(trigger.dataset.akFilters) : {}
 
-            if (data.clearFilters === true) {
-                if (trigger.clearFiltersEventAdded !== true) {
-                    trigger.addEventListener(data.event || 'click', (event) => {
-                            clearFiltersAndSubmit()
-                    }, {once: true})
-                    trigger.clearFiltersEventAdded = true
-                    return
-                }
-            }
-
-            if (data.clearOneFilter === true) {
-                if (trigger.clearOneFilterEventAdded !== true) {
-                    trigger.addEventListener(data.event || 'click', (event) => {
-                        clearOneFilter(data.filterName)
-                    }, {once: true})
-                    trigger.clearOneFilterEventAdded = true
-                    return
-                }
-            }
-
             if (!data.formId) {
                 return false
             }
 
-            let options = {
-                once: data.once || false,
-            }
-
             if (trigger.filtersEventAdded !== true) {
-
                 trigger.addEventListener(data.event || 'click', (event) => {
-
                     syncSelectActiveState(trigger)
-
-                    if (data.event === 'keypress' || data.event === 'keyup') {
-                        let key = event.key
-                        if (key === 13 || key === 'Enter') {
-                            executeFilters(data.formId, data.url, event)
-                        }
-                    } else {
-                        executeFilters(data.formId, data.url, event)
-                    }
-
-                }, options)
+                    executeFilters(data.formId, data.url, event)
+                })
                 trigger.filtersEventAdded = true
             }
         })
@@ -215,45 +180,13 @@ function setFiltersLoading(isLoading) {
     })
 }
 
-export function clearOneFilterAndReturn(searchParamsObject, filterName) {
-    for (let [key, value] of searchParamsObject.entries()) {
-        if (key === filterName) {
-            searchParamsObject.delete(key)
-        }
+/** The query string without any `filter…` key, and without `page`: a new filter starts at page one. */
+function clearFiltersAndReturn(searchParamsObject) {
+    const kept = new URLSearchParams()
+    for (const [key, value] of searchParamsObject.entries()) {
+        if (!key.startsWith('filter') && key !== 'page') kept.append(key, value)
     }
-    return searchParamsObject
-}
-
-export function clearFiltersAndReturn(searchParamsObject) {
-    let newSearchParamsObject = new URLSearchParams()
-    for (let [key, value] of searchParamsObject.entries()) {
-
-        if (!key.startsWith('filter')) {
-            newSearchParamsObject.append(key, value)
-        }
-
-        if (key.startsWith('page')){
-            newSearchParamsObject.delete('page')
-        }
-
-    }
-    return newSearchParamsObject
-}
-
-export function clearFiltersAndSubmit() {
-    let filterQuery = new URLSearchParams(location.search)
-
-    filterQuery = clearFiltersAndReturn(filterQuery)
-
-    window.location.search = filterQuery
-}
-
-export function clearOneFilter(filterName) {
-    let filterQuery = new URLSearchParams(location.search)
-
-    filterQuery = clearOneFilterAndReturn(filterQuery, filterName)
-
-    window.location.search = filterQuery
+    return kept
 }
 
 // Sequence number of the last request fired: responses from older requests

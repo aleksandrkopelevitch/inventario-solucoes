@@ -47,7 +47,7 @@ async function resolveGifWorkerUrl() {
 // Nodes are <div>s with a shadow, edges are SVG, both inside a #world carrying
 // a transform. The data arrives resolved in the `data-ak-chain-graph` of the
 // single (hidden, auto-selected) row that `diagrams/workspace.blade.php`
-// renders (`chain-select.js` emits `ak:diagram-selected`). Nodes referencing a
+// renders (`selectTheDiagram()` below emits `ak:diagram-selected`). Nodes referencing a
 // solution also carry `logo`, `environment` and `cloud` (label plus an icon SVG
 // already rendered on the server) — shown as an avatar and discreet chips on
 // top of the block.
@@ -1188,6 +1188,43 @@ function nodeKind(value) {
 
 export function init() {
     document.querySelectorAll('[data-ak-chain-viz]').forEach(mount)
+    selectTheDiagram()
+}
+
+/**
+ * Hands the canvas the diagram it draws. Every page that mounts the canvas
+ * (`Diagrams\Workspace`, `Submissions\DiagramWorkspace`) renders exactly one
+ * hidden `data-ak-chain-select` row carrying the whole payload, so there is
+ * nothing to pick: it is read once, here. This was a module of its own
+ * (chain-select.js) with click and keyboard selection over a list of rows that
+ * no page has rendered since the canvas got one diagram per page.
+ *
+ * Queued to a microtask so the dispatch runs after the whole synchronous
+ * `initAllModules()` pass, and marked `aria-pressed` so a later re-init (any
+ * slot swap) does not draw it again.
+ */
+function selectTheDiagram() {
+    const rows = document.querySelectorAll('[data-ak-chain-select]')
+    if (rows.length !== 1 || rows[0].getAttribute('aria-pressed') === 'true') return
+
+    const row = rows[0]
+    row.setAttribute('aria-pressed', 'true')
+
+    let graph = null
+    try {
+        graph = JSON.parse(row.getAttribute('data-ak-chain-graph') || 'null')
+    } catch {
+        graph = null
+    }
+
+    queueMicrotask(() => row.dispatchEvent(new CustomEvent('ak:diagram-selected', {
+        bubbles: true,
+        detail: {
+            name: row.getAttribute('data-diagram-name') ?? '',
+            slug: row.getAttribute('data-ak-chain-select') ?? '',
+            graph,
+        },
+    })))
 }
 
 document.addEventListener('ak:diagram-selected', (e) => {
@@ -1674,7 +1711,7 @@ function mount(root) {
         // A diagram with NO chain at all (name known) and a canvas that has
         // not been handed a graph yet (name empty) are different states, and
         // the second one exists only for the instant between the page loading
-        // and `chain-select.js`'s auto-select running. The old copy told people
+        // and `selectTheDiagram()`'s auto-select running. The old copy told people
         // to "pick one from the list" — that list was the solution's rail of
         // integrations, which no longer exists.
         if (emptyTitle) emptyTitle.textContent = name || 'Nada desenhado ainda'
@@ -3776,8 +3813,8 @@ function mount(root) {
 
     // Keeps the row consistent without re-selecting the drawing: it updates
     // that row's `data-ak-chain-graph` cache and its summary text, without
-    // replacing the whole slot, which would drop the selection highlight (see
-    // chain-select.js).
+    // replacing the whole slot, which would clear the row's `aria-pressed` and
+    // make the next re-init draw it again (see `selectTheDiagram()`).
     function patchRowGraph(slugArg, index, nodeData, summary) {
         if (!slugArg) return
         const row = document.querySelector(`[data-ak-chain-select="${CSS.escape(slugArg)}"]`)
@@ -3804,7 +3841,7 @@ function mount(root) {
     // or edge: that is what deleting a block needs, since the indices of EVERY
     // node above the removed one have moved. The usual reason not to use
     // `updateSlots()` here — swapping the whole slot clears `aria-pressed` and
-    // drops the user's selection (see `chain-select.js`).
+    // makes the next re-init draw the row again (see `selectTheDiagram()`).
     function patchRowGraphReplace(slugArg, graph, summary) {
         if (!slugArg || !graph) return
         const row = document.querySelector(`[data-ak-chain-select="${CSS.escape(slugArg)}"]`)
@@ -5828,7 +5865,7 @@ function mount(root) {
 
     // `render()` measures every node's w/h via offsetWidth/offsetHeight right
     // after creating its <div> (see below) — but this canvas lives inside the
-    // unified Documentação/Diagrama tabs, and chain-select.js
+    // unified Documentação/Diagrama tabs, and `selectTheDiagram()`
     // auto-selects the (only) diagram on page load via a microtask
     // REGARDLESS of which tab is active. When "Documentação" is the one
     // shown first, `render()` runs while this whole root sits under a

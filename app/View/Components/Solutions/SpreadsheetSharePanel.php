@@ -11,9 +11,9 @@ use Illuminate\View\Component;
  * "Compartilhar" panel on the solutions spreadsheet (admin only): generates,
  * copies and revokes its magic link.
  *
- * The same panel as a caderno's link (`Notebooks\SharePanel`) and driven by the
- * same module (`docs-share.js`, through `data-ak-share-panel`), so the two
- * public links are generated, copied and revoked the same way. Only the magic
+ * The same control as a caderno's link (`Notebooks\SharePanel`): both render
+ * `x-ui.public-link`, so the two public links are generated, copied and
+ * revoked the same way. Only the magic
  * link lives here — the spreadsheet has no knowledge-base or secret-code
  * counterpart.
  */

@@ -154,15 +154,6 @@ export default window.Modal = {
 
             Modal.open(modal.id)
 
-            if (params.timerToClose > 0) {
-                /*let timeoutBar = modal.querySelector('[data-timeout-bar]')
-                let originalWidth = timeoutBar.clientWidth
-                modal.addEventListener('mouseover', () => {
-                    timeoutBar.style.width = originalWidth+'px'
-                });*/
-                Modal.resumeTimer(modal, timerToClose)
-            }
-
             // {once: true} — this callback belongs to THIS alert, not to every
             // future one shown in the shared #alert-modal.
             if (params.onClose) {
@@ -170,25 +161,6 @@ export default window.Modal = {
             }
 
         }
-    },
-
-    resumeTimer(modal, timerToClose) {
-        let timeoutBar = modal.querySelector('[data-timeout-bar]')
-        timeoutBar.classList.remove('hidden')
-        let originalWidth             = timeoutBar.clientWidth
-        let totalTimeInSeconds        = timerToClose * 1000
-        let widthToSubtractEachSecond = timeoutBar.clientWidth / (totalTimeInSeconds / 100)
-
-        let timer = setInterval(() => {
-            if (totalTimeInSeconds === 0) {
-                clearInterval(timer)
-                Modal.close(modal.id)
-                timeoutBar.style.width = originalWidth + 'px'
-                timeoutBar.classList.add('hidden')
-            }
-            totalTimeInSeconds     = totalTimeInSeconds - 100
-            timeoutBar.style.width = (timeoutBar.clientWidth - widthToSubtractEachSecond) + 'px'
-        }, 150)
     },
 
     open(modalId, closeOnEsc = true, closeOnBackdropClick = false) {
