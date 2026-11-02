@@ -205,6 +205,46 @@ diferentes depois que eles otimizam do lado deles — o original pré-otimizaç�
 não é alcançável pela API documentada. O que é arquivado é o que o
 `downloadURL` devolve, que é também exatamente o que o import já guardava.
 
+**Manutenção da documentação.** Três comandos. Os dois primeiros rodam sozinhos,
+e o terceiro é para quando aparecer uma suspeita:
+
+```bash
+php artisan documentation:search-warm     # prepara os índices de busca (deploy + diário 04:00)
+php artisan documentation:web-images      # enfileira a versão leve das imagens que não têm (deploy)
+php artisan documentation:secrets-audit   # páginas com valores protegidos danificados (só leitura)
+```
+
+- **`documentation:search-warm`** monta o índice de busca de cada caderno
+  publicado em `/docs` e de cada caderno com link público, e depois o índice de
+  "Todos os cadernos". Sem ele, quem buscasse primeiro pagaria a montagem: até
+  ~6 s num caderno grande e ~70 s em "Todos" do zero, com o aviso "Indexando N
+  cadernos…" enquanto isso. O que já está pronto não é refeito, só ganha mais 7
+  dias de validade. Esse prazo conta a partir de quando o índice foi gravado,
+  não do último uso, e é por isso que o comando roda todo dia. Sem nada a montar,
+  leva menos de um segundo.
+- **`documentation:secrets-audit`** lista as páginas em que o bug antigo de
+  numeração dos valores protegidos deixou rastro (ver "Um valor sensível fica
+  atrás de um cadeado", em Funcionalidades). Um **BROKEN** é um valor perdido:
+  só um backup o tem de volta. Um **SUSPECT** são dois valores iguais na mesma
+  página, que pode ser cópia ou repetição de propósito. `--all` lista também as
+  páginas sem sinal de dano, com a data do último salvamento, para comparar com
+  um backup. `--notebook=<slug>` limita a um caderno. Nunca imprime um valor.
+
+**O agendador, em produção.** O `schedule:run` roda a cada minuto pelo crontab do
+**`www-data`**, não do root:
+
+```
+* * * * * cd /var/www/isol/public_html && php artisan schedule:run >> /dev/null 2>&1
+```
+
+Ele ficou no root até 2026-11-02, e a sincronização do Digibee de domingo deixou
+`storage/app/private/digibee-docs/` como `drwx------ root:root`, uma pasta onde o
+app nem consegue entrar. Pelo mesmo motivo do `sudo -u www-data` acima: um
+comando agendado grava com o dono de quem o roda. Se um comando agendado
+precisar escrever **fora** de `storage/`, o arquivo entra no `chown` do deploy
+(`Envoy.blade.php`), como já entrou `database/data/digibee_connector_cards.json`,
+o único arquivo do git que o app reescreve em produção.
+
 ## Papéis de usuário e níveis por módulo
 
 `App\Enums\UserRole` diz só se a conta é **Usuário** ou **Administrador**. O
@@ -1018,6 +1058,17 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
       `throttle:` na rota, porque um middleware contaria os acertos do admin e
       não saberia **limpar** o contador — um código certo compra de volta os
       erros anteriores.
+    - **Cada valor é endereçado por um id aleatório** guardado no próprio
+      construto (`{% secret id="k3j9x2ab" %}`), não pela posição na página. Até
+      2026-10-16 era pela posição, e isso embaralhava páginas: o editor guardava
+      a numeração da hora em que a página abriu, e o salvamento automático
+      gravava de novo a cada pausa. Acrescentar, apagar ou mover um valor
+      renumerava a página, e cada salvamento seguinte punha valores no lugar
+      errado, sem erro nenhum. O id não sai do valor (seria um oráculo para
+      adivinhar o valor). Marcadores numerados antigos continuam resolvendo, para
+      uma aba aberta durante o deploy não estragar a página.
+      `documentation:secrets-audit` (em "Comandos") lista o que o bug deixou de
+      rastro.
     - **O valor mora dentro de `<code>` mais vezes do que fora**, e é ali que o
       round trip quebrou uma vez: o serializador achatava
       `<code><span class="ak-secret-mark">` em `` `[[SECRET-…]]` `` e o valor
@@ -1243,6 +1294,16 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   (`DocumentationReader` + `x-documentation.reader-body`), mudando só os
   endereços e o seletor de cadernos na barra de cima.
 
+  A busca (`⌘K`, na barra de cima, inclusive na página inicial) tem um seletor
+  **"Caderno"**: **"Todos os cadernos"** ou um só. Ela começa no caderno que
+  está sendo lido, ou em todos na página inicial. Em "Todos", cada resultado diz
+  de qual caderno vem e abre nele, já na seção. Os chips viram os cadernos, com
+  a contagem de cada um. A consulta pode citar o caderno: *"digibee timeout"*
+  acha o Timeout do manual do Digibee e não o do SAP. O caderno da página
+  inicial fica fora da busca, porque o texto dele já é a própria página inicial.
+  É um endpoint só, `GET docs/search?notebook=<slug>` (sem `notebook`, busca em
+  todos), e por isso `search` é um slug reservado para cadernos.
+
   A **página inicial** é a primeira página de um caderno marcado como
   `notebooks.is_home` — escrita no editor como qualquer outra, com imagens,
   avisos e cenas —, ao lado de um menu com **todos os cadernos publicados** e um
@@ -1421,6 +1482,15 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   **conteúdo** (nunca por `updated_at`, que tem resolução de segundo), e os
   resultados chegam como um slot renderizado pelo Blade, de modo que o texto de
   quem escreveu é escapado no caminho e nunca vira markup.
+
+  Em `/docs`, a mesma paleta busca em **todos os cadernos** de uma vez (ver
+  "Base de conhecimento"). Isso não roda a busca de cada caderno em sequência:
+  isso custava ~350 ms e ~120 MB por tecla nos 45 cadernos do dev. Roda sobre
+  **um índice global compacto**, que uma única consulta prova estar atualizado:
+  ~130–170 ms com o Redis. Montar esse índice do zero levava ~70 s, então uma
+  requisição monta no máximo ~3 s de cadernos e a paleta pede de novo
+  ("Indexando N cadernos…") até completar. Na prática ninguém vê isso, porque o
+  `documentation:search-warm` deixa tudo pronto antes (ver "Comandos").
 
 - **Hub de Documentação** (`/documentation`): visão gerencial transversal do
   que está documentado e do que falta. Lista **por caderno** — cada um com as
@@ -1796,7 +1866,11 @@ e-mail mora), `DocumentationInternalLinkTest` (o link `page:` resolvido por
 leitor — interno, magic link e o slug que o caderno não tem),
 `DocumentationContextPageTest` (páginas emprestadas ao Assiste IA: máscara,
 blocos arrancados e o que não coube no orçamento),
-`PublicDocumentationSearchTest` (a paleta e os três escopos), `GitbookImportTest`
+`PublicDocumentationSearchTest` (a paleta e os três escopos),
+`KnowledgeBaseSearchTest` (a busca de `/docs` em todos os cadernos ou num só,
+a indexação aos poucos e o `documentation:search-warm`),
+`AuditDocumentationSecretsCommandTest` (o que o bug de numeração dos valores
+protegidos deixou de rastro), `GitbookImportTest`
 (a importação, o snapshot datado e a poda que só ele faz) e a família
 `Cati*Test` (o Comitê de Arquitetura: modelo, ingestão de material, checklist,
 entrevista, deck, desenhos próprios, conformidade, prévia adversarial e a
