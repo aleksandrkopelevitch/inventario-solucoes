@@ -1,9 +1,9 @@
 // copy-field.js — copies the value of a read-only field to the clipboard.
 //
-// Generic on purpose: three places now hand somebody a string they have to pass
-// on (the caderno's public link, its secret code, and a person's access link),
-// and each had been growing its own copy handler with its own fallback. This is
-// the one behaviour they share.
+// Generic on purpose: several places hand somebody a string they have to pass
+// on (a public link — x-ui.public-link —, a caderno's secret code, a person's
+// access link, a diagram citation), and each had been growing its own copy
+// handler with its own fallback. This is the one behaviour they share.
 //
 // Pure delegation, so it survives the slot swaps all three live inside.
 //
@@ -11,9 +11,6 @@
 //       <input data-ak-copy-field value="…" readonly>
 //       <button data-ak-copy-trigger data-ak-copy-message="Link copiado.">…</button>
 //   </div>
-//
-// `docs-share.js` still has its own copy for the share panel; it predates this
-// and can adopt these hooks whenever that file is next touched.
 
 document.addEventListener('click', (e) => {
     const trigger = e.target.closest('[data-ak-copy-trigger]')

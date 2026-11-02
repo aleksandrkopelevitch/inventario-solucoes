@@ -40,7 +40,7 @@ magic link is `/public-solutions/{token}`.
   nothing.
 - **The magic link is the same mechanism as a caderno's**: an opaque token in
   the URL is the whole authorization, generated and revoked by an admin
-  (`SolutionPolicy::share`) from a share panel driven by `docs-share.js`. The
+  (`SolutionPolicy::share`) from a share panel built on `x-ui.public-link`, like a caderno's. The
   token lives in `public_links` (one row per `subject`), because the
   spreadsheet has no record of its own to hang it off. Revoking deletes the row.
 - **`spreadsheet` is a reserved solution slug** (`Solution::RESERVED_SLUGS`,

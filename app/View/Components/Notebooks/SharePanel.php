@@ -11,7 +11,8 @@ use Illuminate\View\Component;
  * "Compartilhar" panel in the documentation toolbar (admin only).
  * Generates/revokes the caderno's public link ("magic link") — an opaque token
  * in `notebooks.public_token`. Generating and revoking both return this updated
- * slot (`docs-share-slot`) via `docs-share.js`.
+ * slot (`docs-share-slot`); the link's controls are `x-ui.public-link`, driven by
+ * the general `data-ak-ajax` and `data-ak-copy` hooks.
  *
  * What is shared is the CADERNO, whatever it happens to be linked to: linking a
  * notebook to a solution publishes nothing, and unlinking it un-publishes

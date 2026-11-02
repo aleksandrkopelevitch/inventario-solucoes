@@ -35,10 +35,7 @@
     $chipEmpty = 'opacity-45';
 @endphp
 
-{{-- `data-ak-docs-search-active` is what tells docs-search.js to hide the
-     documentation shell below: the server already decided whether the corpus
-     is being narrowed, and deciding it twice is how the two drift apart. --}}
-<div id="{{ $domId }}" @if ($narrowed) data-ak-docs-search-active @endif>
+<div id="{{ $domId }}">
 
     {{-- Cadernos still being indexed. The results above them are real but
          partial, and saying which cadernos are missing is what keeps "Nenhum
@@ -120,7 +117,7 @@
             </x-forms.button>
         </div>
 
-        <div data-ak-docs-search-list role="listbox" aria-label="Resultados da busca" class="mt-1 -mx-2">
+        <div role="listbox" aria-label="Resultados da busca" class="mt-1 -mx-2">
             @forelse ($results as $index => $result)
                 <a href="{{ $result['url'] }}" role="option" aria-selected="false"
                    data-ak-docs-search-item="{{ $index }}"

@@ -42,6 +42,28 @@ it('lets an admin generate a public documentation link', function () {
         ->and($response->json('updatableSlots.0.id'))->toBe('docs-share-slot');
 });
 
+it('wires the share panel to the general ajax and copy hooks', function () {
+    // No module of its own any more: each action is a data-ak-ajax button over
+    // a hidden form posting where the route says, and the copies are copy-field.
+    $notebook = Notebook::factory()->create(['public_token' => null]);
+    $before = \App\View\Components\Notebooks\SharePanel::slot($notebook)['content'];
+
+    expect($before)
+        ->toContain('data-ak-ajax="notebook-public-link-share" data-ak-action="' . route('notebooks.share', $notebook) . '"')
+        ->toContain('data-ak-ajax="notebook-secret-code-rotate" data-ak-action="' . route('notebooks.secret-code', $notebook) . '"')
+        ->toContain('data-ak-copy-message="Código copiado."')
+        ->not->toContain('data-ak-share');
+
+    $notebook->update(['public_token' => str_repeat('a', 40)]);
+    $after = \App\View\Components\Notebooks\SharePanel::slot($notebook->fresh())['content'];
+
+    expect($after)
+        ->toContain('<form id="notebook-public-link-unshare" class="hidden">')
+        ->toContain('name="_method" value="DELETE"')
+        ->toContain('data-ak-ajax="notebook-public-link-unshare" data-ak-action="' . route('notebooks.unshare', $notebook) . '"')
+        ->toContain('data-ak-copy-message="Link copiado."');
+});
+
 // The token is the ONLY authorization on public-docs/{token} (no auth
 // middleware, no throttle), so its length is a security property rather than a
 // style choice. Pinned at a floor, not at NotebookController::TOKEN_LENGTH

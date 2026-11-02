@@ -535,7 +535,7 @@ return response()->json([
 ]);
 ```
 
-Ver `App\View\Components\Examples\SlotExample` como implementação de
+Ver `App\View\Components\Companies\ResultsCount` como implementação de
 referência e `tests/Feature/RenderableTest.php`. IDs podem ser
 pipe-separados para substituir vários nós com o **mesmo** HTML
 (`toSlot('header-widget-slot|sidebar-widget-slot')`); para devolver slots

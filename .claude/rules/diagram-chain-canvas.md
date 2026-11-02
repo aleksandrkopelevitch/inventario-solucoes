@@ -16,7 +16,6 @@ paths:
   - "app/Support/ChainGraph.php"
   - "app/Policies/DiagramPolicy.php"
   - "resources/js/modules/chain-viz.js"
-  - "resources/js/modules/chain-select.js"
   - "resources/views/components/chain/**"
   - "resources/views/diagrams/**"
 ---
