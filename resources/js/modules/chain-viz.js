@@ -46,7 +46,7 @@ async function resolveGifWorkerUrl() {
 //
 // Nodes are <div>s with a shadow, edges are SVG, both inside a #world carrying
 // a transform. The data arrives resolved in the `data-ak-chain-graph` of the
-// single (hidden, auto-selected) row that `diagrams/workspace.blade.php`
+// single (hidden, auto-selected) row that `chain/workspace.blade.php`
 // renders (`selectTheDiagram()` below emits `ak:diagram-selected`). Nodes referencing a
 // solution also carry `logo`, `environment` and `cloud` (label plus an icon SVG
 // already rendered on the server) — shown as an avatar and discreet chips on
@@ -1141,9 +1141,9 @@ const savedLayouts = new Map() // slug -> último layout salvo na sessão (mant�
 // page mounts more than one (a submission's AS IS and TO BE).
 let activeCanvas = null
 let uidCounter = 0
-let solutionsListCache = null // [{id,name}] — lido uma vez de [data-ak-solutions] (diagrams/workspace.blade.php)
-let protocolsListCache = null // [{value,label}] — lido uma vez de [data-ak-protocols] (diagrams/workspace.blade.php)
-let kindsListCache = null // [{value,label,system,placeholder}] — lido uma vez de [data-ak-node-kinds] (diagrams/workspace.blade.php)
+let solutionsListCache = null // [{id,name}] — lido uma vez de [data-ak-solutions] (chain/workspace.blade.php)
+let protocolsListCache = null // [{value,label}] — lido uma vez de [data-ak-protocols] (chain/workspace.blade.php)
+let kindsListCache = null // [{value,label,system,placeholder}] — lido uma vez de [data-ak-node-kinds] (chain/workspace.blade.php)
 
 function getSolutionsList() {
     if (solutionsListCache) return solutionsListCache
