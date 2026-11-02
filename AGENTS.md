@@ -73,7 +73,7 @@ if a rule you expect is not here, it is in one of these:
 | `entra-sso.md` | silent sign-on, domain checks, middleware priority |
 | `roles-and-policies.md` | the four roles and the four predicates |
 | `errors-and-json-responses.md` | render callbacks, the `ValidationException` shape, JSON cache headers |
-| `blade-compiler-traps.md` | the four ways the Blade compiler fails silently |
+| `blade-compiler-traps.md` | the ways the Blade compiler fails silently |
 | `css-and-docs-rendering.md` | Tailwind-first CSS, the two Markdown renderers, the reading screen, code blocks |
 | `js-modules-and-ajax.md` | the module conventions, `ajax.js`'s Promise contract, `data-ak-ajax` |
 | `updatable-slots.md` | updatable slots and preserving filters across a mutation |

@@ -465,6 +465,24 @@ it('renders the pages rail as a three-level tree, one indent step per level', fu
         ->not->toContain('Aninhar na página acima');
 });
 
+it('warns about subpages in the delete confirm only on a page that has them', function () {
+    $notebook = Notebook::factory()->create();
+    $parent = rootPage($notebook, 'Operação');
+    DocumentationPage::factory()->childOf($parent)->create(['title' => 'Rotina de backup', 'position' => 1]);
+    rootPage($notebook, 'Sozinha', 2);
+
+    $content = $this->actingAs(treeAdmin())
+        ->get(route('notebooks.pages.edit', [$notebook, $parent]))
+        ->assertOk()
+        ->getContent();
+
+    // An @if inside the component's attribute was printed raw, directive and all.
+    expect($content)
+        ->not->toContain('@if')
+        ->toContain('Excluir a página &quot;Operação&quot; e todas as suas subpáginas?')
+        ->toContain('Excluir a página &quot;Sozinha&quot;? Esta ação não pode ser desfeita.');
+});
+
 it('offers no subpage on a page already at the last level', function () {
     $notebook = Notebook::factory()->create();
     $page = rootPage($notebook, 'Nível 1');

@@ -144,3 +144,19 @@ Blade comment — bit again on the same day, inside a comment explaining *this
 very rule*: `<x-...>` in a `//` comment compiles into a real component
 invocation and 500s with `Unable to locate a class or view for component [...]`.
 Name components in comments as `x-ui.thing`, brackets omitted.
+
+### A directive inside a component TAG's attribute is never compiled, and `@php` blocks are lifted before comments go
+
+Two traps met in one fix (2026-11-02, `documentation/pages-nav.blade.php`):
+
+- **`@if` inside an `x-…` tag's attribute value is printed raw.** The page
+  delete confirm was `data-ak-confirm="…@if (…) e todas as suas subpáginas@endif?"`
+  and every admin saw the directive text in `window.confirm`, with the subpage
+  warning on every page. A component tag's attributes are parsed as a PHP array
+  before directives are compiled. Build the string in PHP and echo it.
+- **Blade lifts `@php … @endphp` blocks out BEFORE it strips `{{-- --}}`
+  comments**, and an inline `@php(…)` followed later by a block-form closer is
+  read as the block's opener. So a view that already uses the inline form must
+  not gain a block one — and a COMMENT that merely names the block form trips
+  it too. The symptom is a ParseError ("unexpected token `{`") on the line of the
+  innocent inline `@php($i = …)`, nowhere near the edit.
