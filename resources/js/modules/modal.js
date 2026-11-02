@@ -131,14 +131,15 @@ export default window.Modal = {
                 modal.querySelector('[data-title]').classList.add('hidden')
             } else {
                 modal.querySelector('[data-title]').classList.remove('hidden')
-                modal.querySelector('[data-title]').innerHTML = params.title
+                modal.querySelector('[data-title]').textContent = params.title
             }
 
             if (params.content === '' || params.content === undefined) {
                 modal.querySelector('[data-content]').classList.add('hidden')
             } else {
                 modal.querySelector('[data-content]').classList.remove('hidden')
-                modal.querySelector('[data-content]').innerHTML = params.content
+                // Text, like Toast's: a validation message can quote what was typed.
+                modal.querySelector('[data-content]').textContent = params.content
             }
 
             let possibleTypes = ['success', 'error', 'warning', 'info']
