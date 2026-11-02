@@ -1,4 +1,5 @@
 import * as ajaxModule from './ajax.js'
+import {keepNewestInView} from './thread-scroll.js'
 import { updateSlots } from './ajax-slot.js'
 import {fold} from './fold.js'
 
@@ -584,7 +585,5 @@ export function init() {
     document.querySelectorAll('[data-ak-fs-input]').forEach(autoGrow)
     document.querySelectorAll('[data-ak-fs-picker-panel]').forEach(syncPickerFooter)
 
-    // Keep the newest message in view (initial load + after each slot swap).
-    const scroll = document.querySelector('[data-ak-fs-scroll]')
-    if (scroll) scroll.scrollTop = scroll.scrollHeight
+    keepNewestInView(document.querySelector('[data-ak-fs-scroll]'))
 }
