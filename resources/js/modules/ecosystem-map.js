@@ -121,25 +121,39 @@ function mount(shell) {
      * connects.
      */
     async function load() {
-        if (! state.payloads[state.view]) {
+        // The view this call is FOR. Switching views while a payload is still
+        // on its way used to file the hosting payload under "links" (the key
+        // was read again after the await), and to draw it in the wrong view.
+        const view = state.view
+
+        if (! state.payloads[view]) {
             setStatus('Carregando…')
-            const url = state.view === 'hosting' ? `${state.baseUrl}?view=hosting` : state.baseUrl
-            const response = await fetch(url, { headers: { Accept: 'application/json' } })
-            if (! response.ok) {
-                setStatus('Não foi possível carregar o mapa.')
+            const url = view === 'hosting' ? `${state.baseUrl}?view=hosting` : state.baseUrl
+
+            let payload
+            try {
+                const response = await fetch(url, { headers: { Accept: 'application/json' } })
+                if (! response.ok) throw new Error(`HTTP ${response.status}`)
+                payload = await response.json()
+            } catch {
+                // A network error used to leave "Carregando…" on screen for good.
+                if (state.view === view) setStatus('Não foi possível carregar o mapa.')
 
                 return
             }
 
-            const payload = await response.json()
-            state.payloads[state.view] = {
+            state.payloads[view] = {
                 nodes: payload.nodes ?? [],
                 edges: payload.edges ?? [],
                 hostings: payload.hostings ?? [],
             }
         }
 
-        state.payload = state.payloads[state.view]
+        // Switched away meanwhile: the payload is kept for later, and the
+        // load() the switch started draws the view now on screen.
+        if (state.view !== view) return
+
+        state.payload = state.payloads[view]
         state.nodes = []
         state.nodeById = new Map()
         select(null)
@@ -514,7 +528,10 @@ function mount(shell) {
         if (state.orbit && state.view === 'links') state.spin += 0.00035
 
         for (const node of state.nodes) {
-            if (node.tx == null || (state.view === 'links' && state.layout === 'force')) continue
+            // A node the person dragged stays where it was dropped (the camera
+            // sets `pinned`); easing it back to its target snapped it home the
+            // moment the pointer let go.
+            if (node.tx == null || node.pinned || (state.view === 'links' && state.layout === 'force')) continue
             const [tx, ty] = targetOf(node)
             node.x += (tx - node.x) * EASE
             node.y += (ty - node.y) * EASE
