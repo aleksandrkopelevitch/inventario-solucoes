@@ -5,30 +5,17 @@ import {fold} from './fold.js'
 /**
  * Especialista em Integrações chat (F8) — generates Digibee flowSpec JSON.
  *
- * Polling: while the thread renders the [data-ak-flowspec-poll] marker
- * (last message is from the user — the GenerateFlowspecReply job is still
- * running), polls the status route; once `pending` turns false, swaps the
- * thread's slot for the response. The post-slot-update init() tears down
- * the timer once the marker disappears. Gives up after MAX_POLL_ATTEMPTS
- * (stuck queue, worker down, expired session) instead of retrying forever
- * with no signal to the user.
+ * Polling: while the GenerateFlowspecReply job runs, the thread renders a
+ * `data-ak-poll` marker and marker-poll.js swaps the thread once the reply
+ * lands. Its ceiling (300 × 2.5s ≈ 12.5min) must stay ABOVE the server's stall
+ * window (FlowspecChat::REPLY_STALL_SECONDS, 660s): by then status() reports
+ * the turn resolved and the swap removes the marker.
  *
  * Copy: [data-ak-flowspec-copy="pre-id"] copies the textContent (not
  * innerHTML — the JSON has `&&` in jsonPath, which would turn into
  * &amp;&amp;).
  */
 
-const POLL_INTERVAL = 2500
-// ~12.5min at 2.5s/tick. Must stay ABOVE the server's stall window
-// (FlowspecChat::REPLY_STALL_SECONDS, 660s): by then status() reports the turn
-// resolved (a reply arrived, or the generation is declared dead and the
-// composer reopens) and the slot swap removes the poll marker, so the client
-// stops on its own. A lower ceiling gave up mid-window and left a slow-but-live
-// reply invisible until a manual refresh. This ceiling is now only a backstop
-// for a status endpoint that never resolves at all.
-const MAX_POLL_ATTEMPTS = 300
-let timer = null
-let attempts = 0
 
 document.addEventListener('click', async (e) => {
     const trigger = e.target.closest('[data-ak-flowspec-copy]')
@@ -600,51 +587,4 @@ export function init() {
     // Keep the newest message in view (initial load + after each slot swap).
     const scroll = document.querySelector('[data-ak-fs-scroll]')
     if (scroll) scroll.scrollTop = scroll.scrollHeight
-
-    const marker = document.querySelector('[data-ak-flowspec-poll]')
-
-    if (!marker) {
-        stopPolling()
-        return
-    }
-
-    if (timer) return
-
-    attempts = 0
-    timer = setInterval(poll, POLL_INTERVAL)
-}
-
-function stopPolling() {
-    if (timer) {
-        clearInterval(timer)
-        timer = null
-    }
-}
-
-async function poll() {
-    const marker = document.querySelector('[data-ak-flowspec-poll]')
-
-    if (!marker) {
-        stopPolling()
-        return
-    }
-
-    attempts += 1
-
-    if (attempts > MAX_POLL_ATTEMPTS) {
-        stopPolling()
-        Toast.show('A geração está demorando mais que o esperado — atualize a página para conferir o status.', 'warning')
-        return
-    }
-
-    try {
-        const response = await ajaxModule.init('GET', marker.dataset.akFlowspecPoll)
-        const data = await response.json()
-
-        if (!data.pending) {
-            updateSlots(data) // re-initializes the modules; init() stops the timer
-        }
-    } catch (error) {
-        // transient failure — the next tick retries, up to MAX_POLL_ATTEMPTS
-    }
 }

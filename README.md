@@ -416,8 +416,9 @@ O ↗ ao lado de um valor que aponta para outro registro é o único alvo de
 navegação: as palavras pertencem ao editor. Ver `AGENTS.md` § "Inline edit".
 
 **Assíncrono: job + polling, nunca broadcasting.** Toda feature de IA — hoje
-são quatro módulos de polling (`docs-chat`, `flowspec-chat`, `cati-chat` e
-`lifecycle-poll`) sobre seis jobs — segue o mesmo desenho, e ele existe por uma
+seis jobs, acompanhados por UM módulo de polling (`marker-poll.js`, ligado por
+`data-ak-poll` no marcador; antes eram quatro cópias, uma por tela) — segue o
+mesmo desenho, e ele existe por uma
 razão específica: uma geração leva minutos, então a resposta HTTP não pode
 esperá-la, e um WebSocket seria infraestrutura nova para um evento por usuário
 a cada vários minutos:

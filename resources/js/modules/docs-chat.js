@@ -35,14 +35,13 @@ import {flushSave, setEditorLocked} from './docs-editor.js'
  * whether the panel/thread is even in the DOM.
  */
 
+// The resume poll's pace. The panel's own poll is marker-poll.js's, with the
+// same defaults: ~12.5min at 2.5s/tick, comfortably above
+// DocumentationChat::REPLY_STALL_SECONDS (660s, server-side) — by then the
+// server already considers the turn resolved or dead.
 const POLL_INTERVAL = 2500
-// ~12.5min at 2.5s/tick — comfortably above DocumentationChat::REPLY_STALL_SECONDS
-// (660s, server-side), same margin flowspec-chat.js uses for the same reason:
-// by then the server already considers the turn resolved or dead.
 const MAX_POLL_ATTEMPTS = 300
 
-let panelTimer = null
-let panelAttempts = 0
 let resumeTimer = null
 let resumeAttempts = 0
 let resumeActive = false
@@ -902,43 +901,14 @@ function showStatus(on) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Polling while the thread's own marker is present (panel open)      */
+/*  The panel's poll gave up (marker-poll.js): release the editor       */
 /* ------------------------------------------------------------------ */
 
-function stopPanelPoll() {
-    if (panelTimer) {
-        clearInterval(panelTimer)
-        panelTimer = null
-    }
-}
-
-async function pollPanel(url) {
-    const marker = document.querySelector('[data-ak-docs-chat-poll]')
-    if (!marker) {
-        stopPanelPoll()
-        return
-    }
-
-    panelAttempts += 1
-    if (panelAttempts > MAX_POLL_ATTEMPTS) {
-        stopPanelPoll()
-        unlockEditor()
-        showStatus(false)
-        Toast.show('A resposta está demorando mais que o esperado — atualize a página para conferir.', 'warning')
-        return
-    }
-
-    try {
-        const response = await ajaxModule.init('GET', url)
-        const data = await response.json()
-        if (!data.pending) {
-            stopPanelPoll()
-            updateSlots(data) // swaps the thread slot; init() re-derives lock/poll state
-        }
-    } catch (_) {
-        // transient failure — the next tick retries, up to MAX_POLL_ATTEMPTS
-    }
-}
+document.addEventListener('ak:poll-gave-up', (e) => {
+    if (!e.detail?.marker?.matches?.('[data-ak-docs-chat-poll]')) return
+    unlockEditor()
+    showStatus(false)
+})
 
 /* ------------------------------------------------------------------ */
 /*  Resume — a chat still awaiting a reply for this target, from a     */
@@ -976,6 +946,9 @@ async function pollResume(url) {
         if (!document.querySelector('[data-ak-docs-chat-poll]')) {
             unlockEditor()
             showStatus(false)
+            // Never give up in silence (AGENTS.md § Queue & Jobs): the editor
+            // just unlocked under a reply that may still arrive.
+            Toast.show('A resposta do assistente está demorando mais que o esperado — atualize a página para conferir.', 'warning')
         }
         return
     }
@@ -1009,12 +982,7 @@ export function init() {
     if (marker) {
         lockEditor()
         showStatus(true)
-        if (!panelTimer) {
-            panelAttempts = 0
-            panelTimer = setInterval(() => pollPanel(marker.dataset.akDocsChatPoll), POLL_INTERVAL)
-        }
     } else {
-        stopPanelPoll()
         // Don't unlock out from under a page-level resume poll still in charge.
         if (!resumeActive) {
             unlockEditor()

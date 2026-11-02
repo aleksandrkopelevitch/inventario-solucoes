@@ -39,9 +39,13 @@
         {{-- The poll marker lives inside the slot, so a swap that settles the
              run removes it and the client stops on its own. --}}
         @if ($unsettled)
+            {{-- `seen` rides in the URL: the endpoint renders the panel only
+                 when a round landed since, and each new round is a new URL,
+                 so the ceiling counts ticks without progress. --}}
             <span
-                data-ak-lifecycle-poll="{{ route('flowspec.lifecycle.status', ['chat' => $chat, 'message' => $message]) }}"
-                data-ak-lifecycle-seen="{{ count($run->roundList()) }}"
+                data-ak-poll="{{ route('flowspec.lifecycle.status', ['chat' => $chat, 'message' => $message, 'seen' => count($run->roundList())]) }}"
+                data-ak-poll-interval="4000"
+                data-ak-poll-give-up="A execução está demorando mais que o esperado — atualize a página para conferir."
                 class="ml-auto inline-flex items-center gap-1 text-[10px] text-faint"
             >
                 <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-accent"></span>
