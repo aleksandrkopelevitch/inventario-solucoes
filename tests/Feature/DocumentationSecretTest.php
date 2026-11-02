@@ -709,6 +709,30 @@ it('gives the values already stored an id, without touching who updated the page
     expect($row()->documentation)->toBe($legacy);
 });
 
+it('gives a stored MULTI-LINE value an id, so the first editor save keeps it', function () {
+    $migration = require database_path('migrations/2026_11_02_192601_assign_ids_to_multiline_documentation_secrets.php');
+    $page = DocumentationPage::factory()->create();
+    // What the old pattern left behind: the one-line value got its id, the
+    // multi-line one never matched and so never got one.
+    $legacy = "a {% secret id=\"aaaaaaa1\" %}um{% endsecret %}\n\n```\n{% secret %}linha 1\nlinha 2{% endsecret %}\n```";
+
+    DB::table('documentation_pages')->where('id', $page->id)->update([
+        'documentation' => $legacy,
+        'updated_at'    => '2026-01-01 00:00:00',
+    ]);
+    $row = fn () => DB::table('documentation_pages')->where('id', $page->id)->first();
+
+    $migration->up();
+    $stored = $row()->documentation;
+
+    expect(secretIdsOf($stored))->toHaveCount(2)
+        ->and(secretIdsOf($stored)[0])->toBe('aaaaaaa1')
+        ->and(SecretText::values($stored))->toBe([1 => 'um', 2 => "linha 1\nlinha 2"])
+        ->and($row()->updated_at)->toBe('2026-01-01 00:00:00')
+        // The editor's round trip: masked out, restored on save, value intact.
+        ->and(SecretText::restore(SecretText::mask($stored), $stored))->toBe($stored);
+});
+
 /*
 |--------------------------------------------------------------------------
 | The code itself

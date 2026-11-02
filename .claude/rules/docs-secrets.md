@@ -26,6 +26,10 @@ failed OPEN: a PEM key in a fence, or a hard line break inside the chip,
 matched nothing and was served as plain text everywhere. The body is now
 tempered instead (it cannot run past another construct's opener or closer),
 so an unclosed opener still stays ordinary text.
+Values stored before that never got an id (the old pattern never saw them),
+and `mask()` needs one, so `2026_11_02_192601_assign_ids_to_multiline_documentation_secrets`
+gives them theirs: without it a page's first editor save turned such a value
+into a dead lock.
 
 **It is the sixth construct of the dialect and the only INLINE one** — a
 protected value is a token in a sentence, a table cell or a line of a code
