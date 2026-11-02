@@ -122,21 +122,28 @@ async function send(btn) {
         return
     }
 
-    const mediaIds = Array.from(document.querySelectorAll('[data-ak-context-doc]:checked')).map((c) => c.value)
-    // Saved FIRST: a protected value typed since the last save is still plain
-    // text in the editor, and only a save turns it into the marker the
-    // assistant may be shown (see flushSave()).
-    await flushSave()
-    const existing = window.__akDocsGetMarkdown ? await window.__akDocsGetMarkdown() : ''
-
-    const formData = new FormData()
-    formData.append('message', message)
-    formData.append('existing_content', existing)
-    mediaIds.forEach((id) => formData.append('media_ids[]', id))
-    contextPages.forEach((_, id) => formData.append('page_ids[]', id))
-
+    // Busy BEFORE the awaits below, not after them: the save and the snapshot
+    // take a moment, and a double click or a held Enter in that moment posted
+    // the message twice (a second message, or a spurious "Aguarde…" 422).
+    // setButtonLoading() disables the button, and Enter goes through .click(),
+    // which a disabled button ignores.
+    if (btn.disabled) return
     setButtonLoading(btn, true)
+
     try {
+        const mediaIds = Array.from(document.querySelectorAll('[data-ak-context-doc]:checked')).map((c) => c.value)
+        // Saved FIRST: a protected value typed since the last save is still
+        // plain text in the editor, and only a save turns it into the marker
+        // the assistant may be shown (see flushSave()).
+        await flushSave()
+        const existing = window.__akDocsGetMarkdown ? await window.__akDocsGetMarkdown() : ''
+
+        const formData = new FormData()
+        formData.append('message', message)
+        formData.append('existing_content', existing)
+        mediaIds.forEach((id) => formData.append('media_ids[]', id))
+        contextPages.forEach((_, id) => formData.append('page_ids[]', id))
+
         const response = await ajaxModule.init('POST', btn.dataset.action, formData)
         const data = await response.json()
         updateSlots(data) // re-initializes modules; init() below picks up the new poll marker
