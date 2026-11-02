@@ -141,6 +141,28 @@ it('serves an <img> the rendition and a link, a script or ?original=1 the upload
         ->assertHeader('Content-Type', 'image/png');
 });
 
+it('hands an SVG over as a sandboxed download, never as a page on this origin', function () {
+    // An editor's upload carrying a script: opened as a document inline, it
+    // would run with the session of whoever clicked its file card.
+    $svg = renditionPage()
+        ->addMediaFromString('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>')
+        ->usingFileName('logo.svg')->toMediaCollection(Documentable::DOCS_COLLECTION);
+    $png = imageOnPage(renditionPage(), renditionSource(300, 200));
+    $this->actingAs(renditionAdmin());
+
+    $response = $this->get(route('files.show', $svg), ['Sec-Fetch-Dest' => 'document'])->assertOk();
+
+    expect($response->headers->get('Content-Disposition'))->toStartWith('attachment;')
+        ->and($response->headers->get('Content-Security-Policy'))->toContain('sandbox')
+        ->and($response->headers->get('X-Content-Type-Options'))->toBe('nosniff');
+
+    // A raster image still opens in place.
+    $raster = $this->get(route('files.show', $png), ['Sec-Fetch-Dest' => 'document'])->assertOk();
+
+    expect($raster->headers->get('Content-Disposition'))->toStartWith('inline;')
+        ->and($raster->headers->get('X-Content-Type-Options'))->toBe('nosniff');
+});
+
 it('answers a browser that already has the file with a bodiless 304', function () {
     $media = imageOnPage(renditionPage(), renditionSource(2400, 1200));
     $this->actingAs(renditionAdmin());

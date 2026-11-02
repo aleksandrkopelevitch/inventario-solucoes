@@ -71,12 +71,37 @@ final class DocumentationMediaResponse
         return is_file($path) && filesize($path) < $media->size ? $path : null;
     }
 
+    /**
+     * The types a browser may open IN PLACE, on this app's origin.
+     *
+     * Everything else is an attachment. An SVG is the reason: it is accepted
+     * as an upload, and opened as a document (a file card's link, a new tab)
+     * it is a page that runs its own `<script>` with the session of whoever
+     * opened it — an editor's upload acting as the admin who clicked it. The
+     * list is by the DETECTED type (Spatie reads the bytes), so an HTML file
+     * renamed `.txt` lands outside it too. An `<img>` ignores
+     * `Content-Disposition`, which is why the SVGs drawn in a page are not
+     * affected.
+     */
+    private const INLINE_TYPES = [
+        'image/png', 'image/jpeg', 'image/gif', 'image/webp',
+        'application/pdf', 'text/plain',
+    ];
+
     /** @return array<string, string> */
     private static function headers(string $mimeType, string $fileName): array
     {
+        $inline = in_array(strtolower($mimeType), self::INLINE_TYPES, true);
+
         return [
             'Content-Type'        => $mimeType,
-            'Content-Disposition' => 'inline; filename="' . addslashes($fileName) . '"',
-        ];
+            'Content-Disposition' => ($inline ? 'inline' : 'attachment') . '; filename="' . addslashes($fileName) . '"',
+            // Never let the browser second-guess the type into something it runs.
+            'X-Content-Type-Options' => 'nosniff',
+        ] + ($inline ? [] : [
+            // Belt and braces for the attachment: should anything still render
+            // it as a document, it renders with no script and no origin.
+            'Content-Security-Policy' => "sandbox; default-src 'none'; style-src 'unsafe-inline'",
+        ]);
     }
 }
