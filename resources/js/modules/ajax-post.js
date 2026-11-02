@@ -212,5 +212,10 @@ export function showSuccessAlert(data) {
         })
         return
     }
+    // Nothing to say, nothing shown: a response that only swaps slots (every
+    // flowSpec send) used to pop an empty card titled "Alerta", since the
+    // fallback title alone was enough to open a Toast.
+    if (!data.message) return
+
     Toast.open({content: data.message, title: data.title || 'Alerta', type: data.type || 'success'})
 }
