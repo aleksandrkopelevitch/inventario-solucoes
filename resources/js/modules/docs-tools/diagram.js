@@ -26,7 +26,7 @@ const EXTERNAL_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor
 
 const IMAGE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-4 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M18 15h.008"/></svg>'
 
-/** One fetch per page load, shared by every block on it. */
+/** One SUCCESSFUL fetch per page load, shared by every block on it. */
 let catalogPromise = null
 
 /** slug → the catalog's own row for it, so a saved block can resolve itself. */
@@ -52,11 +52,17 @@ function loadCatalog(url) {
                 // A diagram appears once per participating solution, so this
                 // deliberately overwrites: every copy is the same row.
                 groups.forEach((g) => g.diagrams.forEach((d) => bySlug.set(d.slug, d)))
+                catalogFailed = false
 
                 return groups
             })
             .catch(() => {
                 catalogFailed = true
+                // Forgotten, so the next block (or the next open of the
+                // picker) asks again: memoizing the failure left the picker
+                // reading "Nenhum diagrama no catálogo" for the rest of the
+                // session after one dropped request.
+                catalogPromise = null
 
                 return []
             })

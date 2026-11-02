@@ -208,6 +208,17 @@ export default class TabsTool {
         return {items}
     }
 
+    /**
+     * Called by Editor.js when this block is removed or the whole editor is
+     * re-rendered — which every "Aplicar" from the assistant does. Without it
+     * each nested Editor.js instance (one per tab) and its listeners outlived
+     * the block, piling up for as long as the page stayed open.
+     */
+    destroy() {
+        this.tabs.forEach((tab) => tab.editor?.destroy?.())
+        this.tabs = []
+    }
+
     // Prevents Editor.js from "flattening" the tool when the tabs are empty.
     static get contentless() {
         return false

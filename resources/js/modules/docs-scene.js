@@ -1291,7 +1291,17 @@ export function mountScene(stage, scene) {
         if (typeof ResizeObserver !== 'undefined') {
             // Painting changes the stage's HEIGHT, which fires this again;
             // only a change of width is a reason to lay out anew.
-            new ResizeObserver(() => paint(stage, state, false)).observe(stage)
+            //
+            // It is also what draws a scene that started HIDDEN (a tab not
+            // shown first): `init()` saw an empty stage at width 0 and left
+            // the text list on screen, so the picture and the list both
+            // showed once the tab opened. The figure is marked here, as soon
+            // as there is a picture. The editor's preview stage sits in no
+            // such figure, so for it this is a no-op.
+            new ResizeObserver(() => {
+                paint(stage, state, false)
+                if (stage.firstChild) stage.closest('figure[data-ak-scene]')?.classList.add('is-drawn')
+            }).observe(stage)
         }
     }
 
