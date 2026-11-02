@@ -148,6 +148,16 @@ chooses which `Diagram` it becomes.
   was already right"). Silence is what caused the drift this record exists to
   end.
 
+**Both writes ask the module they write into** (since 2026-11-02). Recording
+an APPROVAL publishes into the solution's caderno, so
+`RecordSubmissionDecisionRequest` also wants `create` on `Notebook` (a 422 that
+says why; a rejection writes nothing outside the submission and needs only
+`update` on it). APPLYING writes a catalog diagram, so
+`ApplyApprovedTopologyRequest` also wants `update` on the target `Diagram`, or
+`create` on `Diagram` plus `update` on the target caderno. Before that, a
+Committee Editor with no Documentation level could publish a page and overwrite
+any diagram their solution took part in.
+
 This record exists because `SubmissionDiagram::afterChainMutation()` is
 deliberately empty — a proposal must not write the catalog, because a proposal
 can be rejected — which reopened a hole an earlier phase had declared closed.

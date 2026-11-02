@@ -2,12 +2,14 @@
 
 use App\Actions\Cati\ApplyApprovedTopology;
 use App\Contracts\Documentable;
+use App\Enums\AccessModule;
 use App\Enums\SubmissionDiagramKind;
 use App\Enums\SubmissionSectionKey;
 use App\Enums\SubmissionStatus;
 use App\Enums\UserRole;
 use App\Models\ApprovedTopology;
 use App\Models\Diagram;
+use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Models\Solution;
 use App\Models\Submission;
@@ -286,6 +288,49 @@ it('lets a viewer see the handoff but not resolve it', function () {
 
     $this->postJson(route('submissions.topology.apply', [$submission, $topology]), ['diagram_id' => null])
         ->assertForbidden();
+});
+
+it('refuses an approval from an author who cannot write the documentation it publishes', function () {
+    // The submission's own author, a Committee Editor — and only that.
+    $author = User::factory()->editor(AccessModule::Committee)->create(['role' => UserRole::Member]);
+    $this->actingAs($author);
+    $submission = approvableSubmission(['created_by_id' => $author->id]);
+
+    $response = $this->postJson(route('submissions.decision.store', $submission), [
+        'status' => SubmissionStatus::Approved->value, 'decision' => 'Aprovada.',
+    ])->assertStatus(422);
+
+    expect($response->json('message'))->toContain('documentação')
+        ->and(DocumentationPage::count())->toBe(0)
+        ->and($submission->fresh()->status)->not->toBe(SubmissionStatus::Approved);
+
+    // A rejection publishes nothing, and stays the author's to record.
+    $this->postJson(route('submissions.decision.store', $submission), [
+        'status' => SubmissionStatus::Rejected->value, 'decision' => 'Reprovada.',
+    ])->assertOk();
+});
+
+it('refuses to apply a topology for an author who cannot write diagrams', function () {
+    $submission = approvableSubmission();
+    approve($submission);
+    $topology = $submission->fresh()->approvedTopology;
+
+    $author = User::factory()->editor(AccessModule::Committee)->create(['role' => UserRole::Member]);
+    $submission->update(['created_by_id' => $author->id]);
+    $this->actingAs($author);
+
+    $diagram = Diagram::factory()->create(['name' => 'Antigo']);
+    $diagram->participants()->attach($submission->solution_id, ['position' => 0]);
+    $before = $diagram->chain;
+
+    $this->postJson(route('submissions.topology.apply', [$submission, $topology]), ['diagram_id' => $diagram->id])
+        ->assertForbidden();
+    $this->postJson(route('submissions.topology.apply', [$submission, $topology]), [
+        'diagram_id' => null, 'notebook_id' => Notebook::factory()->create()->id,
+    ])->assertForbidden();
+
+    expect($diagram->fresh()->chain)->toBe($before)
+        ->and($topology->fresh()->isPending())->toBeTrue();
 });
 
 /*

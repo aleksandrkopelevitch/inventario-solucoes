@@ -21,9 +21,33 @@ use Illuminate\Validation\Validator;
  */
 class ApplyApprovedTopologyRequest extends FormRequest
 {
+    /**
+     * The submission's author AND somebody who may write the target.
+     *
+     * Applying writes a CATALOG diagram (or creates one in a caderno), which is
+     * the Documentation module's, not the Committee's. Asking only `update` on
+     * the submission let a Committee Editor with no say over documentation
+     * overwrite any diagram their solution participates in, or create one in
+     * any caderno. An id that does not resolve is left to validation.
+     */
     public function authorize(): bool
     {
-        return $this->user()?->can('update', $this->route('submission')) ?? false;
+        $user = $this->user();
+
+        if (! $user?->can('update', $this->route('submission'))) {
+            return false;
+        }
+
+        $diagram = $this->targetDiagram();
+
+        if ($diagram !== null) {
+            return $user->can('update', $diagram);
+        }
+
+        $notebook = filled($this->input('notebook_id')) ? Notebook::find($this->input('notebook_id')) : null;
+
+        return $user->can('create', Diagram::class)
+            && ($notebook === null || $user->can('update', $notebook));
     }
 
     /** @return array<string, mixed> */

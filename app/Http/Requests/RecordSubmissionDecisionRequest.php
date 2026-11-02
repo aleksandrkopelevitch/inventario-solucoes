@@ -3,6 +3,8 @@
 namespace App\Http\Requests;
 
 use App\Enums\SubmissionStatus;
+use App\Models\Notebook;
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -34,6 +36,44 @@ class RecordSubmissionDecisionRequest extends FormRequest
             'conditions'   => ['array'],
             'conditions.*' => ['string', 'max:500'],
         ];
+    }
+
+    /**
+     * An approval PUBLISHES: `PromoteApprovedSubmission` writes the approved
+     * sections into the solution's caderno (creating one when it has none).
+     * That is the Documentation module's write, so whoever records an approval
+     * must be able to make it there too — `update` on the submission alone let
+     * a Committee Editor with no say over documentation put a page into a
+     * caderno, live at once if it was published. A rejection writes nothing
+     * outside the submission and stays open to its author.
+     *
+     * @return array<int, callable>
+     */
+    public function after(): array
+    {
+        return [
+            function (Validator $validator): void {
+                if ($validator->errors()->isNotEmpty() || ! $this->approves()) {
+                    return;
+                }
+
+                if (! $this->user()->can('create', Notebook::class)) {
+                    $validator->errors()->add(
+                        'status',
+                        'Aprovar publica a submissão na documentação da solução, e sua conta não edita a documentação. Peça a quem edita a documentação para registrar a aprovação.',
+                    );
+                }
+            },
+        ];
+    }
+
+    /** Approving, on a submission that has a solution to publish INTO. */
+    private function approves(): bool
+    {
+        return $this->route('submission')?->solution_id !== null && in_array($this->input('status'), [
+            SubmissionStatus::Approved->value,
+            SubmissionStatus::ApprovedWithConditions->value,
+        ], true);
     }
 
     /** @return array<string, string> */
