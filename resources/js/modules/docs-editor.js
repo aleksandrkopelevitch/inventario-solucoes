@@ -573,7 +573,7 @@ async function runSave(btn, {silent = false} = {}) {
 }
 
 /** The construct as a code block's textarea holds it: raw text. */
-const SECRET_IN_CODE = /\{%\s*secret(?:\s+id="[^"]*")?\s*%\}([^\n]*?)\{%\s*endsecret\s*%\}/g
+const SECRET_IN_CODE = /\{%\s*secret(?:\s+id="[^"]*")?\s*%\}((?:(?!\{%\s*(?:end)?secret\b)[\s\S])*?)\{%\s*endsecret\s*%\}/g
 
 /**
  * After a save, every value typed since the last one becomes its MARKER — what
