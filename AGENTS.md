@@ -343,6 +343,16 @@ Two traps live in that macro, both found the hard way on the first real import:
   in its own class and call it by an imported name (`TransientHttpFailure::
   matches()`); `use` statements are resolved at compile time and are immune.
 
+And one trap in what gets retried at all: **a write that must not happen twice
+is not retried on a timeout or a 5xx.** The far side may already have done it —
+a Digibee pipeline create whose answer was lost made the pipeline, and a second
+POST made an undeletable twin. `Http::digibeeDesign(repeatable: false)` (create,
+deploy) retries only what `App\Support\Digibee\UnsentRequest` proves never
+landed: no DNS, no connection, a CONNECT timeout, a 429/503. A queued job doing
+such writes gets the same treatment: `RunPipelineLifecycle` has
+`maxExceptions = 1`, `failOnTimeout`, and closes a run it finds already
+`Running` instead of starting it over.
+
 ## Scheduling
 
 - Always use `withoutOverlapping()` on commands that may run longer than the interval

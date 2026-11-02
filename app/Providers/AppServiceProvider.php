@@ -135,7 +135,7 @@ class AppServiceProvider extends ServiceProvider
         // "Method PendingRequest::x does not exist" on a line that looks
         // perfectly correct — see AGENTS.md § HTTP Client. `use` statements are
         // resolved at compile time and are immune.
-        Http::macro('digibeeDesign', fn () => app(DigibeeAuthResolver::class)->pendingRequest());
+        Http::macro('digibeeDesign', fn (bool $repeatable = true) => app(DigibeeAuthResolver::class)->pendingRequest($repeatable));
     }
 
     /**
