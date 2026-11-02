@@ -180,9 +180,16 @@
                         {{-- Deleting a parent takes its subpages with it, so the
                              confirmation says so — the rail is the only place
                              that knows how many are about to go. Admin only. --}}
+                        {{-- The sentence is built in PHP: an @if inside a component's
+                             attribute is never compiled, and the confirm printed the
+                             raw directive (and warned about subpages on every page).
+                             The inline form, like `$i` above: Blade lifts PHP blocks out
+                             before it strips comments, so mixing the two forms here (or
+                             even naming the block form in a comment) breaks the view. --}}
                         @if ($page['canDelete'] ?? false)
+                            @php($deleteConfirm = 'Excluir a página "' . $page['title'] . '"' . (($page['hasChildren'] ?? false) ? ' e todas as suas subpáginas' : '') . '? Esta ação não pode ser desfeita.')
                             <x-forms.button type="button" variant="ghost" data-ak-ajax="doc-page-destroy-{{ $i }}" data-ak-action="{{ $page['destroyUrl'] }}"
-                                data-ak-confirm="Excluir a página &quot;{{ $page['title'] }}&quot;@if ($page['hasChildren'] ?? false) e todas as suas subpáginas@endif? Esta ação não pode ser desfeita."
+                                data-ak-confirm="{{ $deleteConfirm }}"
                                 class="!justify-start !px-2 !py-1 !text-xs !text-crit">
                                 <x-heroicon-o-trash class="size-3.5" /> Excluir
                             </x-forms.button>

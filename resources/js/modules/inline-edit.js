@@ -152,7 +152,14 @@ function requestOptions(config, fields) {
     }
 }
 
+// Editors with a save in flight. Disabling the confirm button only stops a
+// second CLICK; Enter calls save() directly, so a held or doubled Enter on a
+// creator ("+ Adicionar contato", POST) created the row twice.
+const saving = new WeakSet()
+
 async function save(root) {
+    if (!root || saving.has(root)) return
+
     const {config, fields, confirm} = parts(root)
     if (!fields.length || !config.action) return
 
@@ -172,6 +179,7 @@ async function save(root) {
     }
 
     if (confirm) confirm.disabled = true
+    saving.add(root)
 
     try {
         const response = await fetch(config.action, requestOptions(config, fields))
@@ -208,6 +216,7 @@ async function save(root) {
         // away from being accepted.
         Toast.show(error.message || 'Não foi possível salvar a alteração.', 'warning')
     } finally {
+        saving.delete(root)
         if (confirm?.isConnected) confirm.disabled = false
     }
 }

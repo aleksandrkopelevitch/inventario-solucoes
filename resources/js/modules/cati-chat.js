@@ -74,6 +74,24 @@ document.addEventListener('keydown', (e) => {
     input.closest('form')?.querySelector('[data-ak-cati-chat-send]')?.click()
 })
 
+// Enter in the link field attaches the link. Left to the browser it SUBMITTED
+// the composer's <form> natively: the url field is the form's only text-type
+// input and the form has no submit button, which is exactly when implicit
+// submission fires — a GET of the page carrying `_token` and the draft in the
+// query string, the link never attached.
+document.addEventListener('keydown', (e) => {
+    const input = e.target.closest('[data-ak-cati-link-input]')
+    if (!input || e.key !== 'Enter') return
+    e.preventDefault()
+    composerOf(input)?.querySelector('[data-ak-cati-link-add]')?.click()
+})
+
+// And nothing else may submit it natively either: every way out of this form
+// is one of the module's own POSTs.
+document.addEventListener('submit', (e) => {
+    if (e.target.closest('[data-ak-cati-composer]')) e.preventDefault()
+})
+
 document.addEventListener('input', (e) => {
     const input = e.target.closest('[data-ak-cati-chat-input]')
     if (input) autoGrow(input)

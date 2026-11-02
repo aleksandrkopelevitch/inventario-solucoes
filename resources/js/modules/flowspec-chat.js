@@ -37,8 +37,15 @@ document.addEventListener('click', async (e) => {
     const source = document.getElementById(trigger.dataset.akFlowspecCopy)
     if (!source) return
 
-    await navigator.clipboard.writeText(source.textContent)
-    Toast.show('JSON copiado — cole no canvas da Digibee.')
+    try {
+        await navigator.clipboard.writeText(source.textContent)
+        Toast.show('JSON copiado — cole no canvas da Digibee.')
+    } catch (_) {
+        // Refused (no permission, an insecure context): say so, and leave the
+        // JSON selected so Ctrl+C still works — copy-field.js's fallback.
+        window.getSelection()?.selectAllChildren(source)
+        Toast.show('Não consegui copiar — o JSON ficou selecionado, use Ctrl+C.', 'warning')
+    }
 })
 
 /* ----------------------------------------------------------------------------
