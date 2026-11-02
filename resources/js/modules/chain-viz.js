@@ -25,6 +25,11 @@ let gifWorkerBlobUrl = null
 async function resolveGifWorkerUrl() {
     if (gifWorkerBlobUrl) return gifWorkerBlobUrl
     const res = await fetch(gifWorkerUrl)
+    // A deploy replaces the hashed worker file: an open tab then gets a 404
+    // page back, and that HTML, cached as the "worker", made gif.js wait for a
+    // worker that never starts — the button spinning and the canvas stuck in
+    // presentation mode for the life of the tab. Refused, and not memoized.
+    if (!res.ok) throw new Error(`gif worker unavailable (${res.status})`)
     const text = await res.text()
     gifWorkerBlobUrl = URL.createObjectURL(new Blob([text], { type: 'application/javascript' }))
     return gifWorkerBlobUrl
@@ -170,7 +175,11 @@ const LEVEL_GAP = 90 // espaço horizontal entre nós consecutivos
 const FIT_PAD = 60
 const EDGE_GAP = 8   // afastamento da linha em relação ao centro do handle (evita invadir o círculo)
 const EDGE_GAP_LIFELINE = 15 // idem, do lado de uma linha de vida — ver o comentário em draw()
-const MOVE_TOLERANCE = 3 // distance (px, world space) that tells a click from a drag
+// Distance that tells a click from a drag, in SCREEN pixels: the hand's
+// wobble does not shrink when the canvas is zoomed out. Measured in world
+// units it did — at 50% a 2px wobble moved the block, lit "Salvar" and
+// recorded an undo step. See `beyondTolerance()`.
+const MOVE_TOLERANCE = 3
 
 // 8 anchors per node (fraction of the width/height + the outgoing normal).
 const ANCHORS = {
@@ -752,6 +761,7 @@ const EXPORT_LONG_SIDE = 1600
 // floor on frame RATE; the only way to get more frames is more total time.
 const EXPORT_GIF_LONG_SIDE = 1100
 const EXPORT_GIF_SECONDS = 14
+const EXPORT_GIF_ENCODE_TIMEOUT_MS = 120000 // generous: ~40 frames on a slow machine
 // 1×1 transparent PNG — `html-to-image`'s own fallback for a broken `<img>`
 // (logo file missing/404) is `imagePlaceholder || ''`, and an EMPTY `src` is
 // a real browser trap: `<img src="">` resolves to the CURRENT page URL and
@@ -1240,14 +1250,6 @@ function escapeHtml(s) {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-// escapeHtml() alone doesn't touch quotes, which is fine for HTML content but
-// not for a value going inside a quoted attribute — a literal `"` in a
-// user-authored comment (e.g. an image alt text) would otherwise break out of
-// `src="…"`/`alt="…"` and inject arbitrary attributes.
-function escapeAttr(s) {
-    return escapeHtml(s).replace(/"/g, '&quot;')
-}
-
 // Blocks `javascript:`/`data:`/`vbscript:` etc. in a comment's link/image
 // target — only http(s) and root-relative/hash URLs render as a real link;
 // anything else falls back to `#` rather than executing on click.
@@ -1255,11 +1257,19 @@ function safeUrl(u) {
     return /^(https?:\/\/|\/|#)/i.test(u) ? u : '#'
 }
 
+// `s` arrives ALREADY HTML-escaped (every caller passes escapeHtml(...)), so
+// a URL or an alt text going into a quoted attribute needs only its quotes
+// escaped — escapeHtml() leaves them alone, and a literal `"` in a comment
+// would otherwise break out of `src="…"`/`alt="…"` and inject attributes.
+// Escaping the whole value again (the old escapeAttr) doubled every `&`:
+// `?a=1&b=2` reached the href as `&amp;amp;` and the link broke.
+const quoteAttr = (s) => s.replace(/"/g, '&quot;')
+
 function mdInline(s) {
     const codes = []
     s = s.replace(/`([^`]+)`/g, (m, c) => { codes.push(c); return '\x00' + (codes.length - 1) + '\x00' })
-    s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (m, a, u) => `<img src="${escapeAttr(safeUrl(u))}" alt="${escapeAttr(a)}" style="max-width:100%;border-radius:6px">`)
-    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, t, u) => `<a href="${escapeAttr(safeUrl(u))}" target="_blank" rel="noopener">${t}</a>`)
+    s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (m, a, u) => `<img src="${quoteAttr(safeUrl(u))}" alt="${quoteAttr(a)}" style="max-width:100%;border-radius:6px">`)
+    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, t, u) => `<a href="${quoteAttr(safeUrl(u))}" target="_blank" rel="noopener">${t}</a>`)
     s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     s = s.replace(/__([^_]+)__/g, '<strong>$1</strong>')
     s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
@@ -1416,6 +1426,10 @@ function mount(root) {
     markerStart.id = uid + '-start'
 
     const view = { x: FIT_PAD, y: FIT_PAD, scale: 1 }
+    // Whether the person has zoomed or panned since the last fit(). A window
+    // resize (DevTools opening, a window snapped to half the screen) re-fits
+    // only a view nobody chose — it used to throw the user's zoom away.
+    let viewChosen = false
     let nodes = []          // { label, solution, url, comment, logo, environment, cloud, el, w, h, x, y }
     let graphRef = null
     let edgeAnchors = []    // [{from, to, dashed}] por índice de edge (âncora visual — from/to aqui são anchor keys, não nós)
@@ -1662,6 +1676,11 @@ function mount(root) {
         edges.querySelectorAll('.ak-viz-edge, .ak-viz-plabel').forEach((el) => el.remove())
         hits.replaceChildren()
         world.querySelectorAll('.ak-viz-handle, .ak-viz-anchor').forEach((el) => el.remove())
+    }
+
+    /** Whether a drag of (dx, dy) WORLD units is past MOVE_TOLERANCE on screen. */
+    function beyondTolerance(dx, dy) {
+        return Math.abs(dx * view.scale) > MOVE_TOLERANCE || Math.abs(dy * view.scale) > MOVE_TOLERANCE
     }
 
     function setDirty(value) {
@@ -3141,9 +3160,16 @@ function mount(root) {
                 lastTs = now
             }
 
+            // A ceiling on the encoding, too: a worker that dies without
+            // reporting leaves gif.js waiting forever, and the `finally` below
+            // is the only way out of presentation mode.
             const blob = await new Promise((resolve, reject) => {
-                gif.once('finished', resolve)
-                gif.once('abort', () => reject(new Error('gif encoding aborted')))
+                const timeout = setTimeout(() => {
+                    gif.abort()
+                    reject(new Error('gif encoding timed out'))
+                }, EXPORT_GIF_ENCODE_TIMEOUT_MS)
+                gif.once('finished', (result) => { clearTimeout(timeout); resolve(result) })
+                gif.once('abort', () => { clearTimeout(timeout); reject(new Error('gif encoding aborted')) })
                 gif.render()
             })
             downloadBlob(blob, `diagrama-${exportFileBase()}.gif`)
@@ -5452,10 +5478,12 @@ function mount(root) {
         view.scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.min(vw / cw, vh / ch)))
         view.x = (vw - (bbox.maxX + bbox.minX) * view.scale) / 2
         view.y = (vh - (bbox.maxY + bbox.minY) * view.scale) / 2
+        viewChosen = false
         applyView()
     }
 
     function zoomAt(factor, clientX, clientY) {
+        viewChosen = true
         const r = viewport.getBoundingClientRect()
         const px = (clientX ?? r.left + r.width / 2) - r.left
         const py = (clientY ?? r.top + r.height / 2) - r.top
@@ -5607,8 +5635,10 @@ function mount(root) {
             const w = screenToWorld(e.clientX, e.clientY)
             const dx = w.x - drag.startWX
             const dy = w.y - drag.startWY
-            if (Math.abs(dx) > MOVE_TOLERANCE || Math.abs(dy) > MOVE_TOLERANCE) drag.moved = true
-            if (editable) {
+            if (beyondTolerance(dx, dy)) drag.moved = true
+            // Only a real drag moves the block: below the tolerance it is a
+            // click, and a click must leave it exactly where it was.
+            if (editable && drag.moved) {
                 const n = nodes[drag.index]
                 n.x = drag.origX + dx
                 n.y = drag.origY + dy
@@ -5696,7 +5726,8 @@ function mount(root) {
             // (`MOVE_TOLERANCE`, see `startNodePointer()`) — it decides on
             // pointerup whether this becomes "select the lane" (opening the
             // toolbar) or "confirm the drag".
-            if (Math.abs(dx) > MOVE_TOLERANCE || Math.abs(dy) > MOVE_TOLERANCE) drag.moved = true
+            if (beyondTolerance(dx, dy)) drag.moved = true
+            if (!drag.moved) return
             lane.x = Math.round(drag.startX + dx)
             lane.y = Math.round(drag.startY + dy)
             entry.wrap.style.left = lane.x + 'px'
@@ -5709,7 +5740,8 @@ function mount(root) {
             if (!note || !entry) return
             const dx = (e.clientX - drag.startClientX) / view.scale
             const dy = (e.clientY - drag.startClientY) / view.scale
-            if (Math.abs(dx) > MOVE_TOLERANCE || Math.abs(dy) > MOVE_TOLERANCE) drag.moved = true
+            if (beyondTolerance(dx, dy)) drag.moved = true
+            if (!drag.moved) return
             note.x = Math.round(drag.startX + dx)
             note.y = Math.round(drag.startY + dy)
             entry.wrap.style.left = note.x + 'px'
@@ -5719,6 +5751,7 @@ function mount(root) {
         if (!panning) return
         view.x = ox + (e.clientX - sx)
         view.y = oy + (e.clientY - sy)
+        viewChosen = true
         applyView()
     })
     /**
@@ -5801,9 +5834,16 @@ function mount(root) {
     window.addEventListener('pointerup', () => endPointer(false))
     window.addEventListener('pointercancel', () => endPointer(true))
 
+    // Proportional to the wheel's delta. A fixed 8% per EVENT, chosen by the
+    // sign of deltaY, zoomed OUT on a sideways swipe or Shift+wheel (deltaY 0
+    // is "not negative") and far too fast on a trackpad, which sends dozens of
+    // tiny events per gesture. A mouse notch (~100px) still steps ~8%.
     viewport.addEventListener('wheel', (e) => {
         e.preventDefault()
-        zoomAt(e.deltaY < 0 ? 1.08 : 1 / 1.08, e.clientX, e.clientY)
+        if (e.deltaY === 0) return
+        const delta = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY // lines → px
+        const factor = Math.min(1.25, Math.max(0.8, Math.exp(-delta * 0.0008)))
+        zoomAt(factor, e.clientX, e.clientY)
     }, { passive: false })
 
     // One-finger touch panning already comes free from the POINTER listeners
@@ -5859,7 +5899,7 @@ function mount(root) {
     })
 
     window.addEventListener('resize', () => {
-        if (nodes.length) fit()
+        if (nodes.length && !viewChosen) fit()
         positionBottomBar()
     })
 

@@ -600,8 +600,15 @@ export default class CardsTool {
         url.value = this.picking?.link && !/^(notebook|page):/.test(this.picking.link) ? this.picking.link : ''
 
         const use = () => {
-            const value = url.value.trim()
-            if (value) this.choose(value)
+            let value = url.value.trim()
+            if (!value) return
+            // An address typed without a scheme ("www.leomadeiras.com.br") was
+            // stored as typed, and GitbookRenderer links only http(s) and
+            // mailto — so the reader got a card that led nowhere, silently.
+            if (!/^[a-z][a-z0-9+.-]*:/i.test(value) && !value.startsWith('/') && !value.startsWith('#')) {
+                value = `https://${value}`
+            }
+            this.choose(value)
         }
 
         url.addEventListener('keydown', (e) => {

@@ -1,4 +1,5 @@
 import * as ajaxModule from './ajax.js'
+import {keepNewestInView} from './thread-scroll.js'
 import {updateSlots} from './ajax-slot.js'
 import {setButtonLoading} from './button-loading.js'
 import {fold} from './fold.js'
@@ -1013,8 +1014,7 @@ export function init() {
     // host untouched.
     paintContextRow()
 
-    const scroll = document.querySelector('[data-ak-docs-chat-scroll]')
-    if (scroll) scroll.scrollTop = scroll.scrollHeight
+    keepNewestInView(document.querySelector('[data-ak-docs-chat-scroll]'))
 
     document.querySelectorAll('[data-ak-docs-chat-input]').forEach(autoGrow)
 }

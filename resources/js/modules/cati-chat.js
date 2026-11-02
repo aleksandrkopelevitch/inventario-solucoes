@@ -1,4 +1,5 @@
 import * as ajaxModule from './ajax.js'
+import {keepNewestInView} from './thread-scroll.js'
 import {updateSlots} from './ajax-slot.js'
 import {setButtonLoading} from './button-loading.js'
 
@@ -417,8 +418,7 @@ document.addEventListener('click', (e) => {
 })
 
 function scrollToEnd() {
-    const scroll = document.querySelector('[data-ak-cati-chat-scroll]')
-    if (scroll) scroll.scrollTop = scroll.scrollHeight
+    keepNewestInView(document.querySelector('[data-ak-cati-chat-scroll]'))
 }
 
 // Called on load and after every slot swap.

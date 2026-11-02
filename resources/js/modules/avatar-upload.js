@@ -29,10 +29,17 @@ export function init() {
 
                 }, options)
 
+                // Once per INPUT, from the "add" trigger only: the add and the
+                // remove buttons both name the same input, and binding it from
+                // each read every picked image twice. The add config is the one
+                // that carries `removeButtonId`.
                 let fileInput = document.getElementById(data.inputId)
-                fileInput.addEventListener('change', (event) => {
-                    loadImageFromFile(data.inputId, data.targetImgBgId, data.removeButtonId)
-                }, false)
+                if (data.action === 'addAvatar' && fileInput && fileInput.akAvatarBound !== true) {
+                    fileInput.addEventListener('change', (event) => {
+                        loadImageFromFile(data.inputId, data.targetImgBgId, data.removeButtonId)
+                    }, false)
+                    fileInput.akAvatarBound = true
+                }
 
                 trigger.fileInputEventAdded = true
             }

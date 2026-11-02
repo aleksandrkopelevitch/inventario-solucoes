@@ -42,6 +42,16 @@ document.addEventListener('cancel', (event) => {
     Modal.close(modal.id)
 }, true)
 
+// However a dialog closed, the page scrolls again once none is open. The
+// browser's close watcher honours a SECOND Esc even on a dialog opened with
+// closeOnEsc = false (docs-chat's draft review): it closes natively, Modal.close()
+// never runs, and the body stayed `overflow-y-hidden` — a page that no longer
+// scrolled. `close` doesn't bubble either, hence the capture phase.
+document.addEventListener('close', (event) => {
+    if (!(event.target instanceof HTMLDialogElement)) return
+    if (!document.querySelector('dialog[open]')) document.body.classList.remove('overflow-y-hidden')
+}, true)
+
 // Backdrop click — the event target is the <dialog> itself only when the click
 // landed outside the dialog's own box.
 document.addEventListener('click', (event) => {
