@@ -11,6 +11,7 @@ use App\Models\PipelineRun;
 use App\View\Components\Flowspec\LifecyclePanel;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Starting and watching a Digibee lifecycle run from the F8 conversation.
@@ -46,26 +47,32 @@ class PipelineRunController extends Controller
 
         $this->reapStale($message);
 
-        if ($this->unsettledFor($message) !== null) {
+        // Check and create under one lock: two clicks landing together both
+        // passed the check before either row existed, and each queued a run
+        // that writes and deploys. `get()` answers false when the lock is held
+        // — the other request is creating the run this one would duplicate.
+        $run = Cache::lock('pipeline-run-start:' . $message->id, 10)->get(
+            fn () => $this->unsettledFor($message) !== null ? null : PipelineRun::create([
+                'flowspec_message_id' => $message->id,
+                'user_id'             => $request->user()->id,
+                'pipeline_name'       => $request->validated('pipeline_name'),
+                'environment'         => $request->validated('environment'),
+                'creates'             => (bool) $request->validated('creates', false),
+                // The trigger the run writes. Kept on the row rather than resolved
+                // at dispatch so a failed run says what it was asked for.
+                'trigger_kind'  => $request->validated('trigger_kind') ?: null,
+                'trigger_cron'  => $request->validated('trigger_cron') ?: null,
+                'trigger_event' => $request->validated('trigger_event') ?: null,
+                'status'        => PipelineRunStatus::Pending,
+            ]),
+        );
+
+        if (! $run instanceof PipelineRun) {
             return response()->json([
                 'type'    => 'warning',
                 'message' => 'Já existe uma execução em andamento para esse flowSpec.',
             ], 422);
         }
-
-        $run = PipelineRun::create([
-            'flowspec_message_id' => $message->id,
-            'user_id'             => $request->user()->id,
-            'pipeline_name'       => $request->validated('pipeline_name'),
-            'environment'         => $request->validated('environment'),
-            'creates'             => (bool) $request->validated('creates', false),
-            // The trigger the run writes. Kept on the row rather than resolved
-            // at dispatch so a failed run says what it was asked for.
-            'trigger_kind'        => $request->validated('trigger_kind') ?: null,
-            'trigger_cron'        => $request->validated('trigger_cron') ?: null,
-            'trigger_event'       => $request->validated('trigger_event') ?: null,
-            'status'              => PipelineRunStatus::Pending,
-        ]);
 
         RunPipelineLifecycle::dispatch($run);
 
