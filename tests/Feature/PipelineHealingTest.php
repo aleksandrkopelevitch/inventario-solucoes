@@ -6,6 +6,7 @@ use App\Actions\Digibee\RunPipelineTestSuite;
 use App\Actions\Flowspec\BuildPipelineTestMatrix;
 use App\Enums\DeploymentStatus;
 use App\Enums\HealingVerdict;
+use App\Exceptions\DigibeeApiException;
 use App\Services\Digibee\PipelineHealingService;
 use App\Services\Flowspec\FlowspecPromptBuilder;
 use App\Support\Digibee\DeploymentReport;
@@ -17,7 +18,6 @@ use App\Support\Digibee\Testing\PipelineTestSuite;
 use App\Support\Digibee\Testing\StatusExpectation;
 use App\Support\Digibee\Testing\SuiteRun;
 use App\Support\Digibee\Testing\TestCaseCategory;
-use App\Exceptions\DigibeeApiException;
 use App\Support\Digibee\TriggerSpec;
 use Laravel\Ai\Responses\AgentResponse;
 use Laravel\Ai\Responses\Data\Meta;
@@ -78,7 +78,13 @@ function healingDoubles(array $deployments, array $runs, ?array $ingestions = nu
             int $timeoutSeconds = 300,
             bool $dryRun = false,
         ): DeploymentReport {
-            return array_shift($this->scripted);
+            $next = array_shift($this->scripted);
+
+            if ($next instanceof Throwable) {
+                throw $next;
+            }
+
+            return $next;
         }
     };
 
@@ -490,6 +496,24 @@ it('ends as not-writable when the platform refuses the write, instead of throwin
         ->and($report->verdict->judgedThePipeline())->toBeFalse()
         ->and($service->calls)->toBe(1)          // the one correction it did ask for
         ->and($report->finalEvidence()[0])->toContain('not on draft mode');
+});
+
+it('ends the round as refused when the platform refuses the DEPLOY, instead of throwing', function () {
+    // Thrown, this failed the queued job, which replayed the whole write and
+    // deploy and kept only the exception's class name.
+    $refusal = new DigibeeApiException(
+        'POST /runtime/realms/leomadeiras/deployments answered 400 (unexpected status): invalid runtime configuration'
+    );
+
+    $service = healingService(deployments: [$refusal], runs: []);
+
+    $report = $service->heal(healingDocument(), 'p', maxRounds: 3);
+
+    expect($report->verdict)->toBe(HealingVerdict::Refused)
+        ->and($report->rounds)->toHaveCount(1)
+        ->and($report->rounds[0]->reached())->toBe('escrita')
+        ->and($service->calls)->toBe(0)
+        ->and($report->finalEvidence()[0])->toContain('invalid runtime configuration');
 });
 
 it('does not call a healthy scheduler deploy a timeout just because it has no URL', function () {

@@ -399,6 +399,55 @@ it('refuses to run a row somebody already settled', function () {
     expect($healing->called)->toBeFalse();
 });
 
+it('closes a run that was killed mid-flight instead of deploying it again', function () {
+    // `Running` is only ever set by the job itself, so a redelivered job that
+    // finds it is the second attempt of one that already wrote and deployed.
+    $user = runEditor();
+    $message = runMessageIn(runChatFor($user));
+
+    $run = PipelineRun::create([
+        'flowspec_message_id' => $message->id, 'user_id' => $user->id,
+        'pipeline_name'       => 'zfl-teste', 'environment' => 'test',
+        'status'              => PipelineRunStatus::Running,
+    ]);
+
+    $healing = new class extends PipelineHealingService
+    {
+        public bool $called = false;
+
+        public function __construct() {}
+
+        public function heal(
+            array $document,
+            string $pipelineName,
+            string $environment = 'test',
+            ?TriggerSpec $trigger = null,
+            ?EndpointCredential $credential = null,
+            bool $create = false,
+            ?int $maxRounds = null,
+            ?callable $onRound = null,
+            ?int $deployTimeoutSeconds = null,
+        ): HealingReport {
+            $this->called = true;
+
+            return new HealingReport(pipelineName: $pipelineName, environment: $environment, verdict: HealingVerdict::Green);
+        }
+    };
+
+    (new RunPipelineLifecycle($run))->handle($healing, app(AssessPromotion::class), app(SynthesizeTriggerSpec::class));
+
+    expect($healing->called)->toBeFalse()
+        ->and($run->fresh()->status)->toBe(PipelineRunStatus::Failed)
+        ->and($run->fresh()->error)->toContain('interrompida');
+});
+
+it('never hands a failed or timed-out run to another attempt', function () {
+    $job = new RunPipelineLifecycle(new PipelineRun);
+
+    expect($job->maxExceptions)->toBe(1)
+        ->and($job->failOnTimeout)->toBeTrue();
+});
+
 /*
 |--------------------------------------------------------------------------
 | The name it suggests

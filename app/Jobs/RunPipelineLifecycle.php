@@ -3,12 +3,12 @@
 namespace App\Jobs;
 
 use App\Actions\Digibee\AssessPromotion;
+use App\Actions\Flowspec\SynthesizeTriggerSpec;
+use App\Enums\DigibeeTriggerKind;
 use App\Enums\PipelineRunStatus;
 use App\Models\PipelineRun;
 use App\Services\Digibee\PipelineHealingService;
 use App\Support\Digibee\Healing\HealingRound;
-use App\Actions\Flowspec\SynthesizeTriggerSpec;
-use App\Enums\DigibeeTriggerKind;
 use App\Support\Digibee\TriggerSpec;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -67,8 +67,19 @@ class RunPipelineLifecycle implements ShouldQueue
     /** Sized for WithoutOverlapping releases, exactly as GenerateFlowspecReply is. */
     public int $tries = 25;
 
-    /** Real failures stop here; a release does not count as one. */
-    public int $maxExceptions = 2;
+    /**
+     * The first real failure ends the run: an attempt that threw may already
+     * have written and deployed, and a second attempt would write and deploy
+     * again. A release does not count as one.
+     */
+    public int $maxExceptions = 1;
+
+    /**
+     * A timeout ends the run instead of handing it to the next worker, for the
+     * same reason — and the `Running` check in `handle()` covers the kill this
+     * cannot see (a SIGKILL never reaches `failed()`).
+     */
+    public bool $failOnTimeout = true;
 
     /** @return array<int, int> */
     public function backoff(): array
@@ -100,12 +111,22 @@ class RunPipelineLifecycle implements ShouldQueue
         PipelineHealingService $healing,
         AssessPromotion $assess,
         SynthesizeTriggerSpec $triggers,
-    ): void
-    {
+    ): void {
         // A run someone already reaped (or that a second dispatch resurrected)
         // must not deploy anything: the row is the record of intent, and
         // anything settled has had its verdict read.
         if ($this->run->status->settled()) {
+            return;
+        }
+
+        // Only this job sets `Running`, so finding it means an earlier attempt
+        // got that far and was killed (a worker restart, a SIGKILL past
+        // `stopwaitsecs`) — redelivered after `retry_after`, well before the
+        // staleness reaper would close the row. Carrying on would write and
+        // deploy a second time, so the run ends here instead.
+        if ($this->run->status === PipelineRunStatus::Running) {
+            $this->fail('A execução foi interrompida no meio e não foi repetida, para não fazer outro deploy. Inicie uma nova execução.');
+
             return;
         }
 
@@ -146,10 +167,10 @@ class RunPipelineLifecycle implements ShouldQueue
         $readiness = $assess->handle($report);
 
         $this->run->update([
-            'status'      => PipelineRunStatus::Done,
-            'verdict'     => $report->verdict,
-            'endpoint'    => $report->endpoint,
-            'readiness'   => [
+            'status'    => PipelineRunStatus::Done,
+            'verdict'   => $report->verdict,
+            'endpoint'  => $report->endpoint,
+            'readiness' => [
                 'ready'    => $readiness->ready,
                 'blockers' => $readiness->blockers,
                 'version'  => $readiness->version,
@@ -211,8 +232,8 @@ class RunPipelineLifecycle implements ShouldQueue
     {
         if ($exception !== null) {
             Log::error('APLA: execução do ciclo de vida falhou', [
-                'run_id'   => $this->run->id,
-                'pipeline' => $this->run->pipeline_name,
+                'run_id'    => $this->run->id,
+                'pipeline'  => $this->run->pipeline_name,
                 'exception' => $exception,
             ]);
         }

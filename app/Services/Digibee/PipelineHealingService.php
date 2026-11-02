@@ -107,7 +107,7 @@ class PipelineHealingService
      */
     /**
      * @param  (callable(HealingRound): void)|null  $onRound  called as each round
-     *         finishes, before the next one starts
+     *                                                        finishes, before the next one starts
      */
     public function heal(
         array $document,
@@ -249,13 +249,27 @@ class PipelineHealingService
         // outlives it is RUN AGAIN by another worker while the first is still
         // going, which here means a second set of real deployments. The console
         // has no such ceiling and keeps the action's default.
-        $deployment = $deployTimeoutSeconds === null
-            ? $this->deploy->handle(pipelineName: $pipelineName, environment: $environment)
-            : $this->deploy->handle(
-                pipelineName: $pipelineName,
-                environment: $environment,
-                timeoutSeconds: $deployTimeoutSeconds,
+        try {
+            $deployment = $deployTimeoutSeconds === null
+                ? $this->deploy->handle(pipelineName: $pipelineName, environment: $environment)
+                : $this->deploy->handle(
+                    pipelineName: $pipelineName,
+                    environment: $environment,
+                    timeoutSeconds: $deployTimeoutSeconds,
+                );
+        } catch (DigibeeApiException $e) {
+            // Same rule as the write above: a deploy the platform refuses (a
+            // 400/409, an environment it will not take) ends the ROUND with its
+            // reason on screen. Thrown, it failed the queued job, which then
+            // replayed the whole write-and-deploy and recorded only the
+            // exception's class name.
+            return new HealingRound(
+                round: $round,
+                verdict: HealingVerdict::Refused,
+                ingestion: $ingestion,
+                evidence: [$e->getMessage()],
             );
+        }
 
         Log::info('APLA: rodada de cura — deploy', [
             'pipeline' => $pipelineName,
@@ -325,11 +339,11 @@ class PipelineHealingService
     private function judge(SuiteRun $run): HealingVerdict
     {
         return match (true) {
-            $run->nothingAnswered()        => HealingVerdict::NotAnswering,
-            $run->refusedForCredentials()  => HealingVerdict::RefusedAtTheDoor,
-            $run->failed() !== []          => HealingVerdict::StillFailing,
+            $run->nothingAnswered()                     => HealingVerdict::NotAnswering,
+            $run->refusedForCredentials()               => HealingVerdict::RefusedAtTheDoor,
+            $run->failed() !== []                       => HealingVerdict::StillFailing,
             $run->passed() && $run->provenByHappyPath() => HealingVerdict::Green,
-            default                        => HealingVerdict::Unproven,
+            default                                     => HealingVerdict::Unproven,
         };
     }
 
