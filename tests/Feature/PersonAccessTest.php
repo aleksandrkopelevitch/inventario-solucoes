@@ -665,3 +665,30 @@ it('leads a roster row with the e-mail and names whose account it is', function 
     // The e-mail comes first in the row; the person is the answer underneath it.
     expect(strpos($row, $person->email))->toBeLessThan(strpos($row, $person->name));
 });
+
+it('refuses to revoke your own account from your own person card too', function () {
+    // The roster's door already refused this; the card's did not, and an
+    // admin could switch off their own login — the last admin included.
+    $admin = accessAdmin();
+    $person = personWithEmail($admin->email);
+    $person->user()->associate($admin)->save();
+
+    $this->actingAs($admin)
+        ->deleteJson(route('people.access.destroy', $person))
+        ->assertStatus(422);
+
+    expect($admin->fresh()->trashed())->toBeFalse()
+        ->and($person->fresh()->user_id)->toBe($admin->id);
+});
+
+it('refuses to link a revoked account instead of failing with a 500', function () {
+    $revoked = User::factory()->create(['email' => 'revogado@leomadeiras.com.br']);
+    $revoked->delete();
+    $person = personWithEmail('outra@leomadeiras.com.br');
+
+    $this->actingAs(accessAdmin())
+        ->patchJson(route('people.access.link', $person), ['user_id' => $revoked->id])
+        ->assertStatus(422);
+
+    expect($person->fresh()->user_id)->toBeNull();
+});

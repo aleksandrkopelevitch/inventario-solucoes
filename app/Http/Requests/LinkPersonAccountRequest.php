@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\User;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * Attaches an account that already EXISTS to a person — the other half of the
@@ -26,7 +27,10 @@ class LinkPersonAccountRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'user_id' => ['required', 'integer', 'exists:users,id'],
+            // Live accounts only: a revoked (soft-deleted) id passed a bare
+            // `exists`, `account()` then found nothing through the default
+            // scope, and the controller died on a TypeError — a 500.
+            'user_id' => ['required', 'integer', Rule::exists('users', 'id')->whereNull('deleted_at')],
         ];
     }
 

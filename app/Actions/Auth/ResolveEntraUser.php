@@ -53,6 +53,14 @@ final class ResolveEntraUser
         $byEmail = User::withTrashed()->whereRaw('lower(email) = ?', [Str::lower($email)])->first();
 
         if ($byEmail) {
+            // Matched by e-mail ONCE, on the first SSO visit: an account that
+            // already carries an `entra_id` belongs to the identity that set
+            // it, and that identity was not the one signing in (the lookup
+            // above would have found it).
+            if ($byEmail->entra_id !== null) {
+                throw EntraSignInRejected::boundToAnotherIdentity();
+            }
+
             return $this->signInExisting($byEmail, $email, $profile, link: true);
         }
 
