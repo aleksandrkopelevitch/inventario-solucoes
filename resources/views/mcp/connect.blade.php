@@ -30,16 +30,8 @@
                 É a única coisa que você precisa. Não há token para copiar nem arquivo para editar.
             </p>
 
-            <div class="mt-3 flex items-center gap-2" data-ak-copy>
-                <x-forms.input type="text" readonly data-ak-copy-field
-                    value="{{ $endpoint }}" class="!h-9 flex-1 font-mono !text-xs"
-                    aria-label="Endereço do servidor MCP" />
-                <x-forms.button type="button" variant="ghost" data-ak-copy-trigger
-                    data-ak-copy-message="Endereço copiado."
-                    class="!h-9 !w-9 shrink-0 !p-0" aria-label="Copiar endereço">
-                    <x-heroicon-o-clipboard-document class="size-5" />
-                </x-forms.button>
-            </div>
+            <x-ui.copy-field class="mt-3" :value="$endpoint" mono label="Endereço do servidor MCP"
+                message="Endereço copiado." copy-label="Copiar endereço" />
         </div>
 
         <div class="rounded-card border border-line bg-surface p-5 shadow-card">
