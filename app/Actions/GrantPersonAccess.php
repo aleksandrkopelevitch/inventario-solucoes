@@ -45,8 +45,11 @@ final class GrantPersonAccess
      */
     public function grant(Person $person, UserRole $role): User
     {
-        $user = User::withTrashed()
-            ->where('email', $person->email)
+        // Only a SOFT-DELETED account can be found here: `GrantPersonAccessRequest`
+        // refuses every live one, because re-roling a live account and minting
+        // it a fresh link is taking it over, not granting access.
+        $user = User::onlyTrashed()
+            ->whereFoldedIs('email', $person->email)
             ->first();
 
         if ($user) {

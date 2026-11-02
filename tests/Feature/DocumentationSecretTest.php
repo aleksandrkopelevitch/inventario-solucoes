@@ -7,6 +7,7 @@ use App\Models\Notebook;
 use App\Models\User;
 use App\Services\DocumentationSearchService;
 use App\Support\Documentation\SecretText;
+use App\Support\GitbookRenderer;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
@@ -88,6 +89,28 @@ it('stores every value under an id and round-trips it through a mask', function 
         ->and($masked)->not->toContain(SECRET_VALUE)
         ->and($masked)->not->toContain('id="')
         ->and(SecretText::restore($masked, $page->documentation))->toBe($page->documentation);
+});
+
+it('protects a value that spans lines — a key in a fence, a hard break inside the chip', function () {
+    $key = "-----BEGIN KEY-----\nMIIEsynthetic\n-----END KEY-----";
+    $markdown = "```\n{% secret %}{$key}{% endsecret %}\n```\n\nx {% secret %}um  \ndois{% endsecret %}";
+
+    $stored = SecretText::withIds($markdown);
+    $masked = SecretText::mask($stored);
+    $html = app(GitbookRenderer::class)->render($stored);
+
+    expect(SecretText::values($stored))->toBe([1 => $key, 2 => "um  \ndois"])
+        ->and($masked)->not->toContain('MIIEsynthetic')
+        ->and($masked)->not->toContain('dois')
+        ->and(SecretText::restore($masked, $stored))->toBe($stored)
+        ->and($html)->not->toContain('MIIEsynthetic')
+        ->and($html)->not->toContain('dois');
+});
+
+it('leaves an unclosed opener as text without swallowing the values after it', function () {
+    $markdown = "a {% secret %}nunca fechado\n\nb {% secret %}valor{% endsecret %}";
+
+    expect(SecretText::values($markdown))->toBe([1 => 'valor']);
 });
 
 it('masks idempotently — the assistant masks the editor content, which is masked already', function () {

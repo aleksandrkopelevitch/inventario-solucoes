@@ -106,9 +106,18 @@ The refusal is the same one the role carries — nobody revokes their own accoun
 logging in (Laravel's user provider applies the default scope, so an existing
 session stops resolving) while their submissions and chats keep pointing at a row
 that exists. Granting again RESTORES the same row rather than creating a second
-account beside it — `GrantPersonAccess::grant()` looks with `withTrashed()`,
+account beside it — `GrantPersonAccess::grant()` looks with `onlyTrashed()`,
 which is also what keeps the unique index on `email` from refusing the insert.
 Erasing an account for real is still database-only.
+
+**Granting never touches a LIVE account, orphans included.** `grant()` re-roles
+the account it finds and mints it a fresh access link, so until 2026-11-02 an
+orphan with the person's e-mail — an SSO-created account, the seeded admin —
+was quietly taken over: an editor set a person's e-mail to that address, an
+admin pressed "Conceder acesso", and the link went to whoever the admin handed
+it to. `GrantPersonAccessRequest` now refuses every live account with that
+e-mail (folded), naming "É a mesma pessoa" as the gesture for an orphan, which
+links it and changes nothing about it.
 
 **UNLINKING is not revoking, and the card offers both.** `link()` is a statement
 about identity — "the account that logs in as this e-mail is this catalog row" —

@@ -15,8 +15,13 @@ export default window.Toast = {
 
             setTimeout(() => {newToast.classList.remove('opacity-0')},100)
 
-            newToast.querySelector('[data-slot="title"]').innerHTML   = params.title || ''
-            newToast.querySelector('[data-slot="content"]').innerHTML = params.content || ''
+            // TEXT, never markup: a message routinely carries a name somebody
+            // typed (`Caderno "…" excluído.`, a page title, a file name), and
+            // as innerHTML a caderno named `<img onerror=…>` ran its script in
+            // the session of the admin who deleted it. No message relies on
+            // markup — the server sends plain strings.
+            newToast.querySelector('[data-slot="title"]').textContent   = params.title || ''
+            newToast.querySelector('[data-slot="content"]').textContent = params.content || ''
 
             let possibleTypes = ['success', 'error', 'warning', 'info']
 

@@ -191,7 +191,7 @@ export function inlineToHtml(md) {
     // editor and go back to the Markdown without those characters — the value
     // silently corrupted, in the editor of somebody who CAN read it.
     const secrets = []
-    text = text.replace(/\{%\s*secret(?:\s+id="[^"]*")?\s*%\}([\s\S]*?)\{%\s*endsecret\s*%\}/g, (_, value) => {
+    text = text.replace(/\{%\s*secret(?:\s+id="[^"]*")?\s*%\}((?:(?!\{%\s*(?:end)?secret\b)[\s\S])*?)\{%\s*endsecret\s*%\}/g, (_, value) => {
         secrets.push(value)
         return `\x01${secrets.length - 1}\x01`
     })
@@ -314,7 +314,7 @@ function secretChip(value) {
     return `<span class="${SECRET_CLASS}"${atomic}>${escapeHtml(value)}</span>`
 }
 
-const SECRET_BODIES = /\{%[\t\n\v\f\r ]*secret(?:[\t\n\v\f\r ]+id="[^"]*")?[\t\n\v\f\r ]*%\}([^\n]*?)\{%[\t\n\v\f\r ]*endsecret[\t\n\v\f\r ]*%\}/g
+const SECRET_BODIES = /\{%[\t\n\v\f\r ]*secret(?:[\t\n\v\f\r ]+id="[^"]*")?[\t\n\v\f\r ]*%\}((?:(?!\{%[\t\n\v\f\r ]*(?:end)?secret\b)[\s\S])*?)\{%[\t\n\v\f\r ]*endsecret[\t\n\v\f\r ]*%\}/g
 
 export function secretBodies(md) {
     return Array.from(md.matchAll(SECRET_BODIES), (m) => m[1])

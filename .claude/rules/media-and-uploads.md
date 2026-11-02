@@ -41,13 +41,14 @@ Never register a new collection/conversion without checking the 7 above first. `
 
 Every PNG/JPEG/WebP uploaded into a page (`DocumentationPage::WEB_IMAGE_TYPES`) gets a WebP copy at most 1600px wide — twice the 768px reading column — made on the queue. GIF is excluded (GD would flatten the animation) and so is SVG. Measured on the GitBook archives before shipping: the 40 heaviest images went from 57.9 MB to 3.4 MB.
 
-Six things about it that are easy to get wrong:
+Seven things about it that are easy to get wrong:
 
 - **The URL never changes.** All three file routes go through `DocumentationMediaResponse`, which picks the file by `Sec-Fetch-Dest`: `image` (an `<img>`: the body, a card, the editor) gets the rendition, and anything else gets the upload. That covers a link to the file, a new tab, a download or a request with no header at all. So the Markdown still says `/files/{id}`, nothing was rewritten, and a PNG attached as a FILE is never handed over re-encoded. Responses carry `Vary: Sec-Fetch-Dest`.
 - **`?original=1` forces the upload.** The lightbox (`docs-lightbox.js`) needs it, because its preload is an image request too. It opens on the light copy and swaps the original in when it arrives, showing "Carregando imagem completa…" meanwhile.
 - **The rendition is served only once generated, and only while it is SMALLER than the upload.** A small palette PNG can grow in the WebP encoder. Until the queued job runs, the upload is what goes out.
 - **`nonOptimized()` is deliberate.** Otherwise the package hands the WebP to `cwebp` whenever that binary is installed, so the server's toolbox would decide the output. Height is capped at 16000 because GD cannot write a WebP past 16383px.
 - **The backlog is filled by `documentation:web-images`, on every deploy.** It is not `media-library:regenerate --only-missing`: that dispatches a job for every convertible media and lets each discover there is nothing to do. This command asks the database first, so it queues nothing once everything has a rendition. It also counts, rather than queues, rows whose file is missing on disk. It only DISPATCHES: the workers write the files as www-data. Envoy runs it with `sudo -u www-data` anyway, so a root run can't create the day's log file as root.
+- **Only raster images, PDF and plain text open in place** (`DocumentationMediaResponse::INLINE_TYPES`, by the DETECTED type). Everything else, SVG first, is `Content-Disposition: attachment` with a `sandbox` CSP, and every file carries `nosniff`. Documentation accepts SVG uploads from editors, and an SVG opened as a document runs its own `<script>` on this origin with the viewer's session (found 2026-11-02). An `<img>` ignores the disposition, so SVGs in a page still draw.
 - **These routes now answer `If-Modified-Since` with a 304.** Nothing did before, so every reload re-downloaded every image on the page.
 
 Body images also carry `loading="lazy"` now (`GitbookRenderer::deferImages()`, appended after the parse because a body image is raw `<figure><img>` HTML with no node to decorate).

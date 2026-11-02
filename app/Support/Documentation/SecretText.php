@@ -75,19 +75,30 @@ final class SecretText
     private const ORDINAL_PATTERN = '/^[0-9]{1,7}$/';
 
     /**
-     * The construct, and it is deliberately NOT multiline (`s` is absent).
+     * The construct. Its body MAY span lines, and may not contain another
+     * `{% secret %}` or `{% endsecret %}`.
      *
-     * A protected value is a token, and a token has no newline in it. Letting
-     * the body span lines would let an unclosed `{% secret %}` swallow the rest
-     * of the page — silently, and into a lock nobody can open, since the
-     * "value" would then be paragraphs of prose.
+     * It used to be `(.*?)` with no `s` flag, so that an unclosed
+     * `{% secret %}` could not swallow the rest of the page into a lock. That
+     * guard failed OPEN: a value holding a newline — a PEM key in a code fence,
+     * a hint's hard line break inside the chip, which the editor's own parser
+     * accepted — matched nothing, and was rendered, indexed, copied and handed
+     * to the MCP tools and the assistant as plain text (found 2026-11-02). The
+     * tempered body keeps both promises: a multi-line value is a value, and an
+     * unclosed opener stops at the next construct's opener or closer instead of
+     * running through it, so it stays ordinary text and the constructs after it
+     * still match on their own.
+     *
+     * `docs-markdown.js` (`SECRET_BODIES`, the inline parser) and
+     * `docs-editor.js` (`SECRET_IN_CODE`) spell the same body; a client that
+     * disagrees with this pattern pairs the wrong ids after a save.
      *
      * The `id` attribute is optional and its value is matched loosely
      * (`[^"]*`), then validated by `validId()`. A construct with a malformed id
      * must still MATCH: one that didn't would render as ordinary text, value
      * and all.
      */
-    private const CONSTRUCT = '\{%\s*secret(?:\s+id="([^"]*)")?\s*%\}(.*?)\{%\s*endsecret\s*%\}';
+    private const CONSTRUCT = '\{%\s*secret(?:\s+id="([^"]*)")?\s*%\}((?:(?!\{%\s*(?:end)?secret\b)[\s\S])*?)\{%\s*endsecret\s*%\}';
 
     private const CONSTRUCT_PATTERN = '/' . self::CONSTRUCT . '/';
 

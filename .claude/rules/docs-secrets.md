@@ -20,6 +20,13 @@ paths:
 or to whoever types the caderno's secret code (`notebooks.secret_code`, six
 characters, shown only on the admin's share panel and rotatable there).
 
+**A value may span lines** (since 2026-11-02). The body used to stop at a
+newline, to keep an unclosed `{% secret %}` from swallowing the page, and that
+failed OPEN: a PEM key in a fence, or a hard line break inside the chip,
+matched nothing and was served as plain text everywhere. The body is now
+tempered instead (it cannot run past another construct's opener or closer),
+so an unclosed opener still stays ordinary text.
+
 **It is the sixth construct of the dialect and the only INLINE one** — a
 protected value is a token in a sentence, a table cell or a line of a code
 sample, never a block. So it is handled in `App\Support\Documentation\SecretText`
@@ -84,8 +91,9 @@ Five things that keep the id honest:
   one id per `{% secret %}` posted, in order, and `docs-editor.js`
   (`adoptSecretIds`) swaps each value typed since the last save for its marker,
   pairing the two lists through `secretBodies()`. That regex matches exactly
-  what `SecretText::CONSTRUCT` matches (ASCII whitespace only, `[^\n]` for PHP's
-  `.`); a list of a different length is not paired at all. This matters for the
+  what `SecretText::CONSTRUCT` matches (ASCII whitespace only, and the same
+  tempered body: any characters, newlines included, but never another
+  `{% secret %}` or `{% endsecret %}`); a list of a different length is not paired at all. This matters for the
   assistant, not only for hygiene: it is handed the editor's content, and a
   typed value it received would come back as a marker no save resolves. So
   `docs-chat.js` calls `flushSave()` before capturing that content. The chip

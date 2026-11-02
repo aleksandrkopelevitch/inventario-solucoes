@@ -315,6 +315,12 @@ Um detalhe que é a feature inteira: tudo isso é `UserPolicy::manage`, **nunca*
 daquela pessoa e não pode conceder acesso — os dois moram na mesma página e
 obedecem a regras diferentes.
 
+"Conceder acesso" **nunca reaproveita uma conta viva**, nem órfã: se já existe
+uma conta com aquele e-mail, o pedido é recusado e aponta para "É a mesma
+pessoa", que só vincula. Antes, conceder sobre uma órfã (uma conta do SSO, o
+admin do seeder) trocava o perfil dela e gerava um link novo — entregava o
+login de outra pessoa a quem recebesse o link.
+
 **O papel também é trocado ali** (`PATCH users/{user}`: o selo de cada linha é
 um `x-ui.inline-edit`). Até isso existir o papel só podia ser escolhido no
 convite, e qualquer mudança depois era um `UPDATE` no banco de produção — o
@@ -1042,6 +1048,10 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   requisição**, para um admin ou para quem digitar o **código de leitura** do
   caderno (`notebooks.secret_code`, seis caracteres tipo `X6h2dG`, visível e
   rotacionável só no painel Compartilhar).
+
+  O valor pode ocupar várias linhas (uma chave PEM num bloco de código): o
+  construto atravessa quebras de linha, mas nunca outro `{% secret %}` ou
+  `{% endsecret %}`, então um `{% secret %}` sem fechamento continua texto comum.
 
   Não é um `<span>` escondido com CSS, e essa é a decisão inteira: marcação que
   entrega o valor e o esconde é venda nos olhos, não proteção — o limite de

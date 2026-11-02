@@ -525,3 +525,7 @@ Toast.show('Salvo.')                   // success by default
 Toast.show('Atenção.', 'warning')
 Toast.open({ title: 'T', content: 'C', type: 'error' })
 ```
+
+Toast and `Modal.loadAlert` render `title`/`content` as TEXT (`textContent`),
+never markup — messages carry names people typed, and as `innerHTML` that was a
+stored XSS. Don't put HTML in a message; it will show as literal tags.
