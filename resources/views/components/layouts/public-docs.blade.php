@@ -117,9 +117,7 @@
 
          It no longer hides itself during a search: the palette is a modal over
          the top layer, so the shell being visible underneath is the point
-         rather than a conflict. The `data-ak-docs-search-active` marker the
-         server still emits is what the palette reads to know it is narrowing;
-         nothing toggles the shell any more. --}}
+         rather than a conflict; nothing toggles the shell any more. --}}
     <div data-ak-docs-shell class="flex w-full items-start gap-6 px-4 md:gap-8 md:px-6 lg:px-8">
 
         {{-- Pages index: this caderno's tree, collapsed to the path being read.

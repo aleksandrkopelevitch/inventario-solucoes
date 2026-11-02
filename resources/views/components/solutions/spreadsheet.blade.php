@@ -117,7 +117,7 @@
          class="hidden fixed z-50 w-72 rounded-field border border-line bg-surface p-3 shadow-xl">
         <p data-ak-sheet-popover-title class="mb-2 truncate text-[11px] font-bold uppercase tracking-[0.12em] text-muted"></p>
 
-        <div data-ak-sheet-popover-sort class="mb-2 flex gap-1">
+        <div class="mb-2 flex gap-1">
             <x-forms.button type="button" variant="ghost" data-ak-sheet-sort="asc" class="!flex-1 !px-2 !py-1 !text-[12px]">
                 <x-heroicon-o-bars-arrow-down class="size-4" /> Crescente
             </x-forms.button>

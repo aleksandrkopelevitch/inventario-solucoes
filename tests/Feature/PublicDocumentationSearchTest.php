@@ -98,18 +98,6 @@ it('offers the three search scopes, all on by default', function () {
     expect($content)->not->toContain('data-ak-docs-search-facet="tag"');
 });
 
-it('marks the slot as active only while the corpus is being narrowed', function () {
-    // docs-search.js hides the reading shell off this marker, so an idle panel
-    // carrying it would blank the documentation on load.
-    $notebook = sharedNotebook('tok-active', "# Visão geral\n\nTexto.");
-
-    $idle = searchHtml($notebook->public_token);
-    $searching = searchHtml($notebook->public_token, ['q' => 'texto']);
-
-    expect($idle)->not->toContain('data-ak-docs-search-active')
-        ->and($searching)->toContain('data-ak-docs-search-active');
-});
-
 /*
 |--------------------------------------------------------------------------
 | Searching
