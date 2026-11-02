@@ -6,12 +6,12 @@ import {setButtonLoading} from './button-loading.js'
  * CATI interview composer — the conversation that fills a submission's
  * sections, and the material it reads from.
  *
- * Built against docs-chat.js's polling/composer pattern, minus the parts that
- * only exist because the documentation assistant sits next to a live editor:
- * there is no editor to lock here, and no separate "resume" marker either.
- * The thread renders inside the page (not a panel), so a reply still
- * generating re-renders its own [data-ak-cati-chat-poll] marker on the next
- * page load and init() picks the polling straight back up.
+ * Built against docs-chat.js's composer pattern, minus the parts that only
+ * exist because the documentation assistant sits next to a live editor: there
+ * is no editor to lock here, and no separate "resume" marker either. The
+ * thread renders inside the page (not a panel), so a reply still generating
+ * re-renders its `data-ak-poll` marker on the next page load and
+ * marker-poll.js picks the polling straight back up.
  *
  * Attaching material is the composer's job, the way it is in the Claude
  * client: a long paste becomes a text attachment, a dropped or picked file is
@@ -31,13 +31,10 @@ import {setButtonLoading} from './button-loading.js'
  * this module.
  */
 
-const POLL_INTERVAL = 2500
-// ~12.5min at 2.5s/tick — comfortably past SubmissionChat::REPLY_STALL_SECONDS
+// Polling while a reply or a pre-review is generating is marker-poll.js's,
+// keyed on the `data-ak-poll` markers those two slots render. Its default
+// ceiling (300 × 2.5s ≈ 12.5min) sits past SubmissionChat::REPLY_STALL_SECONDS
 // (660s), by which point the server already considers the turn dead.
-const MAX_POLL_ATTEMPTS = 300
-
-let timer = null
-let attempts = 0
 
 /* ------------------------------------------------------------------ */
 /*  Composer config                                                    */
@@ -419,65 +416,13 @@ document.addEventListener('click', (e) => {
         ?.scrollIntoView({behavior: 'smooth', block: 'start'})
 })
 
-/* ------------------------------------------------------------------ */
-/*  Polling while the thread says a reply is being generated           */
-/* ------------------------------------------------------------------ */
-
-function stopPoll() {
-    if (timer) {
-        clearInterval(timer)
-        timer = null
-    }
-}
-
-async function poll(url) {
-    const marker = document.querySelector('[data-ak-cati-chat-poll]')
-    if (!marker) {
-        stopPoll()
-        return
-    }
-
-    attempts += 1
-    if (attempts > MAX_POLL_ATTEMPTS) {
-        // Never poll forever in silence: if the worker is down, say so.
-        stopPoll()
-        Toast.show('A resposta está demorando mais que o esperado — atualize a página para conferir.', 'warning')
-        return
-    }
-
-    try {
-        const response = await ajaxModule.init('GET', url)
-        const data = await response.json()
-        if (!data.pending) {
-            stopPoll()
-            updateSlots(data)
-            scrollToEnd()
-        }
-    } catch (_) {
-        // transient failure — the next tick retries, up to MAX_POLL_ATTEMPTS
-    }
-}
-
 function scrollToEnd() {
     const scroll = document.querySelector('[data-ak-cati-chat-scroll]')
     if (scroll) scroll.scrollTop = scroll.scrollHeight
 }
 
-// Called on load and after every slot swap. Derives the polling state from
-// whatever is in the DOM right now, so it's correct after a send, after a
-// tick, and on a fresh load with a reply still in flight.
+// Called on load and after every slot swap.
 export function init() {
-    const marker = document.querySelector('[data-ak-cati-chat-poll]')
-
-    if (marker) {
-        if (!timer) {
-            attempts = 0
-            timer = setInterval(() => poll(marker.dataset.akCatiChatPoll), POLL_INTERVAL)
-        }
-    } else {
-        stopPoll()
-    }
-
     scrollToEnd()
     document.querySelectorAll('[data-ak-cati-chat-input]').forEach(autoGrow)
 }

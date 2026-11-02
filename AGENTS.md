@@ -264,13 +264,19 @@ public function backoff(): array
 - Use `ShouldDispatchAfterCommit` on jobs dispatched inside DB transactions to avoid race conditions
 - **UI reflects a queued job's outcome via polling, not broadcasting**
   (`resources/js/modules/websocket.js` was removed as dead code with zero
-  consumers). Reference implementation: `App\Jobs\GenerateFlowspecReply` (F8,
-  Especialista em Integrações chat) + `resources/js/modules/flowspec-chat.js` — a
-  `data-ak-*-poll` marker rendered inside the slot, a module-level
-  `setInterval` that stops itself once the marker disappears from the DOM
-  after a slot swap, and a **client-side give-up ceiling with a user-visible
-  Toast** (don't poll forever in silence if the queue worker is down or the
-  job never completes). The status endpoint must stay cheap while the job is
+  consumers). **There is one polling module, `marker-poll.js`, and a new
+  screen uses it rather than writing a loop**: render
+  `data-ak-poll="{{ $statusUrl }}"` (optionally `-interval`, `-max`,
+  `-give-up="texto"`) on a marker INSIDE the slot the endpoint swaps, and the
+  module polls while the marker is on the page — one `setTimeout` chain per
+  URL, so two jobs on one screen never wait on each other and a slow answer
+  never lands after a newer one. It swaps whenever the response carries
+  `updatableSlots`, stops when a swap removes the marker, and past the ceiling
+  shows a **user-visible Toast** (don't poll forever in silence if the queue
+  worker is down) and dispatches `ak:poll-gave-up` for a screen with something
+  to undo. It replaced four hand-written copies (the three chats and the
+  pipeline lifecycle), one of which kept the committee's chat reply waiting
+  behind its pre-review. Reference job: `App\Jobs\GenerateFlowspecReply`. The status endpoint must stay cheap while the job is
   still pending: build/render the actual updatable slot only once the result
   is ready — computing it on every poll tick (every 2–3s, for a job that can
   take minutes) wastes a full query+render cycle on data the client discards.

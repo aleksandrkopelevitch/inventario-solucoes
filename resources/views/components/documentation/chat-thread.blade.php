@@ -40,7 +40,10 @@
     @endforelse
 
     @if ($awaiting)
-        <div data-ak-docs-chat-poll="{{ $statusUrl }}"
+        {{-- `data-ak-poll` is marker-poll.js's loop; `data-ak-docs-chat-poll`
+             is what docs-chat.js keys the editor lock on. --}}
+        <div data-ak-poll="{{ $statusUrl }}" data-ak-docs-chat-poll
+             data-ak-poll-give-up="A resposta está demorando mais que o esperado — atualize a página para conferir."
              class="mr-auto flex items-center gap-2.5 rounded-card rounded-bl-sm border border-line bg-surface px-4 py-3 text-sm text-muted">
             <span class="flex gap-1">
                 <span class="size-1.5 animate-bounce rounded-full bg-accent [animation-delay:0ms]"></span>

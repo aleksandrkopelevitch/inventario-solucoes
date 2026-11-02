@@ -88,7 +88,10 @@
     @endforeach
 
     @if ($awaiting)
-        <div data-ak-cati-chat-poll="{{ $statusUrl }}" class="flex items-center gap-3">
+        {{-- Polled by marker-poll.js while it is on the page. --}}
+        <div data-ak-poll="{{ $statusUrl }}"
+             data-ak-poll-give-up="A resposta está demorando mais que o esperado — atualize a página para conferir."
+             class="flex items-center gap-3">
             <span class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-lime text-lime-ink shadow-sm">
                 <x-heroicon-o-sparkles class="size-4" />
             </span>

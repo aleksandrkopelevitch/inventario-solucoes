@@ -11,8 +11,11 @@
     </p>
 
     @if ($running)
-        {{-- Presence of this marker is what keeps cati-chat.js polling. --}}
-        <div data-ak-cati-chat-poll="{{ $statusUrl }}" class="flex items-center gap-2.5 text-sm text-muted">
+        {{-- Polled by marker-poll.js while it is on the page — its own loop,
+             so a chat reply generating at the same time is not kept waiting. --}}
+        <div data-ak-poll="{{ $statusUrl }}"
+             data-ak-poll-give-up="A revisão está demorando mais que o esperado — atualize a página para conferir."
+             class="flex items-center gap-2.5 text-sm text-muted">
             <span class="flex gap-1">
                 <span class="size-1.5 animate-bounce rounded-full bg-accent [animation-delay:0ms]"></span>
                 <span class="size-1.5 animate-bounce rounded-full bg-accent [animation-delay:150ms]"></span>

@@ -488,7 +488,7 @@ it('queues a reply and shows the pending marker', function () {
     Queue::assertPushed(GenerateSubmissionChatReply::class);
 
     expect(collect($response->json('updatableSlots'))->firstWhere('id', 'submission-chat-thread-slot')['content'])
-        ->toContain('data-ak-cati-chat-poll');
+        ->toContain('data-ak-poll=');
 });
 
 it('refuses a second turn while the first is still generating', function () {

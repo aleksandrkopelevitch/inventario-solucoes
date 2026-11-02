@@ -18,7 +18,7 @@ it('marks the thread as awaiting a reply from the already-fetched messages, with
 
     $slot = Thread::slot($chat->refresh());
 
-    expect($slot['content'])->toContain('data-ak-flowspec-poll');
+    expect($slot['content'])->toContain('data-ak-poll=');
 
     $selectsOnMessages = collect($queries)->filter(fn ($sql) => str_contains($sql, 'flowspec_messages'));
     expect($selectsOnMessages)->toHaveCount(1);
@@ -31,5 +31,5 @@ it('marks the thread as not awaiting once the last message is from the assistant
 
     $slot = Thread::slot($chat->refresh());
 
-    expect($slot['content'])->not->toContain('data-ak-flowspec-poll');
+    expect($slot['content'])->not->toContain('data-ak-poll=');
 });
