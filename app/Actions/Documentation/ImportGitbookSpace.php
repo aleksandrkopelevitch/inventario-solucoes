@@ -13,7 +13,6 @@ use App\Support\Gitbook\GitbookMarkdownNormalizer;
 use App\Support\Gitbook\GitbookPage;
 use App\Support\Gitbook\GitbookPageTree;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Str;
 
 /**
  * Pulls one GitBook space into a Notebook of its own.
@@ -257,14 +256,6 @@ class ImportGitbookSpace
             return $existing;
         }
 
-        $base = Str::slug($name) ?: 'gitbook';
-        $slug = $base;
-        $suffix = 1;
-
-        while (Notebook::where('slug', $slug)->exists()) {
-            $slug = $base . '-' . (++$suffix);
-        }
-
-        return Notebook::create(['name' => $name, 'slug' => $slug]);
+        return Notebook::create(['name' => $name, 'slug' => Notebook::uniqueSlug($name, 'gitbook')]);
     }
 }

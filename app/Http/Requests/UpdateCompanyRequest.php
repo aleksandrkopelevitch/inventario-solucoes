@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\CompanyKind;
+use App\Models\Company;
 use App\Rules\AsciiSlug;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -23,7 +24,7 @@ class UpdateCompanyRequest extends FormRequest
 
         return [
             'name'    => ['required', 'string', 'max:255'],
-            'slug'    => ['nullable', 'string', 'max:255', new AsciiSlug, Rule::unique('companies', 'slug')->ignore($companyId)],
+            'slug'    => ['nullable', 'string', 'max:255', new AsciiSlug, Rule::unique('companies', 'slug')->ignore($companyId), Rule::notIn(Company::RESERVED_SLUGS)],
             'kind'    => ['required', Rule::enum(CompanyKind::class)],
             'website' => ['nullable', 'url', 'max:255'],
             'notes'   => ['nullable', 'string'],

@@ -246,11 +246,11 @@ class CompanyController extends Controller
 
     private function uniqueSlug(string $name, ?Company $company): string
     {
-        $base = Str::slug($name);
+        $base = Str::slug($name) ?: 'empresa';
         $slug = $base;
         $suffix = 1;
 
-        while (Company::where('slug', $slug)
+        while (in_array($slug, Company::RESERVED_SLUGS, true) || Company::where('slug', $slug)
             ->when($company, fn ($q) => $q->whereKeyNot($company->getKey()))
             ->exists()) {
             $slug = $base . '-' . (++$suffix);

@@ -11,6 +11,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Company extends Model
 {
+    /**
+     * Slugs a company may never take: `companies/new` is a real route,
+     * registered ahead of `companies/{company}`, so a company called "New"
+     * slugged `new` was unreachable at its own page.
+     */
+    public const RESERVED_SLUGS = ['new'];
+
     /** @use HasFactory<CompanyFactory> */
     use HasFactory;
 

@@ -456,3 +456,21 @@ it('does not charge an already-attached document against the count cap either', 
 
     expect($chat->attachments()->count())->toBe(1);
 });
+
+it('validates the single attachment shape on a new conversation too', function () {
+    Queue::fake();
+    $user = User::factory()->editor(AccessModule::Integrations)->create();
+
+    // A `label` array used to reach the attach action unvalidated: a 500.
+    $this->actingAs($user)->postJson(route('flowspec.store'), [
+        'message' => 'gera o pipeline', 'text' => 'um texto', 'label' => ['x'],
+    ])->assertStatus(422);
+
+    // And a `file` skipped the type check.
+    $this->actingAs($user)->postJson(route('flowspec.store'), [
+        'message' => 'gera o pipeline',
+        'file'    => UploadedFile::fake()->create('script.exe', 10),
+    ])->assertStatus(422);
+
+    expect(FlowspecChat::query()->count())->toBe(0);
+});
