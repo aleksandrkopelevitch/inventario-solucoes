@@ -36,7 +36,9 @@ class SubmissionDecisionController extends Controller
      */
     public function toggleCondition(Request $request, Submission $submission, int $index): JsonResponse
     {
-        $this->authorize('update', $submission);
+        // Saying a ressalva was met is part of the deliberation, not of the
+        // proposal: the committee checks it, the author does not tick it off.
+        $this->authorize('decide', $submission);
 
         $conditions = $submission->conditions ?? [];
 

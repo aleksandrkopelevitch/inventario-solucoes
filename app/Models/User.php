@@ -34,6 +34,16 @@ class User extends Authenticatable implements HasMedia, OAuthenticatable
      */
     protected $fillable = ['role', 'access', 'name', 'email', 'password', 'preferences'];
 
+    /**
+     * The column's database default, mirrored: an account created and used in
+     * the same request (SSO's first visit signs the new account in at once)
+     * never reloads it, and strict mode refuses to read an attribute the model
+     * was not given.
+     */
+    protected $attributes = [
+        'committee_leader' => false,
+    ];
+
     protected $hidden = ['password', 'remember_token'];
 
     protected function casts(): array
@@ -45,6 +55,7 @@ class User extends Authenticatable implements HasMedia, OAuthenticatable
             'preferences'             => 'array',
             'role'                    => UserRole::class,
             'access'                  => 'array',
+            'committee_leader'        => 'boolean',
         ];
     }
 
@@ -64,6 +75,17 @@ class User extends Authenticatable implements HasMedia, OAuthenticatable
         }
 
         return AccessLevel::tryFrom((string) ($this->access[$module->value] ?? '')) ?? $module->defaultLevel();
+    }
+
+    /**
+     * Leads the Comitê de Arquitetura: records a submission's deliberation
+     * (SubmissionPolicy::decide). Only meaningful on a non-admin — an admin
+     * decides anyway — and only while the committee module is open to them.
+     * Not in `$fillable`: an admin sets it through UpdateUserAccessRequest.
+     */
+    public function isCommitteeLeader(): bool
+    {
+        return (bool) $this->committee_leader && $this->canView(AccessModule::Committee);
     }
 
     /** Opening `$module` at all — anything but `None`. */

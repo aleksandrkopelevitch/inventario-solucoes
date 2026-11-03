@@ -79,10 +79,18 @@ class UserController extends Controller
             $user->setAccessLevel(AccessModule::from($module), $level);
         }
 
+        // forceFill: deliberately outside `$fillable` (User::isCommitteeLeader()).
+        if ($request->has('committee_leader')) {
+            $user->forceFill(['committee_leader' => $request->boolean('committee_leader')]);
+        }
+
         $user->save();
 
         $changed = collect($request->levels())
             ->map(fn ($level, $module) => AccessModule::from($module)->shortLabel() . ': ' . $level->label())
+            ->when($request->has('committee_leader'), fn ($parts) => $parts->push(
+                $request->boolean('committee_leader') ? 'líder do comitê' : 'não lidera o comitê',
+            ))
             ->implode(', ');
 
         return response()->json([
