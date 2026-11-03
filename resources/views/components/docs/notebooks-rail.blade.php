@@ -39,21 +39,7 @@
 
     <nav class="flex flex-col gap-px" aria-label="Cadernos">
         @foreach ($notebooks as $notebook)
-            {{-- The systems it documents ride in the filter label (and on a
-                 second line): somebody looking for the Digibee manual types
-                 "Digibee", not whatever the caderno was called. --}}
-            <a href="{{ $notebook->knowledgeBaseUrl() }}"
-               data-ak-docs-switcher-item
-               data-ak-docs-switcher-label="{{ $notebook->name }} {{ $notebook->solutions->pluck('name')->join(' ') }}"
-               class="group flex items-start gap-2 rounded-field px-2.5 py-1.5 no-underline transition-colors hover:bg-raised">
-                <x-heroicon-o-book-open class="mt-0.5 size-4 shrink-0 text-faint transition-colors group-hover:text-accent" />
-                <span class="min-w-0 flex-1">
-                    <span class="block truncate text-[13.5px] text-body group-hover:text-ink">{{ $notebook->name }}</span>
-                    @if ($notebook->solutions->isNotEmpty())
-                        <span class="block truncate text-[11px] text-faint">{{ $notebook->solutions->pluck('name')->join(' · ') }}</span>
-                    @endif
-                </span>
-            </a>
+            <x-docs.notebook-link :notebook="$notebook" />
         @endforeach
     </nav>
 

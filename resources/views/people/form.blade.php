@@ -19,10 +19,7 @@
         : [];
 @endphp
 
-<div class="flex items-center justify-between border-b border-line px-5 py-4">
-    <h2 class="font-display text-lg font-semibold text-ink">{{ $editing ? 'Editar pessoa' : 'Nova pessoa' }}</h2>
-    <a href="#" data-ak-panel-close class="rounded-field p-1 text-xl leading-none text-faint hover:text-ink">&times;</a>
-</div>
+<x-ui.panel-header :title="$editing ? 'Editar pessoa' : 'Nova pessoa'" />
 
 <form id="person-form" class="flex flex-1 flex-col overflow-hidden">
     @csrf

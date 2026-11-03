@@ -48,7 +48,7 @@ class Index extends Component
                 'blocks'  => count($diagram->chain['nodes'] ?? []),
                 'url'     => route('diagrams.show', $diagram),
                 // The systems this drawing names among its blocks, as the
-                // Solution models `x-diagrams.solution-chips` draws. Eager-loaded
+                // Solution models `x-ui.solution-chips` draws. Eager-loaded
                 // by the service, so a row costs no query.
                 'solutions' => $diagram->participants,
                 // The caderno it belongs to — every diagram has one, and this

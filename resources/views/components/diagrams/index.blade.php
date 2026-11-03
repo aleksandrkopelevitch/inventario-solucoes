@@ -24,7 +24,7 @@
                                 <a href="{{ $row['url'] }}" class="truncate font-display text-[15px] font-semibold text-ink no-underline transition-colors hover:text-accent">
                                     {{ $diagram->name }}
                                 </a>
-                                <span class="inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium {{ $diagram->status->badgeClass() }}">{{ $diagram->status->label() }}</span>
+                                <x-ui.status-badge :status="$diagram->status" />
                             </div>
 
                             <a href="{{ route('notebooks.show', $row['notebook']) }}"
@@ -72,7 +72,7 @@
                          free of the catalog — the ecosystem map can't place it —
                          and the component says so rather than drawing nothing. --}}
                     <div class="border-t border-line px-4 py-3">
-                        <x-diagrams.solution-chips :solutions="$row['solutions']" />
+                        <x-ui.solution-chips :solutions="$row['solutions']" />
                     </div>
                 </div>
             @endforeach

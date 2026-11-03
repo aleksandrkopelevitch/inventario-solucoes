@@ -1,12 +1,13 @@
-{{-- The systems a drawing concerns, as chips — the one line that tells two
-     drawings apart before either is opened. Shared by the `/diagrams` rows,
-     the caderno's "Diagramas" modal and the "Desenhar esta página" dialog, so
-     the three read the same.
+{{-- Solutions as chips, each a link to its page: the systems a drawing
+     concerns (the `/diagrams` rows, the caderno's "Diagramas" modal, the
+     "Desenhar esta página" dialog, the diagram's own "Sistemas envolvidos")
+     and the solutions a caderno documents. One look for "these systems".
 
-     `solutions` are Solution models (`participants`, eager-loaded with
-     `id,name,slug` by every caller); `linked` = false draws them as plain
-     chips, for a place where the chip must not navigate (inside a <label>). --}}
-@props(['solutions', 'linked' => true])
+     `solutions` are Solution models, eager-loaded with `id,name,slug` by every
+     caller; `linked` = false draws them as plain chips, for a place where the
+     chip must not navigate (inside a <label>); `empty` is what an empty list
+     says. --}}
+@props(['solutions', 'linked' => true, 'empty' => 'Não cita nenhuma solução do catálogo.'])
 
 @if (collect($solutions)->isNotEmpty())
     <div {{ $attributes->class('flex flex-wrap gap-1.5') }}>
@@ -24,5 +25,5 @@
         @endforeach
     </div>
 @else
-    <p {{ $attributes->class('text-xs text-faint') }}>Não cita nenhuma solução do catálogo.</p>
+    <p {{ $attributes->class('text-xs text-faint') }}>{{ $empty }}</p>
 @endif

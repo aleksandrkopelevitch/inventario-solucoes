@@ -113,5 +113,5 @@ tab it applies to.
 **The caderno's drawings have one place of their own**: "Diagramas do caderno"
 at the foot of the pages rail (outside the pages-nav slot, which a page move
 swaps), opening a lookup modal (`notebooks.diagrams.index`) with the systems
-each drawing names (`x-diagrams.solution-chips`, shared with `/diagrams`), a
+each drawing names (`x-ui.solution-chips`, shared with `/diagrams`), a
 "Copiar citação" and the one blank-creation form left in the app.

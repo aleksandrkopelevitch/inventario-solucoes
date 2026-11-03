@@ -44,26 +44,7 @@
 
         <div class="max-h-80 overflow-y-auto p-1">
             @foreach ($notebooks as $notebook)
-                <a href="{{ $notebook->knowledgeBaseUrl() }}"
-                   data-ak-docs-switcher-item
-                   data-ak-docs-switcher-label="{{ $notebook->name }} {{ $notebook->solutions->pluck('name')->join(' ') }}"
-                   @class([
-                       'flex items-start gap-2 rounded-field px-2.5 py-2 no-underline transition-colors',
-                       'bg-accent-soft' => $current?->is($notebook),
-                       'hover:bg-raised' => ! $current?->is($notebook),
-                   ])>
-                    <x-heroicon-o-book-open @class(['mt-0.5 size-4 shrink-0', 'text-accent' => $current?->is($notebook), 'text-faint' => ! $current?->is($notebook)])/>
-                    <span class="min-w-0 flex-1">
-                        <span @class(['block truncate text-[13.5px]', 'font-semibold text-accent' => $current?->is($notebook), 'text-body' => ! $current?->is($notebook)])>{{ $notebook->name }}</span>
-                        @if ($notebook->solutions->isNotEmpty())
-                            {{-- The systems it documents. The same line the
-                                 catalog card carries, and the reason somebody
-                                 finds the right caderno without knowing what it
-                                 was named. --}}
-                            <span class="mt-0.5 block truncate text-[11px] text-muted">{{ $notebook->solutions->pluck('name')->join(' · ') }}</span>
-                        @endif
-                    </span>
-                </a>
+                <x-docs.notebook-link :notebook="$notebook" :current="(bool) $current?->is($notebook)" />
             @endforeach
 
             {{-- Shown only while a filter has excluded everything. The list

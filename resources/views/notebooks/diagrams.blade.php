@@ -24,7 +24,7 @@
                         <span class="size-2 shrink-0 rounded-full {{ $diagram->status->dotClass() }}" title="{{ $diagram->status->label() }}"></span>
                         <a href="{{ route('diagrams.show', $diagram) }}" target="_blank" rel="noopener"
                             class="truncate text-sm font-semibold text-ink no-underline hover:text-accent">{{ $diagram->name }}</a>
-                        <span class="inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium {{ $diagram->status->badgeClass() }}">{{ $diagram->status->label() }}</span>
+                        <x-ui.status-badge :status="$diagram->status" />
                     </div>
                     @if (count($diagram->chain['nodes'] ?? []) <= 1)
                         <p class="mt-1 text-xs italic text-faint">Canvas ainda em branco</p>
@@ -47,7 +47,7 @@
                 </div>
             </div>
 
-            <x-diagrams.solution-chips :solutions="$diagram->participants" class="mt-2.5" />
+            <x-ui.solution-chips :solutions="$diagram->participants" class="mt-2.5" />
         </div>
     @empty
         <x-ui.empty-state illustration="diagrams" illustration-class="max-w-[220px]"
