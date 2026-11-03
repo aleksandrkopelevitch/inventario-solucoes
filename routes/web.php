@@ -137,6 +137,9 @@ Route::middleware('auth')->group(function () {
     Route::get('profile', [ProfileController::class, 'show'])->name('profile.show');
     Route::get('profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('profile', [ProfileController::class, 'update'])->name('profile.update');
+    // The link mailed to a new address: only opening it changes the account's
+    // e-mail (signed, 24h; ConfirmEmailChangeRequest checks the rest).
+    Route::get('profile/email/confirm', [ProfileController::class, 'confirmEmail'])->name('profile.email.confirm');
 
     // F1 — solutions catalog (Stage 2). Static routes before the wildcard.
     Route::get('solutions', [SolutionController::class, 'index'])->name('solutions.index');

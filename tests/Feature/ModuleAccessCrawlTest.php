@@ -40,7 +40,7 @@ uses(LazilyRefreshDatabase::class);
 
 /** Routes every account reaches, whatever its levels. */
 const OPEN_ROUTES = [
-    'profile.show', 'profile.edit', 'showcase', 'heroicons.outline',
+    'profile.show', 'profile.edit', 'profile.email.confirm', 'showcase', 'heroicons.outline',
     // The ecosystem map belongs to no module, by decision.
     'solutions.map', 'solutions.map.data',
     // Connecting a chat client is the account's own business.

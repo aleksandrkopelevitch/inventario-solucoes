@@ -139,3 +139,20 @@ Two things that go with it:
   feature, and a route name is the wrong place to be clever about it. It answers
   to `UserPolicy::manage` like every other verb here, and goes through
   `accountOf()`, so a person/account pair that is not actually linked 404s.
+
+### The e-mail and the password are guarded like the identity they are (2026-11-02)
+
+- **Changing your own e-mail needs the new mailbox.** The profile save keeps
+  the old address and mails a 24h signed link to the new one
+  (`ConfirmEmailChangeMail`); only `profile.email.confirm` changes the account.
+  The e-mail is how an account is FOUND — "Conceder acesso", SSO's first
+  visit — so a free field let a member set theirs to a colleague's address.
+  The link carries a fingerprint of the address it was requested from, so any
+  later change kills it, and the new address is re-checked (folded) for
+  collisions when it is opened.
+- **A password reset ends the account's other sessions.** `AuthenticateSession`
+  is on the web group: a session remembers the password hash it signed in
+  with and dies on its next request once that changes; the reset also
+  rotates `remember_token`. Only the reset flow changes a password today — a
+  future "trocar senha" on the profile must refresh its own session's hash,
+  or it logs its author out too.
