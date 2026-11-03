@@ -7,6 +7,7 @@ use App\Http\Requests\Auth\ResetPasswordRequest;
 use App\Models\User;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class ResetPasswordController extends Controller
@@ -24,7 +25,13 @@ class ResetPasswordController extends Controller
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
             function (User $user, string $password) {
-                $user->forceFill(['password' => $password])->save();
+                // A new remember token as well: the session middleware
+                // (AuthenticateSession) ends every other open session on its
+                // next request, and this kills "lembrar de mim" cookies.
+                $user->forceFill([
+                    'password'       => $password,
+                    'remember_token' => Str::random(60),
+                ])->save();
                 event(new PasswordReset($user));
             }
         );

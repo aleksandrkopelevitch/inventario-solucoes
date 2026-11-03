@@ -11,6 +11,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
+use Illuminate\Session\Middleware\AuthenticateSession;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
@@ -37,6 +38,15 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectGuestsTo(fn () => route('login.create'));
 
         $middleware->appendToGroup('web', PreventJsonResponseCaching::class);
+
+        // A session remembers the password hash it signed in with, and dies
+        // on its next request once that hash changes — so resetting a
+        // password ends every other session of the account (the reset also
+        // rotates the remember token, which covers "lembrar de mim" cookies).
+        // Without it a session opened by whoever had the old password
+        // survived the reset meant to lock them out. Laravel's priority list
+        // already orders it after authentication.
+        $middleware->appendToGroup('web', AuthenticateSession::class);
 
         // The MCP endpoint's whole stack, and the point of it is what is NOT
         // here: no session, no cookies, no CSRF, no `Authenticate`. The caller

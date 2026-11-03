@@ -15,7 +15,8 @@
         <x-forms.input id="profile-name" name="name" :value="old('name', $user->name)" required />
     </x-forms.field>
 
-    <x-forms.field label="E-mail" for="profile-email" name="email" required>
+    <x-forms.field label="E-mail" for="profile-email" name="email" required
+        hint="Ao trocar, enviamos um link para o novo e-mail — a troca só vale depois que você abrir esse link.">
         <x-forms.input id="profile-email" type="email" name="email" :value="old('email', $user->email)" required />
     </x-forms.field>
 
