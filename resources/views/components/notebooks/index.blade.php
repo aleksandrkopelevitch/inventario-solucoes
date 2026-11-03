@@ -10,11 +10,13 @@
 @endphp
 <div id="{{ $domId }}">
     @if ($notebooks->isEmpty())
-        <x-ui.empty-state illustration="docs" illustration-class="max-w-[180px]"
-            :title="$hasFilters ? 'Nenhum caderno encontrado' : 'Nenhum caderno criado ainda'"
-            :description="$hasFilters
-                ? 'Ajuste a busca ou os filtros para encontrar o que procura.'
-                : 'Crie o primeiro caderno para começar a documentar — ele pode descrever uma solução, várias, ou um processo que atravessa todas elas.'" />
+        @if ($hasFilters)
+            <x-ui.no-results title="Nenhum caderno encontrado" form-id="notebooks-filter-form" :url="route('notebooks.index')" />
+        @else
+            <x-ui.empty-state illustration="docs" illustration-class="max-w-[180px]"
+                title="Nenhum caderno criado ainda"
+                description="Crie o primeiro caderno para começar a documentar — ele pode descrever uma solução, várias, ou um processo que atravessa todas elas." />
+        @endif
     @else
         <div class="overflow-hidden rounded-card border border-line bg-surface shadow-card">
             <div class="overflow-x-auto">

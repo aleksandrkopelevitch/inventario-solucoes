@@ -12,11 +12,8 @@
 
     <div class="mx-auto max-w-4xl space-y-8">
         <x-ui.hero-panel>
-            <span class="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--color-glow-ink)]/70">Design system</span>
-            <h1 class="mt-1 font-display text-[34px] font-semibold leading-tight text-[color:var(--color-glow-ink)]">Componentes</h1>
-            <p class="mt-1 max-w-2xl text-sm text-[color:var(--color-glow-ink)]/75">
-                Tudo o que é compartilhado entre telas, com o nome da tag. Antes de escrever marcação nova, procure aqui.
-            </p>
+            <x-ui.page-header large eyebrow="Design system" title="Componentes"
+                description="Tudo o que é compartilhado entre telas, com o nome da tag. Antes de escrever marcação nova, procure aqui. Este cabeçalho é x-ui.page-header dentro de x-ui.hero-panel." />
         </x-ui.hero-panel>
 
         {{-- ─── Formulários ─────────────────────────────────────────── --}}
@@ -117,8 +114,10 @@
                 <x-ui.heroicon name="cloud" class="size-6 text-muted" />
                 <x-ui.heroicon name="nao-existe" class="size-6 text-muted" />
                 <span class="inline-flex items-center gap-2 text-sm text-muted"><x-ui.typing-dots /> gerando…</span>
+                <x-ui.status-badge :status="\App\Enums\DiagramStatus::cases()[0]" />
+                <x-ui.status-badge :status="\App\Enums\DiagramStatus::cases()[1]" size="md" />
             </div>
-            <p class="font-mono text-[11px] text-faint">x-ui.logo (tile quadrado, tom por categoria) · x-ui.avatar (redondo) · x-ui.heroicon (nome vindo do banco; um nome inválido não quebra) · x-ui.typing-dots</p>
+            <p class="font-mono text-[11px] text-faint">x-ui.logo (tile quadrado, tom por categoria) · x-ui.avatar (redondo) · x-ui.heroicon (nome vindo do banco; um nome inválido não quebra) · x-ui.typing-dots · x-ui.status-badge (qualquer enum com label() e badgeClass())</p>
 
             <x-ui.hero-panel compact>
                 <p class="text-sm text-[color:var(--color-glow-ink)]">x-ui.hero-panel compact — o cabeçalho de identidade de um detalhe.</p>
@@ -145,6 +144,11 @@ de linha — como nas notas de uma pessoa." />
                     description="x-ui.empty-state — ilustração + o que falta + o que fazer." />
                 <x-ui.empty-state illustration="diagrams" title="Nenhum diagrama" illustration-class="max-w-[180px]"
                     description="A ilustração é escolhida por nome (illustrations/empty-*)." />
+
+                <div class="space-y-2 sm:col-span-2">
+                    <x-ui.no-results title="Nenhuma empresa encontrada" form-id="showcase-filter-form" :url="$demoUrl" />
+                    <p class="font-mono text-[11px] text-faint">x-ui.no-results — os filtros esconderam tudo (não é lista vazia): oferece "Limpar filtros". Lista vazia de verdade é x-ui.empty-state.</p>
+                </div>
             </div>
         </section>
 
@@ -182,6 +186,10 @@ de linha — como nas notas de uma pessoa." />
                 </table>
             </div>
             <p class="font-mono text-[11px] text-faint">x-ui.sortable-th — cabeçalho que alterna filter[sort] do formulário da lista</p>
+
+            <x-ui.solution-chips :solutions="\App\Models\Solution::query()->orderBy('name')->limit(3)->get(['id', 'name', 'slug'])" />
+            <x-ui.solution-picker form-id="showcase-solution-picker" :action="$demoUrl" :items="[]" submit="Salvar (exemplo)" />
+            <p class="font-mono text-[11px] text-faint">x-ui.solution-chips — soluções como chips com link (um diagrama, um caderno) · x-ui.solution-picker — escolher um conjunto de soluções e salvar de uma vez</p>
         </section>
 
         {{-- ─── Copiar e compartilhar ───────────────────────────────── --}}
@@ -222,6 +230,12 @@ de linha — como nas notas de uma pessoa." />
                 <x-forms.button type="button" variant="glass" onclick="Toast.show('Atenção ao campo.', 'warning')">Toast aviso</x-forms.button>
                 <x-forms.button type="button" variant="glass" onclick="Modal.loadAlert({title: 'Atenção', content: 'Mensagem do alerta.', type: 'warning'})">Alerta (modal)</x-forms.button>
             </div>
+
+            <div class="overflow-hidden rounded-field border border-line">
+                <x-ui.panel-header title="Nova empresa" />
+                <p class="px-5 py-4 text-sm text-muted">Conteúdo do painel lateral…</p>
+            </div>
+            <p class="font-mono text-[11px] text-faint">x-ui.panel-header — título e × de um painel lateral (data-ak-panel-open / -url abrem; o × fecha)</p>
             <p class="font-mono text-[11px] text-faint">
                 Toast.show(msg, tipo) · Toast.open({title, content, type}) · Modal.loadAlert({...}) — texto puro, nunca HTML.
                 As cascas (x-layouts.toast, x-layouts.alert-modal) já estão em todo layout.

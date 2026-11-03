@@ -6,10 +6,7 @@
     $logoUrl = $solution->logo_path ? \Illuminate\Support\Facades\Storage::disk('public')->url($solution->logo_path) : null;
 @endphp
 
-<div class="flex items-center justify-between border-b border-line px-5 py-4">
-    <h2 class="font-display text-lg font-semibold text-ink">{{ $editing ? 'Editar solução' : 'Nova solução' }}</h2>
-    <a href="#" data-ak-panel-close class="rounded-field p-1 text-xl leading-none text-faint hover:text-ink">&times;</a>
-</div>
+<x-ui.panel-header :title="$editing ? 'Editar solução' : 'Nova solução'" />
 
 <form id="solution-form" class="flex flex-1 flex-col overflow-hidden">
     @csrf

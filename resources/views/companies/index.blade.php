@@ -5,25 +5,17 @@
 
 <x-layouts.layout title="Empresas">
     <x-ui.hero-panel compact class="mb-6">
-        <div class="flex flex-wrap items-end justify-between gap-3">
-            <div>
-                <span class="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[color:var(--color-glow-ink)]/70">
-                    <span class="size-2 rounded-full" style="background: linear-gradient(115deg, var(--color-glow-a), var(--color-lime))"></span>
-                    Diretório
-                </span>
-                <h1 class="mt-2 font-display text-[34px] font-bold leading-tight tracking-tight text-[color:var(--color-glow-ink)]">
-                    Empresas
-                    <x-companies.results-count :filters="$filters" />
-                </h1>
-                <p class="mt-1 text-sm text-[color:var(--color-glow-ink)]/70">Fornecedores, parceiros e áreas internas.</p>
-            </div>
+        <x-ui.page-header eyebrow="Diretório" title="Empresas" description="Fornecedores, parceiros e áreas internas.">
+            <x-slot:count><x-companies.results-count :filters="$filters" /></x-slot:count>
             @can('create', \App\Models\Company::class)
-                <x-forms.button href="#" data-ak-panel-open data-ak-panel-url="{{ route('companies.create', ['filter' => $filters]) }}"
-                    class="!rounded-full">
-                    <x-heroicon-o-plus class="size-4" /> Nova empresa
-                </x-forms.button>
+                <x-slot:actions>
+                    <x-forms.button href="#" data-ak-panel-open data-ak-panel-url="{{ route('companies.create', ['filter' => $filters]) }}"
+                        class="!rounded-full">
+                        <x-heroicon-o-plus class="size-4" /> Nova empresa
+                    </x-forms.button>
+                </x-slot:actions>
             @endcan
-        </div>
+        </x-ui.page-header>
     </x-ui.hero-panel>
 
     {{-- One filter, so the bar is a single line — the old `sm:grid-cols-4`

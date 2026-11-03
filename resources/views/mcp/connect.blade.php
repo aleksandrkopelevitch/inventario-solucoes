@@ -6,20 +6,8 @@
      any account included. --}}
 <x-layouts.layout title="Conexão MCP">
     <x-ui.hero-panel compact class="mb-6">
-        <div>
-            <span class="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[color:var(--color-glow-ink)]/70">
-                <span class="size-2 rounded-full" style="background: linear-gradient(115deg, var(--color-glow-a), var(--color-lime))"></span>
-                Integrações
-            </span>
-            <h1 class="mt-2 font-display text-[34px] font-bold leading-tight tracking-tight text-[color:var(--color-glow-ink)]">
-                Conectar ao Claude
-            </h1>
-            <p class="mt-1 max-w-2xl text-sm text-[color:var(--color-glow-ink)]/70">
-                Deixa o Claude (ou o ChatGPT) consultar o inventário direto na conversa:
-                soluções, diagramas, pessoas, empresas e a documentação publicada.
-                Somente leitura, com a sua conta Leo.
-            </p>
-        </div>
+        <x-ui.page-header eyebrow="Integrações" title="Conectar ao Claude"
+            description="Deixa o Claude (ou o ChatGPT) consultar o inventário direto na conversa: soluções, diagramas, pessoas, empresas e a documentação publicada. Somente leitura, com a sua conta Leo." />
     </x-ui.hero-panel>
 
     <div class="space-y-6">

@@ -36,18 +36,8 @@
 
         <div class="mt-3">
             <span class="text-[11px] font-semibold uppercase tracking-wide text-faint">Desenhados no canvas</span>
-            @if ($drawn->isNotEmpty())
-                <div class="mt-1.5 flex flex-wrap gap-1.5">
-                    @foreach ($drawn as $solution)
-                        <a href="{{ route('solutions.show', $solution) }}"
-                            class="inline-flex items-center rounded-full bg-accent-soft px-2.5 py-1 text-xs font-medium text-ink no-underline ring-1 ring-accent-line hover:bg-accent-line">
-                            {{ $solution->name }}
-                        </a>
-                    @endforeach
-                </div>
-            @else
-                <p class="mt-1.5 text-xs text-muted">Nenhum bloco do desenho aponta para um sistema do catálogo.</p>
-            @endif
+            <x-ui.solution-chips :solutions="$drawn" class="mt-1.5"
+                empty="Nenhum bloco do desenho aponta para um sistema do catálogo." />
         </div>
 
         <div class="mt-4 border-t border-line pt-3">
@@ -59,22 +49,8 @@
                     etapas.
                 </p>
 
-                {{-- The chips' hidden inputs submit as `solutions[i][value]`,
-                     which is what SyncDiagramSystemsRequest normalizes. An empty
-                     set is valid and means "nenhum sistema declarado". --}}
-                <form id="diagram-systems-form" class="mt-2">
-                    @csrf
-                    @method('PATCH')
-
-                    <x-forms.chips name="solutions" :items="$selected"
-                        placeholder="Buscar sistema e pressionar Enter"
-                        :search-url="route('solutions.search')" />
-
-                    <x-forms.button data-ak-ajax="diagram-systems-form" data-ak-action="{{ $action }}"
-                        class="mt-3 !h-9 !text-sm">
-                        Salvar sistemas
-                    </x-forms.button>
-                </form>
+                <x-ui.solution-picker form-id="diagram-systems-form" :action="$action" :items="$selected"
+                    submit="Salvar sistemas" placeholder="Buscar sistema e pressionar Enter" class="mt-2" />
             @elseif ($declared->isNotEmpty())
                 <div class="mt-1.5 flex flex-wrap gap-1.5">
                     @foreach ($declared as $solution)

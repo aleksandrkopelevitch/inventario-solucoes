@@ -23,8 +23,6 @@
                       :action="$action" :editable="$canEdit"
                       label="Status" edit-class="min-w-44"
                       input-class="!text-xs !font-medium" class="shrink-0">
-        <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium {{ $diagram->status->badgeClass() }}">
-            {{ $diagram->status->label() }}
-        </span>
+        <x-ui.status-badge :status="$diagram->status" size="md" />
     </x-ui.inline-edit>
 </div>

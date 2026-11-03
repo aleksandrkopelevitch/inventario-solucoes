@@ -13,12 +13,8 @@
     {{-- Hero — the redesign's gradient "glow" signature (see [[radiant-protocol-redesign]]),
          replacing the old lime radial wash. --}}
     <x-ui.hero-panel compact class="mb-6 animate-ak-rise">
-        <span class="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[color:var(--color-glow-ink)]/70">
-            <span class="size-2 rounded-full" style="background: linear-gradient(115deg, var(--color-glow-a), var(--color-lime))"></span>
-            Visão geral
-        </span>
-        <h1 class="mt-2 font-display text-[34px] font-bold leading-tight tracking-tight text-[color:var(--color-glow-ink)]">Olá, {{ $firstName }}</h1>
-        <p class="mt-1 text-sm text-[color:var(--color-glow-ink)]/70">Portfólio de soluções da Leo Madeiras e estado da documentação.</p>
+        <x-ui.page-header eyebrow="Visão geral" title="Olá, {{ $firstName }}"
+            description="Portfólio de soluções da Leo Madeiras e estado da documentação." />
     </x-ui.hero-panel>
 
     {{-- Live inventory snapshot — each card is a doorway into its section --}}

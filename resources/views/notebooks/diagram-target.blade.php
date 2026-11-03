@@ -50,7 +50,7 @@
                                 <span class="size-2 shrink-0 rounded-full {{ $diagram->status->dotClass() }}" title="{{ $diagram->status->label() }}"></span>
                                 <span class="truncate">{{ $diagram->name }}</span>
                             </span>
-                            <x-diagrams.solution-chips :solutions="$diagram->participants" :linked="false" />
+                            <x-ui.solution-chips :solutions="$diagram->participants" :linked="false" />
                         </span>
                     </x-forms.radio>
                 @endforeach

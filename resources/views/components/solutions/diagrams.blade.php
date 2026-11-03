@@ -35,7 +35,7 @@
                          the card's width there's no room for a status column of
                          its own beside the name. --}}
                     <span class="mt-1 flex min-w-0 items-center gap-2">
-                        <span class="inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium {{ $diagram->status->badgeClass() }}">{{ $diagram->status->label() }}</span>
+                        <x-ui.status-badge :status="$diagram->status" />
                         @if ($row['summary'])
                             <span class="min-w-0 truncate font-mono text-xs text-muted">{{ $row['summary'] }}</span>
                         @endif
@@ -68,7 +68,7 @@
         @empty
             <x-ui.empty-state illustration="diagrams" illustration-class="max-w-[268px]"
                 title="Nenhum diagrama ainda"
-                description="Diagramas são criados dentro de um caderno que documenta esta solução — a partir de uma página, com &quot;Desenhar esta página&quot;." />
+                description="Diagramas são criados dentro de um caderno que documenta esta solução — a partir de uma página, com “Desenhar esta página”." />
         @endforelse
     </div>
 </div>

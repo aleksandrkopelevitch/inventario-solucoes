@@ -5,13 +5,11 @@
 <div id="{{ $domId }}">
     @if ($rows->isEmpty())
         @if (collect($filters)->filter(fn ($value) => filled($value))->isNotEmpty())
-            <p class="rounded-card border border-dashed border-line bg-surface px-4 py-12 text-center text-sm text-muted">
-                Nenhum diagrama corresponde aos filtros.
-            </p>
+            <x-ui.no-results title="Nenhum diagrama encontrado" form-id="diagrams-filter-form" :url="route('diagrams.index')" />
         @else
             <x-ui.empty-state illustration="diagrams" illustration-class="max-w-[300px]"
                 title="Nenhum diagrama ainda"
-                description="Diagramas nascem dentro de um caderno: abra uma página e use &quot;Desenhar esta página&quot;, ou &quot;Diagramas do caderno&quot; no menu lateral." />
+                description="Diagramas nascem dentro de um caderno: abra uma página e use “Desenhar esta página”, ou “Diagramas do caderno” no menu lateral." />
         @endif
     @else
         <div class="space-y-3">
@@ -26,7 +24,7 @@
                                 <a href="{{ $row['url'] }}" class="truncate font-display text-[15px] font-semibold text-ink no-underline transition-colors hover:text-accent">
                                     {{ $diagram->name }}
                                 </a>
-                                <span class="inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium {{ $diagram->status->badgeClass() }}">{{ $diagram->status->label() }}</span>
+                                <x-ui.status-badge :status="$diagram->status" />
                             </div>
 
                             <a href="{{ route('notebooks.show', $row['notebook']) }}"
@@ -74,7 +72,7 @@
                          free of the catalog — the ecosystem map can't place it —
                          and the component says so rather than drawing nothing. --}}
                     <div class="border-t border-line px-4 py-3">
-                        <x-diagrams.solution-chips :solutions="$row['solutions']" />
+                        <x-ui.solution-chips :solutions="$row['solutions']" />
                     </div>
                 </div>
             @endforeach
