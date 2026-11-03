@@ -70,7 +70,7 @@
                         <x-ui.row-remove
                             :id="'mcp-token-delete-' . $token->id"
                             :action="route('mcp-tokens.destroy', $token)"
-                            :confirm="'Apagar o token &quot;' . $token->name . '&quot;? Quem estiver usando esse token perde o acesso imediatamente.'"
+                            :confirm="'Apagar o token “' . $token->name . '”? Quem estiver usando esse token perde o acesso imediatamente.'"
                             :label="'Apagar token ' . $token->name" />
                     </div>
                 </div>

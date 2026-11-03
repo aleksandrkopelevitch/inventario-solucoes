@@ -68,7 +68,7 @@
         @empty
             <x-ui.empty-state illustration="diagrams" illustration-class="max-w-[268px]"
                 title="Nenhum diagrama ainda"
-                description="Diagramas são criados dentro de um caderno que documenta esta solução — a partir de uma página, com &quot;Desenhar esta página&quot;." />
+                description="Diagramas são criados dentro de um caderno que documenta esta solução — a partir de uma página, com “Desenhar esta página”." />
         @endforelse
     </div>
 </div>

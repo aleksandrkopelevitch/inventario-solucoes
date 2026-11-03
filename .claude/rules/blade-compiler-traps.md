@@ -160,3 +160,13 @@ Two traps met in one fix (2026-11-02, `documentation/pages-nav.blade.php`):
   not gain a block one — and a COMMENT that merely names the block form trips
   it too. The symptom is a ParseError ("unexpected token `{`") on the line of the
   innocent inline `@php($i = …)`, nowhere near the edit.
+
+### `&quot;` in a component PROP prints `&quot;` (2026-11-03)
+
+A static attribute on an `x-…` tag reaches the component as the literal string,
+entity and all. Where the component writes it straight back into an attribute
+(`data-ak-confirm` on `x-forms.button`) the browser decodes it and all is well;
+where it is a PROP the component echoes with `{{ }}` (`description` on
+`x-ui.empty-state`, `confirm` on `x-ui.row-remove`), `e()` escapes the `&` and
+the reader sees `&quot;Desenhar esta página&quot;`. Four screens shipped that.
+In a prop, use typographic quotes (“ ”), which need no escaping at all.

@@ -5,13 +5,11 @@
 <div id="{{ $domId }}">
     @if ($rows->isEmpty())
         @if (collect($filters)->filter(fn ($value) => filled($value))->isNotEmpty())
-            <p class="rounded-card border border-dashed border-line bg-surface px-4 py-12 text-center text-sm text-muted">
-                Nenhum diagrama corresponde aos filtros.
-            </p>
+            <x-ui.no-results title="Nenhum diagrama encontrado" form-id="diagrams-filter-form" :url="route('diagrams.index')" />
         @else
             <x-ui.empty-state illustration="diagrams" illustration-class="max-w-[300px]"
                 title="Nenhum diagrama ainda"
-                description="Diagramas nascem dentro de um caderno: abra uma página e use &quot;Desenhar esta página&quot;, ou &quot;Diagramas do caderno&quot; no menu lateral." />
+                description="Diagramas nascem dentro de um caderno: abra uma página e use “Desenhar esta página”, ou “Diagramas do caderno” no menu lateral." />
         @endif
     @else
         <div class="space-y-3">

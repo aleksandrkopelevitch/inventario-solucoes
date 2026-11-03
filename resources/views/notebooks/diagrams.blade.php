@@ -52,7 +52,7 @@
     @empty
         <x-ui.empty-state illustration="diagrams" illustration-class="max-w-[220px]"
             title="Nenhum diagrama neste caderno"
-            description="Use &quot;Desenhar esta página&quot; para gerar um a partir do texto, ou comece um em branco abaixo." />
+            description="Use “Desenhar esta página” para gerar um a partir do texto, ou comece um em branco abaixo." />
     @endforelse
 </div>
 
