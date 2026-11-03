@@ -69,3 +69,18 @@ it('renders every index/catalog page for both admin and viewer without a 500', f
         }
     }
 });
+
+it('shows every shared component on the showcase page', function () {
+    $admin = \App\Models\User::factory()->create(['role' => \App\Enums\UserRole::Admin->value]);
+
+    $html = $this->actingAs($admin)->get(route('showcase'))->assertOk()->getContent();
+
+    // Every shared component is named on the page, so one added to forms/ or
+    // ui/ without being shown here fails this test instead of going unseen.
+    $shared = collect(['forms', 'ui'])->flatMap(fn (string $dir) => collect(glob(resource_path("views/components/{$dir}/*.blade.php")))
+        ->map(fn (string $path) => "{$dir}." . basename($path, '.blade.php')));
+
+    foreach ($shared as $name) {
+        expect($html)->toContain($name);
+    }
+});
