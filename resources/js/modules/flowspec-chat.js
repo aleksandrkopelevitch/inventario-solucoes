@@ -2,6 +2,7 @@ import * as ajaxModule from './ajax.js'
 import {keepNewestInView} from './thread-scroll.js'
 import { updateSlots } from './ajax-slot.js'
 import {fold} from './fold.js'
+import {autoGrow, bindFileDrop, eachUntilRefused, labelForPaste, postForSlots, sendOnEnter} from './chat-composer.js'
 
 /**
  * Especialista em Integrações chat (F8) — generates Digibee flowSpec JSON.
@@ -81,11 +82,6 @@ function stagedOf(form) {
 
 function closeAttachMenu(form) {
     form?.querySelector('[data-ak-fs-menu]')?.classList.add('hidden')
-}
-
-function autoGrow(el) {
-    el.style.height = 'auto'
-    el.style.height = `${el.scrollHeight}px`
 }
 
 function escapeHtml(str) {
@@ -207,60 +203,25 @@ async function addContext(form, { payload, stage }) {
         return true
     }
 
-    // No `_token` in the body: ajax.js sends the CSRF token as a header.
     const body = new FormData()
     Object.entries(payload).forEach(([key, value]) => {
         if (Array.isArray(value)) value.forEach((item) => body.append(`${key}[]`, item))
         else if (value !== null && value !== undefined) body.append(key, value)
     })
 
-    try {
-        const response = await ajaxModule.init('POST', config.attachUrl, body)
-        const data = await response.json()
-        updateSlots(data)
-        if (data.message) Toast.open({ content: data.message, type: data.type || 'success' })
-
-        return true
-    } catch (error) {
-        let message = 'Não foi possível anexar.'
-        if (error.response) {
-            try {
-                message = (await error.response.json()).message ?? message
-            } catch {
-                /* keep the fallback */
-            }
-        }
-        Toast.show(message, 'warning')
-
-        return false
-    }
+    return postForSlots(config.attachUrl, body, 'Não foi possível anexar.')
 }
 
 /**
- * One file at a time, awaited — never a request per file fired at once.
- *
- * The context ceiling is enforced per REQUEST (GuardsFlowspecContext), against
- * the conversation as it stands when that request is validated. Firing the
- * whole selection in parallel means every one of them is measured against the
- * state before ANY of them landed, so files that each fit can collectively
- * blow a limit all of them passed — and the last response to arrive repaints
- * the context panel from a snapshot taken before its siblings committed.
- *
- * Batching them into a single `files[]` request would also make the check
- * atomic, but it puts the whole selection in one body: `post_max_size` is well
- * below what `max:20480` per file allows, so a multi-file pick would start
- * failing as a truncated request instead of as an honest 422.
+ * One file at a time, stopping at the first refusal (see eachUntilRefused):
+ * the context ceiling is checked per request, so files fired together would
+ * each be measured against a conversation none of them had joined yet.
  */
-async function attachFiles(form, files) {
+function attachFiles(form, files) {
     const selection = Array.from(files)
     if (!selection.length || contextIsFull(form)) return
 
-    for (const file of selection) {
-        // Stops at the first refusal: once the server has said the context is
-        // full, the remaining files would each earn their own identical Toast.
-        const attached = await addContext(form, { payload: { file }, stage: { kind: 'file', file } })
-        if (!attached) return
-    }
+    return eachUntilRefused(selection, (file) => addContext(form, { payload: { file }, stage: { kind: 'file', file } }))
 }
 
 function attachText(form, content, label) {
@@ -279,13 +240,6 @@ function attachDocuments(form, documents) {
         payload: { documents: documents.map((doc) => doc.ref) },
         stage: { kind: 'documents', documents },
     })
-}
-
-/** First line of a paste, so four pasted blocks are tellable apart. */
-function labelForPaste(text) {
-    const first = text.trim().split('\n')[0].trim()
-    if (!first) return 'Texto colado'
-    return first.length > 60 ? `${first.slice(0, 57)}…` : first
 }
 
 /* ---------------------------------- events -------------------------------- */
@@ -446,12 +400,17 @@ document.addEventListener('paste', (e) => {
 })
 
 // Enter sends (Shift+Enter = newline), like ChatGPT/Claude.
-document.addEventListener('keydown', (e) => {
-    const input = e.target.closest('[data-ak-fs-input]')
-    if (!input || e.key !== 'Enter' || e.shiftKey) return
+sendOnEnter('[data-ak-fs-input]', '[data-ak-fs-send]')
 
-    e.preventDefault()
-    input.closest('form')?.querySelector('[data-ak-fs-send]')?.click()
+// A file dropped on the composer attaches like one picked from disk — the
+// other two chats had this and the Especialista did not. `dragging` drives
+// the highlight (a data-attribute variant on the form in composer.blade.php).
+bindFileDrop('[data-ak-fs-composer]', {
+    onFiles: (form, files) => attachFiles(form, files),
+    onActive: (form, on) => {
+        if (on) form.dataset.dragging = 'true'
+        else delete form.dataset.dragging
+    },
 })
 
 /**
@@ -582,7 +541,7 @@ function syncPickerFooter(panel) {
 /* ------------------------------------ init -------------------------------- */
 
 export function init() {
-    document.querySelectorAll('[data-ak-fs-input]').forEach(autoGrow)
+    document.querySelectorAll('[data-ak-fs-input]').forEach((el) => autoGrow(el))
     document.querySelectorAll('[data-ak-fs-picker-panel]').forEach(syncPickerFooter)
 
     keepNewestInView(document.querySelector('[data-ak-fs-scroll]'))
