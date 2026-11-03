@@ -617,8 +617,10 @@ Regra de bolso: **se você diria o nome com um verbo no imperativo
 | `x-forms.image-upload` | preview/trocar/remover (reusa `avatar-upload.js`) |
 | `x-forms.chips` | seleção múltipla com papel (`chips.js`) |
 
-Todos são exercitados em `tests/Feature/FormComponentsTest.php`. Há uma página
-de demonstração em `/components` (autenticada).
+Todos são exercitados em `tests/Feature/FormComponentsTest.php`. O catálogo
+completo — todo componente de `forms/` e `ui/`, com a tag e para que serve — fica
+em `/components` (autenticada); um teste (`PageCrawlSmokeTest`) falha se um
+componente novo dessas pastas não aparecer lá.
 
 Ao lado deles há a família `x-ui.*` (`resources/views/components/ui/`), que não
 são controles de formulário e sim as peças da leitura/edição in place:
@@ -633,6 +635,17 @@ são controles de formulário e sim as peças da leitura/edição in place:
 | `x-ui.markdown` | Markdown curto renderizado (`MarkdownText`, HTML removido) |
 | `x-ui.logo`, `x-ui.avatar` | tile de solução/empresa (cor por categoria) e foto de pessoa |
 | `x-ui.empty-state` | lista vazia: ilustração + o que falta + o que fazer; `illustration="x"` resolve `x-illustrations.empty-x` |
+| `x-ui.no-results` | lista que os FILTROS esvaziaram (não vazia de verdade): dica + "Limpar filtros" |
+| `x-ui.page-header` | eyebrow + título + subtítulo de uma página, dentro de `x-ui.hero-panel` (slots `count`, `description`, `actions`) |
+| `x-ui.panel-header` | título + ✕ de um painel lateral |
+| `x-ui.status-badge` | a pílula de qualquer enum de status com `label()` e `badgeClass()` |
+| `x-ui.solution-chips`, `x-ui.solution-picker` | soluções como chips com link; escolher um conjunto de soluções e salvar |
+| `x-ui.copy-field`, `x-ui.public-link` | valor somente leitura + copiar; o link mágico (gerar, copiar, revogar) |
+| `x-ui.typing-dots` | o "gerando…" dos chats |
+
+A linha de filtros ativos e o contador de resultados de cada catálogo são uma
+subclasse pequena de `App\View\Components\Concerns\FilterChipsSlot` /
+`ResultsCountSlot` sobre uma única view (`ui.filter-chips`, `ui.results-count`).
 
 As ilustrações de estado vazio (`resources/views/components/illustrations/`)
 são SVGs do [unDraw](https://undraw.co) (licença livre, sem atribuição)
