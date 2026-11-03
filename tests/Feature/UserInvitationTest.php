@@ -227,8 +227,8 @@ it('offers the role select on other rows of the roster and withholds it on your 
     $actionOf = fn (User $user) => trim(json_encode(route('users.update', $user)), '"');
 
     // Two role selects (the other two rows) plus the member's four module
-    // levels; nothing at all on your own row.
-    expect(substr_count($content, 'data-ak-inline-edit='))->toBe(6)
+    // levels and its "Líder do comitê"; nothing at all on your own row.
+    expect(substr_count($content, 'data-ak-inline-edit='))->toBe(7)
         ->and($content)->toContain('Eu Mesmo')
         ->and($content)->toContain($actionOf(User::where('name', 'Alguem Viewer')->sole()))
         ->and($content)->not->toContain($actionOf($admin));

@@ -32,6 +32,9 @@ class UpdateUserAccessRequest extends FormRequest
     {
         return collect(AccessModule::cases())
             ->mapWithKeys(fn (AccessModule $module) => [$module->value => ['sometimes', Rule::enum(AccessLevel::class)]])
+            // Leads the Comitê de Arquitetura (SubmissionPolicy::decide). Set
+            // on the same card as the levels, by the same admin.
+            ->put('committee_leader', ['sometimes', 'boolean'])
             ->all();
     }
 
@@ -53,7 +56,7 @@ class UpdateUserAccessRequest extends FormRequest
 
                 // Nothing to change — an unknown module is simply not one of
                 // the validated keys, so it lands here too.
-                if ($this->levels() === []) {
+                if ($this->levels() === [] && ! $this->has('committee_leader')) {
                     $validator->errors()->add('access', 'Informe o nível de acesso de um módulo.');
 
                     return;
@@ -65,7 +68,9 @@ class UpdateUserAccessRequest extends FormRequest
                 // An admin is an Editor everywhere by definition; a level
                 // stored on one would be a lie the screen then has to explain.
                 if ($target->isAdmin()) {
-                    $validator->errors()->add('access', 'Administradores já são Editores em todos os módulos.');
+                    $validator->errors()->add('access', $this->has('committee_leader')
+                        ? 'Administradores já registram deliberações do comitê.'
+                        : 'Administradores já são Editores em todos os módulos.');
                 }
             },
         ];

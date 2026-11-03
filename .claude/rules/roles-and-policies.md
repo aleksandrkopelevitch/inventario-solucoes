@@ -63,7 +63,9 @@ What a member may do is a LEVEL PER MODULE — `App\Enums\AccessModule` ×
   and a flowSpec conversation is continued (and its pipeline run) by its owner
   (while an Integrations Editor) or an admin. Everybody else reads them — a
   Reader of the Especialista reads ALL conversations, which is why the rail
-  lists every chat with its author. Anything that takes a chat from untrusted
+  lists every chat with its author. A submission's DELIBERATION is neither: it is an
+  admin's or the committee leader's (`SubmissionPolicy::decide`, the
+  `committee_leader` flag an admin sets on the access card). Anything that takes a chat from untrusted
   input to act on it (the attachment picker's `?chat=`) asks `update`, not
   `view`, now that `view` is everybody.
 - **DELETING any record is the admin's** — solutions, cadernos, PAGES (and

@@ -170,7 +170,8 @@
                 <x-submissions.topology-handoff :submission="$submission" />
                 <x-submissions.deliberation :submission="$submission" />
 
-                @can('update', $submission)
+                {{-- An admin's or the committee leader's (SubmissionPolicy::decide). --}}
+                @can('decide', $submission)
                     <div class="flex flex-col gap-3 rounded-card border border-line bg-surface p-5 shadow-card">
                         <div>
                             <h2 class="font-display text-sm font-bold text-ink">Registrar deliberação</h2>

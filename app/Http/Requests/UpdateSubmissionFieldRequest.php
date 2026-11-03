@@ -3,6 +3,8 @@
 namespace App\Http\Requests;
 
 use App\Enums\SubmissionStatus;
+use App\Models\Submission;
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -40,6 +42,43 @@ class UpdateSubmissionFieldRequest extends FormRequest
             'requester_person_id' => ['sometimes', 'nullable', 'integer', 'exists:people,id'],
             'committee_date'      => ['sometimes', 'nullable', 'date'],
             'ticket_reference'    => ['sometimes', 'nullable', 'string', 'max:255'],
+        ];
+    }
+
+    /**
+     * The status the HEADER may set. A verdict — aprovada, aprovada com
+     * ressalvas, reprovada — is never one of them: it is recorded through
+     * "Registrar deliberação", which is the admin's or the committee leader's
+     * (SubmissionPolicy::decide) and is what publishes an approval. Setting it
+     * here let an author approve their own proposal, and skipped the
+     * publication too. And a submission already decided leaves its verdict
+     * only by someone who may decide.
+     *
+     * @return array<int, callable>
+     */
+    public function after(): array
+    {
+        return [
+            function (Validator $validator): void {
+                if ($validator->errors()->isNotEmpty() || ! $this->has('status')) {
+                    return;
+                }
+
+                /** @var Submission $submission */
+                $submission = $this->route('submission');
+                $next = SubmissionStatus::tryFrom((string) $this->input('status'));
+
+                if ($next?->isDecided() && $next !== $submission->status) {
+                    $validator->errors()->add('status', 'A deliberação é registrada em "Registrar deliberação", por um administrador ou pelo líder do comitê.');
+
+                    return;
+                }
+
+                if ($submission->status->isDecided() && $next !== $submission->status
+                    && ! $this->user()->can('decide', $submission)) {
+                    $validator->errors()->add('status', 'Só um administrador ou o líder do comitê altera a situação de uma submissão já deliberada.');
+                }
+            },
         ];
     }
 

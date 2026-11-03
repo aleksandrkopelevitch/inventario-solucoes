@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Cati\PromoteApprovedSubmission;
 use App\Actions\Cati\SeedSubmissionChatOpening;
 use App\Enums\SubmissionStatus;
 use App\Http\Requests\StoreSubmissionRequest;
@@ -110,11 +111,18 @@ class SubmissionController extends Controller
     }
 
     /** One field, edited in place on the detail header. */
-    public function updateField(UpdateSubmissionFieldRequest $request, Submission $submission): JsonResponse
+    public function updateField(UpdateSubmissionFieldRequest $request, Submission $submission, PromoteApprovedSubmission $promote): JsonResponse
     {
         $wasSubmitted = $submission->status === SubmissionStatus::Submitted;
+        $wasDecided = $submission->status->isDecided();
 
         $submission->update($request->validated());
+
+        // Reopened from the header by someone who may decide: the verdict is
+        // gone, and so is the TO BE it would have handed the catalog.
+        if ($wasDecided && ! $submission->status->isDecided()) {
+            $promote->withdraw($submission);
+        }
 
         $this->preReviewOnSubmit($submission, $wasSubmitted);
 

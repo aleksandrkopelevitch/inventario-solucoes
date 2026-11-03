@@ -168,3 +168,22 @@ solution the submission was ABOUT. Anything sweeping chains for a departing
 solution has to include it as a snapshot rather than as a `ChainCanvas` —
 nothing draws or edits it, so the contract's media and URL half would be a
 costume. See `App\Actions\DeleteSolution`.
+
+### Only an admin or the committee leader records the deliberation (2026-11-03)
+
+`SubmissionPolicy::decide` — `isAdmin()` or `User::isCommitteeLeader()` (the
+`users.committee_leader` flag, set by an admin on the account's access card,
+and only while the committee module is open to that account). It gates
+"Registrar deliberação" (`RecordSubmissionDecisionRequest`), the form itself on
+the page, and ticking ressalvas. Before, `update` covered it, so an author
+could record the verdict on their own proposal.
+
+The header's status select never takes a verdict (`UpdateSubmissionFieldRequest`
+refuses aprovada / aprovada com ressalvas / reprovada for everyone — a verdict
+set there also skipped the publication), and a decided submission's status
+moves only for someone who may decide. Reopening an approved one from the
+header withdraws its pending topology, like re-recording it as rejected.
+
+An approval still also needs documentation rights (above): a leader with no
+documentation level can reject, not approve. Applying or dismissing the
+approved topology stays with the author (`update`) plus those rights.

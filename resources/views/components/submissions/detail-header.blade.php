@@ -33,7 +33,7 @@
         </div>
 
         <x-ui.inline-edit
-            :action="$canEdit ? route('submissions.field.update', $submission) : null"
+            :action="$statusEditable ? route('submissions.field.update', $submission) : null"
             name="status"
             type="select"
             label="Situação"

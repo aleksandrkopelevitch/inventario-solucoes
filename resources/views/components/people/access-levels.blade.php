@@ -44,5 +44,32 @@
                 </span>
             </x-ui.inline-edit>
         @endforeach
+
+        {{-- Leads the Comitê de Arquitetura: records a submission's
+             deliberation (SubmissionPolicy::decide). Shown only on an account
+             that leads, or to the admin who can switch it on. --}}
+        @if ($editable || $account->committee_leader)
+            <x-ui.inline-edit
+                name="committee_leader"
+                type="select"
+                :options="[['value' => '0', 'label' => 'Não'], ['value' => '1', 'label' => 'Sim']]"
+                :value="$account->committee_leader ? '1' : '0'"
+                :nullable="false"
+                :action="route('users.access.update', $account)"
+                :editable="$editable"
+                label="Líder do comitê"
+                edit-class="min-w-32"
+                class="shrink-0">
+                <span title="Registra as deliberações do Comitê de Arquitetura" @class([
+                    'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px]',
+                    'border-lime-line bg-lime-soft text-lime-ink' => $account->committee_leader,
+                    'border-dashed border-line-2 bg-surface text-faint' => ! $account->committee_leader,
+                ])>
+                    <span class="font-medium">Líder do comitê</span>
+                    <span aria-hidden="true">·</span>
+                    <span class="font-semibold">{{ $account->committee_leader ? 'Sim' : 'Não' }}</span>
+                </span>
+            </x-ui.inline-edit>
+        @endif
     @endif
 </div>

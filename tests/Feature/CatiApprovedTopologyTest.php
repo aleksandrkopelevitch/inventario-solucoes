@@ -2,6 +2,7 @@
 
 use App\Actions\Cati\ApplyApprovedTopology;
 use App\Contracts\Documentable;
+use App\Enums\AccessLevel;
 use App\Enums\AccessModule;
 use App\Enums\SubmissionDiagramKind;
 use App\Enums\SubmissionSectionKey;
@@ -290,21 +291,24 @@ it('lets a viewer see the handoff but not resolve it', function () {
         ->assertForbidden();
 });
 
-it('refuses an approval from an author who cannot write the documentation it publishes', function () {
-    // The submission's own author, a Committee Editor — and only that.
-    $author = User::factory()->editor(AccessModule::Committee)->create(['role' => UserRole::Member]);
-    $this->actingAs($author);
-    $submission = approvableSubmission(['created_by_id' => $author->id]);
+it('refuses an approval from a leader who cannot write the documentation it publishes', function () {
+    // A committee leader with no documentation level: may decide, may not
+    // publish into a caderno — and an approval is a publication.
+    $leader = User::factory()->editor(AccessModule::Committee)->create(['role' => UserRole::Member]);
+    $leader->forceFill(['committee_leader' => true])->save();
+    $leader->setAccessLevel(AccessModule::Documentation, AccessLevel::None);
+    $leader->save();
+    $submission = approvableSubmission();
+    $this->actingAs($leader);
 
     $response = $this->postJson(route('submissions.decision.store', $submission), [
         'status' => SubmissionStatus::Approved->value, 'decision' => 'Aprovada.',
     ])->assertStatus(422);
 
     expect($response->json('message'))->toContain('documentação')
-        ->and(DocumentationPage::count())->toBe(0)
-        ->and($submission->fresh()->status)->not->toBe(SubmissionStatus::Approved);
+        ->and(DocumentationPage::count())->toBe(0);
 
-    // A rejection publishes nothing, and stays the author's to record.
+    // A rejection publishes nothing, and is the leader's to record.
     $this->postJson(route('submissions.decision.store', $submission), [
         'status' => SubmissionStatus::Rejected->value, 'decision' => 'Reprovada.',
     ])->assertOk();

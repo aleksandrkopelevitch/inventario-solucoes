@@ -20,7 +20,7 @@ class RecordSubmissionDecisionRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('update', $this->route('submission')) ?? false;
+        return $this->user()?->can('decide', $this->route('submission')) ?? false;
     }
 
     /** @return array<string, mixed> */

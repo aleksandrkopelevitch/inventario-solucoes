@@ -34,7 +34,7 @@ class Deliberation extends Component
         return view('components.submissions.deliberation', [
             'domId'      => self::DOM_ID,
             'submission' => $this->submission,
-            'canEdit'    => auth()->user()?->can('update', $this->submission) ?? false,
+            'canEdit'    => auth()->user()?->can('decide', $this->submission) ?? false,
             'conditions' => $this->submission->conditions ?? [],
         ]);
     }
