@@ -2,6 +2,7 @@ import * as ajaxModule from './ajax.js'
 import {keepNewestInView} from './thread-scroll.js'
 import {updateSlots} from './ajax-slot.js'
 import {setButtonLoading} from './button-loading.js'
+import {autoGrow, bindFileDrop, eachUntilRefused, labelForPaste, postForSlots, responseMessage, runServerJs, sendOnEnter} from './chat-composer.js'
 
 /**
  * CATI interview composer — the conversation that fills a submission's
@@ -65,12 +66,7 @@ document.addEventListener('click', (e) => {
 })
 
 // Enter sends, Shift+Enter breaks the line.
-document.addEventListener('keydown', (e) => {
-    const input = e.target.closest('[data-ak-cati-chat-input]')
-    if (!input || e.key !== 'Enter' || e.shiftKey) return
-    e.preventDefault()
-    input.closest('form')?.querySelector('[data-ak-cati-chat-send]')?.click()
-})
+sendOnEnter('[data-ak-cati-chat-input]', '[data-ak-cati-chat-send]')
 
 // Enter in the link field attaches the link. Left to the browser it SUBMITTED
 // the composer's <form> natively: the url field is the form's only text-type
@@ -112,17 +108,10 @@ async function send(btn) {
     try {
         const response = await ajaxModule.init('POST', btn.dataset.action, formData)
         const data = await response.json()
-        updateSlots(data) // re-initializes modules; init() below picks up the new poll marker
-        if (data.js) {
-            try {
-                // eslint-disable-next-line no-new-func
-                new Function(data.js)()
-            } catch (_) {
-                // best-effort — the message still sent
-            }
-        }
+        updateSlots(data) // re-initializes modules, marker-poll.js included
+        runServerJs(data)
     } catch (error) {
-        Toast.open({content: await errorMessage(error, 'Não consegui enviar a mensagem.'), title: 'Atenção', type: 'warning'})
+        Toast.open({content: await responseMessage(error, 'Não consegui enviar a mensagem.'), title: 'Atenção', type: 'warning'})
     } finally {
         setButtonLoading(btn, false)
     }
@@ -136,21 +125,6 @@ document.addEventListener('ak:cati-chat-composer-reset', () => {
         autoGrow(input)
     })
 })
-
-function autoGrow(el) {
-    el.style.height = 'auto'
-    el.style.height = `${el.scrollHeight}px`
-}
-
-async function errorMessage(error, fallback) {
-    if (!error?.response) return fallback
-
-    try {
-        return (await error.response.json()).message ?? fallback
-    } catch (_) {
-        return fallback
-    }
-}
 
 /* ------------------------------------------------------------------ */
 /*  Attaching material                                                 */
@@ -168,39 +142,17 @@ async function attach(form, payload) {
     const url = configOf(form).attachUrl
     if (!url) return false
 
-    // No `_token` in the body: ajax.js sends the CSRF token as a header.
     const body = new FormData()
     Object.entries(payload).forEach(([key, value]) => {
         if (value !== null && value !== undefined && value !== '') body.append(key, value)
     })
 
-    try {
-        const response = await ajaxModule.init('POST', url, body)
-        const data = await response.json()
-        updateSlots(data)
-        if (data.message) Toast.open({content: data.message, type: data.type || 'success'})
-
-        return true
-    } catch (error) {
-        Toast.show(await errorMessage(error, 'Não foi possível anexar.'), 'warning')
-
-        return false
-    }
+    return postForSlots(url, body, 'Não foi possível anexar.')
 }
 
-/**
- * One file at a time, awaited — never a request per file fired at once.
- *
- * Same reasoning as the flowSpec composer: batching the whole selection into
- * one body exceeds `post_max_size` long before `max:20480` per file does, so a
- * multi-file pick would start failing as a truncated request instead of as an
- * honest 422. Stopping at the first refusal keeps a rejected batch from
- * earning one identical Toast per file.
- */
-async function attachFiles(form, files) {
-    for (const file of Array.from(files)) {
-        if (!(await attach(form, {file}))) return
-    }
+/** One file at a time, stopping at the first refusal (see eachUntilRefused). */
+function attachFiles(form, files) {
+    return eachUntilRefused(files, (file) => attach(form, {file}))
 }
 
 /**
@@ -318,42 +270,17 @@ document.addEventListener('paste', (e) => {
     attach(form, {text, label: labelForPaste(text)})
 })
 
-/** First non-blank line of a paste, so four pasted blocks are tellable apart. */
-function labelForPaste(text) {
-    const first = (text.split('\n').find((line) => line.trim() !== '') || '').trim()
-    if (!first) return 'Texto colado'
-    return first.length > 60 ? `${first.slice(0, 57)}…` : first
-}
 
 /* ---------------------------- drag & drop --------------------------------- */
 
-// `dragging` on the form drives the drop highlight (a data-attribute variant
-// in composer.blade.php, so there is no class list to keep in step here).
-document.addEventListener('dragover', (e) => {
-    const form = e.target.closest?.('[data-ak-cati-composer]')
-    if (!form || !e.dataTransfer?.types?.includes('Files')) return
-
-    e.preventDefault()
-    form.dataset.dragging = 'true'
-})
-
-document.addEventListener('dragleave', (e) => {
-    const form = e.target.closest?.('[data-ak-cati-composer]')
-    // Only when the pointer actually left the composer — dragging across a
-    // child fires dragleave for the child on the way out of it.
-    if (form && !form.contains(e.relatedTarget)) delete form.dataset.dragging
-})
-
-document.addEventListener('drop', (e) => {
-    const form = e.target.closest?.('[data-ak-cati-composer]')
-    if (!form) return
-
-    const files = Array.from(e.dataTransfer?.files ?? [])
-    if (!files.length) return
-
-    e.preventDefault()
-    delete form.dataset.dragging
-    attachFiles(form, files)
+// `dragging` on the composer drives the drop highlight (a data-attribute
+// variant in composer.blade.php, so there is no class list to keep in step).
+bindFileDrop('[data-ak-cati-composer]', {
+    onFiles: (form, files) => attachFiles(form, files),
+    onActive: (form, on) => {
+        if (on) form.dataset.dragging = 'true'
+        else delete form.dataset.dragging
+    },
 })
 
 /* ------------------------------------------------------------------ */
@@ -382,14 +309,7 @@ document.addEventListener('change', async (e) => {
     // selection left on it would ride along with anything else posting it.
     input.value = ''
 
-    try {
-        const response = await ajaxModule.init('POST', url, body)
-        const data = await response.json()
-        updateSlots(data)
-        if (data.message) Toast.open({content: data.message, type: data.type || 'success'})
-    } catch (error) {
-        Toast.show(await errorMessage(error, 'Não foi possível enviar o diagrama.'), 'warning')
-    }
+    await postForSlots(url, body, 'Não foi possível enviar o diagrama.')
 })
 
 /* ------------------------------------------------------------------ */
@@ -424,5 +344,5 @@ function scrollToEnd() {
 // Called on load and after every slot swap.
 export function init() {
     scrollToEnd()
-    document.querySelectorAll('[data-ak-cati-chat-input]').forEach(autoGrow)
+    document.querySelectorAll('[data-ak-cati-chat-input]').forEach((el) => autoGrow(el))
 }

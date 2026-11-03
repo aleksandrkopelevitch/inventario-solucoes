@@ -84,3 +84,12 @@ it('shows every shared component on the showcase page', function () {
         expect($html)->toContain($name);
     }
 });
+
+it('offers the components catalogue in the rail to admins only', function () {
+    $admin = \App\Models\User::factory()->create(['role' => \App\Enums\UserRole::Admin->value]);
+    $member = \App\Models\User::factory()->create(['role' => \App\Enums\UserRole::Member->value]);
+    $link = 'href="' . route('showcase') . '"';
+
+    expect($this->actingAs($admin)->get(route('profile.show'))->getContent())->toContain($link)
+        ->and($this->actingAs($member)->get(route('profile.show'))->getContent())->not->toContain($link);
+});

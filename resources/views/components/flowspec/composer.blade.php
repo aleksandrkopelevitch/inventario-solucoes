@@ -35,7 +35,7 @@
 
      Behavior lives in flowspec-chat.js (data-ak-fs-*). --}}
 <form id="{{ $formId }}" data-ak-fs-composer="{{ json_encode($config) }}" enctype="multipart/form-data"
-      class="rounded-2xl border border-line-2 bg-surface shadow-card transition focus-within:border-accent-line focus-within:shadow-[0_0_0_3px_var(--color-accent-soft)]">
+      class="rounded-2xl border border-line-2 bg-surface shadow-card transition focus-within:border-accent-line focus-within:shadow-[0_0_0_3px_var(--color-accent-soft)] data-[dragging=true]:border-accent data-[dragging=true]:bg-accent-soft">
     @csrf
 
     {{-- Persisted context + meter (server-rendered slot). --}}

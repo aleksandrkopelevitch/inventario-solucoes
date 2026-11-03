@@ -4,6 +4,7 @@ import {updateSlots} from './ajax-slot.js'
 import {setButtonLoading} from './button-loading.js'
 import {fold} from './fold.js'
 import {renderMarkdownDiff} from './docs-diff.js'
+import {autoGrow as growTextarea, bindFileDrop, postForSlots, responseMessage, runServerJs, sendOnEnter} from './chat-composer.js'
 import {flushSave, setEditorLocked} from './docs-editor.js'
 
 /**
@@ -100,13 +101,8 @@ document.addEventListener('click', (e) => {
     send(btn)
 })
 
-// Enter sends (Shift+Enter = newline), like flowspec's composer.
-document.addEventListener('keydown', (e) => {
-    const input = e.target.closest('[data-ak-docs-chat-input]')
-    if (!input || e.key !== 'Enter' || e.shiftKey) return
-    e.preventDefault()
-    input.closest('form')?.querySelector('[data-ak-docs-chat-send]')?.click()
-})
+// Enter sends (Shift+Enter = newline), like the other two composers.
+sendOnEnter('[data-ak-docs-chat-input]', '[data-ak-docs-chat-send]')
 
 document.addEventListener('input', (e) => {
     const input = e.target.closest('[data-ak-docs-chat-input]')
@@ -146,25 +142,10 @@ async function send(btn) {
 
         const response = await ajaxModule.init('POST', btn.dataset.action, formData)
         const data = await response.json()
-        updateSlots(data) // re-initializes modules; init() below picks up the new poll marker
-        if (data.js) {
-            try {
-                // eslint-disable-next-line no-new-func
-                new Function(data.js)()
-            } catch (_) {
-                // best-effort — the message still sent successfully
-            }
-        }
+        updateSlots(data) // re-initializes modules, marker-poll.js included
+        runServerJs(data)
     } catch (error) {
-        let message2 = 'Não consegui enviar a mensagem.'
-        if (error.response) {
-            try {
-                message2 = (await error.response.json()).message ?? message2
-            } catch (_) {
-                // keep the default message
-            }
-        }
-        Toast.open({content: message2, title: 'Atenção', type: 'warning'})
+        Toast.open({content: await responseMessage(error, 'Não consegui enviar a mensagem.'), title: 'Atenção', type: 'warning'})
     } finally {
         setButtonLoading(btn, false)
     }
@@ -188,36 +169,10 @@ document.addEventListener('ak:docs-chat-composer-reset', (e) => {
 // is only the point past which TYPING stops enlarging the box.
 const AUTO_GROW_MAX = 208
 
-// The textarea carries a native resize handle. `autoGrow` rewrites the inline
-// height on every input, so a size picked by dragging would be undone by the
-// next keystroke unless it is remembered: `userHeight` is the floor the box
-// never shrinks below, and is set when the observed height differs from the one
-// `autoGrow` itself last wrote.
-const userHeight = new WeakMap()
-const autoHeight = new WeakMap()
-const resizeObserved = new WeakSet()
-
+// The textarea carries a native resize handle; chat-composer.js's autoGrow
+// remembers a size picked by dragging it.
 function autoGrow(el) {
-    observeUserResize(el)
-
-    el.style.height = 'auto'
-    const height = Math.max(userHeight.get(el) ?? 0, Math.min(el.scrollHeight, AUTO_GROW_MAX))
-    el.style.height = `${height}px`
-    autoHeight.set(el, height)
-}
-
-function observeUserResize(el) {
-    if (resizeObserved.has(el) || typeof ResizeObserver === 'undefined') return
-    resizeObserved.add(el)
-
-    new ResizeObserver(() => {
-        const height = el.offsetHeight
-        // 0 = the panel is closed/hidden, not a choice somebody made.
-        if (height === 0 || Math.abs(height - (autoHeight.get(el) ?? height)) <= 1) return
-
-        userHeight.set(el, height)
-        autoHeight.set(el, height)
-    }).observe(el)
+    growTextarea(el, AUTO_GROW_MAX)
 }
 
 /* ------------------------------------------------------------------ */
@@ -275,58 +230,20 @@ function syncContextDocs(fresh) {
 /*  Drag and drop a file anywhere in the chat                          */
 /* ------------------------------------------------------------------ */
 
-// dragenter/dragleave fire for every child the pointer crosses, so a plain
-// toggle flickers; the depth counter is what says "still inside the panel".
-let dragDepth = 0
-
-const carriesFiles = (e) => Array.from(e.dataTransfer?.types ?? []).includes('Files')
-
-function setDropOverlay(on) {
-    const zone = document.querySelector('[data-ak-docs-chat-dropzone]')
-    const overlay = zone?.querySelector('[data-ak-docs-chat-drop-overlay]')
-    if (!overlay) return
-    overlay.classList.toggle('hidden', !on)
-    overlay.classList.toggle('flex', on)
-}
-
-document.addEventListener('dragenter', (e) => {
-    if (!carriesFiles(e) || !e.target.closest?.('[data-ak-docs-chat-dropzone]')) return
-    e.preventDefault()
-    dragDepth++
-    setDropOverlay(true)
-})
-
-document.addEventListener('dragover', (e) => {
-    if (!carriesFiles(e) || !e.target.closest?.('[data-ak-docs-chat-dropzone]')) return
-    // Without this the browser treats the panel as a non-target and, on drop,
-    // navigates to the file.
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'copy'
-})
-
-document.addEventListener('dragleave', (e) => {
-    if (!e.target.closest?.('[data-ak-docs-chat-dropzone]')) return
-    dragDepth = Math.max(0, dragDepth - 1)
-    if (dragDepth === 0) setDropOverlay(false)
-})
-
-document.addEventListener('drop', (e) => {
-    const zone = e.target.closest?.('[data-ak-docs-chat-dropzone]')
-    if (!zone || !carriesFiles(e)) return
-    e.preventDefault()
-    dragDepth = 0
-    setDropOverlay(false)
-
-    const picker = zone.querySelector('[data-ak-context-upload]')
-    if (picker?.disabled) return // an upload is already running
-
-    uploadContextFiles(Array.from(e.dataTransfer.files), picker)
-})
-
-// A drag cancelled with Esc, or dropped outside the window, never reaches `drop`.
-document.addEventListener('dragend', () => {
-    dragDepth = 0
-    setDropOverlay(false)
+// A file dragged anywhere over the chat shows the overlay; dropping uploads it
+// through the same door as the picker. The overlay is pointer-events-none, so
+// it never swallows the drop.
+bindFileDrop('[data-ak-docs-chat-dropzone]', {
+    onActive: (zone, on) => {
+        const overlay = zone.querySelector('[data-ak-docs-chat-drop-overlay]')
+        overlay?.classList.toggle('hidden', !on)
+        overlay?.classList.toggle('flex', on)
+    },
+    onFiles: (zone, files) => {
+        const picker = zone.querySelector('[data-ak-context-upload]')
+        if (picker?.disabled) return // an upload is already running
+        uploadContextFiles(files, picker)
+    },
 })
 
 /**
@@ -454,20 +371,8 @@ async function postContextDoc(action, formData) {
 
     setContextUploading(true)
     try {
-        const response = await ajaxModule.init('POST', action, formData)
-        const data = await response.json()
-        updateSlots(data) // refreshes the context-documents list (new doc, checked)
-        Toast.open({content: data.message, title: data.title || 'Alerta', type: data.type || 'success'})
-    } catch (error) {
-        let message = 'Não consegui anexar o documento.'
-        if (error.response) {
-            try {
-                message = (await error.response.json()).message ?? message
-            } catch (_) {
-                // keep the default message
-            }
-        }
-        Toast.open({content: message, title: 'Atenção', type: 'warning'})
+        // Refreshes the context-documents list (new doc, checked).
+        await postForSlots(action, formData, 'Não consegui anexar o documento.')
     } finally {
         setContextUploading(false)
     }
@@ -1016,5 +921,5 @@ export function init() {
 
     keepNewestInView(document.querySelector('[data-ak-docs-chat-scroll]'))
 
-    document.querySelectorAll('[data-ak-docs-chat-input]').forEach(autoGrow)
+    document.querySelectorAll('[data-ak-docs-chat-input]').forEach((el) => autoGrow(el))
 }

@@ -136,3 +136,18 @@ the `form` attribute — that's what gets Enter through to `ajax-post.js`.
 submit — like the trash-icon delete button next to the "Salvar" button in
 `attribute-options/group-list.blade.php`, which posts to its own
 `data-ak-ajax` target and has nothing for Enter to submit.
+
+## The three chat composers share `chat-composer.js`
+
+The documentation assistant, the Especialista em Integrações and the committee
+interview each carried their own Enter-to-send, auto-grow, error reading, slot
+POST, one-file-at-a-time upload, paste label and drag-and-drop. Those live in
+`chat-composer.js` now (a helper module, not registered): `sendOnEnter`,
+`autoGrow(el, max)` (remembers a size picked by dragging the resize handle),
+`responseMessage`, `runServerJs`, `postForSlots` (resolves to whether it
+landed), `eachUntilRefused`, `labelForPaste`, `bindFileDrop`. What stays in each
+chat is where a paste or a file GOES, which really differs. A fourth chat
+starts from these, and its polling is `marker-poll.js` (`data-ak-poll`).
+
+Mind `autoGrow`'s second parameter: `list.forEach(autoGrow)` passes the index
+as `max` and pins the textarea at 0px — call it as `forEach((el) => autoGrow(el))`.
