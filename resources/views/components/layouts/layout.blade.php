@@ -41,6 +41,10 @@
             ['route' => 'mcp.connect', 'label' => 'Conexão MCP', 'icon' => 'bolt', 'active' => 'mcp.connect'],
             ['route' => 'mcp-tokens.index', 'label' => 'Tokens MCP', 'icon' => 'key', 'active' => 'mcp-tokens.*', 'can' => 'viewAny', 'canModel' => \App\Models\McpToken::class],
             ['route' => 'submissions.index', 'label' => 'Comitê de Arquitetura', 'icon' => 'clipboard-document-check', 'active' => 'submissions.*', 'can' => 'viewAny', 'canModel' => \App\Models\Submission::class],
+            // The design-system catalogue, for whoever builds screens: offered
+            // to admins only (`UserPolicy::manage` is the app's admin-only
+            // ability). The page itself stays open to any account.
+            ['route' => 'showcase', 'label' => 'Componentes', 'icon' => 'swatch', 'active' => 'showcase', 'can' => 'manage', 'canModel' => \App\Models\User::class],
         ],
     ];
 
