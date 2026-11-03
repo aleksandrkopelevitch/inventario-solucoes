@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Digibee\AssessPromotion;
+use App\Actions\Digibee\ClaimPipelineName;
 use App\Actions\Flowspec\SynthesizeTriggerSpec;
 use App\Enums\DigibeeTriggerKind;
 use App\Enums\HealingVerdict;
@@ -13,6 +14,7 @@ use App\Models\PipelineRun;
 use App\Models\User;
 use App\Rules\AsciiSlug;
 use App\Services\Digibee\PipelineHealingService;
+use App\Support\Digibee\DigibeeDesignClient;
 use App\Support\Digibee\Healing\HealingReport;
 use App\Support\Digibee\Healing\HealingRound;
 use App\Support\Digibee\PromotionReadiness;
@@ -52,7 +54,24 @@ function runMessageIn(FlowspecChat $chat, bool $withDocument = true): FlowspecMe
 
 function runPayload(array $overrides = []): array
 {
-    return array_merge(['pipeline_name' => 'zfl-teste', 'environment' => 'test'], $overrides);
+    return array_merge(['pipeline_name' => 'zfl-teste', 'environment' => 'test', 'trigger_kind' => 'rest'], $overrides);
+}
+
+/**
+ * A ClaimPipelineName that answers without asking the realm: the name as
+ * asked, or the one given (the realm already had the asked one).
+ */
+function claimAs(?string $claimed = null): ClaimPipelineName
+{
+    return new class($claimed) extends ClaimPipelineName
+    {
+        public function __construct(private ?string $claimed) {}
+
+        public function handle(string $name): string
+        {
+            return $this->claimed ?? $name;
+        }
+    };
 }
 
 beforeEach(function () {
@@ -80,7 +99,7 @@ it('lets an editor start a run on their own conversation', function () {
     expect($run->pipeline_name)->toBe('zfl-teste')
         ->and($run->status)->toBe(PipelineRunStatus::Pending)
         ->and($run->user_id)->toBe($user->id)
-        ->and($run->creates)->toBeFalse();
+        ->and($run->creates)->toBeTrue();
 
     Queue::assertPushed(RunPipelineLifecycle::class);
 });
@@ -348,7 +367,7 @@ it('persists each round as it finishes, not all of them at the end', function ()
         }
     };
 
-    (new RunPipelineLifecycle($run))->handle($healing, $assess, app(SynthesizeTriggerSpec::class));
+    (new RunPipelineLifecycle($run))->handle($healing, $assess, app(SynthesizeTriggerSpec::class), claimAs());
 
     expect($seenWhileRunning)->toBe([1, 2])   // written as each finished
         ->and($run->refresh()->status)->toBe(PipelineRunStatus::Done)
@@ -394,7 +413,7 @@ it('refuses to run a row somebody already settled', function () {
         }
     };
 
-    (new RunPipelineLifecycle($run))->handle($healing, app(AssessPromotion::class), app(SynthesizeTriggerSpec::class));
+    (new RunPipelineLifecycle($run))->handle($healing, app(AssessPromotion::class), app(SynthesizeTriggerSpec::class), claimAs());
 
     expect($healing->called)->toBeFalse();
 });
@@ -434,7 +453,7 @@ it('closes a run that was killed mid-flight instead of deploying it again', func
         }
     };
 
-    (new RunPipelineLifecycle($run))->handle($healing, app(AssessPromotion::class), app(SynthesizeTriggerSpec::class));
+    (new RunPipelineLifecycle($run))->handle($healing, app(AssessPromotion::class), app(SynthesizeTriggerSpec::class), claimAs());
 
     expect($healing->called)->toBeFalse()
         ->and($run->fresh()->status)->toBe(PipelineRunStatus::Failed)
@@ -560,21 +579,6 @@ it('drops a value typed against a kind that has no use for it', function () {
     expect(PipelineRun::sole()->trigger_cron)->toBeNull();
 });
 
-it('leaves the pipeline own trigger alone when none is chosen', function () {
-    Queue::fake();
-    $user = runEditor();
-    $chat = runChatFor($user);
-    $message = runMessageIn($chat);
-
-    $this->actingAs($user)
-        ->postJson(route('flowspec.lifecycle.store', [$chat, $message]), runPayload())
-        ->assertOk();
-
-    // `null` is what `PipelineHealingService::heal()` reads as "write nothing",
-    // which is right for a run against a pipeline that already has a trigger.
-    expect(PipelineRun::sole()->trigger_kind)->toBeNull();
-});
-
 it('synthesizes a complete spec from what the run recorded', function () {
     $spec = app(SynthesizeTriggerSpec::class)->handle(
         DigibeeTriggerKind::Scheduler,
@@ -622,39 +626,12 @@ it('refuses to create a pipeline with no trigger, instead of creating an undeplo
     // on this platform deletes one), `DeployPipeline` then refuses it for an
     // empty `triggerSpec`, and the realm keeps an undeployable name forever.
     $this->actingAs($user)
-        ->postJson(route('flowspec.lifecycle.store', [$chat, $message]), runPayload(['creates' => true]))
+        ->postJson(route('flowspec.lifecycle.store', [$chat, $message]), ['pipeline_name' => 'zfl-teste', 'environment' => 'test'])
         ->assertStatus(422)
         ->assertJson(['type' => 'warning'])
         ->assertJsonFragment(['message' => 'Um pipeline novo precisa de gatilho: sem ele a Digibee recusa publicar, e o pipeline criado fica para sempre — nada aqui apaga um.']);
 
     expect(PipelineRun::count())->toBe(0);
-});
-
-it('still lets a run against an existing pipeline keep the trigger it already has', function () {
-    Queue::fake();
-    $user = runEditor();
-    $chat = runChatFor($user);
-    $message = runMessageIn($chat);
-
-    // `required_if` is about CREATION only: an existing pipeline has a trigger
-    // of its own, and null still means "leave it alone".
-    $this->actingAs($user)
-        ->postJson(route('flowspec.lifecycle.store', [$chat, $message]), runPayload())
-        ->assertOk();
-
-    expect(PipelineRun::sole()->trigger_kind)->toBeNull();
-});
-
-it('hides keeping the pipeline own trigger once creating is on the table', function () {
-    $user = runEditor();
-    $chat = runChatFor($user);
-    $message = runMessageIn($chat);
-
-    // The rule above is server-side; this is the form telling the same truth,
-    // so a refusal is not the first the operator hears of it.
-    $this->actingAs($user)->get(route('flowspec.show', $chat))
-        ->assertSee('data-ak-trigger-keep', false)
-        ->assertSee('data-ak-trigger-creates', false);
 });
 
 it('hands the healing service the trigger the run recorded', function () {
@@ -713,7 +690,7 @@ it('hands the healing service the trigger the run recorded', function () {
         }
     };
 
-    (new RunPipelineLifecycle($run))->handle($healing, $assess, app(SynthesizeTriggerSpec::class));
+    (new RunPipelineLifecycle($run))->handle($healing, $assess, app(SynthesizeTriggerSpec::class), claimAs());
 
     expect($received->trigger)->toBeInstanceOf(TriggerSpec::class)
         ->and($received->trigger->kind)->toBe(DigibeeTriggerKind::Scheduler)
@@ -759,4 +736,102 @@ it('keeps the form away while a run is still going', function () {
 
     $this->actingAs($user)->get(route('flowspec.show', $chat))
         ->assertDontSee('data-ak-trigger-kind', false);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Never into an existing pipeline
+|--------------------------------------------------------------------------
+*/
+
+/** A healing service that records the name and create flag it was handed. */
+function recordingHealing(stdClass $received): PipelineHealingService
+{
+    return new class($received) extends PipelineHealingService
+    {
+        public function __construct(private stdClass $received) {}
+
+        public function heal(
+            array $document,
+            string $pipelineName,
+            string $environment = 'test',
+            ?TriggerSpec $trigger = null,
+            ?EndpointCredential $credential = null,
+            bool $create = false,
+            ?int $maxRounds = null,
+            ?callable $onRound = null,
+            ?int $deployTimeoutSeconds = null,
+        ): HealingReport {
+            $this->received->name = $pipelineName;
+            $this->received->create = $create;
+
+            return new HealingReport(pipelineName: $pipelineName, environment: $environment, verdict: HealingVerdict::Green, document: $document);
+        }
+    };
+}
+
+it('writes a taken name as a new -vN pipeline beside it, never into it', function () {
+    $user = runEditor();
+    $run = PipelineRun::create([
+        'flowspec_message_id' => runMessageIn(runChatFor($user))->id, 'user_id' => $user->id,
+        'pipeline_name'       => 'zfl-cadastro', 'environment' => 'test', 'creates' => true,
+        'trigger_kind'        => 'rest', 'status' => PipelineRunStatus::Pending,
+    ]);
+    $received = new stdClass;
+
+    (new RunPipelineLifecycle($run))->handle(recordingHealing($received), app(AssessPromotion::class), app(SynthesizeTriggerSpec::class), claimAs('zfl-cadastro-v1'));
+
+    expect($received->name)->toBe('zfl-cadastro-v1')
+        ->and($received->create)->toBeTrue()
+        ->and($run->fresh()->pipeline_name)->toBe('zfl-cadastro-v1');
+});
+
+it('refuses a taken name when the run was not asked to create', function () {
+    $user = runEditor();
+    $run = PipelineRun::create([
+        'flowspec_message_id' => runMessageIn(runChatFor($user))->id, 'user_id' => $user->id,
+        'pipeline_name'       => 'zfl-cadastro', 'environment' => 'test', 'creates' => false,
+        'status'              => PipelineRunStatus::Pending,
+    ]);
+    $received = new stdClass;
+    $received->name = 'never called';
+
+    (new RunPipelineLifecycle($run))->handle(recordingHealing($received), app(AssessPromotion::class), app(SynthesizeTriggerSpec::class), claimAs('zfl-cadastro-v1'));
+
+    expect($received->name)->toBe('never called')
+        ->and($run->fresh()->status)->toBe(PipelineRunStatus::Failed)
+        ->and($run->fresh()->error)->toContain('zfl-cadastro-v1');
+});
+
+it('claims the first free -vN, continuing from a name that already carries one', function () {
+    $taken = ['zfl-cadastro', 'zfl-cadastro-v1', 'zfl-pedido-v3'];
+    $client = new class($taken) extends DigibeeDesignClient
+    {
+        public function __construct(private array $taken) {}
+
+        public function latestByName(string $name): ?array
+        {
+            return in_array($name, $this->taken, true) ? ['id' => $name] : null;
+        }
+    };
+    $claim = new ClaimPipelineName($client);
+
+    expect($claim->handle('zfl-novo'))->toBe('zfl-novo')
+        ->and($claim->handle('zfl-cadastro'))->toBe('zfl-cadastro-v2')
+        ->and($claim->handle('zfl-pedido-v3'))->toBe('zfl-pedido-v4');
+});
+
+it('records every web run as creating, whatever the client posts', function () {
+    // A run from here never writes into an existing pipeline, so the choice
+    // the old "Criar se não existir" box offered no longer exists.
+    Queue::fake();
+    $user = runEditor();
+    $chat = runChatFor($user);
+    $message = runMessageIn($chat);
+
+    $this->actingAs($user)
+        ->postJson(route('flowspec.lifecycle.store', [$chat, $message]), runPayload(['creates' => false]))
+        ->assertOk();
+
+    expect(PipelineRun::sole()->creates)->toBeTrue();
 });

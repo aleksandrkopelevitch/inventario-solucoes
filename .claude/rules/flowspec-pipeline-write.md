@@ -207,3 +207,17 @@ prod's configuration id still says `test` in the query string.
 credential `DigibeeAuthResolver` resolves. The ingestion is driven by hand
 (`digibee:flowspec:ingest`, with `--dry-run` and a confirmation), and like the
 probe it stays out of `routes/console.php`.
+
+### A run from the Especialista never writes into an existing pipeline (2026-11-03)
+
+Ingesting by name let an Integrations Editor overwrite ANY pipeline in the
+realm, released ones included, and nothing in the platform undoes a write. So
+a web-started run always CREATES: `StorePipelineRunRequest` forces `creates`,
+the form lost its "Criar se não existir" box and the "Manter o do pipeline"
+trigger option, and `RunPipelineLifecycle` resolves the name once, before the
+healing loop, through `ClaimPipelineName` — the asked name when the realm has
+none, otherwise the first free `{name}-vN` beside it (a name already ending in
+`-vN` continues from N). Running again creates the next `-vN`.
+
+The console command (`IngestFlowspecCommand`) is an operator's tool and still
+writes into a pipeline by its exact name.

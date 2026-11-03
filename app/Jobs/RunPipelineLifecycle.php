@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Actions\Digibee\AssessPromotion;
+use App\Actions\Digibee\ClaimPipelineName;
 use App\Actions\Flowspec\SynthesizeTriggerSpec;
 use App\Enums\DigibeeTriggerKind;
 use App\Enums\PipelineRunStatus;
@@ -111,6 +112,7 @@ class RunPipelineLifecycle implements ShouldQueue
         PipelineHealingService $healing,
         AssessPromotion $assess,
         SynthesizeTriggerSpec $triggers,
+        ClaimPipelineName $claim,
     ): void {
         // A run someone already reaped (or that a second dispatch resurrected)
         // must not deploy anything: the row is the record of intent, and
@@ -144,6 +146,23 @@ class RunPipelineLifecycle implements ShouldQueue
             'status'     => PipelineRunStatus::Running,
             'started_at' => now(),
         ]);
+
+        // Never into a pipeline that already exists (ClaimPipelineName): a
+        // taken name becomes a new `-vN` beside it — which is creating, and
+        // creating stays something the run has to have been asked for.
+        $asked = $this->run->pipeline_name;
+        $name = $claim->handle($asked);
+
+        if ($name !== $asked) {
+            if (! $this->run->creates) {
+                $this->fail("Já existe um pipeline \"{$asked}\" no realm, e uma execução daqui nunca escreve num pipeline existente. "
+                    . "Marque \"Criar se não existir\" para criar \"{$name}\" ao lado dele.");
+
+                return;
+            }
+
+            $this->run->update(['pipeline_name' => $name]);
+        }
 
         $report = $healing->heal(
             document: $document,
