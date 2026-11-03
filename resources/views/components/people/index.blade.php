@@ -1,17 +1,6 @@
 <div id="{{ $domId }}">
     @if ($people->isEmpty())
-        <div class="animate-ak-pop flex flex-col items-center rounded-card border border-dashed border-line-2 bg-surface p-12 text-center text-sm text-muted">
-            <span class="mb-4 flex size-14 items-center justify-center rounded-full bg-gradient-to-br from-lime-soft to-accent-soft text-accent shadow-sm ring-1 ring-accent-line">
-                <x-heroicon-o-magnifying-glass class="size-6" />
-            </span>
-            <p class="mb-1 font-semibold text-ink">Nenhuma pessoa encontrada</p>
-            <p class="mb-4 max-w-xs">Ajuste a busca ou remova alguns filtros para ver mais resultados.</p>
-            <x-forms.button type="button" variant="ghost"
-                data-ak-filters-clear-all="{{ json_encode(['formId' => 'people-filter-form', 'url' => route('people.index')]) }}"
-                class="border border-line-2 !text-accent hover:!bg-accent-soft">
-                Limpar filtros
-            </x-forms.button>
-        </div>
+        <x-ui.no-results title="Nenhuma pessoa encontrada" form-id="people-filter-form" :url="route('people.index')" />
     @else
         <div class="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
             @foreach ($people as $person)

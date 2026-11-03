@@ -142,6 +142,11 @@ de linha — como nas notas de uma pessoa." />
                     description="x-ui.empty-state — ilustração + o que falta + o que fazer." />
                 <x-ui.empty-state illustration="diagrams" title="Nenhum diagrama" illustration-class="max-w-[180px]"
                     description="A ilustração é escolhida por nome (illustrations/empty-*)." />
+
+                <div class="space-y-2 sm:col-span-2">
+                    <x-ui.no-results title="Nenhuma empresa encontrada" form-id="showcase-filter-form" :url="$demoUrl" />
+                    <p class="font-mono text-[11px] text-faint">x-ui.no-results — os filtros esconderam tudo (não é lista vazia): oferece "Limpar filtros". Lista vazia de verdade é x-ui.empty-state.</p>
+                </div>
             </div>
         </section>
 
