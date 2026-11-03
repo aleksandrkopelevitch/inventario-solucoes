@@ -12,11 +12,8 @@
 
     <div class="mx-auto max-w-4xl space-y-8">
         <x-ui.hero-panel>
-            <span class="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-[color:var(--color-glow-ink)]/70">Design system</span>
-            <h1 class="mt-1 font-display text-[34px] font-semibold leading-tight text-[color:var(--color-glow-ink)]">Componentes</h1>
-            <p class="mt-1 max-w-2xl text-sm text-[color:var(--color-glow-ink)]/75">
-                Tudo o que é compartilhado entre telas, com o nome da tag. Antes de escrever marcação nova, procure aqui.
-            </p>
+            <x-ui.page-header large eyebrow="Design system" title="Componentes"
+                description="Tudo o que é compartilhado entre telas, com o nome da tag. Antes de escrever marcação nova, procure aqui. Este cabeçalho é x-ui.page-header dentro de x-ui.hero-panel." />
         </x-ui.hero-panel>
 
         {{-- ─── Formulários ─────────────────────────────────────────── --}}

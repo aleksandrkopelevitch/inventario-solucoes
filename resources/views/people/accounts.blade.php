@@ -5,25 +5,12 @@
     </a>
 
     <x-ui.hero-panel compact class="mb-6">
-        <div class="flex flex-wrap items-end justify-between gap-3">
-            <div>
-                <span class="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[color:var(--color-glow-ink)]/70">
-                    <span class="size-2 rounded-full" style="background: linear-gradient(115deg, var(--color-glow-a), var(--color-lime))"></span>
-                    Diretório
-                </span>
-                <h1 class="mt-2 font-display text-[34px] font-bold leading-tight tracking-tight text-[color:var(--color-glow-ink)]">
-                    Quem tem acesso
-                </h1>
-                {{-- The sentence a reader needs first: this screen READS, and the
-                     lever is on each person's page. Before the move it was the
-                     other way round — a modal that granted access to an e-mail,
-                     with no way to say whose e-mail it was. --}}
-                <p class="mt-1 text-sm text-[color:var(--color-glow-ink)]/70">
-                    Contas que entram no inventário. Conceder, trocar o perfil ou remover
-                    acesso é feito na página da pessoa.
-                </p>
-            </div>
-        </div>
+        {{-- The sentence a reader needs first: this screen READS, and the
+             lever is on each person's page. Before the move it was the
+             other way round — a modal that granted access to an e-mail,
+             with no way to say whose e-mail it was. --}}
+        <x-ui.page-header eyebrow="Diretório" title="Quem tem acesso"
+            description="Contas que entram no inventário. Conceder, trocar o perfil ou remover acesso é feito na página da pessoa." />
     </x-ui.hero-panel>
 
     {{-- Full width, like the hero above it: a 3xl cap left both cards

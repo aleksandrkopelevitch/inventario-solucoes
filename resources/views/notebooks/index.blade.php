@@ -5,33 +5,25 @@
 
 <x-layouts.layout title="Cadernos">
     <x-ui.hero-panel class="mb-6">
-        <span class="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[color:var(--color-glow-ink)]/70">
-            <span class="size-2 rounded-full" style="background: linear-gradient(115deg, var(--color-glow-a), var(--color-lime))"></span>
-            Documentação
-        </span>
-        <h1 class="mt-3 font-display text-[44px] font-bold leading-[0.98] tracking-tight text-[color:var(--color-glow-ink)]">
-            Cadernos
-        </h1>
-        <p class="mt-3 max-w-xl text-[15px] leading-relaxed text-[color:var(--color-glow-ink)]/70">
-            Cada caderno é um corpo de documentação — como um espaço no GitBook. Ele
-            pode descrever várias soluções ao mesmo tempo, ou nenhuma.
-        </p>
-        <div class="mt-5 flex flex-wrap items-center gap-3">
-            @can('create', \App\Models\Notebook::class)
-                <x-forms.button href="#" data-ak-panel-open data-ak-panel-url="{{ route('notebooks.panel.create', ['filter' => $filters]) }}"
-                    class="!rounded-full">
-                    <x-heroicon-o-plus class="size-4" /> Novo caderno
+        <x-ui.page-header large eyebrow="Documentação" title="Cadernos"
+            description="Cada caderno é um corpo de documentação — como um espaço no GitBook. Ele pode descrever várias soluções ao mesmo tempo, ou nenhuma.">
+            <x-slot:actions>
+                @can('create', \App\Models\Notebook::class)
+                    <x-forms.button href="#" data-ak-panel-open data-ak-panel-url="{{ route('notebooks.panel.create', ['filter' => $filters]) }}"
+                        class="!rounded-full">
+                        <x-heroicon-o-plus class="size-4" /> Novo caderno
+                    </x-forms.button>
+                @endcan
+                <x-forms.button href="{{ route('documentation.index') }}" variant="glass" class="!rounded-full">
+                    Ver cobertura <x-heroicon-o-arrow-right class="size-4" />
                 </x-forms.button>
-            @endcan
-            <x-forms.button href="{{ route('documentation.index') }}" variant="glass" class="!rounded-full">
-                Ver cobertura <x-heroicon-o-arrow-right class="size-4" />
-            </x-forms.button>
-            {{-- `/docs` has no rail entry — it is its own shell — so the
-                 catalog that decides what it shows is where it is reached from. --}}
-            <x-forms.button href="{{ route('docs.index') }}" target="_blank" rel="noopener" variant="glass" class="!rounded-full">
-                Abrir a base de conhecimento <x-heroicon-o-arrow-top-right-on-square class="size-4" />
-            </x-forms.button>
-        </div>
+                {{-- `/docs` has no rail entry — it is its own shell — so the
+                     catalog that decides what it shows is where it is reached from. --}}
+                <x-forms.button href="{{ route('docs.index') }}" target="_blank" rel="noopener" variant="glass" class="!rounded-full">
+                    Abrir a base de conhecimento <x-heroicon-o-arrow-top-right-on-square class="size-4" />
+                </x-forms.button>
+            </x-slot:actions>
+        </x-ui.page-header>
     </x-ui.hero-panel>
 
     {{-- Search + filters, one bar (same form: search is a filter[] field, so it

@@ -5,34 +5,24 @@
 
 <x-layouts.layout title="Pessoas">
     <x-ui.hero-panel compact class="mb-6">
-        <div class="flex flex-wrap items-end justify-between gap-3">
-            <div>
-                <span class="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[color:var(--color-glow-ink)]/70">
-                    <span class="size-2 rounded-full" style="background: linear-gradient(115deg, var(--color-glow-a), var(--color-lime))"></span>
-                    Diretório
-                </span>
-                <h1 class="mt-2 font-display text-[34px] font-bold leading-tight tracking-tight text-[color:var(--color-glow-ink)]">
-                    Pessoas
-                    <x-people.results-count :filters="$filters" />
-                </h1>
-                <p class="mt-1 text-sm text-[color:var(--color-glow-ink)]/70">Responsáveis internos e contatos de fornecedores.</p>
-            </div>
-            <div class="flex items-center gap-2">
-            @can('manage', \App\Models\User::class)
-                {{-- The roster is a view of THIS module, so it is reachable from
-                     the module rather than only from the user menu. --}}
-                <x-forms.button href="{{ route('people.accounts') }}" variant="ghost" class="!rounded-full">
-                    <x-heroicon-o-key class="size-4" /> Quem tem acesso
-                </x-forms.button>
-            @endcan
-            @can('create', \App\Models\Person::class)
-                <x-forms.button href="#" data-ak-panel-open data-ak-panel-url="{{ route('people.create', ['filter' => $filters]) }}"
-                    class="!rounded-full">
-                    <x-heroicon-o-plus class="size-4" /> Nova pessoa
-                </x-forms.button>
-            @endcan
-            </div>
-        </div>
+        <x-ui.page-header eyebrow="Diretório" title="Pessoas" description="Responsáveis internos e contatos de fornecedores.">
+            <x-slot:count><x-people.results-count :filters="$filters" /></x-slot:count>
+            <x-slot:actions>
+                @can('manage', \App\Models\User::class)
+                    {{-- The roster is a view of THIS module, so it is reachable from
+                         the module rather than only from the user menu. --}}
+                    <x-forms.button href="{{ route('people.accounts') }}" variant="ghost" class="!rounded-full">
+                        <x-heroicon-o-key class="size-4" /> Quem tem acesso
+                    </x-forms.button>
+                @endcan
+                @can('create', \App\Models\Person::class)
+                    <x-forms.button href="#" data-ak-panel-open data-ak-panel-url="{{ route('people.create', ['filter' => $filters]) }}"
+                        class="!rounded-full">
+                        <x-heroicon-o-plus class="size-4" /> Nova pessoa
+                    </x-forms.button>
+                @endcan
+            </x-slot:actions>
+        </x-ui.page-header>
     </x-ui.hero-panel>
 
     {{-- Two filters, one line. `filter[company]` is the select the `auto`

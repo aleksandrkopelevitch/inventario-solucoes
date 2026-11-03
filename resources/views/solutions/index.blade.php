@@ -24,34 +24,27 @@
          deliberate moment of color behind the page title), Radiant's actual
          hero gradient instead of a green-tinted one. --}}
     <x-ui.hero-panel class="mb-6">
-        <span class="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-[color:var(--color-glow-ink)]/70">
-            <span class="size-2 rounded-full" style="background: linear-gradient(115deg, var(--color-glow-a), var(--color-lime))"></span>
-            Catálogo · {{ $catalogStats['total'] }} soluções
-        </span>
-        <h1 class="mt-3 font-display text-[44px] font-bold leading-[0.98] tracking-tight text-[color:var(--color-glow-ink)]">
-            Soluções
-            <x-solutions.results-count :filters="$filters" />
-        </h1>
-        <p class="mt-3 max-w-lg text-[15px] leading-relaxed text-[color:var(--color-glow-ink)]/70">
-            Do chão de fábrica ao e-commerce — todo o ecossistema de software da Leo Madeiras num só lugar.
-        </p>
-        <div class="mt-5 flex flex-wrap items-center gap-3">
-            @can('create', \App\Models\Solution::class)
-                <x-forms.button href="#" data-ak-panel-open data-ak-panel-url="{{ route('solutions.create', ['filter' => $filters]) }}"
-                    class="!rounded-full">
-                    <x-heroicon-o-plus class="size-4" /> Nova solução
+        <x-ui.page-header large eyebrow="Catálogo · {{ $catalogStats['total'] }} soluções" title="Soluções"
+            description="Do chão de fábrica ao e-commerce — todo o ecossistema de software da Leo Madeiras num só lugar.">
+            <x-slot:count><x-solutions.results-count :filters="$filters" /></x-slot:count>
+            <x-slot:actions>
+                @can('create', \App\Models\Solution::class)
+                    <x-forms.button href="#" data-ak-panel-open data-ak-panel-url="{{ route('solutions.create', ['filter' => $filters]) }}"
+                        class="!rounded-full">
+                        <x-heroicon-o-plus class="size-4" /> Nova solução
+                    </x-forms.button>
+                @endcan
+                <x-forms.button href="{{ route('solutions.map') }}" variant="glass" class="!rounded-full">
+                    Ver mapa do ecossistema <x-heroicon-o-arrow-right class="size-4" />
                 </x-forms.button>
-            @endcan
-            <x-forms.button href="{{ route('solutions.map') }}" variant="glass" class="!rounded-full">
-                Ver mapa do ecossistema <x-heroicon-o-arrow-right class="size-4" />
-            </x-forms.button>
-            {{-- Every record at once, read-only, with value filters and an
-                 Excel/CSV export — and the one view of the catalog that can be
-                 handed to someone outside through a magic link. --}}
-            <x-forms.button href="{{ route('solutions.spreadsheet') }}" variant="glass" class="!rounded-full">
-                <x-heroicon-o-table-cells class="size-4" /> Ver como planilha
-            </x-forms.button>
-        </div>
+                {{-- Every record at once, read-only, with value filters and an
+                     Excel/CSV export — and the one view of the catalog that can be
+                     handed to someone outside through a magic link. --}}
+                <x-forms.button href="{{ route('solutions.spreadsheet') }}" variant="glass" class="!rounded-full">
+                    <x-heroicon-o-table-cells class="size-4" /> Ver como planilha
+                </x-forms.button>
+            </x-slot:actions>
+        </x-ui.page-header>
     </x-ui.hero-panel>
 
     {{-- Whole-catalog summary — unfiltered on purpose, doesn't move with the
