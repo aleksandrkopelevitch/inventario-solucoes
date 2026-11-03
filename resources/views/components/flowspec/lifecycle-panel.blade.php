@@ -121,16 +121,18 @@
             @can('run', $chat)
                 @if ($run)
                     <p class="text-[11px] leading-relaxed text-faint">
-                        Executar de novo é outra implantação de verdade, sobre o mesmo pipeline.
-                        Use isso para corrigir o que a execução acima apontou — um cron ou um nome
-                        de evento errado, por exemplo — sem precisar de um pipeline novo.
+                        Executar de novo cria outro pipeline ao lado do anterior (o mesmo nome com
+                        <span class="font-mono">-v2</span>, <span class="font-mono">-v3</span>…) — uma execução daqui
+                        nunca escreve num pipeline que já existe. Use isso para corrigir o que a execução
+                        acima apontou, como um cron ou um nome de evento errado.
                     </p>
                 @else
                     <p class="text-[11px] leading-relaxed text-faint">
-                        Escreve esse flowSpec num pipeline real, implanta em
+                        Cria um pipeline com esse flowSpec, implanta em
                         <span class="font-medium text-muted">test</span>, roda a bateria e corrige com o que
-                        acontecer. Cada rodada é uma implantação de verdade — e nada nessa plataforma apaga
-                        pipeline.
+                        acontecer. Se o nome já existir na Digibee, cria ao lado com
+                        <span class="font-mono">-v1</span> — nunca sobrescreve. Cada rodada é uma implantação
+                        de verdade, e nada nessa plataforma apaga pipeline.
                     </p>
                 @endif
 
@@ -161,14 +163,6 @@
                          seu tipo, e o Form Request exige o par. --}}
                     <x-forms.field label="Gatilho">
                         <x-forms.select name="trigger_kind" data-ak-trigger-kind>
-                            {{-- Só faz sentido contra um pipeline que já
-                                 existe: um recém-criado não tem gatilho
-                                 "próprio" para manter, e o Form Request
-                                 recusa o par (`required_if:creates,1`). A
-                                 cola abaixo tira esta opção quando "Criar"
-                                 está marcado, para o erro não ser a primeira
-                                 notícia. --}}
-                            <option value="" data-ak-trigger-keep>Manter o do pipeline</option>
                             @foreach ($triggerKinds as $kind)
                                 <option value="{{ $kind->value }}">{{ $kind->label() }}</option>
                             @endforeach
@@ -183,16 +177,10 @@
                         <x-forms.input name="trigger_event" placeholder="pedido.criado" />
                     </x-forms.field>
 
-                    {{-- A caixa e o botão numa linha própria: com os campos de
-                         gatilho o formulário passou a quebrar, e `items-end`
-                         numa linha só deixava o rótulo do checkbox atrás do
-                         botão. --}}
-                    <div class="flex w-full items-center justify-between gap-3 pt-1">
-                        <x-forms.label class="!flex cursor-pointer items-center gap-2 !text-xs">
-                            <x-forms.checkbox name="creates" value="1" data-ak-trigger-creates />
-                            Criar se não existir
-                        </x-forms.label>
-
+                    {{-- O botão numa linha própria: com os campos de gatilho o
+                         formulário quebra, e `items-end` numa linha só o
+                         deixava espremido ao lado deles. --}}
+                    <div class="flex w-full items-center justify-end gap-3 pt-1">
                         <x-forms.button
                             form="{{ $formId }}"
                             data-ak-ajax="{{ $formId }}"
@@ -205,26 +193,13 @@
                      escondido sai do formulário junto (`disabled`), senão um
                      cron digitado e depois trocado para evento ainda seria
                      enviado — e a validação, que rejeita um cron sem o seu
-                     tipo, recusaria a execução por um campo invisível.
-
-                     Marcar "Criar se não existir" também tira "Manter o do
-                     pipeline" da lista: não existe gatilho a manter num
-                     pipeline que ainda não existe, e criar um sem gatilho
-                     deixa na realm um nome indeployável que nada apaga. --}}
+                     tipo, recusaria a execução por um campo invisível. --}}
                 <script>
                     (function () {
                         const form = document.getElementById(@js($formId));
                         const kind = form.querySelector('[data-ak-trigger-kind]');
-                        const creates = form.querySelector('[data-ak-trigger-creates]');
-                        const keep = kind.querySelector('[data-ak-trigger-keep]');
 
                         function sync() {
-                            keep.hidden = creates.checked;
-                            keep.disabled = creates.checked;
-                            // Um pipeline novo não pode ficar sem tipo: se
-                            // "Manter" estava escolhido, cai no primeiro real.
-                            if (creates.checked && kind.value === '') kind.selectedIndex = 1;
-
                             form.querySelectorAll('[data-ak-trigger-when]').forEach((field) => {
                                 const wanted = field.dataset.akTriggerWhen === kind.value;
                                 field.hidden = ! wanted;
@@ -233,7 +208,6 @@
                         }
 
                         kind.addEventListener('change', sync);
-                        creates.addEventListener('change', sync);
                         sync();
                     })();
                 </script>

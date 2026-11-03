@@ -24,19 +24,13 @@ use Illuminate\Validation\Rule;
  */
 class StorePipelineRunRequest extends FormRequest
 {
-    /**
-     * `creates` arrives as `"1"` from the form's checkbox and as `true` from a
-     * JSON client, and `required_if` compares the two STRICTLY once the other
-     * value is a bool (`validateRequiredIf` passes `is_bool($other)` as
-     * `in_array`'s third argument). So `required_if:creates,1` fires for the
-     * form and silently does nothing for JSON — the half that is easiest to
-     * test and hardest to notice. Normalising first makes one rule cover both.
-     */
     protected function prepareForValidation(): void
     {
-        if ($this->has('creates')) {
-            $this->merge(['creates' => $this->boolean('creates')]);
-        }
+        // A run from here always CREATES (since 2026-11-03): it never writes
+        // into a pipeline that already exists, and a taken name becomes a new
+        // `-vN` beside it (App\Actions\Digibee\ClaimPipelineName). So there
+        // is no choice left to ask for, and no "own trigger" to keep.
+        $this->merge(['creates' => true]);
     }
 
     /** @return array<string, list<mixed>> */
@@ -49,22 +43,15 @@ class StorePipelineRunRequest extends FormRequest
                 'string',
                 Rule::in((array) config('services.digibee.design.deployable_environments')),
             ],
-            // Creating one is permanent on this platform, so it is never a
-            // default: the form asks, and the row records the answer.
-            'creates' => ['sometimes', 'boolean'],
+            'creates' => ['boolean'],
 
-            // The trigger the run will write. Optional against an EXISTING
-            // pipeline, which keeps whatever it already has in the realm —
-            // and required when `creates` is set, because there is no "own
-            // trigger" to keep on a pipeline that does not exist yet.
-            //
-            // Without `required_if` the form could still reproduce the exact
-            // condition this whole change exists to remove: the run would
-            // create the pipeline (permanent — nothing on this platform
-            // deletes one), `DeployPipeline` would then refuse it for an empty
-            // `triggerSpec`, and the realm would be left with an undeployable
-            // name nobody can reclaim. Refusing here costs nothing.
-            'trigger_kind' => ['required_if:creates,true', 'nullable', Rule::enum(DigibeeTriggerKind::class)],
+            // The trigger the run will write — required, because every run
+            // creates its pipeline and a new one has no trigger of its own.
+            // Without it the run would create the pipeline (permanent —
+            // nothing on this platform deletes one), `DeployPipeline` would
+            // refuse it for an empty `triggerSpec`, and the realm would keep an
+            // undeployable name nobody can reclaim.
+            'trigger_kind' => ['required', Rule::enum(DigibeeTriggerKind::class)],
             // The two values a flowSpec cannot yield. Required with their kind
             // and rejected without it: a cron typed against a REST trigger is
             // a misunderstanding worth answering, not a field to ignore.
@@ -87,11 +74,11 @@ class StorePipelineRunRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'environment.in'           => 'Esse ambiente não está liberado para implantação.',
-            'trigger_kind.enum'        => 'Esse tipo de gatilho não existe na plataforma.',
-            'trigger_kind.required_if' => 'Um pipeline novo precisa de gatilho: sem ele a Digibee recusa publicar, e o pipeline criado fica para sempre — nada aqui apaga um.',
-            'trigger_cron.required'    => 'Um agendamento precisa do cron: ele não sai do flowSpec, e um cron chutado não falha — roda na hora errada.',
-            'trigger_event.required'   => 'Um gatilho de evento precisa do nome do evento: um nome inventado escuta um tópico que ninguém publica, sem erro nenhum.',
+            'environment.in'         => 'Esse ambiente não está liberado para implantação.',
+            'trigger_kind.enum'      => 'Esse tipo de gatilho não existe na plataforma.',
+            'trigger_kind.required'  => 'Um pipeline novo precisa de gatilho: sem ele a Digibee recusa publicar, e o pipeline criado fica para sempre — nada aqui apaga um.',
+            'trigger_cron.required'  => 'Um agendamento precisa do cron: ele não sai do flowSpec, e um cron chutado não falha — roda na hora errada.',
+            'trigger_event.required' => 'Um gatilho de evento precisa do nome do evento: um nome inventado escuta um tópico que ninguém publica, sem erro nenhum.',
         ];
     }
 }
