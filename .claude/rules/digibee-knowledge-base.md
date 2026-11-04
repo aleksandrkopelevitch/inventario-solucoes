@@ -165,8 +165,38 @@ file under `storage/app/private/digibee-monitor/reports/`, `0600`. 500
 executions took 1m47s; one run opens at most 1000. Everything it writes is
 redacted twice: each string first, at its own escaping level (a payload's body
 is often JSON in a string in a string — one escape deeper than the key rules
-reach once encoded), then the encoded document. Every `--json` output goes
-through the same `encodeRedacted()`.
+reach once encoded), then the encoded document. Every `--json` output, and
+everything the MCP server below answers, goes through that same
+`LogRedactor::json()`. The search-and-open work lives in
+`ExecutionCollector` (find, then open the union) and the window parsing in
+`MonitorTime`, shared by the command and the MCP server so a window typed in
+either means the same two instants.
+
+#### `digibee:mcp` — the same reads for a chat client, on stdio, local only
+
+Claude Desktop on Windows starts `wsl.exe -d Ubuntu-24.04 --cd <repo> php
+artisan digibee:mcp`; `LogsMcpServer` speaks newline-delimited JSON-RPC on
+stdin/stdout (reusing `App\Mcp\JsonRpc`/`ToolResult`/`Arguments`, not the iSol
+server, which is HTTP and per-`Actor`). It is NOT a tool on the iSol `/mcp`:
+the session is a person's whole role and its sign-in needs their browser, so
+it stays on their machine. Four tools (`LogsTools`): count (no opening), search
+(collects everything, saves the report, answers a `ReportDigest` — aggregates
+plus a timeline capped at 60, since a chat has no jq), query a saved report by
+its bare name (a path in it is refused), and one execution's log.
+
+- **stdout is the protocol and nothing else**: `display_errors` goes to stderr,
+  and a failure is logged, never printed — a stray line is a corrupt frame.
+- **The session is re-read on every call**, so a person signing in again
+  mid-conversation needs no restart.
+- **Every failure to reach Digibee ends in the login instruction**
+  (`LogsTools::LOGIN_HOWTO`), by the user's decision: a session that died
+  mid-day answers 401, 403 or a dropped connection, and signing in again is
+  cheap. `digibee:logs` prints the same hint.
+- **A report file is named after the pipeline and a HASH of the term** — the
+  term may be a CPF.
+- **A test helper name is global**: `mcpCall()` already exists in
+  `McpServerTest`, and redeclaring it is a fatal error for the WHOLE run, not
+  just the file — the new file's helpers carry a `digibeeMcp` prefix.
 
 Two performance traps, both measured on a 100-execution listing: an unanchored
 e-mail regex is quadratic on the base64 blobs payloads carry, and the Symfony
