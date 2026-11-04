@@ -28,7 +28,14 @@ The arguments are free text. Pull out:
 - **pipeline** — a token shaped like a pipeline name (`evt-…`, `zfl-…`, `api-…`,
   any lowercase-hyphenated name). Exact name; the platform does not match
   partially.
-- **window** — `15m`, `6h`, `2d`… Default `1d`. Logs live **10 days in prod,
+- **window** — either how long ago (`15m`, `6h`, `2d`, ending now) or a range
+  on the local clock: `03/11 14:00 até 03/11 16:00`, `de 03/11 a 04/11`,
+  `ontem das 14h às 16h`, `hoje 9:00-11:00`. Translate words like
+  `ontem`/`hoje` into dates yourself (today is in the session context) and
+  pass the two ends as `--since` and `--until`, in one of the forms the
+  command reads: `2026-11-03 14:00`, `03/11 14:00`, `03/11`, `14:00`, `6h`. A
+  bare date as the end means its midnight, so "de 03/11 a 04/11" whole days is
+  `--since=03/11 --until=05/11`. Default `1d`. Logs live **10 days in prod,
   3 in test**; cap there and say so if more was asked.
 - **environment** — `prod` unless the user says `test`/`teste`/`qa`.
 
@@ -44,9 +51,16 @@ collect both. Each run opens every matched execution (5 at a time) and writes
 one JSON file; name the files after the request:
 
 ```
-php artisan digibee:logs --environment=<env> --since=<window> [--pipeline=<p>] --message="<term>" --limit=100 --pages=20 --collect=<slug>-linhas.json
-php artisan digibee:logs --environment=<env> --since=<window> [--pipeline=<p>] --search="<term>"  --limit=100 --pages=20 --collect=<slug>-payloads.json
+php artisan digibee:logs --environment=<env> --since="<start>" [--until="<end>"] [--pipeline=<p>] --message="<term>" --limit=100 --pages=20 --collect=<slug>-linhas.json
+php artisan digibee:logs --environment=<env> --since="<start>" [--until="<end>"] [--pipeline=<p>] --search="<term>"  --limit=100 --pages=20 --collect=<slug>-payloads.json
 ```
+
+Before a broad collect (a pipeline with no term, or a window of days), size
+it first with `--limit=1` — the footer gives the platform's count (`10000+`
+means "at least"). A busy pipeline runs thousands of executions an hour, in
+bursts; if the count is past ~1000, tell the user the size and the time it
+would take (~2 minutes per 500) before collecting, and suggest a term or a
+shorter range.
 
 Without a term, one run with neither `--message` nor `--search` (it lists the
 pipeline's executions).
@@ -61,8 +75,10 @@ and one run opens at most 1000.
 - The summary warns when the window held more than was collected (`more
   matches in this window`), when executions passed the 1000 cap (`not_opened`)
   or could not be exported (`unreadable`). Report each to the user with the
-  numbers; to get the rest, split the window (e.g. two runs of 12h) rather than
-  dropping matches.
+  numbers; to get the rest, split the window into consecutive
+  `--since`/`--until` ranges (e.g. `03/11 00:00`→`03/11 12:00`, then
+  `03/11 12:00`→`04/11 00:00`), one file each, rather than dropping matches.
+  Analyse the files together (`jq -s`).
 
 ## 3. Analyse the files with jq
 
