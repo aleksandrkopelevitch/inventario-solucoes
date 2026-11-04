@@ -58,4 +58,26 @@ final class LogRedactor
 
         return (string) preg_replace(array_keys($rules), array_values($rules), $text);
     }
+
+    /**
+     * Any structure as redacted JSON — twice on purpose. Each string first, at
+     * its own level of escaping: a payload is JSON in a string, and its body
+     * is often JSON in a string again, which encoding once more would push one
+     * escape deeper than the key rules reach. Then the encoded whole, for
+     * anything the structure itself carries.
+     */
+    public function json(mixed $data, int $flags = JSON_PRETTY_PRINT): string
+    {
+        if (is_array($data)) {
+            array_walk_recursive($data, function (mixed &$value) {
+                if (is_string($value)) {
+                    $value = $this->redact($value);
+                }
+            });
+        } elseif (is_string($data)) {
+            $data = $this->redact($data);
+        }
+
+        return $this->redact((string) json_encode($data, $flags | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+    }
 }

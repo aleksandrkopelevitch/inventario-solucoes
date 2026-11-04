@@ -282,8 +282,19 @@ it('refuses a window it cannot read, or one that ends before it starts, before c
 })->with([
     'a typo'            => [['--since' => '6hrs'], 'Cannot read "6hrs"'],
     'an impossible day' => [['--since' => '31/02 10:00'], 'Cannot read "31/02 10:00"'],
-    'reversed'          => [['--since' => '1h', '--until' => '2h'], 'must be before --until'],
+    'reversed'          => [['--since' => '1h', '--until' => '2h'], 'must be before the end'],
 ]);
+
+it('points at signing in again when Digibee cannot be reached', function () {
+    $session = withMonitorSessionFile();
+    Http::fake(['*' => Http::response(['message' => 'boom'], 503)]);
+
+    $this->artisan('digibee:logs', ['--since' => '1h'])
+        ->expectsOutputToContain('sign in again first: php artisan digibee:monitor:login')
+        ->assertFailed();
+
+    unlink($session);
+});
 
 it('parses the CSV export into rows keyed by its header', function () {
     Http::fake(['core.example.test/runtime/realms/leomadeiras/logs/export*' => Http::response(

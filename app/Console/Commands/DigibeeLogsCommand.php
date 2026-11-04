@@ -4,10 +4,11 @@ namespace App\Console\Commands;
 
 use App\Exceptions\DigibeeApiException;
 use App\Support\Digibee\Monitor\DigibeeMonitorClient;
+use App\Support\Digibee\Monitor\ExecutionCollector;
 use App\Support\Digibee\Monitor\LogRedactor;
 use App\Support\Digibee\Monitor\MonitorSession;
+use App\Support\Digibee\Monitor\MonitorTime;
 use Carbon\CarbonImmutable;
-use Carbon\Exceptions\InvalidFormatException;
 use Illuminate\Console\Command;
 use Illuminate\Http\Client\ConnectionException;
 use Symfony\Component\Console\Formatter\OutputFormatter;
@@ -43,19 +44,13 @@ class DigibeeLogsCommand extends Command
 
     protected $description = 'Read Digibee executions and execution logs (redacted) through the Monitor routes';
 
-    /** 20 pages of 100 — past that, a narrower window or filter is the better question. */
-    private const MAX_PAGES = 20;
-
-    /** The log search's `total` never goes past this (measured 2026-11-04). */
-    private const CAPPED_TOTAL = 10000;
+    /** Executions one --collect opens: ~3.5 minutes (500 took 1m47s on 2026-11-04). */
+    private const MAX_COLLECT = 1000;
 
     /** The window every search in this run uses — see handle(). */
     private CarbonImmutable $from;
 
     private CarbonImmutable $to;
-
-    /** Executions one --collect opens: ~3.5 minutes (500 took 1m47s on 2026-11-04). */
-    private const MAX_COLLECT = 1000;
 
     public function handle(LogRedactor $redactor): int
     {
@@ -84,25 +79,18 @@ class DigibeeLogsCommand extends Command
             return self::FAILURE;
         }
 
-        $client = new DigibeeMonitorClient($session);
-        $environment = (string) $this->option('environment');
-
         // Read once, before any request: every page of a search and the
         // report that describes it must agree on the same two instants.
         try {
-            $this->to = $this->instant((string) ($this->option('until') ?: '0m'), CarbonImmutable::now());
-            $this->from = $this->instant((string) $this->option('since'), CarbonImmutable::now());
+            [$this->from, $this->to] = MonitorTime::window((string) $this->option('since'), $this->option('until'));
         } catch (\InvalidArgumentException $e) {
             $this->components->error($e->getMessage());
 
             return self::FAILURE;
         }
 
-        if ($this->from >= $this->to) {
-            $this->components->error("--since ({$this->display($this->from)}) must be before --until ({$this->display($this->to)}).");
-
-            return self::FAILURE;
-        }
+        $client = new DigibeeMonitorClient($session);
+        $environment = (string) $this->option('environment');
 
         try {
             return match (true) {
@@ -112,7 +100,10 @@ class DigibeeLogsCommand extends Command
                 default                          => $this->printExecutions($client, $redactor, $environment),
             };
         } catch (DigibeeApiException|ConnectionException $e) {
+            // Whatever the failure, the cheap first fix is signing in again: a
+            // session that died mid-day does not always answer 401.
             $this->components->error($e->getMessage());
+            $this->line('<fg=gray>If Digibee cannot be reached, sign in again first: php artisan digibee:monitor:login</>');
 
             return self::FAILURE;
         }
@@ -124,7 +115,7 @@ class DigibeeLogsCommand extends Command
         $rows = array_reverse($client->executionLogs($environment, $key));
 
         if ($this->option('json')) {
-            $this->raw($this->encodeRedacted($redactor, $rows));
+            $this->raw($redactor->json($rows));
 
             return self::SUCCESS;
         }
@@ -143,7 +134,7 @@ class DigibeeLogsCommand extends Command
         $this->newLine();
 
         foreach ($rows as $row) {
-            $this->line($this->localTime($row['timestamp'] ?? null) . ' ' . $this->levelTag((string) ($row['logLevel'] ?? '')) . ' ' . OutputFormatter::escape($redactor->redact(trim($row['logMessage'] ?? ''))));
+            $this->line(MonitorTime::short($row['timestamp'] ?? null) . ' ' . $this->levelTag((string) ($row['logLevel'] ?? '')) . ' ' . OutputFormatter::escape($redactor->redact(trim($row['logMessage'] ?? ''))));
         }
 
         $this->newLine();
@@ -164,67 +155,23 @@ class DigibeeLogsCommand extends Command
      */
     private function collect(DigibeeMonitorClient $client, LogRedactor $redactor, string $environment, bool $lines): int
     {
-        [$records, $total, $hasNext] = $this->paged(fn (CarbonImmutable $from, CarbonImmutable $to, ?string $cursor) => $lines
-            ? $client->pipelineLogs($environment, $from, $to, (int) $this->option('limit'), $this->option('pipeline'), $this->option('message'), $cursor)
-            : $client->executions($environment, $from, $to, (int) $this->option('limit'), $this->option('pipeline'), $this->option('search'), $cursor));
+        $collector = new ExecutionCollector($client);
 
-        // One entry per execution, in the order the search found them; a
-        // log-line search finds the same execution once per matching line.
-        $found = [];
+        $search = $collector->find(
+            $environment,
+            $this->from,
+            $this->to,
+            $this->option('pipeline'),
+            $lines ? $this->option('message') : $this->option('search'),
+            $lines,
+            (int) $this->option('limit'),
+            (int) $this->option('pages'),
+        );
 
-        foreach ($records as $record) {
-            $attributes = $record['attributes'] ?? [];
-            $key = $attributes['pipeline.key'] ?? null;
+        $toOpen = min(count($search['found']), self::MAX_COLLECT);
+        $this->components->info("{$search['matches']} match(es) in " . count($search['found']) . " execution(s) — opening {$toOpen}…");
 
-            if (! is_string($key) || $key === '') {
-                continue;
-            }
-
-            $found[$key] ??= [
-                'key'      => $key,
-                'pipeline' => $attributes['pipeline.name'] ?? null,
-                'version'  => $attributes['pipeline.version'] ?? null,
-            ] + ($lines ? ['matched_lines' => []] : [
-                'status'           => $this->statusCode($attributes),
-                'elapsed_ms'       => $attributes['execution.elapsed_time_ms'] ?? null,
-                'payload_request'  => $attributes['payload.request'] ?? null,
-                'payload_response' => $attributes['payload.response'] ?? null,
-            ]);
-
-            if ($lines) {
-                $found[$key]['matched_lines'][] = (string) ($record['body'] ?? '');
-            }
-        }
-
-        $notOpened = array_slice(array_keys($found), self::MAX_COLLECT);
-        $keys = array_slice(array_keys($found), 0, self::MAX_COLLECT);
-
-        $this->components->info(count($records) . ' match(es) in ' . count($found) . ' execution(s) — opening ' . count($keys) . '…');
-
-        $logs = $keys === [] ? [] : $client->executionLogsMany($environment, $keys);
-
-        $executions = [];
-
-        foreach ($keys as $key) {
-            // The export comes newest first; an execution reads top to bottom.
-            $rows = $logs[$key] === null ? null : array_reverse($logs[$key]);
-            $levels = $rows === null ? [] : array_count_values(array_map(fn (array $row) => strtoupper($row['logLevel'] ?? '?'), $rows));
-
-            $executions[] = $found[$key] + [
-                'started_at' => $rows ? $this->isoLocal($rows[0]['timestamp'] ?? null) : null,
-                'ended_at'   => $rows ? $this->isoLocal($rows[count($rows) - 1]['timestamp'] ?? null) : null,
-                'levels'     => $levels,
-                'unreadable' => $rows === null,
-                'lines'      => array_map(fn (array $row) => [
-                    'at'      => $this->isoLocal($row['timestamp'] ?? null),
-                    'level'   => $row['logLevel'] ?? null,
-                    'message' => $row['logMessage'] ?? null,
-                ], $rows ?? []),
-            ];
-        }
-
-        // Chronological: a report reads as what happened, in order.
-        usort($executions, fn (array $a, array $b) => strcmp((string) $a['started_at'], (string) $b['started_at']));
+        $opened = $collector->open($environment, $search['found'], self::MAX_COLLECT);
 
         $report = [
             'query' => array_filter([
@@ -233,26 +180,42 @@ class DigibeeLogsCommand extends Command
                 'pipeline'    => $this->option('pipeline'),
                 'message'     => $lines ? $this->option('message') : null,
                 'search'      => $lines ? null : $this->option('search'),
-                'from'        => $this->isoLocal($this->from->toIso8601String()),
-                'to'          => $this->isoLocal($this->to->toIso8601String()),
-                'timezone'    => (string) config('app.display_timezone'),
+                'from'        => MonitorTime::iso($this->from->toIso8601String()),
+                'to'          => MonitorTime::iso($this->to->toIso8601String()),
+                'timezone'    => MonitorTime::timezone(),
             ], fn ($value) => $value !== null && $value !== ''),
-            'matches'          => count($records),
-            'platform_total'   => $total,
-            'more_in_window'   => $hasNext,
-            'executions_found' => count($found),
-            'not_opened'       => $notOpened,
-            'unreadable'       => array_values(array_keys(array_filter($logs, fn ($rows) => $rows === null))),
-            'executions'       => $executions,
+            'matches'          => $search['matches'],
+            'platform_total'   => $search['total'],
+            'more_in_window'   => $search['has_next'],
+            'executions_found' => count($search['found']),
+            'not_opened'       => $opened['not_opened'],
+            'unreadable'       => $opened['unreadable'],
+            'executions'       => $opened['executions'],
         ];
 
-        $path = $this->reportPath((string) $this->option('collect'));
-        file_put_contents($path, $this->encodeRedacted($redactor, $report));
+        $path = self::reportPath((string) $this->option('collect'));
+        file_put_contents($path, $redactor->json($report));
         chmod($path, 0600);
 
         $this->summarise($report, $path);
 
         return self::SUCCESS;
+    }
+
+    /** Where a report lands: under the private disk unless the path is absolute. */
+    public static function reportPath(string $name): string
+    {
+        $path = str_starts_with($name, '/')
+            ? $name
+            : storage_path('app/private/digibee-monitor/reports/' . $name);
+
+        $directory = dirname($path);
+
+        if (! is_dir($directory)) {
+            mkdir($directory, 0700, true);
+        }
+
+        return $path;
     }
 
     /** @param  array<string, mixed>  $report */
@@ -291,62 +254,29 @@ class DigibeeLogsCommand extends Command
         $this->components->info("Report written to {$path}");
     }
 
-    private function reportPath(string $option): string
-    {
-        $path = str_starts_with($option, '/')
-            ? $option
-            : storage_path('app/private/digibee-monitor/reports/' . $option);
-
-        $directory = dirname($path);
-
-        if (! is_dir($directory)) {
-            mkdir($directory, 0700, true);
-        }
-
-        return $path;
-    }
-
-    /**
-     * Redacted twice on purpose. Each string first, at its own level of
-     * escaping — a payload is JSON in a string, and its body is often JSON
-     * in a string again, which encoding once more would push one escape
-     * deeper than the key rules reach. Then the encoded whole, for anything
-     * the structure itself carries.
-     */
-    private function encodeRedacted(LogRedactor $redactor, mixed $data): string
-    {
-        array_walk_recursive($data, function (mixed &$value) use ($redactor) {
-            if (is_string($value)) {
-                $value = $redactor->redact($value);
-            }
-        });
-
-        return $redactor->redact((string) json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-    }
-
     private function printExecutions(DigibeeMonitorClient $client, LogRedactor $redactor, string $environment): int
     {
         // Measured shape (2026-11-04): `data` is a list of OpenTelemetry-style
         // log records, one per completed execution, the useful fields flat
         // under `attributes` with dotted names.
-        [$executions, $total, $hasNext] = $this->paged(fn (CarbonImmutable $from, CarbonImmutable $to, ?string $cursor) => $client->executions(
+        [$executions, $total, $hasNext] = ExecutionCollector::paged(fn (?string $cursor) => $client->executions(
             $environment,
-            $from,
-            $to,
+            $this->from,
+            $this->to,
             (int) $this->option('limit'),
             $this->option('pipeline'),
             $this->option('search'),
             $cursor,
-        ));
+        ), (int) $this->option('pages'));
 
         if ($this->option('json')) {
-            $this->raw($this->encodeRedacted($redactor, $executions));
+            $this->raw($redactor->json($executions));
 
             return self::SUCCESS;
         }
 
         if ($executions === []) {
-            $this->components->warn("No matching executions in {$environment} between {$this->display($this->from)} and {$this->display($this->to)}.");
+            $this->components->warn("No matching executions in {$environment} between " . MonitorTime::display($this->from) . ' and ' . MonitorTime::display($this->to) . '.');
 
             return self::SUCCESS;
         }
@@ -357,7 +287,7 @@ class DigibeeLogsCommand extends Command
             $attributes = $execution['attributes'] ?? [];
 
             return [
-                $this->localTime($execution['timestamp'] ?? null),
+                MonitorTime::short($execution['timestamp'] ?? null),
                 ($attributes['pipeline.name'] ?? '?') . ' ' . ($attributes['pipeline.version'] ?? ''),
                 $this->status($attributes),
                 $attributes['execution.elapsed_time_ms'] ?? '',
@@ -382,24 +312,24 @@ class DigibeeLogsCommand extends Command
         // route, one per log line, the text in `body` and the level in
         // `severityText`. `attributes.pipeline.key` is the execution — absent
         // on the platform's own lines (a consumer draining on SIGTERM).
-        [$lines, $total, $hasNext] = $this->paged(fn (CarbonImmutable $from, CarbonImmutable $to, ?string $cursor) => $client->pipelineLogs(
+        [$lines, $total, $hasNext] = ExecutionCollector::paged(fn (?string $cursor) => $client->pipelineLogs(
             $environment,
-            $from,
-            $to,
+            $this->from,
+            $this->to,
             (int) $this->option('limit'),
             $this->option('pipeline'),
             $this->option('message'),
             $cursor,
-        ));
+        ), (int) $this->option('pages'));
 
         if ($this->option('json')) {
-            $this->raw($this->encodeRedacted($redactor, $lines));
+            $this->raw($redactor->json($lines));
 
             return self::SUCCESS;
         }
 
         if ($lines === []) {
-            $this->components->warn("No matching log lines in {$environment} between {$this->display($this->from)} and {$this->display($this->to)}.");
+            $this->components->warn("No matching log lines in {$environment} between " . MonitorTime::display($this->from) . ' and ' . MonitorTime::display($this->to) . '.');
 
             return self::SUCCESS;
         }
@@ -408,7 +338,7 @@ class DigibeeLogsCommand extends Command
             $attributes = $line['attributes'] ?? [];
 
             $this->line(implode(' ', array_filter([
-                $this->localTime($line['timestamp'] ?? null),
+                MonitorTime::short($line['timestamp'] ?? null),
                 $this->levelTag((string) ($line['severityText'] ?? '')),
                 OutputFormatter::escape(trim(($attributes['pipeline.name'] ?? '?') . ' ' . ($attributes['pipeline.version'] ?? ''))),
                 '<fg=gray>' . ($attributes['pipeline.key'] ?? '-') . '</>',
@@ -423,52 +353,14 @@ class DigibeeLogsCommand extends Command
         return self::SUCCESS;
     }
 
-    /**
-     * Follows the next-page cursor up to --pages times.
-     *
-     * The window is fixed once, before the first page: a cursor belongs to
-     * the query that issued it, and a `to` that moved on every page would be
-     * a different query.
-     *
-     * @param  callable(CarbonImmutable, CarbonImmutable, ?string): array<mixed>  $fetch
-     * @return array{0: list<array<mixed>>, 1: ?int, 2: bool}
-     */
-    private function paged(callable $fetch): array
-    {
-        $from = $this->from;
-        $to = $this->to;
-        $pages = max(1, min((int) $this->option('pages'), self::MAX_PAGES));
-
-        $records = [];
-        $cursor = null;
-        $total = null;
-        $hasNext = false;
-
-        for ($page = 0; $page < $pages; $page++) {
-            $data = $fetch($from, $to, $cursor);
-
-            array_push($records, ...array_values(array_filter((array) ($data['data'] ?? []), 'is_array')));
-
-            $total ??= is_int($data['total'] ?? null) ? $data['total'] : null;
-            $cursor = $data['pagination']['nextCursor'] ?? null;
-            $hasNext = ($data['pagination']['hasNext'] ?? false) === true && is_string($cursor) && $cursor !== '';
-
-            if (! $hasNext) {
-                break;
-            }
-        }
-
-        return [$records, $total, $hasNext];
-    }
-
     private function footer(int $shown, ?int $total, bool $hasNext, string $noun, string $searchOption): void
     {
-        // The log search answers a total of exactly 10000 for anything bigger —
-        // a count capped by the search engine, not a count.
+        // Both routes answer a total of exactly 10000 for anything bigger — a
+        // count capped by the search engine, not a count.
         $of = match (true) {
-            $total === null              => '',
-            $total >= self::CAPPED_TOTAL => ' of ' . self::CAPPED_TOTAL . '+',
-            default                      => " of {$total}",
+            $total === null                            => '',
+            $total >= ExecutionCollector::CAPPED_TOTAL => ' of ' . ExecutionCollector::CAPPED_TOTAL . '+',
+            default                                    => " of {$total}",
         };
 
         $more = $hasNext ? " — more in this window: raise --pages or narrow --since/--pipeline/{$searchOption}" : '';
@@ -495,102 +387,15 @@ class DigibeeLogsCommand extends Command
         $this->output->writeln($text, OutputInterface::OUTPUT_RAW);
     }
 
-    /** The response code the pipeline answered, read from the captured response payload. */
+    /** The response code the pipeline answered, for a table cell. */
     private function status(array $attributes): string
     {
-        $code = $this->statusCode($attributes);
+        $code = ExecutionCollector::statusCode($attributes);
 
         if ($code === null) {
             return (string) ($attributes['log.type'] ?? '?');
         }
 
         return $code >= 400 ? "<fg=red>{$code}</>" : (string) $code;
-    }
-
-    private function statusCode(array $attributes): ?int
-    {
-        $response = json_decode((string) ($attributes['payload.response'] ?? ''), true);
-        $code = is_array($response) ? ($response['code'] ?? null) : null;
-
-        return is_numeric($code) ? (int) $code : null;
-    }
-
-    private function localTime(mixed $timestamp): string
-    {
-        return is_string($timestamp)
-            ? CarbonImmutable::parse($timestamp)->setTimezone((string) config('app.display_timezone'))->format('d/m H:i:s')
-            : '';
-    }
-
-    /** A sortable local timestamp, for files — the terminal's `d/m H:i:s` does not sort across months. */
-    private function isoLocal(mixed $timestamp): ?string
-    {
-        return is_string($timestamp) && $timestamp !== ''
-            ? CarbonImmutable::parse($timestamp)->setTimezone((string) config('app.display_timezone'))->format('Y-m-d H:i:s.v')
-            : null;
-    }
-
-    /**
-     * One end of the window: how long ago (`15m`, `6h`, `2d`, `0m` = now) or a
-     * date/time on the local clock (`app.display_timezone`), the way the
-     * person reading the Monitor thinks of it. Anything else is refused —
-     * a typo used to fall back to the last hour, and answer the wrong
-     * question without saying so.
-     */
-    private function instant(string $value, CarbonImmutable $now): CarbonImmutable
-    {
-        $value = trim($value);
-
-        if (preg_match('/^(\d+)\s*([mhd])$/', $value, $m) === 1) {
-            return match ($m[2]) {
-                'm' => $now->subMinutes((int) $m[1]),
-                'h' => $now->subHours((int) $m[1]),
-                'd' => $now->subDays((int) $m[1]),
-            };
-        }
-
-        $timezone = (string) config('app.display_timezone');
-        $local = $now->setTimezone($timezone);
-
-        // `!` zeroes what the format leaves out, so "03/11" is midnight.
-        foreach (['Y-m-d H:i:s', 'Y-m-d H:i', 'Y-m-d', 'd/m/Y H:i', 'd/m/Y', 'd/m H:i', 'd/m', 'j/n/Y H:i', 'j/n/Y G:i', 'j/n/Y', 'j/n H:i', 'j/n G:i', 'j/n', 'H:i', 'G:i'] as $format) {
-            try {
-                $parsed = CarbonImmutable::createFromFormat('!' . $format, $value, $timezone);
-            } catch (InvalidFormatException) {
-                continue;
-            }
-
-            // Round trip: PHP happily rolls "31/02" over into March.
-            if ($parsed === null || $parsed->format($format) !== $value) {
-                continue;
-            }
-
-            // A format without the year (or the date) means this one (today).
-            $hasDate = preg_match('/[dj]/', $format) === 1;
-
-            if (! str_contains($format, 'Y')) {
-                $parsed = $hasDate
-                    ? $parsed->setDate($local->year, $parsed->month, $parsed->day)
-                    : $parsed->setDate($local->year, $local->month, $local->day);
-
-                // "31/12" read on 2 January is last year's: logs never come
-                // from the future.
-                if ($hasDate && $parsed->gt($local->addDay())) {
-                    $parsed = $parsed->subYear();
-                }
-            }
-
-            return $parsed->utc();
-        }
-
-        throw new \InvalidArgumentException(
-            "Cannot read \"{$value}\" as a time — use how long ago (15m, 6h, 2d) or a local date/time "
-            . '("2026-11-03 14:00", "03/11/2026 14:00", "03/11 14:00", "14:00").'
-        );
-    }
-
-    private function display(CarbonImmutable $instant): string
-    {
-        return $instant->setTimezone((string) config('app.display_timezone'))->format('d/m/Y H:i');
     }
 }
