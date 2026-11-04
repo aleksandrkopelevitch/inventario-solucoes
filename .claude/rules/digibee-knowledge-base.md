@@ -127,6 +127,15 @@ keeps the `authorization` + `apikey` headers of the first Monitor call;
   CPF/CNPJ, e-mail and phone — including as JSON *inside a JSON string*, with
   escaped quotes, which is what the first version of the key rules missed.
 
+The executions route filters and pages **on the platform**, with the tab's own
+keys (captured 2026-11-04): `filters.pipelineName` + `searchType: "EXACT"` (the
+only type seen), `filters.payloadSearch` (free text over the payloads — an order
+id, a SKU), and `pagination.cursor` = the previous page's
+`pagination.nextCursor`. A page is at most 100, and a busy hour runs into the
+thousands, so a client-side filter over one page answers the wrong question —
+which is what `--pipeline` did before it went server-side. `--pages` follows the
+cursor with the window fixed once: a cursor belongs to the query that issued it.
+
 Two performance traps, both measured on a 100-execution listing: an unanchored
 e-mail regex is quadratic on the base64 blobs payloads carry, and the Symfony
 console formatter parses every `<…>` of the SOAP payloads as a style tag —

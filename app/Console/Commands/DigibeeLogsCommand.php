@@ -6,6 +6,7 @@ use App\Exceptions\DigibeeApiException;
 use App\Support\Digibee\Monitor\DigibeeMonitorClient;
 use App\Support\Digibee\Monitor\LogRedactor;
 use App\Support\Digibee\Monitor\MonitorSession;
+use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
 use Illuminate\Http\Client\ConnectionException;
 use Symfony\Component\Console\Formatter\OutputFormatter;
@@ -28,11 +29,16 @@ class DigibeeLogsCommand extends Command
         {--environment=prod : test or prod}
         {--key= : Pipeline execution key — print every log line of that execution}
         {--since=1h : Window for the execution list (e.g. 15m, 1h, 1d; logs live 10 days in prod, 3 in test)}
-        {--pipeline= : Only executions of this pipeline name}
-        {--limit=50 : How many executions to ask for}
+        {--pipeline= : Only executions of this pipeline (exact name, filtered by the platform)}
+        {--search= : Only executions whose payloads contain this text (an order id, a SKU…)}
+        {--limit=50 : Executions per page (the platform caps it at 100)}
+        {--pages=1 : Follow the next-page cursor this many times (at most 20)}
         {--json : Print the (redacted) JSON as returned instead of a table}';
 
     protected $description = 'Read Digibee executions and execution logs (redacted) through the Monitor routes';
+
+    /** 20 pages of 100 — past that, a narrower window or filter is the better question. */
+    private const MAX_PAGES = 20;
 
     public function handle(LogRedactor $redactor): int
     {
@@ -91,9 +97,9 @@ class DigibeeLogsCommand extends Command
         foreach ($rows as $row) {
             $level = $row['logLevel'] ?? '';
             $levelTag = match (strtoupper($level)) {
-                'ERROR' => "<fg=red>{$level}</>",
+                'ERROR'           => "<fg=red>{$level}</>",
                 'WARN', 'WARNING' => "<fg=yellow>{$level}</>",
-                default => $level,
+                default           => $level,
             };
 
             $this->line($this->localTime($row['timestamp'] ?? null) . " {$levelTag} " . OutputFormatter::escape($redactor->redact(trim($row['logMessage'] ?? ''))));
@@ -109,18 +115,39 @@ class DigibeeLogsCommand extends Command
     {
         $to = now();
         $from = $to->copy()->sub($this->window((string) $this->option('since')));
-        $data = $client->executions($environment, $from, $to, (int) $this->option('limit'));
+        $pages = max(1, min((int) $this->option('pages'), self::MAX_PAGES));
 
-        // Measured shape (2026-11-04): `data` is a list of OpenTelemetry-style
-        // log records, one per completed execution, the useful fields flat
-        // under `attributes` with dotted names.
-        $executions = array_values(array_filter((array) ($data['data'] ?? []), 'is_array'));
+        $executions = [];
+        $cursor = null;
+        $total = null;
+        $hasNext = false;
 
-        if ($pipeline = $this->option('pipeline')) {
-            $executions = array_values(array_filter(
-                $executions,
-                fn (array $execution) => ($execution['attributes']['pipeline.name'] ?? null) === $pipeline,
-            ));
+        // The window is fixed once, before the first page: a cursor belongs to
+        // the query that issued it, and a `to` that moved on every page would
+        // be a different query.
+        for ($page = 0; $page < $pages; $page++) {
+            $data = $client->executions(
+                $environment,
+                $from,
+                $to,
+                (int) $this->option('limit'),
+                $this->option('pipeline'),
+                $this->option('search'),
+                $cursor,
+            );
+
+            // Measured shape (2026-11-04): `data` is a list of
+            // OpenTelemetry-style log records, one per completed execution,
+            // the useful fields flat under `attributes` with dotted names.
+            array_push($executions, ...array_values(array_filter((array) ($data['data'] ?? []), 'is_array')));
+
+            $total ??= is_int($data['total'] ?? null) ? $data['total'] : null;
+            $cursor = $data['pagination']['nextCursor'] ?? null;
+            $hasNext = ($data['pagination']['hasNext'] ?? false) === true && is_string($cursor) && $cursor !== '';
+
+            if (! $hasNext) {
+                break;
+            }
         }
 
         if ($this->option('json')) {
@@ -130,7 +157,7 @@ class DigibeeLogsCommand extends Command
         }
 
         if ($executions === []) {
-            $this->components->warn("No executions in {$environment} in the last {$this->option('since')}.");
+            $this->components->warn("No matching executions in {$environment} in the last {$this->option('since')}.");
 
             return self::SUCCESS;
         }
@@ -149,6 +176,8 @@ class DigibeeLogsCommand extends Command
             ];
         }, $executions));
 
+        $shown = count($executions) . ($total !== null ? " of {$total}" : '') . ' execution(s)';
+        $this->line("<fg=gray>{$shown}" . ($hasNext ? ' — more in this window: raise --pages or narrow --since/--pipeline/--search' : '') . '</>');
         $this->line('<fg=gray>Open one with: php artisan digibee:logs --environment=' . $environment . ' --key=<execution key></>');
 
         return self::SUCCESS;
@@ -180,7 +209,7 @@ class DigibeeLogsCommand extends Command
     private function localTime(mixed $timestamp): string
     {
         return is_string($timestamp)
-            ? \Carbon\CarbonImmutable::parse($timestamp)->setTimezone((string) config('app.display_timezone'))->format('d/m H:i:s')
+            ? CarbonImmutable::parse($timestamp)->setTimezone((string) config('app.display_timezone'))->format('d/m H:i:s')
             : '';
     }
 
