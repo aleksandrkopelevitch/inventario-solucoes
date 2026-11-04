@@ -326,6 +326,53 @@ return [
             // has to clear by hand from the canvas.
             'max_healing_rounds' => env('DIGIBEE_MAX_HEALING_ROUNDS', 3),
         ],
+
+        /*
+        |----------------------------------------------------------------------
+        | Monitor — reading production execution logs (workstation only)
+        |----------------------------------------------------------------------
+        |
+        | `digibee:logs` reads what the Monitor screen shows. No digibeectl
+        | TOKEN can be granted LOG:READ or MESSAGE:READ (the token screen does
+        | not offer them, checked 2026-11-04), and the routes answer 403
+        | INSUFFICIENT_PERMISSIONS to every token without them — so the only
+        | credential that reads logs is a person's interactive session, the
+        | one the browser holds after an IdP login.
+        |
+        | That session carries the person's WHOLE role (production deletes
+        | included), which is why this block is separate from `design` and why
+        | nothing here is read from the environment: the session is captured
+        | by `digibee:monitor:login` from a browser window a human signed into,
+        | lives in a 0600 file for the ~24h the platform grants it, and the
+        | commands refuse to run in production. The design clients never see
+        | it.
+        |
+        */
+        'monitor' => [
+            'endpoint' => 'https://core.godigibee.io',
+            'app_url'  => 'https://www.godigibee.io',
+
+            // The realm's IdP entry point (SAML through Digibee's auth host).
+            // The app's /login page is the Digibee-password form, which this
+            // realm does not use, so a session is started HERE instead.
+            'login_url' => env(
+                'DIGIBEE_MONITOR_LOGIN_URL',
+                'https://leomadeiras.auth.godigibee.io/oauth2/authorize?client_id=220cee33-65b1-4c73-ad5a-a13bd8ff41ae'
+                    . '&response_type=code&redirect_uri=%2Fsamlv2%2Fcallback%2F220cee33-65b1-4c73-ad5a-a13bd8ff41ae',
+            ),
+            'realm'    => env('DIGIBEE_REALM', 'leomadeiras'),
+            'timeout'  => 60,
+
+            'session_path' => storage_path('app/private/digibee-monitor/session.json'),
+            'profile_path' => storage_path('app/private/digibee-monitor/browser-profile'),
+
+            // Local browser plumbing. Playwright is not a project dependency
+            // (it lives in the npx cache here) and WSL lacks libasound, so both
+            // are paths on THIS machine rather than anything committed.
+            'playwright_path'    => env('DIGIBEE_MONITOR_PLAYWRIGHT', ''),
+            'ld_library_path'    => env('DIGIBEE_MONITOR_LD_LIBRARY_PATH', ''),
+            'login_wait_seconds' => 300,
+        ],
     ],
 
     /*

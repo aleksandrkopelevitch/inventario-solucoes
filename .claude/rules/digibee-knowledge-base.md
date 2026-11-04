@@ -105,6 +105,33 @@ stays off the server too. A scoped token in `.env` must be an ENCRYPTED
 environment variable: it is valid for ten years, so nothing expires to bound a
 leak.
 
+#### Reading production logs: `digibee:logs`, a person's session, workstation only
+
+Nothing official reads execution logs: digibeectl has no logs verb (only
+`get metrics`, counts), Digibee's "MCP" is the MCP Server *Trigger* (expose your
+own pipeline), and no digibeectl TOKEN can be granted `LOG:READ` /
+`MESSAGE:READ` — the Monitor routes answer 403 to every token without them.
+So `digibee:monitor:login` opens the realm's IdP sign-in (the app's `/login` is
+the password form this realm does not use) in a persistent Chromium profile and
+keeps the `authorization` + `apikey` headers of the first Monitor call;
+`digibee:logs` replays them. Three rules hold it together:
+
+- **A closed list of read routes** (`DigibeeMonitorClient::ROUTES`) — the session
+  is the person's whole role, production deletes included. Routes were read off
+  the web app (DevTools, and the public bundle's `logsExport` chunk), so they are
+  as undocumented as the design ones.
+- **Never on the server**: both commands refuse in production, and the session
+  is a 0600 file under `storage/app/private/digibee-monitor/`, never `.env`.
+- **Everything printed is redacted first** (`LogRedactor`). Production logs and
+  execution payloads carry consumer `Authorization: Basic` headers and customer
+  CPF/CNPJ, e-mail and phone — including as JSON *inside a JSON string*, with
+  escaped quotes, which is what the first version of the key rules missed.
+
+Two performance traps, both measured on a 100-execution listing: an unanchored
+e-mail regex is quadratic on the base64 blobs payloads carry, and the Symfony
+console formatter parses every `<…>` of the SOAP payloads as a style tag —
+platform text is written with `OUTPUT_RAW` (or `OutputFormatter::escape`).
+
 #### The redaction line: names and expressions are vocabulary, addresses are not
 
 `App\Support\Digibee\ParamRedactor`. Double Braces expressions survive verbatim,
