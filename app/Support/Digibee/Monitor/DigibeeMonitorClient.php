@@ -9,8 +9,9 @@ use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 
 /**
- * Reads what Digibee's Monitor screen reads: completed executions and the logs
- * of one execution, in any environment.
+ * Reads what Digibee's Monitor screen reads: completed executions, log lines
+ * searched across executions, and the logs of one execution, in any
+ * environment.
  *
  * Every route here is UNDOCUMENTED. They were read off the web app itself on
  * 2026-11-04 — the Executions tab's request (captured in DevTools) and the
@@ -27,6 +28,7 @@ class DigibeeMonitorClient
     /** method + path pattern; `{realm}` is the only placeholder. */
     private const ROUTES = [
         'POST /monitor/api/v1/executions',
+        'POST /monitor/api/v1/pipeline-logs',
         'GET /runtime/realms/{realm}/logs/export',
     ];
 
@@ -62,13 +64,52 @@ class DigibeeMonitorClient
         ?string $payloadSearch = null,
         ?string $cursor = null,
     ): array {
+        return $this->windowed('/monitor/api/v1/executions', $environment, $from, $to, $limit, $pipeline, ['payloadSearch' => $payloadSearch], $cursor);
+    }
+
+    /**
+     * Log lines in a window, newest first — the Pipeline Logs tab: every line
+     * any execution logged, searched by its text across pipelines.
+     *
+     * Same request as the Executions tab (captured 2026-11-04), with the free
+     * text under `logMessage` instead of `payloadSearch`.
+     *
+     * @return array<mixed>
+     */
+    public function pipelineLogs(
+        string $environment,
+        CarbonInterface $from,
+        CarbonInterface $to,
+        int $limit = 50,
+        ?string $pipeline = null,
+        ?string $message = null,
+        ?string $cursor = null,
+    ): array {
+        return $this->windowed('/monitor/api/v1/pipeline-logs', $environment, $from, $to, $limit, $pipeline, ['logMessage' => $message], $cursor);
+    }
+
+    /**
+     * The body both tabs send: a window, optional filters, a page.
+     *
+     * @param  array<string, string|null>  $search
+     * @return array<mixed>
+     */
+    private function windowed(
+        string $route,
+        string $environment,
+        CarbonInterface $from,
+        CarbonInterface $to,
+        int $limit,
+        ?string $pipeline,
+        array $search,
+        ?string $cursor,
+    ): array {
         $pipeline = trim((string) $pipeline);
-        $payloadSearch = trim((string) $payloadSearch);
 
         $filters = array_filter([
-            'pipelineName'  => $pipeline,
-            'searchType'    => $pipeline !== '' ? 'EXACT' : '',
-            'payloadSearch' => $payloadSearch,
+            'pipelineName' => $pipeline,
+            'searchType'   => $pipeline !== '' ? 'EXACT' : '',
+            ...array_map(fn (?string $value) => trim((string) $value), $search),
         ], fn (string $value) => $value !== '');
 
         $pagination = ['limit' => max(1, min($limit, self::MAX_PAGE)), 'order' => 'descending'];
@@ -77,7 +118,7 @@ class DigibeeMonitorClient
             $pagination['cursor'] = $cursor;
         }
 
-        $response = $this->call('POST', '/monitor/api/v1/executions', ['environment' => $this->environment($environment)], [
+        $response = $this->call('POST', $route, ['environment' => $this->environment($environment)], [
             'realm'       => $this->realm(),
             'environment' => $environment,
             'filters'     => (object) $filters,
@@ -91,7 +132,7 @@ class DigibeeMonitorClient
         $data = $response->json();
 
         if (! is_array($data)) {
-            throw DigibeeApiException::nonJsonBody('POST', '/monitor/api/v1/executions', $response->status());
+            throw DigibeeApiException::nonJsonBody('POST', $route, $response->status());
         }
 
         return $data;

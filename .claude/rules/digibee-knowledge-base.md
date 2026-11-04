@@ -136,6 +136,14 @@ thousands, so a client-side filter over one page answers the wrong question —
 which is what `--pipeline` did before it went server-side. `--pages` follows the
 cursor with the window fixed once: a cursor belongs to the query that issued it.
 
+The Pipeline Logs tab is the same body on `POST /monitor/api/v1/pipeline-logs`
+with the text under `filters.logMessage` (`--lines`, `--message`). A record is
+one log line: `body`, `severityText`, `attributes.pipeline.key` (the execution
+to open with `--key` — absent on the platform's own lines, e.g. a consumer
+draining on SIGTERM). Its `total` is capped at 10000, so it is printed as
+`10000+`. Personal-data keys are matched anywhere in the key name: a real
+`"CpfCnpj"` went through while only the bare `cpf`/`cnpj` were listed.
+
 Two performance traps, both measured on a 100-execution listing: an unanchored
 e-mail regex is quadratic on the base64 blobs payloads carry, and the Symfony
 console formatter parses every `<…>` of the SOAP payloads as a style tag —
