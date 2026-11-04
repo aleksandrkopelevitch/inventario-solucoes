@@ -37,17 +37,46 @@ class DigibeeMonitorClient
 
     public function __construct(private readonly MonitorSession $session) {}
 
+    /** The most the route returns per page; asking for more is silently capped. */
+    public const MAX_PAGE = 100;
+
     /**
      * Completed executions in a window, newest first — the Executions tab.
      *
-     * `filters` goes to the platform as-is; the tab sends `{}` when nothing is
-     * filtered, and its other keys are not known yet.
+     * The filters are the tab's own, as captured on 2026-11-04: a pipeline
+     * name (sent with `searchType: EXACT`, the only type seen) and a free-text
+     * search over the execution payloads. Both are applied by the platform, so
+     * a page of 100 is 100 matches, not 100 executions filtered down here.
      *
-     * @param  array<string, mixed>  $filters
+     * A page answers `pagination.nextCursor`; passing it back asks for the
+     * page after it, in the same window and with the same filters.
+     *
      * @return array<mixed>
      */
-    public function executions(string $environment, CarbonInterface $from, CarbonInterface $to, int $limit = 50, array $filters = []): array
-    {
+    public function executions(
+        string $environment,
+        CarbonInterface $from,
+        CarbonInterface $to,
+        int $limit = 50,
+        ?string $pipeline = null,
+        ?string $payloadSearch = null,
+        ?string $cursor = null,
+    ): array {
+        $pipeline = trim((string) $pipeline);
+        $payloadSearch = trim((string) $payloadSearch);
+
+        $filters = array_filter([
+            'pipelineName'  => $pipeline,
+            'searchType'    => $pipeline !== '' ? 'EXACT' : '',
+            'payloadSearch' => $payloadSearch,
+        ], fn (string $value) => $value !== '');
+
+        $pagination = ['limit' => max(1, min($limit, self::MAX_PAGE)), 'order' => 'descending'];
+
+        if ($cursor !== null) {
+            $pagination['cursor'] = $cursor;
+        }
+
         $response = $this->call('POST', '/monitor/api/v1/executions', ['environment' => $this->environment($environment)], [
             'realm'       => $this->realm(),
             'environment' => $environment,
@@ -56,7 +85,7 @@ class DigibeeMonitorClient
                 'from' => $from->toImmutable()->utc()->format('Y-m-d\TH:i:s.v\Z'),
                 'to'   => $to->toImmutable()->utc()->format('Y-m-d\TH:i:s.v\Z'),
             ],
-            'pagination' => ['limit' => $limit, 'order' => 'descending'],
+            'pagination' => $pagination,
         ]);
 
         $data = $response->json();

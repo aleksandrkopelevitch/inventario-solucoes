@@ -59,6 +59,55 @@ it('replays the captured headers verbatim and asks for the executions window', f
     });
 });
 
+it('sends no filters as an empty object, as the tab does', function () {
+    Http::fake(['core.example.test/*' => Http::response(['data' => []])]);
+
+    (new DigibeeMonitorClient(monitorSession()))->executions('prod', now()->subHour(), now());
+
+    Http::assertSent(fn (Request $request) => str_contains($request->body(), '"filters":{}'));
+});
+
+it('asks the platform for the pipeline, the payload text and the next page', function () {
+    Http::fake(['core.example.test/*' => Http::response(['data' => []])]);
+
+    (new DigibeeMonitorClient(monitorSession()))
+        ->executions('prod', now()->subDay(), now(), 500, ' evt-send-estoque-vtex ', '5000321', 'WzE3OTM3');
+
+    // Read off the wire: the fake keeps the unencoded data, where `filters`
+    // is still the object the client cast it to.
+    Http::assertSent(fn (Request $request) => json_decode($request->body(), true)['filters'] === [
+        'pipelineName'  => 'evt-send-estoque-vtex',
+        'searchType'    => 'EXACT',
+        'payloadSearch' => '5000321',
+    ] && $request['pagination'] === ['limit' => 100, 'order' => 'descending', 'cursor' => 'WzE3OTM3']);
+});
+
+it('follows the cursor for --pages and stops when the platform says there is no more', function () {
+    $path = sys_get_temp_dir() . '/monitor-session-' . uniqid() . '.json';
+    file_put_contents($path, json_encode(['authorization' => 'Bearer ' . monitorJwt(now()->addDay()->timestamp), 'apikey' => 'k']));
+    withMonitorConfig($path);
+
+    $execution = fn (string $key) => ['timestamp' => '2026-11-04T12:00:00Z', 'attributes' => [
+        'pipeline.name'             => 'evt-send-estoque-vtex', 'pipeline.version' => '3', 'pipeline.key' => $key,
+        'execution.elapsed_time_ms' => 12, 'payload.response' => '{"code":200}',
+    ]];
+
+    Http::fakeSequence('core.example.test/*')
+        ->push(['data' => [$execution('first')], 'pagination' => ['nextCursor' => 'c1', 'hasNext' => true], 'total' => 2])
+        ->push(['data' => [$execution('second')], 'pagination' => ['nextCursor' => null, 'hasNext' => false], 'total' => 2]);
+
+    $this->artisan('digibee:logs', ['--pipeline' => 'evt-send-estoque-vtex', '--pages' => 5])
+        ->expectsOutputToContain('first')
+        ->expectsOutputToContain('second')
+        ->expectsOutputToContain('2 of 2 execution(s)')
+        ->assertSuccessful();
+
+    Http::assertSentCount(2);
+    Http::assertSent(fn (Request $request) => ($request['pagination']['cursor'] ?? null) === 'c1');
+
+    unlink($path);
+});
+
 it('parses the CSV export into rows keyed by its header', function () {
     Http::fake(['core.example.test/runtime/realms/leomadeiras/logs/export*' => Http::response(
         "\xEF\xBB\xBFtimestamp;logLevel;logMessage\n2026-11-04T10:18:41Z;INFO;\"Calling URL; with a separator\"\n2026-11-04T10:18:42Z;ERROR;boom\n",
@@ -132,9 +181,9 @@ it('masks the credentials and personal data seen in real production logs', funct
 it('masks keys inside JSON held in a JSON string, and numeric values', function () {
     // The shape of an execution payload: the response body is a JSON string.
     $payload = json_encode(['payload.response' => json_encode([
-        'cl' => ['document' => '56212410000150', 'phone' => '11964101358', 'firstName' => 'CONCEITO CASA'],
+        'cl'      => ['document' => '56212410000150', 'phone' => '11964101358', 'firstName' => 'CONCEITO CASA'],
         'headers' => ['Authorization' => 'Basic c2VjcmV0'],
-        'cpf' => 20335613802,
+        'cpf'     => 20335613802,
     ])]);
 
     $redacted = (new LogRedactor)->redact($payload);
