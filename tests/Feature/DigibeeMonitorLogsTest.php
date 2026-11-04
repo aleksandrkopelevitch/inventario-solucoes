@@ -108,6 +108,60 @@ it('follows the cursor for --pages and stops when the platform says there is no 
     unlink($path);
 });
 
+it('searches log lines with the text under logMessage', function () {
+    Http::fake(['core.example.test/monitor/api/v1/pipeline-logs*' => Http::response(['data' => []])]);
+
+    (new DigibeeMonitorClient(monitorSession()))
+        ->pipelineLogs('prod', now()->subDay(), now(), 50, 'evt-send-estoque-vtex', '54430275572');
+
+    Http::assertSent(fn (Request $request) => str_contains($request->url(), '/monitor/api/v1/pipeline-logs?environment=prod')
+        && json_decode($request->body(), true)['filters'] === [
+            'pipelineName' => 'evt-send-estoque-vtex',
+            'searchType'   => 'EXACT',
+            'logMessage'   => '54430275572',
+        ]);
+});
+
+it('prints matching log lines redacted, with the execution to open', function () {
+    $path = sys_get_temp_dir() . '/monitor-session-' . uniqid() . '.json';
+    file_put_contents($path, json_encode(['authorization' => 'Bearer ' . monitorJwt(now()->addDay()->timestamp), 'apikey' => 'k']));
+    withMonitorConfig($path);
+
+    // The measured record shape, and the measured cap on `total`.
+    Http::fake(['core.example.test/monitor/api/v1/pipeline-logs*' => Http::response([
+        'data' => [[
+            'attributes'   => ['pipeline.name' => 'zfl-busca-preco', 'pipeline.version' => '1.11', 'pipeline.key' => '377c4ab2-1ce2'],
+            'body'         => 'Entrada {"Authorization":"Basic c2VjcmV0OnBhc3M=","order":"54430275572"} <xml/>',
+            'severityText' => 'ERROR',
+            'timestamp'    => '2026-11-04T12:32:09.488Z',
+        ]],
+        'pagination' => ['nextCursor' => 'c1', 'hasNext' => true],
+        'total'      => 10000,
+    ])]);
+
+    $this->artisan('digibee:logs', ['--message' => '54430275572'])
+        // One expectation per written line: Laravel spends a write on the
+        // first expectation it satisfies.
+        ->expectsOutputToContain('ERROR zfl-busca-preco 1.11 377c4ab2-1ce2 Entrada {"Authorization":"[redacted]","order":"54430275572"}')
+        ->doesntExpectOutputToContain('c2VjcmV0OnBhc3M=')
+        ->expectsOutputToContain('1 of 10000+ line(s)')
+        ->assertSuccessful();
+
+    unlink($path);
+});
+
+it('refuses to mix a payload search with a log-line search', function () {
+    $path = sys_get_temp_dir() . '/monitor-session-' . uniqid() . '.json';
+    file_put_contents($path, json_encode(['authorization' => 'Bearer ' . monitorJwt(now()->addDay()->timestamp), 'apikey' => 'k']));
+    withMonitorConfig($path);
+    Http::fake();
+
+    $this->artisan('digibee:logs', ['--message' => 'a', '--search' => 'b'])->assertFailed();
+
+    Http::assertNothingSent();
+    unlink($path);
+});
+
 it('parses the CSV export into rows keyed by its header', function () {
     Http::fake(['core.example.test/runtime/realms/leomadeiras/logs/export*' => Http::response(
         "\xEF\xBB\xBFtimestamp;logLevel;logMessage\n2026-11-04T10:18:41Z;INFO;\"Calling URL; with a separator\"\n2026-11-04T10:18:42Z;ERROR;boom\n",
@@ -184,6 +238,9 @@ it('masks keys inside JSON held in a JSON string, and numeric values', function 
         'cl'      => ['document' => '56212410000150', 'phone' => '11964101358', 'firstName' => 'CONCEITO CASA'],
         'headers' => ['Authorization' => 'Basic c2VjcmV0'],
         'cpf'     => 20335613802,
+        // Keys that only CONTAIN the word — measured in evt-insert-bq.
+        'CpfCnpj'       => '09007432000107',
+        'NumeroCelular' => 11987654321,
     ])]);
 
     $redacted = (new LogRedactor)->redact($payload);
@@ -193,6 +250,8 @@ it('masks keys inside JSON held in a JSON string, and numeric values', function 
         ->not->toContain('11964101358')
         ->not->toContain('20335613802')
         ->not->toContain('c2VjcmV0')
+        ->not->toContain('09007432000107')
+        ->not->toContain('11987654321')
         ->toContain('CONCEITO CASA');
 });
 

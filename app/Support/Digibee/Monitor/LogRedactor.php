@@ -24,8 +24,12 @@ final class LogRedactor
     /** JSON keys whose string value is a secret whatever it looks like. */
     private const SECRET_KEYS = 'authorization|password|passwd|senha|secret|client_secret|token|access_token|refresh_token|apikey|api_key|x-api-key';
 
-    /** JSON keys whose value identifies a person. */
-    private const PERSONAL_KEYS = 'document|cpf|cnpj|email|e-mail|phone|telefone|celular|mobile';
+    /**
+     * JSON keys whose value identifies a person — matched anywhere in the key,
+     * because the payloads name them freely: a real `"CpfCnpj":"…"` from
+     * evt-insert-bq went through when only the bare `cpf`/`cnpj` were listed.
+     */
+    private const PERSONAL_KEYS = '[\w-]*(?:document|cpf|cnpj|email|e-mail|phone|telefone|celular|mobile)[\w-]*';
 
     public function redact(string $text): string
     {
@@ -36,20 +40,20 @@ final class LogRedactor
             // The quotes may be escaped: execution payloads are JSON held in a
             // JSON string, so a key reads `\"document\":\"…\"`. Missing that
             // let a real CNPJ and phone through on 2026-11-04.
-            '/(\\\\?"(?:' . self::SECRET_KEYS . ')\\\\?"\s*:\s*\\\\?")[^"\\\\]+(\\\\?")/i' => '$1[redacted]$2',
+            '/(\\\\?"(?:' . self::SECRET_KEYS . ')\\\\?"\s*:\s*\\\\?")[^"\\\\]+(\\\\?")/i'   => '$1[redacted]$2',
             '/(\\\\?"(?:' . self::PERSONAL_KEYS . ')\\\\?"\s*:\s*\\\\?")[^"\\\\]+(\\\\?")/i' => '$1[redacted]$2',
-            '/(\\\\?"(?:' . self::PERSONAL_KEYS . ')\\\\?"\s*:\s*)\d{6,}/i' => '$1[redacted]',
-            '/(<(' . self::SECRET_KEYS . ')>)[^<]+(<\/\2>)/i' => '$1[redacted]$3',
+            '/(\\\\?"(?:' . self::PERSONAL_KEYS . ')\\\\?"\s*:\s*)\d{6,}/i'                  => '$1[redacted]',
+            '/(<(' . self::SECRET_KEYS . ')>)[^<]+(<\/\2>)/i'                                => '$1[redacted]$3',
             // Free text: a scheme followed by a credential, and bare JWTs.
-            '/\b(Basic|Bearer)\s+[A-Za-z0-9._~+\/=-]{8,}/' => '$1 [redacted]',
+            '/\b(Basic|Bearer)\s+[A-Za-z0-9._~+\/=-]{8,}/'                     => '$1 [redacted]',
             '/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}/' => '[redacted-jwt]',
             // Anchored to the START of a run: unanchored, a long base64 blob in
             // a payload (no `@` anywhere) was retried from every character —
             // quadratic, and a 200-execution listing spent minutes here.
             '/(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]++@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/' => '[email]',
-            '/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/' => '[cpf]',
-            '/\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/' => '[cnpj]',
-            '/\+55\s?\(?\d{2}\)?\s?\d{4,5}-?\d{4}\b/' => '[phone]',
+            '/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/'                                        => '[cpf]',
+            '/\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/'                                 => '[cnpj]',
+            '/\+55\s?\(?\d{2}\)?\s?\d{4,5}-?\d{4}\b/'                                => '[phone]',
         ];
 
         return (string) preg_replace(array_keys($rules), array_values($rules), $text);
