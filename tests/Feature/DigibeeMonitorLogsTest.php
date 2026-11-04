@@ -4,6 +4,7 @@ use App\Exceptions\DigibeeApiException;
 use App\Support\Digibee\Monitor\DigibeeMonitorClient;
 use App\Support\Digibee\Monitor\LogRedactor;
 use App\Support\Digibee\Monitor\MonitorSession;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
@@ -205,6 +206,84 @@ it('collects every matched execution into one redacted report file', function ()
     unlink($session);
     unlink($report);
 });
+
+/** A valid session on disk, for the tests that go through the command. */
+function withMonitorSessionFile(): string
+{
+    $path = sys_get_temp_dir() . '/monitor-session-' . uniqid() . '.json';
+    file_put_contents($path, json_encode(['authorization' => 'Bearer ' . monitorJwt(now()->addDay()->timestamp), 'apikey' => 'k']));
+    withMonitorConfig($path);
+    config()->set('app.display_timezone', 'America/Sao_Paulo');
+
+    return $path;
+}
+
+function sentTimeRange(): array
+{
+    $range = null;
+    Http::assertSent(function (Request $request) use (&$range) {
+        $range = $request['timeRange'];
+
+        return true;
+    });
+
+    return $range;
+}
+
+it('reads --since and --until as local dates and sends them as UTC', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-11-04 12:00:00', 'UTC'));
+    $this->freezeTime();
+    $session = withMonitorSessionFile();
+    Http::fake(['core.example.test/*' => Http::response(['data' => []])]);
+
+    $this->artisan('digibee:logs', ['--since' => '03/11 14:00', '--until' => '2026-11-03 16:30'])
+        ->expectsOutputToContain('between 03/11/2026 14:00 and 03/11/2026 16:30')
+        ->assertSuccessful();
+
+    expect(sentTimeRange())->toBe(['from' => '2026-11-03T17:00:00.000Z', 'to' => '2026-11-03T19:30:00.000Z']);
+
+    unlink($session);
+});
+
+it('reads --until as how long ago, like --since', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-11-04 12:00:00', 'UTC'));
+    $this->freezeTime();
+    $session = withMonitorSessionFile();
+    Http::fake(['core.example.test/*' => Http::response(['data' => []])]);
+
+    $this->artisan('digibee:logs', ['--since' => '6h', '--until' => '2h'])->assertSuccessful();
+
+    expect(sentTimeRange())->toBe(['from' => '2026-11-04T06:00:00.000Z', 'to' => '2026-11-04T10:00:00.000Z']);
+
+    unlink($session);
+});
+
+it('reads a date without a year as the latest one that is not in the future', function () {
+    $this->travelTo(CarbonImmutable::parse('2027-01-02 12:00:00', 'UTC'));
+    $this->freezeTime();
+    $session = withMonitorSessionFile();
+    Http::fake(['core.example.test/*' => Http::response(['data' => []])]);
+
+    $this->artisan('digibee:logs', ['--since' => '31/12 22:00', '--until' => '1/1 2:00'])->assertSuccessful();
+
+    expect(sentTimeRange())->toBe(['from' => '2027-01-01T01:00:00.000Z', 'to' => '2027-01-01T05:00:00.000Z']);
+
+    unlink($session);
+});
+
+it('refuses a window it cannot read, or one that ends before it starts, before calling anything', function (array $options, string $says) {
+    $session = withMonitorSessionFile();
+    Http::fake();
+
+    $this->artisan('digibee:logs', $options)->expectsOutputToContain($says)->assertFailed();
+
+    Http::assertNothingSent();
+    unlink($session);
+})->with([
+    'a typo'            => [['--since' => '6hrs'], 'Cannot read "6hrs"'],
+    'an impossible day' => [['--since' => '31/02 10:00'], 'Cannot read "31/02 10:00"'],
+    'reversed'          => [['--since' => '1h', '--until' => '2h'], 'must be before --until'],
+]);
 
 it('parses the CSV export into rows keyed by its header', function () {
     Http::fake(['core.example.test/runtime/realms/leomadeiras/logs/export*' => Http::response(
