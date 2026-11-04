@@ -124,6 +124,36 @@ class DigibeeApiException extends RuntimeException
         );
     }
 
+    public static function monitorSessionMissing(): self
+    {
+        return new self(
+            'No Digibee web session captured yet (or it expired — the platform grants ~24h). '
+            . 'Run `php artisan digibee:monitor:login` and sign in through the identity provider in the window it opens.'
+        );
+    }
+
+    /**
+     * The interactive session can delete production deployments, so the only
+     * thing standing between it and a write is this list. Refused rather than
+     * attempted: an unlisted route is a bug in the caller, never a request to
+     * forward.
+     */
+    public static function refusedMonitorRoute(string $method, string $path): self
+    {
+        return new self(
+            "Refusing {$method} {$path}: the Monitor client only calls the read routes it lists. "
+            . 'It carries a person\'s whole session, so a route is added to that list by editing the client, not by passing it in.'
+        );
+    }
+
+    public static function refusedMonitorOnServer(): self
+    {
+        return new self(
+            'Refusing to read Digibee logs here: this uses a person\'s interactive session, which may never '
+            . 'leave their workstation (AGENTS.md: the credential does not travel).'
+        );
+    }
+
     public static function unreadableConfig(string $path, string $reason): self
     {
         return new self("digibeectl config at {$path} could not be read: {$reason}.");

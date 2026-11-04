@@ -1,0 +1,188 @@
+<?php
+
+use App\Exceptions\DigibeeApiException;
+use App\Support\Digibee\Monitor\DigibeeMonitorClient;
+use App\Support\Digibee\Monitor\LogRedactor;
+use App\Support\Digibee\Monitor\MonitorSession;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
+
+/**
+ * The Monitor client replays a person's whole web session, so the HTTP layer is
+ * always faked here — and what is asserted first is what it must NOT send.
+ */
+function monitorJwt(int $exp): string
+{
+    $part = fn (array $data) => rtrim(strtr(base64_encode(json_encode($data)), '+/', '-_'), '=');
+
+    return $part(['alg' => 'HS256']) . '.' . $part(['realm' => 'leomadeiras', 'exp' => $exp]) . '.signature';
+}
+
+function monitorSession(?int $exp = null): MonitorSession
+{
+    return new MonitorSession('Bearer ' . monitorJwt($exp ?? now()->addDay()->timestamp), 'the-apikey');
+}
+
+function withMonitorConfig(string $sessionPath = '/nonexistent/session.json'): void
+{
+    config()->set('services.digibee.monitor', [
+        'endpoint'           => 'https://core.example.test',
+        'app_url'            => 'https://www.example.test',
+        'login_url'          => 'https://auth.example.test/authorize',
+        'realm'              => 'leomadeiras',
+        'timeout'            => 5,
+        'session_path'       => $sessionPath,
+        'profile_path'       => sys_get_temp_dir(),
+        'playwright_path'    => '',
+        'ld_library_path'    => '',
+        'login_wait_seconds' => 1,
+    ]);
+}
+
+beforeEach(function () {
+    Http::preventStrayRequests();
+    withMonitorConfig();
+});
+
+it('replays the captured headers verbatim and asks for the executions window', function () {
+    Http::fake(['core.example.test/monitor/api/v1/executions*' => Http::response(['data' => []])]);
+
+    (new DigibeeMonitorClient(monitorSession()))->executions('prod', now()->subHour(), now(), 10);
+
+    Http::assertSent(function (Request $request) {
+        return $request->method() === 'POST'
+            && str_contains($request->url(), 'environment=prod')
+            && str_starts_with($request->header('authorization')[0], 'Bearer ')
+            && $request->header('apikey')[0] === 'the-apikey'
+            && $request['realm'] === 'leomadeiras'
+            && $request['pagination'] === ['limit' => 10, 'order' => 'descending'];
+    });
+});
+
+it('parses the CSV export into rows keyed by its header', function () {
+    Http::fake(['core.example.test/runtime/realms/leomadeiras/logs/export*' => Http::response(
+        "\xEF\xBB\xBFtimestamp;logLevel;logMessage\n2026-11-04T10:18:41Z;INFO;\"Calling URL; with a separator\"\n2026-11-04T10:18:42Z;ERROR;boom\n",
+    )]);
+
+    $rows = (new DigibeeMonitorClient(monitorSession()))->executionLogs('prod', 'abc-123');
+
+    expect($rows)->toHaveCount(2)
+        ->and($rows[0])->toBe(['timestamp' => '2026-11-04T10:18:41Z', 'logLevel' => 'INFO', 'logMessage' => 'Calling URL; with a separator'])
+        ->and($rows[1]['logLevel'])->toBe('ERROR');
+
+    Http::assertSent(fn (Request $request) => str_contains($request->url(), 'pipelineKey=abc-123')
+        && str_contains($request->url(), 'separator=%3B'));
+});
+
+it('refuses an environment outside test and prod before calling anything', function () {
+    Http::fake();
+
+    expect(fn () => (new DigibeeMonitorClient(monitorSession()))->executionLogs('staging', 'k'))
+        ->toThrow(InvalidArgumentException::class);
+
+    Http::assertNothingSent();
+});
+
+it('turns a 401 into the instruction to log in again', function () {
+    Http::fake(['*' => Http::response(['message' => 'expired'], 401)]);
+
+    expect(fn () => (new DigibeeMonitorClient(monitorSession()))->executionLogs('prod', 'k'))
+        ->toThrow(DigibeeApiException::class, 'digibee:monitor:login');
+});
+
+it('can only reach the read routes it lists', function () {
+    $client = new DigibeeMonitorClient(monitorSession());
+    $call = (new ReflectionClass($client))->getMethod('call');
+
+    expect(fn () => $call->invoke($client, 'DELETE', '/runtime/realms/{realm}/deployments', []))
+        ->toThrow(DigibeeApiException::class, 'only calls the read routes');
+});
+
+it('reads the session expiry from the JWT without verifying it', function () {
+    $this->freezeTime();
+
+    expect(monitorSession(now()->addHour()->timestamp)->expired())->toBeFalse()
+        ->and(monitorSession(now()->subMinute()->timestamp)->expired())->toBeTrue()
+        ->and(monitorSession(now()->addSeconds(30)->timestamp)->expired())->toBeTrue();
+});
+
+it('masks the credentials and personal data seen in real production logs', function () {
+    $line = 'LogConnector: Entrada pipeline - {"headers":{"Authorization":"Basic bGVvOnNlY3JldA==","X-Consumer-ID":"07f2"},'
+        . '"customer":{"email":"someone@example.com","phone":"+5511999466944","document":"20335613802","name":"Erica"},'
+        . '"token":"abc","CustomerRegistrationAddress":{"zipcode":"05707-001"}} Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghij '
+        . 'cpf 203.356.138-02 contato outro@empresa.com.br';
+
+    $redacted = (new LogRedactor)->redact($line);
+
+    expect($redacted)
+        ->not->toContain('bGVvOnNlY3JldA==')
+        ->not->toContain('someone@example.com')
+        ->not->toContain('+5511999466944')
+        ->not->toContain('20335613802')
+        ->not->toContain('203.356.138-02')
+        ->not->toContain('eyJhbGciOiJIUzI1NiJ9')
+        ->not->toContain('outro@empresa.com.br')
+        ->toContain('"Authorization":"[redacted]"')
+        ->toContain('"token":"[redacted]"')
+        // What makes a log worth reading stays: ids, names, structure.
+        ->toContain('"X-Consumer-ID":"07f2"')
+        ->toContain('"name":"Erica"');
+});
+
+it('masks keys inside JSON held in a JSON string, and numeric values', function () {
+    // The shape of an execution payload: the response body is a JSON string.
+    $payload = json_encode(['payload.response' => json_encode([
+        'cl' => ['document' => '56212410000150', 'phone' => '11964101358', 'firstName' => 'CONCEITO CASA'],
+        'headers' => ['Authorization' => 'Basic c2VjcmV0'],
+        'cpf' => 20335613802,
+    ])]);
+
+    $redacted = (new LogRedactor)->redact($payload);
+
+    expect($redacted)
+        ->not->toContain('56212410000150')
+        ->not->toContain('11964101358')
+        ->not->toContain('20335613802')
+        ->not->toContain('c2VjcmV0')
+        ->toContain('CONCEITO CASA');
+});
+
+it('stays linear on the long blobs production payloads carry', function () {
+    // A payload with a few hundred KB of base64 and no `@` — the shape that
+    // made an unanchored e-mail rule quadratic.
+    $blob = str_repeat(base64_encode(random_bytes(3000)), 100);
+
+    $started = microtime(true);
+    $redacted = (new LogRedactor)->redact('{"file":"' . $blob . '","to":"a@b.com"}');
+
+    expect(microtime(true) - $started)->toBeLessThan(1.0)
+        ->and($redacted)->toContain('[email]');
+});
+
+it('refuses to run on the server', function () {
+    app()->detectEnvironment(fn () => 'production');
+
+    $this->artisan('digibee:logs')->expectsOutputToContain('workstation')->assertFailed();
+    $this->artisan('digibee:monitor:login')->expectsOutputToContain('workstation')->assertFailed();
+});
+
+it('asks for a login when no session was captured', function () {
+    $this->artisan('digibee:logs')->expectsOutputToContain('digibee:monitor:login')->assertFailed();
+});
+
+it('prints an execution\'s log lines redacted', function () {
+    $path = sys_get_temp_dir() . '/monitor-session-' . uniqid() . '.json';
+    file_put_contents($path, json_encode(['authorization' => 'Bearer ' . monitorJwt(now()->addDay()->timestamp), 'apikey' => 'k']));
+    withMonitorConfig($path);
+
+    Http::fake(['core.example.test/runtime/*' => Http::response(
+        "timestamp;logLevel;logMessage\n2026-11-04T10:18:41Z;INFO;\"{\"\"Authorization\"\":\"\"Basic c2VjcmV0OnBhc3M=\"\"}\"\n",
+    )]);
+
+    $this->artisan('digibee:logs', ['--key' => 'abc'])
+        ->expectsOutputToContain('[redacted]')
+        ->doesntExpectOutputToContain('c2VjcmV0OnBhc3M=')
+        ->assertSuccessful();
+
+    unlink($path);
+});
