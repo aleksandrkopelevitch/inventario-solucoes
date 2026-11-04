@@ -162,6 +162,50 @@ it('refuses to mix a payload search with a log-line search', function () {
     unlink($path);
 });
 
+it('collects every matched execution into one redacted report file', function () {
+    $session = sys_get_temp_dir() . '/monitor-session-' . uniqid() . '.json';
+    file_put_contents($session, json_encode(['authorization' => 'Bearer ' . monitorJwt(now()->addDay()->timestamp), 'apikey' => 'k']));
+    withMonitorConfig($session);
+    $report = sys_get_temp_dir() . '/monitor-report-' . uniqid() . '.json';
+
+    // A response body that is JSON in a string inside JSON in a string — one
+    // escape deeper than redacting the encoded document alone would reach.
+    $response = json_encode(['code' => 500, 'body' => json_encode(['document' => '56212410000150'])]);
+    $execution = fn (string $key, string $at) => ['timestamp' => $at, 'attributes' => [
+        'pipeline.name'             => 'evt-send-estoque-vtex', 'pipeline.version' => '1.1', 'pipeline.key' => $key,
+        'execution.elapsed_time_ms' => 40, 'payload.request' => '{"sku":"5000321"}', 'payload.response' => $response,
+    ]];
+
+    Http::fake([
+        'core.example.test/monitor/*' => Http::response([
+            'data'       => [$execution('newer', '2026-11-04T12:00:00Z'), $execution('older', '2026-11-04T11:00:00Z')],
+            'pagination' => ['hasNext' => false], 'total' => 2,
+        ]),
+        'core.example.test/runtime/*pipelineKey=newer*' => Http::response("timestamp;logLevel;logMessage\n2026-11-04T12:00:01Z;ERROR;boom\n2026-11-04T12:00:00Z;INFO;start\n"),
+        'core.example.test/runtime/*pipelineKey=older*' => Http::response('gone', 404),
+    ]);
+
+    $this->artisan('digibee:logs', ['--search' => '5000321', '--collect' => $report])
+        ->expectsOutputToContain('1 execution(s) the platform would not export')
+        ->assertSuccessful();
+
+    $written = file_get_contents($report);
+    $data = json_decode($written, true);
+
+    expect($written)->not->toContain('56212410000150')
+        ->and(decoct(fileperms($report) & 0777))->toBe('600')
+        ->and($data['query'])->toMatchArray(['searched' => 'executions', 'search' => '5000321'])
+        ->and($data['unreadable'])->toBe(['older'])
+        // Chronological: the unreadable one has no start, the read one reads top to bottom.
+        ->and(array_column($data['executions'], 'key'))->toBe(['older', 'newer'])
+        ->and($data['executions'][1]['status'])->toBe(500)
+        ->and($data['executions'][1]['levels'])->toEqualCanonicalizing(['ERROR' => 1, 'INFO' => 1])
+        ->and(array_column($data['executions'][1]['lines'], 'message'))->toBe(['start', 'boom']);
+
+    unlink($session);
+    unlink($report);
+});
+
 it('parses the CSV export into rows keyed by its header', function () {
     Http::fake(['core.example.test/runtime/realms/leomadeiras/logs/export*' => Http::response(
         "\xEF\xBB\xBFtimestamp;logLevel;logMessage\n2026-11-04T10:18:41Z;INFO;\"Calling URL; with a separator\"\n2026-11-04T10:18:42Z;ERROR;boom\n",

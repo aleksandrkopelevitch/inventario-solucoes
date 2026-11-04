@@ -149,6 +149,17 @@ recipe on top: both searches (`--message` and `--search`), at most 10
 executions opened with `--key`, a report in Portuguese. Its `allowed-tools`
 admits only `php artisan digibee:logs` — the login stays the person's to run.
 
+`--collect=<file>` is the report path: it runs either search, opens EVERY
+matched execution (`executionLogsMany()`, a pool of 5 — the pool does not
+retry, so a failed export is asked again one by one, and one the platform will
+not export becomes `unreadable` instead of ending the run) and writes one JSON
+file under `storage/app/private/digibee-monitor/reports/`, `0600`. 500
+executions took 1m47s; one run opens at most 1000. Everything it writes is
+redacted twice: each string first, at its own escaping level (a payload's body
+is often JSON in a string in a string — one escape deeper than the key rules
+reach once encoded), then the encoded document. Every `--json` output goes
+through the same `encodeRedacted()`.
+
 Two performance traps, both measured on a 100-execution listing: an unanchored
 e-mail regex is quadratic on the base64 blobs payloads carry, and the Symfony
 console formatter parses every `<…>` of the SOAP payloads as a style tag —
