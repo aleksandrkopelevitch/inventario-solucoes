@@ -69,9 +69,13 @@ Files land in `storage/app/private/digibee-monitor/reports/` (git-ignored,
 owner-only). Use a Bash timeout of 10 minutes: 500 executions take ~2 minutes,
 and one run opens at most 1000.
 
-- If the session is missing or expired, the command says so. **Stop** and ask
-  the user to run `! php artisan digibee:monitor:login` themselves: it opens a
-  browser for their IdP sign-in, which only a person may do.
+- **Whenever a `digibee:logs` call cannot reach Digibee** — a missing or
+  expired session, a 401 or 403, a connection error, a timeout; the command
+  then ends with "sign in again first" — **stop** and ask the user to sign in:
+  `! php artisan digibee:monitor:login`. It opens a browser for their IdP
+  sign-in, which only a person may do. Do not retry in a loop, do not try to
+  diagnose the network first, and do not run the login yourself; once they
+  say it is done, repeat the call that failed.
 - The summary warns when the window held more than was collected (`more
   matches in this window`), when executions passed the 1000 cap (`not_opened`)
   or could not be exported (`unreadable`). Report each to the user with the
