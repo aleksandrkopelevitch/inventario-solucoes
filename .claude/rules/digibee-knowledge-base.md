@@ -144,6 +144,11 @@ draining on SIGTERM). Its `total` is capped at 10000, so it is printed as
 `10000+`. Personal-data keys are matched anywhere in the key name: a real
 `"CpfCnpj"` went through while only the bare `cpf`/`cnpj` were listed.
 
+The `/digibee-logs` skill (`.claude/skills/digibee-logs/SKILL.md`) is the
+recipe on top: both searches (`--message` and `--search`), at most 10
+executions opened with `--key`, a report in Portuguese. Its `allowed-tools`
+admits only `php artisan digibee:logs` — the login stays the person's to run.
+
 Two performance traps, both measured on a 100-execution listing: an unanchored
 e-mail regex is quadratic on the base64 blobs payloads carry, and the Symfony
 console formatter parses every `<…>` of the SOAP payloads as a style tag —
