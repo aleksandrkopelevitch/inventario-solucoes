@@ -5,6 +5,9 @@ namespace App\Support\Digibee\Monitor;
 use App\Exceptions\DigibeeApiException;
 use App\Support\Gitbook\TransientHttpFailure;
 use Carbon\CarbonInterface;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Pool;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 
@@ -36,6 +39,9 @@ class DigibeeMonitorClient
 
     /** The column separator asked of the CSV export — `;` is what the web app asks for. */
     private const SEPARATOR = ';';
+
+    /** Exports in flight at once — kept small: it is a person's session on the vendor's API. */
+    private const CONCURRENCY = 5;
 
     public function __construct(private readonly MonitorSession $session) {}
 
@@ -158,21 +164,76 @@ class DigibeeMonitorClient
     }
 
     /**
+     * The logs of many executions, `CONCURRENCY` at a time — what a report
+     * over a few hundred matches needs, at ~0.5 s an export one by one.
+     *
+     * The pool does not retry, so whatever did not come back as a success
+     * (a connection hiccup, a 5xx) is asked again through `executionLogs()`,
+     * which does — and which raises the same errors a single read would.
+     *
+     * @param  list<string>  $pipelineKeys
+     * @return array<string, list<array<string, string>>|null> keyed by execution key; null = not readable
+     */
+    public function executionLogsMany(string $environment, array $pipelineKeys): array
+    {
+        $route = '/runtime/realms/{realm}/logs/export';
+        $path = $this->path('GET', $route);
+        $this->environment($environment);
+
+        $responses = Http::pool(fn (Pool $pool) => array_map(
+            fn (string $key) => $this->configure($pool->as($key))->get($path, [
+                'environment' => $environment,
+                'pipelineKey' => $key,
+                'separator'   => self::SEPARATOR,
+            ]),
+            $pipelineKeys,
+        ), concurrency: self::CONCURRENCY);
+
+        $logs = [];
+
+        foreach ($pipelineKeys as $key) {
+            $response = $responses[$key] ?? null;
+
+            if ($response instanceof Response && $response->status() === 401) {
+                throw DigibeeApiException::monitorSessionMissing();
+            }
+
+            if ($response instanceof Response && $response->successful()) {
+                $logs[$key] = $this->parseCsv($response->body());
+
+                continue;
+            }
+
+            // One execution the platform will not export must not cost the
+            // other few hundred: it comes back as null, for the caller to
+            // report, instead of ending the whole read.
+            // An expired session is the exception: every other key would fail
+            // the same way, so it ends the read with the login instruction.
+            try {
+                $logs[$key] = $this->executionLogs($environment, $key);
+            } catch (DigibeeApiException $e) {
+                if ($e->getMessage() === DigibeeApiException::monitorSessionMissing()->getMessage()) {
+                    throw $e;
+                }
+
+                $logs[$key] = null;
+            } catch (ConnectionException) {
+                $logs[$key] = null;
+            }
+        }
+
+        return $logs;
+    }
+
+    /**
      * @param  array<string, mixed>  $query
      * @param  array<string, mixed>|null  $body
      */
     private function call(string $method, string $route, array $query, ?array $body = null): Response
     {
-        if (! in_array("{$method} {$route}", self::ROUTES, true)) {
-            throw DigibeeApiException::refusedMonitorRoute($method, $route);
-        }
+        $path = $this->path($method, $route);
 
-        $path = str_replace('{realm}', rawurlencode($this->realm()), $route);
-
-        $request = Http::baseUrl((string) config('services.digibee.monitor.endpoint'))
-            ->withHeaders($this->session->headers())
-            ->timeout((int) config('services.digibee.monitor.timeout'))
-            ->connectTimeout(5)
+        $request = $this->configure(Http::createPendingRequest())
             // Every route here is a read, so a retry can never do a thing
             // twice — and WSL's resolver does time out now and then.
             // `throw: false` keeps the status checks below in charge.
@@ -192,6 +253,24 @@ class DigibeeMonitorClient
         }
 
         return $response;
+    }
+
+    /** The one gate every request passes, single or pooled: a listed route, or nothing leaves. */
+    private function path(string $method, string $route): string
+    {
+        if (! in_array("{$method} {$route}", self::ROUTES, true)) {
+            throw DigibeeApiException::refusedMonitorRoute($method, $route);
+        }
+
+        return str_replace('{realm}', rawurlencode($this->realm()), $route);
+    }
+
+    private function configure(PendingRequest $request): PendingRequest
+    {
+        return $request->baseUrl((string) config('services.digibee.monitor.endpoint'))
+            ->withHeaders($this->session->headers())
+            ->timeout((int) config('services.digibee.monitor.timeout'))
+            ->connectTimeout(5);
     }
 
     private function environment(string $environment): string
