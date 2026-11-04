@@ -1,27 +1,30 @@
 ---
 name: digibee-logs
-description: Search Digibee production (or test) execution logs for a keyword — an order id, a SKU, a CNPJ, an error text — optionally narrowed to a pipeline and a time window, then open the matching executions and organise what happened into a report. Use when the user asks what happened to something in Digibee, why an integration failed, or to find something in the pipeline logs.
+description: Search Digibee production (or test) execution logs for a keyword — an order id, a SKU, a CNPJ, an error text — optionally narrowed to a pipeline and a time window, collect EVERY matching execution with its whole log, and organise it into a report. Use when the user asks what happened to something in Digibee, why an integration failed, to find something in the pipeline logs, or for a report over a pipeline's executions.
 argument-hint: "<termo> [pipeline] [janela: 30m|6h|2d] [test]"
-allowed-tools: Bash(php artisan digibee:logs:*)
+allowed-tools: Bash(php artisan digibee:logs:*), Bash(jq:*)
 ---
 
-# Search Digibee logs and organise the result
+# Collect Digibee logs and report on them
 
 Arguments: `$ARGUMENTS`
 
 Everything here goes through `php artisan digibee:logs`, which replays the
-user's own Monitor session from this workstation and prints **already
+user's own Monitor session from this workstation and writes **already
 redacted** output (see `.claude/rules/digibee-knowledge-base.md`, section
 "Reading production logs"). It is read-only. Never reach Digibee any other way:
 no curl, no reading `storage/app/private/digibee-monitor/session.json`, never
 print or reuse a token — not even one the user pasted.
 
+The goal is **everything that matches**, not a sample: the user builds reports
+from it and looks for things in it. Do not pick "the interesting ones"; collect
+all of them and let the analysis decide what matters.
+
 ## 1. Read the arguments
 
 The arguments are free text. Pull out:
 
-- **term** — what to look for. Quoted text is one term. If nothing else is
-  recognisable, the whole argument is the term.
+- **term** — what to look for. Quoted text is one term.
 - **pipeline** — a token shaped like a pipeline name (`evt-…`, `zfl-…`, `api-…`,
   any lowercase-hyphenated name). Exact name; the platform does not match
   partially.
@@ -29,62 +32,92 @@ The arguments are free text. Pull out:
   3 in test**; cap there and say so if more was asked.
 - **environment** — `prod` unless the user says `test`/`teste`/`qa`.
 
-No term and no pipeline → ask what to search for; do not list a whole day of
-executions.
+A pipeline with no term is a valid request: a report over that pipeline's
+executions in the window. Neither a term nor a pipeline → ask what to search
+for.
 
-## 2. Search both places a value can be
+## 2. Collect
 
 A value can show up in a **log line** (a Log connector's message) or only in an
-**execution payload** (the request/response the platform kept). Run both, with
-the same window and pipeline:
+**execution payload** (the request/response the platform kept), so with a term
+collect both. Each run opens every matched execution (5 at a time) and writes
+one JSON file; name the files after the request:
 
 ```
-php artisan digibee:logs --environment=<env> --since=<window> [--pipeline=<p>] --message="<term>" --limit=100 --pages=3
-php artisan digibee:logs --environment=<env> --since=<window> [--pipeline=<p>] --search="<term>" --limit=100 --pages=3
+php artisan digibee:logs --environment=<env> --since=<window> [--pipeline=<p>] --message="<term>" --limit=100 --pages=20 --collect=<slug>-linhas.json
+php artisan digibee:logs --environment=<env> --since=<window> [--pipeline=<p>] --search="<term>"  --limit=100 --pages=20 --collect=<slug>-payloads.json
 ```
+
+Without a term, one run with neither `--message` nor `--search` (it lists the
+pipeline's executions).
+
+Files land in `storage/app/private/digibee-monitor/reports/` (git-ignored,
+owner-only). Use a Bash timeout of 10 minutes: 500 executions take ~2 minutes,
+and one run opens at most 1000.
 
 - If the session is missing or expired, the command says so. **Stop** and ask
   the user to run `! php artisan digibee:monitor:login` themselves: it opens a
   browser for their IdP sign-in, which only a person may do.
-- If a search says "more in this window", say how many there are; narrow
-  (pipeline, shorter window) before raising `--pages` past 5.
-- Nothing found → say which searches ran (term, window, pipeline, env) and
-  suggest the likely miss: a wider window, the other environment, or a
-  different spelling of the value (with/without punctuation, leading zeros).
+- The summary warns when the window held more than was collected (`more
+  matches in this window`), when executions passed the 1000 cap (`not_opened`)
+  or could not be exported (`unreadable`). Report each to the user with the
+  numbers; to get the rest, split the window (e.g. two runs of 12h) rather than
+  dropping matches.
 
-## 3. Open the executions that matter
+## 3. Analyse the files with jq
 
-Collect the distinct execution keys from both searches (the log lines print
-the key after the pipeline version; the table has an `execution key` column).
-Open them with:
+The file shape:
 
 ```
-php artisan digibee:logs --environment=<env> --key=<execution key>
+{ query: {environment, searched, pipeline, message|search, since, from, to, timezone},
+  matches, platform_total, more_in_window, executions_found, not_opened[], unreadable[],
+  executions: [ { key, pipeline, version, started_at, ended_at, levels: {INFO: n, ERROR: n…},
+                  unreadable, lines: [ {at, level, message} ],
+                  // executions search only:
+                  status, elapsed_ms, payload_request, payload_response,
+                  // log-line search only:
+                  matched_lines[] } ] }
 ```
 
-Open at most **10**. Pick first those with an ERROR/WARN line or a status
-≥ 400, then the oldest and the newest. Say how many were left unopened, with
-their keys, so the user can ask for them.
+Executions are chronological; times are local (`query.timezone`). Do not `Read`
+a big file whole — query it. Useful starting points:
 
-Some lines are huge (SOAP/JSON payloads). Read them, but quote only the part
-that matters.
+```
+jq '[.executions[] | {pipeline, version}] | group_by(.pipeline) | map({pipeline: .[0].pipeline, n: length})' F
+jq '[.executions[] | select((.levels.ERROR // 0) > 0)] | length' F
+jq -r '.executions[] | .lines[] | select(.level == "ERROR") | .message' F | sort | uniq -c | sort -rn | head -30
+jq -r '.executions[] | [.started_at, .key, (.status // ""), (.elapsed_ms // "")] | @tsv' F
+jq '.executions[] | select(.key == "<key>")' F
+```
+
+Aggregate first (counts, distinct error messages, statuses, duration
+percentiles, first/last occurrence, gaps), then drill into the executions that
+explain the aggregates. Group repeated messages by their shape (strip ids and
+numbers) before counting.
 
 ## 4. Report — in Portuguese, to the user
 
-Write it in the chat, not to a file (unless asked). Times are already in the
-local timezone. Shape:
+Write it in the chat unless the user asks for a file. Shape it to what was
+asked; by default:
 
-1. **Resumo** — two or three sentences: what was searched, what happened to it
-   (processed? failed where? retried?), and the one thing to look at.
-2. **Onde apareceu** — a table per pipeline: executions found, how many with
-   error, first and last occurrence.
-3. **Linha do tempo** — per opened execution, in chronological order: time,
-   pipeline + version, execution key, duration/status, and the few log lines
-   that tell the story (the call made, the answer, the error). Errors verbatim,
-   short.
-4. **Leitura** — what the lines suggest (an upstream HTTP 4xx/5xx, a timeout, a
-   validation message, a retry loop), clearly marked as inference, and the next
+1. **Resumo** — what was searched, how much was found, what happened, and the
+   one thing to look at.
+2. **Números** — per pipeline/version: executions, with error, statuses,
+   duration (min/median/max), first and last occurrence.
+3. **Erros e avisos** — each distinct message, with its count, first/last time
+   and an example execution key.
+4. **Linha do tempo** — for a specific term: every execution in order, with the
+   few lines that tell its story. For a broad report: the notable moments
+   (first error, bursts, gaps).
+5. **Leitura** — what the data suggests, marked as inference, and the next
    check worth doing.
+
+Always state coverage: matches collected vs. the platform's total, and what
+was capped or unreadable.
+
+When the user asks for a file (CSV, Markdown), write it next to the JSON in
+`storage/app/private/digibee-monitor/reports/` and give the path — it is
+redacted production data, so not in the repository, not in `/tmp`.
 
 ## Rules for the content
 
