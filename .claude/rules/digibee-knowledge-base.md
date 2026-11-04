@@ -149,6 +149,14 @@ recipe on top: both searches (`--message` and `--search`), at most 10
 executions opened with `--key`, a report in Portuguese. Its `allowed-tools`
 admits only `php artisan digibee:logs` — the login stays the person's to run.
 
+The window is `--since`/`--until`, each either how long ago (`6h`) or a date on
+the LOCAL clock (`app.display_timezone`: `03/11 14:00`, `2026-11-03 14:00`),
+sent as UTC; it is read once in `handle()`, so every page and the report agree
+on it, and an unreadable value is refused instead of falling back to an hour.
+The executions route caps `total` at 10000 too, and a busy pipeline runs in
+bursts — `evt-send-estoque-vtex` had 0 executions in 14:00–14:06 and 580 in
+14:00–14:09 — so an empty short window is not, alone, a sign of a bug.
+
 `--collect=<file>` is the report path: it runs either search, opens EVERY
 matched execution (`executionLogsMany()`, a pool of 5 — the pool does not
 retry, so a failed export is asked again one by one, and one the platform will

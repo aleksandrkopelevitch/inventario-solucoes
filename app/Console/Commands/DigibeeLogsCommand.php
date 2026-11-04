@@ -7,6 +7,7 @@ use App\Support\Digibee\Monitor\DigibeeMonitorClient;
 use App\Support\Digibee\Monitor\LogRedactor;
 use App\Support\Digibee\Monitor\MonitorSession;
 use Carbon\CarbonImmutable;
+use Carbon\Exceptions\InvalidFormatException;
 use Illuminate\Console\Command;
 use Illuminate\Http\Client\ConnectionException;
 use Symfony\Component\Console\Formatter\OutputFormatter;
@@ -29,7 +30,8 @@ class DigibeeLogsCommand extends Command
     protected $signature = 'digibee:logs
         {--environment=prod : test or prod}
         {--key= : Pipeline execution key — print every log line of that execution}
-        {--since=1h : Window for the execution list (e.g. 15m, 1h, 1d; logs live 10 days in prod, 3 in test)}
+        {--since=1h : Start of the window: how long ago (15m, 6h, 2d) or a local date/time ("2026-11-03 14:00", "03/11 14:00"). Logs live 10 days in prod, 3 in test}
+        {--until= : End of the window, same forms as --since (default: now)}
         {--pipeline= : Only executions of this pipeline (exact name, filtered by the platform)}
         {--search= : Only executions whose payloads contain this text (an order id, a SKU…)}
         {--lines : List log lines instead of executions (the Pipeline Logs tab)}
@@ -46,6 +48,11 @@ class DigibeeLogsCommand extends Command
 
     /** The log search's `total` never goes past this (measured 2026-11-04). */
     private const CAPPED_TOTAL = 10000;
+
+    /** The window every search in this run uses — see handle(). */
+    private CarbonImmutable $from;
+
+    private CarbonImmutable $to;
 
     /** Executions one --collect opens: ~3.5 minutes (500 took 1m47s on 2026-11-04). */
     private const MAX_COLLECT = 1000;
@@ -79,6 +86,23 @@ class DigibeeLogsCommand extends Command
 
         $client = new DigibeeMonitorClient($session);
         $environment = (string) $this->option('environment');
+
+        // Read once, before any request: every page of a search and the
+        // report that describes it must agree on the same two instants.
+        try {
+            $this->to = $this->instant((string) ($this->option('until') ?: '0m'), CarbonImmutable::now());
+            $this->from = $this->instant((string) $this->option('since'), CarbonImmutable::now());
+        } catch (\InvalidArgumentException $e) {
+            $this->components->error($e->getMessage());
+
+            return self::FAILURE;
+        }
+
+        if ($this->from >= $this->to) {
+            $this->components->error("--since ({$this->display($this->from)}) must be before --until ({$this->display($this->to)}).");
+
+            return self::FAILURE;
+        }
 
         try {
             return match (true) {
@@ -140,10 +164,6 @@ class DigibeeLogsCommand extends Command
      */
     private function collect(DigibeeMonitorClient $client, LogRedactor $redactor, string $environment, bool $lines): int
     {
-        $since = (string) $this->option('since');
-        $to = CarbonImmutable::now();
-        $from = $to->sub($this->window($since));
-
         [$records, $total, $hasNext] = $this->paged(fn (CarbonImmutable $from, CarbonImmutable $to, ?string $cursor) => $lines
             ? $client->pipelineLogs($environment, $from, $to, (int) $this->option('limit'), $this->option('pipeline'), $this->option('message'), $cursor)
             : $client->executions($environment, $from, $to, (int) $this->option('limit'), $this->option('pipeline'), $this->option('search'), $cursor));
@@ -213,9 +233,8 @@ class DigibeeLogsCommand extends Command
                 'pipeline'    => $this->option('pipeline'),
                 'message'     => $lines ? $this->option('message') : null,
                 'search'      => $lines ? null : $this->option('search'),
-                'since'       => $since,
-                'from'        => $this->isoLocal($from->toIso8601String()),
-                'to'          => $this->isoLocal($to->toIso8601String()),
+                'from'        => $this->isoLocal($this->from->toIso8601String()),
+                'to'          => $this->isoLocal($this->to->toIso8601String()),
                 'timezone'    => (string) config('app.display_timezone'),
             ], fn ($value) => $value !== null && $value !== ''),
             'matches'          => count($records),
@@ -327,7 +346,7 @@ class DigibeeLogsCommand extends Command
         }
 
         if ($executions === []) {
-            $this->components->warn("No matching executions in {$environment} in the last {$this->option('since')}.");
+            $this->components->warn("No matching executions in {$environment} between {$this->display($this->from)} and {$this->display($this->to)}.");
 
             return self::SUCCESS;
         }
@@ -380,7 +399,7 @@ class DigibeeLogsCommand extends Command
         }
 
         if ($lines === []) {
-            $this->components->warn("No matching log lines in {$environment} in the last {$this->option('since')}.");
+            $this->components->warn("No matching log lines in {$environment} between {$this->display($this->from)} and {$this->display($this->to)}.");
 
             return self::SUCCESS;
         }
@@ -416,8 +435,8 @@ class DigibeeLogsCommand extends Command
      */
     private function paged(callable $fetch): array
     {
-        $to = CarbonImmutable::now();
-        $from = $to->sub($this->window((string) $this->option('since')));
+        $from = $this->from;
+        $to = $this->to;
         $pages = max(1, min((int) $this->option('pages'), self::MAX_PAGES));
 
         $records = [];
@@ -511,16 +530,67 @@ class DigibeeLogsCommand extends Command
             : null;
     }
 
-    private function window(string $since): \DateInterval
+    /**
+     * One end of the window: how long ago (`15m`, `6h`, `2d`, `0m` = now) or a
+     * date/time on the local clock (`app.display_timezone`), the way the
+     * person reading the Monitor thinks of it. Anything else is refused —
+     * a typo used to fall back to the last hour, and answer the wrong
+     * question without saying so.
+     */
+    private function instant(string $value, CarbonImmutable $now): CarbonImmutable
     {
-        if (preg_match('/^(\d+)\s*([mhd])$/', trim($since), $m) !== 1) {
-            return new \DateInterval('PT1H');
+        $value = trim($value);
+
+        if (preg_match('/^(\d+)\s*([mhd])$/', $value, $m) === 1) {
+            return match ($m[2]) {
+                'm' => $now->subMinutes((int) $m[1]),
+                'h' => $now->subHours((int) $m[1]),
+                'd' => $now->subDays((int) $m[1]),
+            };
         }
 
-        return match ($m[2]) {
-            'm' => new \DateInterval("PT{$m[1]}M"),
-            'h' => new \DateInterval("PT{$m[1]}H"),
-            'd' => new \DateInterval("P{$m[1]}D"),
-        };
+        $timezone = (string) config('app.display_timezone');
+        $local = $now->setTimezone($timezone);
+
+        // `!` zeroes what the format leaves out, so "03/11" is midnight.
+        foreach (['Y-m-d H:i:s', 'Y-m-d H:i', 'Y-m-d', 'd/m/Y H:i', 'd/m/Y', 'd/m H:i', 'd/m', 'j/n/Y H:i', 'j/n/Y G:i', 'j/n/Y', 'j/n H:i', 'j/n G:i', 'j/n', 'H:i', 'G:i'] as $format) {
+            try {
+                $parsed = CarbonImmutable::createFromFormat('!' . $format, $value, $timezone);
+            } catch (InvalidFormatException) {
+                continue;
+            }
+
+            // Round trip: PHP happily rolls "31/02" over into March.
+            if ($parsed === null || $parsed->format($format) !== $value) {
+                continue;
+            }
+
+            // A format without the year (or the date) means this one (today).
+            $hasDate = preg_match('/[dj]/', $format) === 1;
+
+            if (! str_contains($format, 'Y')) {
+                $parsed = $hasDate
+                    ? $parsed->setDate($local->year, $parsed->month, $parsed->day)
+                    : $parsed->setDate($local->year, $local->month, $local->day);
+
+                // "31/12" read on 2 January is last year's: logs never come
+                // from the future.
+                if ($hasDate && $parsed->gt($local->addDay())) {
+                    $parsed = $parsed->subYear();
+                }
+            }
+
+            return $parsed->utc();
+        }
+
+        throw new \InvalidArgumentException(
+            "Cannot read \"{$value}\" as a time — use how long ago (15m, 6h, 2d) or a local date/time "
+            . '("2026-11-03 14:00", "03/11/2026 14:00", "03/11 14:00", "14:00").'
+        );
+    }
+
+    private function display(CarbonImmutable $instant): string
+    {
+        return $instant->setTimezone((string) config('app.display_timezone'))->format('d/m/Y H:i');
     }
 }
