@@ -78,12 +78,14 @@ let session = await Promise.race([captured, closed, wait(15000)]);
 // Otherwise sign in through the IdP — this realm has no Digibee passwords, and
 // the app's own /login page is the password form, not the way in. Once the
 // IdP hands back to the app, the Monitor is opened again to make it call.
+// The IdP hands back to /oauth, where the app trades the code for its token:
+// that page is still the login, and navigating away from it aborts the trade.
 if (!session && args['login-url']) {
     console.log('Not signed in — opening the identity provider. Sign in in the window that opened.');
     await page.goto(args['login-url'], { waitUntil: 'domcontentloaded' }).catch(() => {});
 
     const landed = page
-        .waitForURL((url) => url.origin === appOrigin && !/\/login\b/.test(url.pathname), { timeout: Math.max(1, deadline - Date.now()) })
+        .waitForURL((url) => url.origin === appOrigin && !/^\/(login|oauth)\b/.test(url.pathname), { timeout: Math.max(1, deadline - Date.now()) })
         .then(async () => {
             await page.goto(args.url, { waitUntil: 'domcontentloaded' }).catch(() => {});
 
