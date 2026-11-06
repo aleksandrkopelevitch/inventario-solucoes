@@ -49,6 +49,7 @@ const OPEN_ROUTES = [
     'docs.index', 'docs.notebook', 'docs.page', 'docs.search', 'docs.file', 'docs.diagram',
     // Admin screens: closed to every member by their own policies.
     'mcp-tokens.index', 'people.accounts', 'attribute-options.index', 'attribute-options.options',
+    'digibee-session.index', 'digibee-session.sign-in.status', 'digibee-session.sign-in.frame',
 ];
 
 /** @return array<string, AccessModule> route name => module */

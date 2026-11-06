@@ -344,3 +344,28 @@
     cd {{ $appDir }}
     sudo -u www-data php artisan db:seed --force --class=KnowledgeBaseHomeSeeder
 @endtask
+
+{{--
+    Outside the 'deploy' story: run ONCE, by hand (`envoy run chromium`), before
+    the first remote Digibee sign-in ("Sessão Digibee"), and again only when
+    package.json moves `playwright-core` to a version that wants a different
+    browser build.
+
+    Installs the headless Chromium shell that `scripts/digibee-remote-sign-in.mjs`
+    drives, plus the system libraries it needs (`--with-deps` is apt, hence root).
+    Into /opt/ms-playwright, not a home directory: the browser is RUN by the
+    queue worker as www-data, whose home is not writable, while this task runs
+    as root. The .env on the droplet needs the matching line, appended by hand
+    like every other key there:
+
+        DIGIBEE_MONITOR_BROWSERS_PATH=/opt/ms-playwright
+
+    The browser only runs while somebody signs in (~300 MB of RAM for those
+    minutes); nothing stays resident on this shared droplet.
+--}}
+@task('chromium', ['on' => 'web'])
+    cd {{ $appDir }}
+    PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright ./node_modules/.bin/playwright-core install --with-deps --only-shell chromium
+    chmod -R a+rX /opt/ms-playwright
+    ls /opt/ms-playwright
+@endtask
