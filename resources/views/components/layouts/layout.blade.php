@@ -40,6 +40,9 @@
             // program holds it.
             ['route' => 'mcp.connect', 'label' => 'Conexão MCP', 'icon' => 'bolt', 'active' => 'mcp.connect'],
             ['route' => 'mcp-tokens.index', 'label' => 'Tokens MCP', 'icon' => 'key', 'active' => 'mcp-tokens.*', 'can' => 'viewAny', 'canModel' => \App\Models\McpToken::class],
+            // The server's Digibee session — a credential, so admin-only like the
+            // tokens above (`DigibeeMonitorSessionPolicy`).
+            ['route' => 'digibee-session.index', 'label' => 'Sessão Digibee', 'icon' => 'arrow-right-end-on-rectangle', 'active' => 'digibee-session.*', 'can' => 'viewAny', 'canModel' => \App\Models\DigibeeMonitorSession::class],
             ['route' => 'submissions.index', 'label' => 'Comitê de Arquitetura', 'icon' => 'clipboard-document-check', 'active' => 'submissions.*', 'can' => 'viewAny', 'canModel' => \App\Models\Submission::class],
             // The design-system catalogue, for whoever builds screens: offered
             // to admins only (`UserPolicy::manage` is the app's admin-only

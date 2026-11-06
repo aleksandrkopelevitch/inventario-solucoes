@@ -64,7 +64,7 @@ if a rule you expect is not here, it is in one of these:
 | `doc-scenes.md` | animated scenes in a page ("Fluxo em etapas", "Antes → depois", "Árvore", "Comparação lado a lado", "Linha do tempo"): the model picks words, `docs-scene.js` draws; the icon catalogue; the pause button |
 | `diagram-models.md` | the four diagram models, the semantics/geometry split, the lifeline and the AS IS × TO BE diff |
 | `cati-submissions.md` | the committee module: stages, the checklist, the interview, the deck, the approved topology |
-| `digibee-knowledge-base.md` | the two Digibee corpora, redaction, `digibeectl` boundaries |
+| `digibee-knowledge-base.md` | the two Digibee corpora, redaction, `digibeectl` boundaries, reading logs (`digibee:logs`, the local MCP, the server's "Sessão Digibee" sign-in) |
 | `flowspec-pipeline-write.md` | writing a flowSpec into a pipeline, deploy and the test matrix |
 | `mcp-server.md` | the MCP server, its bearer token and what a token may read |
 | `eloquent-strict-and-search.md` | strict mode's blind spot, `whereFolded()` |

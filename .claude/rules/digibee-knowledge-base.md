@@ -6,6 +6,14 @@ paths:
   - "app/Console/Commands/*Digibee*.php"
   - "app/Console/Commands/*Pipeline*.php"
   - "database/data/digibee_*.json"
+  - "app/Http/Controllers/DigibeeSessionController.php"
+  - "app/Jobs/RunRemoteDigibeeSignIn.php"
+  - "app/Models/DigibeeMonitorSession.php"
+  - "resources/views/digibee-session/**"
+  - "resources/views/components/digibee/**"
+  - "resources/js/modules/remote-browser.js"
+  - "scripts/digibee-*.mjs"
+  - "scripts/lib/digibee-*.mjs"
 ---
 
 ### The Digibee knowledge base — two corpora, and neither one substitutes for the other
@@ -120,8 +128,10 @@ keeps the `authorization` + `apikey` headers of the first Monitor call;
   is the person's whole role, production deletes included. Routes were read off
   the web app (DevTools, and the public bundle's `logsExport` chunk), so they are
   as undocumented as the design ones.
-- **Never on the server**: both commands refuse in production, and the session
-  is a 0600 file under `storage/app/private/digibee-monitor/`, never `.env`.
+- **The commands never run on the server**: both refuse in production, and the
+  workstation session is a 0600 file under `storage/app/private/digibee-monitor/`,
+  never `.env`. The server has its OWN session since 2026-11-06, captured a
+  different way — see "The server's session" below.
 - **Everything printed is redacted first** (`LogRedactor`). Production logs and
   execution payloads carry consumer `Authorization: Basic` headers and customer
   CPF/CNPJ, e-mail and phone — including as JSON *inside a JSON string*, with
@@ -171,6 +181,54 @@ everything the MCP server below answers, goes through that same
 `ExecutionCollector` (find, then open the union) and the window parsing in
 `MonitorTime`, shared by the command and the MCP server so a window typed in
 either means the same two instants.
+
+#### The server's session — "Sessão Digibee", a remote sign-in an admin drives
+
+By the user's decision (2026-11-06), so that people with no Claude and no
+local install can search logs from iSol, the server holds a Digibee session of
+its own. The realm signs in ONLY through SSO (Entra via FusionAuth): there is
+no reCAPTCHA and no password expiry on that path — an earlier note here said
+otherwise about the password form, which this realm does not use. What does
+hold: the JWT has a fixed 24h `exp` and the web app has no refresh flow, and
+the IdP's `redirect_uri` belongs to Digibee's client (it lands on
+`www.godigibee.io/oauth`), so no web app of ours can receive the code itself.
+Hence a browser ON THE SERVER:
+
+- `/digibee-session` (admin only, `DigibeeMonitorSessionPolicy` — a session is
+  a credential, like an MCP token) starts `RunRemoteDigibeeSignIn`, which runs
+  `scripts/digibee-remote-sign-in.mjs`: headless Chromium, its own persistent
+  profile (`services.digibee.monitor.remote.profile_path`, never the
+  workstation's), opened on the SSO link. The script serves a bridge on
+  **127.0.0.1 only** — frame, state, input, session-once, quit — gated by a
+  secret passed in the ENVIRONMENT (argv is world-readable via `ps`).
+- The screen draws the JPEG every ~400 ms and relays clicks, typing (coalesced
+  runs), the closed key list and paste (`remote-browser.js`). What is typed — a
+  password, an MFA code — goes request → bridge → page and is never logged or
+  stored. Its route is exempt from `TrimStrings`/`ConvertEmptyStringsToNull`
+  BY PATH: those are global middleware and run before routing, so `routeIs()`
+  answers false there (a test caught a lone space arriving as nothing).
+- The run's state lives in the cache (`RemoteSignIn`, one at a time under a
+  lock: one profile admits one Chromium). Every route carries the run's id, so
+  a stale tab cannot drive or cancel a newer run. The job holds one of the two
+  queue workers for as long as the person takes — the price of not running a
+  second daemon; `$timeout` 420 sits inside the worker's 660 and `retry_after`.
+- The capture rule is shared with the workstation login
+  (`scripts/lib/digibee-session-capture.mjs`): a `/monitor/` or `/runtime/`
+  call carrying both headers, and `/oauth` is still the login — navigating away
+  from it aborted the code trade, which is why every workstation sign-in timed
+  out while the window looked signed in (fixed 2026-11-05).
+- Captured headers go to `digibee_monitor_sessions`, `encrypted` casts, with
+  the account that signed in; rows are kept as the record of whose identity the
+  server read Digibee with. For now that identity is the user's own (their
+  call, 2026-11-06); a dedicated read-only Digibee user is the better end state.
+- The droplet needs the browser once: `envoy run chromium` (headless shell +
+  apt deps into /opt/ms-playwright) and `DIGIBEE_MONITOR_BROWSERS_PATH` in its
+  hand-edited `.env`. `playwright-core` is a pinned devDependency so the
+  browser build matches the package.
+
+Fase 1 stops at holding the session. Renewing it silently from the profile's
+SSO cookies and READING with it (a search screen, the iSol `/mcp`) are the
+next phases; until they exist nothing on the server calls Digibee with it.
 
 #### `digibee:mcp` — the same reads for a chat client, on stdio, local only
 

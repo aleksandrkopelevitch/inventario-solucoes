@@ -17,6 +17,7 @@
 import { mkdirSync, writeFileSync, chmodSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { isBackInApp, watchForSession } from './lib/digibee-session-capture.mjs';
 
 const args = Object.fromEntries(
     process.argv.slice(2).map((arg) => {
@@ -47,22 +48,7 @@ const context = await chromium.launchPersistentContext(args.profile, {
     args: ['--no-sandbox'],
 });
 
-// Only a call to the platform API that carries both headers counts — the
-// login round trip itself sends `apikey` without `authorization`, and the
-// Monitor routes are the ones whose answer proves the session can read logs.
-const captured = new Promise((resolve) => {
-    context.on('request', (request) => {
-        if (!request.url().startsWith(args.endpoint)) {
-            return;
-        }
-
-        const headers = request.headers();
-
-        if (headers.authorization && headers.apikey && /\/(monitor|runtime)\//.test(request.url())) {
-            resolve({ authorization: headers.authorization, apikey: headers.apikey });
-        }
-    });
-});
+const captured = watchForSession(context, args.endpoint);
 
 const deadline = Date.now() + timeoutMs;
 const wait = (ms) => new Promise((resolve) => setTimeout(() => resolve(null), Math.max(0, ms)));
@@ -78,14 +64,12 @@ let session = await Promise.race([captured, closed, wait(15000)]);
 // Otherwise sign in through the IdP — this realm has no Digibee passwords, and
 // the app's own /login page is the password form, not the way in. Once the
 // IdP hands back to the app, the Monitor is opened again to make it call.
-// The IdP hands back to /oauth, where the app trades the code for its token:
-// that page is still the login, and navigating away from it aborts the trade.
 if (!session && args['login-url']) {
     console.log('Not signed in — opening the identity provider. Sign in in the window that opened.');
     await page.goto(args['login-url'], { waitUntil: 'domcontentloaded' }).catch(() => {});
 
     const landed = page
-        .waitForURL((url) => url.origin === appOrigin && !/^\/(login|oauth)\b/.test(url.pathname), { timeout: Math.max(1, deadline - Date.now()) })
+        .waitForURL((url) => isBackInApp(url, appOrigin), { timeout: Math.max(1, deadline - Date.now()) })
         .then(async () => {
             await page.goto(args.url, { waitUntil: 'domcontentloaded' }).catch(() => {});
 

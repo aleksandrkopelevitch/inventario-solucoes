@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Exceptions\DigibeeApiException;
+use App\Support\Digibee\Monitor\BrowserRuntime;
 use App\Support\Digibee\Monitor\MonitorSession;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Process;
@@ -33,7 +34,7 @@ class DigibeeMonitorLoginCommand extends Command
             return self::FAILURE;
         }
 
-        $playwright = $this->playwrightPath();
+        $playwright = BrowserRuntime::playwrightPath();
 
         if ($playwright === null) {
             $this->components->error('Playwright not found. Set DIGIBEE_MONITOR_PLAYWRIGHT to its package directory (…/node_modules/playwright).');
@@ -45,7 +46,7 @@ class DigibeeMonitorLoginCommand extends Command
         $wait = (int) $config['login_wait_seconds'];
 
         $result = Process::timeout($wait + 60)
-            ->env(array_filter(['LD_LIBRARY_PATH' => $this->libraryPath()]))
+            ->env(array_filter(['LD_LIBRARY_PATH' => BrowserRuntime::libraryPath()]))
             ->run([
                 'node', base_path('scripts/digibee-monitor-login.mjs'),
                 '--playwright=' . $playwright,
@@ -67,29 +68,5 @@ class DigibeeMonitorLoginCommand extends Command
         $this->components->info('Session saved' . ($expiresAt ? ', valid until ' . $expiresAt->setTimezone(config('app.display_timezone'))->format('d/m H:i') : '') . '.');
 
         return self::SUCCESS;
-    }
-
-    /** Configured, else the npx cache — where Playwright lives on this machine, outside the project. */
-    private function playwrightPath(): ?string
-    {
-        $configured = (string) config('services.digibee.monitor.playwright_path');
-
-        if ($configured !== '') {
-            return is_dir($configured) ? $configured : null;
-        }
-
-        $found = glob(rtrim((string) getenv('HOME'), '/') . '/.npm/_npx/*/node_modules/playwright', GLOB_ONLYDIR) ?: [];
-
-        return $found[0] ?? null;
-    }
-
-    /** WSL ships without libasound, which Chromium needs even to open a window. */
-    private function libraryPath(): ?string
-    {
-        $configured = (string) config('services.digibee.monitor.ld_library_path');
-        $fallback = rtrim((string) getenv('HOME'), '/') . '/.local/share/digibee-monitor/libs/usr/lib/x86_64-linux-gnu';
-        $path = $configured !== '' ? $configured : (is_dir($fallback) ? $fallback : null);
-
-        return $path === null ? null : implode(':', array_filter([$path, getenv('LD_LIBRARY_PATH') ?: null]));
     }
 }
