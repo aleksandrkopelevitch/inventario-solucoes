@@ -329,8 +329,9 @@ return [
 
         /*
         |----------------------------------------------------------------------
-        | Monitor — reading production execution logs (workstation, and the
-        | server's own session under `remote`)
+        | Monitor — reading production execution logs (workstation; the
+        | server's own session is sent from an admin's browser, "Sessão
+        | Digibee", and lives encrypted in `digibee_monitor_sessions`)
         |----------------------------------------------------------------------
         |
         | `digibee:logs` reads what the Monitor screen shows. No digibeectl
@@ -373,29 +374,6 @@ return [
             'playwright_path'    => env('DIGIBEE_MONITOR_PLAYWRIGHT', ''),
             'ld_library_path'    => env('DIGIBEE_MONITOR_LD_LIBRARY_PATH', ''),
             'login_wait_seconds' => 300,
-
-            /*
-            | The SERVER's sign-in ("Sessão Digibee", RunRemoteDigibeeSignIn) —
-            | the user's decision of 2026-11-06, reversing "never on the server"
-            | for this one path: a headless Chromium on the droplet opens the
-            | realm's SSO link and an admin drives it from the iSol screen. The
-            | captured session goes to `digibee_monitor_sessions`, encrypted.
-            | Its profile is separate from the workstation's (`profile_path`):
-            | it holds the SSO cookies the server signs in with again.
-            |
-            | `browsers_path` is where `envoy run chromium` installed the
-            | browser (PLAYWRIGHT_BROWSERS_PATH); empty means Playwright's own
-            | default under the running user's REAL home (~/.cache/ms-playwright),
-            | which is right locally — the job replaces HOME for Chromium, so it
-            | passes that path explicitly.
-            */
-            'remote' => [
-                'profile_path'  => storage_path('app/private/digibee-monitor/server-profile'),
-                'home_path'     => storage_path('app/private/digibee-monitor/server-home'),
-                'browsers_path' => env('DIGIBEE_MONITOR_BROWSERS_PATH', ''),
-                'node_binary'   => env('DIGIBEE_MONITOR_NODE', 'node'),
-                'wait_seconds'  => 300,
-            ],
         ],
     ],
 

@@ -10,8 +10,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * A Digibee web session the SERVER holds, captured by the remote sign-in on
- * the "Sessão Digibee" screen (`RunRemoteDigibeeSignIn`).
+ * A Digibee web session the SERVER holds, sent from an admin's own browser by
+ * the "Enviar sessão ao iSol" bookmarklet (`ImportDigibeeSession`).
  *
  * It is a person's whole Digibee role for ~24h — production deletes included —
  * which is why both headers are encrypted at rest, why nothing prints them, and
@@ -19,7 +19,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * The workstation keeps its own session in a 0600 file (`digibee:monitor:login`);
  * the two never mix.
  *
- * Rows are kept rather than overwritten: who signed in, and when, is the
+ * Rows are kept rather than overwritten: who sent it, and when, is the
  * record of whose identity the server has been reading Digibee with.
  */
 class DigibeeMonitorSession extends Model
@@ -64,7 +64,7 @@ class DigibeeMonitorSession extends Model
         return static::query()->unexpired()->latest('id')->first();
     }
 
-    /** Stores what the sign-in captured, dated by the token's own `exp`. */
+    /** Stores a session, dated by the token's own `exp`. */
     public static function capture(MonitorSession $session, ?User $user): self
     {
         $headers = $session->headers();

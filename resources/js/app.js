@@ -33,7 +33,7 @@ import * as catiChat from './modules/cati-chat.js'
 import * as mobileNav from './modules/mobile-nav.js'
 import * as solutionsSheet from './modules/solutions-sheet.js'
 import * as railScroll from './modules/rail-scroll.js'
-import * as remoteBrowser from './modules/remote-browser.js'
+import * as digibeeSessionImport from './modules/digibee-session-import.js'
 
 // Static images referenced from Blade with `Vite::asset('resources/img/…')`.
 // `eager` with `?url` on purpose: a plain (lazy) glob whose result nothing
@@ -74,7 +74,7 @@ window.globalModules = {
     "mobileNav"         : mobileNav,
     "solutionsSheet"    : solutionsSheet,
     "railScroll"        : railScroll,
-    "remoteBrowser"     : remoteBrowser,
+    "digibeeSessionImport": digibeeSessionImport,
 }
 
 /*------------------------------------------------

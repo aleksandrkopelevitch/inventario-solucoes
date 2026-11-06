@@ -48,15 +48,6 @@ return Application::configure(basePath: dirname(__DIR__))
         // already orders it after authentication.
         $middleware->appendToGroup('web', AuthenticateSession::class);
 
-        // What a person types into the server's sign-in browser ("Sessão
-        // Digibee") reaches the page exactly as typed: a lone space trimmed to
-        // nothing, or a password's edge whitespace, would be a different key.
-        // By PATH, not `routeIs()`: both are global middleware, which run
-        // before routing, so no route is known yet to ask about.
-        $typedIntoRemoteBrowser = fn (Request $request) => $request->is('digibee-session/sign-in/*/input');
-        $middleware->trimStrings(except: [$typedIntoRemoteBrowser]);
-        $middleware->convertEmptyStringsToNull(except: [$typedIntoRemoteBrowser]);
-
         // The MCP endpoint's whole stack, and the point of it is what is NOT
         // here: no session, no cookies, no CSRF, no `Authenticate`. The caller
         // is a program holding a bearer token, so a session it never had and a

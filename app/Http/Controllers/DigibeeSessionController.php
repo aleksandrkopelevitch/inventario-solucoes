@@ -2,28 +2,22 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\RemoteSignInStatus;
-use App\Http\Requests\CancelDigibeeSignInRequest;
-use App\Http\Requests\SendDigibeeSignInInputRequest;
-use App\Http\Requests\StartDigibeeSignInRequest;
-use App\Jobs\RunRemoteDigibeeSignIn;
+use App\Actions\Digibee\ImportDigibeeSession;
+use App\Http\Requests\ImportDigibeeSessionRequest;
 use App\Models\DigibeeMonitorSession;
-use App\Support\Digibee\Monitor\RemoteBrowser;
-use App\Support\Digibee\Monitor\RemoteSignIn;
-use App\View\Components\Digibee\SignInPanel;
+use App\Support\Digibee\Monitor\SessionBookmarklet;
+use App\View\Components\Digibee\SessionCard;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 
 /**
- * "Sessão Digibee": the server's Digibee session, and the sign-in that renews
- * it — a headless Chromium on the server (`RunRemoteDigibeeSignIn`) that an
- * admin drives from this screen, through the JPEG frames and the clicks and
- * keys this controller relays to the browser's loopback bridge.
+ * "Sessão Digibee": the Digibee session the server holds, and how it is
+ * renewed — an admin signs in to Digibee in their OWN browser and the
+ * "Enviar sessão ao iSol" bookmarklet hands the session to `import`.
  *
- * The sign-in is addressed by its id in every route, so a tab left open on an
- * old run can neither drive nor cancel the one somebody started after it.
+ * A browser on the server did this first (2026-11-06) and was removed the
+ * same day: Entra's Conditional Access refused the sign-in from the droplet,
+ * while the admin's own browser is a device it already trusts.
  */
 class DigibeeSessionController extends Controller
 {
@@ -31,88 +25,29 @@ class DigibeeSessionController extends Controller
     {
         $this->authorize('viewAny', DigibeeMonitorSession::class);
 
-        return view('digibee-session.index');
-    }
-
-    public function store(StartDigibeeSignInRequest $request): JsonResponse
-    {
-        $signIn = RemoteSignIn::begin($request->user()->id);
-
-        if ($signIn === null) {
-            return response()->json([
-                'type'           => 'warning',
-                'message'        => 'Já existe um login em andamento no servidor. Acompanhe por esta tela ou cancele-o.',
-                'updatableSlots' => [SignInPanel::slot()],
-            ]);
-        }
-
-        RunRemoteDigibeeSignIn::dispatch($signIn->id);
-
-        return response()->json(['updatableSlots' => [SignInPanel::slot()]]);
-    }
-
-    /**
-     * Polled by marker-poll.js with the status the screen is showing
-     * (`?seen=`): the panel is rendered only when the run moved on, so a tick
-     * while somebody types is one cache read.
-     */
-    public function status(Request $request, string $signIn): JsonResponse
-    {
-        $this->authorize('viewAny', DigibeeMonitorSession::class);
-
-        $current = RemoteSignIn::current();
-        $moved = $current === null
-            || $current->id !== $signIn
-            || $current->status->value !== $request->query('seen');
-
-        return response()->json($moved ? ['updatableSlots' => [SignInPanel::slot()]] : []);
-    }
-
-    /** The page the server's browser shows, as a JPEG; 204 while there is none. */
-    public function frame(string $signIn): Response
-    {
-        $this->authorize('viewAny', DigibeeMonitorSession::class);
-
-        $bytes = $this->browserFor($signIn)?->frame();
-
-        return $bytes === null
-            ? response()->noContent()
-            : response($bytes, 200, ['Content-Type' => 'image/jpeg', 'Cache-Control' => 'no-store, private']);
-    }
-
-    public function input(SendDigibeeSignInInputRequest $request, string $signIn): JsonResponse
-    {
-        $browser = $this->browserFor($signIn);
-
-        if ($browser === null) {
-            return response()->json(['type' => 'warning', 'message' => 'Este login já terminou.'], 409);
-        }
-
-        $browser->input($request->validated());
-
-        return response()->json(['ok' => true]);
-    }
-
-    public function destroy(CancelDigibeeSignInRequest $request, string $signIn): JsonResponse
-    {
-        $current = RemoteSignIn::current();
-
-        if ($current?->id === $signIn && $current->status->active()) {
-            $current->browser()?->quit();
-            $current->with(RemoteSignInStatus::Cancelled);
-        }
-
-        return response()->json([
-            'type'           => 'success',
-            'message'        => 'Login cancelado. O navegador do servidor foi fechado.',
-            'updatableSlots' => [SignInPanel::slot()],
+        return view('digibee-session.index', [
+            'bookmarklet' => SessionBookmarklet::href(route('digibee-session.import')),
         ]);
     }
 
-    private function browserFor(string $signIn): ?RemoteBrowser
+    /** The window the bookmarklet opens: it waits for the session and sends it to `store`. */
+    public function import(): View
     {
-        $current = RemoteSignIn::current();
+        $this->authorize('create', DigibeeMonitorSession::class);
 
-        return $current?->id === $signIn ? $current->browser() : null;
+        return view('digibee-session.import', [
+            'digibeeOrigin' => SessionBookmarklet::origin((string) config('services.digibee.monitor.app_url')),
+        ]);
+    }
+
+    public function store(ImportDigibeeSessionRequest $request, ImportDigibeeSession $import): JsonResponse
+    {
+        $session = $import->handle($request->validated('token'), $request->validated('apikey'), $request->user());
+
+        return response()->json([
+            'type'           => 'success',
+            'message'        => 'Sessão da Digibee guardada. Vale até ' . $session->expires_at->setTimezone(config('app.display_timezone'))->format('d/m H:i') . '.',
+            'updatableSlots' => [SessionCard::slot()],
+        ]);
     }
 }

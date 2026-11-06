@@ -26,11 +26,13 @@ class DigibeeMonitorSessionFactory extends Factory
         return $this->state(fn () => ['expires_at' => now()->subHour()]);
     }
 
-    /** An unsigned JWT carrying only `exp` — all MonitorSession ever reads from one. */
-    public static function jwt(int $exp): string
+    /** An unsigned JWT carrying `exp` and `realm` — all MonitorSession ever reads from one. */
+    public static function jwt(int $exp, ?string $realm = null): string
     {
         $encode = fn (array $part) => rtrim(strtr(base64_encode(json_encode($part)), '+/', '-_'), '=');
 
-        return $encode(['alg' => 'none']) . '.' . $encode(['exp' => $exp]) . '.signature';
+        return $encode(['alg' => 'none'])
+            . '.' . $encode(['exp' => $exp, 'realm' => $realm ?? config('services.digibee.monitor.realm')])
+            . '.signature';
     }
 }
