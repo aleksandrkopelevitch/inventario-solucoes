@@ -2,26 +2,28 @@
 
 namespace App\Support\Digibee\Monitor\Mcp;
 
-use App\Console\Commands\DigibeeLogsCommand;
 use App\Exceptions\DigibeeApiException;
 use App\Mcp\InvalidToolArguments;
 use App\Mcp\Support\Arguments;
 use App\Mcp\ToolResult;
 use App\Support\Digibee\Monitor\DigibeeMonitorClient;
-use App\Support\Digibee\Monitor\ExecutionCollector;
+use App\Support\Digibee\Monitor\LogQuery;
 use App\Support\Digibee\Monitor\LogRedactor;
-use App\Support\Digibee\Monitor\MonitorSession;
-use App\Support\Digibee\Monitor\MonitorTime;
+use App\Support\Digibee\Monitor\LogSearch;
 use App\Support\Digibee\Monitor\ReportDigest;
-use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\ConnectionException;
 
 /**
- * The four tools the local Digibee logs MCP server offers a chat client.
+ * The four Digibee log tools a chat client is offered — by the local stdio
+ * server (`digibee:mcp`) and, since 2026-11-06, by the iSol `/mcp` server too
+ * (`App\Mcp\Tools\Digibee\*`). The two differ only in what is injected:
+ * where the session comes from (`SessionSource`), where a report is kept
+ * (`ReportStore`), and whether a search must answer inside a request
+ * (`$searchSeconds`).
  *
  * Read-only by construction, not by promise: they reach Digibee only through
  * `DigibeeMonitorClient`, whose closed route list is reads; the one thing they
- * write is a report file on this workstation's private disk.
+ * write is a report.
  *
  * Every byte they answer passes through `LogRedactor::json()`. The answer goes
  * into a chat transcript — the same reason the terminal output is redacted,
@@ -45,11 +47,30 @@ final class LogsTools
     /** Characters of one execution's log answered by get_digibee_execution. */
     private const EXECUTION_MAX_CHARS = 120_000;
 
-    public function __construct(private readonly LogRedactor $redactor) {}
+    /** Pages per source a time-bounded search reads — 500 matches, a few seconds. */
+    private const BOUNDED_PAGES = 5;
+
+    /**
+     * `$searchSeconds` bounds a search by time instead of by count alone: the
+     * iSol server answers inside an HTTP request, so it opens executions for
+     * that long and names the rest. Null on the workstation, which has no
+     * request to outlive.
+     */
+    public function __construct(
+        private readonly LogRedactor $redactor,
+        private readonly SessionSource $sessions = new WorkstationSession,
+        private readonly ReportStore $reports = new FileReportStore,
+        private readonly ?int $searchSeconds = null,
+    ) {}
 
     /** @return list<array<string, mixed>> */
     public function describe(): array
     {
+        $where = $this->reports->where();
+        $bounded = $this->searchSeconds === null ? '' : "\n" . 'Aqui a busca abre execuções por até ~' . $this->searchSeconds
+            . ' s e lista as demais como não abertas; para um relatório completo (até ' . self::MAX_OPEN
+            . ' execuções), use a tela "Logs Digibee" do iSol.';
+
         $filters = [
             'pipeline'    => ['type' => 'string', 'description' => 'Nome EXATO da pipeline (ex.: evt-send-estoque-vtex). Opcional.'],
             'term'        => ['type' => 'string', 'description' => 'Texto a procurar: um pedido, um SKU, um CNPJ, uma mensagem de erro. Opcional.'],
@@ -74,14 +95,14 @@ final class LogsTools
             $this->tool(
                 'search_digibee_logs',
                 'Buscar e coletar logs Digibee',
-                <<<'TXT'
+                <<<TXT
                 Busca execuções de pipelines Digibee por termo, pipeline e período, ABRE TODAS as execuções
                 encontradas (o log inteiro de cada uma) e devolve um resumo agregado: execuções por pipeline e
                 versão, status, duração (mín/mediana/p95/máx), mensagens de ERROR/WARN agrupadas com contagem,
                 chamadas HTTP por destino e status, e uma linha do tempo com as linhas relevantes de cada execução.
-                O relatório completo fica salvo nesta máquina; o resultado traz o "report" para consultar com
+                O relatório completo fica salvo {$where}; o resultado traz o "report" para consultar com
                 query_digibee_report. Abre ~5 execuções por segundo; acima de max_executions, as demais são
-                listadas e não abertas. Sem term, coleta todas as execuções da pipeline no período.
+                listadas e não abertas. Sem term, coleta todas as execuções da pipeline no período.{$bounded}
                 TXT,
                 $filters + [
                     'max_executions' => ['type' => 'integer', 'minimum' => 1, 'maximum' => self::MAX_OPEN, 'description' => 'Quantas execuções abrir no máximo. Padrão ' . self::DEFAULT_OPEN . ' (~45 s); até ' . self::MAX_OPEN . ' (~3,5 min).'],
@@ -134,7 +155,7 @@ final class LogsTools
                 default                    => throw new InvalidToolArguments("Ferramenta \"{$name}\" não existe."),
             };
         } catch (MissingSession) {
-            return ToolResult::failure('A sessão da Digibee não existe ou expirou (dura ~24h). ' . self::LOGIN_HOWTO);
+            return ToolResult::failure('A sessão da Digibee não existe ou expirou (dura ~24h). ' . $this->sessions->renewal());
         } catch (\InvalidArgumentException $e) {
             if ($e instanceof InvalidToolArguments) {
                 throw $e;
@@ -146,7 +167,7 @@ final class LogsTools
             // decision: a session that died mid-day answers 401, sometimes 403,
             // sometimes a dropped connection — and signing in again is cheap,
             // while a model guessing which of those it was is not.
-            return ToolResult::failure('Não consegui falar com a Digibee: ' . $this->redactor->redact($e->getMessage()) . ' ' . self::LOGIN_HOWTO);
+            return ToolResult::failure('Não consegui falar com a Digibee: ' . $this->redactor->redact($e->getMessage()) . ' ' . $this->sessions->renewal());
         }
     }
 
@@ -157,100 +178,56 @@ final class LogsTools
 
     private function count(Arguments $args): ToolResult
     {
-        [$client, $environment, $from, $to] = $this->context($args);
-        $pipeline = $args->string('pipeline');
-        $term = $args->string('term');
+        [$search, $query] = $this->context($args);
 
-        $answer = ['window' => $this->windowOf($from, $to), 'environment' => $environment];
-
-        foreach ($this->sources($args) as $source => $inLines) {
-            $data = $inLines
-                ? $client->pipelineLogs($environment, $from, $to, 1, $pipeline, $term)
-                : $client->executions($environment, $from, $to, 1, $pipeline, $term);
-
-            $answer[$source] = $this->countOf($data['total'] ?? null);
-        }
-
-        return $this->json($answer);
+        return $this->json(['window' => $query->window(), 'environment' => $query->environment] + $search->count($query));
     }
 
     private function search(Arguments $args): ToolResult
     {
-        [$client, $environment, $from, $to] = $this->context($args);
-        $pipeline = $args->string('pipeline');
-        $term = $args->string('term');
+        [$search, $query] = $this->context($args);
         $max = $args->int('max_executions', self::DEFAULT_OPEN, 1, self::MAX_OPEN);
 
-        if ($pipeline === null && $term === null) {
+        if (! $query->narrowed()) {
             throw new \InvalidArgumentException('Informe ao menos uma pipeline ou um termo: sem nenhum dos dois, a busca é o realm inteiro, milhares de execuções por minuto.');
         }
 
-        $collector = new ExecutionCollector($client);
-        $coverage = [];
-        $found = [];
+        $report = $this->searchSeconds === null
+            ? $search->collect($query, $max)
+            : $search->collect($query, $max, self::BOUNDED_PAGES, now()->addSeconds($this->searchSeconds)->toImmutable());
 
-        foreach ($this->sources($args) as $source => $inLines) {
-            $search = $collector->find($environment, $from, $to, $pipeline, $term, $inLines);
+        $coverage = $report['coverage'];
+        $opened = count($report['executions']);
+        $notOpened = count($report['not_opened']);
 
-            $coverage[$source] = [
-                'matches'        => $search['matches'],
-                'platform_total' => $this->countOf($search['total']),
-                'more_in_window' => $search['has_next'],
-                'executions'     => count($search['found']),
-            ];
-
-            // The same execution found through both doors is one execution:
-            // payload fields from one, matched lines from the other.
-            foreach ($search['found'] as $key => $execution) {
-                $found[$key] = isset($found[$key]) ? $found[$key] + $execution : $execution;
-            }
-        }
-
-        $opened = $collector->open($environment, $found, $max);
-
-        $report = [
-            'query' => array_filter([
-                'environment' => $environment,
-                'searched'    => implode(' + ', array_keys($coverage)),
-                'pipeline'    => $pipeline,
-                'term'        => $term,
-                'from'        => MonitorTime::iso($from->toIso8601String()),
-                'to'          => MonitorTime::iso($to->toIso8601String()),
-                'timezone'    => MonitorTime::timezone(),
-            ]),
-            'coverage'         => $coverage,
-            'executions_found' => count($found),
-            'not_opened'       => $opened['not_opened'],
-            'unreadable'       => $opened['unreadable'],
-            'executions'       => $opened['executions'],
-        ];
-
-        $name = $this->reportName($pipeline, $term);
-        $path = DigibeeLogsCommand::reportPath($name);
-        file_put_contents($path, $this->redactor->json($report));
-        chmod($path, 0600);
+        $name = $this->reports->save($this->redactor->json($report), $query, [
+            'executions_found'  => $report['executions_found'],
+            'executions_opened' => $opened,
+        ]);
 
         return $this->json([
             'report'   => $name,
             'query'    => $report['query'],
             'coverage' => $coverage + array_filter([
-                'executions_found'  => count($found),
-                'executions_opened' => count($opened['executions']),
-                'not_opened'        => count($opened['not_opened']) ?: null,
-                'not_opened_note'   => $opened['not_opened'] !== []
-                    ? 'Passou de max_executions: as execuções mais antigas do período não foram abertas. Divida o período ou aumente max_executions.'
+                'executions_found'  => $report['executions_found'],
+                'executions_opened' => $opened,
+                'not_opened'        => $notOpened ?: null,
+                'not_opened_note'   => $notOpened > 0
+                    ? ($this->searchSeconds === null
+                        ? 'Passou de max_executions: as execuções mais antigas do período não foram abertas. Divida o período ou aumente max_executions.'
+                        : 'Nem todas couberam no tempo de uma chamada: as demais foram listadas e não abertas. Divida o período, ou gere o relatório completo na tela "Logs Digibee" do iSol.')
                     : null,
-                'unreadable' => count($opened['unreadable']) ?: null,
+                'unreadable' => count($report['unreadable']) ?: null,
             ]),
-            'note' => ($coverage['payloads']['more_in_window'] ?? false) || ($coverage['lines']['more_in_window'] ?? false)
-                ? 'Há mais resultados no período do que uma busca alcança (2000 por fonte). Divida o período em intervalos menores.'
+            'note' => ($coverage['payloads']['more_in_window'] ?? false) || ($coverage['lines']['more_in_window'] ?? false) || ($coverage['executions']['more_in_window'] ?? false)
+                ? 'Há mais resultados no período do que uma busca alcança. Divida o período em intervalos menores.'
                 : null,
-        ] + ReportDigest::of($opened['executions'], $term));
+        ] + ReportDigest::of($report['executions'], $query->term));
     }
 
     private function query(Arguments $args): ToolResult
     {
-        $report = $this->readReport($args->required('report'));
+        $report = $this->reports->load($args->required('report'));
         $key = $args->string('key');
         $level = $args->string('level');
         $text = $args->string('text');
@@ -298,19 +275,13 @@ final class LogsTools
     {
         $environment = $this->environment($args);
         $key = $args->required('key');
-        $rows = array_reverse($this->client()->executionLogs($environment, $key));
+        $execution = (new LogSearch($this->client()))->execution($environment, $key);
 
-        if ($rows === []) {
+        if ($execution === null) {
             return ToolResult::failure("Nenhuma linha de log para a execução {$key} em {$environment} — a chave está errada ou o log já expirou (10 dias em prod, 3 em test).");
         }
 
-        $lines = array_map(fn (array $row) => [
-            'at'      => MonitorTime::iso($row['timestamp'] ?? null),
-            'level'   => $row['logLevel'] ?? null,
-            'message' => $row['logMessage'] ?? null,
-        ], $rows);
-
-        $body = $this->redactor->json(['key' => $key, 'pipeline' => $rows[0]['pipelineName'] ?? null, 'environment' => $environment, 'lines' => $lines]);
+        $body = $this->redactor->json($execution);
 
         if (mb_strlen($body) > self::EXECUTION_MAX_CHARS) {
             $body = mb_substr($body, 0, self::EXECUTION_MAX_CHARS) . "\n… (cortado: o log desta execução passa de " . self::EXECUTION_MAX_CHARS . ' caracteres)';
@@ -320,32 +291,43 @@ final class LogsTools
     }
 
     /**
-     * The session, the client and the window, read before any request — a
-     * malformed `since` is refused before Digibee hears a thing.
+     * The search and the query, read before any request — a malformed
+     * `since` is refused before Digibee hears a thing.
      *
-     * @return array{0: DigibeeMonitorClient, 1: string, 2: CarbonImmutable, 3: CarbonImmutable}
+     * @return array{0: LogSearch, 1: LogQuery}
      */
     private function context(Arguments $args): array
     {
-        $environment = $this->environment($args);
-        [$from, $to] = MonitorTime::window($args->string('since', '1d'), $args->string('until'));
+        $query = LogQuery::make(
+            $this->environment($args),
+            $args->string('since', '1d'),
+            $args->string('until'),
+            $args->string('pipeline'),
+            $args->string('term'),
+            $this->where($args),
+        );
 
-        return [$this->client(), $environment, $from, $to];
+        return [new LogSearch($this->client()), $query];
     }
 
     /**
-     * Read from disk on every call: a person signing in again mid-conversation
-     * is picked up by the next call, with nothing to restart.
+     * Re-read on every call: a person signing in again mid-conversation is
+     * picked up by the next call, with nothing to restart.
      */
     private function client(): DigibeeMonitorClient
     {
-        $session = MonitorSession::fromFile((string) config('services.digibee.monitor.session_path'));
+        return new DigibeeMonitorClient($this->sessions->session() ?? throw new MissingSession);
+    }
 
-        if ($session === null || $session->expired()) {
-            throw new MissingSession;
+    private function where(Arguments $args): string
+    {
+        $where = $args->string('where', 'both');
+
+        if (! in_array($where, LogQuery::WHERE, true)) {
+            throw new InvalidToolArguments('where deve ser "both", "lines" ou "payloads".');
         }
 
-        return new DigibeeMonitorClient($session);
+        return $where;
     }
 
     private function environment(Arguments $args): string
@@ -357,73 +339,6 @@ final class LogsTools
         }
 
         return $environment;
-    }
-
-    /**
-     * Which routes to ask: with a term, where it may appear; without one,
-     * the executions of the window.
-     *
-     * @return array<string, bool> source name => searches log lines
-     */
-    private function sources(Arguments $args): array
-    {
-        if ($args->string('term') === null) {
-            return ['executions' => false];
-        }
-
-        return match ($args->string('where', 'both')) {
-            'lines'    => ['lines' => true],
-            'payloads' => ['payloads' => false],
-            default    => ['lines' => true, 'payloads' => false],
-        };
-    }
-
-    private function countOf(mixed $total): int|string|null
-    {
-        if (! is_int($total)) {
-            return null;
-        }
-
-        return $total >= ExecutionCollector::CAPPED_TOTAL ? ExecutionCollector::CAPPED_TOTAL . '+' : $total;
-    }
-
-    /** @return array<string, string> */
-    private function windowOf(CarbonImmutable $from, CarbonImmutable $to): array
-    {
-        return ['from' => MonitorTime::display($from), 'to' => MonitorTime::display($to), 'timezone' => MonitorTime::timezone()];
-    }
-
-    /**
-     * Named after the pipeline and a HASH of the term: the term may be a CPF,
-     * and a file name is read by more things than its contents are.
-     */
-    private function reportName(?string $pipeline, ?string $term): string
-    {
-        $slug = preg_replace('/[^a-z0-9-]+/', '-', strtolower($pipeline ?? 'todas')) ?: 'todas';
-
-        return 'mcp-' . now()->format('Ymd-His') . '-' . trim(substr($slug, 0, 40), '-')
-            . ($term !== null ? '-' . substr(sha1($term), 0, 8) : '') . '.json';
-    }
-
-    /**
-     * A report by its bare file name, from the reports directory only — the
-     * name comes from a chat, and a path in it would read any file this user can.
-     *
-     * @return array<string, mixed>
-     */
-    private function readReport(string $name): array
-    {
-        if (preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]*\.json$/', $name) !== 1 || str_contains($name, '..')) {
-            throw new InvalidToolArguments('report deve ser o nome devolvido por search_digibee_logs (ex.: mcp-20261104-101500-evt-send-estoque-vtex.json).');
-        }
-
-        $path = DigibeeLogsCommand::reportPath($name);
-
-        if (! is_file($path)) {
-            throw new \InvalidArgumentException("Relatório \"{$name}\" não encontrado nesta máquina.");
-        }
-
-        return (array) json_decode((string) file_get_contents($path), true);
     }
 
     /**

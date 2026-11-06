@@ -6,6 +6,7 @@ use App\Enums\AccessModule;
 use App\Enums\UserRole;
 use App\Models\Company;
 use App\Models\Diagram;
+use App\Models\DigibeeLogReport;
 use App\Models\DocumentationChat;
 use App\Models\DocumentationPage;
 use App\Models\FlowspecChat;
@@ -63,6 +64,7 @@ function routeModules(): array
         $map[$prefix] = AccessModule::Documentation;
     }
     $map['flowspec.'] = AccessModule::Integrations;
+    $map['digibee-logs.'] = AccessModule::Integrations;
     $map['submissions.'] = AccessModule::Committee;
 
     return $map;
@@ -104,6 +106,8 @@ function crawlFixtures(): array
         'subdiagram' => SubmissionDiagram::factory()->for($submission)->create(),
         'source'     => SubmissionSource::factory()->for($submission)->create(),
         'group'      => 'x',
+        'report'     => DigibeeLogReport::factory()->create(),
+        'key'        => '88eec2c1-36fa-457d-9d27-f4a9b7355837',
     ];
 }
 

@@ -190,6 +190,13 @@ class AppServiceProvider extends ServiceProvider
         // a real client, which registers once per person per product and then
         // holds the id forever.
         RateLimiter::for('mcp-register', fn (Request $request) => Limit::perMinute(10)->by((string) $request->ip()));
+
+        // The "Logs Digibee" screen: every search reaches Digibee as the one
+        // account whose session the server holds, so one person's burst is
+        // that account's burst. The `/mcp` tools hold the same line in
+        // App\Mcp\Tools\Digibee\DigibeeLogTool::PER_MINUTE.
+        RateLimiter::for('digibee-logs', fn (Request $request) => Limit::perMinute(20)->by('digibee-logs-user:' . $request->user()?->getKey())
+            ->response(fn () => response()->json(['type' => 'warning', 'message' => 'Muitas buscas nos logs da Digibee em pouco tempo. Espere um minuto.'], 429)));
     }
 
     /**

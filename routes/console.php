@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\DigibeeLogLookup;
+use App\Models\DigibeeLogReport;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -56,6 +58,25 @@ Schedule::command('digibee:docs:import')
 */
 Schedule::command('documentation:search-warm')
     ->dailyAt('04:00')
+    ->onOneServer()
+    ->withoutOverlapping()
+    ->runInBackground();
+
+/*
+|--------------------------------------------------------------------------
+| Digibee logs read through iSol
+|--------------------------------------------------------------------------
+|
+| Collected reports (and their redacted files) and the who-asked-what record
+| are kept as long as Digibee keeps production logs — ten days. A report that
+| outlives its source is a copy nobody can check against it.
+|
+*/
+Schedule::command('model:prune', ['--model' => [
+    DigibeeLogReport::class,
+    DigibeeLogLookup::class,
+]])
+    ->dailyAt('04:30')
     ->onOneServer()
     ->withoutOverlapping()
     ->runInBackground();

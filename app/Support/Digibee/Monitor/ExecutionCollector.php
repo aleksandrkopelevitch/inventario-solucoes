@@ -65,6 +65,9 @@ final class ExecutionCollector
                 'key'      => $key,
                 'pipeline' => $attributes['pipeline.name'] ?? null,
                 'version'  => $attributes['pipeline.version'] ?? null,
+                // When it was found: the execution's own timestamp, or the
+                // first matching line's — what a list of matches sorts by.
+                'at' => MonitorTime::iso($record['timestamp'] ?? null),
             ] + ($inLines ? ['matched_lines' => []] : [
                 'status'           => self::statusCode($attributes),
                 'elapsed_ms'       => $attributes['execution.elapsed_time_ms'] ?? null,
