@@ -332,16 +332,13 @@ Route::middleware('auth')->group(function () {
     Route::post('mcp-tokens', [McpTokenController::class, 'store'])->name('mcp-tokens.store');
     Route::delete('mcp-tokens/{mcpToken}', [McpTokenController::class, 'destroy'])->name('mcp-tokens.destroy');
 
-    // The server's Digibee session and the remote sign-in that renews it:
-    // a headless Chromium on the server that an admin drives from this screen
-    // (`DigibeeMonitorSessionPolicy`, admin only — it is a credential). A run
-    // is addressed by its id, so a stale tab cannot drive a newer one.
+    // The server's Digibee session (`DigibeeMonitorSessionPolicy`, admin only
+    // — it is a credential). Renewed from the admin's own browser: the
+    // "Enviar sessão ao iSol" bookmarklet opens `import`, which hands what it
+    // receives to `store`.
     Route::get('digibee-session', [DigibeeSessionController::class, 'index'])->name('digibee-session.index');
-    Route::post('digibee-session/sign-in', [DigibeeSessionController::class, 'store'])->name('digibee-session.sign-in.store');
-    Route::get('digibee-session/sign-in/{signIn}/status', [DigibeeSessionController::class, 'status'])->whereUuid('signIn')->name('digibee-session.sign-in.status');
-    Route::get('digibee-session/sign-in/{signIn}/frame', [DigibeeSessionController::class, 'frame'])->whereUuid('signIn')->name('digibee-session.sign-in.frame');
-    Route::post('digibee-session/sign-in/{signIn}/input', [DigibeeSessionController::class, 'input'])->whereUuid('signIn')->name('digibee-session.sign-in.input');
-    Route::delete('digibee-session/sign-in/{signIn}', [DigibeeSessionController::class, 'destroy'])->whereUuid('signIn')->name('digibee-session.sign-in.destroy');
+    Route::get('digibee-session/import', [DigibeeSessionController::class, 'import'])->name('digibee-session.import');
+    Route::post('digibee-session', [DigibeeSessionController::class, 'store'])->name('digibee-session.store');
 
     Route::get('map', [SolutionMapController::class, 'index'])->name('solutions.map');
     Route::get('map/data', [SolutionMapController::class, 'data'])->name('solutions.map.data');

@@ -4,26 +4,17 @@ namespace App\Support\Digibee\Monitor;
 
 /**
  * Where the pieces a Digibee sign-in browser needs live on THIS machine — the
- * workstation login (`digibee:monitor:login`) and the server's remote one
- * (`RunRemoteDigibeeSignIn`) ask the same questions.
+ * workstation login (`digibee:monitor:login`) asks.
  */
 final class BrowserRuntime
 {
-    /**
-     * The Playwright package to import: configured, else the project's own
-     * `playwright-core` (a pinned devDependency since the server signs in
-     * too), else the npx cache the workstation used before that.
-     */
+    /** The Playwright package to import: configured, else the npx cache. */
     public static function playwrightPath(): ?string
     {
         $configured = (string) config('services.digibee.monitor.playwright_path');
 
         if ($configured !== '') {
             return is_dir($configured) ? $configured : null;
-        }
-
-        if (is_dir(base_path('node_modules/playwright-core'))) {
-            return base_path('node_modules/playwright-core');
         }
 
         $found = glob(rtrim((string) getenv('HOME'), '/') . '/.npm/_npx/*/node_modules/playwright', GLOB_ONLYDIR) ?: [];

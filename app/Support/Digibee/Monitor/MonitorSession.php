@@ -51,6 +51,21 @@ final class MonitorSession
      */
     public function expiresAt(): ?CarbonImmutable
     {
+        $exp = $this->claim('exp');
+
+        return is_int($exp) ? CarbonImmutable::createFromTimestamp($exp) : null;
+    }
+
+    /** The realm the token was issued for — the same unverified read as `expiresAt()`. */
+    public function realm(): ?string
+    {
+        $realm = $this->claim('realm');
+
+        return is_string($realm) ? $realm : null;
+    }
+
+    private function claim(string $name): mixed
+    {
         $parts = explode('.', preg_replace('/^Bearer\s+/i', '', $this->authorization));
 
         if (count($parts) !== 3) {
@@ -59,7 +74,7 @@ final class MonitorSession
 
         $payload = json_decode((string) base64_decode(strtr($parts[1], '-_', '+/'), true), true);
 
-        return is_int($payload['exp'] ?? null) ? CarbonImmutable::createFromTimestamp($payload['exp']) : null;
+        return is_array($payload) ? ($payload[$name] ?? null) : null;
     }
 
     /** A minute of margin, so a session never expires halfway through a run. */
