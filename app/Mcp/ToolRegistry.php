@@ -31,6 +31,10 @@ class ToolRegistry
         Tools\GetPerson::class,
         Tools\SearchCompanies::class,
         Tools\GetCompany::class,
+        Tools\Digibee\CountDigibeeExecutions::class,
+        Tools\Digibee\SearchDigibeeLogs::class,
+        Tools\Digibee\QueryDigibeeReport::class,
+        Tools\Digibee\GetDigibeeExecution::class,
     ];
 
     public function __construct(private readonly Container $container) {}
@@ -79,8 +83,9 @@ class ToolRegistry
      * `annotations.readOnlyHint` is what lets a client show the connector as
      * safe and skip a per-call confirmation — worth setting precisely because
      * every tool here really is read-only (see `Tool`). `openWorldHint` is false
-     * for the same honesty: these tools reach this app's database and nothing
-     * beyond it.
+     * for the same honesty — most tools reach this app's database and nothing
+     * beyond it — except for a tool that says otherwise (`ReachesOutside`): the
+     * Digibee logs tools read the platform live.
      *
      * @return list<array<string, mixed>>
      */
@@ -96,7 +101,7 @@ class ToolRegistry
                 'readOnlyHint'    => true,
                 'destructiveHint' => false,
                 'idempotentHint'  => true,
-                'openWorldHint'   => false,
+                'openWorldHint'   => $tool instanceof ReachesOutside,
             ],
         ], $this->all($actor));
     }

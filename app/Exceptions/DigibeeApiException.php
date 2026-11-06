@@ -3,6 +3,8 @@
 namespace App\Exceptions;
 
 use Illuminate\Http\Client\Response;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use RuntimeException;
 
 /**
@@ -22,6 +24,25 @@ use RuntimeException;
  */
 class DigibeeApiException extends RuntimeException
 {
+    /**
+     * On the "Logs Digibee" screen a failure reaches a person, not a log
+     * reader: a short PT-BR sentence instead of the generic error, with no
+     * platform detail (these messages name routes and permissions). Anywhere
+     * else, the default handling, unchanged.
+     */
+    public function render(Request $request): JsonResponse|false
+    {
+        if (! $request->routeIs('digibee-logs.*') || ! $request->wantsJson()) {
+            return false;
+        }
+
+        return response()->json([
+            'type'    => 'warning',
+            'title'   => 'A Digibee não respondeu',
+            'message' => 'A Digibee recusou ou não respondeu à busca. Tente de novo; se repetir, a sessão do iSol pode ter expirado e precisa ser renovada por um administrador.',
+        ], 502);
+    }
+
     public static function missingCredentials(string $missing): self
     {
         return new self(

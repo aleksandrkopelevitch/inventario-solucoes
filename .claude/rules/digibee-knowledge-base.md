@@ -7,7 +7,12 @@ paths:
   - "app/Console/Commands/*Pipeline*.php"
   - "database/data/digibee_*.json"
   - "app/Http/Controllers/DigibeeSessionController.php"
+  - "app/Http/Controllers/DigibeeLogController.php"
   - "app/Models/DigibeeMonitorSession.php"
+  - "app/Models/DigibeeLog*.php"
+  - "app/Jobs/CollectDigibeeLogReport.php"
+  - "app/Mcp/Tools/Digibee/**"
+  - "resources/views/digibee-logs/**"
   - "resources/views/digibee-session/**"
   - "resources/views/components/digibee/**"
   - "resources/js/modules/digibee-session-import.js"
@@ -230,9 +235,47 @@ accept the droplet.
   aborted the code trade, which is why every workstation sign-in timed out
   while the window looked signed in (fixed 2026-11-05).
 
-Holding the session is all this does so far. READING with it (a search screen,
-the iSol `/mcp`) is the next phase, and until then nothing on the server calls
-Digibee except the one check at import.
+#### Reading with it — "Logs Digibee" and the iSol `/mcp` tools
+
+Who: the **Integrations** module, any level (`DigibeeLogReportPolicy`; the
+user's call, 2026-11-06). Searching and collecting are reads, so a Leitor may.
+Reports are visible to every account that reads the module, like the
+Especialista's conversations.
+
+**One core, three surfaces.** `LogQuery` (one question, its window fixed once)
+and `LogSearch` (count / find / collect / one execution) are what the local
+`digibee:mcp`, the iSol `/mcp` tools and the screen all call. `LogsTools` is
+shared by BOTH MCP servers; what differs is injected: `SessionSource`
+(`WorkstationSession` → the 0600 file and the "run digibee:monitor:login"
+instruction; `ServerSession` → the stored row and "an admin renews it at
+/digibee-session"), `ReportStore` (`FileReportStore` → workstation files;
+`ServerReportStore` → a `DigibeeLogReport`, named by uuid, which then also
+opens on the screen) and `$searchSeconds`.
+
+- **The `/mcp` search is bounded by TIME** (`DigibeeLogTool::SEARCH_SECONDS`,
+  30 s, at most 5 pages per source): it answers inside an HTTP request and the
+  droplet's PHP/nginx timeouts are not ours to assume. It opens in rounds of 25
+  and names the rest `not_opened`, pointing at the screen for the full report.
+  `allowTime()` only RAISES an existing `max_execution_time`: where there is
+  none (CLI, worker, tests), `set_time_limit()` would IMPOSE one on the whole
+  process, and that is how it first killed the test suite at 90 s.
+- **The screen**: "Buscar" lists matches WITHOUT opening them (one page of 100
+  per source, inside the request), each row opening its whole log in the side
+  panel; "Gerar relatório com todas" queues `CollectDigibeeLogReport` (up to
+  1000 executions, `$timeout` 540, one report in flight at a time so the
+  Especialista's replies never wait behind log exports; stale after 15 min).
+  Report files are written redacted to the private disk.
+- **Every read reaches Digibee as one account**, so: each one is recorded with
+  who asked (`DigibeeLogLookup`, screen and `/mcp`), and both are rate-limited
+  per person (`digibee-logs` limiter, 20/min; the tools' `PER_MINUTE`).
+- **A missing session is the admins' problem, and they are told**:
+  `ServerSession` e-mails every admin (`DigibeeSessionExpiredMail`, queued) at
+  most once a day per lapsed session, and the screen and the model both say an
+  admin renews it — never the workstation instruction.
+- A `DigibeeApiException` on a `digibee-logs.*` JSON request renders a PT-BR
+  502 itself (no try/catch in the controller); elsewhere it keeps the default.
+- Reports, their files and the lookups are pruned after 10 days (`model:prune`,
+  daily), the platform's own production retention.
 
 #### `digibee:mcp` — the same reads for a chat client, on stdio, local only
 

@@ -4,6 +4,7 @@ use App\Enums\AccessLevel;
 use App\Enums\AccessModule;
 use App\Enums\UserRole;
 use App\Mcp\OAuth;
+use App\Mcp\ToolRegistry;
 use App\Models\Diagram;
 use App\Models\McpToken;
 use App\Models\Solution;
@@ -180,7 +181,7 @@ it('keeps a minted token on the full read, since it is not a tier', function () 
         'jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/list',
     ], ['Authorization' => 'Bearer ' . $plain])->assertOk()->json('result.tools'))->pluck('name');
 
-    expect($tools)->toHaveCount(12);
+    expect($tools)->toHaveCount(count(ToolRegistry::TOOLS));
 });
 
 /* ------------------------------------------------------------------ */

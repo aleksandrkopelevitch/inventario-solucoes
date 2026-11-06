@@ -23,7 +23,14 @@ paths:
 
 `POST /mcp` lets Claude, ChatGPT and Gemini read this inventory: soluções,
 diagramas, pessoas, empresas and the published documentation, as twelve
-read-only tools (`App\Mcp\ToolRegistry`). It is the app's one non-browser
+read-only tools (`App\Mcp\ToolRegistry`) — plus, since 2026-11-06, the four
+Digibee logs tools (`App\Mcp\Tools\Digibee\*`, Integrations module), which
+are the ONE exception to "this app's database and nothing beyond it": they
+read the platform live with the session an admin sent, so they implement
+`App\Mcp\ReachesOutside` and are described with `openWorldHint: true`. Their
+rules (time-bounded search, who-asked record, rate limit, renewal message)
+live in `.claude/rules/digibee-knowledge-base.md`. Never hard-code the tool
+count in a test: count `ToolRegistry::TOOLS`. It is the app's one non-browser
 surface — `routes/mcp.php`, the `mcp` middleware group, **no session, no CSRF,
 no `web` middleware** — and it is deliberately small: `App\Mcp\McpServer` speaks the four
 methods every client actually sends (`initialize`, `ping`, `tools/list`,

@@ -32,6 +32,7 @@
             ['route' => 'diagrams.index', 'label' => 'Diagramas', 'icon' => 'share', 'active' => 'diagrams.*', 'can' => 'viewAny', 'canModel' => \App\Models\Diagram::class],
             ['route' => 'solutions.map', 'label' => 'Mapa do ecossistema', 'icon' => 'globe-alt', 'active' => 'solutions.map'],
             ['route' => 'flowspec.index', 'label' => 'Especialista em Integrações', 'icon' => 'cpu-chip', 'active' => 'flowspec.*', 'can' => 'viewAny', 'canModel' => \App\Models\FlowspecChat::class],
+            ['route' => 'digibee-logs.index', 'label' => 'Logs Digibee', 'icon' => 'document-magnifying-glass', 'active' => 'digibee-logs.*', 'can' => 'viewAny', 'canModel' => \App\Models\DigibeeLogReport::class],
             // Two entries, because they are two audiences. Connecting a chat
             // client is ungated — any account does it for itself
             // (App\Mcp\Actor). Minting a TOKEN is

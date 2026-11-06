@@ -9,6 +9,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\DiagramController;
 use App\Http\Controllers\DiagramPictureController;
+use App\Http\Controllers\DigibeeLogController;
 use App\Http\Controllers\DigibeeSessionController;
 use App\Http\Controllers\DocumentationHubController;
 use App\Http\Controllers\FlowspecAttachmentController;
@@ -339,6 +340,18 @@ Route::middleware('auth')->group(function () {
     Route::get('digibee-session', [DigibeeSessionController::class, 'index'])->name('digibee-session.index');
     Route::get('digibee-session/import', [DigibeeSessionController::class, 'import'])->name('digibee-session.import');
     Route::post('digibee-session', [DigibeeSessionController::class, 'store'])->name('digibee-session.store');
+
+    // Reading the Digibee logs with that session — the Integrations module
+    // (`DigibeeLogReportPolicy`). The searches reach Digibee as one account,
+    // so they are rate-limited per person (`digibee-logs`).
+    Route::get('digibee-logs', [DigibeeLogController::class, 'index'])->name('digibee-logs.index');
+    Route::post('digibee-logs/search', [DigibeeLogController::class, 'search'])->middleware('throttle:digibee-logs')->name('digibee-logs.search');
+    Route::get('digibee-logs/executions/{key}', [DigibeeLogController::class, 'execution'])->middleware('throttle:digibee-logs')
+        ->where('key', '[A-Za-z0-9-]{8,64}')->name('digibee-logs.executions.show');
+    Route::post('digibee-logs/reports', [DigibeeLogController::class, 'storeReport'])->middleware('throttle:digibee-logs')->name('digibee-logs.reports.store');
+    Route::get('digibee-logs/reports/{report}', [DigibeeLogController::class, 'show'])->name('digibee-logs.reports.show');
+    Route::get('digibee-logs/reports/{report}/status', [DigibeeLogController::class, 'status'])->name('digibee-logs.reports.status');
+    Route::get('digibee-logs/reports/{report}/download', [DigibeeLogController::class, 'download'])->name('digibee-logs.reports.download');
 
     Route::get('map', [SolutionMapController::class, 'index'])->name('solutions.map');
     Route::get('map/data', [SolutionMapController::class, 'data'])->name('solutions.map.data');
