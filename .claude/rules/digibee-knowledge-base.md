@@ -282,9 +282,10 @@ opens on the screen) and `$searchSeconds`.
 Claude Desktop on Windows starts `wsl.exe -d Ubuntu-24.04 --cd <repo> php
 artisan digibee:mcp`; `LogsMcpServer` speaks newline-delimited JSON-RPC on
 stdin/stdout (reusing `App\Mcp\JsonRpc`/`ToolResult`/`Arguments`, not the iSol
-server, which is HTTP and per-`Actor`). It is NOT a tool on the iSol `/mcp`:
-the session is a person's whole role and its sign-in needs their browser, so
-it stays on their machine. Four tools (`LogsTools`): count (no opening), search
+server, which is HTTP and per-`Actor`). It reads with the WORKSTATION session —
+a person's whole role, whose sign-in needs their browser — so that session
+stays on their machine; the iSol `/mcp` serves the same four tools with the
+server's session instead (above). Four tools (`LogsTools`): count (no opening), search
 (collects everything, saves the report, answers a `ReportDigest` — aggregates
 plus a timeline capped at 60, since a chat has no jq), query a saved report by
 its bare name (a path in it is refused), and one execution's log.
