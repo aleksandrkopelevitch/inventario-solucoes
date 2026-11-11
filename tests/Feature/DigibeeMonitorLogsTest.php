@@ -390,14 +390,30 @@ it('masks keys inside JSON held in a JSON string, and numeric values', function 
 });
 
 it('stays linear on the long blobs production payloads carry', function () {
-    // A payload with a few hundred KB of base64 and no `@` — the shape that
-    // made an unanchored e-mail rule quadratic.
-    $blob = str_repeat(base64_encode(random_bytes(3000)), 100);
+    // One unbroken run with no `@` — the shape a rule restarting from every
+    // character turns quadratic on (base64 would not do: its `/` breaks the
+    // run every ~64 characters). Not a wall-clock bound: a 4 ms redaction
+    // under a 1 s ceiling still failed once in the whole suite — this box's
+    // clock steps (`.claude/rules/testing-time.md`) and `microtime()` follows
+    // it, where `hrtime()` is monotonic. What is asserted is GROWTH — four
+    // times the text may cost at most eight times, the fastest of five
+    // interleaved rounds, so a stall in one round is discarded. Measured:
+    // the rules cost 3–5×, and a quadratic e-mail rule 16× (0.5 s → 8.6 s;
+    // these sizes keep a regression at seconds, not minutes).
+    $redactor = new LogRedactor;
+    $payload = fn (int $kb) => '{"file":"' . str_repeat('0123456789abcdef', $kb * 64) . '","to":"a@b.com"}';
+    $texts = [$payload(25), $payload(100)];
+    $fastest = [PHP_INT_MAX, PHP_INT_MAX];
 
-    $started = microtime(true);
-    $redacted = (new LogRedactor)->redact('{"file":"' . $blob . '","to":"a@b.com"}');
+    for ($round = 0; $round < 5; $round++) {
+        foreach ($texts as $i => $text) {
+            $started = hrtime(true);
+            $redacted = $redactor->redact($text);
+            $fastest[$i] = min($fastest[$i], hrtime(true) - $started);
+        }
+    }
 
-    expect(microtime(true) - $started)->toBeLessThan(1.0)
+    expect($fastest[1] / max(1, $fastest[0]))->toBeLessThan(8)
         ->and($redacted)->toContain('[email]');
 });
 
