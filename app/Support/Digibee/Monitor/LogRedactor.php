@@ -47,9 +47,13 @@ final class LogRedactor
             // Free text: a scheme followed by a credential, and bare JWTs.
             '/\b(Basic|Bearer)\s+[A-Za-z0-9._~+\/=-]{8,}/'                     => '$1 [redacted]',
             '/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}/' => '[redacted-jwt]',
-            // Anchored to the START of a run: unanchored, a long base64 blob in
-            // a payload (no `@` anywhere) was retried from every character —
-            // quadratic, and a 200-execution listing spent minutes here.
+            // Possessive and anchored to the START of a run, so a long blob
+            // with no `@` is scanned once per run. An earlier note blamed the
+            // unanchored form for a 200-execution listing that took minutes;
+            // that was never measured against it (the retry failed on DNS),
+            // and PCRE2's start-of-match optimizations keep that form linear
+            // too — it only goes quadratic under (*NO_START_OPT). The growth
+            // test in DigibeeMonitorLogsTest is what holds this now.
             '/(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]++@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/' => '[email]',
             '/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/'                                        => '[cpf]',
             '/\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/'                                 => '[cnpj]',
