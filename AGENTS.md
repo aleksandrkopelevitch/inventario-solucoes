@@ -14,8 +14,10 @@ a read-only map of the ecosystem derived from those drawings, the **Comitê de
 Arquitetura** module (`/submissions` — a proposal prepared, interviewed,
 rendered as a deck and deliberated), an **Especialista em Integrações**
 (`/flowspec` — generates a Digibee flowSpec, and writes it into a pipeline,
-deploys, tests and corrects it in rounds), and an **MCP server** (`POST /mcp`)
-that lets a chat client read all of it. Fork of the
+deploys, tests and corrects it in rounds), **Logs Digibee** (`/digibee-logs` —
+production execution logs read live with a session an admin sends from their
+own browser, "Sessão Digibee"; Integrations module), and an **MCP server**
+(`POST /mcp`) that lets a chat client read all of it, those logs included. Fork of the
 generic infra from the
 **akop-pro** reference project (forms, slots, JS modules, layout shells) — that
 project's legacy domain (CRM, DISC, multi-tenancy) is not part of this one.

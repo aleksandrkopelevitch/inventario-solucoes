@@ -12,7 +12,8 @@ cadeado —, uma **base de conhecimento** interna (`/docs`) com os cadernos
 publicados, um hub que reúne a cobertura dessa documentação,
 um Especialista em Integrações que gera flowSpec Digibee em formato de chat — e
 que sabe **escrever** esse documento num pipeline, implantá-lo em `test`,
-testá-lo e corrigi-lo em rodadas — e o módulo do **Comitê de Arquitetura**,
+testá-lo e corrigi-lo em rodadas —, a busca nos **logs de produção da
+Digibee** (`/digibee-logs`, também pelo MCP) e o módulo do **Comitê de Arquitetura**,
 onde uma proposta é preparada, entrevistada, vira deck e volta para o catálogo
 depois de deliberada.
 
@@ -230,6 +231,22 @@ php artisan documentation:secrets-audit   # páginas com valores protegidos dani
   páginas sem sinal de dano, com a data do último salvamento, para comparar com
   um backup. `--notebook=<slug>` limita a um caderno. Nunca imprime um valor.
 
+**Logs da Digibee na máquina do dev.** Com a sessão Digibee da própria pessoa,
+nunca no servidor (os três recusam rodar em produção; lá a leitura é a tela
+**Logs Digibee**, ver Funcionalidades):
+
+```bash
+php artisan digibee:monitor:login                          # abre o SSO num Chromium local, guarda a sessão (vale 24h)
+php artisan digibee:logs --pipeline=<nome> --since=6h      # execuções; --search=<texto> procura nos payloads
+php artisan digibee:logs --message="timeout" --since=2d    # linhas de log em vez de execuções
+php artisan digibee:logs --key=<execution-key>             # o log inteiro de uma execução
+php artisan digibee:logs --search=<pedido> --collect=r.json # abre todas e grava um relatório
+php artisan digibee:mcp                                    # as mesmas leituras por stdio, para o Claude Desktop
+```
+
+Tudo o que eles imprimem ou gravam passa antes por `LogRedactor`. Quando a
+sessão vence, a resposta é a mesma instrução: rodar o login de novo.
+
 **O agendador, em produção.** O `schedule:run` roda a cada minuto pelo crontab do
 **`www-data`**, não do root:
 
@@ -255,7 +272,7 @@ que um usuário pode fazer é um **nível por módulo** (`App\Enums\AccessModule
 |---|---|
 | Soluções, Pessoas e Empresas | o catálogo |
 | Documentação e Diagramas | cadernos, páginas e diagramas |
-| Especialista em Integrações | `/flowspec` e o corpus de exemplos/diretrizes |
+| Especialista em Integrações | `/flowspec`, o corpus de exemplos/diretrizes e os **Logs Digibee** (`/digibee-logs` e as ferramentas de log do MCP) |
 | Comitê de Arquitetura | `/submissions` |
 
 Cada módulo tem três níveis:
@@ -275,7 +292,8 @@ níveis por módulo mantiveram exatamente o acesso que tinham.
 O **Administrador** é Editor em tudo e faz o que não é conteúdo: **excluir**
 qualquer registro (inclusive páginas), contas, papéis e níveis de acesso,
 vincular pessoas a contas, vocabulário de atributos, publicação de cadernos e
-da planilha, valores protegidos e a tela de tokens MCP. O **Mapa do
+da planilha, valores protegidos, a tela de tokens MCP e a **Sessão Digibee**
+(a sessão com que o servidor lê os logs). O **Mapa do
 ecossistema**, a base de conhecimento (`/docs`) e a **Conexão MCP** são de
 todas as contas, qualquer que seja o nível.
 
@@ -1593,7 +1611,9 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
 - **Servidor MCP** (`POST /mcp`): deixa o Claude, o ChatGPT e o Gemini
   consultarem o inventário como ferramentas — doze tools somente leitura sobre
   soluções, diagramas, pessoas, empresas e a documentação publicada
-  (`App\Mcp\ToolRegistry`). É a única rota do app fora do grupo `web`: sem
+  (`App\Mcp\ToolRegistry`), mais as quatro de **Logs Digibee** (abaixo), as
+  únicas que saem do banco do app e leem uma plataforma ao vivo — por isso
+  declaradas com `openWorldHint`. É a única rota do app fora do grupo `web`: sem
   sessão, sem CSRF, sem `auth`.
 
   São **duas credenciais para dois tipos de chamador**. Uma PESSOA conecta pelo
@@ -1622,6 +1642,53 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   em toda página que este app entrega a alguém, e não existe ferramenta que
   revele um: o texto claro continua tendo uma porta só. Nada é criado,
   alterado ou apagado por ali.
+
+- **Logs Digibee** (`/digibee-logs`, no menu Governança): os logs de execução
+  da Digibee de produção (e de `test`), lidos de dentro do iSol por quem não tem
+  Claude nem instalação local. A Digibee não oferece caminho oficial para isso:
+  o `digibeectl` não tem verbo de logs e nenhum token dela pode receber
+  `LOG:READ`. O que lê os logs é a **sessão de uma pessoa** no Monitor, e as
+  rotas usadas são uma lista fechada de leituras (`DigibeeMonitorClient::ROUTES`)
+  — a sessão é o papel inteiro da pessoa, exclusões em produção incluídas.
+
+  **A sessão vem do navegador de um admin.** Em **Sessão Digibee**
+  (`/digibee-session`) há um favorito, "Enviar sessão ao iSol": o admin entra na
+  Digibee normalmente pelo SSO, clica nele, e o iSol guarda o token (cifrado,
+  em `digibee_monitor_sessions`) depois de conferir o realm, se ainda há tempo e
+  se ele lê o Monitor de produção. O token vale 24h e a Digibee não o renova,
+  então é um clique por dia; quando vence, quem pesquisa vê "um administrador
+  renova" e os admins recebem um e-mail, no máximo um por dia. Um navegador
+  **no servidor** chegou a existir e saiu no mesmo dia: o Acesso Condicional do
+  Entra recusa o login vindo do droplet. Por enquanto a identidade é a do
+  usuário que enviou a sessão; o destino melhor é um usuário Digibee só de
+  leitura.
+
+  **A tela.** "Buscar" (termo nos payloads ou nas linhas de log, pipeline,
+  ambiente, período como `6h`, `2d` ou `03/11 14:00`) lista as execuções sem
+  abrir nenhuma, e "Abrir log" mostra o log inteiro no painel lateral. "Gerar
+  relatório com todas" abre até 1000 execuções num job
+  (`CollectDigibeeLogReport`) e mostra o resumo por pipeline e versão, status,
+  durações, erros agrupados, chamadas HTTP e a linha do tempo, com "Baixar
+  JSON". Um relatório por vez, para as respostas do Especialista não esperarem
+  atrás de exportação de log.
+
+  **No MCP**, as mesmas quatro ferramentas (contar, buscar, consultar relatório,
+  abrir execução), para quem lê o módulo. Dentro de uma requisição HTTP a busca
+  abre execuções por no máximo ~30 s e lista o resto como não abertas,
+  apontando para a tela; o relatório que ela gera aparece também na tela.
+
+  O que vale para as duas: tudo passa por `LogRedactor` antes de aparecer
+  (cabeçalhos `Authorization`, CPF/CNPJ, e-mail e telefone — inclusive dentro
+  de JSON escapado dentro de string); como toda leitura chega à Digibee como
+  uma conta só, cada consulta é registrada com quem perguntou
+  (`DigibeeLogLookup`) e limitada a 20 por minuto por pessoa; relatórios e
+  registros somem depois de 10 dias, o mesmo prazo dos logs na Digibee.
+
+  **Na máquina do dev** existe o caminho original, com a sessão da própria
+  pessoa: `digibee:monitor:login` abre o SSO num Chromium local e guarda a
+  sessão num arquivo `0600`; `digibee:logs` lê com ela; `digibee:mcp` serve as
+  mesmas quatro ferramentas por stdio ao Claude Desktop. Os três se recusam a
+  rodar em produção. Ver "Comandos".
 
 ## Notas técnicas não óbvias
 
@@ -1917,4 +1984,10 @@ matriz de teste e as guardas do deploy), `HealPipelineCommandTest` (a metade
 do ciclo que roda por linha de comando, com `--cron` e `--event`) e
 `McpServerTest`/`McpToolsTest`/`McpTokenAdminTest`/`McpOAuthTest` (o servidor
 MCP: protocolo, o que cada token pode ler, a administração dos tokens e o
-fluxo OAuth — inclusive o 401 quando o guard não roda).
+fluxo OAuth — inclusive o 401 quando o guard não roda),
+`DigibeeMonitorLogsTest`/`DigibeeLogsMcpTest` (as leituras do Monitor, a
+redação em todos os níveis de escape e o MCP local por stdio),
+`DigibeeSessionImportTest` (o favorito e as três conferências antes de guardar
+uma sessão) e `DigibeeLogsInIsolTest` (a tela, o relatório na fila, as
+ferramentas no `/mcp`, quem pode, o registro de cada consulta e o aviso aos
+admins quando a sessão vence).
