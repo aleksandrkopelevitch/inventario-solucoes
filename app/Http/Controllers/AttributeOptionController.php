@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateAttributeOptionRequest;
 use App\Models\AttributeOption;
 use App\Models\Diagram;
 use App\Models\Solution;
+use App\Support\Images\PublicImage;
 use App\View\Components\AttributeOptions\GroupList;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Str;
@@ -116,7 +117,7 @@ class AttributeOptionController extends Controller
         $look = ['color' => $request->validated('color')];
 
         if ($request->hasFile('image')) {
-            $look['image_path'] = $request->file('image')->store('hosting-images', 'public');
+            $look['image_path'] = PublicImage::store($request->file('image'), 'hosting-images');
         } elseif ($request->validated('image_action') === 'remove') {
             $look['image_path'] = null;
         } elseif ($option === null) {

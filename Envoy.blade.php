@@ -190,6 +190,17 @@
     sudo -u www-data php artisan documentation:web-images || echo "==> WARNING: documentation:web-images failed — images keep serving their originals."
 
     {{--
+        Same idea for the plain uploads on the public disk (logos, photos,
+        hosting pictures): a 256px WebP beside each one, made synchronously
+        here rather than queued — a few hundred small files, seconds on the
+        first run, nothing once they all have one. `sudo -u www-data` because
+        it WRITES into storage/app/public, where php-fpm must be able to
+        replace the file after the next upload.
+    --}}
+    echo "==> Making thumbnails for logos and photos"
+    sudo -u www-data php artisan images:thumbnails || echo "==> WARNING: images:thumbnails failed — lists keep drawing the originals."
+
+    {{--
         Builds the documentation search indexes, so the first reader to search
         after a deploy is not the one who pays for it ("Indexando N cadernos…"
         on /docs). Seconds when nothing changed; the first run, or one after the

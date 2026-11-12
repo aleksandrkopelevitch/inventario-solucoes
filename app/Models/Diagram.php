@@ -8,6 +8,7 @@ use App\Contracts\Documentable;
 use App\Enums\DiagramStatus;
 use App\Enums\Direction;
 use App\Enums\SyncMode;
+use App\Models\Concerns\HasWebImageRendition;
 use Database\Factories\DiagramFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -60,7 +61,10 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 class Diagram extends Model implements ChainCanvas
 {
     /** @use HasFactory<DiagramFactory> */
-    use HasFactory, InteractsWithMedia;
+    use HasFactory, HasWebImageRendition, InteractsWithMedia {
+        // Both traits define it; the rendition's wins (it calls nothing of the other's).
+        HasWebImageRendition::registerMediaConversions insteadof InteractsWithMedia;
+    }
 
     protected $fillable = [
         'name',

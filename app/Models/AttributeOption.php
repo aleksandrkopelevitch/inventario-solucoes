@@ -2,10 +2,10 @@
 
 namespace App\Models;
 
+use App\Support\Images\PublicImage;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Editable values (at runtime, via the "Manage attributes" area) for the 8
@@ -134,7 +134,7 @@ class AttributeOption extends Model
     /** Public URL of the uploaded picture (hosting groups), or null. */
     public function imageUrl(): ?string
     {
-        return $this->image_path ? Storage::disk('public')->url($this->image_path) : null;
+        return PublicImage::url($this->image_path);
     }
 
     protected static function booted(): void

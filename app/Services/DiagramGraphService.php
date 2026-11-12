@@ -11,9 +11,9 @@ use App\Models\Diagram;
 use App\Models\Solution;
 use App\Support\CategoryPalette;
 use App\Support\ChainLabeler;
+use App\Support\Images\PublicImage;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Resolves the diagram graph into the NEUTRAL (renderer-agnostic)
@@ -322,7 +322,7 @@ class DiagramGraphService
             'label'            => $solution->name,
             'slug'             => $solution->slug,
             'category'         => $solution->category,
-            'logo'             => $solution->logo_path ? Storage::disk('public')->url($solution->logo_path) : null,
+            'logo'             => PublicImage::url($solution->logo_path),
             'url'              => route('solutions.show', $solution),
             'categoryLabel'    => $solution->category_label,
             'statusLabel'      => $solution->status_label,

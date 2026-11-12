@@ -18,11 +18,9 @@
         ->map(fn ($part) => mb_substr($part, 0, 1))
         ->implode('');
 
-    $url = $src
-        ? (\Illuminate\Support\Str::startsWith($src, ['http://', 'https://', '/'])
-            ? $src
-            : \Illuminate\Support\Facades\Storage::disk('public')->url($src))
-        : null;
+    // A path on the public disk is drawn from its thumbnail (PublicImage):
+    // this tile is at most 56 px, and the upload can be anything up to 2 MB.
+    $url = \App\Support\Images\PublicImage::url($src);
 @endphp
 
 @if ($url)
