@@ -35,6 +35,35 @@ export function init() {
 
 Register new modules in `window.globalModules` in `app.js`.
 
+### A module that carries a library or a whole screen is loaded on demand
+
+`app.js` bundles every static import into the one file every page loads, and
+on 2026-11-12 that file was 336 KB (108 KB gzip) of which three quarters was
+six modules used by a handful of screens: the diagram canvas (with
+html-to-image and gif.js), the ecosystem map (d3-force), the Editor.js glue,
+the documentation chat (which imports the editor), the scenes with their icon
+catalogue, and the spreadsheet. They are `lazy()` stubs now
+(`resources/js/modules/lazy.js`) — same `{init}` shape in `globalModules`, but
+`init()` imports the module (Vite emits it as its own chunk) only when the
+page holds its root hook, and re-runs the real `init()` on every later call.
+The bundle every page loads is 86 KB (27 KB gzip).
+
+Three things to keep in mind when adding to that list, or adding a module
+that belongs on it:
+
+- **The guard selector must name a hook that is on the page at the FIRST
+  `init()`.** A module whose only hook arrives later (a side panel's content)
+  still loads — `initAllModules()` runs after every swap — but a click in the
+  few hundred milliseconds before the import resolves is lost, which is why
+  the chats that are mostly delegation (flowSpec, CATI) stayed static.
+- **A static import from a static module pulls the whole thing back.**
+  `docs-chat.js` imports `flushSave`/`setEditorLocked` from the editor, so
+  making the editor lazy only worked once the chat was lazy too. `grep` for
+  importers before moving a module.
+- **The dev build and the production build differ here**: Vite serves every
+  module on demand in dev, so a chunk that fails to split shows up only in
+  `npm run build`'s output. Check the `app-*.js` size there.
+
 After slot updates, prefer re-initializing only the affected modules instead of all:
 
 ```js
