@@ -3,6 +3,7 @@
 namespace App\Support\Documentation;
 
 use App\Contracts\Documentable;
+use App\Models\DocumentationPage;
 use Illuminate\Http\Request;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -54,9 +55,44 @@ final class DocumentationMediaResponse
             : response()->file($light, self::headers('image/webp', pathinfo($media->file_name, PATHINFO_FILENAME) . '.webp'));
 
         $response->setVary('Sec-Fetch-Dest', false);
+        self::cachePolicy($response, $media, $light !== null);
         $response->isNotModified($request);
 
         return $response;
+    }
+
+    /**
+     * How long a browser may keep the answer without asking.
+     *
+     * The file behind a media id never changes — a replaced upload is a new
+     * row — so the only thing that can change an answer is the rendition
+     * ARRIVING: an `<img>` served the upload while the conversion is still on
+     * the queue should come back for the lighter file. So that one case keeps
+     * revalidating (`no-cache`, answered 304 until the rendition lands, then
+     * 200 with the WebP), and every other answer is final: the rendition
+     * itself, a type that never gets one (GIF, SVG, a PDF), a rendition the
+     * encoder made bigger than the upload, and anything asked for as a
+     * document or with `?original=1`.
+     *
+     * Final answers are `private, immutable` for 30 days. `private` because
+     * the three routes serving this each decide who may have the file, and a
+     * shared cache must not answer for the next person. Before this there was
+     * no `Cache-Control` at all, which Symfony fills as `private,
+     * must-revalidate`: every image of every page came back through the whole
+     * Laravel stack on every view, only to answer 304.
+     */
+    private static function cachePolicy(BinaryFileResponse $response, Media $media, bool $servedRendition): void
+    {
+        $convertible = in_array(strtolower((string) $media->mime_type), DocumentationPage::WEB_IMAGE_TYPES, true);
+        $awaitingRendition = $convertible && ! $media->hasGeneratedConversion(Documentable::WEB_CONVERSION);
+
+        if (! $servedRendition && $awaitingRendition) {
+            $response->setCache(['private' => true, 'no_cache' => true]);
+
+            return;
+        }
+
+        $response->setCache(['private' => true, 'max_age' => 2592000, 'immutable' => true]);
     }
 
     /** The rendition's path, when there is one worth serving instead of the upload. */

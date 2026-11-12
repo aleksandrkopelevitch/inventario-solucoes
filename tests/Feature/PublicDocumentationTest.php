@@ -7,6 +7,7 @@ use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Models\User;
 use App\Services\DocumentationSearchService;
+use App\View\Components\Notebooks\SharePanel;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -46,7 +47,7 @@ it('wires the share panel to the general ajax and copy hooks', function () {
     // No module of its own any more: each action is a data-ak-ajax button over
     // a hidden form posting where the route says, and the copies are copy-field.
     $notebook = Notebook::factory()->create(['public_token' => null]);
-    $before = \App\View\Components\Notebooks\SharePanel::slot($notebook)['content'];
+    $before = SharePanel::slot($notebook)['content'];
 
     expect($before)
         ->toContain('data-ak-ajax="notebook-public-link-share" data-ak-action="' . route('notebooks.share', $notebook) . '"')
@@ -55,7 +56,7 @@ it('wires the share panel to the general ajax and copy hooks', function () {
         ->not->toContain('data-ak-share');
 
     $notebook->update(['public_token' => str_repeat('a', 40)]);
-    $after = \App\View\Components\Notebooks\SharePanel::slot($notebook->fresh())['content'];
+    $after = SharePanel::slot($notebook->fresh())['content'];
 
     expect($after)
         ->toContain('<form id="notebook-public-link-unshare" class="hidden">')
@@ -381,14 +382,18 @@ it('serves a cited diagram\'s picture to a visitor, through the token', function
     // authenticated one.
     $content = $this->get(route('public.docs.page', ['tok-pic', 'fluxo']))->assertOk()->getContent();
 
+    // The version pin travels through the rewrite: it is what lets the
+    // picture be cached for a year (PictureResponse).
     expect($content)
-        ->toContain(route('public.docs.diagram', ['tok-pic', $diagram->slug]))
+        ->toContain(route('public.docs.diagram', ['tok-pic', $diagram->slug]) . '?v=' . $diagram->picture()->id)
         ->not->toContain(route('diagrams.picture.show', $diagram));
 
-    // …and that route actually serves the bytes.
-    $this->get(route('public.docs.diagram', ['tok-pic', $diagram]))
+    // …and that route actually serves the bytes, cacheable when pinned.
+    $pinned = $this->get(route('public.docs.diagram', ['tok-pic', $diagram, 'v' => $diagram->picture()->id]))
         ->assertOk()
         ->assertHeader('content-type', 'image/png');
+
+    expect($pinned->headers->getCacheControlDirective('immutable'))->toBeTrue();
 });
 
 it('404s the picture of a diagram this caderno never cited', function () {

@@ -690,7 +690,7 @@ it('hands the editor a picture URL only for a drawing that has one', function ()
         ->flatMap(fn (array $group) => $group['diagrams'])
         ->keyBy('name');
 
-    expect($entries['Com imagem']['pictureUrl'])->toBe(route('diagrams.picture.show', $drawn))
+    expect($entries['Com imagem']['pictureUrl'])->toBe(route('diagrams.picture.show', ['diagram' => $drawn, 'v' => $drawn->picture()->id]))
         ->and($entries['Sem imagem']['pictureUrl'])->toBeNull();
 });
 

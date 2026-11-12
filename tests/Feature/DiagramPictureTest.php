@@ -97,6 +97,40 @@ it('serves the stored picture and 404s when there is none', function () {
     $this->get(route('diagrams.picture.show', $diagram))->assertOk();
 });
 
+it('lets a browser keep a versioned picture for a year and revalidate an unversioned one', function () {
+    Storage::fake('public');
+    $this->actingAs(User::factory()->create(['role' => UserRole::Admin]));
+
+    [$solution, $diagram] = diagramContext();
+
+    $this->postJson(route('diagrams.picture.store', $diagram), [
+        'image' => UploadedFile::fake()->image('canvas.png'),
+    ])->assertOk();
+
+    $picture = $diagram->fresh()->picture();
+
+    // Pinned to this media row: every save makes a new row with a new id, so
+    // the URL names one exact file for ever.
+    $pinned = $this->get(route('diagrams.picture.show', ['diagram' => $diagram, 'v' => $picture->id]))
+        ->assertOk()
+        ->assertHeader('X-Content-Type-Options', 'nosniff');
+
+    expect($pinned->headers->getCacheControlDirective('immutable'))->toBeTrue()
+        ->and($pinned->headers->getCacheControlDirective('max-age'))->toBe('31536000')
+        ->and($pinned->headers->getCacheControlDirective('private'))->toBeTrue()
+        ->and($pinned->headers->get('Last-Modified'))->not->toBeNull()
+        ->and($pinned->headers->get('ETag'))->not->toBeNull();
+
+    // Unversioned: still correct after a re-save, at the price of a 304 per view.
+    $bare = $this->get(route('diagrams.picture.show', $diagram))->assertOk();
+
+    expect($bare->headers->getCacheControlDirective('no-cache'))->toBeTrue()
+        ->and($bare->headers->getCacheControlDirective('immutable'))->toBeNull();
+
+    $this->get(route('diagrams.picture.show', $diagram), ['If-None-Match' => $bare->headers->get('ETag')])
+        ->assertStatus(304);
+});
+
 it('hands the canvas the endpoint to publish to', function () {
     $this->actingAs(User::factory()->create(['role' => UserRole::Admin]));
 

@@ -239,9 +239,12 @@ final class DocumentationReader
         // renderer as a root-relative path written into the Markdown, but the
         // picture URL is built with `route()`, which emits an ABSOLUTE url. A
         // pattern anchored at `/` silently matched neither.
+        //
+        // The `?v={media id}` the renderer pins the picture with travels along:
+        // it is what lets the response be cached for a year (PictureResponse).
         return preg_replace_callback(
-            '#(src|href)="(?:https?://[^/"]+)?/diagrams/([^/"]+)/picture"#',
-            fn (array $m) => $m[1] . '="' . $urls->diagramPicture($m[2]) . '"',
+            '#(src|href)="(?:https?://[^/"]+)?/diagrams/([^/"?]+)/picture(\?v=\d+)?"#',
+            fn (array $m) => $m[1] . '="' . $urls->diagramPicture($m[2]) . ($m[3] ?? '') . '"',
             $content,
         );
     }

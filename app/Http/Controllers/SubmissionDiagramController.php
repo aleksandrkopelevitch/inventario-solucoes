@@ -19,12 +19,13 @@ use App\Http\Requests\UpdateChainNodeRequest;
 use App\Http\Requests\UpdateChainProtocolRequest;
 use App\Models\Submission;
 use App\Models\SubmissionDiagram;
+use App\Support\Documentation\PictureResponse;
 use App\View\Components\Submissions\Checklist;
 use App\View\Components\Submissions\Diagrams;
 use App\View\Components\Submissions\StageStrip;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * A submission's four drawings — the AS IS / TO BE canvases and the two
@@ -144,7 +145,7 @@ class SubmissionDiagramController extends Controller
      * `MediaController::show()` (`/files/{id}`) serves only that one. Both
      * live behind the same `view` permission as the submission itself.
      */
-    public function showPicture(Submission $submission, SubmissionDiagram $diagram): StreamedResponse
+    public function showPicture(Request $request, Submission $submission, SubmissionDiagram $diagram): BinaryFileResponse
     {
         $this->authorize('view', $diagram);
 
@@ -152,7 +153,7 @@ class SubmissionDiagramController extends Controller
 
         abort_if($media === null, 404);
 
-        return $media->toResponse(request());
+        return PictureResponse::for($media, $request);
     }
 
     /**

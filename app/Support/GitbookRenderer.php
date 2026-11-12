@@ -6,6 +6,7 @@ use App\Models\Diagram;
 use App\Support\Documentation\BeforeAfterScene;
 use App\Support\Documentation\ComparisonScene;
 use App\Support\Documentation\PageLinks;
+use App\Support\Documentation\PictureResponse;
 use App\Support\Documentation\SceneIcons;
 use App\Support\Documentation\SecretText;
 use App\Support\Documentation\StepScene;
@@ -539,7 +540,7 @@ class GitbookRenderer
         $picture = $diagram->picture();
 
         $figure = $picture
-            ? '<img src="' . e(route('diagrams.picture.show', $diagram)) . '" alt="' . e($diagram->name) . '"'
+            ? '<img src="' . e(PictureResponse::versionedUrl('diagrams.picture.show', ['diagram' => $diagram], $picture)) . '" alt="' . e($diagram->name) . '"'
                 . ' class="w-full rounded-t-card border-b border-line bg-white object-contain">'
             : '<div class="flex items-center gap-2 border-b border-dashed border-line px-4 py-6 text-xs text-muted">'
                 . '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M18 15h.008" /></svg>'

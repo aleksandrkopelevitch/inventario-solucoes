@@ -187,6 +187,34 @@ it('answers a browser that already has the file with a bodiless 304', function (
         ->assertHeader('Content-Type', 'image/webp');
 });
 
+it('lets a browser keep a final answer for a month, and revalidate only while a rendition is pending', function () {
+    $this->actingAs(renditionAdmin());
+
+    // The rendition is final: nothing about this media id will ever change it.
+    $media = imageOnPage(renditionPage(), renditionSource(2400, 1200));
+    $rendition = $this->get(route('files.show', $media), ['Sec-Fetch-Dest' => 'image'])->assertOk();
+
+    expect($rendition->headers->getCacheControlDirective('immutable'))->toBeTrue()
+        ->and($rendition->headers->getCacheControlDirective('max-age'))->toBe('2592000')
+        ->and($rendition->headers->getCacheControlDirective('private'))->toBeTrue();
+
+    // So is the upload asked for as a document, and the lightbox's original.
+    foreach ([['Sec-Fetch-Dest' => 'document'], ['Sec-Fetch-Dest' => 'image']] as $i => $headers) {
+        $url = $i === 1 ? route('files.show', [$media, 'original' => 1]) : route('files.show', $media);
+        $final = $this->get($url, $headers)->assertOk();
+        expect($final->headers->getCacheControlDirective('immutable'))->toBeTrue();
+    }
+
+    // Still on the queue: the `<img>` got the upload and must come back for the
+    // lighter file, so this one answer keeps revalidating.
+    Queue::fake();
+    $pending = imageOnPage(renditionPage(), renditionSource(2400, 1200));
+    $interim = $this->get(route('files.show', $pending), ['Sec-Fetch-Dest' => 'image'])->assertOk();
+
+    expect($interim->headers->getCacheControlDirective('no-cache'))->toBeTrue()
+        ->and($interim->headers->getCacheControlDirective('immutable'))->toBeNull();
+});
+
 it('serves the upload while the rendition is still on the queue', function () {
     Queue::fake();
 

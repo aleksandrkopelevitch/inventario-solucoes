@@ -21,7 +21,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * PUBLIC documentation for a caderno ("magic link"), no auth. Access is via an
@@ -173,9 +172,9 @@ class PublicDocumentationController extends Controller
      * here is a 404 even with a valid token, so the route can't be walked to
      * enumerate the drawing catalog.
      */
-    public function diagramPicture(string $token, Diagram $diagram): StreamedResponse
+    public function diagramPicture(Request $request, string $token, Diagram $diagram): BinaryFileResponse
     {
-        return DiagramCitation::stream($this->resolve($token), $diagram);
+        return DiagramCitation::stream($this->resolve($token), $diagram, $request);
     }
 
     private function resolve(string $token): Notebook
