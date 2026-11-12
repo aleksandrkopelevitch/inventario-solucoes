@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Contracts\ChainCanvas;
 use App\Contracts\Documentable;
 use App\Enums\SubmissionDiagramKind;
+use App\Models\Concerns\HasWebImageRendition;
 use Database\Factories\SubmissionDiagramFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -33,7 +34,10 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 class SubmissionDiagram extends Model implements ChainCanvas, HasMedia
 {
     /** @use HasFactory<SubmissionDiagramFactory> */
-    use HasFactory, InteractsWithMedia;
+    use HasFactory, HasWebImageRendition, InteractsWithMedia {
+        // Both traits define it; the rendition's wins (it calls nothing of the other's).
+        HasWebImageRendition::registerMediaConversions insteadof InteractsWithMedia;
+    }
 
     /** The uploaded picture of a C4 kind, and nothing else. `singleFile()`. */
     public const UPLOAD_COLLECTION = 'submission_diagram';

@@ -6,9 +6,9 @@ use App\Contracts\ChainCanvas;
 use App\Enums\ChainNodeKind;
 use App\Enums\Protocol;
 use App\Models\Solution;
+use App\Support\Images\PublicImage;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Storage;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 /**
@@ -115,7 +115,7 @@ class ChainGraph
             'solutionId' => $solution?->id,
             'url'        => $solution ? route('solutions.show', $solution) : null,
             'comment'    => $comment,
-            'logo'       => $solution?->logo_path ? Storage::disk('public')->url($solution->logo_path) : null,
+            'logo'       => PublicImage::url($solution?->logo_path),
             // Which of the 8 color families this block belongs to, for the
             // themes that tint a block by what its system IS (see the
             // `--viz-node-accent` block in components/chain/viz.blade.php).

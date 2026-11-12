@@ -17,6 +17,7 @@ use App\Models\Contact;
 use App\Models\Person;
 use App\Models\Solution;
 use App\Models\User;
+use App\Support\Images\PublicImage;
 use App\View\Components\People\DetailHeader;
 use App\View\Components\People\FilterChips;
 use App\View\Components\People\Index as PeopleIndex;
@@ -111,7 +112,7 @@ class PersonController extends Controller
         $data = $request->safe()->except(['photo', 'photo_action']);
 
         if ($request->hasFile('photo')) {
-            $data['photo_path'] = $request->file('photo')->store('photos', 'public');
+            $data['photo_path'] = PublicImage::store($request->file('photo'), 'photos');
         } elseif ($request->input('photo_action') === 'remove') {
             // "Remover" on the `<x-forms.image-upload>` tile. The stored file
             // itself is left on disk on purpose: `photo_path` is a plain column
@@ -258,7 +259,7 @@ class PersonController extends Controller
             : ($person?->slug ?? Person::uniqueSlug($data['name'], $person));
 
         if ($request->hasFile('photo')) {
-            $data['photo_path'] = $request->file('photo')->store('photos', 'public');
+            $data['photo_path'] = PublicImage::store($request->file('photo'), 'photos');
         } elseif ($request->input('photo_action') === 'remove') {
             // The form's `<x-forms.image-upload>` has always rendered a
             // "Remover" button writing this hidden field; nothing read it, so

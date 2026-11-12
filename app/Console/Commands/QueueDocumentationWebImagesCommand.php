@@ -3,7 +3,9 @@
 namespace App\Console\Commands;
 
 use App\Contracts\Documentable;
+use App\Models\Diagram;
 use App\Models\DocumentationPage;
+use App\Models\SubmissionDiagram;
 use Illuminate\Console\Command;
 use Spatie\MediaLibrary\Conversions\FileManipulator;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
@@ -39,7 +41,14 @@ class QueueDocumentationWebImagesCommand extends Command
         $missing = 0;
 
         Media::query()
-            ->where('model_type', (new DocumentationPage)->getMorphClass())
+            // Every model whose `docs` collection gets the rendition
+            // (HasWebImageRendition): the pages, and the two canvases whose
+            // pasted pictures are served by the same route.
+            ->whereIn('model_type', [
+                (new DocumentationPage)->getMorphClass(),
+                (new Diagram)->getMorphClass(),
+                (new SubmissionDiagram)->getMorphClass(),
+            ])
             ->where('collection_name', Documentable::DOCS_COLLECTION)
             ->whereIn('mime_type', DocumentationPage::WEB_IMAGE_TYPES)
             // Registering the conversion asks the owning page, so the page is

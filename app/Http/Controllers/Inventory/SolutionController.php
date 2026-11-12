@@ -15,6 +15,7 @@ use App\Models\Company;
 use App\Models\Person;
 use App\Models\Solution;
 use App\Services\SolutionCatalogStatsService;
+use App\Support\Images\PublicImage;
 use App\View\Components\Solutions\DetailHeader;
 use App\View\Components\Solutions\FilterChips;
 use App\View\Components\Solutions\Index as SolutionsIndex;
@@ -145,7 +146,7 @@ class SolutionController extends Controller
         $data = $request->safe()->except(['logo', 'logo_action']);
 
         if ($request->hasFile('logo')) {
-            $data['logo_path'] = $request->file('logo')->store('solution-logos', 'public');
+            $data['logo_path'] = PublicImage::store($request->file('logo'), 'solution-logos');
         } elseif ($request->input('logo_action') === 'remove') {
             // "Remover" on the `<x-forms.image-upload>` tile. The stored file
             // itself is left on disk on purpose: `logo_path` is a plain column
@@ -331,7 +332,7 @@ class SolutionController extends Controller
         $data['contract_status'] = $data['contract_status'] ?? $solution?->contract_status ?? 'unknown';
 
         if ($request->hasFile('logo')) {
-            $data['logo_path'] = $request->file('logo')->store('solution-logos', 'public');
+            $data['logo_path'] = PublicImage::store($request->file('logo'), 'solution-logos');
         } elseif ($request->input('logo_action') === 'remove') {
             // The form's `<x-forms.image-upload>` has always rendered a
             // "Remover" button writing this hidden field; nothing read it, so
