@@ -1,7 +1,9 @@
 @props([
     'name' => 'image',
     'value' => null,
-    'placeholder' => 'https://placehold.co/240x240/eef2f7/94a3b8?text=Imagem',
+    {{-- Inline, not a placehold.co URL: that was a third-party request on
+         every form with an empty image (profile, logo, photo), for a grey box. --}}
+    'placeholder' => 'data:image/svg+xml;utf8,' . rawurlencode('<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240"><rect width="240" height="240" fill="#eef2f7"/><text x="120" y="128" font-family="system-ui, sans-serif" font-size="22" fill="#94a3b8" text-anchor="middle">Imagem</text></svg>'),
     'id' => null,
     'size' => 'h-32 w-32',
     // Radius of the tile. Defaults to the card radius every form in the app

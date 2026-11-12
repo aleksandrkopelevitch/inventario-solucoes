@@ -164,9 +164,19 @@ class User extends Authenticatable implements HasMedia, OAuthenticatable
             ->nonQueued();
     }
 
-    public function avatarUrl(): string
+    /**
+     * The uploaded avatar's thumbnail, or null — and `x-ui.avatar` then draws
+     * the person's initials itself.
+     *
+     * It used to fall back to `ui-avatars.com`, which put a DNS lookup, a TLS
+     * handshake and an image fetch to a third party on EVERY page view for
+     * everybody without a photo (the sidebar, the user menu, the `/docs` top
+     * bar all draw it), and sent them the person's name to do it. The initials
+     * component already existed and was never reached, since the URL was never
+     * empty.
+     */
+    public function avatarUrl(): ?string
     {
-        return $this->getFirstMediaUrl('avatar', 'thumb')
-            ?: 'https://ui-avatars.com/api/?name=' . urlencode($this->name) . '&background=0a0a0a&color=fff&size=120';
+        return $this->getFirstMediaUrl('avatar', 'thumb') ?: null;
     }
 }

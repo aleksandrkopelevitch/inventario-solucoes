@@ -5,12 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title ?? config('app.name') }}</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    {{-- Barlow/Barlow Condensed dropped 2026-07-28 — --font-sans/--font-display
-         now use the system font stack (see app.css); only Space Mono is still
-         a webfont. --}}
-    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    {{-- Inter's latin file, preloaded: it is what nearly every glyph on the
+         page is set in, and without this the browser only discovers it after
+         parsing the whole stylesheet. Just the regular face — the italic and
+         the non-latin "rest" files are fetched only when such text is on screen
+         (unicode-range in app.css). Space Mono is self-hosted too since
+         2026-11-12; the Google Fonts stylesheet it came from was a
+         render-blocking request to a third party on every page. --}}
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="{{ Vite::asset('resources/fonts/InterVariable-latin.woff2') }}">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="min-h-screen overflow-x-clip bg-surface text-body font-sans text-[14.5px] antialiased">
