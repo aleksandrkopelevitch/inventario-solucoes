@@ -57,7 +57,7 @@ trait BuildsPagesNav
             'notebookUrl'  => route('notebooks.pages.notebook', [$notebook, $row['page']]),
             'destinations' => $destinations,
             'active'       => $active?->is($row['page']) ?? false,
-            'hasContent'   => trim((string) $row['page']->documentation) !== '',
+            'hasContent'   => $row['page']->hasContent(),
         ])->all();
     }
 

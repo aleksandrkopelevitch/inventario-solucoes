@@ -3,8 +3,10 @@
 namespace App\Models;
 
 use App\Contracts\Documentable;
+use App\Support\Documentation\PageTextSql;
 use App\Support\Documentation\SecretText;
 use Database\Factories\DocumentationPageFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -92,6 +94,56 @@ class DocumentationPage extends Model implements Documentable
     public function getRouteKeyName(): string
     {
         return 'slug';
+    }
+
+    /**
+     * The page WITHOUT its text: what a tree walk needs (the rail, a move's
+     * validation, the child-page cards), with the one fact those walks ask of
+     * the text answered in SQL — `has_content`. The `documentation` column is
+     * the whole corpus, and every screen drawing a 630-page caderno's tree
+     * used to pull all 5 MB of it to answer "is there anything here?" per row.
+     * Measured on the 133-page caderno: 3.7 ms instead of 15 ms, and no 2 MB
+     * of strings in PHP.
+     *
+     * A row hydrated this way answers `hasContent()` from the alias; one
+     * hydrated whole answers it from the text. Reading `$page->documentation`
+     * on a light row is null, so anything that needs the text fetches it (see
+     * `DocumentationSearchService::build()`).
+     */
+    public function scopeLight(Builder $query): void
+    {
+        $query->select(['id', 'notebook_id', 'parent_id', 'title', 'slug', 'position', 'created_by_id', 'updated_by_id', 'created_at', 'updated_at'])
+            ->selectRaw(PageTextSql::hasContentExpression($query->getConnection()) . ' as ' . PageTextSql::HAS_CONTENT_ALIAS);
+    }
+
+    /**
+     * Adds the text's md5 (`textHash()`) to a light row — for the search
+     * index's key, which proves the index fresh by content. The hash costs
+     * the database a read of every page, so it is not part of `light()`.
+     */
+    public function scopeWithTextHash(Builder $query): void
+    {
+        $query->selectRaw(PageTextSql::md5Expression($query->getConnection()) . ' as ' . PageTextSql::MD5_ALIAS);
+    }
+
+    /** Whether there is anything to read once whitespace is stripped. */
+    public function hasContent(): bool
+    {
+        if (array_key_exists(PageTextSql::HAS_CONTENT_ALIAS, $this->attributes)) {
+            return (bool) $this->attributes[PageTextSql::HAS_CONTENT_ALIAS];
+        }
+
+        return trim((string) $this->documentation) !== '';
+    }
+
+    /** md5 of the text ('' for none) — from SQL on a light row, from the text otherwise. */
+    public function textHash(): string
+    {
+        if (array_key_exists(PageTextSql::MD5_ALIAS, $this->attributes)) {
+            return (string) $this->attributes[PageTextSql::MD5_ALIAS];
+        }
+
+        return md5((string) $this->documentation);
     }
 
     public function registerMediaCollections(): void

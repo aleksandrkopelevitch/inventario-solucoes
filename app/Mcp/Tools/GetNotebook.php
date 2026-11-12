@@ -96,7 +96,7 @@ class GetNotebook implements Tool
                         // spend a call on a section heading that exists only to
                         // hold its children. 49 of the imported Digibee levels
                         // are exactly that.
-                        'has_content' => filled($page->documentation),
+                        'has_content' => $page->hasContent(),
                     ];
                 })
                 ->all(),

@@ -78,10 +78,11 @@ function spinner(visible) {
     Opening and closing
 --------------------------------------------------*/
 
-// The index is built on FIRST OPEN, never on page render: a visitor who never
-// searches never pays the cost of parsing the corpus (six seconds on the
-// largest one measured). `data-ak-docs-search-pending` is the server saying it
-// shipped a placeholder because the index was cold.
+// The idle panel is fetched on FIRST OPEN, never on page render: a visitor who
+// never searches never pays for the index — neither its build (six seconds on
+// the largest corpus measured, when cold) nor the read of a warm one.
+// `data-ak-docs-search-pending` is the placeholder the server always ships;
+// the first answer replaces it, and the marker with it.
 function open() {
     const dialog = panel()
     if (!dialog || dialog.open) return
@@ -403,8 +404,9 @@ export function init() {
         scheduleRequest()
     })
 
-    // The chips are rendered with the page whenever the index is already warm.
-    // When it isn't, the panel shipped a placeholder and this is what fills it
-    // in — building the index in the background instead of inside the render.
-    if (panel()?.querySelector('[data-ak-docs-search-pending]')) request()
+    // No request here, on purpose. The panel always ships its placeholder and
+    // `open()` fetches the idle results the first time the palette opens, so a
+    // reader who never searches costs the server nothing for the index — not
+    // the render-time panel the page used to carry, nor the background fetch
+    // that replaced it on every page view.
 }

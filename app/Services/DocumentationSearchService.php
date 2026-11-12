@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
+use App\Support\Documentation\PageTextSql;
 use App\Support\Fold;
 use App\Support\GitbookRenderer;
 use DOMDocument;
@@ -118,7 +119,11 @@ class DocumentationSearchService
     // v5: entries gained their per-scope text buckets (`scopes`/`foldScopes`).
     // A cached v4 entry has none, and `inScope()` would narrow every search to
     // an empty haystack — silently, since an empty bucket is a legal state.
-    private const VERSION = 'v5';
+    // v6: the per-page key hashes `title`, `slug` and the md5 OF the text
+    // (`DocumentationPage::textHash()`, computed in SQL) instead of the text
+    // itself — the key is proved fresh without hydrating the corpus. Same
+    // inputs, different formula, so a v5 entry would never be found again.
+    private const VERSION = 'v6';
 
     public function __construct(private readonly DocumentationPageService $pages) {}
 
@@ -191,14 +196,17 @@ class DocumentationSearchService
      *
      * One query for the tree, and the fingerprint is read straight off the
      * models it already hydrated — checking whether the index is stale costs
-     * no extra query. Reading order is part of the fingerprint: a page that
-     * MOVES changes the breadcrumb of every page under it.
+     * no extra query, and no text either: the tree is LIGHT (each page's md5
+     * computed in SQL, `DocumentationPage::textHash()`), so proving a 630-page
+     * index fresh moves a few bytes per page, not 5 MB. Reading order is part
+     * of the fingerprint: a page that MOVES changes the breadcrumb of every
+     * page under it.
      *
      * @return array{0: string, 1: Collection<int, array<string, mixed>>}
      */
     private function indexKey(Notebook $notebook): array
     {
-        $tree = $this->pages->tree($notebook);
+        $tree = $this->pages->tree($notebook, withTextHash: true);
 
         $fingerprint = md5($tree
             ->map(fn (array $row): string => $this->pageKey($row['page']))
@@ -418,6 +426,15 @@ class DocumentationSearchService
         $cached = $keys === [] ? [] : Cache::many(array_values($keys));
         $misses = [];
 
+        // The tree is light (no text). Only a page whose parse is NOT cached
+        // needs its Markdown, so that is the only text fetched — one query for
+        // all of them, and none at all once every page has been parsed once.
+        $uncachedIds = array_keys(array_filter($keys, fn (string $key): bool => ($cached[$key] ?? null) === null));
+        $texts = $uncachedIds === []
+            ? []
+            : DocumentationPage::query()->whereIn('id', $uncachedIds)->toBase()
+                ->pluck('documentation', 'id')->all();
+
         // Ancestor titles, so a result can say where it lives without a
         // second walk. `tree()` is in reading order, so a page's parent has
         // always been seen by the time the page is.
@@ -438,7 +455,7 @@ class DocumentationSearchService
 
             $parsed = $cached[$keys[$page->id]] ?? null;
             if ($parsed === null) {
-                $parsed = $this->parse($page);
+                $parsed = $this->parse((string) $page->title, (string) ($texts[$page->id] ?? $page->documentation));
                 $misses[$keys[$page->id]] = $parsed;
             }
 
@@ -537,7 +554,7 @@ class DocumentationSearchService
         return self::VERSION . ':docs-search:page:' . $page->id . ':' . md5(implode("\0", [
             $page->title,
             $page->slug,
-            (string) $page->documentation,
+            $page->textHash(),
         ]));
     }
 
@@ -546,13 +563,13 @@ class DocumentationSearchService
      *
      * @return array{lead: array{text: string, tags: array<int, string>}, sections: array<int, array<string, mixed>>}
      */
-    private function parse(DocumentationPage $page): array
+    private function parse(string $title, string $markdown): array
     {
         // `linkDiagrams: false` for two reasons: "Abrir diagrama" is chrome and
         // has no business being searchable, and the index is CACHED — a render
         // that varied by the viewer's auth state would bake one audience's
         // chrome into everybody's results.
-        $html = (new GitbookRenderer)->render($page->documentation, linkDiagrams: false);
+        $html = (new GitbookRenderer)->render($markdown, linkDiagrams: false);
         $empty = ['lead' => ['text' => '', 'tags' => [], 'scopes' => []], 'sections' => []];
 
         if (trim($html) === '') {
@@ -612,7 +629,7 @@ class DocumentationSearchService
         $opensWithTitle = $sections !== []
             && $leadBucket['text'] === ''
             && $sections[0]['level'] === 1
-            && self::fold($sections[0]['heading']) === self::fold($page->title);
+            && self::fold($sections[0]['heading']) === self::fold($title);
 
         if ($opensWithTitle) {
             $absorbed = array_shift($sections);
@@ -844,26 +861,35 @@ class DocumentationSearchService
      * The per-caderno key reads the caderno's tree through the page service and
      * hashes each page — fine for one caderno, ~170 ms for all of them on every
      * keystroke. This reads the same facts straight off the table, unhydrated,
-     * for every caderno at once (~60 ms over the whole dev corpus). Still
-     * CONTENT, never `updated_at`, for the reason the class docblock gives; and
-     * `parent_id`/`position` are in it because a move changes breadcrumbs. The
-     * cadernos' names are in it too: they are part of every entry now.
+     * for every caderno at once. Still CONTENT, never `updated_at`, for the
+     * reason the class docblock gives; and `parent_id`/`position` are in it
+     * because a move changes breadcrumbs. The cadernos' names are in it too:
+     * they are part of every entry now.
+     *
+     * The md5 of each page's text is computed IN SQL (`PageTextSql`), so the
+     * corpus never leaves the database for this: the query used to pull all
+     * 5 MB of Markdown on every keystroke of "Todos os cadernos" to hash it in
+     * PHP — ~60 ms, and most of the request.
      *
      * @param  Collection<int, Notebook>  $notebooks
      */
     private function globalKey(Collection $notebooks): string
     {
+        $connection = DocumentationPage::query()->getConnection();
+
         $pages = DocumentationPage::query()
             ->whereIn('notebook_id', $notebooks->modelKeys())
             ->orderBy('id')
             ->toBase()
-            ->get(['id', 'notebook_id', 'parent_id', 'position', 'title', 'slug', 'documentation']);
+            ->select(['id', 'notebook_id', 'parent_id', 'position', 'title', 'slug'])
+            ->selectRaw(PageTextSql::md5Expression($connection) . ' as ' . PageTextSql::MD5_ALIAS)
+            ->get();
 
         $fingerprint = md5(
             $notebooks->map(fn (Notebook $n): string => $n->id . "\0" . $n->slug . "\0" . $n->name)->implode('|')
             . '#'
             . $pages->map(fn (object $p): string => implode("\0", [
-                $p->id, $p->notebook_id, $p->parent_id, $p->position, $p->title, $p->slug, md5((string) $p->documentation),
+                $p->id, $p->notebook_id, $p->parent_id, $p->position, $p->title, $p->slug, $p->{PageTextSql::MD5_ALIAS},
             ]))->implode('|'),
         );
 
