@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreDiagramPictureRequest;
 use App\Models\Diagram;
+use App\Support\Documentation\PictureResponse;
 use Illuminate\Http\JsonResponse;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * The rendered picture of a diagram's canvas, posted by the client after every
@@ -32,7 +34,7 @@ class DiagramPictureController extends Controller
         return response()->json(['type' => 'success']);
     }
 
-    public function show(Diagram $diagram): StreamedResponse
+    public function show(Request $request, Diagram $diagram): BinaryFileResponse
     {
         $this->authorize('view', $diagram);
 
@@ -40,6 +42,6 @@ class DiagramPictureController extends Controller
 
         abort_if($media === null, 404);
 
-        return $media->toResponse(request());
+        return PictureResponse::for($media, $request);
     }
 }

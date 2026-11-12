@@ -26,7 +26,7 @@
 
             <div class="mt-3 flex min-h-32 flex-1 items-center justify-center overflow-hidden rounded-field border border-line bg-raised">
                 @if ($row['picture'] && $diagram)
-                    <img src="{{ route('submissions.diagrams.picture.show', [$submission, $diagram]) }}"
+                    <img src="{{ \App\Support\Documentation\PictureResponse::versionedUrl('submissions.diagrams.picture.show', [$submission, $diagram], $row['picture']) }}"
                          alt="{{ $kind->label() }}" class="max-h-48 w-full object-contain" />
                 @else
                     <span class="px-4 py-6 text-center text-xs text-faint">

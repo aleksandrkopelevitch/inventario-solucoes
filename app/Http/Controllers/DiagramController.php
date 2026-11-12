@@ -23,6 +23,7 @@ use App\Models\Diagram;
 use App\Models\Notebook;
 use App\Models\Solution;
 use App\Services\DiagramCatalogService;
+use App\Support\Documentation\PictureResponse;
 use App\View\Components\Diagrams\Index;
 use App\View\Components\Diagrams\Meta;
 use App\View\Components\Diagrams\Systems;
@@ -194,7 +195,7 @@ class DiagramController extends Controller
             $entry = [
                 'slug'       => $diagram->slug,
                 'name'       => $diagram->name,
-                'pictureUrl' => $diagram->picture() ? route('diagrams.picture.show', $diagram) : null,
+                'pictureUrl' => ($picture = $diagram->picture()) ? PictureResponse::versionedUrl('diagrams.picture.show', ['diagram' => $diagram], $picture) : null,
                 'url'        => route('diagrams.show', $diagram),
             ];
 

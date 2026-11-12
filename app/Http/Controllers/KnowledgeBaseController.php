@@ -23,7 +23,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * The internal knowledge base (`/docs`) — the cadernos an admin has published,
@@ -232,11 +231,11 @@ class KnowledgeBaseController extends Controller
     }
 
     /** The picture of a diagram this caderno cites — authorised by the citation. */
-    public function diagramPicture(Notebook $notebook, Diagram $diagram): StreamedResponse
+    public function diagramPicture(Request $request, Notebook $notebook, Diagram $diagram): BinaryFileResponse
     {
         $this->guard($notebook);
 
-        return DiagramCitation::stream($notebook, $diagram);
+        return DiagramCitation::stream($notebook, $diagram, $request);
     }
 
     /**

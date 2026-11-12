@@ -4,7 +4,8 @@ namespace App\Support\Documentation;
 
 use App\Models\Diagram;
 use App\Models\Notebook;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * Serving the picture of a diagram a caderno CITES.
@@ -41,8 +42,14 @@ final class DiagramCitation
         return $notebook->pages()->where('documentation', 'like', '%' . $needle . '%')->exists();
     }
 
-    /** The drawing's current PNG, or a 404 when it is uncited or has none. */
-    public static function stream(Notebook $notebook, Diagram $diagram): StreamedResponse
+    /**
+     * The drawing's current PNG, or a 404 when it is uncited or has none.
+     *
+     * Sent through `PictureResponse`, so it carries validators and a cache
+     * policy — it used to be a bare `readfile()` stream, re-downloaded in full
+     * on every view of every page citing it.
+     */
+    public static function stream(Notebook $notebook, Diagram $diagram, Request $request): BinaryFileResponse
     {
         abort_unless(self::cited($notebook, $diagram), 404);
 
@@ -50,11 +57,6 @@ final class DiagramCitation
 
         abort_if($media === null, 404);
 
-        return response()->stream(function () use ($media) {
-            readfile($media->getPath());
-        }, 200, [
-            'Content-Type'        => $media->mime_type,
-            'Content-Disposition' => 'inline; filename="' . addslashes($media->file_name) . '"',
-        ]);
+        return PictureResponse::for($media, $request);
     }
 }
