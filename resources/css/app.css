@@ -39,21 +39,74 @@
    Fraunces/Geist Mono, todas removidas daqui por ficarem 100% órfãs junto
    com esta troca — os quatro arquivos .woff2 correspondentes também foram
    apagados de resources/fonts/. */
+/* Each face is split in two since 2026-11-12 (scratch script with fontTools,
+   both axes — opsz, wght — and every layout feature kept): a LATIN file,
+   Google Fonts' latin range plus the symbols this UI prints (arrows, check
+   marks, bullets, box drawing, ⌘ and ★), and a REST file with every other glyph. The
+   browser downloads a file only when text on screen falls in its range, so a
+   page pays ~112 KB for Inter instead of 352 KB, the italic ~124 KB instead
+   of 388 KB, and the rest files (~310/342 KB) only when a Cyrillic, Greek or
+   math glyph is actually drawn. The latin regular is also preloaded by every
+   layout. A glyph is never missing: anything outside latin still comes from
+   Inter, from the second file. */
 @font-face {
     font-family: 'Inter';
-    src: url('../fonts/InterVariable.woff2') format('woff2-variations');
+    src: url('../fonts/InterVariable-latin.woff2') format('woff2-variations');
     font-weight: 100 900;
     font-style: normal;
     font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2190-21FF, U+2212, U+2215, U+2300-23FF, U+2500-26FF, U+2713-2714, U+2716, U+FEFF, U+FFFD;
 }
 
-/* Carrega Inter Italic (Variable) */
 @font-face {
     font-family: 'Inter';
-    src: url('../fonts/InterVariable-Italic.woff2') format('woff2-variations');
+    src: url('../fonts/InterVariable-rest.woff2') format('woff2-variations');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0100-012F, U+0132-0151, U+0154-02BA, U+02BD-02C5, U+02C7-02D9, U+02DB, U+02DD-0303, U+0305-0307, U+0309-0328, U+032A-1FFF, U+2070-20AB, U+20AD-2121, U+2123-218F, U+2200-2211, U+2213-2214, U+2216-22FF, U+2400-24FF, U+2700-2712, U+2715, U+2717-FEFE, U+FF00-FFFC, U+FFFE-10FFFF;
+}
+
+/* Carrega Inter Italic (Variable), same split. */
+@font-face {
+    font-family: 'Inter';
+    src: url('../fonts/InterVariable-Italic-latin.woff2') format('woff2-variations');
     font-weight: 100 900;
     font-style: italic;
     font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2190-21FF, U+2212, U+2215, U+2300-23FF, U+2500-26FF, U+2713-2714, U+2716, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: 'Inter';
+    src: url('../fonts/InterVariable-Italic-rest.woff2') format('woff2-variations');
+    font-weight: 100 900;
+    font-style: italic;
+    font-display: swap;
+    unicode-range: U+0100-012F, U+0132-0151, U+0154-02BA, U+02BD-02C5, U+02C7-02D9, U+02DB, U+02DD-0303, U+0305-0307, U+0309-0328, U+032A-1FFF, U+2070-20AB, U+20AD-2121, U+2123-218F, U+2200-2211, U+2213-2214, U+2216-22FF, U+2400-24FF, U+2700-2712, U+2715, U+2717-FEFE, U+FF00-FFFC, U+FFFE-10FFFF;
+}
+
+/* Space Mono (`--font-mono`: the F3/DOCS seals, protocol labels, chips),
+   self-hosted since 2026-11-12. It came from a Google Fonts <link> in every
+   layout — a render-blocking stylesheet from a third party, then a second
+   origin for the file, on every page. These are Google's own latin woff2
+   files (16 KB each), the same bytes, with their unicode-range. */
+@font-face {
+    font-family: 'Space Mono';
+    src: url('../fonts/SpaceMono-Regular-latin.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: 'Space Mono';
+    src: url('../fonts/SpaceMono-Bold-latin.woff2') format('woff2');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 @theme {

@@ -50,7 +50,10 @@ const solutionsSheet = lazy('[data-ak-sheet]', () => import('./modules/solutions
 // `eager` with `?url` on purpose: a plain (lazy) glob whose result nothing
 // reads is tree-shaken away by Vite 8 before its files are emitted, so the
 // images never reached the manifest and every `Vite::asset()` call threw.
-import.meta.glob('../img/**', { eager: true, query: '?url', import: 'default' })
+// The fonts are here for the same reason: the layouts preload Inter's latin
+// file with `Vite::asset()`, which needs the file in the manifest. Vite emits
+// the CSS's `url()` and this glob's import as ONE hashed asset.
+import.meta.glob(['../img/**', '../fonts/**'], { eager: true, query: '?url', import: 'default' })
 
 window.globalModules = {
     "toggle"       : toggle,
