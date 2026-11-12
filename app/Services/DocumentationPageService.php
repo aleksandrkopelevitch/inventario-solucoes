@@ -244,11 +244,25 @@ class DocumentationPageService
      * `canMove()` reads the very same flags to validate an incoming move — so
      * a button the rail doesn't offer is also a button nobody can forge.
      *
+     * LIGHT: the rows come without their text (`DocumentationPage::scopeLight()`),
+     * carrying `hasContent()` answered in SQL instead. Every caller of a tree
+     * asks that one question per row and nothing else of the text, and the
+     * text is the whole corpus — 5 MB over the 630-page Digibee caderno,
+     * hydrated three times per `/docs` page view before this. The search
+     * index's key asks one more thing, the text's md5 (`withTextHash`), which
+     * costs the database a read of every page and so is opt-in.
+     *
      * @return Collection<int, array{page: DocumentationPage, depth: int, hasChildren: bool, canNest: bool, canPromote: bool, canAddChild: bool, descendantLevels: int}>
      */
-    public function tree(Notebook $notebook): Collection
+    public function tree(Notebook $notebook, bool $withTextHash = false): Collection
     {
-        $byParent = $notebook->pages()->get()->groupBy('parent_id');
+        $query = $notebook->pages()->light();
+
+        if ($withTextHash) {
+            $query->withTextHash();
+        }
+
+        $byParent = $query->get()->groupBy('parent_id');
 
         return $this->treeLevel($byParent, null, 0);
     }
@@ -316,7 +330,8 @@ class DocumentationPageService
      */
     public function navRows(Notebook $notebook, ?DocumentationPage $active): Collection
     {
-        $open = $this->ancestorIds($active);
+        $tree = $this->tree($notebook);
+        $open = $this->ancestorIds($active, $tree);
 
         if ($active) {
             // The active page opens too — landing on a section should show what
@@ -326,7 +341,7 @@ class DocumentationPageService
 
         $expandedByPage = [];
 
-        return $this->tree($notebook)->map(function (array $row) use ($open, &$expandedByPage) {
+        return $tree->map(function (array $row) use ($open, &$expandedByPage) {
             /** @var DocumentationPage $page */
             $page = $row['page'];
             $expanded = isset($open[$page->id]);
@@ -345,20 +360,30 @@ class DocumentationPageService
      * The ids on the path from `$page` up to a root, as a set — `$page` itself
      * excluded.
      *
-     * `parent()->first()`, never the `parent` property: the caller may hand us a
-     * page from a multi-row hydration, where strict mode turns a lazy load into
-     * a 500 (§ Strict mode).
+     * Read off the tree already in hand (every row's `parent_id`), not with a
+     * `parent()->first()` per level: that was a query per ancestor on every
+     * page view, for a fact the rail's own query had just fetched.
      *
+     * @param  Collection<int, array<string, mixed>>  $tree
      * @return array<int, true>
      */
-    private function ancestorIds(?DocumentationPage $page): array
+    private function ancestorIds(?DocumentationPage $page, Collection $tree): array
     {
-        $ids = [];
-        $ancestor = $page?->parent()->first();
+        if (! $page) {
+            return [];
+        }
 
-        while ($ancestor) {
-            $ids[$ancestor->id] = true;
-            $ancestor = $ancestor->parent()->first();
+        $parentOf = [];
+        foreach ($tree as $row) {
+            $parentOf[$row['page']->id] = $row['page']->parent_id;
+        }
+
+        $ids = [];
+        $ancestorId = $parentOf[$page->id] ?? $page->parent_id;
+
+        while ($ancestorId !== null && ! isset($ids[$ancestorId])) {
+            $ids[$ancestorId] = true;
+            $ancestorId = $parentOf[$ancestorId] ?? null;
         }
 
         return $ids;
@@ -372,7 +397,7 @@ class DocumentationPageService
      */
     public function canMove(DocumentationPage $page, string $direction): bool
     {
-        $row = $this->tree($page->notebook)->first(fn (array $candidate) => $candidate['page']->is($page));
+        $row = $this->tree($page->notebook)->first(fn (array $candidate) => $candidate['page']->id === $page->id);
 
         return match ($direction) {
             'in'    => (bool) ($row['canNest'] ?? false),

@@ -44,11 +44,15 @@ Three rules the scopes carry:
 
 Two consequences of the palette worth keeping in mind:
 
-- The idle panel renders its chips server-side, so the page render would
-  inherit the index build — which is why `DocumentationSearchService::isWarm()`
-  exists. A cold index makes the panel ship a placeholder and lets
-  `docs-search.js` fetch it, so a big corpus is indexed in the background on
-  the first visit instead of inside time-to-first-paint.
+- **The page render never touches the index.** The panel always ships a
+  placeholder (`data-ak-docs-search-pending`) and `docs-search.js` fetches the
+  idle results the first time the palette OPENS — not on page load either.
+  Until 2026-11-12 the reader shipped the chips inline whenever the index was
+  warm (`isWarm()`), and proving "warm" cost every page view a full tree walk
+  with the corpus hydrated, plus an unserialize of the whole index for a panel
+  most readers never open: 3 of the 5 queries and 2/3 of the time of a `/docs`
+  page on the 133-page caderno. `isWarm()` still exists for
+  `documentation:search-warm`'s accounting.
 - The reading shell is no longer hidden during a search: a `<dialog>` renders
   in the top layer, so the documentation staying visible underneath is the
   point rather than a conflict. `data-ak-docs-search-active` survives on the
@@ -112,9 +116,15 @@ entry carries its text four times. What it does instead:
   the same answer, since a term never contains whitespace.
 - **One query proves it fresh** (`globalKey()`): every page's id, parent,
   position, title, slug and an md5 of its text, unhydrated, plus the cadernos'
-  ids, slugs and names. That is still CONTENT, never `updated_at`. `md5()` in
-  SQL was measured too (~40 ms vs ~60 ms) and not worth a second SQLite
-  function.
+  ids, slugs and names. That is still CONTENT, never `updated_at`. The md5 is
+  computed IN SQL (`App\Support\Documentation\PageTextSql`, which also
+  registers `ak_md5()` on SQLite beside `Fold`'s function), so the corpus never
+  leaves the database to be hashed — the per-caderno key does the same through
+  `DocumentationPageService::tree(withTextHash: true)`, and `pageKey()` hashes
+  title, slug and that md5 (VERSION v6). The tree every OTHER caller walks is
+  `light()`: no text, `hasContent()` answered by `coalesce(col,'') <> ''`,
+  which costs nothing over the bare columns (3.7 ms vs 15 ms hydrated on the
+  133-page caderno) — unlike a `btrim`, which costs more than hydrating.
 - **The caderno's name is in every entry's breadcrumb**, so "digibee timeout"
   finds the Digibee manual's "Timeout", not SAP's.
 - **Building it has a time BUDGET** (`GLOBAL_BUILD_BUDGET`, 3 s). Indexing every
@@ -146,4 +156,6 @@ Cost, measured 2026-08-26 on the largest corpus in the dev DB (132 pages /
 cost is paid once per page CONTENT, not per index rebuild, so editing one page
 of a large corpus re-renders that page alone. The index is fetched on the
 palette's first open, never on page render, so a visitor who does not search
-never pays for it.
+never pays for it — and a build only fetches the Markdown of the pages whose
+parse is NOT cached (one `whereIn` for all of them), since the tree it walks
+is light.

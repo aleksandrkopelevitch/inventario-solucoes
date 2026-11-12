@@ -428,11 +428,11 @@ class NotebookPageController extends Controller
     {
         // `withExists`: one query for the whole row of cards, not one per child
         // (a section page with 30 subpages cost 30 more on every render).
-        return $page->children()->withExists('children')->get()->map(fn (DocumentationPage $child) => [
+        return $page->children()->light()->withExists('children')->get()->map(fn (DocumentationPage $child) => [
             'title'       => $child->title,
             'url'         => route('notebooks.pages.edit', [$notebook, $child]),
             'hasChildren' => (bool) $child->children_exists,
-            'hasContent'  => trim((string) $child->documentation) !== '',
+            'hasContent'  => $child->hasContent(),
         ])->all();
     }
 }

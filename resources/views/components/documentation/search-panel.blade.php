@@ -14,7 +14,7 @@
     // text rather than one of the cadernos listed here.
     $selected = $notebooks && $current && $notebooks->contains('id', $current->id) ? $current->slug : '';
 
-    // The pre-rendered slot answers for the caderno being read. When the
+    // A pre-rendered slot answers for the caderno being read. When the
     // palette starts anywhere else it would be the wrong answer, so it ships
     // the placeholder and fetches instead.
     if ($notebooks && $selected === '') {
@@ -46,11 +46,12 @@
       (x-documentation.search-results) so a page's own text is escaped on the
       way out and never becomes markup here.
 
-    `$results` is the slot's HTML when the index was already warm at render
-    time. When it's null the palette renders a pending placeholder and
-    docs-search.js fetches it the first time the palette opens — which is also
-    why a visitor who never searches never pays for the index
-    (DocumentationSearchService::isWarm()).
+    `$results` is the slot's HTML when the caller already has it. Both reading
+    surfaces pass null: the palette renders a pending placeholder and
+    docs-search.js fetches it the first time the palette opens — which is why a
+    visitor who never searches never pays for the index, warm or cold. Shipping
+    it inline whenever the index was warm cost every page view a tree walk and
+    an unserialize of the whole index for a panel most readers never open.
 --}}
 <dialog data-ak-docs-search
         data-ak-docs-search-url="{{ $url }}"

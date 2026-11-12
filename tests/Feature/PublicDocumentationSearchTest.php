@@ -5,6 +5,7 @@ use App\Models\Notebook;
 use App\Services\DocumentationSearchService;
 use App\View\Components\Documentation\SearchResults;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 uses(LazilyRefreshDatabase::class);
 
@@ -62,7 +63,7 @@ it('renders the search panel above the documentation, not behind a shortcut', fu
         ->and(strpos($html, 'data-ak-docs-search-input'))->toBeGreaterThan(strpos($html, 'data-ak-docs-shell'));
 });
 
-it('ships the palette warm once the corpus is indexed', function () {
+it('ships the palette as a placeholder whether or not the corpus is indexed', function () {
     $notebook = sharedNotebook('tok-warm', "# Visão geral\n\n## Contrato\n\n| a | b |\n| --- | --- |\n| 1 | 2 |");
     DocumentationPage::factory()->for($notebook)->create(['title' => 'Outra', 'documentation' => '# Outra']);
 
@@ -72,14 +73,25 @@ it('ships the palette warm once the corpus is indexed', function () {
         ->assertSee('data-ak-docs-search-pending', false)
         ->assertDontSee('data-ak-docs-search-facet', false);
 
-    // Warm (the client's first search built it): the results slot ships with
-    // the HTML, section chips included.
-    $this->getJson(route('public.docs.search', $notebook->public_token))->assertOk();
+    // Warm (the client's first search built it): still the placeholder. The
+    // page render never reads the index; the palette fetches it when opened.
+    $this->getJson(route('public.docs.search', $notebook->public_token))
+        ->assertOk()
+        ->assertSee('data-ak-docs-search-facet=\"section\"', false);
 
+    DB::enableQueryLog();
     $this->get(route('public.docs.notebook', $notebook->public_token))
         ->assertOk()
-        ->assertDontSee('data-ak-docs-search-pending', false)
-        ->assertSee('data-ak-docs-search-facet="section"', false);
+        ->assertSee('data-ak-docs-search-pending', false)
+        ->assertDontSee('data-ak-docs-search-facet', false);
+
+    // And the rail's tree walk never hydrates the pages' text: the only whole
+    // rows read from the table are the page being read (route binding) and
+    // its own children (one `select *` each, at most).
+    $wholeRows = collect(DB::getQueryLog())
+        ->filter(fn (array $q) => preg_match('/select \* from "documentation_pages"/', $q['query']))
+        ->count();
+    expect($wholeRows)->toBeLessThanOrEqual(2);
 });
 
 it('offers the three search scopes, all on by default', function () {

@@ -5,11 +5,9 @@ namespace App\Services\Documentation;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Services\DocumentationPageService;
-use App\Services\DocumentationSearchService;
 use App\Support\Documentation\ReaderUrls;
 use App\Support\Documentation\SecretText;
 use App\Support\GitbookRenderer;
-use App\View\Components\Documentation\SearchResults;
 use Illuminate\Support\Collection;
 
 /**
@@ -34,7 +32,6 @@ final class DocumentationReader
 {
     public function __construct(
         private readonly DocumentationPageService $pages,
-        private readonly DocumentationSearchService $search,
         private readonly GitbookRenderer $renderer,
     ) {}
 
@@ -71,12 +68,13 @@ final class DocumentationReader
             'markdown'  => $this->rewriteAssetUrls(SecretText::mask((string) $markdown), $urls),
             'nav'       => $this->nav($notebook, $current, $urls),
             'searchUrl' => $urls->search(),
-            // Its chips, rendered with the page — but ONLY when the corpus is
-            // already indexed. A cold index would put the whole build (six
-            // seconds, on the largest corpus measured) inside time-to-first-
-            // paint of a page nobody has searched yet; the panel ships a
-            // placeholder instead and docs-search.js fills it in.
-            'searchResults' => $this->warmSearchPanel($notebook),
+            // Always the placeholder: the palette fetches its idle panel the
+            // first time it OPENS (docs-search.js), so a page view never touches
+            // the index. It used to ship the chips inline whenever the index
+            // was warm, and "whenever" cost every page view a full tree walk to
+            // prove the index fresh plus an unserialize of the whole index —
+            // multi-MB on a large caderno — for a panel most readers never open.
+            'searchResults' => null,
             // Sub-page navigation. A GitBook parent page is usually empty —
             // its own UI lists the children — so without this an imported
             // section is a dead end for a reader, who has only the side index.
@@ -139,11 +137,11 @@ final class DocumentationReader
     {
         // `withExists`: one query for the whole row of cards, not one per child
         // (a section page with 30 subpages cost 30 more on every render).
-        return $page->children()->withExists('children')->get()->map(fn (DocumentationPage $child) => [
+        return $page->children()->light()->withExists('children')->get()->map(fn (DocumentationPage $child) => [
             'title'       => $child->title,
             'url'         => $urls->page($child->slug),
             'hasChildren' => (bool) $child->children_exists,
-            'hasContent'  => trim((string) $child->documentation) !== '',
+            'hasContent'  => $child->hasContent(),
         ])->all();
     }
 
@@ -249,19 +247,6 @@ final class DocumentationReader
     }
 
     /**
-     * The search panel's slot HTML for an idle (unfiltered) panel, or null when
-     * building it would mean indexing the corpus during a page render.
-     */
-    private function warmSearchPanel(Notebook $notebook): ?string
-    {
-        if (! $this->search->isWarm($notebook)) {
-            return null;
-        }
-
-        return SearchResults::slot($this->search->search($notebook, ''))['content'];
-    }
-
-    /**
      * Side index: the caderno's tree, collapsed to the path being read.
      *
      * `navRows()` rather than `tree()`: it carries the open/closed state, which
@@ -279,7 +264,7 @@ final class DocumentationReader
             'depth'       => $row['depth'],
             'url'         => $urls->page($row['page']->slug),
             'active'      => $current?->is($row['page']) ?? false,
-            'hasDocs'     => trim((string) $row['page']->documentation) !== '',
+            'hasDocs'     => $row['page']->hasContent(),
             'id'          => $row['id'],
             'parentId'    => $row['parentId'],
             'hasChildren' => $row['hasChildren'],

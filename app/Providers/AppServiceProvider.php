@@ -6,6 +6,7 @@ use App\Contracts\GitbookSource;
 use App\Mcp\Actor;
 use App\Mcp\OAuth;
 use App\Support\Digibee\DigibeeAuthResolver;
+use App\Support\Documentation\PageTextSql;
 use App\Support\Fold;
 use App\Support\Gitbook\GitbookClient;
 use App\Support\Gitbook\TransientHttpFailure;
@@ -260,7 +261,13 @@ class AppServiceProvider extends ServiceProvider
         // SQLite has no `translate()` and an ASCII-only `lower()`, so the
         // folding is registered on the connection as a real SQL function. On
         // every other driver this is a no-op.
-        Event::listen(fn (ConnectionEstablished $event) => Fold::registerOn($event->connection));
+        Event::listen(function (ConnectionEstablished $event) {
+            Fold::registerOn($event->connection);
+            // Same mechanism for `md5()`, which SQLite also lacks: the
+            // documentation tree hashes each page's text in SQL rather than
+            // hydrating the corpus to hash it in PHP.
+            PageTextSql::registerOn($event->connection);
+        });
 
         Builder::macro('whereFolded', function (string $column, ?string $term, string $boolean = 'and') {
             /** @var Builder $this */
