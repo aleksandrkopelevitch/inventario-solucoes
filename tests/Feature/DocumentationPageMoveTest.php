@@ -242,6 +242,24 @@ it('renders the move-to-caderno form in the pages rail', function () {
         ->assertSee('Caderno destino', escape: false);
 });
 
+it('lists the move destinations once per rail, not once per page', function () {
+    $page = importedPage();
+    foreach (range(1, 4) as $n) {
+        DocumentationPage::factory()->for($page->notebook)->create(['title' => "Irmã {$n}", 'position' => $n + 1]);
+    }
+    Notebook::factory()->create(['name' => 'Caderno destino']);
+
+    $html = $this->actingAs(moveAdmin())
+        ->get(route('notebooks.pages.edit', [$page->notebook, $page]))
+        ->assertOk()
+        ->getContent();
+
+    // Five rows, five move forms, one list (in the template they are filled from).
+    expect(substr_count($html, 'data-ak-docs-move-select="data-ak-docs-move-select"'))->toBe(5)
+        ->and(substr_count($html, '>Caderno destino</option>'))->toBe(1)
+        ->and(substr_count($html, 'data-ak-docs-move-options'))->toBe(1);
+});
+
 it('hides the move entry when there is nowhere to move the page to', function () {
     $page = importedPage();
 

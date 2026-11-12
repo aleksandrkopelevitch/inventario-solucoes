@@ -41,6 +41,20 @@
 
         {{-- `data-ak-docs-tree` is the container docs-tree.js resolves with
              closest() — without it every toggle in here is a silent no-op. --}}
+        {{-- The "Mover para…" destinations, ONCE. Every row's form used to
+             carry its own copy of this list, so the rail grew with pages ×
+             cadernos (630 pages × 45 cadernos ≈ 28k options on the imported
+             Digibee caderno), re-sent on every rename and move. Each row's
+             select is filled from here when its form opens (docs-tree.js). --}}
+        @php($moveDestinations = collect($pages)->first(fn ($p) => ! empty($p['destinations'] ?? []))['destinations'] ?? [])
+        @if ($moveDestinations !== [])
+            <template data-ak-docs-move-options>
+                @foreach ($moveDestinations as $option)
+                    <option value="{{ $option['value'] }}">{{ $option['label'] }}</option>
+                @endforeach
+            </template>
+        @endif
+
         <ul data-ak-docs-tree class="flex flex-col gap-0.5">
             @foreach ($pages as $page)
                 @php ($i = $loop->index)
@@ -171,7 +185,7 @@
                         @endif
 
                         @if (! empty($page['destinations'] ?? []))
-                            <x-forms.button type="button" variant="ghost" data-ak-toggle="doc-page-notebook-{{ $i }}" data-ak-toggle-classes="hidden"
+                            <x-forms.button type="button" variant="ghost" data-ak-toggle="doc-page-notebook-{{ $i }}" data-ak-toggle-classes="hidden" data-ak-docs-move-fill="doc-page-notebook-{{ $i }}"
                                 class="!justify-start !px-2 !py-1 !text-xs">
                                 <x-heroicon-o-arrow-right-circle class="size-3.5" /> Mover para…
                             </x-forms.button>
@@ -249,11 +263,7 @@
                         <form id="doc-page-notebook-{{ $i }}" class="hidden ml-2 mt-1 flex gap-1.5">
                             @csrf
                             @method('PATCH')
-                            <x-forms.select name="notebook" class="!text-xs" aria-label="Mover a página para">
-                                @foreach ($page['destinations'] as $option)
-                                    <option value="{{ $option['value'] }}">{{ $option['label'] }}</option>
-                                @endforeach
-                            </x-forms.select>
+                            <x-forms.select name="notebook" class="!text-xs" aria-label="Mover a página para" data-ak-docs-move-select></x-forms.select>
                             <x-forms.button data-ak-ajax="doc-page-notebook-{{ $i }}" data-ak-action="{{ $page['notebookUrl'] }}" class="!h-8 !shrink-0 !px-2.5 !text-xs">
                                 Mover
                             </x-forms.button>

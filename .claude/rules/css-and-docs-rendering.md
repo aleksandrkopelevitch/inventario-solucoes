@@ -62,6 +62,18 @@ If a past reviewer left dead custom CSS behind (unused decorative classes,
 leftover from a copied reference bundle), delete it rather than leaving it —
 `grep` the class name across `resources/views` first to confirm it's unused.
 
+### A large page's parse is cached (since 2026-11-12)
+
+`GitbookRenderer::parsed()` caches `renderLines()` — commonmark, the whole cost
+of a render (380–730 ms for each of the six largest imported pages, against
+0.4 ms for every per-reader pass together) — for pages of 4 KB and up. The key
+holds the text, `linkDiagrams`, the URL root and `dependencies()`: each cited
+diagram's id, name and current picture, each `{% file %}`'s media name and
+size. A page with a CARD grid is never cached, since a card's link is resolved
+per reader inside the parse. Anything new that the parse prints from the
+database must join `dependencies()`, or it goes stale for 30 days; bump
+`PARSE_CACHE_VERSION` when the output's shape changes.
+
 ### Two Markdown renderers, on purpose
 
 | | `App\Support\GitbookRenderer` | `App\Support\MarkdownText` |

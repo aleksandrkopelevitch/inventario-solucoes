@@ -64,4 +64,24 @@ document.addEventListener('click', (e) => {
  * above is delegated, so a slot swap (the authenticated rail is an updatable
  * slot) needs nothing re-bound.
  */
+/*------------------------------------------------
+    "Mover para…": one list of destinations per rail
+
+    The rail renders the destination cadernos ONCE, in a
+    `<template data-ak-docs-move-options>`, and every row's move form ships an
+    empty `<select data-ak-docs-move-select>`. Opening a row's form copies the
+    options in. Capture phase, so the select is filled before toggle.js shows
+    the form on the same click; filled once per form.
+--------------------------------------------------*/
+document.addEventListener('click', (e) => {
+    const trigger = e.target.closest('[data-ak-docs-move-fill]')
+    if (!trigger) return
+
+    const select = document.getElementById(trigger.dataset.akDocsMoveFill)?.querySelector('[data-ak-docs-move-select]')
+    const options = document.querySelector('template[data-ak-docs-move-options]')
+    if (!select || !options || select.options.length > 0) return
+
+    select.append(options.content.cloneNode(true))
+}, true)
+
 export function init() {}

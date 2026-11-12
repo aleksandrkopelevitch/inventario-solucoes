@@ -434,7 +434,10 @@ Six things about it that are easy to get wrong:
   top-level page, since its parent stayed behind. Slugs are re-checked against
   the destination depth-first, parents before children.
 - **`destinationsFor()` is called ONCE per rail, not per row.** It queries every
-  caderno; per-row would be a query per page in the sidebar. It returns a FLAT
+  caderno; per-row would be a query per page in the sidebar. Its OPTIONS are
+  rendered once too, in a `<template data-ak-docs-move-options>` that
+  `docs-tree.js` copies into a row's empty select when its form opens — they
+  used to be printed in every row (pages × cadernos options). It returns a FLAT
   list — it was two `<optgroup>`s ("Soluções"/"Grupos") while a destination
   could be either kind of container. The current caderno is excluded, which is
   what makes the rail hide the "Mover para…" entry when there is nowhere to go.

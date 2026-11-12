@@ -12,6 +12,7 @@ use App\Support\Documentation\SecretText;
 use App\Support\Documentation\StepScene;
 use App\Support\Documentation\TimelineScene;
 use App\Support\Documentation\TreeScene;
+use Illuminate\Support\Facades\Cache;
 use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
 use League\CommonMark\Extension\GithubFlavoredMarkdownExtension;
@@ -151,9 +152,87 @@ class GitbookRenderer
         // page was edited under them still opens the value they clicked.
         $markdown = SecretText::replace($markdown, fn (string $address): string => self::secretToken($address));
 
+        return $this->resolvePageLinks($this->paintSecrets($this->deferImages($this->parsed($markdown))));
+    }
+
+    /** Bumped when `renderLines()`'s output changes shape — old entries then miss. */
+    private const PARSE_CACHE_VERSION = 'v1';
+
+    /** Below this many characters a parse costs less than the cache round trip. */
+    private const PARSE_CACHE_MIN_LENGTH = 4096;
+
+    /**
+     * `renderLines()`, cached.
+     *
+     * The parse is the whole cost of a render — measured 2026-11-12 on the dev
+     * corpus: 0.4 ms for every per-reader pass together, against 380–730 ms of
+     * commonmark for each of the six largest imported pages (100–270 KB), paid
+     * on every view of them. So the parse is cached and the passes that vary
+     * per reader (`deferImages`, `paintSecrets`, `resolvePageLinks`, and the
+     * reader's own asset rewrite downstream) still run on every call.
+     *
+     * What the parse reads besides the text is all in the key:
+     *
+     * - `linkDiagrams` and the URL root, since a citation card prints absolute
+     *   `route()` URLs;
+     * - every cited DIAGRAM's id, name and current picture (`dependencies()`),
+     *   so a rename, a re-save of the canvas or a deletion is a new key;
+     * - every `{% file %}`'s media name and size, which its card prints.
+     *
+     * A page with a CARD grid is not cached at all: a card's destination is
+     * resolved per reader inside the parse (`cardUrl()`), against the reader's
+     * page and caderno addresses, and that is not something a key can
+     * summarise cheaply. Card grids live on landing pages, which are small.
+     */
+    private function parsed(string $markdown): string
+    {
         $lines = preg_split('/\r\n|\r|\n/', $markdown);
 
-        return $this->resolvePageLinks($this->paintSecrets($this->deferImages($this->renderLines($lines))));
+        if (strlen($markdown) < self::PARSE_CACHE_MIN_LENGTH || str_contains($markdown, '{% card')) {
+            return $this->renderLines($lines);
+        }
+
+        $key = 'gitbook-render:' . self::PARSE_CACHE_VERSION . ':' . md5(implode("\0", [
+            $markdown,
+            $this->linkDiagrams ? '1' : '0',
+            url('/'),
+            $this->dependencies($markdown),
+        ]));
+
+        return Cache::remember($key, now()->addDays(30), fn (): string => $this->renderLines($lines));
+    }
+
+    /**
+     * The database state a parse of `$markdown` prints: the cited diagrams
+     * (missing ones included, as a slug with no row) and the files' media.
+     * Two queries at most, none for a page that cites neither.
+     */
+    private function dependencies(string $markdown): string
+    {
+        $parts = [];
+
+        if (preg_match_all('/^\s*\{%\s*diagram\s+slug="([^"]*)"\s*%\}\s*$/m', $markdown, $m)) {
+            $slugs = array_values(array_unique($m[1]));
+            $diagrams = Diagram::query()->whereIn('slug', $slugs)->get(['id', 'slug', 'name']);
+            $pictures = Media::query()
+                ->where('model_type', (new Diagram)->getMorphClass())
+                ->whereIn('model_id', $diagrams->modelKeys())
+                ->where('collection_name', Diagram::DIAGRAM_COLLECTION)
+                ->pluck('id', 'model_id');
+
+            foreach ($slugs as $slug) {
+                $diagram = $diagrams->firstWhere('slug', $slug);
+                $parts[] = 'd:' . $slug . ':' . ($diagram ? $diagram->id . ':' . $diagram->name . ':' . ($pictures[$diagram->id] ?? '-') : 'missing');
+            }
+        }
+
+        if (preg_match_all('/^\s*\{%\s*file\s+src="[^"]*\/files\/(\d+)[^"]*"\s*%\}\s*$/m', $markdown, $m)) {
+            foreach (Media::query()->whereIn('id', array_unique($m[1]))->orderBy('id')->get(['id', 'file_name', 'size']) as $media) {
+                $parts[] = 'f:' . $media->id . ':' . $media->file_name . ':' . $media->size;
+            }
+        }
+
+        return implode('|', $parts);
     }
 
     /**

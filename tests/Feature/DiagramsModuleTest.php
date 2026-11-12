@@ -165,7 +165,7 @@ it('refreshes the solution card it was deleted from, and navigates away when ask
         ->assertOk();
 
     expect(collect($response->json('updatableSlots'))->pluck('id')->all())
-        ->toBe(['diagrams-index-slot', 'solution-diagram-titles-slot'])
+        ->toBe(['solution-diagram-titles-slot'])
         ->and($response->json('redirect'))->toBeNull();
 
     $this->assertModelMissing($diagram);

@@ -24,7 +24,6 @@ use App\Services\DocumentationPageService;
 use App\Services\DocumentationSearchService;
 use App\View\Components\Documentation\PageAuthorship;
 use App\View\Components\Documentation\PageTitle;
-use App\View\Components\Solutions\Notebooks;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 
@@ -133,11 +132,13 @@ class NotebookPageController extends Controller
     /**
      * Saves the page's Markdown.
      *
-     * The extra slots are the price of a notebook describing several solutions:
-     * a save changes what every one of their detail cards should say about
-     * coverage. `ajax-slot.js` no-ops on ids that aren't on the current page, so
-     * sending one per linked solution is safe — and there is no other moment at
-     * which those cards would learn.
+     * Answers with the page's own "atualizada por" and nothing else. It used to
+     * add the cadernos card of every solution the caderno documents, which
+     * exists only on a solution's page and never on the editor this request
+     * comes from: one `withCount` query and one Blade render per linked
+     * solution, on the most frequent write in the app (autosave, ~1.2 s after
+     * typing stops), for slots `ajax-slot.js` then dropped. That card is
+     * rendered fresh whenever its own page loads.
      */
     public function update(SaveDocumentationRequest $request, Notebook $notebook, DocumentationPage $page): JsonResponse
     {
@@ -147,12 +148,7 @@ class NotebookPageController extends Controller
             // The rail's "atualizada por" goes with every save: the person who
             // just saved is the last updater now, and their own screen should
             // say so.
-            'updatableSlots' => [
-                PageAuthorship::slot($page),
-                ...$notebook->solutions
-                    ->map(fn ($solution) => Notebooks::slot($solution))
-                    ->all(),
-            ],
+            'updatableSlots' => [PageAuthorship::slot($page)],
         ]);
     }
 
