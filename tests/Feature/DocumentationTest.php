@@ -164,10 +164,10 @@ it('lets an admin save a page documentation', function () {
     expect($page->fresh()->documentation)->toBe("# Título\n\nCorpo.");
 });
 
-it('returns a cadernos slot for every solution the caderno documents, after saving', function () {
-    // One save, N slots — a caderno describing three systems changes what all
-    // three detail cards should say about coverage, and there is no other
-    // moment at which they would learn.
+it('answers a save with the page authorship alone, not cards that live on other screens', function () {
+    // The solution's cadernos card exists only on the solution's page, never on
+    // the editor a save comes from; rendering one per linked solution on every
+    // autosave was work the browser threw away.
     $notebook = Notebook::factory()->create();
     $page = notebookPage($notebook);
     $notebook->solutions()->attach(Solution::factory()->count(2)->create());
@@ -176,11 +176,7 @@ it('returns a cadernos slot for every solution the caderno documents, after savi
         ->patchJson(route('notebooks.pages.update', [$notebook, $page]), ['documentation' => 'Oi'])
         ->assertOk();
 
-    // Plus the page's own "atualizada por", which every save answers with.
-    $ids = collect($response->json('updatableSlots'))->pluck('id');
-
-    expect($ids->filter(fn (string $id) => $id === 'solution-notebooks-slot'))->toHaveCount(2)
-        ->and($ids)->toContain('page-authorship-slot');
+    expect(collect($response->json('updatableSlots'))->pluck('id')->all())->toBe(['page-authorship-slot']);
 });
 
 it('forbids a viewer from saving page documentation', function () {

@@ -136,9 +136,9 @@ it('refreshes the top bar and the pages rail after an inline meta edit', functio
         ->assertOk();
 
     expect(collect($response->json('updatableSlots'))->pluck('id')->all())
-        // The top bar names it, and so does the index someone lands on after
-        // leaving this page. `ajax-slot.js` no-ops on the id that isn't here.
-        ->toBe(['diagram-meta-slot', 'diagrams-index-slot'])
+        // The top bar only: the canvas page has no index, and the index renders
+        // fresh when somebody lands on it.
+        ->toBe(['diagram-meta-slot'])
         ->and($response->json('updatableSlots.0.content'))->toContain('Novo');
 });
 

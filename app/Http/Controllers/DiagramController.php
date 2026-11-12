@@ -105,10 +105,11 @@ class DiagramController extends Controller
         return response()->json([
             'type'    => 'success',
             'message' => 'Diagrama atualizado.',
-            // Both the top bar and the index list name the diagram, and the
-            // index is where someone lands after leaving this page — the
-            // client no-ops on whichever id isn't on the current page.
-            'updatableSlots' => [Meta::slot($diagram), Index::slot()],
+            // The top bar only. This is called from the canvas page, which has
+            // no index: rendering the whole catalog (every diagram, its chain,
+            // ChainLabeler) for a slot the browser dropped was most of the
+            // request. The index someone lands on next renders fresh.
+            'updatableSlots' => [Meta::slot($diagram)],
         ]);
     }
 
@@ -125,25 +126,17 @@ class DiagramController extends Controller
      */
     public function syncSystems(SyncDiagramSystemsRequest $request, Diagram $diagram, SetDiagramSystems $systems): JsonResponse
     {
-        // BEFORE and after, unioned, for the same reason `NotebookController::
-        // syncSolutions()` does it: a system that was just UNDECLARED has to
-        // stop listing this drawing on its own page.
-        $affected = $diagram->participants()->pluck('solutions.id');
-
         $systems->handle($diagram, $request->solutionIds());
 
-        $affected = $affected->merge($diagram->participants()->pluck('solutions.id'))->unique();
-
+        // The panel only. The systems are declared on the canvas page, which
+        // holds neither the diagrams index nor any solution's card — both used
+        // to be rendered here (the whole catalog, plus one card per affected
+        // solution) for slots the browser dropped. Each renders fresh on its
+        // own page.
         return response()->json([
             'type'           => 'success',
             'message'        => 'Sistemas do diagrama salvos.',
-            'updatableSlots' => [
-                Systems::slot($diagram),
-                // The index row names the systems a drawing touches, and each
-                // affected solution's card lists the drawings it appears in.
-                Index::slot(),
-                ...Solution::whereKey($affected)->get()->map(fn (Solution $solution) => SolutionDiagrams::slot($solution)),
-            ],
+            'updatableSlots' => [Systems::slot($diagram)],
         ]);
     }
 
@@ -257,11 +250,16 @@ class DiagramController extends Controller
         // it (see GitbookRenderer::renderDiagram).
         $diagram->delete();
 
-        $slots = [Index::slot()];
-
-        if ($solution = Solution::firstWhere('slug', $request->query('solution'))) {
-            $slots[] = SolutionDiagrams::slot($solution);
-        }
+        // Only the screen the delete came from is answered: a solution's card
+        // gets its own list, the canvas page gets the redirect, and only the
+        // index — neither of those — gets the index (rendering the whole
+        // catalog for the other two was work the browser dropped).
+        $solution = Solution::firstWhere('slug', $request->query('solution'));
+        $slots = match (true) {
+            $solution !== null                      => [SolutionDiagrams::slot($solution)],
+            $request->query('after') === 'notebook' => [],
+            default                                 => [Index::slot()],
+        };
 
         return response()->json(array_filter([
             'type'           => 'success',
