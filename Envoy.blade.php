@@ -46,6 +46,8 @@
 
     echo "==> Pulling {{ $branch }}"
     git fetch origin {{ $branch }}
+    {{-- The commit being replaced, for the 'npm' task to diff against. --}}
+    git rev-parse HEAD > storage/framework/deploy-previous-head
     git reset --hard origin/{{ $branch }}
 @endtask
 
@@ -59,11 +61,33 @@
 @task('npm', ['on' => 'web'])
     cd {{ $appDir }}
 
-    echo "==> Installing Node dependencies"
-    npm ci --prefer-offline
+    {{--
+        Only when something the build reads changed since the commit this
+        deploy replaced. `npm ci` + `vite build` is the heaviest step of a
+        deploy — hundreds of MB of RAM and a CPU burst on a droplet shared with
+        two other apps, inside the maintenance window — and most deploys ship
+        PHP alone, rebuilding byte-identical assets.
 
-    echo "==> Compiling assets for production"
-    npm run build
+        The list is every input of the build: resources/ (CSS, JS, fonts,
+        images, and the Blade views Tailwind scans), the npm and Vite configs,
+        composer.lock (Tailwind scans the framework's pagination views), and
+        the PHP files app.css names in an `@source` — a new path there must be
+        added here too, or a class only it uses ships on the next build that
+        happens for some other reason. No previous head, no manifest, or any
+        doubt (`git diff` failing on an unknown commit) means build.
+    --}}
+    PREVIOUS=$(cat storage/framework/deploy-previous-head 2>/dev/null)
+    if [ -n "$PREVIOUS" ] && [ -f public/build/manifest.json ] && git diff --quiet "$PREVIOUS" HEAD -- \
+        resources package.json package-lock.json vite.config.js composer.lock \
+        app/Support/CategoryPalette.php app/Support/GitbookRenderer.php app/Enums; then
+        echo "==> Assets unchanged since $PREVIOUS — skipping npm ci and the build"
+    else
+        echo "==> Installing Node dependencies"
+        npm ci --prefer-offline
+
+        echo "==> Compiling assets for production"
+        npm run build
+    fi
 @endtask
 
 @task('artisan', ['on' => 'web'])

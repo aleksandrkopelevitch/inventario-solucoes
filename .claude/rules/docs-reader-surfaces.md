@@ -65,7 +65,12 @@ Five rules that are easy to half-implement:
   reason `/docs` differs from the magic link rather than reusing `files.show`:
   `MediaController::show()` authorizes by COLLECTION NAME alone, so it would
   serve any documentation media in the app, published or not, and `/docs`
-  serves what was published and nothing else.
+  serves what was published and nothing else. On the magic link, `public.docs.file` and
+  `public.docs.diagram` also run WITHOUT a session (`withoutMiddleware` of
+  StartSession, ShareErrorsFromSession, PreventRequestForgery — Laravel 13's
+  CSRF class, not `ValidateCsrfToken` — and AuthenticateSession): a page asks
+  one per image, and each used to store a session. The page and the search
+  keep theirs.
 - **`linkDiagrams: false` on `/docs` as well.** The link COULD be rendered
   conditionally — a reader who may reach `/diagrams/{slug}` exists — and
   deliberately is not: the knowledge base would then be a screen whose content
