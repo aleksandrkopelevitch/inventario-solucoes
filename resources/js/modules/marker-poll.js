@@ -85,6 +85,15 @@ async function tick(url, poller) {
         return
     }
 
+    // A hidden tab is not waiting for anything: skip the request and spend no
+    // attempt, so a job that finishes while the person is in another tab is
+    // not reported as given up when they come back. `visibilitychange` below
+    // asks at once on return instead of waiting for the next tick.
+    if (document.hidden) {
+        schedule(url, poller)
+        return
+    }
+
     const {max, giveUp} = settings(marker)
 
     poller.attempts += 1
@@ -96,6 +105,7 @@ async function tick(url, poller) {
         return
     }
 
+    poller.inFlight = true
     try {
         const response = await ajaxModule.init('GET', url)
         const data = await response.json()
@@ -110,10 +120,24 @@ async function tick(url, poller) {
         }
     } catch (_) {
         // transient failure — the next tick retries, up to the ceiling
+    } finally {
+        poller.inFlight = false
     }
 
     if (pollers.get(url) === poller) schedule(url, poller)
 }
+
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return
+
+    for (const [url, poller] of pollers) {
+        // A request already out will schedule the next tick itself; starting
+        // another here would run two chains for one URL.
+        if (poller.inFlight) continue
+        clearTimeout(poller.timer)
+        tick(url, poller)
+    }
+})
 
 export function init() {
     const urls = new Set([...document.querySelectorAll('[data-ak-poll]')].map((m) => m.dataset.akPoll))
@@ -127,7 +151,7 @@ export function init() {
 
     urls.forEach((url) => {
         if (!url || pollers.has(url) || gaveUp.has(url)) return
-        const poller = {timer: null, attempts: 0}
+        const poller = {timer: null, attempts: 0, inFlight: false}
         pollers.set(url, poller)
         schedule(url, poller)
     })

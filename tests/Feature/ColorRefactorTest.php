@@ -46,7 +46,7 @@ it('maps criticality to a semantic tone from the raw value', function () {
 });
 
 it('renders diagram blocks white, keeping only the two flow terminals coloured', function () {
-    $html = Blade::render('<x-chain.viz />');
+    $html = chainVizStyles();
 
     // White is the ground for every block (2026-08-26): shape says what a
     // block IS, and colour is left to mean whatever the author decides. The
@@ -65,7 +65,7 @@ it('renders diagram blocks white, keeping only the two flow terminals coloured',
 });
 
 it('draws the decision as the reference profile\'s solid orange diamond', function () {
-    $html = Blade::render('<x-chain.viz />');
+    $html = chainVizStyles();
 
     // One clipped fill layer, a true rhombus — the four ports sit on its four
     // tips because the block's box stays rectangular. The old white hexagon
@@ -79,11 +79,11 @@ it('draws the decision as the reference profile\'s solid orange diamond', functi
 });
 
 it('gives the actor the same round silhouette as the flow terminals', function () {
-    $html = Blade::render('<x-chain.viz />');
+    $html = chainVizStyles();
 
     // One CSS rule for all three, so an actor can never drift back into being
     // a box with the icon beside its text.
-    expect($html)->toContain(".ak-viz-node.is-actor {\n                background: var(--viz-node);")
+    expect($html)->toMatch('/\.ak-viz-node\.is-actor \{\n\s*background: var\(--viz-node\);/')
         ->and($html)->toMatch('/\.ak-viz-node\.is-start,\s*\n\s*\.ak-viz-node\.is-end,\s*\n\s*\.ak-viz-node\.is-actor \{/')
         // The label under a round block wears a chip with the block's own
         // hairline, since it sits on open canvas.
@@ -91,7 +91,7 @@ it('gives the actor the same round silhouette as the flow terminals', function (
 });
 
 it('draws the four tones and the pill from the stylesheet, never inline', function () {
-    $html = Blade::render('<x-chain.viz />');
+    $html = chainVizStyles();
 
     foreach (['blue' => '#2F6FDB', 'red' => '#D03B35', 'green' => '#2E9C5C', 'orange' => '#D9531E'] as $tone => $border) {
         expect($html)->toMatch('/\.ak-viz-node\[data-tone="' . $tone . '"\] \{[^}]*border-width: 2px; border-color: ' . $border . ';/');
@@ -108,3 +108,13 @@ it('gives the logo fallback a solid green anchor block (no gray tile)', function
         ->and($html)->toContain('text-white')
         ->and($html)->not->toContain('bg-raised');
 });
+
+/**
+ * The canvas's component markup plus its stylesheet, which moved out of the
+ * component into resources/css/components/chain-viz.css (loaded with the
+ * canvas's chunk) — the tokens these tests check live there now.
+ */
+function chainVizStyles(): string
+{
+    return Blade::render('<x-chain.viz />') . file_get_contents(resource_path('css/components/chain-viz.css'));
+}

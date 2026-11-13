@@ -846,6 +846,10 @@ function stopResumePoll() {
 }
 
 async function pollResume(url) {
+    // Same rule as marker-poll: a hidden tab asks nothing and spends no
+    // attempt, so the ceiling is not used up by a tab nobody is looking at.
+    if (document.hidden) return
+
     resumeAttempts += 1
     if (resumeAttempts > MAX_POLL_ATTEMPTS) {
         stopResumePoll()

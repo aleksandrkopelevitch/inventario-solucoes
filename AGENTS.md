@@ -273,7 +273,8 @@ public function backoff(): array
   module polls while the marker is on the page — one `setTimeout` chain per
   URL, so two jobs on one screen never wait on each other and a slow answer
   never lands after a newer one. It swaps whenever the response carries
-  `updatableSlots`, stops when a swap removes the marker, and past the ceiling
+  `updatableSlots`, stops when a swap removes the marker, pauses while the tab
+  is hidden (no request, no attempt spent; it asks at once on return), and past the ceiling
   shows a **user-visible Toast** (don't poll forever in silence if the queue
   worker is down) and dispatches `ak:poll-gave-up` for a screen with something
   to undo. It replaced four hand-written copies (the three chats and the

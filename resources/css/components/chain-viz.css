@@ -1,0 +1,1502 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+/* The diagram canvas's stylesheet (`x-chain.viz`), loaded with its JS chunk.
+
+   It was an inline <style> in the component until 2026-11-12: 82 KB (31 KB
+   of it comments, which Blade does not strip) inside the HTML of every page
+   mounting the canvas, re-sent on every slot swap that re-rendered it and
+   never cached. `chain-viz.js` imports this file, so Vite emits it beside the
+   lazy chunk and links it before the canvas mounts.
+
+   The SVG's own internal <style> (edges, markers) stays inline in the
+   component: html-to-image raw-clones the SVG on export, and that sheet is
+   the only one the clone carries. */
+
+/* Diagram canvas (F3) — JS-driven, its own palette, independent of
+   the app's green/lime theme.
+
+   The default ("Original") IS the reference profile since
+   2026-10-03: the "Login e cadastro VTEX" boards, measured out of
+   their exported HTML — a #F4F6F8 ground, IBM Plex Sans 15/20 in
+   #17212B, #5A6675 arrows 2px wide, white blocks on a #B9C2CE
+   hairline, the orange #F6C453 diamond and the dark #17212B pill.
+   Change a value here and that board stops being what the default
+   looks like. */
+[data-ak-chain-viz] {
+    --viz-bg: #F4F6F8;
+    --viz-grid: #DCE2E9;
+    --viz-line: #5A6675;
+    /* Every block is WHITE (2026-08-26). It used to be one pastel
+       per kind — lavender for a system, mint for an actor, straw
+       for a decision — which meant a diagram of a dozen blocks was
+       a dozen tints of nothing in particular, and the per-block
+       color someone actually chose (`viz_layout.nodes[i].color`)
+       had to fight a default that was already colored. White is
+       the ground; SHAPE says what a block is (orange diamond =
+       decision, circle = actor, dashed border = external), and the
+       author colors an action block with one of four TONES
+       (`[data-tone]` below) — a closed set since 2026-10-03, not a
+       free picker. The two flow terminals keep their fill: a
+       start/end marker is a punctuation mark, not a box, and
+       green/red is the flowchart convention readers already know. */
+    --viz-node: #FFFFFF;
+    /* The white block's hairline. A theme retints it instead of
+       painting a ring of its own over it — a box-shadow ring and a
+       border on the same edge read as a rendering bug. */
+    --viz-node-border: #B9C2CE;
+    /* The external block's dashed outline and its quieter text. */
+    --viz-free-border: #8A96A6;
+    --viz-free-ink: #3D4855;
+    /* The decision diamond and the dark pill — the same in every
+       theme: they are the two shapes a reader finds first. */
+    --viz-decision: #F6C453;
+    --viz-decision-ink: #17212B;
+    --viz-pill: #17212B;
+    --viz-pill-ink: #FFFFFF;
+    /* The text under a picture once the block's box is gone
+       (`.is-picture-top`) — it sits on the canvas itself, so a dark
+       theme turns it white. */
+    --viz-caption: #17212B;
+    --viz-node-start: #22C55E;    /* início block (solid circle) — bold on purpose, flow terminal */
+    --viz-node-end: #EF4444;      /* fim block (solid circle) — bold on purpose, flow terminal */
+    --viz-ink: #17212B;
+    --viz-select: #4A90D9; /* selection ring + comment badge */
+    --viz-highlight: #AADB1E; /* highlighted anchor/handle */
+}
+.ak-viz-viewport {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    cursor: grab;
+    touch-action: none;
+    background:
+        radial-gradient(circle at 1px 1px, var(--viz-grid) 1px, transparent 0) 0 0 / 26px 26px,
+        var(--viz-bg);
+}
+/* Theme canvas background (`data-viz-theme` select, `applyTheme()`)
+   — colors MUST match `EXPORT_PRESETS[theme].bg` in the JS (that's
+   what the export actually uses; `viewport` itself is never part
+   of the captured subtree, so this rule only matters for what the
+   user sees while editing). "corporativo" drops the dot texture
+   entirely — a plain white canvas reads cleaner/more "serious"
+   than repeating the same dotted grid tinted a different color. */
+.ak-viz-viewport[data-viz-preset="casual"] {
+    background:
+        radial-gradient(circle at 1px 1px, rgba(245, 158, 11, .18) 1px, transparent 0) 0 0 / 26px 26px,
+        #FFF7ED;
+}
+/* "mais polido" (2026-08-04): a barely-there green-tinted
+     gradient instead of flat white — the same "considered, not
+     default" neutral this app's own palette already argues for
+     (see AGENTS.md's color-system memory), just applied here. */
+.ak-viz-viewport[data-viz-preset="corporativo"] {
+    background: linear-gradient(160deg, #FFFFFF 0%, #F3F7F4 60%, #EEF3EF 100%);
+}
+/* Flat solid navy, no dot texture — matched to a real dark-UI
+     reference (swimlane flowchart template / ER diagram tool),
+     not a neon/cyberpunk treatment. */
+.ak-viz-viewport[data-viz-preset="tech"] { background: #132A45; }
+/* "arquitetura" (dark) and "blueprint" (light), 2026-09-16 — the
+     two themes that theme by TOKEN instead of by rule. Every
+     preset above overrides individual declarations (a background,
+     a box-shadow, an edge stroke) and leaves the `--viz-*` values
+     on `[data-ak-chain-viz]` standing; these two redefine the
+     tokens themselves, here on the viewport, and the base rules —
+     which already read `var(--viz-bg)`, `var(--viz-node)`,
+     `var(--viz-line)`, `var(--viz-ink)` — repaint themselves. The
+     dot grid, the edge stroke, the marker fill, the free block's
+     dashed border and the selection ring all follow for free.
+     What still needs a rule below is only what the base hardcodes
+     for a LIGHT canvas (a dark drop shadow, a white pill, a
+     near-black hairline) — which is exactly the list a dark theme
+     has to undo.
+
+     Defining them on the VIEWPORT and not on `[data-ak-chain-viz]`
+     is deliberate: the toolbar, the sidebar and the empty-state
+     legend are app chrome that happens to reuse these tokens, and
+     a theme is a property of the drawing, not of the panel holding
+     it. Everything that paints the diagram lives under the
+     viewport and inherits; everything outside keeps the defaults.
+
+     Palettes measured out of a rendered artifact from Archify
+     (MIT, tt-a1i/archify) — its "classic" dark and "blueprint"
+     light presets. The credit is all that is left of it: the
+     renderer itself was removed once this canvas could draw the
+     four models on its own, and no code of theirs ships here. What is NOT borrowed is its color axis: Archify fills
+     a block by what it technically is (frontend cyan, database
+     violet, security rose), which is the per-kind pastel this
+     canvas dropped on 2026-08-26 for the reason written on
+     `--viz-node` above. Shape still says what a block is; these
+     two only change the ground it stands on. */
+.ak-viz-viewport[data-viz-preset="arquitetura"] {
+    --viz-bg: #020617;
+    --viz-grid: #1E293B;
+    --viz-line: #64748B;
+    /* Opaque, where Archify's equivalent block is translucent:
+         its fills are `rgba(…, .4)` over an opaque `--mask` layer
+         painted behind every node precisely so the arrows running
+         underneath don't show through it. Our edges `<svg>` is a
+         sibling BELOW the blocks, so translucency would need that
+         same extra layer — and `#0F172A` is exactly what its
+         `rgba(30, 41, 59, .5)` composites to over `#020617`. Same
+         pixels, one layer fewer. */
+    --viz-node: #0F172A;
+    --viz-node-border: rgba(148, 163, 184, .28);
+    --viz-free-border: rgba(148, 163, 184, .45);
+    --viz-free-ink: #CBD5E1;
+    --viz-ink: #E2E8F0;
+    --viz-caption: #F8FAFC;
+}
+.ak-viz-viewport[data-viz-preset="blueprint"] {
+    --viz-bg: #EDF7FA;
+    --viz-grid: #B5D5E1;
+    --viz-line: #6D93A5;
+    --viz-node: #F9FDFF;
+    --viz-node-border: rgba(120, 170, 189, .55);
+    --viz-free-border: rgba(109, 147, 165, .7);
+    --viz-free-ink: #315668;
+    --viz-ink: #123344;
+    --viz-caption: #123344;
+}
+.ak-viz-viewport.is-panning { cursor: grabbing; }
+.ak-viz-world {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+}
+.ak-viz-edges {
+    position: absolute;
+    top: 0;
+    left: 0;
+    overflow: visible;
+    pointer-events: none;
+}
+/* Lane (`viz_layout.lanes`) — a free rectangle drawn behind the
+   canvas, child of `#world` (real WORLD-space position, like a
+   node): `x`/`y`/`width`/`height` become `left`/`top`/`width`/
+   `height` in `chain-viz.js::rebuildLanes()` with no unit
+   conversion, so pan/zoom move/scale it for free through
+   `world`'s own CSS transform — nothing to recompute per frame,
+   unlike the previous "always full viewport width" design (which
+   had to live in screen space specifically so its width could
+   stay pinned to the viewport regardless of zoom; a free
+   rectangle has no such constraint).
+
+   NO z-index here on purpose. Behind-nodes ordering comes from
+   plain DOM order instead: `rebuildLanes()` prepends every lane
+   before the nodes already in `world`, so a lane always paints
+   behind every block — dragging a block on top of a lane must
+   keep the block fully visible/clickable, never buried behind
+   the lane's tint. A positive z-index would paint above any
+   `z-index: auto` sibling regardless of DOM order (wrong: it'd
+   permanently occlude any block under it); a negative one
+   escapes to the nearest REAL stacking context, and neither
+   `.ak-viz-viewport` nor `[data-ak-chain-viz]` establish one
+   (both are `position` + `z-index: auto`, which doesn't count),
+   so it would paint behind the component's own `bg-surface`
+   instead of just behind the nodes. Plain document order has no
+   such escape hatch — the lesson that already burned this
+   feature once, still true after the world-space move. */
+.ak-viz-lane {
+    position: absolute;
+    border: 1.5px solid rgba(148, 163, 196, .5);
+    border-radius: 0;
+    pointer-events: none;
+}
+/* Selected (`chain-viz.js::selectLane()`, a click with no
+   drag) — thicker, tinted border instead of the node's glowing
+   ring: a lane can be very large, and a big box-shadow halo
+   around its whole perimeter would read as noisy rather than a
+   clean selection cue. */
+.ak-viz-lane.is-selected {
+    border-width: 2px;
+    border-color: var(--viz-select);
+}
+/* Rounded corners toggle (`chain-viz.js`'s
+   `lane.rounded`) — `--ak-lane-radius` drives both the
+   rectangle itself and (below) the matching corners of its
+   label strip, so the label's own square corners never poke
+   out past the now-rounded body. */
+.ak-viz-lane.is-rounded {
+    --ak-lane-radius: 14px;
+    border-radius: var(--ak-lane-radius);
+}
+/* Editable: the lane's own body becomes the "move" handle
+   (`chain-viz.js`'s `drag.type === 'lane-move'`) — grabbing
+   empty lane background repositions it, same gesture as
+   dragging a block; a click with no drag opens the lane's
+   toolbar instead (`selectLane()`). Resize handles below stop
+   their own `mousedown` from reaching this, so they don't also
+   trigger a move. Read-only mode leaves it inert (nothing to
+   grab/click). */
+[data-ak-chain-viz][data-editable] .ak-viz-lane {
+    pointer-events: auto;
+    cursor: grab;
+}
+[data-ak-chain-viz][data-editable] .ak-viz-lane:active { cursor: grabbing; }
+/* Lane label — a vertical title running the full height of the
+   lane's LEFT edge (a child of `.ak-viz-lane`, positioned
+   relative to it, not the viewport), the classic swimlane
+   convention. Background, text color and font-size are all set
+   inline per-lane by `chain-viz.js` (`applyLaneHeaderStyle()`)
+   — not here — since the header now has its OWN color
+   (`lane.headerColor`, independent of the body's), and its text
+   color is picked for CONTRAST against whatever that resolves to
+   (`textColorFor()`) instead of a fixed white, now that a light
+   header (white/bege) is a real option. It's the ONLY part of the
+   lane that opens the toolbar on a plain click (`selectLane()`)
+   — clicking anywhere else on the body only moves the lane if
+   actually dragged, same gesture but no selection — hence its
+   own `pointer-events`/cursor when editable, instead of falling
+   through to `.ak-viz-lane` like everything else drawn on top of
+   the body. */
+.ak-viz-lane-label {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    text-orientation: mixed;
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: .02em;
+    white-space: nowrap;
+    overflow: hidden;
+    pointer-events: none;
+}
+[data-ak-chain-viz][data-editable] .ak-viz-lane-label {
+    pointer-events: auto;
+    cursor: pointer;
+}
+/* Matches the label's outer corners to `--ak-lane-radius` (set
+   by `.is-rounded` above) so it visually merges into the
+   rounded body instead of poking a square corner past it — only
+   the two corners that actually sit on the lane's own boundary
+   (left edge for the horizontal strip, top edge for the
+   vertical one) need rounding; the other two are an internal
+   cut into the rectangle and stay square. */
+.ak-viz-lane.is-rounded .ak-viz-lane-label {
+    border-radius: var(--ak-lane-radius) 0 0 var(--ak-lane-radius);
+}
+/* Vertical orientation (`lane.orientation === 'vertical'`) —
+   the title strip moves from the left edge (full height,
+   rotated text) to the top edge (full width, plain
+   left-to-right text), the classic top-header swimlane variant
+   for a flow that runs top-to-bottom instead of left-to-right. */
+.ak-viz-lane.is-vertical .ak-viz-lane-label {
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: auto;
+    width: auto;
+    height: 26px;
+    writing-mode: horizontal-tb;
+    transform: none;
+    text-orientation: initial;
+    justify-content: flex-start;
+    padding: 0 10px;
+}
+.ak-viz-lane.is-rounded.is-vertical .ak-viz-lane-label {
+    border-radius: var(--ak-lane-radius) var(--ak-lane-radius) 0 0;
+}
+/* Resize handles — thin invisible strips (the four edges) or a
+   small square (the four corners), all children of `.ak-viz-lane`:
+   an edge changes one dimension, a corner both — the same
+   convention as any rectangle editor (Figma, Miro, Excalidraw). A
+   handle on the top or left edge moves that edge, so it changes
+   `x`/`y` along with the size and the opposite edge stays put.
+   Read-only mode turns every one of them off entirely (nothing to
+   drag). */
+.ak-viz-lane-resize {
+    position: absolute;
+    pointer-events: none;
+}
+[data-ak-chain-viz][data-editable] .ak-viz-lane-resize {
+    pointer-events: auto;
+}
+.ak-viz-lane-resize-e { top: 0; right: -5px; width: 10px; height: 100%; cursor: ew-resize; }
+.ak-viz-lane-resize-s { left: 0; bottom: -5px; width: 100%; height: 10px; cursor: ns-resize; }
+.ak-viz-lane-resize-se { right: -6px; bottom: -6px; width: 14px; height: 14px; border-radius: 4px; cursor: nwse-resize; }
+.ak-viz-lane-resize-w { top: 0; left: -5px; width: 10px; height: 100%; cursor: ew-resize; }
+.ak-viz-lane-resize-n { left: 0; top: -5px; width: 100%; height: 10px; cursor: ns-resize; }
+.ak-viz-lane-resize-nw { left: -6px; top: -6px; width: 14px; height: 14px; border-radius: 4px; cursor: nwse-resize; }
+.ak-viz-lane-resize-ne { right: -6px; top: -6px; width: 14px; height: 14px; border-radius: 4px; cursor: nesw-resize; }
+.ak-viz-lane-resize-sw { left: -6px; bottom: -6px; width: 14px; height: 14px; border-radius: 4px; cursor: nesw-resize; }
+[data-ak-chain-viz][data-editable] .ak-viz-lane-resize:hover,
+[data-ak-chain-viz][data-editable] .ak-viz-lane-resize.is-resizing {
+    background: rgba(16, 24, 40, .18);
+}
+/* A "post-it" note (`chain-viz.js::rebuildNotes()`) — free
+   multi-line text, always yellow (no configurable palette, unlike a
+   block or a lane — it is a BASIC annotation on purpose). A child
+   of `world` like a block or a lane (pan/zoom for free through
+   `world`'s transform), but it enters AFTER the nodes in document
+   order: a post-it is stuck ON TOP of the diagram, not behind
+   it. */
+.ak-viz-note {
+    position: absolute;
+    width: 190px;
+    display: flex;
+    flex-direction: column;
+    background: #FEF3C7;
+    border-radius: 3px;
+    box-shadow: 0 6px 16px rgba(120, 90, 10, .18), 0 1px 2px rgba(120, 90, 10, .15);
+    font-family: 'Inter', system-ui, sans-serif;
+}
+/* The top strip — the only part that drags (to move) and the one
+   carrying the remove button; the body below is all editable text
+   (see `rebuildNotes()`), so it needs a "neutral" area to serve as
+   a handle, in the same spirit as a lane's label. */
+.ak-viz-note-handle {
+    display: flex;
+    justify-content: flex-end;
+    height: 18px;
+    flex-shrink: 0;
+    background: #FDE68A;
+    border-radius: 3px 3px 0 0;
+}
+[data-ak-chain-viz][data-editable] .ak-viz-note-handle { cursor: grab; }
+[data-ak-chain-viz][data-editable] .ak-viz-note-handle:active { cursor: grabbing; }
+.ak-viz-note-remove {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border: none;
+    background: transparent;
+    color: #92650B;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: .55;
+}
+.ak-viz-note-remove:hover { opacity: 1; }
+/* Só quem edita vê o botão de remover — mesmo espírito de
+   `[data-integable]:not([data-editable]) .ak-viz-port` acima:
+   um viewer ainda vê a anotação (conteúdo de `viz_layout` como
+   qualquer outro), só não pode mexer nela. */
+[data-ak-chain-viz][data-editable] .ak-viz-note-remove { display: flex; }
+.ak-viz-note-body {
+    resize: none;
+    overflow: hidden;
+    border: none;
+    outline: none;
+    background: transparent;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 4px 10px 10px;
+    min-height: 54px;
+    font: inherit;
+    font-size: 12.5px;
+    line-height: 1.4;
+    color: #713F12;
+}
+.ak-viz-note-body::placeholder { color: rgba(113, 63, 18, .45); }
+[data-ak-chain-viz][data-editable] .ak-viz-note-body { cursor: text; }
+.ak-viz-edges path.ak-viz-edge {
+    fill: none;
+    stroke: var(--viz-line);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+/* Arrow being pulled out of a port, until the mouse is released
+   (there's no edge in the chain yet — see `drag.type === 'connect'`). */
+.ak-viz-edges path.ak-viz-edge.is-preview {
+    stroke: var(--viz-select);
+    stroke-dasharray: 5 4;
+}
+/* Dashed arrow toggle (`viz_layout.edges[i].dashed`) — purely
+   visual, independent of direction/protocol. */
+.ak-viz-edges path.ak-viz-edge.is-dashed {
+    stroke-dasharray: 7 5;
+}
+.ak-viz-edges marker path { fill: var(--viz-line); }
+.ak-viz-edges .ak-viz-plabel-box {
+    fill: #fff;
+    stroke: #D5DBE3;
+    stroke-width: 1;
+}
+.ak-viz-edges .ak-viz-plabel-text {
+    fill: #3D4855;
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    text-anchor: middle;
+    dominant-baseline: middle;
+}
+/* Editable protocol pill — the parent SVG (.ak-viz-edges) has
+   `pointer-events: none` (shouldn't capture pan clicks), so only
+   the clickable pill re-enables events here. */
+.ak-viz-edges .ak-viz-plabel.is-editable { cursor: pointer; pointer-events: auto; }
+/* A written label is also dragged ALONG its arrow
+   (`chain-viz.js::startLabelDrag()`); a click still selects the
+   link and a double click still edits the text. */
+.ak-viz-edges .ak-viz-plabel.is-editable:not(.is-empty) { cursor: grab; }
+.ak-viz-edges .ak-viz-plabel.is-dragging { cursor: grabbing; }
+.ak-viz-edges .ak-viz-plabel.is-empty .ak-viz-plabel-box {
+    fill: transparent;
+    stroke-dasharray: 3 2;
+}
+.ak-viz-edges .ak-viz-plabel.is-empty .ak-viz-plabel-text { fill: var(--viz-line); }
+/* The EMPTY pill ("+ protocolo") is an invitation to click, not
+   content of the drawing — and only somebody who edits sees it (see
+   `drawProtocolPill()`: a viewer gets no pill at all on a link with
+   no protocol). So it follows the same counter-scaling as the
+   ports and handles and keeps its on-screen size at any zoom,
+   instead of becoming the fattest thing on the arrow at 220%. The
+   pill WITH a protocol written in it does not belong here: that is
+   content, it scales with the diagram and it goes into the
+   screenshot. `transform-box: fill-box` is what makes
+   `transform-origin: center` mean the pill's own centre (inside an
+   SVG <g> the default would be the coordinate system's origin). */
+.ak-viz-edges .ak-viz-plabel.is-empty {
+    transform-box: fill-box;
+    transform-origin: center;
+    transform: scale(var(--viz-inv-scale, 1));
+}
+.ak-viz-edges .ak-viz-plabel.is-editable:hover .ak-viz-plabel-box { stroke: var(--viz-select); }
+.ak-viz-edges .ak-viz-plabel.is-editable:hover .ak-viz-plabel-text { fill: var(--viz-select); }
+/* The empty pill is an invitation to click — one per link with no
+   protocol, all the time, was the biggest source of noise in a
+   large drawing: in a lane flow they landed on the real labels and
+   on the arrows themselves. It now appears only when the link is
+   under the pointer (`drawEdgeHit()`) or lit by a block's
+   selection — and it never takes pointer events, so it cannot
+   fight the wide target that revealed it: entering it would give
+   the target a `pointerleave`, the pill would vanish, the pointer
+   would be back over the target and it would reappear, in a loop.
+   Click and double click on a protocol-less link arrive through
+   the target. */
+.ak-viz-edges .ak-viz-plabel.is-empty {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .12s ease;
+}
+.ak-viz-edges .ak-viz-plabel.is-empty.is-hovered,
+.ak-viz-edges .ak-viz-plabel.is-empty.is-linked { opacity: 1; }
+/* The links' pointer-target layer (see the markup for why it is not
+   inside the edges SVG). It paints nothing and catches nothing
+   itself — only its paths do. */
+.ak-viz-hits {
+    position: absolute;
+    top: 0;
+    left: 0;
+    overflow: visible;
+    pointer-events: none;
+}
+/* Alvo de ponteiro da ligação (`drawEdgeHit()`): invisível, largo,
+   e o único elemento desta camada que recebe eventos.
+   `pointer-events: stroke` limita o alvo à faixa
+   do próprio traço — com `visiblePainted` um traço transparente não
+   receberia nada, e com `all` a área FECHADA da rota viraria alvo
+   junto, engolindo cliques no vazio entre dois cotovelos. */
+.ak-viz-hits path.ak-viz-edge-hit {
+    fill: none;
+    stroke: transparent;
+    stroke-width: 16;
+    pointer-events: stroke;
+    cursor: pointer;
+}
+.ak-viz-edges path.ak-viz-edge.is-hovered { stroke-width: 3; }
+/* Presentation-mode dot (`chain-viz.js::startPresentAnimation()`)
+   — a plain <circle>, sibling of the .ak-viz-edge <path>s inside
+   this same <svg data-viz-edges>, positioned every frame via
+   `getPointAtLength()`. Never touched by `clearOverlays()` (only
+   removes `.ak-viz-edge`/`.ak-viz-plabel`). Color is per-dot, from
+   `PRESENT_DOT_COLORS` — set on BOTH `el.style.fill` (translucent
+   body, `fill-opacity: 0.7`) and `el.style.color` (the glow below
+   reads `currentColor`, which resolves from `color`, not `fill` —
+   setting only `fill` would leave every dot's glow the same
+   inherited neutral shade instead of matching its own color). */
+.ak-viz-dot {
+    filter: drop-shadow(0 0 4px currentColor) drop-shadow(0 0 8px currentColor);
+}
+/* The action block — the reference profile's white card: a #B9C2CE
+   hairline, 10px corners, centred text on a 20px line, and a FIXED
+   card. Fixed on purpose: sized by its content, "Aprovado" came out
+   a 150×60 chip beside a three-line neighbour, and a flow read as a
+   scatter of sizes instead of a column of equal steps. A long text
+   wraps inside the width and the card only grows taller.
+
+   160×76, a fifth smaller than the reference board's measured
+   200×96 (2026-10-10): at the board's size the cards read as too
+   big on the canvas, mostly empty room around one or two lines.
+   The proportion is the board's; only the scale changed, and the
+   diamond, the pill and the picture slot shrank with it.
+
+   The outline is a real BORDER, not a box-shadow ring: the tones
+   below widen it to 2px in their own hue, and a ring painted over a
+   border reads as two outlines. Themes retint it through
+   `--viz-node-border` for the same reason. */
+.ak-viz-node {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    width: 160px;
+    min-height: 76px;
+    padding: 8px 10px;
+    border: 1px solid var(--viz-node-border);
+    border-radius: 10px;
+    background: var(--viz-node);
+    color: var(--viz-ink);
+    font-family: 'IBM Plex Sans', 'Inter', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 20px;
+    font-weight: 400;
+    text-align: center;
+    white-space: normal;
+    overflow-wrap: break-word;
+    user-select: none;
+    box-shadow: none;
+}
+/* Theme border/shadow (`data-viz-theme` bottom-bar select,
+   `applyTheme()`) — border/shadow color only, matching each
+   theme's edge color (`EXPORT_PRESETS` in the JS); kind colors
+   (system/decision/actor/…) are untouched on purpose, so a
+   theme changes the MOOD without erasing what each block IS.
+   `.ak-viz-node` is plain HTML (not inside the edges `<svg>`),
+   so a normal external rule like this is enough — no need for
+   the internal-`<style>`-duplication trick the SVG needs. */
+/* The three rule themes retint the hairline and add a lift. The
+     lift is scoped with `:where()` so it adds no specificity: it
+     must stay below the selection ring further down, and it must
+     not reach the shapes that draw their own outline (the diamond,
+     a picture with no box, a pasted image, a lifeline's column) —
+     a shadow there traces the invisible rectangle around them. */
+.ak-viz-world[data-viz-preset="casual"] { --viz-node-border: rgba(245, 158, 11, .45); }
+.ak-viz-world[data-viz-preset="casual"] .ak-viz-node:where(:not(.is-decision, .is-picture-top, .is-image, .is-lifeline)) {
+    box-shadow: 0 2px 6px rgba(245, 158, 11, .15);
+}
+/* "mais polido" (2026-08-04): a proper layered card shadow —
+     soft ambient lift (large blur, negative spread, low opacity)
+     + a tight contact shadow + a crisp thin border — instead of
+     the single flat ring every other theme uses. This is the
+     actual visual difference between "flat" and "polished": more
+     shadow LAYERS at different distances, not more blur on one. */
+.ak-viz-world[data-viz-preset="corporativo"] { --viz-node-border: rgba(27, 77, 46, .25); }
+.ak-viz-world[data-viz-preset="corporativo"] .ak-viz-node:where(:not(.is-decision, .is-picture-top, .is-image, .is-lifeline)) {
+    box-shadow: 0 8px 20px -8px rgba(27, 77, 46, .18), 0 2px 4px rgba(27, 77, 46, .08);
+}
+/* Flat card resting on the dark canvas — a plain (uncolored)
+     lift shadow grounds it, and the border is a barely-there
+     neutral hairline, not a colored/glowing ring. Matches the
+     reference: light pastel cards, no border glow at all. */
+/* The text under a picture, and the external block, sit on the navy
+     canvas itself. */
+.ak-viz-world[data-viz-preset="tech"] {
+    --viz-node-border: rgba(148, 163, 184, .3);
+    --viz-free-border: rgba(148, 163, 184, .55);
+    --viz-free-ink: #CBD5E1;
+    --viz-caption: #FFFFFF;
+}
+.ak-viz-world[data-viz-preset="tech"] .ak-viz-node:where(:not(.is-decision, .is-picture-top, .is-image, .is-lifeline)) {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .45);
+}
+/* The block's CATEGORY family, as one custom property.
+
+     Set on every node in every theme and READ by only two of them
+     (right below) — which is the point. "Original", "Casual",
+     "Corporativo" and "Tech" go on saying a block is a block; the
+     two token themes add a SECOND axis on top of the one this
+     canvas already has. Shape still carries the KIND (orange
+     diamond = decision, circle = actor, dashed = external), and
+     the hue carries what the system IS — the same hue the solution
+     tile, the category chip and the ecosystem map already use, so
+     somebody who has learned the catalog's colors reads the drawing
+     with them instead of with a legend.
+
+     Only a registered Solution has one: `ChainGraph::resolveNode()`
+     sends null for everything else and `paintNode()` removes the
+     attribute, so a decision, an actor, a terminal and a free-text
+     system stay deliberately uncolored. That is what keeps the axis
+     meaning something — a colored block is a system in the catalog,
+     filed under that family.
+
+     The values come straight from `@theme` in app.css
+     (`--color-cat-*`), which is what stops them drifting from
+     `App\Support\CategoryPalette`. These are real CSS rules rather
+     than Tailwind utilities, so the JIT's `@source` scan of that
+     class is not involved here. */
+.ak-viz-node[data-category-family="emerald"] { --viz-node-accent: var(--color-cat-emerald); }  /* manufatura, TMS, infraestrutura */
+.ak-viz-node[data-category-family="teal"] { --viz-node-accent: var(--color-cat-teal); }  /* e-commerce, CRM, atendimento */
+.ak-viz-node[data-category-family="blue"] { --viz-node-accent: var(--color-cat-blue); }  /* dados/BI, iPaaS */
+.ak-viz-node[data-category-family="indigo"] { --viz-node-accent: var(--color-cat-indigo); }  /* plataforma interna, ERP, ITSM */
+.ak-viz-node[data-category-family="fuchsia"] { --viz-node-accent: var(--color-cat-fuchsia); }  /* marketing, HCM */
+.ak-viz-node[data-category-family="rose"] { --viz-node-accent: var(--color-cat-rose); }  /* segurança, IAM, jurídico */
+.ak-viz-node[data-category-family="amber"] { --viz-node-accent: var(--color-cat-amber); }  /* pagamentos, fiscal */
+.ak-viz-node[data-category-family="slate"] { --viz-node-accent: var(--color-cat-slate); }  /* outros */
+
+/* A block whose system has a category wears its family's hue: a
+     solid 1px stroke, and the same hue folded into the fill at low
+     strength. `color-mix` is dropped whole by a browser that lacks
+     it, leaving the plain `--viz-node` fill from the base rule —
+     which is why the mix is written against an OPAQUE base and not
+     against `transparent`: a fallback that let the arrows
+     underneath show through the block would be worse than no tint.
+     Archify's treatment, over our own axis. */
+/* The hairline itself comes from the theme's `--viz-node-border`
+     (on the viewport, above); this only adds the lift, under the
+     same `:where()` scoping as the rule themes. */
+.ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node:where(:not(.is-decision, .is-picture-top, .is-image, .is-lifeline, .is-free)) {
+    box-shadow: 0 2px 10px rgba(2, 6, 23, .55);
+}
+/* `:not(.is-lifeline)`: numa linha de vida quem carrega a cor
+     é o CABEÇALHO, não a coluna. Tingir a caixa inteira pintava
+     uma faixa vertical do tamanho do diagrama atrás das
+     mensagens — o corpo de uma linha de vida é espaço vazio de
+     propósito, é por ele que as setas passam.
+     `:not([data-tone], .is-pill)`: a tone or the pill the author
+     chose wins over the category hue. */
+.ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node[data-category-family]:not(.is-lifeline, [data-tone], .is-pill, .is-picture-top) {
+    background: color-mix(in oklab, var(--viz-node-accent) 16%, var(--viz-node));
+    border-color: var(--viz-node-accent);
+}
+/* O cartão da linha de vida carrega a sombra/aro que o bloco
+     comum carrega; o bloco em si é transparente, então a regra
+     genérica do tema não o alcança. */
+.ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-lifeline .ak-viz-node-body {
+    box-shadow: 0 2px 10px rgba(2, 6, 23, .55);
+}
+.ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node.is-lifeline[data-category-family] .ak-viz-node-body {
+    background: color-mix(in oklab, var(--viz-node-accent) 16%, var(--viz-node));
+    border-color: var(--viz-node-accent);
+}
+/* The chip under a round block, and the resize handle's hover
+     wash: both are a fixed light-canvas color, not a token. */
+.ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-node-endcap-label {
+    background: #0F172A;
+}
+[data-ak-chain-viz][data-editable] .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-lane-resize:hover,
+[data-ak-chain-viz][data-editable] .ak-viz-world[data-viz-preset="arquitetura"] .ak-viz-lane-resize.is-resizing {
+    background: rgba(226, 232, 240, .22);
+}
+/* "blueprint" is a light theme, so the base shadows already read
+     correctly; what it changes is their tint — a drafting-paper
+     canvas wants a blue-grey contact shadow, not the neutral
+     near-black one. */
+.ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node:where(:not(.is-decision, .is-picture-top, .is-image, .is-lifeline, .is-free)) {
+    box-shadow: 0 1px 2px rgba(18, 51, 68, .10);
+}
+/* Lighter mix than the dark theme's: the same 16% over a white
+     card reads as a colored card, not a tinted one, and blueprint
+     is meant to stay drafting paper. */
+.ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node[data-category-family]:not(.is-lifeline, [data-tone], .is-pill, .is-picture-top) {
+    background: color-mix(in oklab, var(--viz-node-accent) 8%, var(--viz-node));
+    border-color: var(--viz-node-accent);
+}
+.ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-lifeline .ak-viz-node-body {
+    box-shadow: 0 1px 2px rgba(18, 51, 68, .10);
+}
+.ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node.is-lifeline[data-category-family] .ak-viz-node-body {
+    background: color-mix(in oklab, var(--viz-node-accent) 8%, var(--viz-node));
+    border-color: var(--viz-node-accent);
+}
+.ak-viz-world[data-viz-preset="blueprint"] .ak-viz-node-endcap-label {
+    background: #F9FDFF;
+}
+/* Block body: avatar (logo or initial) + name. `position: relative`
+   so it paints ABOVE the `::before` shape layer of a decision
+   block (an absolutely-positioned pseudo element would otherwise
+   cover static in-flow content). */
+.ak-viz-node-body {
+    position: relative;
+}
+.ak-viz-node-body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+/* A block's picture beside its text (`imageMode: 'left'`, the
+     default): a fixed slot rather than the picture's own size, so a
+     400px paste and a 32px logo make blocks of the same height.
+     Picture and text stay CENTERED as one group, like a block with
+     no picture — reading from the left edge made a block with a
+     logo look misaligned next to one without. */
+.ak-viz-node-picture {
+    display: block;
+    flex-shrink: 0;
+    width: auto;
+    height: auto;
+    max-width: 64px;
+    max-height: 40px;
+    object-fit: contain;
+    border-radius: 4px;
+    pointer-events: none;
+}
+/* Wider by the picture's slot, so the text keeps the room a
+     plain card gives it. */
+.ak-viz-node.has-picture:not(.is-picture-top) { width: 208px; }
+.ak-viz-node-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: #fff;
+    box-shadow: 0 0 0 1px rgba(16, 24, 40, .08);
+}
+.ak-viz-node-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+.ak-viz-node-avatar.is-fallback {
+    background: var(--viz-select);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+}
+/* Free-text node (external to Leo): white like every other block,
+   told apart by the DASHED border. The border replaces the ring the
+   base rule paints, hence `box-shadow: none` — two outlines on the
+   same edge read as a rendering bug, not as emphasis. */
+/* LIFELINE (`ChainNodeKind::Lifeline`) — a sequence diagram's
+     participant.
+
+     The whole block is the COLUMN: the header is ordinary content
+     (avatar + name, like a system block) and the body is the empty
+     space below it, crossed by the `::after`'s dashed line. That is
+     why this is the only kind of block with a height stored in
+     `viz_layout` — on the others the size comes from what is
+     written inside.
+
+     `align-items: flex-start` plus an inline `height`: the content
+     stays at the top and the rest of the height is the line. The
+     box is still rectangular, so all the anchor/edge arithmetic
+     of
+     chain-viz.js segue valendo sem exceção — uma mensagem encosta
+     na lateral na altura que o `fromT`/`toT` da aresta disser. */
+.ak-viz-node.is-lifeline {
+    justify-content: flex-start;
+    width: max-content;
+    min-width: 120px;
+    max-width: 260px;
+    padding: 10px 14px 0;
+    min-height: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+/* The header is the only part with a background: drawn as a
+     card inside the block, so the dashed line below starts at its
+     edge rather than out of nowhere. */
+.ak-viz-node.is-lifeline .ak-viz-node-body {
+    width: 100%;
+    justify-content: center;
+    border-radius: 10px;
+    padding: 8px 12px;
+    background: var(--viz-node);
+    border: 1px solid var(--viz-node-border);
+}
+.ak-viz-node.is-lifeline::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 52px;
+    bottom: 0;
+    width: 0;
+    border-left: 1.5px dashed var(--viz-line);
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+
+/* STEP (`ChainNodeKind::Step`) — what HAPPENS, not who does it.
+
+     It exists because a step is not a system: written as the free
+     text of a `system` block, it inherited the dashed border that
+     means "outside Leo", which is true of a partner's API and says
+     nothing at all about "Abre o chamado". A solid box, like a
+     catalog system's, because it is content of the drawing just the
+     same — it simply is not a system. */
+.ak-viz-node.is-step {
+    background: var(--viz-node);
+}
+
+/* Transparent on the canvas, as the reference's "Cliente refaz o
+     login…" box is: an external block is not one of ours, and the
+     dashed 2px outline is all of it. */
+.ak-viz-node.is-free {
+    background: transparent;
+    border: 2px dashed var(--viz-free-border);
+    color: var(--viz-free-ink);
+    box-shadow: none;
+}
+/* Decision block (`ChainNodeKind::Decision`): the flow's branch,
+   the reference profile's solid orange DIAMOND with semibold dark
+   text — the same in every theme, since it is the first shape a
+   reader looks for. The shape is a `::before` layer, NOT
+   `clip-path` on the block itself — clipping the element would also
+   cut off its children (connection ports, comment badge), which sit
+   on/outside its edges on purpose. The bounding box stays
+   rectangular either way, so every edge/anchor calculation in
+   chain-viz.js keeps working unchanged, and the four ports land
+   exactly on the diamond's four tips.
+
+   Text fits a diamond only inside its middle: a W×H rhombus holds a
+   w×h rectangle while w/W + h/H ≤ 1. The reference's own 200×112,
+   scaled by the same fifth as the card (160×90), with its 35px side
+   padding leaves a 90px column, and the 25px vertical padding fits
+   two lines of it inside the 90px height exactly — the common
+   question ("Precisa de aprovação?") keeps the diamond at the
+   height `ModelLayout` centres it by. A third line grows it
+   downwards. Width stays fixed like the action card's —
+   a longer question grows the diamond down, not sideways. No
+   outline: a solid fill on the light ground needs none, which is
+   also what retired the two-layer hexagon this used to be. */
+.ak-viz-node.is-decision {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    width: 160px;
+    min-height: 90px;
+    padding: 25px 35px;
+    color: var(--viz-decision-ink);
+    font-weight: 600;
+}
+.ak-viz-node.is-decision::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+    background: var(--viz-decision);
+    /* Stays at 0 while everything that must READ above it is lifted
+       to 1 below. */
+    z-index: 0;
+}
+.ak-viz-node.is-decision .ak-viz-node-body,
+.ak-viz-node.is-decision .ak-viz-comment-badge,
+.ak-viz-node.is-decision .ak-viz-port {
+    z-index: 1;
+}
+/* THE THREE ROUND BLOCKS — Início/Fim (`ChainNodeKind::Start`/
+   `End`) and Ator (`::Actor`): a small circle holding nothing but
+   the kind's icon, with the label written BELOW it.
+
+   The actor joined this group on 2026-08-26. It used to be a
+   rounded PILL with the icon beside its text, which made a person
+   read as one more box in the flow — and a flow's actors aren't
+   steps in it, they're who it happens to. Same silhouette as the
+   terminals says that in one glance, and the label leaving the
+   shape is what lets a long name ("Analista fiscal do CD") stop
+   stretching the circle into a lozenge.
+
+   The label stays OUT of the node's own box on purpose:
+   `node.w`/`h` (read from `offsetWidth`/`offsetHeight`) must remain
+   exactly the circle's size, or the connection ports and edge
+   anchors drift off-center toward whatever the label's height
+   happens to be. That is why it is absolutely positioned at
+   `top: 100%` rather than being a second row in a flex column. */
+.ak-viz-node.is-start,
+.ak-viz-node.is-end,
+.ak-viz-node.is-actor {
+    width: 52px;
+    height: 52px;
+    min-width: 0;
+    max-width: none;
+    min-height: 0;
+    padding: 0;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(16, 24, 40, .22);
+}
+.ak-viz-node.is-start { background: var(--viz-node-start); border: none; }
+.ak-viz-node.is-end { background: var(--viz-node-end); border: none; }
+/* White like every other block, so it needs the delimiting ring
+   back — the drop shadow above alone would leave a white circle
+   floating on a near-white canvas with no edge at all. The two
+   terminals don't: they are solid green/red. */
+.ak-viz-node.is-actor {
+    background: var(--viz-node);
+    box-shadow: 0 2px 8px rgba(16, 24, 40, .12);
+}
+.ak-viz-node.is-start .ak-viz-node-avatar.is-kind,
+.ak-viz-node.is-end .ak-viz-node-avatar.is-kind,
+.ak-viz-node.is-actor .ak-viz-node-avatar.is-kind {
+    width: 22px;
+    height: 22px;
+}
+.ak-viz-node.is-start .ak-viz-node-avatar.is-kind,
+.ak-viz-node.is-end .ak-viz-node-avatar.is-kind {
+    color: #fff;
+}
+/* On white, the icon carries the ink color instead. */
+.ak-viz-node.is-actor .ak-viz-node-avatar.is-kind {
+    color: var(--viz-ink);
+}
+.ak-viz-node.is-start .ak-viz-node-avatar.is-kind svg,
+.ak-viz-node.is-end .ak-viz-node-avatar.is-kind svg,
+.ak-viz-node.is-actor .ak-viz-node-avatar.is-kind svg {
+    width: 22px;
+    height: 22px;
+}
+/* The label under a round block wears the SAME chip as an arrow's
+   protocol pill (`.ak-viz-plabel-box`: white fill, 1px
+   `--viz-line` hairline): both are text that sits on open canvas
+   rather than inside a shape, and without a ground of its own it
+   was read against whatever the label happened to overlap — a
+   grid line, a lane's tint, another block's shadow.
+
+   `max-width` + `text-overflow` rather than `white-space: nowrap`
+   alone: the chip is centered on a 52px circle, so an unbounded
+   one reaches halfway across its neighbours on both sides. The
+   full text stays available as the block's `title`. */
+.ak-viz-node-endcap-label {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 6px;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: #fff;
+    box-shadow: 0 0 0 1px var(--viz-node-border);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--viz-ink);
+    pointer-events: none;
+}
+/* Inline label editing (double click on the block's text —
+   `startInlineLabelEdit()`): the `<input>` that replaces the
+   `<span>` inherits the original class (`.ak-viz-node-text` or
+   `.ak-viz-node-endcap-label`) plus this one — it resets the
+   default input look and swaps the dotted outline for a visual cue
+   that this is being edited. `pointer-events: auto` undoes the
+   `none` on the start/end label (see above) — without it the mouse
+   click that repositions the caret would never reach it. */
+.ak-viz-node-text-input {
+    border: none;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    color: inherit;
+    outline: 1.5px dashed var(--viz-select);
+    outline-offset: 2px;
+    border-radius: 3px;
+    pointer-events: auto;
+}
+/* The inline edit's solution autocomplete, on a `system` block
+   only — a child of the node itself (`n.el`), so it inherits
+   `.ak-viz-world`'s pan/zoom `transform` for free and needs no
+   position arithmetic of its own (unlike the toolbar and the
+   protocol editor, which are children of `stage` and therefore
+   compute their position from `getBoundingClientRect()`). */
+.ak-viz-inline-suggest {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: max-content;
+    min-width: 140px;
+    max-width: 240px;
+    max-height: 180px;
+    overflow-y: auto;
+    padding: 4px;
+    border-radius: 8px;
+    border: 1px solid var(--viz-node-border);
+    background: var(--viz-bg);
+    box-shadow: 0 8px 24px rgba(16, 24, 40, .18);
+}
+.ak-viz-inline-suggest.hidden { display: none; }
+.ak-viz-inline-suggest-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: var(--viz-ink);
+    font-size: 12px;
+    cursor: pointer;
+}
+.ak-viz-inline-suggest-item:hover,
+.ak-viz-inline-suggest-item.is-active {
+    background: var(--viz-select);
+    color: #fff;
+}
+/* Protocol inline edit (`chain-viz.js::startInlineProtocolEdit()`)
+   — the pill itself lives inside `<svg data-viz-edges>`, and a
+   plain HTML child can't nest inside an SVG `<g>` without a
+   `<foreignObject>`, so the `<input>` and its suggestion dropdown
+   are both children of `stage` instead (screen-space), positioned
+   via `getBoundingClientRect()` — same convention as the toolbar/
+   protocol-editor panels, unlike the node's own inline Solution
+   autocomplete above (a real child of the node, positioning
+   itself for free off the node's `top:100%`). */
+.ak-viz-plabel-input {
+    position: absolute;
+    z-index: 21;
+    border: none;
+    outline: 1.5px dashed var(--viz-select);
+    outline-offset: 1px;
+    border-radius: 5px;
+    background: #fff;
+    padding: 0 4px;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 10px;
+    color: #4f5b7a;
+    text-align: center;
+}
+.ak-viz-plabel-suggest {
+    position: absolute;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: max-content;
+    min-width: 120px;
+    max-width: 220px;
+    max-height: 160px;
+    overflow-y: auto;
+    padding: 4px;
+    border-radius: 8px;
+    border: 1px solid var(--viz-node-border);
+    background: var(--viz-bg);
+    box-shadow: 0 8px 24px rgba(16, 24, 40, .18);
+}
+.ak-viz-plabel-suggest.hidden { display: none; }
+.ak-viz-plabel-suggest-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: var(--viz-ink);
+    font-size: 12px;
+    cursor: pointer;
+}
+.ak-viz-plabel-suggest-item:hover,
+.ak-viz-plabel-suggest-item.is-active {
+    background: var(--viz-select);
+    color: #fff;
+}
+/* Inline lane renaming
+   (`chain-viz.js::startInlineLaneLabelEdit()`) — a child of `stage`
+   (SCREEN space) centred on the label through a `transform`, not a
+   child of the label itself: a lane's strip is only 26px wide/tall
+   and (in the horizontal orientation) its text is vertical
+   `writing-mode` — neither the room nor the orientation is any good
+   for typing straight into, unlike a block's label. Fixed size and
+   always horizontal, so typing here is the same whatever the
+   orientation or size of the lane underneath. */
+.ak-viz-lane-label-input {
+    position: absolute;
+    z-index: 21;
+    transform: translate(-50%, -50%);
+    width: 160px;
+    max-width: 60vw;
+    border: none;
+    outline: 1.5px dashed var(--viz-select);
+    outline-offset: 2px;
+    border-radius: 5px;
+    background: #fff;
+    color: var(--viz-ink);
+    padding: 4px 8px;
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+}
+/* A pasted image (Ctrl+V, `ChainNodeKind::Image`): minimal frame
+   (the picture already is the content), without the padding and
+   minimum width of the other blocks — `max-width` matches a block's
+   default `max-width` (240px) so it does not stand out in size in
+   the middle of the graph. NO forced background — an image with
+   real transparency (PNG/SVG with alpha) should let the canvas's
+   dotted grid show through it rather than be given an imposed white
+   slab; whoever wants a visible frame uses the toolbar's optional
+   border (`imageBorderColor`, see the `.ak-viz-node.is-image`
+   inline style in `applyNodeStyle()`), not this `background`. */
+.ak-viz-node.is-image {
+    width: max-content;
+    max-width: 240px;
+    padding: 4px;
+    min-width: 0;
+    min-height: 0;
+    border: none;
+    /* Explicit, not just "omitted" — the base `.ak-viz-node` rule
+       above already sets `background: var(--viz-node)` (the
+       lavender fill), which would otherwise show through any
+       transparent pixel just the same as a forced white would.
+       `applyNodeStyle()` still overrides this with an inline
+       style when the user picks a custom block color from the
+       toolbar (that escape hatch is intentional — e.g. a colored
+       mat behind a transparent-background logo). */
+    background: transparent;
+}
+.ak-viz-node.is-image img {
+    display: block;
+    max-width: 232px;
+    max-height: 232px;
+    width: auto;
+    height: auto;
+    border-radius: 6px;
+    object-fit: contain;
+    pointer-events: none; /* the block's drag is already handled by the node's own `mousedown` */
+}
+/* "Só a imagem, com o texto embaixo" (`viz_layout.nodes[i].imageMode
+   === 'top'`): the box goes — no fill, no border, no shadow — and
+   the block is its picture with the text underneath, read straight
+   off the canvas. Hence `--viz-caption` rather than the block's
+   ink: dark on a light canvas, white on a dark theme's. Nothing of
+   a tone or of the pill survives here, and the rule is written one
+   notch more specific than theirs to say so. */
+.ak-viz-node.is-picture-top {
+    box-shadow: none;
+}
+[data-ak-chain-viz] .ak-viz-world .ak-viz-node.is-picture-top.has-picture {
+    width: max-content;
+    max-width: 160px;
+    min-width: 0;
+    min-height: 0;
+    padding: 4px;
+    background: transparent;
+    border-color: transparent;
+    border-radius: 10px;
+    color: var(--viz-caption);
+    font-weight: 500;
+}
+.ak-viz-node.is-picture-top .ak-viz-node-body {
+    flex-direction: column;
+    gap: 8px;
+}
+.ak-viz-node.is-picture-top .ak-viz-node-picture {
+    max-width: 160px;
+    max-height: 120px;
+    border-radius: 6px;
+}
+/* Mídia removida por fora (ou um nó `image` mal formado sem
+   `media_id`) — quadro vazio com o ícone de fallback em vez de
+   quebrar/ficar em branco sem nenhuma pista visual. */
+.ak-viz-node-image-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 120px;
+    height: 90px;
+    border-radius: 6px;
+    background: var(--viz-node);
+    border: 1px dashed var(--viz-line);
+    color: var(--viz-line);
+}
+.ak-viz-node-image-fallback svg {
+    width: 28px;
+    height: 28px;
+}
+/* Dashed border toggle (`viz_layout.nodes[i].dashed`) — purely
+   visual, independent of the block's kind and tone: only the
+   border's STYLE changes, so a toned block keeps its own hue and
+   width.
+
+   Scoped to the kinds that HAVE a border. The others reset it with
+   `border: none`, which also puts the width back to `medium` and
+   the color to `currentColor` — so a bare `border-style: dashed`
+   there drew a thick dark rectangle around the diamond's box, and
+   a decision saved as dashed before the toggle left that kind
+   could no longer be cleared. A pasted image gets its own subtle
+   dash instead, as it always had. */
+.ak-viz-node.is-dashed:not(.is-decision, .is-start, .is-end, .is-image, .is-lifeline, .is-picture-top) {
+    border-style: dashed;
+}
+.ak-viz-node.is-image.is-dashed {
+    border: 1.5px dashed var(--viz-node-border);
+}
+
+/* The four TONES (`viz_layout.nodes[i].tone`, `data-tone`, set by
+   `applyNodeStyle()` on action blocks only) — the reference
+   profile's tinted cards: a pale fill, a 2px border in the hue and
+   dark text of the same family. Blue and orange are the board's
+   own ("Tela final", "Exceção"); red and green are drawn to the
+   same recipe. Fixed in every theme, like the diamond: a tone is a
+   statement by the author, not a mood of the canvas.
+
+   `[data-ak-chain-viz] .ak-viz-world` buys the specificity to beat a
+   theme's per-block rule; no `box-shadow` here, so the selection
+   ring still wins. Width and color only — the border's STYLE stays
+   whatever the block says (dashed, external). */
+[data-ak-chain-viz] .ak-viz-world .ak-viz-node[data-tone="blue"] { background: #DCE9FF; border-width: 2px; border-color: #2F6FDB; color: #0F2F66; }
+[data-ak-chain-viz] .ak-viz-world .ak-viz-node[data-tone="red"] { background: #FDE2E1; border-width: 2px; border-color: #D03B35; color: #6E1712; }
+[data-ak-chain-viz] .ak-viz-world .ak-viz-node[data-tone="green"] { background: #DDF3E5; border-width: 2px; border-color: #2E9C5C; color: #0F3D22; }
+[data-ak-chain-viz] .ak-viz-world .ak-viz-node[data-tone="orange"] { background: #FFE6DA; border-width: 2px; border-color: #D9531E; color: #6B2209; }
+
+/* The dark PILL (`viz_layout.nodes[i].pill`) — a shape an action
+   block takes, not a kind: the reference's "Cliente acessa a área
+   logada". Dark whatever the theme; `applyNodeStyle()` never sets a
+   tone alongside it. */
+[data-ak-chain-viz] .ak-viz-world .ak-viz-node.is-pill {
+    padding: 8px 12px;
+    border-color: var(--viz-pill);
+    border-radius: 999px;
+    background: var(--viz-pill);
+    color: var(--viz-pill-ink);
+    font-weight: 500;
+}
+/* Kind icon (decision/actor) — same slot as the solution avatar,
+   but transparent: it's a stroked glyph, not a logo. */
+.ak-viz-node-avatar.is-kind {
+    background: transparent;
+    box-shadow: none;
+    color: inherit;
+    width: 16px;
+    height: 16px;
+    overflow: visible;
+}
+.ak-viz-node-avatar.is-kind svg {
+    width: 16px;
+    height: 16px;
+}
+/* Selected: highlighted blue ring.
+
+   The `[data-ak-chain-viz]` prefix on both state rules is
+   load-bearing, not tidiness: a theme paints its ring through
+   `.ak-viz-world[data-viz-preset="…"] .ak-viz-node`, which is one
+   class MORE specific than a bare `.ak-viz-node.is-selected` — so
+   without the prefix, picking any theme but "Original" replaced
+   the selection ring with the theme's resting shadow and selecting
+   a block stopped showing at all. Being later in the file doesn't
+   help: specificity is decided before source order. */
+[data-ak-chain-viz] .ak-viz-node.is-selected {
+    box-shadow: 0 0 0 2px var(--viz-bg), 0 0 0 4px var(--viz-select), 0 4px 14px rgba(16, 24, 40, .14);
+}
+/* Block under the pointer while an arrow is being dragged out of
+   another block's port — the drop target of the new link. */
+[data-ak-chain-viz] .ak-viz-node.is-link-target {
+    box-shadow: 0 0 0 2px var(--viz-bg), 0 0 0 4px var(--viz-highlight), 0 4px 14px rgba(16, 24, 40, .14);
+}
+/* Comment badge — node's top-right corner. */
+.ak-viz-comment-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--viz-select);
+    border: 2px solid var(--viz-bg);
+    display: none;
+}
+.ak-viz-node.has-comment .ak-viz-comment-badge { display: block; }
+/* Blocks are draggable when the diagram is editable. */
+[data-ak-chain-viz][data-editable] .ak-viz-node { cursor: grab; }
+[data-ak-chain-viz][data-editable] .ak-viz-node.is-dragging { cursor: grabbing; }
+/* Presentation mode: nothing is clickable/draggable — a block's
+   own `mousedown` (`startNodePointer()`) always calls
+   `stopPropagation()`/`preventDefault()` unconditionally (that's
+   how a non-editable VIEWER still gets the read-only toolbar), so
+   `editable=false` alone doesn't stop it; `pointer-events: none`
+   here does — the event never fires at all, and falls straight
+   through to the viewport's own pan handling underneath. The
+   opacity transition is scoped to this same attribute so
+   `exitPresentation()` can drop it first and reset every node
+   back to fully visible instantly, with no reverse-fade. */
+[data-ak-chain-viz][data-presenting] .ak-viz-node {
+    pointer-events: none;
+    cursor: grab;
+    transition: opacity .5s ease;
+}
+/* Same fadeIn as the block above, but for the arrow itself (and
+   its protocol pill, if it has one) — an edge starts invisible
+   and only fades in the instant a dot BEGINS travelling it
+   (`revealEdge()`), not just because `draw()` rendered it. No
+   `pointer-events: none` needed here: `editable=false` while
+   presenting already means `draw()` never wires up the pill's
+   click listener or the handles in the first place. */
+[data-ak-chain-viz][data-presenting] .ak-viz-edge,
+[data-ak-chain-viz][data-presenting] .ak-viz-plabel {
+    transition: opacity .5s ease;
+}
+/* Connection ports — 4 per block (top/right/bottom/left), the
+   "pull an arrow out of here" grip. Children of the block, so they
+   follow it around with no coordinate math; only rendered when the
+   diagram is editable, and only visible on hover/selection so
+   the canvas stays clean. */
+.ak-viz-port {
+    position: absolute;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: #fff;
+    border: 1.5px solid var(--viz-select);
+    /* `scale(1/zoom)`: a port is a CONTROL, not drawing — it has
+       to measure the same on screen at 60% and at 300%.
+       `--viz-inv-scale` is written by `applyView()` on every
+       pan/zoom; the `translate(-50%,-50%)` still centres on the
+       anchor point (the scaling happens around the element's own
+       centre), so none of the anchor arithmetic changes. */
+    transform: translate(-50%, -50%) scale(var(--viz-inv-scale, 1));
+    opacity: 0;
+    /* Invisible until hover/selection (below) — MUST also ignore
+       clicks while invisible, or its 11px hit target silently
+       steals clicks meant for whatever's underneath/around it
+       (a protocol pill drawn close to the block, an edge, empty
+       canvas to pan) with zero visual cue anything was even
+       there. Found via a scripted click on a protocol pill that
+       landed on a neighboring block's invisible port instead. */
+    pointer-events: none;
+    cursor: crosshair;
+    transition: opacity .12s ease, transform .1s ease;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, .18);
+    /* Below `.ak-viz-handle` (z-index 6) on purpose: an existing
+       arrow's handle lands on exactly the same spot as the port of
+       the anchor it's glued to, and dragging THAT must keep meaning
+       "retarget this arrow", not "start a new one". The block's
+       other three ports stay available. */
+    z-index: 5;
+}
+[data-ak-chain-viz]:not([data-editable]) .ak-viz-port { display: none; }
+.ak-viz-port.is-t { left: 50%; top: 0; }
+.ak-viz-port.is-b { left: 50%; top: 100%; }
+.ak-viz-port.is-l { left: 0; top: 50%; }
+.ak-viz-port.is-r { left: 100%; top: 50%; }
+.ak-viz-node:hover .ak-viz-port,
+.ak-viz-node.is-selected .ak-viz-port { opacity: 1; pointer-events: auto; }
+.ak-viz-port:hover {
+    background: var(--viz-select);
+    transform: translate(-50%, -50%) scale(calc(1.35 * var(--viz-inv-scale, 1)));
+}
+/* Ports would only get in the way while a block is being dragged. */
+.ak-viz-node.is-dragging .ak-viz-port { display: none; }
+/* Arrow-tip handles (draggable) — subtle. */
+.ak-viz-handle {
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #fff;
+    border: 1.5px solid var(--viz-line);
+    /* Mesma contra-escala da porta, e pelo mesmo motivo. */
+    transform: translate(-50%, -50%) scale(var(--viz-inv-scale, 1));
+    cursor: grab;
+    z-index: 6;
+    box-shadow: 0 1px 1.5px rgba(16, 24, 40, .15);
+    transition: transform .1s ease, border-color .1s ease, background-color .1s ease;
+}
+.ak-viz-handle:hover {
+    border-color: var(--viz-select);
+    transform: translate(-50%, -50%) scale(calc(1.3 * var(--viz-inv-scale, 1)));
+}
+.ak-viz-handle.is-dragging {
+    border-color: var(--viz-highlight);
+    background: var(--viz-highlight);
+    cursor: grabbing;
+    transform: translate(-50%, -50%) scale(calc(1.3 * var(--viz-inv-scale, 1)));
+}
+/* Precision targets on a touch device. The port (11px) and the
+   arrow-end handle (9px) are comfortable with a mouse and close to
+   unhittable with a finger, which covers ~40px. Only the area
+   grows — `translate(-50%, -50%)` still centres on the same
+   coordinates, so nothing in the anchoring arithmetic
+   (`screenToWorld()`, anchors) changes. The port keeps
+   `pointer-events: none` while invisible, so the larger area does
+   not go back to stealing clicks (see the comment on
+   `.ak-viz-port`).
+
+   On a touch device the port only appears through the
+   `.is-selected` path: there is no hover, so the block has to be
+   TAPPED before the link can be pulled — the help popover says
+   so. */
+@media (pointer: coarse) {
+    .ak-viz-port { width: 22px; height: 22px; }
+    .ak-viz-handle { width: 20px; height: 20px; }
+    .ak-viz-lane-resize-e { right: -11px; width: 22px; }
+    .ak-viz-lane-resize-s { bottom: -11px; height: 22px; }
+    .ak-viz-lane-resize-se { right: -12px; bottom: -12px; width: 26px; height: 26px; }
+    .ak-viz-lane-resize-w { left: -11px; width: 22px; }
+    .ak-viz-lane-resize-n { top: -11px; height: 22px; }
+    .ak-viz-lane-resize-nw { left: -12px; top: -12px; width: 26px; height: 26px; }
+    .ak-viz-lane-resize-ne { right: -12px; top: -12px; width: 26px; height: 26px; }
+    .ak-viz-lane-resize-sw { left: -12px; bottom: -12px; width: 26px; height: 26px; }
+}
+.ak-viz-anchor {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(74, 144, 217, .22);
+    /* Idem porta/alça: sinalização de ancoragem, não desenho. */
+    transform: translate(-50%, -50%) scale(var(--viz-inv-scale, 1));
+    z-index: 4;
+    pointer-events: none;
+}
+.ak-viz-anchor.is-near {
+    background: var(--viz-highlight);
+    box-shadow: 0 0 0 4px rgba(170, 219, 30, .28);
+}
+[data-ak-chain-viz]:fullscreen {
+    background: var(--viz-bg);
+    border-radius: 0;
+}
+[data-ak-chain-viz]:fullscreen .ak-viz-viewport { border-radius: 0; }
+
+/* Markdown comment preview — arbitrary content with no fixed
+   element to attach a class to (same exception as .html-content
+   documented in AGENTS.md), hence CSS here instead of utilities,
+   but using the app's color tokens (chrome). */
+.ak-viz-md { line-height: 1.6; }
+.ak-viz-md .md-empty { color: var(--color-faint); font-style: italic; }
+.ak-viz-md h1, .ak-viz-md h2, .ak-viz-md h3, .ak-viz-md h4 {
+    font-weight: 600;
+    color: var(--color-ink);
+    line-height: 1.25;
+    margin: .6em 0 .35em;
+}
+.ak-viz-md h1 { font-size: 1.3em; }
+.ak-viz-md h2 { font-size: 1.15em; }
+.ak-viz-md h3 { font-size: 1.05em; }
+.ak-viz-md h4 { font-size: .95em; }
+.ak-viz-md p { margin: .5em 0; }
+.ak-viz-md ul, .ak-viz-md ol { margin: .5em 0; padding-left: 1.4em; }
+.ak-viz-md li { margin: .2em 0; }
+.ak-viz-md a { color: var(--color-accent); text-decoration: underline; }
+.ak-viz-md code {
+    background: var(--color-raised);
+    padding: .12em .4em;
+    border-radius: 5px;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: .88em;
+}
+.ak-viz-md pre {
+    background: var(--color-ink);
+    color: #fff;
+    padding: 12px 14px;
+    border-radius: 9px;
+    overflow-x: auto;
+    margin: .6em 0;
+}
+.ak-viz-md pre code { background: transparent; color: inherit; padding: 0; font-size: .85em; }
+.ak-viz-md blockquote {
+    border-left: 3px solid var(--color-accent);
+    margin: .6em 0;
+    padding: .1em 0 .1em 14px;
+    color: var(--color-muted);
+}
+.ak-viz-md hr { border: none; border-top: 1px solid var(--color-line); margin: .9em 0; }
+.ak-viz-md strong { font-weight: 700; color: var(--color-ink); }
+.ak-viz-md del { color: var(--color-faint); }

@@ -144,11 +144,16 @@ it('gives the F3 canvas touch-reachable affordances for gestures that were mouse
         ['s' => $solution, 'i' => $diagram],
     );
 
+    // The coarse-pointer hit targets live in the canvas's stylesheet, a file of
+    // its own since 2026-11-12 (loaded with the canvas's chunk).
+    $css = file_get_contents(resource_path('css/components/chain-viz.css'));
+
+    expect($css)->toContain('@media (pointer: coarse)');
+
     expect($html)
         // Panel path to the inline label editor, alongside the dblclick one.
         ->toContain('data-viz-toolbar-rename')
-        // Coarse-pointer hit targets and a coarse-pointer help list.
-        ->toContain('@media (pointer: coarse)')
+        // A coarse-pointer help list.
         ->toContain('[@media(pointer:coarse)]:flex')
         ->toContain('Toque o bloco')
         // The fine-pointer list keeps the mouse wording, hidden on coarse.

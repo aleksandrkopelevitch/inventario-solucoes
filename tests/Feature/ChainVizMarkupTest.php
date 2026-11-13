@@ -54,5 +54,6 @@ it('keeps the links pointer targets out of the edges SVG', function () {
     // The rule that makes the 16px band catch the pointer has to follow the
     // layer: left scoped to `.ak-viz-edges`, it matches nothing and a 2px line
     // becomes unclickable again.
-    expect($html)->toContain('.ak-viz-hits path.ak-viz-edge-hit');
+    // (The canvas's stylesheet lives in its own file since 2026-11-12.)
+    expect(file_get_contents(resource_path('css/components/chain-viz.css')))->toContain('.ak-viz-hits path.ak-viz-edge-hit');
 });
