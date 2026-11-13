@@ -48,7 +48,11 @@ use App\Http\Controllers\SubmissionSectionController;
 use App\Http\Controllers\SubmissionSourceController;
 use App\Http\Controllers\UserController;
 use App\Models\Solution;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use Illuminate\Session\Middleware\AuthenticateSession;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 // Guest routes
 Route::middleware('guest')->group(function () {
@@ -753,11 +757,23 @@ Route::get('public-docs/{token}', [PublicDocumentationController::class, 'notebo
 // {slug} is not model-bound: a page's slug is only unique within its
 // notebook, never globally (see PublicDocumentationController::page()).
 Route::get('public-docs/{token}/page/{slug}', [PublicDocumentationController::class, 'page'])->name('public.docs.page');
-Route::get('public-docs/{token}/file/{media}', [PublicDocumentationController::class, 'file'])->name('public.docs.file');
+// The two routes that serve BYTES run without a session: a visitor's page
+// asks one of them per image, and each used to start a session, write it to
+// Redis (12 h lifetime) and set a cookie — thirty session writes for a page of
+// thirty screenshots, for a token that already carries the whole decision.
+// The page itself keeps its session (its secret locks post with the CSRF token
+// it renders), and so does the search (a Form Request, whose failure on a
+// non-JSON request redirects through the session).
+$stateless = [StartSession::class, ShareErrorsFromSession::class, PreventRequestForgery::class, AuthenticateSession::class];
+Route::get('public-docs/{token}/file/{media}', [PublicDocumentationController::class, 'file'])
+    ->withoutMiddleware($stateless)
+    ->name('public.docs.file');
 // The rendered picture of a diagram CITED by a page in the shared caderno. The
 // canvas itself stays behind auth — this serves the image and nothing else, the
 // same split `public.docs.file` makes for embedded media.
-Route::get('public-docs/{token}/diagram/{diagram}', [PublicDocumentationController::class, 'diagramPicture'])->name('public.docs.diagram');
+Route::get('public-docs/{token}/diagram/{diagram}', [PublicDocumentationController::class, 'diagramPicture'])
+    ->withoutMiddleware($stateless)
+    ->name('public.docs.diagram');
 // One protected value of a page in the shared caderno. The magic link does NOT
 // carry the right to read it: the token grants the prose, the caderno's secret
 // code grants a value inside it, and the same five-per-twelve-hours limit

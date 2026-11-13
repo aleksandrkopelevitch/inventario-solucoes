@@ -80,3 +80,43 @@ Schedule::command('model:prune', ['--model' => [
     ->onOneServer()
     ->withoutOverlapping()
     ->runInBackground();
+
+/*
+|--------------------------------------------------------------------------
+| Housekeeping
+|--------------------------------------------------------------------------
+|
+| Three things that only ever grew. Failed jobs are kept a month — long enough
+| to read why something failed, not forever. Passport's revoked and expired
+| tokens and authorization codes (every MCP connection mints them) are purged.
+| And the committee deck export's temp directory loses the empty `deck-*`
+| placeholders `tempnam()` left behind before RenderSubmissionDeck learned to
+| delete them, plus anything a crashed render abandoned — only files older
+| than a day, so a render in progress is never touched.
+|
+*/
+Schedule::command('queue:prune-failed', ['--hours' => 720])
+    ->weeklyOn(0, '05:00')
+    ->onOneServer()
+    ->withoutOverlapping()
+    ->runInBackground();
+
+Schedule::command('passport:purge')
+    ->weeklyOn(0, '05:10')
+    ->onOneServer()
+    ->withoutOverlapping()
+    ->runInBackground();
+
+Schedule::call(function () {
+    $directory = storage_path('app/cati-decks');
+
+    foreach (glob($directory . '/{deck-,spec-}*', GLOB_BRACE) ?: [] as $file) {
+        if (is_file($file) && filemtime($file) < now()->subDay()->getTimestamp()) {
+            @unlink($file);
+        }
+    }
+})
+    ->name('cati-decks:sweep')
+    ->dailyAt('05:20')
+    ->onOneServer()
+    ->withoutOverlapping();

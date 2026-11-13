@@ -51,7 +51,12 @@ class RenderSubmissionDeck
         }
 
         $specPath = tempnam($directory, 'spec-');
-        $outPath = tempnam($directory, 'deck-') . '.pptx';
+        // `tempnam()` CREATES the empty file whose name it returns, and the
+        // deck is written beside it with `.pptx` appended — so the placeholder
+        // has to go too. It was left behind on every export (328 empty
+        // `deck-*` files had piled up in the dev copy).
+        $reserved = tempnam($directory, 'deck-');
+        $outPath = $reserved . '.pptx';
 
         file_put_contents($specPath, json_encode($spec, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
@@ -59,6 +64,7 @@ class RenderSubmissionDeck
             $this->run($specPath, $outPath);
         } finally {
             @unlink($specPath);
+            @unlink($reserved);
         }
 
         return $outPath;

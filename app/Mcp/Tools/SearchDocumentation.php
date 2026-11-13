@@ -3,6 +3,7 @@
 namespace App\Mcp\Tools;
 
 use App\Enums\AccessModule;
+use App\Http\Controllers\KnowledgeBaseController;
 use App\Mcp\Actor;
 use App\Mcp\Support\Arguments;
 use App\Mcp\Support\PublishedNotebooks;
@@ -119,25 +120,23 @@ class SearchDocumentation implements Tool
         $limit = $args->int('limit', 20, 1, 50);
         $scopes = array_values(array_intersect($args->list('scopes'), DocumentationSearchService::SCOPES));
 
-        if ($slug = $args->string('notebook')) {
-            $notebook = $this->notebooks->find($slug);
-
-            if (! $notebook) {
-                return ToolResult::failure($this->notebooks->notFound($slug));
-            }
-
-            $corpora = collect([$notebook]);
-        } else {
-            $corpora = $this->notebooks->all();
+        // Every caderno at once: the ONE compact global index `/docs` searches
+        // (and the deploy warms), not a per-caderno loop. The loop read and
+        // unserialized each caderno's full index in turn, inside php-fpm, for
+        // up to the whole budget; the global index is one cache read, and it
+        // carries its own time budget for cold cadernos (`pending`).
+        if (! $args->string('notebook')) {
+            return $this->searchEverywhere($query, $scopes, $limit);
         }
 
-        if ($corpora->isEmpty()) {
-            return ToolResult::json([
-                'results' => [],
-                'note'    => 'Nenhum caderno foi publicado na base de conhecimento ainda, '
-                    . 'então não há o que buscar por aqui.',
-            ]);
+        $slug = $args->string('notebook');
+        $notebook = $this->notebooks->find($slug);
+
+        if (! $notebook) {
+            return ToolResult::failure($this->notebooks->notFound($slug));
         }
+
+        $corpora = collect([$notebook]);
 
         $deadline = microtime(true) + self::BUDGET_SECONDS;
         $results = [];
@@ -190,6 +189,50 @@ class SearchDocumentation implements Tool
      * @param  array<string, mixed>  $result
      * @return array<string, mixed>
      */
+    /**
+     * The no-`notebook` search, over `DocumentationSearchService::searchAll()`
+     * and the very list `/docs` hands it (`searchableNotebooks()`), so both
+     * read the same cached index — a different list would hash to a different
+     * key and build a second one. That list leaves the HOME caderno out, as
+     * `/docs`'s palette does: its text is the landing, not documentation.
+     *
+     * @param  list<string>  $scopes
+     */
+    private function searchEverywhere(string $query, array $scopes, int $limit): ToolResult
+    {
+        $notebooks = KnowledgeBaseController::searchableNotebooks();
+
+        if ($notebooks->isEmpty()) {
+            return ToolResult::json([
+                'results' => [],
+                'note'    => 'Nenhum caderno foi publicado na base de conhecimento ainda, '
+                    . 'então não há o que buscar por aqui.',
+            ]);
+        }
+
+        $payload = $this->search->searchAll($notebooks, $query, $scopes === [] ? [] : ['scopes' => $scopes]);
+        $bySlug = $notebooks->keyBy('slug');
+        $pending = $notebooks->whereIn('name', $payload['pending'])->pluck('slug')->all();
+
+        $results = collect($payload['results'])
+            ->filter(fn (array $result) => $bySlug->has($result['notebook']))
+            ->map(fn (array $result) => $this->shape($result, $bySlug[$result['notebook']]))
+            ->values()
+            ->all();
+
+        return ToolResult::json(array_filter([
+            'query'              => $query,
+            'total'              => $payload['total'],
+            'returned'           => min(count($results), $limit),
+            'truncated'          => count($results) > $limit,
+            'searched_notebooks' => $notebooks->pluck('slug')->diff($pending)->values()->all(),
+            // Only present when cadernos were still being indexed, so its
+            // presence IS the statement that the answer is partial.
+            'not_searched_notebooks' => $pending ?: null,
+            'results'                => array_slice($results, 0, $limit),
+        ], fn ($value) => $value !== null));
+    }
+
     private function shape(array $result, Notebook $notebook): array
     {
         return array_filter([
