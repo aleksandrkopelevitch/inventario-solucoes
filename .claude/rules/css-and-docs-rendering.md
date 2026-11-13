@@ -31,7 +31,7 @@ hardcode a hex color or a one-off `border-radius` that already has a token.
 **Legitimate exceptions** (custom CSS is the right tool):
 - **Rendered Markdown**, in all three of its flavours — the HTML comes out of a
   renderer, so there is no element to hang a utility class on before it exists:
-  `.ak-viz-md` (inline `<style>` in `components/chain/viz.blade.php`, a node's
+  `.ak-viz-md` (`resources/css/components/chain-viz.css`, a node's
   comment preview in the F3 canvas), `.html-content` (`app.css`, a whole
   GitBook documentation PAGE — `documentation/partials/_reader.blade.php`
   renders it and `docs-toc.js` reads it; an older note here claimed it was
@@ -50,7 +50,10 @@ hardcode a hex color or a one-off `border-radius` that already has a token.
   scrollbar styling in `resources/css/components/scrollbar.css`.
 - `resources/views/components/chain/viz.blade.php` (the F3 diagram canvas,
   shared by a `Diagram` and a submission's drawings) uses a scoped `--viz-*`
-  token set and `.ak-viz-node`/`.ak-viz-node-avatar` classes — a legitimate
+  token set — in `resources/css/components/chain-viz.css` since 2026-11-12,
+  imported by `chain-viz.js` so it ships with the canvas's lazy chunk instead
+  of as 82 KB of uncached inline `<style>` (the edges SVG keeps its own small
+  internal `<style>`, which html-to-image needs inline) — and `.ak-viz-node`/`.ak-viz-node-avatar` classes — a legitimate
   exception since the content (JS-built graph nodes/edges) never passes
   through Blade. (The ecosystem map is a `<canvas>`, drawn in
   `ecosystem-map.js`; it has no CSS of its own to speak of.)

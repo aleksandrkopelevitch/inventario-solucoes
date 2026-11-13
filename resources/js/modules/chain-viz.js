@@ -1,3 +1,4 @@
+import '../../css/components/chain-viz.css'
 import { toCanvas, getFontEmbedCSS } from 'html-to-image'
 import GIF from 'gif.js'
 import gifWorkerUrl from 'gif.js/dist/gif.worker.js?url'
