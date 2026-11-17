@@ -1,6 +1,6 @@
 # MCP — write tools (catalog and cadernos)
 
-Status: **implemented (phases 1–3); phase 0 pending** · revision 3 · 2026-11-17 · history in §15, implementation notes in §16
+Status: **implemented (phases 0–3; phase 0 run on Claude.ai only)** · revision 3 · 2026-11-17 · history in §15, implementation notes in §16
 
 Today `POST /mcp` only reads. This spec adds tools that create and edit:
 
@@ -564,10 +564,17 @@ public function query(Actor $actor): Builder
 
 What the code does where it differs from, or adds to, the sections above.
 
-- **Phase 0 was not run.** It needs the clients' real accounts. The scope path
-  is implemented; the `/mcp/connect` switch fallback is not. Run phase 0 before
-  announcing the feature: if a client asks for `mcp` alone, its users never see
-  a write tool, and nothing else breaks.
+- **Phase 0, Claude.ai (2026-11-17): passed.** After the connector was removed
+  and added again, Claude.ai requested both scopes on its own (the consent
+  screen showed the write block; the access token carries
+  `["mcp","mcp:write"]`), listed all 29 tools, and every write went through
+  the client's approval prompt ("Requer aprovação": Negar / Sempre permitir /
+  Permitir uma vez). The model also asked in the conversation first, as the
+  server instructions tell it to. The `/mcp/connect` switch fallback is
+  therefore not needed for Claude.ai and was not built. ChatGPT and Gemini are
+  untested. One caveat to tell users: "Sempre permitir" takes the person out
+  of the loop for that tool, leaving the content guards and the write log as
+  the protection.
 - **`version` is the text's md5 only (§6.3 first said "with the title").** The
   editor renames its own page from the rail; a version that moved with the
   title made that tab's next autosave a conflict with itself. A title race is
