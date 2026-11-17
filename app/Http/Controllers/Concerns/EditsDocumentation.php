@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Concerns;
 
+use App\Actions\Documentation\SavePageContent;
 use App\Contracts\Documentable;
 use App\Http\Requests\SaveDocumentationRequest;
 use App\Http\Requests\UploadDocumentationMediaRequest;
+use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Support\Documentation\PageLinks;
 use App\Support\Documentation\SecretText;
@@ -103,19 +105,23 @@ trait EditsDocumentation
      * — the assistant is handed that content, and a typed value it saw would
      * come back as a marker no save could resolve.
      */
-    protected function persistDocumentation(SaveDocumentationRequest $request, Documentable $model): JsonResponse
+    protected function persistDocumentation(SaveDocumentationRequest $request, DocumentationPage $page): JsonResponse
     {
-        [$documentation, $secretIds] = SecretText::restoreWithIds(
+        // `base_version` is the version the editor opened (or last saved): a
+        // save over text somebody else stored since is a 409, not an
+        // overwrite (SavePageContent, StalePageVersion). `version` goes back
+        // so the editor's next save is based on what it just wrote.
+        ['secretIds' => $secretIds, 'version' => $version] = app(SavePageContent::class)->handle(
+            $page,
             $request->validated()['documentation'] ?? null,
-            $model->documentation,
+            $request->validated()['base_version'] ?? null,
         );
-
-        $model->update(['documentation' => $documentation]);
 
         return response()->json([
             'type'      => 'success',
             'message'   => 'Documentação salva.',
             'secretIds' => $secretIds,
+            'version'   => $version,
         ]);
     }
 

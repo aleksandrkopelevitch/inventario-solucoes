@@ -55,9 +55,28 @@
                     @endif
                     <li>· A documentação dos cadernos publicados na base de conhecimento.</li>
                     <li>· Valores protegidos nunca saem — o modelo vê só que existe um.</li>
-                    <li>· <strong class="font-semibold text-ink">Somente leitura.</strong> Nada é criado, alterado ou apagado.</li>
+                    @unless ($writes)
+                        <li>· <strong class="font-semibold text-ink">Somente leitura.</strong> Nada é criado, alterado ou apagado.</li>
+                    @endunless
                 </ul>
             </div>
+
+            {{-- Writing is a scope of its own (App\Mcp\OAuth::WRITE_SCOPE),
+                 named here only when the client asked for it AND the account
+                 may hold it — McpScopeRepository strips it otherwise, so
+                 offering it would promise what the token will not carry. --}}
+            @if ($writes)
+                <div class="mt-3 rounded-field border border-hot-line bg-hot-soft px-4 py-3">
+                    <p class="text-[11px] font-semibold uppercase tracking-wide text-muted">O que essa conexão vai poder alterar</p>
+                    <ul class="mt-2 space-y-1.5 text-[13px] leading-relaxed text-body">
+                        @foreach ($writableModules as $module)
+                            <li>· {{ $module->label() }}: criar e editar, em seu nome.</li>
+                        @endforeach
+                        <li>· Nada é apagado. Cada alteração fica registrada e pode ser revertida por um administrador.</li>
+                        <li>· O cliente deve pedir sua confirmação antes de cada alteração.</li>
+                    </ul>
+                </div>
+            @endif
 
             <div class="mt-5 flex flex-wrap items-center gap-2">
                 <form method="POST" action="{{ route('passport.authorizations.approve') }}">

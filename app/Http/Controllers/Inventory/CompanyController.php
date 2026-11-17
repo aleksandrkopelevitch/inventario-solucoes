@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Inventory;
 
+use App\Actions\Catalog\SaveCompany;
 use App\Enums\CompanyKind;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreCompanyPersonRequest;
@@ -12,6 +13,7 @@ use App\Http\Requests\UpdateCompanyRequest;
 use App\Models\Company;
 use App\Models\Person;
 use App\Models\Solution;
+use App\Support\Catalog\CompanyRules;
 use App\Support\Images\PublicImage;
 use App\View\Components\Companies\DetailHeader;
 use App\View\Components\Companies\FilterChips;
@@ -21,7 +23,6 @@ use App\View\Components\Companies\ProvidedSolutions;
 use App\View\Components\Companies\ResultsCount;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 
 class CompanyController extends Controller
 {
@@ -75,16 +76,16 @@ class CompanyController extends Controller
         return $this->panel($company, (array) $request->query('filter', []));
     }
 
-    public function store(StoreCompanyRequest $request): JsonResponse
+    public function store(StoreCompanyRequest $request, SaveCompany $save): JsonResponse
     {
-        Company::create($this->payload($request));
+        $save->handle($this->payload($request));
 
         return $this->saved('Empresa criada com sucesso.', null, (array) $request->query('filter', []));
     }
 
-    public function update(UpdateCompanyRequest $request, Company $company): JsonResponse
+    public function update(UpdateCompanyRequest $request, Company $company, SaveCompany $save): JsonResponse
     {
-        $company->update($this->payload($request, $company));
+        $save->handle($this->payload($request), $company);
 
         return $this->saved('Empresa atualizada com sucesso.', $company, (array) $request->query('filter', []));
     }
@@ -205,17 +206,18 @@ class CompanyController extends Controller
         ]);
     }
 
-    /** @return array<string, mixed> */
-    private function payload(StoreCompanyRequest|UpdateCompanyRequest $request, ?Company $company = null): array
+    /**
+     * The validated fields plus the logo, which only this door receives. The
+     * slug is `SaveCompany`'s, shared with the MCP.
+     *
+     * @return array<string, mixed>
+     */
+    private function payload(StoreCompanyRequest|UpdateCompanyRequest $request): array
     {
         // `logo_action` is a UI instruction, not a column — leaving it in the
         // array throws under `Model::shouldBeStrict()`
         // (`preventSilentlyDiscardingAttributes`), which is a 500 in dev/test.
-        $data = $request->safe()->except(['logo', 'logo_action']);
-
-        $data['slug'] = filled($data['slug'] ?? null)
-            ? $data['slug']
-            : ($company?->slug ?? $this->uniqueSlug($data['name'], $company));
+        $data = $request->safe()->except(CompanyRules::UPLOAD_KEYS);
 
         if ($request->hasFile('logo')) {
             $data['logo_path'] = PublicImage::store($request->file('logo'), 'company-logos');
@@ -243,20 +245,5 @@ class CompanyController extends Controller
             'updatableSlots' => $slots,
             'js'             => "document.querySelector('[data-ak-panel-close]')?.click()",
         ]);
-    }
-
-    private function uniqueSlug(string $name, ?Company $company): string
-    {
-        $base = Str::slug($name) ?: 'empresa';
-        $slug = $base;
-        $suffix = 1;
-
-        while (in_array($slug, Company::RESERVED_SLUGS, true) || Company::where('slug', $slug)
-            ->when($company, fn ($q) => $q->whereKeyNot($company->getKey()))
-            ->exists()) {
-            $slug = $base . '-' . (++$suffix);
-        }
-
-        return $slug;
     }
 }

@@ -64,10 +64,7 @@ class GetPerson implements Tool
     {
         $slug = (new Arguments($arguments))->required('slug');
 
-        $person = Person::query()
-            ->with(['company', 'contacts', 'solutions:id,slug,name'])
-            ->where('slug', $slug)
-            ->first();
+        $person = Person::query()->where('slug', $slug)->first();
 
         if (! $person) {
             return ToolResult::failure(
@@ -75,6 +72,19 @@ class GetPerson implements Tool
             );
         }
 
-        return ToolResult::json($this->presenter->person($person));
+        return ToolResult::json($this->present($person));
+    }
+
+    /**
+     * The record as this tool answers it — also what every write tool on a
+     * person answers with.
+     *
+     * @return array<string, mixed>
+     */
+    public function present(Person $person): array
+    {
+        $person->load(['company', 'contacts', 'solutions:id,slug,name']);
+
+        return $this->presenter->person($person);
     }
 }

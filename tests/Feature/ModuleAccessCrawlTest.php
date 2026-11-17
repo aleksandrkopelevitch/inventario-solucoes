@@ -49,7 +49,7 @@ const OPEN_ROUTES = [
     // The knowledge base: published cadernos, any account (docs-reader-surfaces).
     'docs.index', 'docs.notebook', 'docs.page', 'docs.search', 'docs.file', 'docs.diagram',
     // Admin screens: closed to every member by their own policies.
-    'mcp-tokens.index', 'people.accounts', 'attribute-options.index', 'attribute-options.options',
+    'mcp-tokens.index', 'mcp-writes.index', 'people.accounts', 'attribute-options.index', 'attribute-options.options',
     'digibee-session.index', 'digibee-session.import',
 ];
 

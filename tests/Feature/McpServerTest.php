@@ -2,6 +2,7 @@
 
 use App\Mcp\McpServer;
 use App\Mcp\ToolRegistry;
+use App\Mcp\Writes;
 use App\Models\McpToken;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 
@@ -11,6 +12,12 @@ uses(LazilyRefreshDatabase::class);
 function mcpToken(): string
 {
     return McpToken::mint('Test client')['plain'];
+}
+
+/** The registry's tools that only read. @return list<class-string> */
+function readToolClasses(): array
+{
+    return array_values(array_filter(ToolRegistry::TOOLS, fn (string $tool) => ! is_subclass_of($tool, Writes::class)));
 }
 
 /** Posts one JSON-RPC message with a valid bearer token. */
@@ -55,7 +62,7 @@ it('refuses a request with no credential, pointing at the OAuth metadata', funct
     $this->postJson(route('mcp.handle'), ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/list'])
         ->assertStatus(401)
         ->assertHeader('WWW-Authenticate', sprintf(
-            'Bearer resource_metadata="%s", error="invalid_token"',
+            'Bearer resource_metadata="%s", scope="mcp mcp:write", error="invalid_token"',
             route('mcp.oauth.protected-resource', ['path' => 'mcp']),
         ))
         ->assertJsonPath('error.code', -32001);
@@ -165,10 +172,12 @@ it('answers a notification with 202 and no body', function () {
     ])->assertStatus(202)->assertNoContent(202);
 });
 
-it('lists every tool as read-only with a schema', function () {
+it('lists every READ tool as read-only with a schema, and no write tool to a token', function () {
     $tools = mcp('tools/list')->assertOk()->json('result.tools');
 
-    expect($tools)->toHaveCount(count(ToolRegistry::TOOLS));
+    // A minted token authenticates a program, never a person, so it never
+    // writes (App\Mcp\Writes) — it sees every reader and nothing else.
+    expect($tools)->toHaveCount(count(readToolClasses()));
 
     foreach ($tools as $tool) {
         expect($tool['name'])->toMatch('/^[a-z_]+$/')

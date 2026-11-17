@@ -1627,6 +1627,21 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   lista de origens em `config/mcp.php`, e cada pessoa revoga suas conexões na
   mesma tela.
 
+  Quem é **Editor** de um módulo também pode **criar e editar** por lá: soluções,
+  pessoas, empresas e os vínculos entre elas; cadernos, as soluções que eles
+  documentam e as páginas (criar, reescrever, mover na árvore). São treze
+  ferramentas a mais, só para uma conexão OAuth que autorizou o scope
+  `mcp:write` na tela de consentimento — conexões antigas continuam só leitura
+  até a pessoa reconectar, e um token nunca escreve. Nada é apagado; toda
+  alteração fica registrada em nome da pessoa (`mcp_writes`, criptografado, 180
+  dias) e um admin a reverte em **Alterações via MCP**, uma a uma ou em lote. O
+  texto de uma página vai inteiro e com a `version` lida: se alguém salvou no
+  meio — inclusive no editor do app, que agora manda a versão também e recebe um
+  409 —, nada é sobrescrito; e um texto que perderia um valor protegido, um
+  diagrama citado, um arquivo ou boa parte da página é recusado até a chamada
+  repetir exatamente o que se perde. Especificação e as três rodadas de revisão
+  em `docs-and-specs/mcp-write-tools.md`.
+
   Um PROGRAMA sem navegador — um script, um job de CI, um agente — continua com
   o **bearer token**, que um admin cria e apaga em `/mcp-tokens`. O token aparece
   em texto claro **uma única vez**, no momento em que é criado: o app guarda só o

@@ -36,7 +36,7 @@ class OAuthDiscoveryController extends Controller
         return $this->json([
             'resource'                 => route('mcp.handle'),
             'authorization_servers'    => [url('/')],
-            'scopes_supported'         => [OAuth::SCOPE],
+            'scopes_supported'         => OAuth::SCOPES,
             'bearer_methods_supported' => ['header'],
         ]);
     }
@@ -49,7 +49,7 @@ class OAuthDiscoveryController extends Controller
             'authorization_endpoint'   => route('passport.authorizations.authorize'),
             'token_endpoint'           => route('passport.token'),
             'registration_endpoint'    => route('mcp.oauth.register'),
-            'scopes_supported'         => [OAuth::SCOPE],
+            'scopes_supported'         => OAuth::SCOPES,
             'response_types_supported' => ['code'],
             'grant_types_supported'    => ['authorization_code', 'refresh_token'],
             // S256 and nothing else. `plain` is still in the spec for clients

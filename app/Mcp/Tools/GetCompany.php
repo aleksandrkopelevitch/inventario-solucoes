@@ -55,10 +55,7 @@ class GetCompany implements Tool
     {
         $slug = (new Arguments($arguments))->required('slug');
 
-        $company = Company::query()
-            ->with(['people:id,slug,name,job_title,company_id', 'providedSolutions'])
-            ->where('slug', $slug)
-            ->first();
+        $company = Company::query()->where('slug', $slug)->first();
 
         if (! $company) {
             return ToolResult::failure(
@@ -66,6 +63,19 @@ class GetCompany implements Tool
             );
         }
 
-        return ToolResult::json($this->presenter->company($company));
+        return ToolResult::json($this->present($company));
+    }
+
+    /**
+     * The record as this tool answers it — also what every write tool on a
+     * company answers with.
+     *
+     * @return array<string, mixed>
+     */
+    public function present(Company $company): array
+    {
+        $company->load(['people:id,slug,name,job_title,company_id', 'providedSolutions']);
+
+        return $this->presenter->company($company);
     }
 }

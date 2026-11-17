@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Inventory;
 
+use App\Actions\Catalog\SaveSolution;
 use App\Actions\DeleteSolution;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreSolutionPersonRequest;
@@ -15,6 +16,7 @@ use App\Models\Company;
 use App\Models\Person;
 use App\Models\Solution;
 use App\Services\SolutionCatalogStatsService;
+use App\Support\Catalog\SolutionRules;
 use App\Support\Images\PublicImage;
 use App\View\Components\Solutions\DetailHeader;
 use App\View\Components\Solutions\FilterChips;
@@ -22,7 +24,6 @@ use App\View\Components\Solutions\Index as SolutionsIndex;
 use App\View\Components\Solutions\ResultsCount;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 
 class SolutionController extends Controller
 {
@@ -121,16 +122,16 @@ class SolutionController extends Controller
         return $this->panel($solution, (array) $request->query('filter', []));
     }
 
-    public function store(StoreSolutionRequest $request): JsonResponse
+    public function store(StoreSolutionRequest $request, SaveSolution $save): JsonResponse
     {
-        Solution::create($this->payload($request));
+        $save->handle($this->payload($request));
 
         return $this->saved('Solução criada com sucesso.', null, (array) $request->query('filter', []));
     }
 
-    public function update(UpdateSolutionRequest $request, Solution $solution): JsonResponse
+    public function update(UpdateSolutionRequest $request, Solution $solution, SaveSolution $save): JsonResponse
     {
-        $solution->update($this->payload($request, $solution));
+        $save->handle($this->payload($request), $solution);
 
         return $this->saved('Solução atualizada com sucesso.', $solution, (array) $request->query('filter', []));
     }
@@ -314,22 +315,18 @@ class SolutionController extends Controller
         ]);
     }
 
-    /** @return array<string, mixed> */
-    private function payload(StoreSolutionRequest|UpdateSolutionRequest $request, ?Solution $solution = null): array
+    /**
+     * The validated fields plus the logo, which only this door receives. The
+     * slug and the NOT NULL defaults are `SaveSolution`'s, shared with the MCP.
+     *
+     * @return array<string, mixed>
+     */
+    private function payload(StoreSolutionRequest|UpdateSolutionRequest $request): array
     {
         // `logo_action` is a UI instruction, not a column — leaving it in the
         // array throws under `Model::shouldBeStrict()`
         // (`preventSilentlyDiscardingAttributes`), which is a 500 in dev/test.
-        $data = $request->safe()->except(['logo', 'logo_action']);
-
-        $data['slug'] = filled($data['slug'] ?? null)
-            ? $data['slug']
-            : ($solution?->slug ?? $this->uniqueSlug($data['name'], $solution));
-
-        // NOT NULL columns with no default: keep the submitted value, else the current one (editing), else a
-        // fixed default — must always exist as a seeded option in `attribute_options`.
-        $data['support_type'] = $data['support_type'] ?? $solution?->support_type ?? 'third_party';
-        $data['contract_status'] = $data['contract_status'] ?? $solution?->contract_status ?? 'unknown';
+        $data = $request->safe()->except(SolutionRules::UPLOAD_KEYS);
 
         if ($request->hasFile('logo')) {
             $data['logo_path'] = PublicImage::store($request->file('logo'), 'solution-logos');
@@ -363,20 +360,5 @@ class SolutionController extends Controller
             'updatableSlots' => $slots,
             'js'             => "document.querySelector('[data-ak-panel-close]')?.click()",
         ]);
-    }
-
-    private function uniqueSlug(string $name, ?Solution $solution): string
-    {
-        $base = Str::slug($name);
-        $slug = $base;
-        $suffix = 1;
-
-        while (in_array($slug, Solution::RESERVED_SLUGS, true) || Solution::where('slug', $slug)
-            ->when($solution, fn ($q) => $q->whereKeyNot($solution->getKey()))
-            ->exists()) {
-            $slug = $base . '-' . (++$suffix);
-        }
-
-        return $slug;
     }
 }

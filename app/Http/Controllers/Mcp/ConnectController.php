@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Mcp;
 
 use App\Http\Controllers\Controller;
+use App\Mcp\McpScopeRepository;
 use App\View\Components\Mcp\Connections;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,6 +30,9 @@ class ConnectController extends Controller
     {
         return view('mcp.connect', [
             'endpoint' => route('mcp.handle'),
+            // What this account could change through the server, if it
+            // authorizes writing — empty for anybody who is an Editor nowhere.
+            'writableModules' => McpScopeRepository::writableModules(auth()->user()),
         ]);
     }
 

@@ -36,6 +36,8 @@ final readonly class Actor
     private function __construct(
         public ?McpToken $token,
         public ?User $user,
+        public bool $writeGranted = false,
+        public ?string $clientId = null,
     ) {}
 
     /** A program holding a minted token. */
@@ -44,16 +46,51 @@ final readonly class Actor
         return new self($token, null);
     }
 
-    /** A person who signed in through the connector. */
-    public static function fromUser(User $user): self
+    /**
+     * A person who signed in through the connector. `$writeGranted` is whether
+     * their access token carries the `mcp:write` scope — what they authorized
+     * on the consent screen, as opposed to what their account could do.
+     * `$clientId` is the Passport client (the connector) the token was issued
+     * to — what the write log groups a chat's changes by.
+     */
+    public static function fromUser(User $user, bool $writeGranted = false, ?string $clientId = null): self
     {
-        return new self(null, $user);
+        return new self(null, $user, $writeGranted, $clientId);
     }
 
     /** Whether this caller may read `$module`; null is the published knowledge base. */
     public function canRead(?AccessModule $module): bool
     {
         return $module === null || $this->user === null || $this->user->canView($module);
+    }
+
+    /**
+     * Whether this caller may CHANGE `$module`. All three must hold:
+     *
+     * - it is a PERSON. A token never writes: it authenticates a program, so a
+     *   write made with one would carry no author and pass no policy;
+     * - the person authorized writing (`mcp:write`) on this connection. A
+     *   connection approved when the consent screen said "Ler" stays a reader;
+     * - the person is an Editor of the module — asked live, so a demotion
+     *   takes effect on the next request rather than at the next sign-in.
+     */
+    public function canWrite(?AccessModule $module): bool
+    {
+        return $module !== null
+            && $this->user !== null
+            && $this->writeGranted
+            && $this->user->canEdit($module);
+    }
+
+    /**
+     * Whether this is an Editor somewhere whose connection was NOT authorized
+     * to write — the one caller the server should tell how to enable it.
+     */
+    public function couldWriteIfGranted(): bool
+    {
+        return $this->user !== null
+            && ! $this->writeGranted
+            && McpScopeRepository::mayWrite($this->user);
     }
 
     /**

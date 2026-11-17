@@ -7,7 +7,7 @@
 <x-layouts.layout title="Conexão MCP">
     <x-ui.hero-panel compact class="mb-6">
         <x-ui.page-header eyebrow="Integrações" title="Conectar ao Claude"
-            description="Deixa o Claude (ou o ChatGPT) consultar o inventário direto na conversa: soluções, diagramas, pessoas, empresas e a documentação publicada. Somente leitura, com a sua conta Leo." />
+            description="Deixa o Claude (ou o ChatGPT) consultar o inventário direto na conversa: soluções, diagramas, pessoas, empresas e a documentação publicada, com a sua conta Leo. Quem é editor também pode criar e editar por lá." />
     </x-ui.hero-panel>
 
     <div class="space-y-6">
@@ -55,11 +55,28 @@
                     @if (auth()->user()->canView(\App\Enums\AccessModule::Documentation))
                         <li>· Os diagramas.</li>
                     @endif
-                    <li>· Da documentação, só os cadernos publicados. Caderno não publicado é invisível.</li>
+                    <li>· Da documentação, só os cadernos publicados{{ $writableModules !== [] ? ' (para quem autorizou a edição, também os não publicados)' : '' }}.</li>
                     <li>· Valores protegidos nunca saem — o modelo vê só que existe um.</li>
-                    <li>· Nada é criado, alterado ou apagado por aqui.</li>
+                    @if ($writableModules === [])
+                        <li>· Nada é criado, alterado ou apagado por aqui.</li>
+                    @endif
                 </ul>
             </div>
+
+            {{-- Writing is a second consent (App\Mcp\OAuth::WRITE_SCOPE): the
+                 screen says what an Editor's connection may change and how to
+                 turn it on, because a connection made before it existed stays
+                 read-only until it is made again. --}}
+            @if ($writableModules !== [])
+                <div class="mt-3 rounded-field border border-hot-line bg-hot-soft px-3.5 py-3">
+                    <p class="text-[11px] font-semibold uppercase tracking-wide text-muted">Criar e editar pelo chat</p>
+                    <ul class="mt-1.5 space-y-1 text-xs leading-relaxed text-body">
+                        <li>· Como editor, sua conexão pode criar e editar em: {{ collect($writableModules)->map->label()->implode('; ') }}.</li>
+                        <li>· Isso precisa ser autorizado na tela de consentimento. Conexões feitas antes continuam só leitura: remova o conector abaixo e conecte de novo para autorizar.</li>
+                        <li>· Nada é apagado. Cada alteração fica registrada em seu nome e pode ser revertida por um administrador.</li>
+                    </ul>
+                </div>
+            @endif
         </div>
 
         <x-mcp.connections />
