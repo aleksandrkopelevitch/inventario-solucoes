@@ -26,6 +26,7 @@ paths:
   - "app/Support/Catalog/**"
   - "app/Actions/Documentation/SavePageContent.php"
   - "docs-and-specs/mcp-write-tools.md"
+  - "app/Console/Commands/CalibrateShrinkGuardCommand.php"
 ---
 
 ### The MCP server — the catalog as a tool, and a token is not an account
@@ -281,7 +282,11 @@ touching any of it:
   neither side silently erases the other. A body that drops a protected value,
   a cited diagram, a `/files/` reference, or most of its length is refused
   until the call repeats the exact items (`remove_secrets`,
-  `confirm_removals`, `shrink:N%`).
+  `confirm_removals`, `shrink:N%`). The shrink thresholds live in ONE place,
+  `App\Mcp\Support\ShrinkGuard`, because `mcp:calibrate-shrink-guard` replays
+  that very rule over the Assiste IA's real rewrites (an APPLIED draft the
+  guard would refuse is a false positive) — change the numbers only with its
+  output in hand.
 - **A writing connection reads the unpublished cadernos too**
   (`App\Mcp\Support\ReadableNotebooks`, which replaced `PublishedNotebooks`),
   each marked `"published": false`. Everybody else keeps the published-only
