@@ -8,8 +8,8 @@
         {{-- Filtros por GET comum: a lista é a página, e o endereço com os
              filtros é o que alguém cola para mostrar "foi esta conversa". --}}
         <form method="GET" action="{{ route('mcp-writes.index') }}"
-              class="flex flex-wrap items-end gap-3 rounded-card border border-line bg-surface p-4 shadow-card">
-            <x-forms.field label="Pessoa" for="filter-user" class="min-w-44">
+              class="grid items-end gap-3 rounded-card border border-line bg-surface p-4 shadow-card sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto_auto]">
+            <x-forms.field label="Pessoa" for="filter-user">
                 <x-forms.select id="filter-user" name="filter[user]">
                     <option value="">Todas</option>
                     @foreach ($people as $id => $name)
@@ -18,7 +18,7 @@
                 </x-forms.select>
             </x-forms.field>
 
-            <x-forms.field label="Conector" for="filter-client" class="min-w-44">
+            <x-forms.field label="Conector" for="filter-client">
                 <x-forms.select id="filter-client" name="filter[client]">
                     <option value="">Todos</option>
                     @foreach ($clients as $id => $name)
@@ -35,10 +35,14 @@
                 <x-forms.input id="filter-to" type="date" name="filter[to]" :value="$filters['to'] ?? null" />
             </x-forms.field>
 
-            <x-forms.button>Filtrar</x-forms.button>
-            @if ($filters !== [])
-                <a href="{{ route('mcp-writes.index') }}" class="pb-2 text-xs text-accent hover:underline">Limpar filtros</a>
-            @endif
+            {{-- One grid cell for the actions, so "Limpar filtros" sits beside
+                 the button instead of taking a column of its own. --}}
+            <div class="flex items-center gap-3">
+                <x-forms.button>Filtrar</x-forms.button>
+                @if ($filters !== [])
+                    <a href="{{ route('mcp-writes.index') }}" class="text-xs text-accent hover:underline">Limpar filtros</a>
+                @endif
+            </div>
         </form>
 
         <x-mcp.write-list :filters="$filters" />
