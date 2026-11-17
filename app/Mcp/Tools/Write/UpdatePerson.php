@@ -5,6 +5,7 @@ namespace App\Mcp\Tools\Write;
 use App\Actions\Catalog\SavePerson;
 use App\Mcp\Actor;
 use App\Mcp\Support\Arguments;
+use App\Mcp\Support\ImageArgument;
 use App\Mcp\Support\RecordFields;
 use App\Mcp\ToolResult;
 use App\Mcp\Tools\GetPerson;
@@ -55,7 +56,7 @@ class UpdatePerson extends PersonWriteTool
             'properties' => [
                 'slug' => ['type' => 'string', 'description' => 'Slug da pessoa a alterar (de search_people).'],
                 ...$this->fieldSchema(),
-                'clear' => self::clearSchema(array_keys($this->spec())),
+                'clear' => self::clearSchema([...array_keys($this->spec()), 'photo']),
             ],
             'required' => ['slug'],
         ];
@@ -74,25 +75,36 @@ class UpdatePerson extends PersonWriteTool
             return $this->forbidden('editar pessoas');
         }
 
-        ['data' => $patch, 'errors' => $errors] = $this->columns($arguments, $this->spec(), allowClear: true);
+        $image = ImageArgument::read($arguments, 'photo', $this->photoRule(), allowClear: true);
+        ['data' => $patch, 'errors' => $errors] = $this->columns(ImageArgument::withoutClear($arguments, 'photo'), $this->spec(), allowClear: true);
+
+        if ($image->error) {
+            $errors[] = $image->error;
+        }
 
         if ($errors !== []) {
             return $this->refused($errors);
         }
 
-        if ($patch === []) {
+        if ($patch === [] && ! $image->sent()) {
             return ToolResult::failure('Nenhum campo para alterar foi enviado. Envie os campos com o novo valor, ou liste em "clear" os que devem ser esvaziados.');
         }
 
-        $current = array_intersect_key($person->getAttributes(), array_flip(array_keys($this->names())));
+        $changed = false;
 
-        if ($invalid = $this->invalid($patch + $current, $this->rules($person), $this->names())) {
-            return $invalid;
+        if ($patch !== []) {
+            $current = array_intersect_key($person->getAttributes(), array_flip(array_keys($this->names())));
+
+            if ($invalid = $this->invalid($patch + $current, $this->rules($person), $this->names())) {
+                return $invalid;
+            }
+
+            $before = RecordFields::snapshot($person, array_keys($patch));
+            $this->save->handle($patch + $current, $person);
+            $changed = $this->log($actor, $person, $before, RecordFields::snapshot($person->refresh(), array_keys($patch)));
         }
 
-        $before = RecordFields::snapshot($person, array_keys($patch));
-        $this->save->handle($patch + $current, $person);
-        $changed = $this->log($actor, $person, $before, RecordFields::snapshot($person->refresh(), array_keys($patch)));
+        $changed = $this->applyImage($actor, $person, 'photo_path', $image, 'photos') || $changed;
 
         return $this->answer($person, $changed ? 'Pessoa atualizada.' : 'Nada mudou: os valores enviados já eram os atuais.');
     }

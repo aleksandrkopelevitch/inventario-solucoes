@@ -4,6 +4,7 @@ namespace App\Mcp\Tools\Write;
 
 use App\Actions\Catalog\SavePerson;
 use App\Mcp\Actor;
+use App\Mcp\Support\ImageArgument;
 use App\Mcp\ToolResult;
 use App\Mcp\Tools\GetPerson;
 use App\Models\Person;
@@ -56,6 +57,11 @@ class CreatePerson extends PersonWriteTool implements CreatesRecords
         }
 
         ['data' => $data, 'errors' => $errors] = $this->columns($arguments, $this->spec());
+        $image = ImageArgument::read($arguments, 'photo', $this->photoRule());
+
+        if ($image->error) {
+            $errors[] = $image->error;
+        }
 
         if ($errors !== []) {
             return $this->refused($errors);
@@ -76,8 +82,8 @@ class CreatePerson extends PersonWriteTool implements CreatesRecords
             $data,
             $this->names(),
             (bool) ($arguments['allow_duplicate'] ?? false),
-            fn ()                              => $this->save->handle($data),
-            fn (Person $person, ?string $note) => $this->answer($person, $note ?? 'Pessoa cadastrada.'),
+            fn ()                              => $this->save->handle($data + ($image->file ? ['photo_path' => $image->store('photos')] : [])),
+            fn (Person $person, ?string $note) => $this->answer($person, $this->imageNote($note, $image, 'photo', 'update_person') ?? 'Pessoa cadastrada.'),
         );
     }
 }

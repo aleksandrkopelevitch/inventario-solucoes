@@ -271,6 +271,17 @@ touching any of it:
   `allow_duplicate`. The name is locked BEFORE the transaction — on the
   `database` cache store, a lock row written inside it poisons a Postgres
   transaction.
+- **A picture is the one write the log does NOT keep** (since 2026-11-17).
+  `logo` (solution, company) and `photo` (person) on the create/update tools
+  take a URL the server downloads — the shape a chat can use, since a model
+  writes base64 token by token and cannot encode an image it only sees — or
+  base64 / a data URI for a client reading a local file.
+  `App\Mcp\Support\ImageArgument` validates it with the panel's own rule and
+  stores it with `PublicImage::store()`; a URL is checked by `PublicUrl` on
+  EVERY redirect hop, followed by hand. Emptying it is `clear: ["logo"]`. The
+  person decided a picture needs no revert, so it never reaches `mcp_writes`
+  (only a `MCP image write` line in the server log) and a revert of the same
+  call's other fields leaves the picture alone.
 - **The rules are the app's.** `App\Support\Catalog\*Rules` are what the six
   Store/Update Form Requests return, and `App\Actions\Catalog\Save*` what their
   controllers call — one implementation, two doors.

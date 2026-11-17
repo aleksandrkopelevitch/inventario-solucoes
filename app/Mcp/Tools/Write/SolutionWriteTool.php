@@ -8,6 +8,7 @@ use App\Mcp\Actor;
 use App\Mcp\ToolResult;
 use App\Mcp\Tools\GetSolution;
 use App\Models\Solution;
+use App\Support\Catalog\SolutionRules;
 
 /** What `create_solution` and `update_solution` share: the fields, their schema and the answer. */
 abstract class SolutionWriteTool extends WriteTool
@@ -61,7 +62,14 @@ abstract class SolutionWriteTool extends WriteTool
             'contract_status'        => self::attributeSchema(AttributeGroup::ContractStatus, 'Situação do contrato.'),
             'criticality'            => self::attributeSchema(AttributeGroup::Criticality, 'Criticidade.'),
             'support_operation_note' => ['type' => 'string', 'description' => 'Nota de suporte e operação (aceita Markdown).'],
+            'logo'                   => self::imageSchema('Logo da solução'),
         ];
+    }
+
+    /** The panel's own rule for the logo upload (`SolutionRules`). @return array<int, mixed> */
+    protected function logoRule(): array
+    {
+        return SolutionRules::for()['logo'];
     }
 
     protected function answer(Solution $solution, Actor $actor, string $message): ToolResult

@@ -5,6 +5,7 @@ namespace App\Mcp\Tools\Write;
 use App\Actions\Catalog\SaveCompany;
 use App\Mcp\Actor;
 use App\Mcp\Support\Arguments;
+use App\Mcp\Support\ImageArgument;
 use App\Mcp\Support\RecordFields;
 use App\Mcp\ToolResult;
 use App\Mcp\Tools\GetCompany;
@@ -55,7 +56,7 @@ class UpdateCompany extends CompanyWriteTool
             'properties' => [
                 'slug' => ['type' => 'string', 'description' => 'Slug da empresa a alterar (de search_companies).'],
                 ...$this->fieldSchema(),
-                'clear' => self::clearSchema(array_keys($this->spec())),
+                'clear' => self::clearSchema([...array_keys($this->spec()), 'logo']),
             ],
             'required' => ['slug'],
         ];
@@ -74,25 +75,36 @@ class UpdateCompany extends CompanyWriteTool
             return $this->forbidden('editar empresas');
         }
 
-        ['data' => $patch, 'errors' => $errors] = $this->columns($arguments, $this->spec(), allowClear: true);
+        $image = ImageArgument::read($arguments, 'logo', $this->logoRule(), allowClear: true);
+        ['data' => $patch, 'errors' => $errors] = $this->columns(ImageArgument::withoutClear($arguments, 'logo'), $this->spec(), allowClear: true);
+
+        if ($image->error) {
+            $errors[] = $image->error;
+        }
 
         if ($errors !== []) {
             return $this->refused($errors);
         }
 
-        if ($patch === []) {
+        if ($patch === [] && ! $image->sent()) {
             return ToolResult::failure('Nenhum campo para alterar foi enviado. Envie os campos com o novo valor, ou liste em "clear" os que devem ser esvaziados.');
         }
 
-        $current = array_intersect_key($company->getAttributes(), array_flip(array_keys($this->names())));
+        $changed = false;
 
-        if ($invalid = $this->invalid($patch + $current, $this->rules($company), $this->names())) {
-            return $invalid;
+        if ($patch !== []) {
+            $current = array_intersect_key($company->getAttributes(), array_flip(array_keys($this->names())));
+
+            if ($invalid = $this->invalid($patch + $current, $this->rules($company), $this->names())) {
+                return $invalid;
+            }
+
+            $before = RecordFields::snapshot($company, array_keys($patch));
+            $this->save->handle($patch + $current, $company);
+            $changed = $this->log($actor, $company, $before, RecordFields::snapshot($company->refresh(), array_keys($patch)));
         }
 
-        $before = RecordFields::snapshot($company, array_keys($patch));
-        $this->save->handle($patch + $current, $company);
-        $changed = $this->log($actor, $company, $before, RecordFields::snapshot($company->refresh(), array_keys($patch)));
+        $changed = $this->applyImage($actor, $company, 'logo_path', $image, 'company-logos') || $changed;
 
         return $this->answer($company, $changed ? 'Empresa atualizada.' : 'Nada mudou: os valores enviados já eram os atuais.');
     }

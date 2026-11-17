@@ -4,6 +4,7 @@ namespace App\Mcp\Tools\Write;
 
 use App\Actions\Catalog\SaveSolution;
 use App\Mcp\Actor;
+use App\Mcp\Support\ImageArgument;
 use App\Mcp\ToolResult;
 use App\Mcp\Tools\GetSolution;
 use App\Models\Solution;
@@ -57,6 +58,11 @@ class CreateSolution extends SolutionWriteTool implements CreatesRecords
         }
 
         ['data' => $data, 'errors' => $errors] = $this->columns($arguments, $this->spec());
+        $image = ImageArgument::read($arguments, 'logo', $this->logoRule());
+
+        if ($image->error) {
+            $errors[] = $image->error;
+        }
 
         if ($errors !== []) {
             return $this->refused($errors);
@@ -77,8 +83,8 @@ class CreateSolution extends SolutionWriteTool implements CreatesRecords
             $data,
             $this->names(),
             (bool) ($arguments['allow_duplicate'] ?? false),
-            fn ()                                  => $this->save->handle($data),
-            fn (Solution $solution, ?string $note) => $this->answer($solution, $actor, $note ?? 'Solução cadastrada.'),
+            fn ()                                  => $this->save->handle($data + ($image->file ? ['logo_path' => $image->store('solution-logos')] : [])),
+            fn (Solution $solution, ?string $note) => $this->answer($solution, $actor, $this->imageNote($note, $image, 'logo', 'update_solution') ?? 'Solução cadastrada.'),
         );
     }
 

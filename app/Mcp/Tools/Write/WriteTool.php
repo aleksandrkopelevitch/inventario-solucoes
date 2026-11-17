@@ -4,6 +4,7 @@ namespace App\Mcp\Tools\Write;
 
 use App\Enums\AttributeGroup;
 use App\Mcp\Actor;
+use App\Mcp\Support\ImageArgument;
 use App\Mcp\Support\RecordFields;
 use App\Mcp\Support\Vocabulary;
 use App\Mcp\ToolResult;
@@ -12,8 +13,9 @@ use App\Models\Company;
 use App\Models\McpWrite;
 use App\Support\Fold;
 use Closure;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -99,7 +101,7 @@ abstract class WriteTool implements Writes
      * default when they are missing, so "cleared" would silently mean
      * "unchanged" (`SaveSolution`). Refused, with the reason.
      *
-     * @return list<string>  argument names
+     * @return list<string> argument names
      */
     protected function unclearable(): array
     {
@@ -287,6 +289,62 @@ abstract class WriteTool implements Writes
     }
 
     /* ------------------------------------------------------------------ */
+    /*  Pictures */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Stores or removes a record's picture (`ImageArgument`). Answers whether
+     * it changed.
+     *
+     * Deliberately NOT a write-log row, so not revertible (see
+     * `ImageArgument`); the server log still names it, so the change traces.
+     */
+    protected function applyImage(Actor $actor, Model $record, string $column, ImageArgument $image, string $directory): bool
+    {
+        if ($image->file) {
+            $record->update([$column => $image->store($directory)]);
+        } elseif ($image->remove && $record->getAttribute($column) !== null) {
+            $record->update([$column => null]);
+        } else {
+            return false;
+        }
+
+        Log::info('MCP image write', [
+            'tool'    => $this->name(),
+            'user_id' => $actor->user?->getKey(),
+            'subject' => $record::class . ':' . $record->getKey(),
+            'column'  => $column,
+            'value'   => $record->getAttribute($column),
+        ]);
+
+        return true;
+    }
+
+    /**
+     * A create retried after a timeout answers with the FIRST record and
+     * applies nothing (`createOnce()`), the picture included — say so, as the
+     * note already does for the other fields.
+     */
+    protected function imageNote(?string $note, ImageArgument $image, string $argument, string $updateTool): ?string
+    {
+        return $note !== null && $image->sent()
+            ? "{$note} O {$argument} desta chamada também não foi aplicado; use {$updateTool} para enviá-lo."
+            : $note;
+    }
+
+    /** The JSON Schema fragment of a picture argument. */
+    protected static function imageSchema(string $what): array
+    {
+        return [
+            'type'        => 'string',
+            'description' => "{$what}: a URL https:// da imagem (o servidor baixa; prefira esta forma) "
+                . 'ou o conteúdo do arquivo em base64 / data URI — só para um arquivo pequeno que você consiga ler. '
+                . 'JPG, PNG ou WebP, até ' . (ImageArgument::MAX_KILOBYTES / 1024) . ' MB; SVG não é aceito. '
+                . 'A troca de imagem NÃO entra no registro de alterações e não pode ser revertida por lá: confirme com a pessoa.',
+        ];
+    }
+
+    /* ------------------------------------------------------------------ */
     /*  Creating, retry-safe */
     /* ------------------------------------------------------------------ */
 
@@ -317,7 +375,7 @@ abstract class WriteTool implements Writes
      * @param  array<string, string>  $names  column => argument name
      * @param  Closure(): TModel  $create
      * @param  Closure(TModel, ?string): ToolResult  $answer  the record and a note
-     * @param  (Closure(\Illuminate\Database\Eloquent\Builder): mixed)|null  $scope  narrows "same name" (a page: same parent)
+     * @param  (Closure(Builder): mixed)|null  $scope  narrows "same name" (a page: same parent)
      */
     protected function createOnce(
         Actor $actor,

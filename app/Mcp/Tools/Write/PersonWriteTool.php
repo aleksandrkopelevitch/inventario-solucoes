@@ -48,7 +48,14 @@ abstract class PersonWriteTool extends WriteTool
             'email'     => ['type' => 'string', 'description' => 'E-mail.'],
             'phone'     => ['type' => 'string', 'description' => 'Telefone.'],
             'notes'     => ['type' => 'string', 'description' => 'Observações (aceita Markdown).'],
+            'photo'     => self::imageSchema('Foto da pessoa'),
         ];
+    }
+
+    /** The panel's own rule for the photo upload (`PersonRules`). @return array<int, mixed> */
+    protected function photoRule(): array
+    {
+        return PersonRules::for()['photo'];
     }
 
     /** @return array<string, mixed> */

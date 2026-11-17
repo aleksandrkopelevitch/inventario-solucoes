@@ -5,6 +5,7 @@ namespace App\Mcp\Tools\Write;
 use App\Actions\Catalog\SaveSolution;
 use App\Mcp\Actor;
 use App\Mcp\Support\Arguments;
+use App\Mcp\Support\ImageArgument;
 use App\Mcp\Support\RecordFields;
 use App\Mcp\ToolResult;
 use App\Mcp\Tools\GetSolution;
@@ -62,7 +63,7 @@ class UpdateSolution extends SolutionWriteTool
             'properties' => [
                 'slug' => ['type' => 'string', 'description' => 'Slug da solução a alterar (de search_solutions).'],
                 ...$this->fieldSchema(),
-                'clear' => self::clearSchema(array_keys($this->spec())),
+                'clear' => self::clearSchema([...array_keys($this->spec()), 'logo']),
             ],
             'required' => ['slug'],
         ];
@@ -81,29 +82,40 @@ class UpdateSolution extends SolutionWriteTool
             return $this->forbidden('editar soluções');
         }
 
-        ['data' => $patch, 'errors' => $errors] = $this->columns($arguments, $this->spec(), allowClear: true);
+        $image = ImageArgument::read($arguments, 'logo', $this->logoRule(), allowClear: true);
+        ['data' => $patch, 'errors' => $errors] = $this->columns(ImageArgument::withoutClear($arguments, 'logo'), $this->spec(), allowClear: true);
+
+        if ($image->error) {
+            $errors[] = $image->error;
+        }
 
         if ($errors !== []) {
             return $this->refused($errors);
         }
 
-        if ($patch === []) {
+        if ($patch === [] && ! $image->sent()) {
             return ToolResult::failure('Nenhum campo para alterar foi enviado. Envie os campos com o novo valor, ou liste em "clear" os que devem ser esvaziados.');
         }
 
-        // The WHOLE record is validated, not just the patch: the panel's rules
-        // require name, category and status on every save, and a patch must
-        // not be a way around that.
-        $columns = array_keys($this->names());
-        $current = array_intersect_key($solution->getAttributes(), array_flip($columns));
+        $changed = false;
 
-        if ($invalid = $this->invalid($patch + $current, SolutionRules::for($solution), $this->names())) {
-            return $invalid;
+        if ($patch !== []) {
+            // The WHOLE record is validated, not just the patch: the panel's rules
+            // require name, category and status on every save, and a patch must
+            // not be a way around that.
+            $columns = array_keys($this->names());
+            $current = array_intersect_key($solution->getAttributes(), array_flip($columns));
+
+            if ($invalid = $this->invalid($patch + $current, SolutionRules::for($solution), $this->names())) {
+                return $invalid;
+            }
+
+            $before = RecordFields::snapshot($solution, array_keys($patch));
+            $this->save->handle($patch + $current, $solution);
+            $changed = $this->log($actor, $solution, $before, RecordFields::snapshot($solution->refresh(), array_keys($patch)));
         }
 
-        $before = RecordFields::snapshot($solution, array_keys($patch));
-        $this->save->handle($patch + $current, $solution);
-        $changed = $this->log($actor, $solution, $before, RecordFields::snapshot($solution->refresh(), array_keys($patch)));
+        $changed = $this->applyImage($actor, $solution, 'logo_path', $image, 'solution-logos') || $changed;
 
         return $this->answer($solution, $actor, $changed ? 'Solução atualizada.' : 'Nada mudou: os valores enviados já eram os atuais.');
     }
