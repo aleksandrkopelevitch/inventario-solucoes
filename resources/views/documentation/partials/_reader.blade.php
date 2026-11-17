@@ -49,6 +49,8 @@
                 'cardTargetsUrl' => isset($notebook) ? route('notebooks.card-targets', $notebook) : null,
                 'sceneUrl'       => isset($notebook, $titlePage) ? route('notebooks.pages.scene', [$notebook, $titlePage]) : null,
                 'pageSlug'       => $titlePage->slug ?? null,
+                // What this editor's saves are based on — see SavePageContent.
+                'version' => isset($titlePage) ? $titlePage->version() : null,
             ]) }}"></div>
 
         {{-- Resume marker: present when this user has a Documentation Assistant

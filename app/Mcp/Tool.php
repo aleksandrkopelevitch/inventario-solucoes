@@ -7,14 +7,15 @@ use App\Enums\AccessModule;
 /**
  * One tool the MCP server exposes.
  *
- * Every implementation is READ-ONLY, and that is a property of the whole
- * feature rather than of any one class: an MCP token is a static string sitting
- * in somebody's configuration file, shared by whoever can read that file, and
- * it authenticates a program rather than a person. Nothing the catalog records
- * about who changed what would survive a write arriving through it — every
- * mutation in this app is authorized against a `User` and attributed to one, and
- * a token is neither. `readOnly()` is declared rather than assumed so the
- * annotation reaches the client and a future writing tool has to say so out loud.
+ * A tool READS unless it says otherwise by implementing `Writes` — and only a
+ * PERSON ever reaches a writing one. A minted MCP token is a static string in
+ * somebody's configuration file, shared by whoever can read that file, and it
+ * authenticates a program rather than a person: every mutation in this app is
+ * authorized against a `User` and attributed to one, and a token is neither.
+ * So a writing tool is shown only to an OAuth connection whose person is an
+ * Editor of its module and authorized `mcp:write` (`Actor::canWrite()`), and
+ * every write it makes is logged and revertible (`App\Models\McpWrite`). See
+ * docs-and-specs/mcp-write-tools.md.
  */
 interface Tool
 {

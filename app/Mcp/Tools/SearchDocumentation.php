@@ -6,7 +6,7 @@ use App\Enums\AccessModule;
 use App\Http\Controllers\KnowledgeBaseController;
 use App\Mcp\Actor;
 use App\Mcp\Support\Arguments;
-use App\Mcp\Support\PublishedNotebooks;
+use App\Mcp\Support\ReadableNotebooks;
 use App\Mcp\Tool;
 use App\Mcp\ToolResult;
 use App\Models\Notebook;
@@ -45,7 +45,7 @@ class SearchDocumentation implements Tool
     private const BUDGET_SECONDS = 20.0;
 
     public function __construct(
-        private readonly PublishedNotebooks $notebooks,
+        private readonly ReadableNotebooks $notebooks,
         private readonly DocumentationSearchService $search,
     ) {}
 
@@ -126,11 +126,11 @@ class SearchDocumentation implements Tool
         // up to the whole budget; the global index is one cache read, and it
         // carries its own time budget for cold cadernos (`pending`).
         if (! $args->string('notebook')) {
-            return $this->searchEverywhere($query, $scopes, $limit);
+            return $this->searchEverywhere($query, $scopes, $limit, $actor);
         }
 
         $slug = $args->string('notebook');
-        $notebook = $this->notebooks->find($slug);
+        $notebook = $this->notebooks->find($slug, $actor);
 
         if (! $notebook) {
             return ToolResult::failure($this->notebooks->notFound($slug));
@@ -198,9 +198,21 @@ class SearchDocumentation implements Tool
      *
      * @param  list<string>  $scopes
      */
-    private function searchEverywhere(string $query, array $scopes, int $limit): ToolResult
+    private function searchEverywhere(string $query, array $scopes, int $limit, Actor $actor): ToolResult
     {
         $notebooks = KnowledgeBaseController::searchableNotebooks();
+
+        // A connection that writes the documentation reads the unpublished
+        // cadernos too (ReadableNotebooks). They are APPENDED to `/docs`'s own
+        // list rather than merged into it, so the published half keeps the
+        // order — and the cache key prefix — the deploy warms; the wider set
+        // is a colder index, and the search's time budget already reports
+        // what it did not reach.
+        if (ReadableNotebooks::seesUnpublished($actor)) {
+            $notebooks = $notebooks->concat(
+                Notebook::query()->whereNull('published_at')->orderBy('name')->get(),
+            );
+        }
 
         if ($notebooks->isEmpty()) {
             return ToolResult::json([
@@ -245,7 +257,9 @@ class SearchDocumentation implements Tool
             'anchor'  => $result['anchor'],
             'trail'   => $result['trail'] ?: null,
             'snippet' => $this->flatten($result['snippet']),
-            'url'     => route('docs.page', [$notebook->slug, $result['slug']])
+            // An unpublished caderno (a writing connection reads those too)
+            // has no address in /docs; its pages live in the editor.
+            'url' => route($notebook->isPublished() ? 'docs.page' : 'notebooks.pages.edit', [$notebook->slug, $result['slug']])
                 . ($result['anchor'] ? '#' . rawurlencode((string) $result['anchor']) : ''),
             'page_slug' => $result['slug'],
         ], fn ($value) => $value !== null && $value !== '');

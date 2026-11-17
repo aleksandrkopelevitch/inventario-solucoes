@@ -2,6 +2,7 @@
 
 use App\Models\DigibeeLogLookup;
 use App\Models\DigibeeLogReport;
+use App\Models\McpWrite;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -75,6 +76,9 @@ Schedule::command('documentation:search-warm')
 Schedule::command('model:prune', ['--model' => [
     DigibeeLogReport::class,
     DigibeeLogLookup::class,
+    // The MCP write log keeps its own retention (McpWrite::RETENTION_DAYS,
+    // 180 days) — long enough to notice and revert a wrong edit.
+    McpWrite::class,
 ]])
     ->dailyAt('04:30')
     ->onOneServer()

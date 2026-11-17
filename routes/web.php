@@ -26,6 +26,7 @@ use App\Http\Controllers\Inventory\SolutionSpreadsheetController;
 use App\Http\Controllers\KnowledgeBaseController;
 use App\Http\Controllers\Mcp\ConnectController;
 use App\Http\Controllers\McpTokenController;
+use App\Http\Controllers\McpWriteController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\NotebookContextDocumentController;
 use App\Http\Controllers\NotebookController;
@@ -336,6 +337,13 @@ Route::middleware('auth')->group(function () {
     Route::get('mcp-tokens', [McpTokenController::class, 'index'])->name('mcp-tokens.index');
     Route::post('mcp-tokens', [McpTokenController::class, 'store'])->name('mcp-tokens.store');
     Route::delete('mcp-tokens/{mcpToken}', [McpTokenController::class, 'destroy'])->name('mcp-tokens.destroy');
+
+    // What chats changed through the MCP write tools, and the way back
+    // (`McpWritePolicy`, admin only — a revert can delete a record).
+    // `revert` before `{mcpWrite}/revert`, the static segment first.
+    Route::get('mcp-writes', [McpWriteController::class, 'index'])->name('mcp-writes.index');
+    Route::post('mcp-writes/revert', [McpWriteController::class, 'revertSelection'])->name('mcp-writes.revert-selection');
+    Route::post('mcp-writes/{mcpWrite}/revert', [McpWriteController::class, 'revert'])->name('mcp-writes.revert');
 
     // The server's Digibee session (`DigibeeMonitorSessionPolicy`, admin only
     // — it is a credential). Renewed from the admin's own browser: the

@@ -139,6 +139,23 @@ class DocumentationPage extends Model implements Documentable
         return trim((string) $this->documentation) !== '';
     }
 
+    /**
+     * The page's CONTENT version — what a writer read, sent back with its save
+     * so a save over somebody else's newer text is refused instead of
+     * overwriting it (App\Actions\Documentation\SavePageContent). Both doors
+     * carry it: the browser editor and the MCP's `update_page`.
+     *
+     * The text's md5 and nothing else. The title stays out on purpose: the
+     * editor renames its own page from the rail, and a version that moved with
+     * the title would make the next autosave of that same tab a conflict with
+     * itself. A rename racing another rename is last-writer-wins, which costs a
+     * word, never a paragraph.
+     */
+    public function version(): string
+    {
+        return $this->textHash();
+    }
+
     /** md5 of the text ('' for none) — from SQL on a light row, from the text otherwise. */
     public function textHash(): string
     {

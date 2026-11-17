@@ -117,6 +117,74 @@ class DocumentationPageService
     }
 
     /**
+     * Puts a page at an ABSOLUTE spot in its caderno's tree: under `$parent`
+     * (null for the root list), at `$position` among those siblings (0-based,
+     * clamped to the end). It is what the MCP's `place_page` calls — one call
+     * for any rearrangement, where the rail's four arrows are one step each.
+     *
+     * The caller checks `placementFailure()` first; this assumes a legal spot.
+     * The destination list is renumbered 1..n, so a position is never shared
+     * and never depends on the gaps a list accumulated over years of moves.
+     */
+    public function place(DocumentationPage $page, ?DocumentationPage $parent, int $position): void
+    {
+        $notebook = $page->notebook()->first();
+
+        // Ties on `position` (old data has them) break on id, the same order
+        // `indexAmongSiblings()` counts in.
+        $siblings = ($parent ? $parent->children() : $notebook->pages()->whereNull('parent_id')->orderBy('position'))
+            ->orderBy('id')
+            ->whereKeyNot($page->getKey())
+            ->get();
+
+        $siblings->splice(max(0, min($position, $siblings->count())), 0, [$page]);
+
+        $page->parent()->associate($parent);
+
+        foreach ($siblings->values() as $index => $sibling) {
+            $sibling->position = $index + 1;
+
+            if ($sibling->isDirty()) {
+                $sibling->save();
+            }
+        }
+    }
+
+    /**
+     * Why `$page` cannot go under `$parent`, in the app's own words, or null
+     * when it can. Under itself or one of its own subpages would detach the
+     * subtree from the caderno; past `MAX_DEPTH` is the cap every other move
+     * keeps (`canBeNestedUnder()`, which weighs the whole subtree).
+     */
+    public function placementFailure(DocumentationPage $page, ?DocumentationPage $parent): ?string
+    {
+        if ($parent === null) {
+            return null;
+        }
+
+        for ($ancestor = $parent; $ancestor; $ancestor = $ancestor->parent()->first()) {
+            if ($ancestor->is($page)) {
+                return 'Uma página não pode ficar dentro dela mesma nem de uma das suas subpáginas.';
+            }
+        }
+
+        return $page->canBeNestedUnder($parent)
+            ? null
+            : 'Não cabe ali: com as subpáginas que carrega, a página passaria do limite de '
+                . DocumentationPage::MAX_DEPTH . ' níveis.';
+    }
+
+    /** The page's 0-based place among its siblings — the `position` `place()` takes. */
+    public function indexAmongSiblings(DocumentationPage $page): int
+    {
+        return (int) $page->notebook()->first()->pages()
+            ->where('parent_id', $page->parent_id)
+            ->where(fn ($q) => $q->where('position', '<', $page->position)
+                ->orWhere(fn ($q) => $q->where('position', $page->position)->where('id', '<', $page->getKey())))
+            ->count();
+    }
+
+    /**
      * Re-files the page under a DIFFERENT notebook. This is the other half of
      * the GitBook import: a space lands in one caderno, and its pages are then
      * moved out to the ones they really belong to, a page at a time.

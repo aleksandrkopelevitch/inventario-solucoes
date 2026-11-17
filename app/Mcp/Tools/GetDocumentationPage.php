@@ -6,7 +6,7 @@ use App\Enums\AccessModule;
 use App\Mcp\Actor;
 use App\Mcp\Support\Arguments;
 use App\Mcp\Support\Presenter;
-use App\Mcp\Support\PublishedNotebooks;
+use App\Mcp\Support\ReadableNotebooks;
 use App\Mcp\Tool;
 use App\Mcp\ToolResult;
 use App\Support\Documentation\SecretText;
@@ -38,7 +38,7 @@ use App\Support\Documentation\SecretText;
 class GetDocumentationPage implements Tool
 {
     public function __construct(
-        private readonly PublishedNotebooks $notebooks,
+        private readonly ReadableNotebooks $notebooks,
         private readonly Presenter $presenter,
     ) {}
 
@@ -100,7 +100,7 @@ class GetDocumentationPage implements Tool
         $notebookSlug = $args->required('notebook');
         $pageSlug = $args->required('page');
 
-        $notebook = $this->notebooks->find($notebookSlug);
+        $notebook = $this->notebooks->find($notebookSlug, $actor);
 
         if (! $notebook) {
             return ToolResult::failure($this->notebooks->notFound($notebookSlug));
@@ -121,16 +121,21 @@ class GetDocumentationPage implements Tool
 
         $body = SecretText::mask($page->documentation);
 
+        // `version` is what `update_page` must send back: a write based on text
+        // that changed since is refused instead of erasing the newer text
+        // (App\Actions\Documentation\SavePageContent).
+        $meta = [
+            ...$this->presenter->pageSummary($page, $notebook),
+            'version' => $page->version(),
+        ];
+
         if (blank($body)) {
             return ToolResult::json([
-                ...$this->presenter->pageSummary($page, $notebook),
+                ...$meta,
                 'note' => 'Esta página não tem conteúdo — é só um título que agrupa subpáginas.',
             ]);
         }
 
-        return ToolResult::document(
-            $this->presenter->pageSummary($page, $notebook),
-            $body,
-        );
+        return ToolResult::document($meta, $body);
     }
 }

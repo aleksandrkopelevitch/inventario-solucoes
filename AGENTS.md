@@ -17,7 +17,9 @@ rendered as a deck and deliberated), an **Especialista em Integrações**
 deploys, tests and corrects it in rounds), **Logs Digibee** (`/digibee-logs` —
 production execution logs read live with a session an admin sends from their
 own browser, "Sessão Digibee"; Integrations module), and an **MCP server**
-(`POST /mcp`) that lets a chat client read all of it, those logs included. Fork of the
+(`POST /mcp`) that lets a chat client read all of it, those logs included — and
+lets a person who is an Editor create and edit the catalog and the cadernos
+through it, logged and revertible ("Alterações via MCP"). Fork of the
 generic infra from the
 **akop-pro** reference project (forms, slots, JS modules, layout shells) — that
 project's legacy domain (CRM, DISC, multi-tenancy) is not part of this one.
@@ -68,7 +70,7 @@ if a rule you expect is not here, it is in one of these:
 | `cati-submissions.md` | the committee module: stages, the checklist, the interview, the deck, the approved topology |
 | `digibee-knowledge-base.md` | the two Digibee corpora, redaction, `digibeectl` boundaries, reading logs (`digibee:logs`, the local MCP, the server's "Sessão Digibee" bookmarklet) |
 | `flowspec-pipeline-write.md` | writing a flowSpec into a pipeline, deploy and the test matrix |
-| `mcp-server.md` | the MCP server, its bearer token and what a token may read |
+| `mcp-server.md` | the MCP server, its bearer token, what a token may read, and the write tools (`mcp:write`, the write log, the revert) |
 | `eloquent-strict-and-search.md` | strict mode's blind spot, `whereFolded()` |
 | `slugs-and-routing.md` | a slug is lowercase ASCII, reserved segments, scoped bindings |
 | `access-people-accounts.md` | `people.user_id`, access links, grant/revoke/unlink |

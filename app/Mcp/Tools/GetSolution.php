@@ -6,6 +6,7 @@ use App\Enums\AccessModule;
 use App\Mcp\Actor;
 use App\Mcp\Support\Arguments;
 use App\Mcp\Support\Presenter;
+use App\Mcp\Support\ReadableNotebooks;
 use App\Mcp\Tool;
 use App\Mcp\ToolResult;
 use App\Models\Solution;
@@ -70,23 +71,7 @@ class GetSolution implements Tool
     {
         $slug = (new Arguments($arguments))->required('slug');
 
-        // The diagrams are the documentation module's: a caller at level None
-        // there gets the solution without them, as the solution page in the
-        // browser hides that card behind `viewAny` on Notebook.
-        $withDiagrams = $actor->canRead(AccessModule::Documentation);
-
-        $solution = Solution::query()
-            ->with([
-                'vendor',
-                'people:id,slug,name',
-                'notebooks',
-                ...($withDiagrams ? [
-                    'diagrams:id,notebook_id,slug,name,status',
-                    'diagrams.notebook:id,name,slug,published_at',
-                ] : []),
-            ])
-            ->where('slug', $slug)
-            ->first();
+        $solution = Solution::query()->where('slug', $slug)->first();
 
         if (! $solution) {
             return ToolResult::failure(
@@ -94,6 +79,33 @@ class GetSolution implements Tool
             );
         }
 
-        return ToolResult::json($this->presenter->solution($solution, $withDiagrams));
+        return ToolResult::json($this->present($solution, $actor));
+    }
+
+    /**
+     * The record as this tool answers it — also what every write tool on a
+     * solution answers with, so a model that created one reads the same shape
+     * it would get by opening it.
+     *
+     * @return array<string, mixed>
+     */
+    public function present(Solution $solution, Actor $actor): array
+    {
+        // The diagrams are the documentation module's: a caller at level None
+        // there gets the solution without them, as the solution page in the
+        // browser hides that card behind `viewAny` on Notebook.
+        $withDiagrams = $actor->canRead(AccessModule::Documentation);
+
+        $solution->load([
+            'vendor',
+            'people:id,slug,name',
+            'notebooks',
+            ...($withDiagrams ? [
+                'diagrams:id,notebook_id,slug,name,status',
+                'diagrams.notebook:id,name,slug,published_at',
+            ] : []),
+        ]);
+
+        return $this->presenter->solution($solution, $withDiagrams, ReadableNotebooks::seesUnpublished($actor));
     }
 }

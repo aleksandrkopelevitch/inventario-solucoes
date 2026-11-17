@@ -43,6 +43,7 @@
             // program holds it.
             ['route' => 'mcp.connect', 'label' => 'Conexão MCP', 'icon' => 'bolt', 'active' => 'mcp.connect'],
             ['route' => 'mcp-tokens.index', 'label' => 'Tokens MCP', 'icon' => 'key', 'active' => 'mcp-tokens.*', 'can' => 'viewAny', 'canModel' => \App\Models\McpToken::class],
+            ['route' => 'mcp-writes.index', 'label' => 'Alterações via MCP', 'icon' => 'clock', 'active' => 'mcp-writes.*', 'can' => 'viewAny', 'canModel' => \App\Models\McpWrite::class],
             // The server's Digibee session — a credential, so admin-only like the
             // tokens above (`DigibeeMonitorSessionPolicy`).
             ['route' => 'digibee-session.index', 'label' => 'Sessão Digibee', 'icon' => 'arrow-right-end-on-rectangle', 'active' => 'digibee-session.*', 'can' => 'viewAny', 'canModel' => \App\Models\DigibeeMonitorSession::class],

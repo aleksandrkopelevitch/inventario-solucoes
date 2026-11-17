@@ -46,7 +46,7 @@ class OAuthClientRegistrationController extends Controller
             'redirect_uris'              => $client->redirect_uris,
             'grant_types'                => ['authorization_code', 'refresh_token'],
             'response_types'             => ['code'],
-            'scope'                      => OAuth::SCOPE,
+            'scope'                      => implode(' ', OAuth::SCOPES),
             'token_endpoint_auth_method' => 'none',
         ], 201, [], JSON_UNESCAPED_SLASHES);
     }

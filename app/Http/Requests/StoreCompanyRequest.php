@@ -2,11 +2,9 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\CompanyKind;
 use App\Models\Company;
-use App\Rules\AsciiSlug;
+use App\Support\Catalog\CompanyRules;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class StoreCompanyRequest extends FormRequest
 {
@@ -16,21 +14,12 @@ class StoreCompanyRequest extends FormRequest
     }
 
     /**
+     * Shared with the MCP write tools — see `CompanyRules`.
+     *
      * @return array<string, mixed>
      */
     public function rules(): array
     {
-        return [
-            'name'    => ['required', 'string', 'max:255'],
-            'slug'    => ['nullable', 'string', 'max:255', new AsciiSlug, Rule::unique('companies', 'slug'), Rule::notIn(Company::RESERVED_SLUGS)],
-            'kind'    => ['required', Rule::enum(CompanyKind::class)],
-            'website' => ['nullable', 'url', 'max:255'],
-            'notes'   => ['nullable', 'string'],
-            'logo'    => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-            // `<x-forms.image-upload>`'s "Remover" button writes this hidden
-            // field; it was never validated (so never read), which is why the
-            // button silently did nothing. See `CompanyController::payload()`.
-            'logo_action' => ['nullable', 'string', 'in:remove'],
-        ];
+        return CompanyRules::for();
     }
 }

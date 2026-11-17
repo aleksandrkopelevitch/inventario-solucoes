@@ -156,9 +156,47 @@ class McpServer
         conhecimento interna. Um caderno que existe no app mas não foi publicado é
         invisível por aqui — ao relatar que algo não está documentado, diga que não foi
         encontrado NA BASE PUBLICADA, nunca que não existe documentação.
+        TXT . "\n\n" . $this->access($actor) . $limit;
+    }
 
-        Todo o acesso é somente leitura.
-        TXT . $limit;
+    /**
+     * What this connection may change — said once, here, because it differs
+     * per caller and a model that is not told assumes either everything or
+     * nothing.
+     *
+     * Three cases. A connection that writes is told to confirm with the person
+     * and to show them what a refused write would lose: the confirmation
+     * arguments of the write tools are designed to be read by a HUMAN in the
+     * client's approval prompt, and a model that retries them on its own
+     * defeats the point (docs-and-specs/mcp-write-tools.md §2.3). An Editor
+     * whose connection was approved read-only is told how to change that,
+     * because otherwise it answers "não consigo editar" with no way forward.
+     * Everybody else is read-only, and says so.
+     */
+    private function access(Actor $actor): string
+    {
+        $writable = collect($this->tools->writableModules())
+            ->filter(fn (AccessModule $module) => $actor->canWrite($module))
+            ->map(fn (AccessModule $module) => $module->label());
+
+        if ($writable->isNotEmpty()) {
+            return 'Esta conexão também pode CRIAR e EDITAR registros em: ' . $writable->implode('; ') . '. '
+                . 'Cada alteração é feita em nome da pessoa conectada e fica registrada. Nada é apagado. '
+                . 'Antes de criar, alterar ou desvincular algo, confirme com a pessoa. '
+                . 'Quando uma ferramenta recusar por perda de conteúdo ou por duplicidade, mostre à pessoa '
+                . 'o que seria perdido ou duplicado e só repita com a confirmação dela.'
+                . ($actor->canWrite(AccessModule::Documentation)
+                    ? ' Esta conexão também enxerga os cadernos NÃO publicados (marcados com "published": false): '
+                        . 'não cite o texto deles como sendo da base publicada.'
+                    : '');
+        }
+
+        if ($actor->couldWriteIfGranted()) {
+            return 'Esta conexão é somente leitura. A conta conectada pode editar no app; para editar por aqui, '
+                . 'reconecte o conector e autorize a edição na tela de consentimento.';
+        }
+
+        return 'Todo o acesso desta conexão é somente leitura.';
     }
 
     /**

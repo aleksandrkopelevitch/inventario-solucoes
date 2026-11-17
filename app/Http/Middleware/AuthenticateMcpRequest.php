@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Mcp\Actor;
+use App\Mcp\OAuth;
 use App\Models\McpToken;
 use App\Models\User;
 use Closure;
@@ -102,7 +103,17 @@ class AuthenticateMcpRequest
             return null;
         }
 
-        return $user instanceof User ? Actor::fromUser($user) : null;
+        // Writing is a scope of its own (`mcp:write`), so a connection approved
+        // when the consent screen said "Ler" never starts writing on the day
+        // write tools ship. `tokenCan()` reads the access token the guard just
+        // verified.
+        if (! $user instanceof User) {
+            return null;
+        }
+
+        $clientId = $user->token()?->oauth_client_id;
+
+        return Actor::fromUser($user, $user->tokenCan(OAuth::WRITE_SCOPE), $clientId === null ? null : (string) $clientId);
     }
 
     private function unauthenticated(): Response
@@ -120,8 +131,13 @@ class AuthenticateMcpRequest
             ],
         ], 401, [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
             ->header('WWW-Authenticate', sprintf(
-                'Bearer resource_metadata="%s", error="invalid_token"',
+                // `scope` names BOTH scopes, so a client asks for writing on
+                // its first connection and the consent screen says so. The
+                // server strips `mcp:write` from an account that may not hold
+                // it (App\Mcp\McpScopeRepository).
+                'Bearer resource_metadata="%s", scope="%s", error="invalid_token"',
                 route('mcp.oauth.protected-resource', ['path' => 'mcp']),
+                implode(' ', OAuth::SCOPES),
             ));
     }
 

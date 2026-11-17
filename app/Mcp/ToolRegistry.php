@@ -2,6 +2,7 @@
 
 namespace App\Mcp;
 
+use App\Enums\AccessModule;
 use Illuminate\Contracts\Container\Container;
 
 /**
@@ -31,6 +32,23 @@ class ToolRegistry
         Tools\GetPerson::class,
         Tools\SearchCompanies::class,
         Tools\GetCompany::class,
+        // Writes come after every reader: the useful shape of a change is
+        // "find it, open it, then change it", and a model reading this list
+        // top-down meets the readers first. Shown only to a connection that
+        // may write (see `all()`).
+        Tools\Write\CreateSolution::class,
+        Tools\Write\UpdateSolution::class,
+        Tools\Write\LinkPersonToSolution::class,
+        Tools\Write\UnlinkPersonFromSolution::class,
+        Tools\Write\CreatePerson::class,
+        Tools\Write\UpdatePerson::class,
+        Tools\Write\CreateCompany::class,
+        Tools\Write\UpdateCompany::class,
+        Tools\Write\CreateNotebook::class,
+        Tools\Write\UpdateNotebook::class,
+        Tools\Write\CreatePage::class,
+        Tools\Write\UpdatePage::class,
+        Tools\Write\PlacePage::class,
         Tools\Digibee\CountDigibeeExecutions::class,
         Tools\Digibee\SearchDigibeeLogs::class,
         Tools\Digibee\QueryDigibeeReport::class,
@@ -52,7 +70,26 @@ class ToolRegistry
      */
     public function all(Actor $actor): array
     {
-        return array_values(array_filter($this->every(), fn (Tool $tool) => $actor->canRead($tool->module())));
+        return array_values(array_filter($this->every(), fn (Tool $tool) => $tool instanceof Writes
+            ? $actor->canWrite($tool->module())
+            : $actor->canRead($tool->module())));
+    }
+
+    /**
+     * The modules some writing tool changes — what `mcp:write` can mean at
+     * all (App\Mcp\McpScopeRepository).
+     *
+     * @return list<AccessModule>
+     */
+    public function writableModules(): array
+    {
+        return collect($this->every())
+            ->filter(fn (Tool $tool) => $tool instanceof Writes)
+            ->map(fn (Tool $tool) => $tool->module())
+            ->filter()
+            ->unique(fn (AccessModule $module) => $module->value)
+            ->values()
+            ->all();
     }
 
     /**
@@ -81,8 +118,10 @@ class ToolRegistry
      * The `tools/list` payload.
      *
      * `annotations.readOnlyHint` is what lets a client show the connector as
-     * safe and skip a per-call confirmation — worth setting precisely because
-     * every tool here really is read-only (see `Tool`). `openWorldHint` is false
+     * safe and skip a per-call confirmation — true for every reader, and false
+     * for a writing tool (`Writes`), which is exactly what makes a client ask
+     * the person before calling one. That question is the first safety net of
+     * the write tools, so it is never claimed away. `openWorldHint` is false
      * for the same honesty — most tools reach this app's database and nothing
      * beyond it — except for a tool that says otherwise (`ReachesOutside`): the
      * Digibee logs tools read the platform live.
@@ -98,9 +137,9 @@ class ToolRegistry
             'inputSchema' => $tool->inputSchema(),
             'annotations' => [
                 'title'           => $tool->title(),
-                'readOnlyHint'    => true,
-                'destructiveHint' => false,
-                'idempotentHint'  => true,
+                'readOnlyHint'    => ! $tool instanceof Writes,
+                'destructiveHint' => $tool instanceof Writes && $tool->destructive(),
+                'idempotentHint'  => ! $tool instanceof Writes || $tool->idempotent(),
                 'openWorldHint'   => $tool instanceof ReachesOutside,
             ],
         ], $this->all($actor));

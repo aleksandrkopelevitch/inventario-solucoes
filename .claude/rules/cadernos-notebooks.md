@@ -20,6 +20,8 @@ paths:
   - "resources/js/modules/docs-editor.js"
   - "app/Support/Documentation/Authorship.php"
   - "app/View/Components/Notebooks/Index.php"
+  - "app/Actions/Documentation/SavePageContent.php"
+  - "app/Exceptions/StalePageVersion.php"
 ---
 
 ### A page knows who created it and who saved it last; a visit is not a save
@@ -62,6 +64,23 @@ general rule: **a tool's config list must cover every value the parser can hand
 it**, or the tool silently rewrites the value on the next save. Image widths
 are safe from this only because the parser already clamps to the same presets
 the serializer writes.
+
+### A save says which version it was based on (since 2026-11-17)
+
+Two writers reach a page body now: the browser editor and the MCP's
+`update_page` (`.claude/rules/mcp-server.md` § Writing). Both go through
+`App\Actions\Documentation\SavePageContent`, which compares the version the
+writer says it read (`DocumentationPage::version()`, the text's md5) with the
+stored one under a row lock and refuses a mismatch with `StalePageVersion` (a
+409) instead of overwriting. The editor gets its version in `data-config`,
+sends it as `base_version`, adopts the one each save answers, serializes its
+own saves (two saves based on one version would conflict with each other), and
+on a 409 stops autosaving with "Conflito — recarregue a página", leaving the
+person's text on screen to copy. The TITLE is not part of the version, on
+purpose: the rail renames the page from the same tab, and a version that moved
+with it would make that tab conflict with itself. `base_version` is nullable
+only for tabs opened before this shipped; making it required is a pending
+follow-up.
 
 ### Cadernos — a Notebook is the one container, and it documents 0..N Solutions
 

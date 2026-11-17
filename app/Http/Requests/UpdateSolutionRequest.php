@@ -2,10 +2,8 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Solution;
-use App\Rules\AsciiSlug;
+use App\Support\Catalog\SolutionRules;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class UpdateSolutionRequest extends FormRequest
 {
@@ -15,31 +13,12 @@ class UpdateSolutionRequest extends FormRequest
     }
 
     /**
+     * Shared with the MCP write tools — see `SolutionRules`.
+     *
      * @return array<string, mixed>
      */
     public function rules(): array
     {
-        $solutionId = $this->route('solution')->id;
-
-        return [
-            'name'                   => ['required', 'string', 'max:255'],
-            'slug'                   => ['nullable', 'string', 'max:255', new AsciiSlug, Rule::unique('solutions', 'slug')->ignore($solutionId), Rule::notIn(Solution::RESERVED_SLUGS)],
-            'description'            => ['nullable', 'string'],
-            'vendor_company_id'      => ['nullable', 'integer', 'exists:companies,id'],
-            'category'               => ['required', Rule::exists('attribute_options', 'value')->where('group', 'category')],
-            'directorate'            => ['nullable', Rule::exists('attribute_options', 'value')->where('group', 'directorate')],
-            'support_type'           => ['nullable', Rule::exists('attribute_options', 'value')->where('group', 'support_type')],
-            'environment'            => ['nullable', Rule::exists('attribute_options', 'value')->where('group', 'environment')],
-            'cloud'                  => ['nullable', Rule::exists('attribute_options', 'value')->where('group', 'cloud')],
-            'contract_status'        => ['nullable', Rule::exists('attribute_options', 'value')->where('group', 'contract_status')],
-            'support_operation_note' => ['nullable', 'string'],
-            'criticality'            => ['nullable', Rule::exists('attribute_options', 'value')->where('group', 'criticality')],
-            'status'                 => ['required', Rule::exists('attribute_options', 'value')->where('group', 'status')],
-            'logo'                   => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-            // `<x-forms.image-upload>`'s "Remover" button writes this hidden
-            // field; it was never validated (so never read), which is why the
-            // button silently did nothing. See `SolutionController::payload()`.
-            'logo_action' => ['nullable', 'string', 'in:remove'],
-        ];
+        return SolutionRules::for($this->route('solution'));
     }
 }

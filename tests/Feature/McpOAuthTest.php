@@ -5,6 +5,7 @@ use App\Enums\AccessModule;
 use App\Enums\UserRole;
 use App\Mcp\OAuth;
 use App\Mcp\ToolRegistry;
+use App\Mcp\Writes;
 use App\Models\Diagram;
 use App\Models\McpToken;
 use App\Models\Solution;
@@ -76,7 +77,7 @@ it('registers a client for an allowed redirect and refuses any other', function 
     ])
         ->assertCreated()
         ->assertJsonPath('token_endpoint_auth_method', 'none')
-        ->assertJsonPath('scope', OAuth::SCOPE)
+        ->assertJsonPath('scope', implode(' ', OAuth::SCOPES))
         ->assertJsonStructure(['client_id']);
 
     // Loopback is accepted with any port — a desktop client picks a free one at
@@ -181,7 +182,8 @@ it('keeps a minted token on the full read, since it is not a tier', function () 
         'jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/list',
     ], ['Authorization' => 'Bearer ' . $plain])->assertOk()->json('result.tools'))->pluck('name');
 
-    expect($tools)->toHaveCount(count(ToolRegistry::TOOLS));
+    // Every READER — a token is a program and never writes (App\Mcp\Writes).
+    expect($tools)->toHaveCount(count(array_filter(ToolRegistry::TOOLS, fn (string $tool) => ! is_subclass_of($tool, Writes::class))));
 });
 
 /* ------------------------------------------------------------------ */
@@ -265,7 +267,7 @@ it('still answers 401 when the guard itself cannot run', function () {
         // And it still points at the metadata, which is the whole content of
         // that answer: "sign in over there".
         ->assertHeader('WWW-Authenticate', sprintf(
-            'Bearer resource_metadata="%s", error="invalid_token"',
+            'Bearer resource_metadata="%s", scope="mcp mcp:write", error="invalid_token"',
             route('mcp.oauth.protected-resource', ['path' => 'mcp']),
         ))
         ->assertJsonPath('error.code', -32001);

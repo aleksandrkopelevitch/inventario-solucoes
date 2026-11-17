@@ -17,13 +17,24 @@ paths:
   - "resources/views/mcp/**"
   - "resources/views/components/mcp/**"
   - "database/factories/McpTokenFactory.php"
+  - "app/Models/McpWrite.php"
+  - "app/Policies/McpWritePolicy.php"
+  - "app/Http/Controllers/McpWriteController.php"
+  - "app/Http/Requests/*McpWrite*.php"
+  - "app/Actions/Mcp/**"
+  - "app/Actions/Catalog/**"
+  - "app/Support/Catalog/**"
+  - "app/Actions/Documentation/SavePageContent.php"
+  - "docs-and-specs/mcp-write-tools.md"
 ---
 
 ### The MCP server — the catalog as a tool, and a token is not an account
 
 `POST /mcp` lets Claude, ChatGPT and Gemini read this inventory: soluções,
 diagramas, pessoas, empresas and the published documentation, as twelve
-read-only tools (`App\Mcp\ToolRegistry`) — plus, since 2026-11-06, the four
+read-only tools (`App\Mcp\ToolRegistry`) — and, since 2026-11-17, lets a
+PERSON who is an Editor create and edit the catalog and the cadernos through
+thirteen write tools (§ Writing, below) — plus, since 2026-11-06, the four
 Digibee logs tools (`App\Mcp\Tools\Digibee\*`, Integrations module), which
 are the ONE exception to "this app's database and nothing beyond it": they
 read the platform live with the session an admin sent, so they implement
@@ -86,8 +97,11 @@ at the request, and the anonymous probe every connector opens with came back 500
 
 Passport carries the grant and nothing else: authorization code + PKCE (S256
 only), public clients, no password/implicit/device grant, no client-management
-API. One scope, `mcp`, and it is a LABEL — every account reads the same thing,
-so a client asking for more gains nothing. `Passport::$deviceCodeGrantEnabled`
+API. Two scopes: `mcp` is a LABEL (what a connection READS is the account's
+module levels, so asking for more gains nothing), and `mcp:write` is the one
+real permission a token carries (§ Writing). `Passport::$withInheritedScopes`
+is set to false explicitly: with it on, `mcp:write` would be a child of `mcp`
+and every read-only connection would pass `tokenCan('mcp:write')`. `Passport::$deviceCodeGrantEnabled`
 is turned off in `AppServiceProvider::register()` rather than `boot()`, because
 Passport registers those routes in its own `boot()`, which runs first.
 
@@ -133,8 +147,9 @@ Five rules the credential itself holds:
   middleware — a wrong token — which is the traffic worth limiting by origin,
   since without it guessing tokens is unthrottled.
 
-**Documentation means the PUBLISHED cadernos and nothing else**
-(`App\Mcp\Support\PublishedNotebooks`, which is `Notebook::scopePublished()`
+**Documentation means the PUBLISHED cadernos and nothing else** — for every
+caller except a writing connection (§ Writing)
+(`App\Mcp\Support\ReadableNotebooks`, which is `Notebook::scopePublished()`
 behind one door rather than four call sites). It is `/docs`'s rule, including
 the part that looks like a mistake: an unpublished caderno is invisible even
 though an admin minted the token and can read it in the app. `/docs` exists so
@@ -216,3 +231,58 @@ correctly hidden in the desktop rail and offered to everybody in the mobile
 drawer. It is computed once now, and an item names its own model with
 `canModel`.
 
+
+### Writing — a person, at Editor, who said yes to it
+
+The thirteen write tools (`App\Mcp\Tools\Write\*`: create/update solution,
+person, company, notebook and page, link/unlink a person to a solution, and
+`place_page`) are specified in `docs-and-specs/mcp-write-tools.md`, which also
+carries the three review rounds that shaped them. What to keep in mind before
+touching any of it:
+
+- **A tool writes only if it implements `App\Mcp\Writes`, and only a person
+  reaches one.** `Actor::canWrite()` is all three of: an OAuth user (never a
+  minted token — it carries no author and passes no policy), the access token
+  carrying `mcp:write`, and `canEdit()` on the tool's module, asked live.
+  `ToolRegistry::all()` hides a write tool otherwise, so it is unknown when
+  called, like any hidden tool. The policy is still asked inside each tool.
+- **`mcp:write` is a second consent.** Connections approved when the consent
+  screen said "Ler" stay read-only until the person reconnects. It is
+  advertised in both discovery documents and in the 401's `scope`, and
+  `App\Mcp\McpScopeRepository` (bound over Passport's) strips it from an
+  account that is an Editor of no writable module — at issue AND on every
+  refresh. The consent screen (`mcp.authorize`, a closure in
+  `AppServiceProvider::bootPassport()`) and `/mcp/connect` say what it allows.
+  Whether every client actually REQUESTS it is the spec's phase 0, still open.
+- **The safety net is the person, then the log.** `readOnlyHint: false` is what
+  makes a client ask the person before each call; the guards' confirmation
+  arguments repeat what would be lost so that question is legible. Every change
+  goes to `mcp_writes` (encrypted, 180 days, the changed fields only, a
+  relation as its whole set) and an admin reverts it — one row or a filtered
+  selection — on "Alterações via MCP". A revert is skipped when the record
+  changed since or the old value is no longer valid; reverting a create
+  deletes the record only while it is untouched and bare.
+- **`null` means "not sent".** `update_*` is a patch; emptying a field is
+  `clear: [...]`, and a NOT NULL column with a default is refused there.
+- **A create retried after a timeout returns the first record** (found in the
+  person's own write log, not by name), naming any field the retry did not
+  apply. A name somebody else already used is refused unless
+  `allow_duplicate`. The name is locked BEFORE the transaction — on the
+  `database` cache store, a lock row written inside it poisons a Postgres
+  transaction.
+- **The rules are the app's.** `App\Support\Catalog\*Rules` are what the six
+  Store/Update Form Requests return, and `App\Actions\Catalog\Save*` what their
+  controllers call — one implementation, two doors.
+- **A page body is written whole, under a version, with loss guards.**
+  `DocumentationPage::version()` (the text's md5, title excluded) goes out with
+  `get_documentation_page` and must come back with `update_page`;
+  `SavePageContent` re-checks it under a row lock, and the BROWSER EDITOR sends
+  it too (`base_version`, a 409 `StalePageVersion` that stops its autosave), so
+  neither side silently erases the other. A body that drops a protected value,
+  a cited diagram, a `/files/` reference, or most of its length is refused
+  until the call repeats the exact items (`remove_secrets`,
+  `confirm_removals`, `shrink:N%`).
+- **A writing connection reads the unpublished cadernos too**
+  (`App\Mcp\Support\ReadableNotebooks`, which replaced `PublishedNotebooks`),
+  each marked `"published": false`. Everybody else keeps the published-only
+  rule above, and the not-found sentence stays one sentence for all.

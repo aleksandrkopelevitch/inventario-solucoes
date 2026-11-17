@@ -6,10 +6,11 @@ use App\Enums\AccessModule;
 use App\Mcp\Actor;
 use App\Mcp\Support\Arguments;
 use App\Mcp\Support\Presenter;
-use App\Mcp\Support\PublishedNotebooks;
+use App\Mcp\Support\ReadableNotebooks;
 use App\Mcp\Tool;
 use App\Mcp\ToolResult;
 use App\Models\DocumentationPage;
+use App\Models\Notebook;
 use App\Services\DocumentationPageService;
 
 /**
@@ -25,7 +26,7 @@ use App\Services\DocumentationPageService;
 class GetNotebook implements Tool
 {
     public function __construct(
-        private readonly PublishedNotebooks $notebooks,
+        private readonly ReadableNotebooks $notebooks,
         private readonly DocumentationPageService $pages,
         private readonly Presenter $presenter,
     ) {}
@@ -75,15 +76,27 @@ class GetNotebook implements Tool
     public function handle(array $arguments, Actor $actor): ToolResult
     {
         $slug = (new Arguments($arguments))->required('notebook');
-        $notebook = $this->notebooks->find($slug);
+        $notebook = $this->notebooks->find($slug, $actor);
 
         if (! $notebook) {
             return ToolResult::failure($this->notebooks->notFound($slug));
         }
 
+        return ToolResult::json($this->present($notebook));
+    }
+
+    /**
+     * The caderno and its tree as this tool answers it — also what the
+     * notebook write tools answer with.
+     *
+     * @return array<string, mixed>
+     */
+    public function present(Notebook $notebook): array
+    {
+        $notebook->loadMissing('solutions:id,slug,name');
         $tree = $this->pages->tree($notebook);
 
-        return ToolResult::json([
+        return [
             ...$this->presenter->notebookSummary($notebook),
             'pages' => $tree
                 ->map(function (array $row) use ($notebook) {
@@ -100,6 +113,6 @@ class GetNotebook implements Tool
                     ];
                 })
                 ->all(),
-        ]);
+        ];
     }
 }

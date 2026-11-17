@@ -5,7 +5,7 @@ namespace App\Mcp\Tools;
 use App\Enums\AccessModule;
 use App\Mcp\Actor;
 use App\Mcp\Support\Presenter;
-use App\Mcp\Support\PublishedNotebooks;
+use App\Mcp\Support\ReadableNotebooks;
 use App\Mcp\Tool;
 use App\Mcp\ToolResult;
 use App\Models\Notebook;
@@ -23,7 +23,7 @@ use App\Models\Notebook;
 class ListNotebooks implements Tool
 {
     public function __construct(
-        private readonly PublishedNotebooks $notebooks,
+        private readonly ReadableNotebooks $notebooks,
         private readonly Presenter $presenter,
     ) {}
 
@@ -65,7 +65,7 @@ class ListNotebooks implements Tool
         // `Notebook::documentedPages()` — a page with an empty body is a
         // heading with nothing under it, and counting it makes a caderno look
         // fuller than it reads.
-        $notebooks = $this->notebooks->all()->loadCount([
+        $notebooks = $this->notebooks->all($actor)->loadCount([
             'pages as documented_pages' => fn ($q) => $q
                 ->whereNotNull('documentation')->where('documentation', '<>', ''),
         ]);

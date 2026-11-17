@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Contracts\GitbookSource;
 use App\Mcp\Actor;
+use App\Mcp\McpScopeRepository;
 use App\Mcp\OAuth;
 use App\Support\Digibee\DigibeeAuthResolver;
 use App\Support\Documentation\PageTextSql;
@@ -20,6 +21,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Passport\Bridge\ScopeRepository as PassportScopeRepository;
 use Laravel\Passport\Passport;
 use SocialiteProviders\Azure\Provider as AzureProvider;
 use SocialiteProviders\Manager\SocialiteWasCalled;
@@ -39,6 +41,18 @@ class AppServiceProvider extends ServiceProvider
         // rather than in `boot()` because Passport registers those routes in
         // its own `boot()`, which runs first.
         Passport::$deviceCodeGrantEnabled = false;
+
+        // Stated, not assumed: with inherited scopes on, Passport reads
+        // `mcp:write` as a CHILD of `mcp`, and every read-only connection
+        // would pass `tokenCan('mcp:write')`. It is off by default; this line
+        // is what keeps somebody from turning it on without seeing why not.
+        Passport::$withInheritedScopes = false;
+
+        // `mcp:write` is never granted to an account that is an Editor of no
+        // module — at issue and on every refresh (App\Mcp\McpScopeRepository).
+        // Passport resolves its repository through the container, so a binding
+        // over its own class is the whole hook.
+        $this->app->bind(PassportScopeRepository::class, McpScopeRepository::class);
 
         // A GitBook import reads through `GitbookSource`, and the live API is
         // the default answer. `gitbook:restore` rebinds this to an open
@@ -210,11 +224,12 @@ class AppServiceProvider extends ServiceProvider
      * authorization code grant with PKCE, which is what the MCP spec requires
      * and all any connector uses.
      *
-     * **One scope, and it is a label.** `mcp` exists so the consent screen has
-     * something to name and the token has something to carry. What a connection
-     * actually reaches is decided from the account's role, per request, by
-     * `App\Mcp\Actor` — so a client that asks for a scope it should not have
-     * gains nothing by asking.
+     * **Two scopes, and only one of them is a permission.** `mcp` is a label:
+     * what a connection READS is decided from the account's module levels, per
+     * request, by `App\Mcp\Actor`. `mcp:write` is the person's consent to have
+     * their client create and edit records in their name — ANDed with their
+     * Editor level, and never issued to an account that is an Editor nowhere
+     * (see App\Mcp\OAuth).
      *
      * The lifetimes are short on the access token and long on the refresh token
      * on purpose: revoking someone's access means deleting their refresh token,
@@ -223,7 +238,10 @@ class AppServiceProvider extends ServiceProvider
      */
     private function bootPassport(): void
     {
-        Passport::tokensCan([OAuth::SCOPE => OAuth::SCOPE_DESCRIPTION]);
+        Passport::tokensCan([
+            OAuth::SCOPE       => OAuth::SCOPE_DESCRIPTION,
+            OAuth::WRITE_SCOPE => OAuth::WRITE_SCOPE_DESCRIPTION,
+        ]);
         Passport::setDefaultScope(OAuth::SCOPE);
 
         Passport::tokensExpireIn(now()->addWeek());
@@ -231,7 +249,21 @@ class AppServiceProvider extends ServiceProvider
 
         // The consent screen. Passport ships none, and the default would be a
         // 500 the first time somebody clicks "Connect".
-        Passport::authorizationView('mcp.authorize');
+        //
+        // A closure so the screen can say whether this connection will WRITE:
+        // only when the client asked for `mcp:write` and the account may hold
+        // it — the same rule McpScopeRepository applies when the code is
+        // issued, so the screen never promises what the token will not carry.
+        Passport::authorizationView(function (array $parameters) {
+            $user = $parameters['user'];
+            $writes = collect($parameters['scopes'])->contains(fn ($scope) => $scope->id === OAuth::WRITE_SCOPE)
+                && McpScopeRepository::mayWrite($user);
+
+            return response()->view('mcp.authorize', $parameters + [
+                'writes'          => $writes,
+                'writableModules' => $writes ? McpScopeRepository::writableModules($user) : [],
+            ]);
+        });
     }
 
     /**

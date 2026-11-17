@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Inventory;
 
+use App\Actions\Catalog\SavePerson;
 use App\Enums\ContactType;
 use App\Enums\PersonSolutionRole;
 use App\Http\Controllers\Controller;
@@ -17,6 +18,7 @@ use App\Models\Contact;
 use App\Models\Person;
 use App\Models\Solution;
 use App\Models\User;
+use App\Support\Catalog\PersonRules;
 use App\Support\Images\PublicImage;
 use App\View\Components\People\DetailHeader;
 use App\View\Components\People\FilterChips;
@@ -84,18 +86,18 @@ class PersonController extends Controller
         return $this->panel($person, (array) $request->query('filter', []));
     }
 
-    public function store(StorePersonRequest $request): JsonResponse
+    public function store(StorePersonRequest $request, SavePerson $save): JsonResponse
     {
-        $person = Person::create($this->payload($request));
+        $person = $save->handle($this->payload($request));
         $this->syncSolutions($request, $person);
         $this->syncContacts($request, $person);
 
         return $this->saved('Pessoa criada com sucesso.', null, (array) $request->query('filter', []));
     }
 
-    public function update(UpdatePersonRequest $request, Person $person): JsonResponse
+    public function update(UpdatePersonRequest $request, Person $person, SavePerson $save): JsonResponse
     {
-        $person->update($this->payload($request, $person));
+        $save->handle($this->payload($request), $person);
         $this->syncSolutions($request, $person);
         $this->syncContacts($request, $person);
 
@@ -249,14 +251,15 @@ class PersonController extends Controller
         ]);
     }
 
-    /** @return array<string, mixed> */
-    private function payload(StorePersonRequest|UpdatePersonRequest $request, ?Person $person = null): array
+    /**
+     * The validated own columns plus the photo, which only this door receives.
+     * The slug is `SavePerson`'s, shared with the MCP.
+     *
+     * @return array<string, mixed>
+     */
+    private function payload(StorePersonRequest|UpdatePersonRequest $request): array
     {
-        $data = $request->safe()->except(['photo', 'photo_action', 'solutions', 'contacts']);
-
-        $data['slug'] = filled($data['slug'] ?? null)
-            ? $data['slug']
-            : ($person?->slug ?? Person::uniqueSlug($data['name'], $person));
+        $data = $request->safe()->except(PersonRules::FORM_ONLY_KEYS);
 
         if ($request->hasFile('photo')) {
             $data['photo_path'] = PublicImage::store($request->file('photo'), 'photos');

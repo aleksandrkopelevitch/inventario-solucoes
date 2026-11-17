@@ -32,6 +32,16 @@ let revision = 0
 let autosaveTimer = null
 // The save whose request is still out, so `flushSave()` can wait for it.
 let inFlight = null
+// The page version this editor's text is based on (DocumentationPage::version()):
+// sent with every save as `base_version`, replaced by the one each save answers.
+// A save over text somebody else stored since — another tab, another person,
+// a chat through the MCP — is a 409, and the editor stops there instead of
+// erasing their text with its own (SavePageContent).
+let baseVersion = null
+// Set by that 409: no more autosaves on this page until it is reloaded. The
+// person's text stays on screen to be copied; only a reload can base it on
+// the current version.
+let conflicted = false
 let DragDrop = null
 // Editing lock, owned here and raised by docs-chat.js while the Documentation
 // Assistant is generating a reply: nothing may be saved (button, Ctrl+S or
@@ -386,6 +396,9 @@ async function mount(holder) {
         config = {}
     }
 
+    baseVersion = config.version ?? null
+    conflicted = false
+
     const source = document.querySelector('[data-ak-docs-source]')
     const blocks = parse(source ? source.value : '')
 
@@ -487,6 +500,12 @@ function markDirty() {
     setStatus('Não salvo')
     clearTimeout(autosaveTimer)
     if (locked) return // no autosave while "Assiste IA" holds the editor
+    if (conflicted) {
+        // The page moved under this tab: saving again would be refused anyway,
+        // and "Não salvo" alone would invite a Ctrl+S that cannot work.
+        setStatus('Conflito — recarregue a página')
+        return
+    }
     // 1.2s, down from 2.5s: with the exit dialog gone this window IS the
     // exposure to losing a keystroke, and with the save Toast gone there is no
     // longer a cost to saving more often.
@@ -522,7 +541,13 @@ export async function flushSave() {
 }
 
 async function save(btn, options) {
-    const run = runSave(btn, options)
+    // After the save already out, never beside it: two saves based on the
+    // same version would see the first one's own write as somebody else's.
+    const previous = inFlight
+    const run = (async () => {
+        await previous?.catch(() => {})
+        return runSave(btn, options)
+    })()
     inFlight = run
     try {
         await run
@@ -550,9 +575,12 @@ async function runSave(btn, {silent = false} = {}) {
         const formData = new FormData()
         formData.append('_method', 'PATCH')
         formData.append('documentation', markdown)
+        if (baseVersion) formData.append('base_version', baseVersion)
 
         const response = await ajaxModule.init('POST', btn.dataset.action, formData)
         const data = await response.json()
+
+        if (data.version) baseVersion = data.version
 
         const current = revision === savedRevision
         if (current) dirty = false
@@ -566,6 +594,7 @@ async function runSave(btn, {silent = false} = {}) {
         if (current) setStatus('Salvo ' + timeNow(), {blink: true})
         else setStatus('Não salvo')
     } catch (error) {
+        if (error.response?.status === 409) conflicted = true
         let message = 'Erro ao salvar a documentação.'
         if (error.response) {
             try {
@@ -574,8 +603,8 @@ async function runSave(btn, {silent = false} = {}) {
                 // keep the default message
             }
         }
-        setStatus('Não salvo')
-        Toast.open({content: message, title: 'Atenção', type: 'warning'})
+        setStatus(conflicted ? 'Conflito — recarregue a página' : 'Não salvo')
+        Toast.open({content: message, title: conflicted ? 'Conflito' : 'Atenção', type: 'warning'})
     } finally {
         setButtonLoading(btn, false)
         // A lock may have gone up while this save was in flight (an autosave

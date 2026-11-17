@@ -58,7 +58,7 @@ class Presenter
     }
 
     /** @return array<string, mixed> */
-    public function solution(Solution $solution, bool $withDiagrams = true): array
+    public function solution(Solution $solution, bool $withDiagrams = true, bool $withUnpublished = false): array
     {
         return $this->compact([
             ...$this->solutionSummary($solution),
@@ -90,6 +90,16 @@ class Presenter
                 ->map(fn (Notebook $notebook) => $this->notebookSummary($notebook))
                 ->values()
                 ->all(),
+            // Only for a connection that writes the documentation
+            // (ReadableNotebooks) — a separate key, so the published list keeps
+            // meaning exactly what its name says.
+            'unpublished_notebooks' => $withUnpublished
+                ? $solution->notebooks
+                    ->reject(fn (Notebook $notebook) => $notebook->isPublished())
+                    ->map(fn (Notebook $notebook) => $this->notebookSummary($notebook))
+                    ->values()
+                    ->all()
+                : null,
         ]);
     }
 
@@ -209,14 +219,22 @@ class Presenter
     /** @return array<string, mixed> */
     public function notebookSummary(Notebook $notebook): array
     {
+        $published = $notebook->isPublished();
+
         return $this->compact([
-            'slug'         => $notebook->slug,
-            'name'         => $notebook->name,
+            'slug' => $notebook->slug,
+            'name' => $notebook->name,
+            // Said on every caderno, because only a writing connection is ever
+            // shown an unpublished one (ReadableNotebooks) — and it must not
+            // cite that text as "da base publicada".
+            'published'    => $published,
             'published_at' => $notebook->published_at?->toDateString(),
             'solutions'    => $notebook->relationLoaded('solutions')
                 ? $notebook->solutions->pluck('slug')->all()
                 : null,
-            'url' => $notebook->knowledgeBaseUrl(),
+            // An unpublished caderno has no address in the knowledge base; the
+            // editor is where it lives.
+            'url' => $published ? $notebook->knowledgeBaseUrl() : route('notebooks.show', $notebook),
         ]);
     }
 
@@ -233,7 +251,9 @@ class Presenter
             'title'    => $page->title,
             'notebook' => $notebook->slug,
             'depth'    => $depth,
-            'url'      => route('docs.page', [$notebook, $page]),
+            'url'      => $notebook->isPublished()
+                ? route('docs.page', [$notebook, $page])
+                : route('notebooks.pages.edit', [$notebook, $page]),
         ]);
     }
 
