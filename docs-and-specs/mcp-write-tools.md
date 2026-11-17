@@ -531,11 +531,16 @@ public function query(Actor $actor): Builder
 
 ## 14. Open questions
 
-- **Phase 0 results.** Which clients request `mcp:write` and which ask before
-  a write.
-- **The shrink threshold**, after calibration.
+- **Phase 0 results.** Answered for Claude.ai (§16). ChatGPT and Gemini are
+  still untested.
+- **The shrink threshold has NOT been calibrated.** §12 asked for it before
+  phase 2 shipped; it shipped with the starting values (60%, 2,000
+  characters) because the development database holds no corpus. Calibrating
+  it means measuring real editor saves against the production pages.
 - **Whether `old_text`/`new_text` returns**, if the guards trip often on
   legitimate edits.
+- **Making `base_version` required**, once no tab opened before 2026-11-17 can
+  still be saving.
 
 ## 15. Revision history
 
@@ -617,3 +622,24 @@ What the code does where it differs from, or adds to, the sections above.
   any source is tracked; a numbered legacy marker keeps its value; search
   results of an unpublished caderno link to the editor; a created caderno that
   gained Assiste IA documents or conversations is not deleted by a revert.
+
+## 17. Delivery log
+
+| date | merge | what shipped |
+|---|---|---|
+| 2026-11-17 | `7f54b3f` (`feat/mcp-write-tools`) | phases 1–3: the 13 write tools, `mcp:write` and its consent, the write log and "Alterações via MCP", `ReadableNotebooks`, the page `version` in both the MCP and the browser editor, the shared catalog rules and actions, the docs in §13. 58 new tests; the suite's 11 failures are the ones that failed before the change (an order-dependent test helper, Digibee tests reading the local `.env`) |
+| 2026-11-17 | `1861403` (`fix/mcp-writes-filters`) | the write log's filters laid out in a row; phase 0's Claude.ai result recorded here |
+
+The first deploy of `7f54b3f` shipped the previous commit: the merge had not
+been pushed, and Envoy deploys `origin/main`. Pushing `main` is part of the
+process now; the deploy itself stays with the person who runs it.
+
+Two independent reviews ran, one after phase 1 and one after phase 2; every
+finding they confirmed was fixed before the merge and is covered by a test
+(listed in §16).
+
+**Still open** (§14): ChatGPT and Gemini, the shrink calibration,
+`base_version` required. **Out of scope** (§10): deleting, moving a page to
+another caderno, publishing, uploads, a person's contacts, diagrams and
+scenes, partial body edits.
+
