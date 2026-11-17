@@ -431,7 +431,8 @@ public function query(Actor $actor): Builder
 - deleting anything (except the revert of a create, §4.2), and moving a page
   to another caderno
 - publishing or unpublishing, the secret code, the magic link
-- logos, photos, attachments and any other upload
+- attachments and any other upload besides a record's picture (logos and a
+  person's photo shipped on 2026-11-17 — see `App\Mcp\Support\ImageArgument`)
 - a person's additional contacts and linking a person to an account
 - diagrams, scenes and the context documents of the Assiste IA
 - partial edits of a page's body (`old_text`/`new_text`). Reconsider after
@@ -646,6 +647,6 @@ finding they confirmed was fixed before the merge and is covered by a test
 
 **Still open** (§14): ChatGPT and Gemini, the shrink calibration,
 `base_version` required. **Out of scope** (§10): deleting, moving a page to
-another caderno, publishing, uploads, a person's contacts, diagrams and
+another caderno, publishing, uploads (except a record's picture), a person's contacts, diagrams and
 scenes, partial body edits.
 

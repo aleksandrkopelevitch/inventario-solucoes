@@ -12,6 +12,8 @@ use App\Models\Notebook;
 use App\Models\Person;
 use App\Models\Solution;
 use App\Support\ChainLabeler;
+use App\Support\Images\PublicImage;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Turns a model into the array a tool answers with.
@@ -68,6 +70,7 @@ class Presenter
             'support_type'    => $solution->support_type_label,
             'contract_status' => $solution->contract_status_label,
             'support_note'    => $solution->support_operation_note,
+            'logo'            => $this->imageUrl($solution->logo_path),
             'vendor'          => $solution->vendor ? $this->companySummary($solution->vendor) : null,
             'people'          => $solution->people
                 ->map(fn (Person $person) => $this->compact([
@@ -281,6 +284,7 @@ class Presenter
             'email'   => $person->email,
             'phone'   => $person->phone,
             'notes'   => $person->notes,
+            'photo'   => $this->imageUrl($person->photo_path),
             'company' => $person->company ? $this->companySummary($person->company) : null,
             // The repeater beside the two columns — a person's second address,
             // a mobile, a WhatsApp. `Person::scopeFilter()` searches it, so a
@@ -322,6 +326,7 @@ class Presenter
         return $this->compact([
             ...$this->companySummary($company),
             'notes'  => $company->notes,
+            'logo'   => $this->imageUrl($company->logo_path),
             'people' => $company->people
                 ->map(fn (Person $person) => $this->personSummary($person))
                 ->all(),
@@ -329,6 +334,12 @@ class Presenter
                 ->map(fn (Solution $solution) => $this->solutionSummary($solution))
                 ->all(),
         ]);
+    }
+
+    /** The ORIGINAL picture's URL (not the thumbnail) — what an MCP write just stored, to check against. */
+    private function imageUrl(?string $path): ?string
+    {
+        return filled($path) ? Storage::disk(PublicImage::DISK)->url($path) : null;
     }
 
     /**

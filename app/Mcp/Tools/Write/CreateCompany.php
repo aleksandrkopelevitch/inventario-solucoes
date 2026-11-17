@@ -4,6 +4,7 @@ namespace App\Mcp\Tools\Write;
 
 use App\Actions\Catalog\SaveCompany;
 use App\Mcp\Actor;
+use App\Mcp\Support\ImageArgument;
 use App\Mcp\ToolResult;
 use App\Mcp\Tools\GetCompany;
 use App\Models\Company;
@@ -56,6 +57,11 @@ class CreateCompany extends CompanyWriteTool implements CreatesRecords
         }
 
         ['data' => $data, 'errors' => $errors] = $this->columns($arguments, $this->spec());
+        $image = ImageArgument::read($arguments, 'logo', $this->logoRule());
+
+        if ($image->error) {
+            $errors[] = $image->error;
+        }
 
         if ($errors !== []) {
             return $this->refused($errors);
@@ -76,8 +82,8 @@ class CreateCompany extends CompanyWriteTool implements CreatesRecords
             $data,
             $this->names(),
             (bool) ($arguments['allow_duplicate'] ?? false),
-            fn ()                                => $this->save->handle($data),
-            fn (Company $company, ?string $note) => $this->answer($company, $note ?? 'Empresa cadastrada.'),
+            fn ()                                => $this->save->handle($data + ($image->file ? ['logo_path' => $image->store('company-logos')] : [])),
+            fn (Company $company, ?string $note) => $this->answer($company, $this->imageNote($note, $image, 'logo', 'update_company') ?? 'Empresa cadastrada.'),
         );
     }
 }

@@ -50,7 +50,14 @@ abstract class CompanyWriteTool extends WriteTool
             ],
             'website' => ['type' => 'string', 'description' => 'Site (URL completa, com https://).'],
             'notes'   => ['type' => 'string', 'description' => 'Observações (aceita Markdown).'],
+            'logo'    => self::imageSchema('Logo da empresa'),
         ];
+    }
+
+    /** The panel's own rule for the logo upload (`CompanyRules`). @return array<int, mixed> */
+    protected function logoRule(): array
+    {
+        return CompanyRules::for()['logo'];
     }
 
     /** @return array<string, mixed> */
