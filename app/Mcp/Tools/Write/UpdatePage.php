@@ -7,6 +7,7 @@ use App\Exceptions\StalePageVersion;
 use App\Mcp\Actor;
 use App\Mcp\Support\Arguments;
 use App\Mcp\Support\RecordFields;
+use App\Mcp\Support\ShrinkGuard;
 use App\Mcp\ToolResult;
 use App\Models\DocumentationPage;
 use App\Support\Documentation\SecretText;
@@ -32,12 +33,6 @@ use Illuminate\Support\Facades\Validator;
  */
 class UpdatePage extends DocumentationWriteTool
 {
-    /** Below this many characters a page is too short for "it shrank" to mean anything. */
-    public const SHRINK_MIN_CHARS = 2000;
-
-    /** A body keeping less than this share of the old one has "shrunk". */
-    public const SHRINK_RATIO = 0.6;
-
     public function name(): string
     {
         return 'update_page';
@@ -204,8 +199,7 @@ class UpdatePage extends DocumentationWriteTool
         $old = mb_strlen($stored);
         $new = mb_strlen($restored);
 
-        if ($old > self::SHRINK_MIN_CHARS && $new < $old * self::SHRINK_RATIO) {
-            $band = (int) (floor($new / $old * 10) * 10);
+        if (($band = ShrinkGuard::band($old, $new)) !== null) {
             $accepted = collect($confirmed)
                 ->map(fn (string $item) => preg_match('/^shrink:(\d{1,3})%$/', $item, $m) ? (int) $m[1] : null)
                 ->filter(fn (?int $confirmedBand) => $confirmedBand !== null && $confirmedBand <= $band && $confirmedBand >= $band - 10)

@@ -533,10 +533,15 @@ public function query(Actor $actor): Builder
 
 - **Phase 0 results.** Answered for Claude.ai (§16). ChatGPT and Gemini are
   still untested.
-- **The shrink threshold has NOT been calibrated.** §12 asked for it before
-  phase 2 shipped; it shipped with the starting values (60%, 2,000
-  characters) because the development database holds no corpus. Calibrating
-  it means measuring real editor saves against the production pages.
+- **The shrink threshold has NOT been calibrated yet.** §12 asked for it
+  before phase 2 shipped; it shipped with the starting values (60%, 2,000
+  characters) because the development database holds no corpus. The tool to
+  do it shipped after (§17): `mcp:calibrate-shrink-guard` replays the guard
+  (`App\Mcp\Support\ShrinkGuard`, the one place its numbers live) over the
+  Assiste IA's history, where every assistant draft is a model's whole-page
+  rewrite and `applied_at` says whether a person accepted it. An applied draft
+  the guard would refuse is a false positive. Run it in production and set the
+  numbers from its output.
 - **Whether `old_text`/`new_text` returns**, if the guards trip often on
   legitimate edits.
 - **Making `base_version` required**, once no tab opened before 2026-11-17 can
@@ -629,6 +634,7 @@ What the code does where it differs from, or adds to, the sections above.
 |---|---|---|
 | 2026-11-17 | `7f54b3f` (`feat/mcp-write-tools`) | phases 1–3: the 13 write tools, `mcp:write` and its consent, the write log and "Alterações via MCP", `ReadableNotebooks`, the page `version` in both the MCP and the browser editor, the shared catalog rules and actions, the docs in §13. 58 new tests; the suite's 11 failures are the ones that failed before the change (an order-dependent test helper, Digibee tests reading the local `.env`) |
 | 2026-11-17 | `1861403` (`fix/mcp-writes-filters`) | the write log's filters laid out in a row; phase 0's Claude.ai result recorded here |
+| 2026-11-17 | `feat/shrink-guard-calibration` | `mcp:calibrate-shrink-guard` (read-only) and `ShrinkGuard`, the shrink rule extracted so the tool and the calibration run the same arithmetic. The thresholds are unchanged until its production output is read |
 
 The first deploy of `7f54b3f` shipped the previous commit: the merge had not
 been pushed, and Envoy deploys `origin/main`. Pushing `main` is part of the
