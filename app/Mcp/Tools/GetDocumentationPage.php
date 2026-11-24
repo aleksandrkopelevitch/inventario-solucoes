@@ -70,6 +70,12 @@ class GetDocumentationPage implements Tool
         diagrama, que se abre com get_diagram usando o slug citado. Links internos têm a
         forma [texto](page:slug-da-pagina) e apontam para outra página do mesmo caderno.
 
+        Dois blocos são figuras desenhadas pelo app a partir do texto: {% uml type="..." %}
+        com um JSON até {% enduml %} é um diagrama UML (sequência, classes, componentes…),
+        e {% scene type="..." %} até {% endscene %} é uma cena animada. Para entendê-los ou
+        alterá-los, a sintaxe está em get_code_documentation_guide; ao editar a página,
+        mantenha-os inteiros.
+
         Valores protegidos aparecem como {% secret %}[[SECRET-…]]{% endsecret %}: existe
         um segredo ali (senha, token, header de autenticação) e ele não é entregue por
         esta interface. Diga que o valor é protegido e está na página; nunca o invente.

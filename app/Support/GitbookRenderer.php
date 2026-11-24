@@ -1150,7 +1150,11 @@ class GitbookRenderer
                 $title = trim(html_entity_decode($block['attrs']['title'] ?? '', ENT_QUOTES));
                 $label = 'Diagrama UML' . ($title !== '' ? " \"{$title}\"" : '');
 
-                foreach (UmlDiagram::parse($block['attrs']['type'] ?? '', $title, implode("\n", $block['inner']))['problems'] as $problem) {
+                $parsed = UmlDiagram::parse($block['attrs']['type'] ?? '', $title, implode("\n", $block['inner']));
+
+                // Warnings are refused here, on WRITE, and only drawn past on
+                // read (see UmlDiagram::$warnings).
+                foreach ([...$parsed['problems'], ...$parsed['warnings']] as $problem) {
                     $problems[] = "{$label}: {$problem}";
                 }
 

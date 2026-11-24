@@ -230,6 +230,9 @@ largura do seu maior elemento; deixe uma coluna vazia para afastar grupos.
   retângulo em volta das células dos seus elementos: **nenhum elemento de fora pode estar
   dentro desse retângulo**, e dois grupos não podem se sobrepor em parte (um pode conter
   o outro inteiro).
+- **Nenhuma relação pode passar por cima de outro elemento**: a linha reta entre duas
+  células que atravessa uma terceira fica escondida atrás dela, e a escrita é recusada
+  dizendo qual. Mova um dos elementos (uma coluna ou linha vazia no caminho resolve).
 - Layout que lê bem: hierarquia de cima para baixo (pai acima dos filhos), fluxo da
   esquerda para a direita, até ~15 elementos por diagrama — passou disso, divida.
 

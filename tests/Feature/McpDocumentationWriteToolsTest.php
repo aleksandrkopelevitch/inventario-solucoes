@@ -498,3 +498,23 @@ it('hands out the code documentation guide, with the caderno it will write into'
 
     expect(docTool(User::factory()->reader()->create(), 'get_code_documentation_guide')['text'])->toContain('NÃO escreve');
 });
+
+it('asks to confirm dropping one of two diagrams that share a label', function () {
+    $twin = mcpUml('');
+    mcpDocPage("Intro\n\n{$twin}\n\n{$twin}");
+    $user = docsWriter();
+
+    $dropped = docTool($user, 'update_page', ['notebook' => 'manual', 'page' => 'pagina', 'version' => readVersion($user, 'manual', 'pagina'),
+        'content'                                        => "Intro\n\n{$twin}"]);
+
+    expect($dropped['isError'])->toBeTrue()->and($dropped['text'])->toContain('"uml:sequence#2"');
+});
+
+it('tells a reader what a uml or scene block is and where its syntax lives', function () {
+    Passport::actingAs(docsWriter(), [OAuth::SCOPE, OAuth::WRITE_SCOPE]);
+
+    $description = collect(test()->postJson(route('mcp.handle'), ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/list'])->json('result.tools'))
+        ->firstWhere('name', 'get_documentation_page')['description'];
+
+    expect($description)->toContain('{% uml type=')->toContain('{% scene type=')->toContain('get_code_documentation_guide');
+});
