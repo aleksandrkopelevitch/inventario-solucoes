@@ -3,7 +3,9 @@
 Catalog of Leo Madeiras' solutions/integrations: solution, people and company
 records, a documentation module (**cadernos** — a page tree per `Notebook`,
 each linked to 0..N solutions, whose pages may carry animated **scenes**: a
-flow of steps, a before/after, a tree, a side-by-side comparison, a timeline),
+flow of steps, a before/after, a tree, a side-by-side comparison, a timeline —
+and static **UML diagrams** written into the text: sequence, class, component,
+deployment, use case, activity, state, package),
 a **diagrams** module (the graphical topology editor, one drawing at a time;
 every diagram belongs to a caderno and is created only from inside one),
 an internal **knowledge base** (`/docs` — the cadernos an admin published, read
@@ -19,7 +21,9 @@ production execution logs read live with a session an admin sends from their
 own browser, "Sessão Digibee"; Integrations module), and an **MCP server**
 (`POST /mcp`) that lets a chat client read all of it, those logs included — and
 lets a person who is an Editor create and edit the catalog and the cadernos
-through it, logged and revertible ("Alterações via MCP"). Fork of the
+through it, logged and revertible ("Alterações via MCP"), including a whole
+code base's architecture documented into a caderno by the client model
+(`get_code_documentation_guide`). Fork of the
 generic infra from the
 **akop-pro** reference project (forms, slots, JS modules, layout shells) — that
 project's legacy domain (CRM, DISC, multi-tenancy) is not part of this one.
@@ -65,6 +69,7 @@ if a rule you expect is not here, it is in one of these:
 | `docs-secrets.md` | `{% secret %}`, the reveal action, the throttle |
 | `documentation-assistant.md` | the Assiste IA chat, its vaults and its prompt contract |
 | `page-to-diagram-draft.md` | drawing a page: the draft IR, exact name resolution, the one synchronous model call |
+| `doc-uml.md` | UML diagrams in a page (`{% uml %}`): the author places, `docs-uml.js` draws; one validator for the reader and the MCP; fullscreen; the code-documentation guide |
 | `doc-scenes.md` | animated scenes in a page ("Fluxo em etapas", "Antes → depois", "Árvore", "Comparação lado a lado", "Linha do tempo"): the model picks words, `docs-scene.js` draws; the icon catalogue; the pause button |
 | `diagram-models.md` | the four diagram models, the semantics/geometry split, the lifeline and the AS IS × TO BE diff |
 | `cati-submissions.md` | the committee module: stages, the checklist, the interview, the deck, the approved topology |

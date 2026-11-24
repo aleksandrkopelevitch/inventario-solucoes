@@ -880,6 +880,106 @@ dialog[open]::backdrop {
     .ak-scene-toggle { display: none; }
 }
 
+/* UML diagrams (the {% uml %} block) — GitbookRenderer emits the diagram's
+   TEXT (the messages in order, or the elements and their relations) plus the
+   diagram as JSON; docs-uml.js draws the SVG into the stage and marks the
+   figure `is-drawn`, which takes the text off the SCREEN only. The diagram's
+   own look (UML notation, greys) is inside the SVG; only the frame, the
+   inline sizing and the fullscreen state live here. */
+.html-content figure.ak-uml {
+    position: relative;
+    margin-block: 1.75rem;
+    padding: 1rem 1rem 0.75rem;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+}
+.html-content figure.ak-uml:not([data-ak-uml-ready]) .ak-uml__stage { display: none; }
+.html-content .ak-uml__text ol,
+.html-content .ak-uml__text ul { margin: 0.25rem 0; }
+.html-content figure.ak-uml.is-drawn .ak-uml__text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+.html-content figure.ak-uml figcaption {
+    margin-top: 0.6rem;
+    font-size: 0.8rem;
+    color: var(--color-muted);
+    text-align: center;
+}
+.html-content .ak-uml-error {
+    margin-block: 1.25rem;
+    padding: 0.75rem 1rem;
+    border: 1px dashed var(--color-crit);
+    border-radius: var(--radius-card);
+    font-size: 0.85rem;
+    color: var(--color-ink);
+}
+.html-content .ak-uml-error ul { margin: 0.35rem 0 0; padding-left: 1.1rem; }
+
+/* Inline the stage is NOT positioned, so the buttons sit on the corner of the
+   FRAME (the figure, the editor's preview box) and never scroll away with a
+   wide diagram. The SVG shrinks to the column down to the min-width the
+   module sets (60% of its size); past that the stage scrolls. */
+.ak-uml__stage { overflow-x: auto; text-align: center; }
+.ak-uml__svg { display: inline-block; max-width: 100%; height: auto; }
+
+/* Fullscreen: native where the browser allows it on an element, a fixed
+   overlay (`is-expanded`) where it does not. "Ajustar à tela" fits the whole
+   diagram; "Tamanho real" (`is-actual`) shows it 1:1 and scrolls. `margin:
+   auto` instead of `justify-content: center`, because a centred flex item
+   wider than its box overflows on BOTH sides and its left edge is then
+   unreachable by scrolling. */
+.ak-uml__stage:fullscreen,
+.ak-uml__stage.is-expanded {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: flex;
+    overflow: auto;
+    padding: 3.5rem 1.5rem 1.5rem;
+    background: var(--color-surface);
+}
+.ak-uml__stage:fullscreen .ak-uml__svg,
+.ak-uml__stage.is-expanded .ak-uml__svg { margin: auto; flex-shrink: 0; max-width: none; }
+.ak-uml__stage:fullscreen:not(.is-actual) .ak-uml__svg,
+.ak-uml__stage.is-expanded:not(.is-actual) .ak-uml__svg {
+    width: 100%;
+    height: 100%;
+    min-width: 0 !important;
+}
+
+.ak-uml-toggle {
+    position: absolute;
+    z-index: 1;
+    top: 0.5rem;
+    right: 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border: 1px solid var(--color-line-2);
+    border-radius: var(--radius-field);
+    background: var(--color-surface);
+    color: var(--color-muted);
+    box-shadow: var(--shadow-card);
+    cursor: pointer;
+    opacity: 0.85;
+    transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+}
+.ak-uml-toggle--zoom { right: 2.75rem; }
+.ak-uml-toggle[hidden] { display: none; }
+.ak-uml-toggle svg { width: 1rem; height: 1rem; }
+.ak-uml-toggle:hover,
+.ak-uml-toggle:focus-visible { opacity: 1; color: var(--color-accent); border-color: var(--color-accent-line); }
+.ak-uml-toggle:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.ak-uml-toggle[aria-pressed="true"] { color: var(--color-accent); }
+
 /* Cards (the {% cards %} block) — a regular grid of product cards: a logo, a
    name, an optional line of description and a destination.
 

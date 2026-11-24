@@ -260,7 +260,9 @@ up as literal `{% … %}` text on screen, or quietly disappears from the editor.
 - **Only four of these `{% %}` constructs come from GitBook** — `hint`,
   `tabs`/`tab`, `file`, `embed` — and two more are ours: `diagram` (a citation
   of a drawing in the catalog, self-closing with a `slug`) and `secret` (a
-  protected value, the only INLINE one — see `.claude/rules/cadernos-notebooks.md`). They are
+  protected value, the only INLINE one — see `.claude/rules/cadernos-notebooks.md`).
+  (Since then: `cards`, `scene` and `uml`, each with its own rule file; `uml`'s
+  body is JSON, carried verbatim — `.claude/rules/doc-uml.md`.) They are
   parsed TWICE, by `App\Support\GitbookRenderer` (read-only render) and by
   `resources/js/modules/docs-markdown.js` (the editor), with near-duplicate
   regexes that must stay in step — `secret` in the INLINE halves of both

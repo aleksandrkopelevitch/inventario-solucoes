@@ -394,6 +394,8 @@ function serializeBlock(block) {
             return serializeCards(d)
         case 'scene':
             return serializeScene(d)
+        case 'uml':
+            return serializeUml(d)
         default:
             return null
     }
@@ -664,6 +666,18 @@ function serializeScene(d) {
     return `{% scene type="${escapeAttr(type)}"${captionAttr}${extra} %}\n${inner}\n{% endscene %}`
 }
 
+/**
+ * A UML diagram: `{% uml type="…" title="…" %}`, its JSON body as typed, and
+ * `{% enduml %}`. A block with no body saves as nothing, like an untyped scene.
+ */
+function serializeUml(d) {
+    const source = String(d.source || '').trim()
+    if (!source) return ''
+    const title = d.title ? ` title="${escapeAttr(d.title)}"` : ''
+
+    return `{% uml type="${escapeAttr(d.type || 'sequence')}"${title} %}\n${source}\n{% enduml %}`
+}
+
 function escapeAttr(s) {
     return String(s).replace(/"/g, '&quot;')
 }
@@ -768,6 +782,22 @@ function parseLines(lines) {
             continue
         }
 
+        // uml — a UML diagram written into the page. Its JSON body is carried
+        // VERBATIM (`source`), never re-serialized: the reader validates it
+        // (UmlDiagram), and a round trip through the editor must not reformat
+        // somebody's diagram on a save that did not touch it.
+        m = trimmed.match(/^\{%\s*uml\b\s*(.*?)\s*%\}$/)
+        if (m) {
+            const attrs = parseAttrs(m[1])
+            const [inner, next] = consumeUntil(lines, i + 1, 'uml')
+            i = next
+            blocks.push({
+                type: 'uml',
+                data: {type: attrs.type || 'sequence', title: decodeAttr(attrs.title || ''), source: inner.join('\n').trim()},
+            })
+            continue
+        }
+
         // diagram — a citation of a drawing from the catalog. Only the slug
         // is stored; the name and the picture are resolved when rendered.
         m = trimmed.match(/^\{%\s*diagram\s+slug="([^"]*)"\s*%\}$/)
@@ -864,7 +894,7 @@ function startsNewBlock(line) {
     return (
         /^(#{1,6})\s+/.test(t) ||
         /^(```|~~~)/.test(t) ||
-        /^\{%\s*(hint|tabs|cards|scene|file|embed|diagram)/.test(t) ||
+        /^\{%\s*(hint|tabs|cards|scene|uml|file|embed|diagram)/.test(t) ||
         /^<figure/.test(t) ||
         /^<img\s/i.test(t) ||
         /^(\*\*\*+|---+|___+)$/.test(t) ||

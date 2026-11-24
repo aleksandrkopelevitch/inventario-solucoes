@@ -8,6 +8,7 @@ use App\Mcp\Support\Arguments;
 use App\Mcp\ToolResult;
 use App\Models\DocumentationPage;
 use App\Support\Fold;
+use App\Support\GitbookRenderer;
 use Illuminate\Support\Facades\Validator;
 
 /**
@@ -35,6 +36,10 @@ class CreatePage extends DocumentationWriteTool implements CreatesRecords
         outra página ("parent"), opcionalmente numa posição e já com o texto em Markdown,
         no dialeto do app (veja get_documentation_page). Uma página com o mesmo título no
         mesmo lugar é recusada. Até 5 níveis. Confirme com a pessoa.
+
+        O texto pode trazer diagramas UML ({% uml %}) e cenas animadas ({% scene %}):
+        a sintaxe está em get_code_documentation_guide. Um diagrama ou uma cena com erro
+        recusa a chamada, listando cada problema — corrija e repita.
         TXT;
     }
 
@@ -87,6 +92,10 @@ class CreatePage extends DocumentationWriteTool implements CreatesRecords
 
         if ($validator->fails()) {
             return $this->refused($validator->errors()->all());
+        }
+
+        if ($content !== null && ($problems = app(GitbookRenderer::class)->problems($content)) !== []) {
+            return $this->refused([...$problems, 'A sintaxe de {% uml %} e {% scene %} está em get_code_documentation_guide.']);
         }
 
         $parent = null;

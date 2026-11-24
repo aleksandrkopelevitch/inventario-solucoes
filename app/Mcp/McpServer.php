@@ -156,7 +156,22 @@ class McpServer
         conhecimento interna. Um caderno que existe no app mas não foi publicado é
         invisível por aqui — ao relatar que algo não está documentado, diga que não foi
         encontrado NA BASE PUBLICADA, nunca que não existe documentação.
-        TXT . "\n\n" . $this->access($actor) . $limit;
+        TXT . "\n\n" . $this->access($actor) . $this->codeGuide($actor) . $limit;
+    }
+
+    /**
+     * Pointed at once, here, because the moment it is needed — "documente
+     * este repositório", "desenhe a sequência" — is a moment the model
+     * otherwise improvises: Mermaid, which this app does not render, or a
+     * `{% uml %}` body it never saw the shape of.
+     */
+    private function codeGuide(Actor $actor): string
+    {
+        return $actor->canRead(AccessModule::Documentation)
+            ? "\n\nPara documentar código-fonte (pasta, zip ou repositório) num caderno, ou para escrever "
+                . 'um diagrama UML ou uma cena animada numa página, chame get_code_documentation_guide ANTES: '
+                . 'ele traz o roteiro e a sintaxe. O iSol não renderiza Mermaid.'
+            : '';
     }
 
     /**

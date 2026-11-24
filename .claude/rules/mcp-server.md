@@ -32,8 +32,10 @@ paths:
 ### The MCP server — the catalog as a tool, and a token is not an account
 
 `POST /mcp` lets Claude, ChatGPT and Gemini read this inventory: soluções,
-diagramas, pessoas, empresas and the published documentation, as twelve
-read-only tools (`App\Mcp\ToolRegistry`) — and, since 2026-11-17, lets a
+diagramas, pessoas, empresas and the published documentation, as thirteen
+read-only tools (`App\Mcp\ToolRegistry` — the thirteenth,
+`get_code_documentation_guide`, reads no record: it is the playbook and the
+`{% uml %}`/`{% scene %}` syntax, see `.claude/rules/doc-uml.md`) — and, since 2026-11-17, lets a
 PERSON who is an Editor create and edit the catalog and the cadernos through
 thirteen write tools (§ Writing, below) — plus, since 2026-11-06, the four
 Digibee logs tools (`App\Mcp\Tools\Digibee\*`, Integrations module), which
@@ -293,7 +295,10 @@ touching any of it:
   neither side silently erases the other. A body that drops a protected value,
   a cited diagram, a `/files/` reference, or most of its length is refused
   until the call repeats the exact items (`remove_secrets`,
-  `confirm_removals`, `shrink:N%`). The shrink thresholds live in ONE place,
+  `confirm_removals`, `shrink:N%`) — a UML diagram written into the page
+  counts as `uml:{title}`. A NEW or changed `{% uml %}` / `{% scene %}` that
+  does not validate refuses the write with every problem
+  (`GitbookRenderer::problems()`), on create and update alike. The shrink thresholds live in ONE place,
   `App\Mcp\Support\ShrinkGuard`, because `mcp:calibrate-shrink-guard` replays
   that very rule over the Assiste IA's real rewrites (an APPLIED draft the
   guard would refuse is a false positive) — change the numbers only with its

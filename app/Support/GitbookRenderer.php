@@ -12,6 +12,7 @@ use App\Support\Documentation\SecretText;
 use App\Support\Documentation\StepScene;
 use App\Support\Documentation\TimelineScene;
 use App\Support\Documentation\TreeScene;
+use App\Support\Documentation\UmlDiagram;
 use Illuminate\Support\Facades\Cache;
 use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
@@ -52,6 +53,8 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  *   {% scene type="timeline" %}{% event when="…" title="…" status="done|current|planned" %} … {% endevent %} … {% endscene %}
  *       → an animated "linha do tempo" (ours) — see renderScene()
  *   (every step / change / node may also carry `icon="…"`, a key of SceneIcons)
+ *   {% uml type="sequence|class|component|…" title="…" %} {JSON} {% enduml %}
+ *       → a static UML diagram drawn by docs-uml.js (ours) — see renderUml()
  *   {% secret %} … {% endsecret %}   (inline, ours)
  *       → a lock the value is NOT inside — see App\Support\Documentation\SecretText
  *
@@ -400,6 +403,14 @@ class GitbookRenderer
                 $flush();
                 [$inner, $i] = $this->consumeUntil($lines, $i + 1, 'scene');
                 $html .= $this->renderScene($this->parseAttrs($m[1]), $inner);
+
+                continue;
+            }
+
+            if (preg_match('/^\{%\s*uml\b\s*(.*?)\s*%\}$/', $trimmed, $m)) {
+                $flush();
+                [$inner, $i] = $this->consumeUntil($lines, $i + 1, 'uml');
+                $html .= $this->renderUml($this->parseAttrs($m[1]), $inner);
 
                 continue;
             }
@@ -755,6 +766,29 @@ class GitbookRenderer
      */
     private function renderScene(array $attrs, array $lines): string
     {
+        $parsed = $this->parseScene($attrs, $lines);
+
+        if ($parsed === null) {
+            return '';
+        }
+
+        ['scene'      => $scene, 'caption' => $caption, 'steps' => $steps, 'changes' => $changes, 'nodes' => $nodes,
+            'options' => $options, 'criteria' => $criteria, 'events' => $events, 'from' => $from, 'to' => $to] = $parsed;
+
+        return $this->sceneFigure($scene, $caption, $steps, $changes, $nodes, $options, $criteria, $events, $from, $to);
+    }
+
+    /**
+     * A scene's rows, read off its Markdown — what renderScene() draws and
+     * what problems() validates. Null when no row survived, which renders as
+     * nothing.
+     *
+     * @param  array<string, string>  $attrs
+     * @param  array<int, string>  $lines
+     * @return array<string, mixed>|null
+     */
+    private function parseScene(array $attrs, array $lines): ?array
+    {
         $decode = fn (array $from, string $key): string => trim(html_entity_decode($from[$key] ?? '', ENT_QUOTES));
 
         $steps = [];
@@ -884,7 +918,7 @@ class GitbookRenderer
         $events = array_values(array_filter($events, fn (array $event) => $event['title'] !== '' || $event['when'] !== ''));
 
         if ($steps === [] && $changes === [] && $nodes === [] && $options === [] && $events === []) {
-            return '';
+            return null;
         }
 
         $type = $attrs['type'] ?? '';
@@ -901,6 +935,20 @@ class GitbookRenderer
             default                                             => null,
         };
 
+        return compact('scene', 'caption', 'steps', 'changes', 'nodes', 'options', 'criteria', 'events', 'from', 'to');
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $scene
+     * @param  list<array<string, mixed>>  $steps
+     * @param  list<array<string, mixed>>  $changes
+     * @param  list<array<string, mixed>>  $nodes
+     * @param  list<array<string, mixed>>  $options
+     * @param  list<array<string, mixed>>  $criteria
+     * @param  list<array<string, mixed>>  $events
+     */
+    private function sceneFigure(?array $scene, string $caption, array $steps, array $changes, array $nodes, array $options, array $criteria, array $events, string $from, string $to): string
+    {
         $text = '';
 
         if ($steps !== []) {
@@ -957,6 +1005,279 @@ class GitbookRenderer
             . $text
             . ($caption !== '' ? '<figcaption>' . e($caption) . '</figcaption>' : '')
             . '</figure>';
+    }
+
+    /**
+     * A UML diagram written into the page (UmlDiagram): the figure docs-uml.js
+     * draws over, carrying the validated diagram as JSON, and its TEXT — the
+     * messages in order, or the elements and their relations — which is what a
+     * reader without JavaScript, a screen reader, the search index and the MCP
+     * server get. The same split as a scene: one renderer of the picture, in
+     * the browser, where text can be measured.
+     *
+     * An invalid diagram is SHOWN as invalid, with every reason, rather than
+     * rendered as nothing: a figure that silently vanished would read as a
+     * page somebody forgot to finish, and the reasons are exactly what the
+     * person (or the model, through problems()) has to fix.
+     *
+     * @param  array<string, string>  $attrs
+     * @param  array<int, string>  $lines
+     */
+    private function renderUml(array $attrs, array $lines): string
+    {
+        $title = trim(html_entity_decode($attrs['title'] ?? '', ENT_QUOTES));
+        ['diagram' => $diagram, 'problems' => $problems] = UmlDiagram::parse($attrs['type'] ?? '', $title, implode("\n", $lines));
+
+        if ($diagram === null) {
+            return '<div class="ak-uml-error" role="note"><strong>Este diagrama UML não pôde ser desenhado:</strong><ul>'
+                . implode('', array_map(fn (string $problem) => '<li>' . e($problem) . '</li>', $problems))
+                . '</ul></div>';
+        }
+
+        $caption = UmlDiagram::TYPES[$diagram['type']] . ($diagram['title'] !== '' ? ' — ' . $diagram['title'] : '');
+        $text = $diagram['type'] === 'sequence'
+            ? '<ol class="ak-uml__text">' . $this->umlSequenceText($diagram['messages'], $diagram['participants']) . '</ol>'
+            : $this->umlGridText($diagram);
+
+        return '<figure class="ak-uml" data-ak-uml="' . e(json_encode($diagram, JSON_UNESCAPED_UNICODE)) . '">'
+            // Not aria-hidden: the fullscreen button lives in here. The SVG
+            // hides itself; the text below is what assistive technology reads.
+            . '<div class="ak-uml__stage" data-ak-uml-stage></div>'
+            . $text
+            . '<figcaption>' . e($caption) . '</figcaption>'
+            . '</figure>';
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $items
+     * @param  list<array{id: string, label: string, kind: string}>  $participants
+     */
+    private function umlSequenceText(array $items, array $participants): string
+    {
+        $name = fn (?string $id): string => $id === null
+            ? '(externo)'
+            : e(collect($participants)->firstWhere('id', $id)['label'] ?? $id);
+        $html = '';
+
+        foreach ($items as $item) {
+            if (isset($item['fragment'])) {
+                $html .= '<li><em>' . e($item['fragment']) . '</em>';
+
+                foreach ($item['operands'] as $k => $operand) {
+                    $html .= ($k > 0 ? '<br><em>senão</em>' : '') . ($operand['label'] !== '' ? ' ' . e($operand['label']) : '')
+                        . '<ol>' . $this->umlSequenceText($operand['messages'], $participants) . '</ol>';
+                }
+
+                $html .= '</li>';
+            } elseif (isset($item['ref']) || isset($item['note'])) {
+                $key = isset($item['ref']) ? 'ref' : 'note';
+                $html .= '<li><em>' . ($key === 'ref' ? 'ref' : 'nota') . '</em> ('
+                    . implode(', ', array_map($name, $item['over'])) . '): ' . e($item[$key]) . '</li>';
+            } elseif (isset($item['divider'])) {
+                $html .= '<li><em>— ' . e($item['divider']) . ' —</em></li>';
+            } else {
+                $html .= '<li><strong>' . $name($item['from'] ?? null) . '</strong> → <strong>' . $name($item['to'] ?? null) . '</strong>'
+                    . ($item['label'] !== '' ? ': ' . e($item['label']) : '')
+                    . ' <em>(' . UmlDiagram::MESSAGE_LABELS[$item['kind']] . ')</em></li>';
+            }
+        }
+
+        return $html;
+    }
+
+    /** @param array<string, mixed> $diagram */
+    private function umlGridText(array $diagram): string
+    {
+        $names = collect($diagram['nodes'])->mapWithKeys(fn (array $node) => [$node['id'] => $node['name'] ?? $node['text'] ?? UmlDiagram::NODE_LABELS[$node['kind']]]);
+
+        $elements = collect($diagram['nodes'])->map(function (array $node): string {
+            $members = collect(['atributos' => $node['attributes'] ?? [], 'operações' => $node['operations'] ?? []])
+                ->filter()
+                ->map(fn (array $lines, string $label) => " — {$label}: " . e(implode('; ', $lines)))
+                ->implode('');
+
+            return '<li><strong>' . e($node['name'] ?? $node['text'] ?? '') . '</strong> <em>(' . UmlDiagram::NODE_LABELS[$node['kind']]
+                . (isset($node['stereotype']) ? ' «' . e($node['stereotype']) . '»' : '') . ')</em>' . $members . '</li>';
+        })->implode('');
+
+        $groups = collect($diagram['groups'])->map(fn (array $group) => '<li><strong>' . e($group['label']) . '</strong> <em>('
+            . UmlDiagram::GROUP_LABELS[$group['kind']] . ')</em>: ' . e($names->only($group['nodes'])->implode(', ')) . '</li>')->implode('');
+
+        $edges = collect($diagram['edges'])->map(fn (array $edge) => '<li>' . e($names[$edge['from']]) . ' → ' . e($names[$edge['to']])
+            . ' <em>(' . UmlDiagram::EDGE_LABELS[$edge['kind']] . ')</em>'
+            . (isset($edge['label']) ? ': ' . e($edge['label']) : '')
+            . (isset($edge['from_label']) || isset($edge['to_label']) ? ' [' . e(($edge['from_label'] ?? '') . ' → ' . ($edge['to_label'] ?? '')) . ']' : '')
+            . '</li>')->implode('');
+
+        return '<div class="ak-uml__text"><ul>' . $elements . '</ul>'
+            . ($groups !== '' ? '<p>Agrupamentos:</p><ul>' . $groups . '</ul>' : '')
+            . ($edges !== '' ? '<p>Relações:</p><ul>' . $edges . '</ul>' : '')
+            . '</div>';
+    }
+
+    /**
+     * Everything wrong with the scenes and UML diagrams of a body, in PT-BR —
+     * what the MCP write tools refuse a page with, so that a model writing
+     * these blocks blind learns what to fix instead of saving a figure that
+     * renders as an error box (a diagram) or as nothing at all (a scene).
+     *
+     * A scene is held to the limits its model draft is held to (StepScene and
+     * friends), which are the limits that keep its cards legible.
+     *
+     * `$previous` is the body being replaced: a block that is already there,
+     * byte for byte, is not re-judged, so a model editing one paragraph is
+     * never refused over a figure somebody else wrote in the editor.
+     *
+     * @return list<string>
+     */
+    public function problems(string $markdown, ?string $previous = null): array
+    {
+        $known = $previous === null ? [] : array_column($this->figureBlocks($previous), 'raw');
+        $problems = [];
+
+        foreach ($this->figureBlocks($markdown) as $block) {
+            if (in_array($block['raw'], $known, true)) {
+                continue;
+            }
+
+            if (! $block['closed']) {
+                $problems[] = "Falta o {% end{$block['kind']} %} de um bloco {% {$block['kind']} %}: sem ele, todo o resto da página entra no bloco.";
+
+                continue;
+            }
+
+            if ($block['kind'] === 'uml') {
+                $title = trim(html_entity_decode($block['attrs']['title'] ?? '', ENT_QUOTES));
+                $label = 'Diagrama UML' . ($title !== '' ? " \"{$title}\"" : '');
+
+                foreach (UmlDiagram::parse($block['attrs']['type'] ?? '', $title, implode("\n", $block['inner']))['problems'] as $problem) {
+                    $problems[] = "{$label}: {$problem}";
+                }
+
+                continue;
+            }
+
+            foreach ($this->sceneProblems($block['attrs'], $block['inner']) as $problem) {
+                $problems[] = 'Cena "' . ($block['attrs']['type'] ?? '?') . "\": {$problem}";
+            }
+        }
+
+        return $problems;
+    }
+
+    /**
+     * @param  array<string, string>  $attrs
+     * @param  array<int, string>  $lines
+     * @return list<string>
+     */
+    private function sceneProblems(array $attrs, array $lines): array
+    {
+        $types = [StepScene::TYPE, BeforeAfterScene::TYPE, TreeScene::TYPE, ComparisonScene::TYPE, TimelineScene::TYPE];
+        $type = $attrs['type'] ?? '';
+
+        if (! in_array($type, $types, true)) {
+            return ['o tipo "' . $type . '" não existe. Use um destes: ' . implode(', ', $types) . '.'];
+        }
+
+        $parsed = $this->parseScene($attrs, $lines);
+
+        if ($parsed === null || $parsed['scene'] === null) {
+            $rows = [
+                StepScene::TYPE        => '{% step title="…" %}detalhe{% endstep %}',
+                BeforeAfterScene::TYPE => '{% change aspect="…" before="…" after="…" %}',
+                TreeScene::TYPE        => '{% node level="0|1|2" label="…" detail="…" %}',
+                ComparisonScene::TYPE  => '{% option name="…" %} e {% criterion name="…" %}+ valor{% endcriterion %}',
+                TimelineScene::TYPE    => '{% event when="…" title="…" status="done|current|planned" %}detalhe{% endevent %}',
+            ];
+
+            return ["não tem nenhum item do seu tipo — use linhas {$rows[$type]}."];
+        }
+
+        $caption = $parsed['caption'];
+
+        return match ($type) {
+            StepScene::TYPE        => StepScene::validate(['caption' => $caption, 'steps' => $parsed['steps']]),
+            BeforeAfterScene::TYPE => BeforeAfterScene::validate(['caption' => $caption, 'from' => $parsed['from'], 'to' => $parsed['to'], 'changes' => $parsed['changes']]),
+            ComparisonScene::TYPE  => ComparisonScene::validate(['caption' => $caption, 'options' => $parsed['options'], 'criteria' => $parsed['criteria']]),
+            TimelineScene::TYPE    => TimelineScene::validate(['caption' => $caption, 'events' => $parsed['events']]),
+            TreeScene::TYPE        => $this->treeProblems($parsed['nodes']),
+        };
+    }
+
+    /**
+     * The tree's limits, checked on the FLAT outline a page stores (TreeScene
+     * validates the model's nested answer, a different shape).
+     *
+     * @param  list<array{label: string, detail: string, level: int}>  $nodes
+     * @return list<string>
+     */
+    private function treeProblems(array $nodes): array
+    {
+        $problems = [];
+
+        if (count($nodes) < TreeScene::MIN_NODES || count($nodes) > TreeScene::MAX_NODES) {
+            $problems[] = 'a árvore deve ter entre ' . TreeScene::MIN_NODES . ' e ' . TreeScene::MAX_NODES . ' itens (tem ' . count($nodes) . ').';
+        }
+
+        foreach ($nodes as $i => $node) {
+            if (mb_strlen($node['label']) > TreeScene::MAX_LABEL) {
+                $problems[] = 'o "label" do item ' . ($i + 1) . ' passa de ' . TreeScene::MAX_LABEL . ' caracteres.';
+            }
+
+            if (mb_strlen($node['detail']) > TreeScene::MAX_DETAIL) {
+                $problems[] = 'o "detail" do item ' . ($i + 1) . ' passa de ' . TreeScene::MAX_DETAIL . ' caracteres.';
+            }
+        }
+
+        return $problems;
+    }
+
+    /**
+     * Every scene and UML block of a body, at any nesting (a hint or a tab
+     * may hold one), with the exact lines it was written as.
+     *
+     * @return list<array{kind: string, attrs: array<string, string>, inner: array<int, string>, raw: string, closed: bool}>
+     */
+    private function figureBlocks(string $markdown): array
+    {
+        $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $markdown));
+        $blocks = [];
+        $i = 0;
+        $n = count($lines);
+
+        while ($i < $n) {
+            $trimmed = trim($lines[$i]);
+
+            if (preg_match('/^(```|~~~)/', $trimmed, $m)) {
+                $i++;
+                while ($i < $n && ! str_starts_with(trim($lines[$i]), $m[1])) {
+                    $i++;
+                }
+                $i++;
+
+                continue;
+            }
+
+            if (preg_match('/^\{%\s*(scene|uml)\b\s*(.*?)\s*%\}$/', $trimmed, $m)) {
+                $start = $i;
+                [$inner, $i] = $this->consumeUntil($lines, $i + 1, $m[1]);
+                $closed = preg_match('/^\{%\s*end' . $m[1] . '\s*%\}$/', trim($lines[$i - 1] ?? '')) === 1 && $i - 1 > $start;
+
+                $blocks[] = [
+                    'kind'   => $m[1],
+                    'attrs'  => $this->parseAttrs($m[2]),
+                    'inner'  => $inner,
+                    'raw'    => implode("\n", array_slice($lines, $start, $i - $start)),
+                    'closed' => $closed,
+                ];
+
+                continue;
+            }
+
+            $i++;
+        }
+
+        return $blocks;
     }
 
     /**

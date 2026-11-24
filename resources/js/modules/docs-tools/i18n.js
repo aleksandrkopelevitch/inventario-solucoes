@@ -70,6 +70,7 @@ export const EDITOR_I18N = {
             // ONE entry for every scene type — the type is chosen inside the
             // block (docs-tools/scene.js explains why it cannot be a submenu).
             'Cena animada': 'Cena animada',
+            'Diagrama UML': 'Diagrama UML',
             // Already PT-BR in the tool itself (SecretInlineTool::title), so
             // this entry is here only to keep the list complete: Editor.js
             // looks every inline tool's name up by its own string.
