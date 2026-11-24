@@ -990,6 +990,52 @@
 }
 
 /* ------------------------------------------------------------------------ */
+/*  "Diagrama UML" (docs-tools/uml.js) — type, title, the JSON body and a    */
+/*  preview drawn by docs-uml.js exactly as the reader draws it.             */
+/* ------------------------------------------------------------------------ */
+.ak-uml-tool {
+    margin: 0.75rem 0;
+    padding: 0.9rem;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+}
+.ak-uml-tool__head { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem; }
+.ak-uml-tool__type,
+.ak-uml-tool__title,
+.ak-uml-tool__source {
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-field);
+    background: var(--color-surface);
+    color: var(--color-ink);
+    font-size: 0.85rem;
+}
+.ak-uml-tool__type { padding: 0.35rem 0.5rem; }
+.ak-uml-tool__title { flex: 1 1 14rem; min-width: 0; padding: 0.35rem 0.6rem; }
+.ak-uml-tool__source {
+    display: block;
+    width: 100%;
+    min-height: 9rem;
+    padding: 0.6rem 0.7rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    resize: vertical;
+}
+.ak-uml-tool__type:focus,
+.ak-uml-tool__title:focus,
+.ak-uml-tool__source:focus { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+.ak-uml-tool__status { margin: 0.4rem 0 0; font-size: 0.8rem; color: var(--color-crit); }
+.ak-uml-tool__status:empty { display: none; }
+.ak-uml-tool__preview {
+    position: relative;
+    margin-top: 0.75rem;
+    padding: 0.75rem;
+    border: 1px dashed var(--color-line);
+    border-radius: var(--radius-card);
+}
+
+/* ------------------------------------------------------------------------ */
 /*  "Fluxo em etapas" (docs-tools/scene.js) — the editor's half of a scene.  */
 /*  The figure in the preview is drawn by docs-scene.js, exactly as the      */
 /*  reader draws it; only the block's own chrome lives here.                 */

@@ -11,6 +11,7 @@ use App\Mcp\Support\ShrinkGuard;
 use App\Mcp\ToolResult;
 use App\Models\DocumentationPage;
 use App\Support\Documentation\SecretText;
+use App\Support\GitbookRenderer;
 use Illuminate\Support\Facades\Validator;
 
 /**
@@ -64,6 +65,11 @@ class UpdatePage extends DocumentationWriteTool
         novo perder um valor protegido, um diagrama, um arquivo ou boa parte da página, a
         chamada é recusada listando o que se perderia: mostre a lista à pessoa e só repita
         com a confirmação dela, copiando os itens em remove_secrets/confirm_removals.
+
+        Um diagrama UML ({% uml %}) ou uma cena ({% scene %}) novos ou alterados com erro
+        recusam a chamada, listando cada problema; a sintaxe está em
+        get_code_documentation_guide. Os que já estavam na página, intactos, não são
+        reavaliados.
         TXT;
     }
 
@@ -122,6 +128,10 @@ class UpdatePage extends DocumentationWriteTool
 
         if ($version !== $page->version()) {
             return self::stale();
+        }
+
+        if ($content !== null && ($problems = app(GitbookRenderer::class)->problems($content, (string) $page->documentation)) !== []) {
+            return $this->refused([...$problems, 'A sintaxe de {% uml %} e {% scene %} está em get_code_documentation_guide.']);
         }
 
         if ($content !== null && ($losses = $this->losses($page, $content, $arguments)) !== null) {
@@ -235,7 +245,11 @@ class UpdatePage extends DocumentationWriteTool
     }
 
     /**
-     * `diagram:{slug}` and `file:{…}` items, as a refusal names them.
+     * `diagram:{slug}`, `uml:{title}` and `file:{…}` items, as a refusal names them.
+     *
+     * A UML diagram written into the page is drawn content like a citation,
+     * so dropping one is a loss to confirm; it is named by its title (its type
+     * when it has none), the label a person recognises it by.
      *
      * A diagram counts only as the renderer reads it — alone on its line
      * (GitbookRenderer): moved into a sentence it is text, and the citation is
@@ -247,11 +261,18 @@ class UpdatePage extends DocumentationWriteTool
     private static function references(string $text): array
     {
         preg_match_all('/^\s*\{%\s*diagram\s+slug="([^"]+)"\s*%\}\s*$/m', $text, $diagrams);
+        preg_match_all('/^\s*\{%\s*uml\b(.*?)%\}\s*$/m', $text, $umls);
         preg_match_all('#/files/(\d+)#', $text, $files);
         preg_match_all('/\{%\s*file\s+src="([^"]+)"/', $text, $sources);
 
         return array_values(array_unique([
             ...array_map(fn (string $slug) => "diagram:{$slug}", $diagrams[1]),
+            ...array_map(function (string $attrs): string {
+                preg_match('/title="([^"]*)"/', $attrs, $title);
+                preg_match('/type="([^"]*)"/', $attrs, $type);
+
+                return 'uml:' . (html_entity_decode($title[1] ?? '', ENT_QUOTES) ?: ($type[1] ?? ''));
+            }, $umls[1]),
             ...array_map(fn (string $id) => "file:{$id}", $files[1]),
             ...array_map(fn (string $src) => "file:{$src}", array_filter($sources[1], fn (string $src) => ! preg_match('#^/files/\d+$#', $src))),
         ]));

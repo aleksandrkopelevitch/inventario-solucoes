@@ -44,6 +44,7 @@ const docsChat = lazy(
     () => import('./modules/docs-chat.js'),
 )
 const docsScene = lazy('figure[data-ak-scene]', () => import('./modules/docs-scene.js'))
+const docsUml = lazy('figure[data-ak-uml]', () => import('./modules/docs-uml.js'))
 const solutionsSheet = lazy('[data-ak-sheet]', () => import('./modules/solutions-sheet.js'))
 
 // Static images referenced from Blade with `Vite::asset('resources/img/…')`.
@@ -81,6 +82,7 @@ window.globalModules = {
     "docsSwitcher"      : docsSwitcher,
     "docsSecret"        : docsSecret,
     "docsScene"         : docsScene,
+    "docsUml"           : docsUml,
     "copyField"         : copyField,
     "flowspecChat"      : flowspecChat,
     "markerPoll"        : markerPoll,

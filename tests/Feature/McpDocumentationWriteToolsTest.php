@@ -437,3 +437,64 @@ it('refuses to delete a created caderno that gained context documents', function
 
     expect(Notebook::where('slug', 'novo')->exists())->toBeTrue();
 });
+
+/* ------------------------------------------------------------------ */
+/*  Diagrams and scenes written through the MCP */
+/* ------------------------------------------------------------------ */
+
+function mcpUml(string $title, array $participants = ['a', 'b']): string
+{
+    return "{% uml type=\"sequence\" title=\"{$title}\" %}\n" . json_encode([
+        'participants' => array_map(fn (string $id) => ['id' => $id, 'label' => strtoupper($id)], $participants),
+        'messages'     => [['from' => $participants[0], 'to' => end($participants), 'label' => 'chama']],
+    ]) . "\n{% enduml %}";
+}
+
+it('creates a page with a UML diagram and a scene, and refuses one with an error, naming each problem', function () {
+    Notebook::factory()->create(['name' => 'Manual', 'slug' => 'manual']);
+    $scene = "{% scene type=\"steps\" %}\n{% step title=\"Um\" %}\na\n{% endstep %}\n{% step title=\"Dois\" %}\nb\n{% endstep %}\n{% endscene %}";
+
+    $ok = docTool(docsWriter(), 'create_page', ['notebook' => 'manual', 'title' => 'Fluxo', 'content' => mcpUml('Pedido') . "\n\n" . $scene]);
+    expect($ok['isError'])->toBeFalse();
+
+    $bad = docTool(docsWriter(), 'create_page', ['notebook' => 'manual', 'title' => 'Outro', 'content' => mcpUml('Quebrado', ['a'])]);
+    expect($bad['isError'])->toBeTrue()
+        ->and($bad['text'])->toContain('Nada foi salvo')
+        ->toContain('Diagrama UML "Quebrado": Um diagrama de sequência precisa de 2 a 12 participantes')
+        ->toContain('get_code_documentation_guide')
+        ->and(DocumentationPage::where('title', 'Outro')->exists())->toBeFalse();
+});
+
+it('does not re-judge a figure already on the page, and asks to confirm dropping a UML diagram', function () {
+    $legacy = "{% scene type=\"steps\" %}\n{% step title=\"Só uma\" %}x{% endstep %}\n{% endscene %}";
+    mcpDocPage("Intro\n\n{$legacy}\n\n" . mcpUml('Pedido'));
+    $user = docsWriter();
+
+    // An edit elsewhere keeps the (invalid, hand-made) scene and passes.
+    $kept = docTool($user, 'update_page', ['notebook' => 'manual', 'page' => 'pagina', 'version' => readVersion($user, 'manual', 'pagina'),
+        'content'                                     => "Intro revisada\n\n{$legacy}\n\n" . mcpUml('Pedido')]);
+    expect($kept['isError'])->toBeFalse();
+
+    $dropped = docTool($user, 'update_page', ['notebook' => 'manual', 'page' => 'pagina', 'version' => readVersion($user, 'manual', 'pagina'),
+        'content'                                        => "Intro revisada\n\n{$legacy}"]);
+    expect($dropped['isError'])->toBeTrue()->and($dropped['text'])->toContain('"uml:Pedido"');
+
+    $confirmed = docTool($user, 'update_page', ['notebook' => 'manual', 'page' => 'pagina', 'version' => readVersion($user, 'manual', 'pagina'),
+        'content'                                          => "Intro revisada\n\n{$legacy}", 'confirm_removals' => ['uml:Pedido']]);
+    expect($confirmed['isError'])->toBeFalse();
+});
+
+it('hands out the code documentation guide, with the caderno it will write into', function () {
+    mcpDocPage('Texto', ['title' => 'Visão geral', 'slug' => 'visao-geral']);
+
+    $guide = docTool(docsWriter(), 'get_code_documentation_guide', ['notebook' => 'manual']);
+
+    expect($guide['isError'])->toBeFalse()
+        ->and($guide['text'])->toContain('{% uml type="sequence"')
+        ->toContain('Mermaid não é renderizado')
+        ->toContain('Caderno "manual" hoje')
+        ->toContain('visao-geral')
+        ->not->toContain('NÃO escreve');
+
+    expect(docTool(User::factory()->reader()->create(), 'get_code_documentation_guide')['text'])->toContain('NÃO escreve');
+});

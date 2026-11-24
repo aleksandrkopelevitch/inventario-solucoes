@@ -4,6 +4,7 @@ use App\Enums\AccessLevel;
 use App\Enums\AccessModule;
 use App\Enums\UserRole;
 use App\Mcp\OAuth;
+use App\Mcp\ReachesOutside;
 use App\Mcp\ToolRegistry;
 use App\Mcp\Writes;
 use App\Models\Diagram;
@@ -169,10 +170,14 @@ it('gives an account exactly what its role reaches in the app', function () {
     expect($all)->toContain('search_solutions', 'search_people', 'list_notebooks');
 
     // A brand-new account — what Entra SSO provisions — reads every module,
-    // so its connection is shown the same twelve tools as anybody's.
+    // so its connection is shown every reading tool of this app's own data:
+    // all of them but the writers and the Digibee tools, which reach outside.
+    // Counted from the registry, never hard-coded (a new reader is not a bug).
     $fresh = collect(mcpAs(oauthUser(UserRole::Member), 'tools/list')->assertOk()->json('result.tools'));
+    $readers = collect(ToolRegistry::TOOLS)
+        ->reject(fn (string $tool) => is_subclass_of($tool, Writes::class) || is_subclass_of($tool, ReachesOutside::class));
 
-    expect($fresh)->toHaveCount(12);
+    expect($fresh)->toHaveCount($readers->count());
 });
 
 it('keeps a minted token on the full read, since it is not a tier', function () {

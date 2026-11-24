@@ -28,6 +28,9 @@ class ToolRegistry
         Tools\GetNotebook::class,
         Tools\GetDocumentationPage::class,
         Tools\SearchDocumentation::class,
+        // Before any page is WRITTEN with a diagram or a scene: the playbook
+        // and the syntax of {% uml %} / {% scene %}.
+        Tools\GetCodeDocumentationGuide::class,
         Tools\SearchPeople::class,
         Tools\GetPerson::class,
         Tools\SearchCompanies::class,

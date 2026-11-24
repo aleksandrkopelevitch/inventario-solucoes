@@ -434,7 +434,10 @@ public function query(Actor $actor): Builder
 - attachments and any other upload besides a record's picture (logos and a
   person's photo shipped on 2026-11-17 — see `App\Mcp\Support\ImageArgument`)
 - a person's additional contacts and linking a person to an account
-- diagrams, scenes and the context documents of the Assiste IA
+- diagrams, scenes and the context documents of the Assiste IA — scenes and
+  the new inline UML diagrams became writable through the page BODY on
+  2026-11-24 (validated on write; `.claude/rules/doc-uml.md`); a topology
+  `Diagram` (the canvas) still is not
 - partial edits of a page's body (`old_text`/`new_text`). Reconsider after
   phase 2 if the guards trip often on legitimate edits
 - merging an editor conflict (§7)
@@ -635,6 +638,7 @@ What the code does where it differs from, or adds to, the sections above.
 |---|---|---|
 | 2026-11-17 | `7f54b3f` (`feat/mcp-write-tools`) | phases 1–3: the 13 write tools, `mcp:write` and its consent, the write log and "Alterações via MCP", `ReadableNotebooks`, the page `version` in both the MCP and the browser editor, the shared catalog rules and actions, the docs in §13. 58 new tests; the suite's 11 failures are the ones that failed before the change (an order-dependent test helper, Digibee tests reading the local `.env`) |
 | 2026-11-17 | `1861403` (`fix/mcp-writes-filters`) | the write log's filters laid out in a row; phase 0's Claude.ai result recorded here |
+| 2026-11-24 | `feat/uml-diagrams-mcp` | `{% uml %}` (eight UML types drawn by `docs-uml.js`, fullscreen, the editor's "Diagrama UML" block), scenes and diagrams validated on `create_page`/`update_page`, `uml:{title}` as a confirmable loss, and `get_code_documentation_guide` — the playbook for documenting a code base into a caderno |
 | 2026-11-17 | `feat/shrink-guard-calibration` | `mcp:calibrate-shrink-guard` (read-only) and `ShrinkGuard`, the shrink rule extracted so the tool and the calibration run the same arithmetic. The thresholds are unchanged until its production output is read |
 
 The first deploy of `7f54b3f` shipped the previous commit: the merge had not
@@ -647,6 +651,6 @@ finding they confirmed was fixed before the merge and is covered by a test
 
 **Still open** (§14): ChatGPT and Gemini, the shrink calibration,
 `base_version` required. **Out of scope** (§10): deleting, moving a page to
-another caderno, publishing, uploads (except a record's picture), a person's contacts, diagrams and
-scenes, partial body edits.
+another caderno, publishing, uploads (except a record's picture), a person's contacts, topology
+diagrams (inline UML diagrams and scenes ARE writable, in the body), partial body edits.
 
