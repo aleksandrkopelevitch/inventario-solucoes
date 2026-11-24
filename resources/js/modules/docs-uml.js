@@ -76,16 +76,26 @@ function wrap(text, spec, width, measure) {
 
 /* ---------------------------------------------------------- primitives -- */
 
-const STYLE = `<style>
+/*
+ * Each figure carries its own gradients, under ids unique to it, and the
+ * rules that use them are scoped to its own <svg id>. A page with two
+ * diagrams used to declare `uml-fill` twice; every `url(#uml-fill)` then
+ * resolved to the FIRST one, and when that figure sat in a hidden tab Chrome
+ * painted every other diagram's boxes with no fill at all. The classes
+ * without an id stay global: they are the same rule in every figure.
+ */
+let figures = 0
+
+const figureStyle = (uid) => `<style>
 .uml-line{fill:none;stroke:#3f3f46;stroke-width:1.2}
 .uml-dash{stroke-dasharray:6 4}
 .uml-life{fill:none;stroke:#71717a;stroke-width:1;stroke-dasharray:5 4}
-.uml-box{fill:url(#uml-fill);stroke:#3f3f46;stroke-width:1.2}
-.uml-head{fill:url(#uml-head);stroke:#3f3f46;stroke-width:1.2}
+.uml-box{stroke:#3f3f46;stroke-width:1.2}
+.uml-head{stroke:#3f3f46;stroke-width:1.2}
 .uml-plain{fill:#ffffff;stroke:#3f3f46;stroke-width:1.2}
 .uml-bar{fill:#f4f4f5;stroke:#3f3f46;stroke-width:1}
 .uml-ink{fill:#27272a;stroke:#27272a}
-.uml-note{fill:url(#uml-note);stroke:#7aa2d6;stroke-width:1.1}
+.uml-note{stroke:#7aa2d6;stroke-width:1.1}
 .uml-frame{fill:none;stroke:#52525b;stroke-width:1.1}
 .uml-tag{fill:#f4f4f5;stroke:#52525b;stroke-width:1.1}
 .uml-group{fill:#fafafa;fill-opacity:.55;stroke:#71717a;stroke-width:1.1}
@@ -95,11 +105,14 @@ const STYLE = `<style>
 .uml-halo{paint-order:stroke;stroke:#ffffff;stroke-width:4px;stroke-linejoin:round}
 .uml-i{font-style:italic}
 .uml-u{text-decoration:underline}
+#${uid} .uml-box{fill:url(#${uid}-fill)}
+#${uid} .uml-head{fill:url(#${uid}-head)}
+#${uid} .uml-note{fill:url(#${uid}-note)}
 </style>
 <defs>
-<linearGradient id="uml-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#ececef"/></linearGradient>
-<linearGradient id="uml-head" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f4f5"/><stop offset="1" stop-color="#d9d9de"/></linearGradient>
-<linearGradient id="uml-note" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e4f0fd"/></linearGradient>
+<linearGradient id="${uid}-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#ececef"/></linearGradient>
+<linearGradient id="${uid}-head" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f4f5"/><stop offset="1" stop-color="#d9d9de"/></linearGradient>
+<linearGradient id="${uid}-note" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e4f0fd"/></linearGradient>
 </defs>`
 
 function text(x, y, value, cls = 'uml-t', anchor = 'middle', extra = '') {
@@ -674,6 +687,32 @@ function drawNode(node, box, measure) {
     return out.join('')
 }
 
+/** Does the segment cross the box, shrunk by a few pixels so a graze is not a crossing? */
+function segmentHitsRect(x0, y0, x1, y1, box) {
+    const inset = 4
+    const left = box.x + inset
+    const right = box.x + box.w - inset
+    const top = box.y + inset
+    const bottom = box.y + box.h - inset
+    const dx = x1 - x0
+    const dy = y1 - y0
+    let low = 0
+    let high = 1
+
+    for (const [p, q] of [[-dx, x0 - left], [dx, right - x0], [-dy, y0 - top], [dy, bottom - y0]]) {
+        if (p === 0) {
+            if (q < 0) return false
+            continue
+        }
+        const t = q / p
+        if (p < 0) low = Math.max(low, t)
+        else high = Math.min(high, t)
+        if (low > high) return false
+    }
+
+    return true
+}
+
 /** Where the ray from a box's centre toward (tx, ty) leaves its outline. */
 function clip(box, tx, ty) {
     const cx = box.x + box.w / 2
@@ -811,6 +850,11 @@ function renderGrid(d, measure) {
     })
     const seen = new Map()
     const labels = []
+    const crossings = []
+    // Everything a label must not land on: the boxes, then each label placed.
+    const taken = [...boxes.values()].map((b) => ({x: b.x - 3, y: b.y - 3, w: b.w + 6, h: b.h + 6}))
+    const free = (r) => !taken.some((t) => r.x < t.x + t.w && t.x < r.x + r.w && r.y < t.y + t.h && t.y < r.y + r.h)
+    const place = (r) => { taken.push(r); grow(r.x, r.y); grow(r.x + r.w, r.y + r.h) }
     edges.forEach((e) => {
         const style = EDGE_STYLE[e.kind] || EDGE_STYLE.association
         const a = boxes.get(e.from)
@@ -827,6 +871,7 @@ function renderGrid(d, measure) {
             if (e.from_label) labels.push(text(x + 32, y + 14, e.from_label, 'uml-s uml-halo', 'start'))
             if (e.to_label) labels.push(text(x - 30, y - 10, e.to_label, 'uml-s uml-halo', 'end'))
             grow(x + 32 + measure(e.label || '', FONT), y - 40)
+            if (e.label) taken.push({x: x + 30, y: y - 38, w: measure(e.label, FONT), h: 16})
 
             return
         }
@@ -848,28 +893,21 @@ function renderGrid(d, measure) {
         const lux = (x1 - x0) / (Math.hypot(x1 - x0, y1 - y0) || 1)
         const luy = (y1 - y0) / (Math.hypot(x1 - x0, y1 - y0) || 1)
 
+        // A line through another box is hidden behind it and seems to start
+        // there. The server refuses only the obvious cases (it cannot measure);
+        // here every box has its real size, so the preview can say it exactly.
+        boxes.forEach((other) => {
+            if (other !== a && other !== b && segmentHitsRect(x0, y0, x1, y1, other)) {
+                crossings.push(`A relação "${e.from}" → "${e.to}" passa por cima de "${other.node.id}".`)
+            }
+        })
+
         svg.push(line(x0, y0, x1, y1, `uml-line${dash}`)
             + arrowEnd(style.to, x1, y1, lux, luy)
             + (style.from ? arrowEnd(style.from, x0, y0, -lux, -luy) : ''))
 
-        // The label sits beside the middle of the line, off it on the side
-        // the normal points up (or right, for a vertical line), anchored on
-        // its near end so a diagonal never runs through the words.
-        const words = [style.stereo ? `«${style.stereo}»` : '', e.label || ''].filter(Boolean).join(' ')
-        if (words) {
-            let nx = -luy
-            let ny = lux
-            if (ny > 0 || (Math.abs(ny) < 0.01 && nx < 0)) { nx = -nx; ny = -ny }
-            const mx = (x0 + x1) / 2 + nx * 10
-            const my = (y0 + y1) / 2 + ny * 10
-            const anchor = Math.abs(nx) < 0.3 ? 'middle' : nx > 0 ? 'start' : 'end'
-            const tw = measure(words, FONT)
-            labels.push(text(mx, my, words, 'uml-t uml-halo', anchor))
-            const left = anchor === 'start' ? mx : anchor === 'end' ? mx - tw : mx - tw / 2
-            grow(left, my - 8)
-            grow(left + tw, my + 8)
-        }
-        // End labels: multiplicity / role, near each end, off the line.
+        // End labels first — multiplicity and role belong at their end and
+        // have nowhere else to go — then the name, which may slide.
         const endLabel = (value, ex, ey, dx, dy) => {
             if (!value) return
             const px = -dy
@@ -877,12 +915,36 @@ function renderGrid(d, measure) {
             const flip = Math.abs(dy) > 0.9 ? 1 : (py > 0 ? -1 : 1)
             const lx = ex + dx * 20 + px * 11 * flip
             const ly = ey + dy * 20 + py * 11 * flip
+            const w = measure(value, SMALL)
             labels.push(text(lx, ly, value, 'uml-s uml-halo'))
-            grow(lx - measure(value, SMALL) / 2, ly - 8)
-            grow(lx + measure(value, SMALL) / 2, ly + 8)
+            place({x: lx - w / 2, y: ly - 8, w, h: 16})
         }
         endLabel(e.from_label, x0, y0, lux, luy)
         endLabel(e.to_label, x1, y1, -lux, -luy)
+
+        // The name sits beside the line, off it on the side the normal points
+        // up (or right, for a vertical line), anchored on its near end so a
+        // diagonal never runs through the words. It starts at the middle and
+        // slides along the line until it lands on neither a box nor another
+        // label; with no free spot it keeps the middle.
+        const words = [style.stereo ? `«${style.stereo}»` : '', e.label || ''].filter(Boolean).join(' ')
+        if (words) {
+            let nx = -luy
+            let ny = lux
+            if (ny > 0 || (Math.abs(ny) < 0.01 && nx < 0)) { nx = -nx; ny = -ny }
+            const anchor = Math.abs(nx) < 0.3 ? 'middle' : nx > 0 ? 'start' : 'end'
+            const tw = measure(words, FONT)
+            const at = (t) => {
+                const mx = x0 + (x1 - x0) * t + nx * 10
+                const my = y0 + (y1 - y0) * t + ny * 10
+                const left = anchor === 'start' ? mx : anchor === 'end' ? mx - tw : mx - tw / 2
+
+                return {mx, my, rect: {x: left - 2, y: my - 9, w: tw + 4, h: 18}}
+            }
+            const spot = [0.5, 0.38, 0.62, 0.28, 0.72, 0.2, 0.8].map(at).find((c) => free(c.rect)) || at(0.5)
+            labels.push(text(spot.mx, spot.my, words, 'uml-t uml-halo', anchor))
+            place(spot.rect)
+        }
     })
 
     boxes.forEach((box) => svg.push(drawNode(box.node, box, measure)))
@@ -895,6 +957,7 @@ function renderGrid(d, measure) {
     return {
         width: Math.ceil(maxX - minX + 2 * m),
         height: Math.ceil(maxY - minY + 2 * m),
+        warnings: crossings,
         body: `<g transform="translate(${r1(dx)} ${r1(dy)})">${svg.join('')}</g>`,
     }
 }
@@ -908,51 +971,71 @@ function renderGrid(d, measure) {
  * fragment operands have to be filled in here too, or a fragment the author
  * just typed would draw nothing.
  */
-function normalizeItems(items) {
+function normalizeItems(items, ids) {
+    const known = (id) => id === undefined || id === null || ids.has(id)
+
     return (Array.isArray(items) ? items : []).filter((item) => item && typeof item === 'object').map((item) => {
         if (item.fragment) {
             const operands = Array.isArray(item.operands)
                 ? item.operands
                 : [{label: item.label, messages: item.messages}, ...(Array.isArray(item.else) ? item.else : [])]
 
-            return {fragment: item.fragment, operands: operands.map((o) => ({label: o?.label || '', messages: normalizeItems(o?.messages)}))}
+            return {fragment: item.fragment, operands: operands.map((o) => ({label: o?.label || '', messages: normalizeItems(o?.messages, ids)}))}
         }
-        if (item.over !== undefined) return {...item, over: [].concat(item.over).filter((id) => typeof id === 'string')}
         if (item.divider !== undefined) return item
-        if (item.ref !== undefined || item.note !== undefined) return {...item, over: []}
+        if (item.ref !== undefined || item.note !== undefined) {
+            // Over nothing it is drawn: a note or a ref nobody placed yet.
+            const over = [].concat(item.over ?? []).filter((id) => typeof id === 'string' && ids.has(id))
+
+            return over.length ? {...item, over} : null
+        }
+        // A message to a participant that does not exist (yet) is skipped.
+        if (!known(item.from) || !known(item.to) || (!item.from && !item.to)) return null
 
         return {...item, label: item.label || '', kind: item.kind || 'sync'}
-    })
+    }).filter(Boolean)
 }
 
 function normalize(d) {
     if (d.type === 'sequence') {
-        return {
-            ...d,
-            participants: (d.participants || []).filter((p) => p && p.id).map((p) => ({kind: 'object', label: p.id, ...p})),
-            messages: normalizeItems(d.messages),
-        }
+        const participants = (Array.isArray(d.participants) ? d.participants : []).filter((p) => p && p.id).map((p) => ({kind: 'object', label: p.id, ...p}))
+
+        return {...d, participants, messages: normalizeItems(d.messages, new Set(participants.map((p) => p.id)))}
     }
 
     return {
         ...d,
-        nodes: (d.nodes || []).filter((n) => n && n.id).map((n) => ({kind: 'class', ...n})),
-        edges: (d.edges || []).filter((e) => e && e.from && e.to).map((e) => ({kind: 'association', ...e})),
-        groups: (d.groups || []).filter((g) => g && Array.isArray(g.nodes)),
+        nodes: (Array.isArray(d.nodes) ? d.nodes : []).filter((n) => n && n.id).map((n) => ({kind: 'class', ...n})),
+        edges: (Array.isArray(d.edges) ? d.edges : []).filter((e) => e && e.from && e.to).map((e) => ({kind: 'association', ...e})),
+        groups: (Array.isArray(d.groups) ? d.groups : []).filter((g) => g && Array.isArray(g.nodes)),
     }
 }
 
-/** The diagram as SVG markup at its natural size. */
+/**
+ * The diagram as SVG markup at its natural size — or an Error when there is
+ * nothing that can be drawn. The reader never gets there (UmlDiagram refuses
+ * such a diagram on the server); the editor's preview does while somebody
+ * types, and a thrown error is what makes its block SAY so instead of showing
+ * an empty box.
+ */
 export function renderUml(diagram, measure) {
     diagram = normalize(diagram)
+    if (diagram.type === 'sequence' ? !diagram.participants.length : !diagram.nodes.length) {
+        throw new Error(diagram.type === 'sequence' ? 'Nenhum participante para desenhar.' : 'Nenhum elemento para desenhar.')
+    }
     const drawn = diagram.type === 'sequence' ? renderSequence(diagram, measure) : renderGrid(diagram, measure)
+    if (!Number.isFinite(drawn.width) || !Number.isFinite(drawn.height) || drawn.body.includes('NaN')) {
+        throw new Error('O diagrama não pôde ser desenhado.')
+    }
     const label = diagram.title || diagram.type
+    const uid = `ak-uml-${++figures}`
 
     return {
         width: drawn.width,
         height: drawn.height,
+        warnings: drawn.warnings || [],
         svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${drawn.width} ${drawn.height}" width="${drawn.width}" height="${drawn.height}"`
-            + ` role="img" aria-label="${esc(label)}" aria-hidden="true" class="ak-uml__svg">${STYLE}${drawn.body}</svg>`,
+            + ` id="${uid}" role="img" aria-label="${esc(label)}" aria-hidden="true" class="ak-uml__svg">${figureStyle(uid)}${drawn.body}</svg>`,
     }
 }
 
@@ -1040,17 +1123,21 @@ export function mountUml(stage, diagram) {
     }
 
     state.diagram = diagram
-    paint(stage, state)
+
+    return paint(stage, state)
 }
 
+/** @returns {{warnings: string[]}} what the editor's block shows under its preview */
 function paint(stage, state) {
-    const {svg, width} = renderUml(state.diagram, measurer(getComputedStyle(stage).fontFamily))
+    const {svg, width, warnings} = renderUml(state.diagram, measurer(getComputedStyle(stage).fontFamily))
     stage.innerHTML = svg
     // Inline it shrinks to the column, but never below 60% of its size: past
     // that the labels stop being legible, and the stage scrolls instead.
     stage.firstElementChild.style.minWidth = `${Math.round(width * 0.6)}px`
     stage.append(state.zoom, state.expand)
     syncButtons(stage, state)
+
+    return {warnings}
 }
 
 /** Reader side: every figure GitbookRenderer emitted with its data. */

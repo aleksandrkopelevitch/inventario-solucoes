@@ -104,6 +104,18 @@ final class UmlDiagram
     /** @var list<string> */
     private array $problems = [];
 
+    /**
+     * Layout mistakes the picture survives but misleads with — a relation
+     * drawn straight through another element, which hides the line behind
+     * the box and makes the arrow seem to start there. Drawn on READ (a page
+     * written before this check must not turn into an error box) and refused
+     * on WRITE (GitbookRenderer::problems()), where the author can still move
+     * an element.
+     *
+     * @var list<string>
+     */
+    private array $warnings = [];
+
     private int $rows = 0;
 
     private function __construct(private readonly string $type) {}
@@ -111,14 +123,14 @@ final class UmlDiagram
     /**
      * The diagram as the renderer draws it, or everything wrong with it.
      *
-     * @return array{diagram: ?array<string, mixed>, problems: list<string>}
+     * @return array{diagram: ?array<string, mixed>, problems: list<string>, warnings: list<string>}
      */
     public static function parse(string $type, string $title, string $body): array
     {
         $type = trim($type);
 
         if (! array_key_exists($type, self::TYPES)) {
-            return ['diagram' => null, 'problems' => [
+            return ['diagram' => null, 'warnings' => [], 'problems' => [
                 'O tipo "' . $type . '" não existe. Use um destes: ' . implode(', ', array_keys(self::TYPES)) . '.',
             ]];
         }
@@ -126,7 +138,7 @@ final class UmlDiagram
         $data = json_decode(trim($body), true);
 
         if (! is_array($data) || array_is_list($data)) {
-            return ['diagram' => null, 'problems' => [
+            return ['diagram' => null, 'warnings' => [], 'problems' => [
                 'O corpo de {% uml %} deve ser um objeto JSON válido'
                 . (json_last_error() !== JSON_ERROR_NONE ? ' (' . json_last_error_msg() . ')' : '') . '.',
             ]];
@@ -138,8 +150,8 @@ final class UmlDiagram
         $diagram += $type === 'sequence' ? $parser->sequence($data) : $parser->grid($data);
 
         return $parser->problems === []
-            ? ['diagram' => $diagram, 'problems' => []]
-            : ['diagram' => null, 'problems' => $parser->problems];
+            ? ['diagram' => $diagram, 'problems' => [], 'warnings' => $parser->warnings]
+            : ['diagram' => null, 'problems' => $parser->problems, 'warnings' => $parser->warnings];
     }
 
     /* ------------------------------------------------------------------ */
@@ -243,6 +255,14 @@ final class UmlDiagram
                     'label'    => $this->text($item['label'] ?? '', "\"label\" do {$here}", self::MAX_LABEL),
                     'messages' => $this->items($item['messages'] ?? null, $ids, "{$path}.messages", $depth + 1),
                 ]];
+
+                // An `else` is another OPERAND, which only alt (alternatives)
+                // and par (parallel branches) have: an opt or a loop with one
+                // would be drawn as a compartment UML does not give it.
+                if (! empty($item['else']) && ! in_array($item['fragment'], ['alt', 'par'], true)) {
+                    $kind = is_string($item['fragment']) ? $item['fragment'] : '?';
+                    $this->problems[] = "O {$here} é um \"{$kind}\": \"else\" só vale em alt e par.";
+                }
 
                 foreach (is_array($item['else'] ?? null) ? $item['else'] : [] as $k => $operand) {
                     $this->rows++;
@@ -411,6 +431,8 @@ final class UmlDiagram
             $this->problems[] = 'O diagrama tem ' . count($edges) . ' relações; o máximo é ' . self::MAX_EDGES . '.';
         }
 
+        $this->crossings($nodes, $edges);
+
         return [
             'nodes'  => array_values($nodes),
             'edges'  => $edges,
@@ -504,6 +526,88 @@ final class UmlDiagram
         }
 
         return $out;
+    }
+
+    /**
+     * Relations whose straight line crosses another element's cell.
+     *
+     * Judged in GRID units, since the real sizes are measured in the browser,
+     * and so judged CONSERVATIVELY: only the core of a cell counts (0.4 of a
+     * column, 0.4 of a row around its centre), because this refuses a write
+     * and a false alarm costs more than a miss. That catches a line drawn
+     * along a row or a column through a neighbour, and a diagonal through a
+     * cell's middle. A near miss passes here; the editor's preview, which
+     * knows every box's real size, flags it (docs-uml.js `crossings`). The
+     * EndoFlow "Contêineres" diagram is the case that set the size: its line
+     * from the SPA to Supabase clears the Worker's box by a few pixels, and a
+     * 0.6-wide core called that a crossing.
+     *
+     * @param  array<string, array<string, mixed>>  $nodes
+     * @param  list<array<string, mixed>>  $edges
+     */
+    private function crossings(array $nodes, array $edges): void
+    {
+        foreach ($edges as $edge) {
+            $from = $nodes[$edge['from'] ?? ''] ?? null;
+            $to = $nodes[$edge['to'] ?? ''] ?? null;
+
+            if (! isset($from['at'], $to['at']) || $edge['from'] === $edge['to']) {
+                continue;
+            }
+
+            foreach ($nodes as $id => $node) {
+                if ($id === $edge['from'] || $id === $edge['to'] || ! isset($node['at'])) {
+                    continue;
+                }
+
+                [$c, $r] = $node['at'];
+
+                if (self::segmentHitsBox($from['at'], $to['at'], [$c - 0.2, $r - 0.2, $c + 0.2, $r + 0.2])) {
+                    $this->warnings[] = "A relação \"{$edge['from']}\" → \"{$edge['to']}\" passa por cima do elemento \"{$id}\": "
+                        . 'no desenho a linha fica escondida atrás dele e parece sair dele. Mova um dos elementos para outra célula.';
+                }
+            }
+        }
+    }
+
+    /**
+     * Liang–Barsky: does the segment a→b touch the box [x1, y1, x2, y2]?
+     *
+     * @param  array{0: int, 1: int}  $a
+     * @param  array{0: int, 1: int}  $b
+     * @param  array{0: float, 1: float, 2: float, 3: float}  $box
+     */
+    private static function segmentHitsBox(array $a, array $b, array $box): bool
+    {
+        [$x0, $y0] = $a;
+        $dx = $b[0] - $x0;
+        $dy = $b[1] - $y0;
+        $low = 0.0;
+        $high = 1.0;
+
+        foreach ([[-$dx, $x0 - $box[0]], [$dx, $box[2] - $x0], [-$dy, $y0 - $box[1]], [$dy, $box[3] - $y0]] as [$p, $q]) {
+            if ($p == 0) {
+                if ($q < 0) {
+                    return false;
+                }
+
+                continue;
+            }
+
+            $t = $q / $p;
+
+            if ($p < 0) {
+                $low = max($low, $t);
+            } else {
+                $high = min($high, $t);
+            }
+
+            if ($low > $high) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /* ------------------------------------------------------------------ */

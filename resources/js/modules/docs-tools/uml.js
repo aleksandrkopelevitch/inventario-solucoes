@@ -189,10 +189,10 @@ export default class UmlTool {
         }
 
         try {
-            mountUml(stage, {...body, type: this.data.type, title: this.data.title})
-            status.textContent = ''
-        } catch {
-            status.textContent = 'Não foi possível desenhar este diagrama — confira os ids, os "kind" e as posições "at". Ao salvar, a página lista cada problema.'
+            const {warnings} = mountUml(stage, {...body, type: this.data.type, title: this.data.title})
+            status.textContent = warnings.length ? `Aviso: ${warnings.join(' ')} Mova um dos elementos para outra célula.` : ''
+        } catch (error) {
+            status.textContent = `${error?.message || 'Não foi possível desenhar este diagrama.'} Confira os ids, os "kind" e as posições "at"; ao salvar, a página lista cada problema.`
             stage.replaceChildren()
         }
     }

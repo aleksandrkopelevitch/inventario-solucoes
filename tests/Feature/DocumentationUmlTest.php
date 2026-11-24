@@ -137,3 +137,36 @@ it('teaches only examples that pass the validator', function () {
     preg_match('/```\n(\{% scene.*?\{% endscene %\})\n```/s', $guide, $scene);
     expect((new GitbookRenderer)->problems($scene[1]))->toBe([]);
 });
+
+it('accepts else only on alt and par', function () {
+    $body = sequenceBody();
+    $body['messages'][1]['fragment'] = 'opt';
+
+    expect(implode(' ', UmlDiagram::parse('sequence', '', json_encode($body))['problems']))
+        ->toContain('"else" só vale em alt e par');
+
+    $body['messages'][1]['fragment'] = 'par';
+    expect(UmlDiagram::parse('sequence', '', json_encode($body))['problems'])->toBe([]);
+});
+
+it('refuses on write a relation drawn through another element, and still draws it on read', function () {
+    $crossing = ['nodes' => [
+        ['id' => 'a', 'kind' => 'class', 'name' => 'A', 'at' => [0, 0]],
+        ['id' => 'b', 'kind' => 'class', 'name' => 'B', 'at' => [1, 0]],
+        ['id' => 'c', 'kind' => 'class', 'name' => 'C', 'at' => [2, 0]],
+    ], 'edges' => [['from' => 'a', 'to' => 'c', 'kind' => 'dependency']]];
+    $markdown = umlBlock('class', $crossing);
+
+    expect((new GitbookRenderer)->problems($markdown)[0])->toContain('"a" → "c" passa por cima do elemento "b"')
+        ->and((new GitbookRenderer)->render($markdown))->toContain('data-ak-uml=');
+
+    // A diagonal that slips past a cell's corner is not a crossing: the
+    // check refuses a write, so it judges only a cell's core (see crossings()).
+    $nearMiss = ['nodes' => [
+        ['id' => 'spa', 'kind' => 'component', 'name' => 'SPA', 'at' => [1, 0]],
+        ['id' => 'fn', 'kind' => 'component', 'name' => 'Worker', 'at' => [1, 1]],
+        ['id' => 'db', 'kind' => 'database', 'name' => 'Banco', 'at' => [0, 3]],
+    ], 'edges' => [['from' => 'spa', 'to' => 'db', 'kind' => 'flow']]];
+
+    expect((new GitbookRenderer)->problems(umlBlock('component', $nearMiss)))->toBe([]);
+});

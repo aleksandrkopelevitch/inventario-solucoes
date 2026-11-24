@@ -249,7 +249,10 @@ class UpdatePage extends DocumentationWriteTool
      *
      * A UML diagram written into the page is drawn content like a citation,
      * so dropping one is a loss to confirm; it is named by its title (its type
-     * when it has none), the label a person recognises it by.
+     * when it has none), the label a person recognises it by. Two diagrams
+     * with the same label are two items — the second is `uml:{label}#2` — so
+     * dropping one of a pair is a loss too: deduplicated, a pair and a single
+     * diagram would read the same and the drop would pass unconfirmed.
      *
      * A diagram counts only as the renderer reads it — alone on its line
      * (GitbookRenderer): moved into a sentence it is text, and the citation is
@@ -267,15 +270,30 @@ class UpdatePage extends DocumentationWriteTool
 
         return array_values(array_unique([
             ...array_map(fn (string $slug) => "diagram:{$slug}", $diagrams[1]),
-            ...array_map(function (string $attrs): string {
-                preg_match('/title="([^"]*)"/', $attrs, $title);
-                preg_match('/type="([^"]*)"/', $attrs, $type);
-
-                return 'uml:' . (html_entity_decode($title[1] ?? '', ENT_QUOTES) ?: ($type[1] ?? ''));
-            }, $umls[1]),
+            ...self::umlItems($umls[1]),
             ...array_map(fn (string $id) => "file:{$id}", $files[1]),
             ...array_map(fn (string $src) => "file:{$src}", array_filter($sources[1], fn (string $src) => ! preg_match('#^/files/\d+$#', $src))),
         ]));
+    }
+
+    /**
+     * `uml:{label}` per diagram, numbered from the second one that shares a label.
+     *
+     * @param  list<string>  $attributes  each `{% uml … %}` line's attributes
+     * @return list<string>
+     */
+    private static function umlItems(array $attributes): array
+    {
+        $seen = [];
+
+        return array_map(function (string $attrs) use (&$seen): string {
+            preg_match('/title="([^"]*)"/', $attrs, $title);
+            preg_match('/type="([^"]*)"/', $attrs, $type);
+            $label = 'uml:' . (html_entity_decode($title[1] ?? '', ENT_QUOTES) ?: ($type[1] ?? ''));
+            $seen[$label] = ($seen[$label] ?? 0) + 1;
+
+            return $seen[$label] === 1 ? $label : "{$label}#{$seen[$label]}";
+        }, $attributes);
     }
 
     /** @return list<string> */

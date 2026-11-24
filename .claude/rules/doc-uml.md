@@ -74,6 +74,34 @@ Five things that are easy to undo:
   `file:{…}`. The Assiste IA freezes the block whole (`BlockVault`, "diagrama
   UML"), like a scene.
 
+**Three things the first review found (2026-11-24), each fixed and each easy to undo:**
+
+- **Every figure owns its gradients.** The ids are `ak-uml-{n}-fill/-head/-note`,
+  and the rules that paint with them are scoped to the figure's `<svg id>`
+  (`figureStyle()`). With one shared `uml-fill`, every `url(#uml-fill)` on the
+  page resolved to the FIRST declaration, and when that figure sat in a hidden
+  tab Chrome painted every other diagram's boxes with no fill — verified in
+  headless Chrome before and after. Never move those three rules back into the
+  shared, unscoped part of the style.
+- **A relation drawn through another element is refused on write, drawn on
+  read.** `UmlDiagram::$warnings` (judged in grid units, on a cell's 0.4 core
+  only, because it refuses a write and a false alarm costs more than a miss)
+  joins `problems()` for MCP writes; the reader never turns a stored diagram
+  into an error box over it. The editor's preview, which knows every box's real
+  size, reports the exact crossings (`renderUml().warnings`) under the block.
+  The first EndoFlow documentation shipped two such crossings that a node-side
+  PNG render (approximate text widths) did not show — check a layout with the
+  browser's own metrics, not with `sharp`.
+- **Edge names slide along their line** until they land on neither a box nor
+  another label (end labels — multiplicity, role — are placed first and never
+  move). With no free spot the name keeps the middle.
+- **A preview that cannot be drawn throws**, and the editor's block prints the
+  message: no participants/elements, or anything that produced a non-finite
+  size or a `NaN`. Messages, notes and refs pointing at unknown participants
+  are skipped, so a half-typed JSON still previews what it can.
+- **Two diagrams with the same label are two loss items** (`uml:{label}#2`):
+  deduplicated, dropping one of a pair passed unconfirmed.
+
 **Inline it is a picture; fullscreen is the way to read a big one.** The SVG
 shrinks to the column but never below 60% of its natural width (the stage
 scrolls past that — labels stop being legible). The figure carries
