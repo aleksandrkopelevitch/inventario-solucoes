@@ -1054,8 +1054,8 @@ class GitbookRenderer
      */
     private function umlSequenceText(array $items, array $participants): string
     {
-        $name = fn (?string $id): string => $id === null
-            ? '(externo)'
+        $name = fn (?string $id, bool $gate = false): string => $id === null
+            ? ($gate ? '(portão)' : '(externo)')
             : e(collect($participants)->firstWhere('id', $id)['label'] ?? $id);
         $html = '';
 
@@ -1069,6 +1069,8 @@ class GitbookRenderer
                 }
 
                 $html .= '</li>';
+            } elseif (isset($item['state'])) {
+                $html .= '<li><em>estado</em> (' . implode(', ', array_map($name, $item['over'])) . '): ' . e($item['state']) . '</li>';
             } elseif (isset($item['ref']) || isset($item['note'])) {
                 $key = isset($item['ref']) ? 'ref' : 'note';
                 $html .= '<li><em>' . ($key === 'ref' ? 'ref' : 'nota') . '</em> ('
@@ -1076,7 +1078,8 @@ class GitbookRenderer
             } elseif (isset($item['divider'])) {
                 $html .= '<li><em>— ' . e($item['divider']) . ' —</em></li>';
             } else {
-                $html .= '<li><strong>' . $name($item['from'] ?? null) . '</strong> → <strong>' . $name($item['to'] ?? null) . '</strong>'
+                $gate = (bool) ($item['gate'] ?? false);
+                $html .= '<li><strong>' . $name($item['from'] ?? null, $gate) . '</strong> → <strong>' . $name($item['to'] ?? null, $gate) . '</strong>'
                     . ($item['label'] !== '' ? ': ' . e($item['label']) : '')
                     . ' <em>(' . UmlDiagram::MESSAGE_LABELS[$item['kind']] . ')</em></li>';
             }
@@ -1096,7 +1099,8 @@ class GitbookRenderer
                 ->map(fn (array $lines, string $label) => " — {$label}: " . e(implode('; ', $lines)))
                 ->implode('');
 
-            return '<li><strong>' . e($node['name'] ?? $node['text'] ?? '') . '</strong> <em>(' . UmlDiagram::NODE_LABELS[$node['kind']]
+            return '<li><strong>' . e($node['name'] ?? $node['text'] ?? '') . (isset($node['template']) ? '&lt;' . e($node['template']) . '&gt;' : '')
+                . '</strong> <em>(' . UmlDiagram::NODE_LABELS[$node['kind']]
                 . (isset($node['stereotype']) ? ' «' . e($node['stereotype']) . '»' : '') . ')</em>' . $members . '</li>';
         })->implode('');
 
@@ -1106,7 +1110,9 @@ class GitbookRenderer
         $edges = collect($diagram['edges'])->map(fn (array $edge) => '<li>' . e($names[$edge['from']]) . ' → ' . e($names[$edge['to']])
             . ' <em>(' . UmlDiagram::EDGE_LABELS[$edge['kind']] . ')</em>'
             . (isset($edge['label']) ? ': ' . e($edge['label']) : '')
-            . (isset($edge['from_label']) || isset($edge['to_label']) ? ' [' . e(($edge['from_label'] ?? '') . ' → ' . ($edge['to_label'] ?? '')) . ']' : '')
+            . (array_intersect_key($edge, array_flip(['from_label', 'from_role', 'to_label', 'to_role'])) !== []
+                ? ' [' . e(trim(($edge['from_label'] ?? '') . ' ' . ($edge['from_role'] ?? '')) . ' → ' . trim(($edge['to_label'] ?? '') . ' ' . ($edge['to_role'] ?? ''))) . ']'
+                : '')
             . '</li>')->implode('');
 
         return '<div class="ak-uml__text"><ul>' . $elements . '</ul>'
@@ -1137,6 +1143,14 @@ class GitbookRenderer
 
         foreach ($this->figureBlocks($markdown) as $block) {
             if (in_array($block['raw'], $known, true)) {
+                continue;
+            }
+
+            if ($block['inHint']) {
+                $label = $block['kind'] === 'uml' ? 'Um diagrama UML' : 'Uma cena';
+                $problems[] = "{$label} está dentro de um {% hint %}: a página o desenha, mas o editor do app mostra ali só o texto cru, "
+                    . 'sem a figura. Coloque o bloco fora do aviso.';
+
                 continue;
             }
 
@@ -1240,17 +1254,28 @@ class GitbookRenderer
      * Every scene and UML block of a body, at any nesting (a hint or a tab
      * may hold one), with the exact lines it was written as.
      *
-     * @return list<array{kind: string, attrs: array<string, string>, inner: array<int, string>, raw: string, closed: bool}>
+     * `inHint` marks a block inside a `{% hint %}`: the reader draws it (a
+     * hint's body goes through renderLines()), but the editor's hint is
+     * inline text, so the figure shows there as raw markup.
+     *
+     * @return list<array{kind: string, attrs: array<string, string>, inner: array<int, string>, raw: string, closed: bool, inHint: bool}>
      */
     private function figureBlocks(string $markdown): array
     {
         $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $markdown));
         $blocks = [];
+        $hints = 0;
         $i = 0;
         $n = count($lines);
 
         while ($i < $n) {
             $trimmed = trim($lines[$i]);
+
+            if (preg_match('/^\{%\s*hint\b/', $trimmed)) {
+                $hints++;
+            } elseif (preg_match('/^\{%\s*endhint\s*%\}$/', $trimmed)) {
+                $hints = max(0, $hints - 1);
+            }
 
             if (preg_match('/^(```|~~~)/', $trimmed, $m)) {
                 $i++;
@@ -1273,6 +1298,7 @@ class GitbookRenderer
                     'inner'  => $inner,
                     'raw'    => implode("\n", array_slice($lines, $start, $i - $start)),
                     'closed' => $closed,
+                    'inHint' => $hints > 0,
                 ];
 
                 continue;

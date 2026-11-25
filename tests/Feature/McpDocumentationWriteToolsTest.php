@@ -518,3 +518,18 @@ it('tells a reader what a uml or scene block is and where its syntax lives', fun
 
     expect($description)->toContain('{% uml type=')->toContain('{% scene type=')->toContain('get_code_documentation_guide');
 });
+
+it('answers the editor block with the problems the page would show, and only to an editor', function () {
+    $page = mcpDocPage('Texto');
+    $url = route('notebooks.pages.uml', [$page->notebook, $page]);
+    $bad = ['type' => 'class', 'source' => json_encode(['nodes' => [['id' => 'a', 'kind' => 'class', 'name' => 'A']]])];
+
+    test()->actingAs(docsWriter())->postJson($url, $bad)
+        ->assertOk()->assertJsonPath('problems.0', fn (string $problem) => str_contains($problem, '"at"'));
+
+    $good = ['nodes' => [['id' => 'a', 'kind' => 'class', 'name' => 'A', 'at' => [0, 0]]]];
+    test()->actingAs(docsWriter())->postJson($url, ['type' => 'class', 'source' => json_encode($good)])
+        ->assertOk()->assertExactJson(['problems' => []]);
+
+    test()->actingAs(User::factory()->reader()->create())->postJson($url, $bad)->assertForbidden();
+});

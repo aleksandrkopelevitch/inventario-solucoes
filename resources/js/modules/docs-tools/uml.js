@@ -6,8 +6,11 @@
 // button included. The JSON is the source of truth on purpose: it is what a
 // model writes through the MCP server, and one notation edited by both is the
 // only way the two never drift. The SERVER is the judge of a valid diagram
-// (App\Support\Documentation\UmlDiagram): this preview only says when the JSON
-// does not parse or draw, and the reading screen lists every reason.
+// (App\Support\Documentation\UmlDiagram), and the block ASKS it
+// (`umlCheckUrl`, NotebookPageUmlController) a moment after the author stops
+// typing: the preview is lenient by design — it draws an element with no
+// `at`, an unknown kind, two elements in one cell — and without the question
+// the author saved a picture the page then showed as an error box.
 //
 // Typing in a textarea changes a property, not the DOM tree, so Editor.js
 // would never notice it — each field calls `dispatchChange()`. The preview
@@ -85,7 +88,7 @@ export default class UmlTool {
         return true
     }
 
-    constructor({data, block, readOnly}) {
+    constructor({data, block, readOnly, config}) {
         this.data = {
             type: TYPES[data?.type] ? data.type : 'sequence',
             title: data?.title || '',
@@ -94,6 +97,9 @@ export default class UmlTool {
         this.block = block
         this.readOnly = readOnly
         this.timer = null
+        this.checkUrl = config?.umlCheckUrl || ''
+        this.checkTimer = null
+        this.ticket = 0
     }
 
     render() {
@@ -178,6 +184,9 @@ export default class UmlTool {
     }
 
     paint(stage, status) {
+        // Whatever an older server question answers no longer describes this text.
+        this.ticket++
+        clearTimeout(this.checkTimer)
         let body
         try {
             body = JSON.parse(this.data.source || '{}')
@@ -191,10 +200,42 @@ export default class UmlTool {
         try {
             const {warnings} = mountUml(stage, {...body, type: this.data.type, title: this.data.title})
             status.textContent = warnings.length ? `Aviso: ${warnings.join(' ')} Mova um dos elementos para outra célula.` : ''
+            this.askServer(status)
         } catch (error) {
             status.textContent = `${error?.message || 'Não foi possível desenhar este diagrama.'} Confira os ids, os "kind" e as posições "at"; ao salvar, a página lista cada problema.`
             stage.replaceChildren()
         }
+    }
+
+    /**
+     * Asks the page's validator about the diagram as it stands, and says so
+     * when the page would refuse it. Debounced, and only the LAST question's
+     * answer is shown — an answer to an older text is dropped. A failed
+     * request says nothing: the preview is still right about what it draws.
+     */
+    askServer(status) {
+        if (!this.checkUrl || this.readOnly) return
+        const ticket = ++this.ticket
+        clearTimeout(this.checkTimer)
+        this.checkTimer = setTimeout(async () => {
+            try {
+                const response = await fetch(this.checkUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                    },
+                    body: JSON.stringify({type: this.data.type, title: this.data.title, source: this.data.source}),
+                })
+                if (!response.ok || ticket !== this.ticket) return
+                const {problems = []} = await response.json()
+                if (ticket !== this.ticket || !problems.length) return
+                status.textContent = `A página vai mostrar este diagrama como erro: ${problems.join(' · ')}`
+            } catch {
+                // Unreachable server: the preview stays the only word.
+            }
+        }, 700)
     }
 
     save() {

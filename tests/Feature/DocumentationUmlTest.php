@@ -170,3 +170,59 @@ it('refuses on write a relation drawn through another element, and still draws i
 
     expect((new GitbookRenderer)->problems(umlBlock('component', $nearMiss)))->toBe([]);
 });
+
+it('draws the rest of the reference palette and says so in the text', function () {
+    $sequence = [
+        'participants' => [['id' => 'a', 'label' => 'Cliente', 'kind' => 'actor'], ['id' => 'b', 'label' => 'API']],
+        'messages'     => [
+            ['to' => 'b', 'label' => 'evento externo', 'kind' => 'async', 'gate' => true],
+            ['state' => 'Aguardando pagamento', 'over' => ['b']],
+            ['from'  => 'a', 'to' => 'b', 'label' => 'pagar'],
+        ],
+    ];
+    $structure = [
+        'nodes' => [
+            ['id' => 'lista', 'kind' => 'class', 'name' => 'Lista', 'template' => 'T', 'at' => [0, 0]],
+            ['id' => 'emp', 'kind' => 'class', 'name' => 'Empregado', 'at' => [2, 0]],
+            ['id' => 'n', 'kind' => 'nary', 'at' => [1, 1]],
+            ['id' => 'proj', 'kind' => 'class', 'name' => 'Projeto', 'at' => [0, 2]],
+            ['id' => 'req', 'kind' => 'note', 'stereotype' => 'requirement', 'text' => 'Todo projeto tem gerente.', 'at' => [3, 0]],
+            ['id' => 'txt', 'kind' => 'text', 'text' => '{ordered}', 'at' => [3, 2]],
+            ['id' => 'div', 'kind' => 'divider', 'name' => 'fronteira', 'at' => [4, 1]],
+            ['id' => 'p', 'kind' => 'port', 'name' => 'http', 'at' => [5, 1]],
+        ],
+        'edges' => [
+            ['from' => 'n', 'to' => 'emp', 'kind' => 'association'],
+            ['from' => 'n', 'to' => 'proj', 'kind' => 'association'],
+            ['from' => 'proj', 'to' => 'lista', 'kind' => 'association', 'from_label' => '*', 'from_role' => 'projetos', 'to_label' => '1', 'to_role' => 'lista'],
+            ['from' => 'req', 'to' => 'emp', 'kind' => 'callout'],
+        ],
+    ];
+
+    $html = (new GitbookRenderer)->render(umlBlock('sequence', $sequence) . "\n\n" . umlBlock('class', $structure));
+
+    expect((new GitbookRenderer)->problems(umlBlock('sequence', $sequence) . "\n\n" . umlBlock('class', $structure)))->toBe([])
+        ->and($html)->toContain('<strong>(portão)</strong> → <strong>API</strong>')
+        ->toContain('<em>estado</em> (API): Aguardando pagamento')
+        ->toContain('Lista&lt;T&gt;')
+        ->toContain('<em>(associação n-ária)</em>')
+        ->toContain('[* projetos → 1 lista]')
+        ->toContain('<em>(chamada)</em>');
+});
+
+it('refuses a gate with both ends and a template on what is not a class', function () {
+    $sequence = sequenceBody();
+    $sequence['messages'][0]['gate'] = true;
+    expect(implode(' ', UmlDiagram::parse('sequence', '', json_encode($sequence))['problems']))->toContain('"gate"');
+
+    $structure = classBody();
+    $structure['nodes'][] = ['id' => 'c', 'kind' => 'component', 'name' => 'C', 'template' => 'T', 'at' => [3, 3]];
+    expect(implode(' ', UmlDiagram::parse('class', '', json_encode($structure))['problems']))->toContain('"template", que só vale em class');
+});
+
+it('refuses on write a figure inside a hint, which the editor can only show as text', function () {
+    $markdown = "{% hint style=\"info\" %}\nAviso.\n\n" . umlBlock('class', classBody()) . "\n{% endhint %}";
+
+    expect((new GitbookRenderer)->problems($markdown)[0])->toContain('dentro de um {% hint %}')
+        ->and((new GitbookRenderer)->render($markdown))->toContain('data-ak-uml=');
+});

@@ -46,11 +46,17 @@ final class UmlDiagram
         'class', 'abstract', 'interface', 'enum', 'object', 'component', 'node', 'artifact',
         'package', 'actor', 'usecase', 'database', 'lollipop', 'note',
         'action', 'decision', 'initial', 'final', 'fork', 'state',
+        // The rest of the reference palette: a port on a component's edge,
+        // the diamond of an n-ary association, free text, a vertical divider.
+        'port', 'nary', 'text', 'divider',
     ];
+
+    /** Kinds whose box may carry a template parameter (`template`, drawn in a dashed box on the corner). */
+    public const TEMPLATE_KINDS = ['class', 'abstract', 'interface'];
 
     public const EDGE_KINDS = [
         'association', 'directed', 'inheritance', 'realization', 'dependency',
-        'composition', 'aggregation', 'flow', 'include', 'extend', 'note',
+        'composition', 'aggregation', 'flow', 'include', 'extend', 'note', 'callout',
     ];
 
     public const GROUP_KINDS = ['package', 'boundary', 'node', 'frame'];
@@ -66,13 +72,14 @@ final class UmlDiagram
         'package'  => 'pacote', 'actor' => 'ator', 'usecase' => 'caso de uso', 'database' => 'banco de dados',
         'lollipop' => 'interface fornecida', 'note' => 'nota', 'action' => 'ação', 'decision' => 'decisão',
         'initial'  => 'início', 'final' => 'fim', 'fork' => 'bifurcação', 'state' => 'estado',
+        'port'     => 'porta', 'nary' => 'associação n-ária', 'text' => 'texto', 'divider' => 'divisor',
     ];
 
     public const EDGE_LABELS = [
         'association' => 'associação', 'directed' => 'associação navegável', 'inheritance' => 'herança',
         'realization' => 'realização', 'dependency' => 'dependência', 'composition' => 'composição',
         'aggregation' => 'agregação', 'flow' => 'fluxo', 'include' => 'inclusão', 'extend' => 'extensão',
-        'note'        => 'nota',
+        'note'        => 'nota', 'callout' => 'chamada',
     ];
 
     public const GROUP_LABELS = ['package' => 'pacote', 'boundary' => 'fronteira', 'node' => 'nó', 'frame' => 'moldura'];
@@ -302,13 +309,37 @@ final class UmlDiagram
                 continue;
             }
 
-            $from = $item['from'] ?? null;
-            $to = $item['to'] ?? null;
+            // A state invariant on one lifeline, or a continuation across
+            // several: the rounded box of the reference palette.
+            if (array_key_exists('state', $item)) {
+                $over = array_values(array_filter((array) ($item['over'] ?? []), 'is_string'));
 
-            if ($from === null && $to === null) {
-                $this->problems[] = "O {$here} não é mensagem, fragmento, ref, note nem divider: uma mensagem precisa de \"from\" e/ou \"to\".";
+                if ($over === [] || array_diff($over, $ids) !== []) {
+                    $this->problems[] = "O {$here} precisa de \"over\" com 1 ou mais ids de participantes existentes.";
+                }
+
+                $out[] = [
+                    'state' => $this->text($item['state'], "\"state\" do {$here}", self::MAX_LABEL, required: true),
+                    'over'  => $over,
+                ];
 
                 continue;
+            }
+
+            $from = $item['from'] ?? null;
+            $to = $item['to'] ?? null;
+            $gate = ($item['gate'] ?? false) === true;
+
+            if ($from === null && $to === null) {
+                $this->problems[] = "O {$here} não é mensagem, fragmento, ref, note, state nem divider: uma mensagem precisa de \"from\" e/ou \"to\".";
+
+                continue;
+            }
+
+            // A gate is the end of a message on the diagram's frame: the other
+            // end is a participant, so exactly one of from/to is given.
+            if ($gate && $from !== null && $to !== null) {
+                $this->problems[] = "O {$here} tem \"gate\": a mensagem vem de um portão ou vai para um, então só um de \"from\" e \"to\" é informado.";
             }
 
             foreach (['from' => $from, 'to' => $to] as $end => $value) {
@@ -328,6 +359,7 @@ final class UmlDiagram
                 'to'    => $to,
                 'label' => $this->text($item['label'] ?? '', "\"label\" do {$here}", self::MAX_LABEL),
                 'kind'  => $kind,
+                'gate'  => $gate ?: null,
             ], fn ($value) => $value !== null);
         }
 
@@ -380,13 +412,19 @@ final class UmlDiagram
                 continue;
             }
 
-            $nameRequired = ! in_array($kind, ['initial', 'final', 'fork', 'decision', 'note'], true);
+            $nameRequired = ! in_array($kind, ['initial', 'final', 'fork', 'decision', 'note', 'text', 'port', 'nary', 'divider'], true);
+            $hasText = in_array($kind, ['note', 'text'], true);
+
+            if (isset($item['template']) && ! in_array($kind, self::TEMPLATE_KINDS, true)) {
+                $this->problems[] = "O {$where} tem \"template\", que só vale em " . implode(', ', self::TEMPLATE_KINDS) . '.';
+            }
 
             $nodes[$id] = array_filter([
                 'id'         => $id,
                 'kind'       => $kind,
                 'name'       => $this->text($item['name'] ?? '', "\"name\" do {$where}", self::MAX_LABEL, required: $nameRequired),
-                'text'       => $kind === 'note' ? $this->text($item['text'] ?? '', "\"text\" do {$where}", self::MAX_NOTE, required: true) : null,
+                'text'       => $hasText ? $this->text($item['text'] ?? '', "\"text\" do {$where}", self::MAX_NOTE, required: true) : null,
+                'template'   => in_array($kind, self::TEMPLATE_KINDS, true) ? $this->text($item['template'] ?? '', "\"template\" do {$where}", 30) : null,
                 'stereotype' => $this->text($item['stereotype'] ?? '', "\"stereotype\" do {$where}", 40),
                 'attributes' => $this->lines($item['attributes'] ?? [], "\"attributes\" do {$where}"),
                 'operations' => $this->lines($item['operations'] ?? [], "\"operations\" do {$where}"),
@@ -424,6 +462,10 @@ final class UmlDiagram
                 'label'      => $this->text($item['label'] ?? '', "\"label\" da {$where}", self::MAX_LABEL),
                 'from_label' => $this->text($item['from_label'] ?? '', "\"from_label\" da {$where}", 30),
                 'to_label'   => $this->text($item['to_label'] ?? '', "\"to_label\" da {$where}", 30),
+                // A role beside the multiplicity, on the other side of the
+                // line — the reference's "1 / manager".
+                'from_role' => $this->text($item['from_role'] ?? '', "\"from_role\" da {$where}", 30),
+                'to_role'   => $this->text($item['to_role'] ?? '', "\"to_role\" da {$where}", 30),
             ], fn ($value) => $value !== null && $value !== '');
         }
 

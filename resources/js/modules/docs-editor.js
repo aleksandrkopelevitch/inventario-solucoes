@@ -220,7 +220,7 @@ function makeImageTool(Base) {
 
 // Editor.js and its plugins are heavy (~400 kB) and only used on this page, so
 // they're loaded on demand (separate chunk) only when an editor is on screen.
-async function loadTools({uploadUrl = '', catalogUrl = '', linkTargetsUrl = '', cardTargetsUrl = '', sceneUrl = '', pageSlug = ''} = {}) {
+async function loadTools({uploadUrl = '', catalogUrl = '', linkTargetsUrl = '', cardTargetsUrl = '', sceneUrl = '', umlCheckUrl = '', pageSlug = ''} = {}) {
     const [
         {default: EditorJS},
         {default: Header},
@@ -362,7 +362,7 @@ async function loadTools({uploadUrl = '', catalogUrl = '', linkTargetsUrl = '', 
         scene: {class: SceneTool, config: {sceneUrl}},
         // A UML diagram, drawn from a JSON body (see docs-tools/uml.js) —
         // the same notation the MCP server writes.
-        uml: {class: UmlTool},
+        uml: {class: UmlTool, config: {umlCheckUrl}},
         tabs: {class: TabsTool, config: {EditorJS, getTools: buildTools, wire, onChange: markDirty, uploadUrl, i18n: EDITOR_I18N}},
         inlineCode: {class: InlineCode},
         marker: {class: Marker},
