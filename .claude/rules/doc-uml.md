@@ -4,6 +4,8 @@ paths:
   - "resources/js/modules/docs-uml.js"
   - "resources/js/modules/docs-tools/uml.js"
   - "app/Mcp/Tools/GetCodeDocumentationGuide.php"
+  - "app/Http/Controllers/NotebookPageUmlController.php"
+  - "app/Http/Requests/CheckPageUmlRequest.php"
   - "resources/data/mcp/code-documentation-guide.md"
   - "tests/Feature/DocumentationUmlTest.php"
 ---
@@ -101,6 +103,28 @@ Five things that are easy to undo:
   are skipped, so a half-typed JSON still previews what it can.
 - **Two diagrams with the same label are two loss items** (`uml:{label}#2`):
   deduplicated, dropping one of a pair passed unconfirmed.
+
+**The second review (2026-11-25) closed the rest of the reference palette and two
+ways of being surprised:**
+
+- **The editor asks the server.** The preview draws leniently (an element with
+  no `at`, an unknown kind, two elements in one cell), so the "Diagrama UML"
+  block POSTs its JSON to `notebooks.pages.uml` (NotebookPageUmlController,
+  CheckPageUmlRequest, `update` on the caderno) 700 ms after the author stops
+  typing and prints the problems the page would show. Only the last question's
+  answer is used. Keep it the ONE validator: never mirror UmlDiagram in JS.
+- **A figure inside a `{% hint %}` is refused on write.** The reader draws it
+  (a hint's body goes through renderLines()), but the editor's hint is inline
+  text, so the author sees raw JSON there. Tested 2026-11-25: saving and typing
+  in such a hint preserve the block, so nothing stored is damaged — the refusal
+  only stops new ones.
+- **Every element draws its `stereotype`** (note, actor, usecase, lollipop and
+  decision used to accept and drop it).
+- **The palette now has** `gate` (a message end on the frame, a small square)
+  and `state` (a state invariant on one lifeline, a continuation over several)
+  in sequences; `port`, `nary`, `text`, `divider`, `template` (class, abstract,
+  interface only) and the `callout` relation in grids; and `from_role`/`to_role`
+  beside the multiplicity, on the other side of the line.
 
 **Inline it is a picture; fullscreen is the way to read a big one.** The SVG
 shrinks to the column but never below 60% of its natural width (the stage

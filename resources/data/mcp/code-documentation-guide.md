@@ -141,6 +141,8 @@ tracejados), estático, com botão de tela cheia. O bloco ocupa linhas próprias
 `type`: `sequence`, `class`, `component`, `deployment`, `usecase`, `activity`, `state`,
 `package`. `title` é opcional. Textos curtos (até 80 caracteres; notas até 240).
 O JSON é validado ao salvar; um erro recusa a escrita listando cada problema.
+**Nunca ponha um `{% uml %}` ou um `{% scene %}` dentro de um `{% hint %}`**: o editor do
+app mostra ali só o texto cru, e a escrita é recusada.
 
 ### Sequência (`type="sequence"`)
 
@@ -178,7 +180,11 @@ O JSON é validado ao salvar; um erro recusa a escrita listando cada problema.
     em `alt` e `par`; até 3 níveis de aninhamento.
   - referência `{"ref": "Autenticar cliente", "over": ["cli", "api"]}`.
   - nota `{"note": "texto", "over": ["api"]}` — `over` com 1 ou 2 participantes.
+  - estado `{"state": "Aguardando pagamento", "over": ["api"]}` — invariante de estado
+    sobre uma linha de vida; com vários ids em `over`, uma continuação que atravessa todas.
   - divisor `{"divider": "Dia seguinte"}`.
+  - Uma mensagem com `"gate": true` e só `to` (ou só `from`) entra (ou sai) por um
+    portão, desenhado como um quadradinho; sem `gate`, a ponta que falta vira um ponto.
 - As barras de ativação são calculadas: uma chamada `sync` abre, o `return` fecha.
 - `numbered: true` numera as mensagens.
 
@@ -216,15 +222,22 @@ largura do seu maior elemento; deixe uma coluna vazia para afastar grupos.
   - casos de uso: `actor`, `usecase`;
   - atividade/estado: `initial`, `final`, `action`, `decision`, `fork`, `state`
     (`attributes` = `entry / …`, `exit / …`);
-  - `note`, com o texto em `text` em vez de `name`.
+  - `note` e `text` (texto livre, sem borda), com o texto em `text` em vez de `name`;
+  - `port` (porta na borda de um componente, nome ao lado), `nary` (losango de uma
+    associação n-ária: ligue cada classe a ele), `divider` (divisor vertical
+    tracejado, `name` opcional, desenhado como `{name}`).
+  - `stereotype` vale em qualquer elemento. Em `class`, `abstract` e `interface`,
+    `"template": "T"` desenha o parâmetro na caixinha tracejada do canto.
 - `edges`: `from`, `to`, `kind`, e opcionais `label` (no meio), `from_label` e `to_label`
-  (multiplicidade ou papel nas pontas). `kind`:
+  (multiplicidade nas pontas) e `from_role` e `to_role` (papel, do outro lado da linha).
+  `kind`:
   `association` (linha), `directed` (associação navegável), `inheritance` (de filho para
   pai, triângulo vazado), `realization` (de quem implementa para a interface,
   tracejada com triângulo), `dependency` (tracejada com seta), `composition` (de TODO
   para parte, losango cheio no todo), `aggregation` (losango vazado no todo), `flow`
   (fluxo de controle/dados, transição de estado), `include` / `extend` (casos de uso),
-  `note` (liga uma nota). Uma relação de um elemento com ele mesmo vira um laço.
+  `note` (liga uma nota), `callout` (linha com um ponto na ponta `to`). Uma relação de
+  um elemento com ele mesmo vira um laço.
 - `groups` (até 12): `{"label", "kind", "nodes": [ids]}` — `kind` = `package` (pasta),
   `boundary` (fronteira do sistema), `node` (ambiente/servidor 3D), `frame`. Um grupo é o
   retângulo em volta das células dos seus elementos: **nenhum elemento de fora pode estar

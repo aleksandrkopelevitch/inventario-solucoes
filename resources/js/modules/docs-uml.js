@@ -141,6 +141,8 @@ function arrowEnd(kind, x, y, ux, uy) {
             return `<path d="M${at(0, 0)}L${at(9, 5)}L${at(18, 0)}L${at(9, -5)}Z" class="${kind === 'diamond' ? 'uml-ink' : 'uml-plain'}"/>`
         case 'dot':
             return `<circle cx="${r1(x)}" cy="${r1(y)}" r="5" class="uml-ink"/>`
+        case 'square':
+            return `<rect x="${r1(x - 5)}" y="${r1(y - 5)}" width="10" height="10" class="uml-plain"/>`
         default:
             return ''
     }
@@ -409,8 +411,10 @@ function renderSequence(d, measure) {
         reach((x0 + x1) / 2 - measure(text1, FONT) / 2, (x0 + x1) / 2 + measure(text1, FONT) / 2)
         front.push(line(x0, y, x1, y, `uml-line${dashed ? ' uml-dash' : ''}`)
             + arrowEnd(head, x1, y, Math.sign(x1 - x0) || 1, 0)
-            + (m.from ? '' : arrowEnd('dot', x0, y, 1, 0))
-            + (m.to ? '' : arrowEnd('dot', x1 + 5 * Math.sign(x1 - x0), y, 1, 0))
+            // No `from` is a found message (a dot) or one from a GATE on the
+            // frame (a small square); no `to`, a lost one or one to a gate.
+            + (m.from ? '' : arrowEnd(m.gate ? 'square' : 'dot', x0, y, 1, 0))
+            + (m.to ? '' : arrowEnd(m.gate ? 'square' : 'dot', x1 + 5 * Math.sign(x1 - x0), y, 1, 0))
             + text((x0 + x1) / 2, y - 9, text1, 'uml-t uml-halo'))
 
         if (m.kind === 'sync' && m.to) open(m.to, y)
@@ -464,6 +468,17 @@ function renderSequence(d, measure) {
                 front.push(`<rect x="${r1(fx1)}" y="${r1(y - 8)}" width="${r1(fx2 - fx1)}" height="44" class="uml-plain"/>` + tag.svg
                     + text((fx1 + fx2) / 2 + tag.width / 2, y + 20, item.ref, 'uml-b'))
                 y += 52
+            } else if (item.state !== undefined) {
+                // A state invariant on one lifeline, a continuation across several.
+                const ids = item.over
+                const w = measure(item.state, FONT) + 28
+                const c = xs[index.get(ids[0])]
+                const [sx1, sx2] = ids.length > 1 ? span(new Set(ids), 0) : [c - w / 2, c + w / 2]
+                reach(sx1, sx2)
+                ids.forEach((id) => seen(id, y + 20))
+                front.push(`<rect x="${r1(sx1)}" y="${r1(y - 8)}" width="${r1(sx2 - sx1)}" height="28" rx="14" class="uml-box"/>`
+                    + text((sx1 + sx2) / 2, y + 6, item.state, 'uml-t'))
+                y += 38
             } else if (item.note !== undefined) {
                 const ids = item.over
                 const [sx1, sx2] = ids.length > 1 ? span(new Set(ids), 0) : [xs[index.get(ids[0])] - 80, xs[index.get(ids[0])] + 80]
@@ -542,22 +557,22 @@ function sizeNode(node, measure) {
             : (attrs.length || ops.length || node.kind === 'interface' ? [attrs, ops] : [])
         const h = head + compartments.reduce((sum, c) => sum + Math.max(12, c.length * LINE + 8), 0)
 
-        return {w, h, shape: 'rect', head, compartments, stereo}
+        return {w, h, shape: 'rect', head, compartments, stereo, template: node.template || ''}
     }
 
     const wrapped = (max, spec = BOLD) => wrap(name, spec, max, measure)
 
     switch (node.kind) {
         case 'actor': {
-            const w = Math.max(56, measure(name, BOLD) + 8)
+            const w = Math.max(56, measure(name, BOLD) + 8, stereo ? measure(`«${stereo}»`, FONT) + 8 : 0)
 
-            return {w, h: 46 + LINE + 2, shape: 'rect'}
+            return {w, h: 46 + LINE + 2 + (stereo ? LINE : 0), shape: 'rect', stereo}
         }
         case 'usecase': {
             const lines = wrapped(150)
-            const tw = Math.max(...lines.map((l) => measure(l, BOLD)))
+            const tw = Math.max(...lines.map((l) => measure(l, BOLD)), stereo ? measure(`«${stereo}»`, FONT) : 0)
 
-            return {w: tw + 48, h: Math.max(46, lines.length * LINE + 24), shape: 'ellipse', lines}
+            return {w: tw + 48, h: Math.max(46, (lines.length + (stereo ? 1 : 0)) * LINE + 24), shape: 'ellipse', lines, stereo}
         }
         case 'database': {
             const lines = wrapped(150)
@@ -565,14 +580,32 @@ function sizeNode(node, measure) {
             return {w: Math.max(86, Math.max(...lines.map((l) => measure(l, BOLD))) + 28), h: 46 + lines.length * LINE, shape: 'rect', lines, stereo}
         }
         case 'lollipop':
-            return {w: Math.max(24, measure(name, FONT) + 6), h: 22 + LINE + 2, shape: 'circle', r: 10}
+            return {
+                w: Math.max(24, measure(name, FONT) + 6, stereo ? measure(`«${stereo}»`, FONT) + 6 : 0),
+                h: 22 + LINE + 2 + (stereo ? LINE : 0),
+                shape: 'circle',
+                r: 10,
+                stereo,
+            }
         case 'note': {
             const lines = wrap(node.text || name, FONT, 190, measure)
+            const widest = Math.max(...lines.map((l) => measure(l, FONT)), stereo ? measure(`«${stereo}»`, FONT) : 0)
 
-            return {w: Math.max(...lines.map((l) => measure(l, FONT))) + 30, h: lines.length * LINE + 18, shape: 'rect', lines}
+            return {w: widest + 30, h: (lines.length + (stereo ? 1 : 0)) * LINE + 18, shape: 'rect', lines, stereo}
         }
+        case 'text': {
+            const lines = wrap(node.text || name, FONT, 220, measure)
+
+            return {w: Math.max(...lines.map((l) => measure(l, FONT))) + 8, h: lines.length * LINE + 6, shape: 'rect', lines}
+        }
+        case 'port':
+            return {w: 14, h: 14, shape: 'rect', stereo}
+        case 'nary':
+            return {w: 34, h: 34, shape: 'diamond'}
+        case 'divider':
+            return {w: 24, h: 110, shape: 'rect'}
         case 'decision':
-            return {w: 40, h: 40, shape: 'diamond'}
+            return {w: 40, h: 40, shape: 'diamond', stereo}
         case 'initial':
             return {w: 20, h: 20, shape: 'circle', r: 10}
         case 'final':
@@ -616,25 +649,55 @@ function drawNode(node, box, measure) {
             lines.forEach((l, k) => out.push(text(x + GRID.pad, cy2 + 12 + k * LINE, l, 'uml-t', 'start')))
             cy2 += Math.max(12, lines.length * LINE + 8)
         })
+        // A template class: its parameter in a dashed box over the top-right corner.
+        if (s.template) {
+            const tw = measure(s.template, SMALL) + 14
+            out.push(`<rect x="${r1(x + w - tw + 6)}" y="${r1(y - 11)}" width="${r1(tw)}" height="20" class="uml-plain uml-dash"/>`
+                + text(x + w - tw / 2 + 6, y - 1, s.template, 'uml-s'))
+        }
 
         return out.join('')
     }
 
     switch (node.kind) {
         case 'actor':
-            return stickFigure(cx, y, 42) + text(cx, y + h - 7, node.name, 'uml-b')
-        case 'usecase':
+            return stickFigure(cx, y, 42)
+                + (s.stereo ? text(cx, y + h - 7 - LINE, `«${s.stereo}»`, 'uml-t') : '')
+                + text(cx, y + h - 7, node.name, 'uml-b')
+        case 'usecase': {
+            const firstY = cy - ((s.lines.length + (s.stereo ? 1 : 0) - 1) * LINE) / 2
+
             return `<ellipse cx="${r1(cx)}" cy="${r1(cy)}" rx="${r1(w / 2)}" ry="${r1(h / 2)}" class="uml-box"/>`
-                + nameLines(s.lines, cy - ((s.lines.length - 1) * LINE) / 2)
+                + stereoLine(firstY)
+                + nameLines(s.lines, firstY + (s.stereo ? LINE : 0))
+        }
         case 'database':
             return cylinder(x, y, w, h) + stereoLine(y + 24) + nameLines(s.lines, cy + 6 + (s.stereo ? 6 : 0) - ((s.lines.length - 1) * LINE) / 2)
         case 'lollipop':
-            return `<circle cx="${r1(cx)}" cy="${r1(y + 10)}" r="10" class="uml-plain"/>` + text(cx, y + h - 7, node.name, 'uml-t')
-        case 'note':
-            return noteShape(x, y, w, h) + s.lines.map((l, k) => text(x + 10, y + 16 + k * LINE, l, 'uml-t', 'start')).join('')
-        case 'decision':
+            return `<circle cx="${r1(cx)}" cy="${r1(y + 10)}" r="10" class="uml-plain"/>`
+                + (s.stereo ? text(cx, y + h - 7 - LINE, `«${s.stereo}»`, 'uml-t') : '')
+                + text(cx, y + h - 7, node.name, 'uml-t')
+        case 'note': {
+            const lines = s.stereo ? [`«${s.stereo}»`, ...s.lines] : s.lines
+
+            return noteShape(x, y, w, h) + lines.map((l, k) => text(x + 10, y + 16 + k * LINE, l, 'uml-t', 'start')).join('')
+        }
+        case 'text':
+            return s.lines.map((l, k) => text(cx, y + 11 + k * LINE, l, 'uml-t')).join('')
+        case 'port':
+            return `<rect x="${r1(x)}" y="${r1(y)}" width="${w}" height="${h}" class="uml-plain"/>`
+                + (node.name || s.stereo ? text(x + w + 6, cy, [s.stereo ? `«${s.stereo}»` : '', node.name || ''].filter(Boolean).join(' '), 'uml-t uml-halo', 'start') : '')
+        case 'nary':
+            return `<path d="M${r1(cx)} ${r1(y)}L${r1(x + w)} ${r1(cy)}L${r1(cx)} ${r1(y + h)}L${r1(x)} ${r1(cy)}Z" class="uml-plain"/>`
+        case 'divider':
+            return line(cx, y, cx, y + h, 'uml-line uml-dash')
+                + (node.name ? text(cx, cy, `{${node.name}}`, 'uml-t uml-halo') : '')
+        case 'decision': {
+            const label = [s.stereo ? `«${s.stereo}»` : '', node.name || ''].filter(Boolean).join(' ')
+
             return `<path d="M${r1(cx)} ${r1(y)}L${r1(x + w)} ${r1(cy)}L${r1(cx)} ${r1(y + h)}L${r1(x)} ${r1(cy)}Z" class="uml-box"/>`
-                + (node.name ? text(x + w + 6, y - 2, node.name, 'uml-t uml-halo', 'start') : '')
+                + (label ? text(x + w + 6, y - 2, label, 'uml-t uml-halo', 'start') : '')
+        }
         case 'initial':
             return `<circle cx="${r1(cx)}" cy="${r1(cy)}" r="10" class="uml-ink"/>`
         case 'final':
@@ -751,6 +814,7 @@ const EDGE_STYLE = {
     include: {dash: true, to: 'open', stereo: 'include'},
     extend: {dash: true, to: 'open', stereo: 'extend'},
     note: {dash: true, to: ''},
+    callout: {dash: false, to: 'dot'},
 }
 
 function renderGrid(d, measure) {
@@ -805,7 +869,12 @@ function renderGrid(d, measure) {
     boxes.forEach((b) => {
         grow(b.x, b.y)
         grow(b.x + b.w, b.y + b.h)
-        if (b.node.name && ['decision', 'fork'].includes(b.node.kind)) grow(b.x + b.w + 10 + measure(b.node.name, FONT), b.y - 10)
+        if (['decision', 'fork'].includes(b.node.kind) && (b.node.name || b.size.stereo)) {
+            const label = [b.size.stereo ? `«${b.size.stereo}»` : '', b.node.name || ''].filter(Boolean).join(' ')
+            grow(b.x + b.w + 10 + measure(label, FONT), b.y - 10)
+        }
+        if (b.node.kind === 'port' && (b.node.name || b.node.stereotype)) grow(b.x + b.w + 10 + measure(`«${b.node.stereotype || ''}» ${b.node.name || ''}`, FONT), b.y)
+        if (b.size.template) grow(b.x + b.w + 8, b.y - 12)
     })
 
     // Frames, outermost first so an inner one paints over it.
@@ -908,19 +977,23 @@ function renderGrid(d, measure) {
 
         // End labels first — multiplicity and role belong at their end and
         // have nowhere else to go — then the name, which may slide.
-        const endLabel = (value, ex, ey, dx, dy) => {
-            if (!value) return
+        // Multiplicity on one side of the line, role on the other — the
+        // reference's "1 above, manager below".
+        const endLabel = (value, role, ex, ey, dx, dy) => {
             const px = -dy
             const py = dx
             const flip = Math.abs(dy) > 0.9 ? 1 : (py > 0 ? -1 : 1)
-            const lx = ex + dx * 20 + px * 11 * flip
-            const ly = ey + dy * 20 + py * 11 * flip
-            const w = measure(value, SMALL)
-            labels.push(text(lx, ly, value, 'uml-s uml-halo'))
-            place({x: lx - w / 2, y: ly - 8, w, h: 16})
+            ;[[value, flip], [role, -flip]].forEach(([words, side]) => {
+                if (!words) return
+                const lx = ex + dx * 20 + px * 11 * side
+                const ly = ey + dy * 20 + py * 11 * side
+                const w = measure(words, SMALL)
+                labels.push(text(lx, ly, words, 'uml-s uml-halo'))
+                place({x: lx - w / 2, y: ly - 8, w, h: 16})
+            })
         }
-        endLabel(e.from_label, x0, y0, lux, luy)
-        endLabel(e.to_label, x1, y1, -lux, -luy)
+        endLabel(e.from_label, e.from_role, x0, y0, lux, luy)
+        endLabel(e.to_label, e.to_role, x1, y1, -lux, -luy)
 
         // The name sits beside the line, off it on the side the normal points
         // up (or right, for a vertical line), anchored on its near end so a
@@ -983,7 +1056,7 @@ function normalizeItems(items, ids) {
             return {fragment: item.fragment, operands: operands.map((o) => ({label: o?.label || '', messages: normalizeItems(o?.messages, ids)}))}
         }
         if (item.divider !== undefined) return item
-        if (item.ref !== undefined || item.note !== undefined) {
+        if (item.ref !== undefined || item.note !== undefined || item.state !== undefined) {
             // Over nothing it is drawn: a note or a ref nobody placed yet.
             const over = [].concat(item.over ?? []).filter((id) => typeof id === 'string' && ids.has(id))
 

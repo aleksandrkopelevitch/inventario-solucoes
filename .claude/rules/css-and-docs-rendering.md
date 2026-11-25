@@ -82,7 +82,7 @@ database must join `dependencies()`, or it goes stale for 30 days; bump
 | | `App\Support\GitbookRenderer` | `App\Support\MarkdownText` |
 |---|---|---|
 | for | documentation pages, authored in the Editor.js block editor | the short free-text fields: a person's/company's `notes`, a solution's `description` and `support_operation_note` |
-| speaks | Markdown **+ GitBook notation** (`{% hint %}`, `{% tabs %}`, `{% file %}`) plus two of our own, `{% diagram slug="…" %}` and `{% cards %}` | plain Markdown (GFM), nothing else |
+| speaks | Markdown **+ GitBook notation** (`{% hint %}`, `{% tabs %}`, `{% file %}`, `{% embed %}`) plus our own: `{% diagram slug="…" %}`, `{% cards %}`, `{% scene %}` (doc-scenes.md), `{% uml %}` (doc-uml.md) and the inline `{% secret %}` | plain Markdown (GFM), nothing else |
 | raw HTML in the source | `html_input=allow` — it's how images arrive as `<figure><img src="/files/{id}">` | `html_input=strip`, plus `allow_unsafe_links=false`: a `<script>` in someone's notes must never run for the next reader |
 | single newline | a normal Markdown soft break | rendered as `<br>` (`renderer.soft_break`), because these fields were plain textareas read back with `whitespace-pre-line` and every note already in the database relies on it |
 | read side | `.html-content` + `GitbookRenderer` | `x-ui.markdown` + `.ak-rich-text` |

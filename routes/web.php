@@ -34,6 +34,7 @@ use App\Http\Controllers\NotebookDiagramController;
 use App\Http\Controllers\NotebookPageController;
 use App\Http\Controllers\NotebookPageDiagramController;
 use App\Http\Controllers\NotebookPageSceneController;
+use App\Http\Controllers\NotebookPageUmlController;
 use App\Http\Controllers\NotebookPublicationController;
 use App\Http\Controllers\PipelineRunController;
 use App\Http\Controllers\ProfileController;
@@ -735,6 +736,9 @@ Route::middleware('auth')->group(function () {
         // etapas" block). Answers with the scene and writes nothing — the
         // editor puts it in the block and saves the page like any other edit.
         Route::post('notebooks/{notebook}/{page}/scene', [NotebookPageSceneController::class, 'store'])->name('notebooks.pages.scene');
+        // Whether the "Diagrama UML" block's diagram is one the page will
+        // draw — the reader's own validator, asked while the author types.
+        Route::post('notebooks/{notebook}/{page}/uml', [NotebookPageUmlController::class, 'check'])->name('notebooks.pages.uml');
         // Documentation Assistant — a chat that helps write the page (job + polling per turn).
         Route::get('notebooks/{notebook}/{page}/chat', [NotebookPageController::class, 'chatPanel'])->name('notebooks.chat.panel');
         Route::post('notebooks/{notebook}/{page}/chat/messages', [NotebookPageController::class, 'sendMessage'])->name('notebooks.chat.messages.store');

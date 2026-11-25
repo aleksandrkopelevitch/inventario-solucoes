@@ -40,7 +40,9 @@
 
              `sceneUrl` is where the "Fluxo em etapas" block asks the model for
              the steps of this page (NotebookPageSceneController); null outside
-             a caderno, which leaves the block hand-written only. --}}
+             a caderno, which leaves the block hand-written only. `umlCheckUrl`
+             is where the "Diagrama UML" block asks whether the page will draw
+             its diagram (NotebookPageUmlController). --}}
         <div class="ak-docs-editor" data-ak-docs-editor
             data-config="{{ json_encode([
                 'uploadUrl'      => $uploadUrl,
@@ -48,6 +50,7 @@
                 'linkTargetsUrl' => isset($notebook) ? route('notebooks.link-targets', $notebook) : null,
                 'cardTargetsUrl' => isset($notebook) ? route('notebooks.card-targets', $notebook) : null,
                 'sceneUrl'       => isset($notebook, $titlePage) ? route('notebooks.pages.scene', [$notebook, $titlePage]) : null,
+                'umlCheckUrl'    => isset($notebook, $titlePage) ? route('notebooks.pages.uml', [$notebook, $titlePage]) : null,
                 'pageSlug'       => $titlePage->slug ?? null,
                 // What this editor's saves are based on — see SavePageContent.
                 'version' => isset($titlePage) ? $titlePage->version() : null,

@@ -7,8 +7,10 @@ caderno), um mapa read-only do
 ecossistema derivado desses desenhos, documentação rica (estilo GitBook) em
 árvore de páginas — com um assistente de IA que gera rascunhos, com **cenas
 animadas** montadas a partir do texto (fluxo em etapas, antes → depois, árvore,
-comparação lado a lado, linha do tempo) e com valores sensíveis atrás de
-cadeado —, uma **base de conhecimento** interna (`/docs`) com os cadernos
+comparação lado a lado, linha do tempo), com **diagramas UML** escritos na própria
+página (sequência, classes, componentes, implantação, casos de uso, atividades,
+estados e pacotes, desenhados pelo app na notação UML, com tela cheia) e com
+valores sensíveis atrás de cadeado —, uma **base de conhecimento** interna (`/docs`) com os cadernos
 publicados, um hub que reúne a cobertura dessa documentação,
 um Especialista em Integrações que gera flowSpec Digibee em formato de chat — e
 que sabe **escrever** esse documento num pipeline, implantá-lo em `test`,
@@ -1609,9 +1611,11 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   cada uma estão em `docs/cati-fase-{1,2,3,4}.md`.
 
 - **Servidor MCP** (`POST /mcp`): deixa o Claude, o ChatGPT e o Gemini
-  consultarem o inventário como ferramentas — doze tools somente leitura sobre
+  consultarem o inventário como ferramentas — treze tools somente leitura sobre
   soluções, diagramas, pessoas, empresas e a documentação publicada
-  (`App\Mcp\ToolRegistry`), mais as quatro de **Logs Digibee** (abaixo), as
+  (`App\Mcp\ToolRegistry`; a décima terceira, `get_code_documentation_guide`, é o
+  roteiro para documentar um repositório num caderno e a sintaxe dos diagramas UML
+  e das cenas — quem lê o código é o cliente, o app recebe as páginas prontas), mais as quatro de **Logs Digibee** (abaixo), as
   únicas que saem do banco do app e leem uma plataforma ao vivo — por isso
   declaradas com `openWorldHint`. É a única rota do app fora do grupo `web`: sem
   sessão, sem CSRF, sem `auth`.
