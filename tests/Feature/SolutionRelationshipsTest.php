@@ -6,6 +6,7 @@ use App\Enums\AccessLevel;
 use App\Enums\AccessModule;
 use App\Enums\RelationshipDirection;
 use App\Enums\UserRole;
+use App\Mcp\OAuth;
 use App\Models\DocumentationPage;
 use App\Models\McpToken;
 use App\Models\Notebook;
@@ -14,8 +15,10 @@ use App\Models\UmlSolutionLink;
 use App\Models\User;
 use App\Services\SolutionRelationshipService;
 use App\Support\Documentation\UmlDiagram;
+use App\Support\Documentation\UmlSolutionBindings;
 use App\Support\GitbookRenderer;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Laravel\Passport\Passport;
 
 uses(LazilyRefreshDatabase::class);
 
@@ -471,4 +474,95 @@ it('answers get_solution with the relationships, hiding the evidence of an unpub
         ->and($relationships['beta']['evidence'][0]['notebook'])->toBe('publicado')
         ->and($relationships['gama']['direction'])->toBe('é chamada por')
         ->and($relationships['gama'])->not->toHaveKey('evidence');
+});
+
+/* ------------------------------------------------------------------ */
+/*  Phase 1 verification — the writers and the edges of the rules */
+/* ------------------------------------------------------------------ */
+
+it('re-syncs through the editor save and through the MCP update_page alike', function () {
+    $a = relSolution('alfa');
+    relSolution('beta');
+    $notebook = Notebook::factory()->create(['slug' => 'manual']);
+    $page = DocumentationPage::factory()->for($notebook)->create(['slug' => 'pagina', 'documentation' => 'Nada ainda.']);
+
+    $this->actingAs(User::factory()->admin()->create())
+        ->patchJson(route('notebooks.pages.update', [$notebook, $page]), [
+            'documentation' => relSequence(['alfa', 'beta'], [['alfa', 'beta']]),
+            'base_version'  => $page->version(),
+        ])->assertOk();
+
+    expect(relDirections($a))->toBe(['beta' => RelationshipDirection::Outgoing]);
+
+    $writer = User::factory()->editor(AccessModule::Documentation)->create();
+    Passport::actingAs($writer, [OAuth::SCOPE, OAuth::WRITE_SCOPE]);
+    $result = $this->postJson(route('mcp.handle'), ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/call', 'params' => [
+        'name'      => 'update_page',
+        'arguments' => [
+            'notebook'         => 'manual', 'page' => 'pagina', 'version' => $page->fresh()->version(),
+            'content'          => relSequence(['alfa', 'beta'], [['alfa', 'beta'], ['beta', 'alfa']]),
+            'confirm_removals' => ['uml:Fluxo'],
+        ],
+    ]])->assertOk()->json('result');
+
+    expect($result['isError'])->toBeFalse()
+        ->and(relDirections($a))->toBe(['beta' => RelationshipDirection::Both]);
+});
+
+it('draws a diagram whose binding names no solution, and derives nothing from it', function () {
+    relSolution('alfa');
+    $body = relSequence(['alfa', 'fantasma'], [['alfa', 'fantasma']]);
+
+    expect(app(GitbookRenderer::class)->render($body))->toContain('<figure class="ak-uml"')->not->toContain('ak-uml-error')
+        ->and(app(UmlSolutionBindings::class)->links($body))->toBe([]);
+});
+
+it('keeps at most five distinct labels per pair', function () {
+    $a = relSolution('alfa');
+    relSolution('beta');
+    relPage(relSequence(['alfa', 'beta'], array_map(fn (int $i) => ['alfa', 'beta', 'sync', 'msg ' . ($i % 7)], range(1, 12))));
+
+    $labels = app(SolutionRelationshipService::class)->forSolution($a)->first()->labels;
+
+    expect($labels)->toHaveCount(SolutionRelationshipService::MAX_LABELS)
+        ->and(array_unique($labels))->toBe($labels);
+});
+
+it('chains at most two platforms in the middle', function () {
+    $sap = relSolution('sap');
+    foreach (['p1', 'p2', 'p3'] as $p) {
+        relSolution($p, 'ipaas');
+    }
+    relSolution('vtex');
+
+    relPage(relSequence(['sap', 'p1', 'p2', 'p3', 'vtex'], [['sap', 'p1'], ['p1', 'p2'], ['p2', 'p3'], ['p3', 'vtex']]));
+
+    expect(array_keys(relDirections($sap)))->toBe(['p1']);
+});
+
+it('infers through a box from a fan-in too: several callers, one callee', function () {
+    foreach (['a', 'b', 'c'] as $slug) {
+        relSolution($slug);
+    }
+    relSolution('hub', 'ipaas');
+
+    relPage(relUml('component', [
+        'nodes' => [
+            ['id' => 'a', 'kind' => 'component', 'name' => 'A', 'solution' => 'a', 'at' => [0, 0]],
+            ['id' => 'b', 'kind' => 'component', 'name' => 'B', 'solution' => 'b', 'at' => [0, 2]],
+            ['id' => 'h', 'kind' => 'component', 'name' => 'Hub', 'solution' => 'hub', 'at' => [1, 1]],
+            ['id' => 'c', 'kind' => 'component', 'name' => 'C', 'solution' => 'c', 'at' => [2, 1]],
+        ],
+        'edges' => [
+            ['from' => 'a', 'to' => 'h', 'kind' => 'flow'],
+            ['from' => 'b', 'to' => 'h', 'kind' => 'flow'],
+            ['from' => 'h', 'to' => 'c', 'kind' => 'flow'],
+        ],
+    ]));
+
+    expect(relDirections(Solution::firstWhere('slug', 'c')))->toBe([
+        'a'   => RelationshipDirection::Incoming,
+        'b'   => RelationshipDirection::Incoming,
+        'hub' => RelationshipDirection::Incoming,
+    ]);
 });

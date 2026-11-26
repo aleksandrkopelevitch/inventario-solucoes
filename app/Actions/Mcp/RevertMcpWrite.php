@@ -12,6 +12,7 @@ use App\Models\McpWrite;
 use App\Models\Notebook;
 use App\Models\Person;
 use App\Models\Solution;
+use App\Models\SolutionRelationship;
 use App\Models\Submission;
 use App\Models\User;
 use App\Services\DocumentationPageService;
@@ -108,6 +109,7 @@ class RevertMcpWrite
             $subject instanceof Solution => [
                 $subject->people()->exists() ? 'pessoas vinculadas' : null,
                 $subject->notebooks()->exists() ? 'cadernos' : null,
+                SolutionRelationship::query()->involving($subject)->exists() ? 'interconexões cadastradas' : null,
                 $subject->diagrams()->exists() ? 'diagramas' : null,
                 $subject->diagramsAsSource()->exists() || $subject->diagramsAsTarget()->exists() ? 'integrações' : null,
                 Submission::query()->where('solution_id', $subject->getKey())->exists() ? 'submissões ao comitê' : null,

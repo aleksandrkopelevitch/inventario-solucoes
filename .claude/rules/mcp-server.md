@@ -37,7 +37,7 @@ read-only tools (`App\Mcp\ToolRegistry` — the thirteenth,
 `get_code_documentation_guide`, reads no record: it is the playbook and the
 `{% uml %}`/`{% scene %}` syntax, see `.claude/rules/doc-uml.md`) — and, since 2026-11-17, lets a
 PERSON who is an Editor create and edit the catalog and the cadernos through
-thirteen write tools (§ Writing, below) — plus, since 2026-11-06, the four
+fifteen write tools (§ Writing, below) — plus, since 2026-11-06, the four
 Digibee logs tools (`App\Mcp\Tools\Digibee\*`, Integrations module), which
 are the ONE exception to "this app's database and nothing beyond it": they
 read the platform live with the session an admin sent, so they implement
@@ -237,9 +237,10 @@ drawer. It is computed once now, and an item names its own model with
 
 ### Writing — a person, at Editor, who said yes to it
 
-The thirteen write tools (`App\Mcp\Tools\Write\*`: create/update solution,
-person, company, notebook and page, link/unlink a person to a solution, and
-`place_page`) are specified in `docs-and-specs/mcp-write-tools.md`, which also
+The fifteen write tools (`App\Mcp\Tools\Write\*`: create/update solution,
+person, company, notebook and page, link/unlink a person to a solution,
+`place_page`, and — since 2026-11-26 — set/remove an interconnection between
+two solutions, `.claude/rules/solution-relationships.md`) are specified in `docs-and-specs/mcp-write-tools.md`, which also
 carries the three review rounds that shaped them. What to keep in mind before
 touching any of it:
 

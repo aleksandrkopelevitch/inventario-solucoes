@@ -11,14 +11,25 @@ paths:
   - "resources/views/components/solutions/relationships.blade.php"
   - "app/Console/Commands/SyncSolutionLinksCommand.php"
   - "tests/Feature/SolutionRelationshipsTest.php"
+  - "app/Models/SolutionRelationship.php"
+  - "app/Enums/ManualRelationshipDirection.php"
+  - "app/Actions/Catalog/SaveManualRelationship.php"
+  - "app/Http/Controllers/Inventory/SolutionRelationshipController.php"
+  - "app/Http/Requests/StoreSolutionRelationshipRequest.php"
+  - "app/Http/Requests/UpdateSolutionRelationshipRequest.php"
+  - "app/Mcp/Tools/Write/SetSolutionRelationship.php"
+  - "app/Mcp/Tools/Write/RemoveSolutionRelationship.php"
+  - "tests/Feature/ManualRelationshipTest.php"
 ---
 
 ### Who talks to whom comes from the documentation's UML (since 2026-11-26)
 
-The spec is `docs-and-specs/solution-relationships-from-uml.md`. Phase 1 is
-shipped: bindings, the index, platform inference, the "Relacionamentos" card,
-`/map` and `get_solution.relationships`. Manual relationships (phase 2) and the
-removal of `/diagrams` (phases 3–4) come later.
+The spec is `docs-and-specs/solution-relationships-from-uml.md`.
+
+- **Phase 1 is shipped:** bindings, the index, platform inference, the
+  "Relacionamentos" card, `/map` and `get_solution.relationships`.
+- **Phase 2 is shipped:** manual interconnections, inline and through the MCP.
+- **Still to come:** the removal of `/diagrams` (phases 3–4).
 
 **A participant, element or group is bound to a catalog solution by
 `"solution": "<slug>"` in the `{% uml %}` JSON, and ONLY that way.** A label
@@ -126,3 +137,71 @@ Pairs are folded ON READ by `SolutionRelationshipService`:
 **In tests, give every solution a `category`.** `SolutionFactory` picks one at
 random, and `ipaas` is among them, so an unlucky factory row turns into a
 platform and changes what is inferred.
+
+### Manual interconnections (phase 2, since 2026-11-26)
+
+A person may RECORD that two solutions talk (`solution_relationships`,
+`SolutionRelationship`), on the card or through the MCP.
+
+**One record per pair, stored normalized.**
+
+- `solution_a_id` is the lower id, and `direction` (`a_to_b`, `b_to_a`, `both`)
+  is read from A.
+- A plain unique index then holds whichever side it was entered from;
+  `LEAST/GREATEST` would be spelled differently by SQLite and Postgres.
+- Screens and tools speak `RelationshipDirection` from the asking solution's
+  side. `ManualRelationshipDirection::fromSide()` / `asSeenFrom()` translate.
+- There is no "undirected" option: the person asked for left, right or both.
+- `created_by_id`/`updated_by_id` come from `booted()`, never from a payload.
+
+**A record WINS for its pair.**
+
+- `SolutionRelationshipService::overlay()` lays the records over the documented
+  pairs. A record replaces the direction, and keeps what the documentation said
+  as `Relationship::$documented`.
+- `source()` is `documented` | `manual` | `adjusted`. The card says "manual" or
+  "ajustado manualmente" + documentado: “…”, under the row, never beside the
+  name, where a badge ate the room the name and the open editor need.
+- Removing an override brings the documentation back. A documented-only pair
+  has no ✕: it is removed by editing the diagram.
+
+**The card, inline** (`.claude/rules/inline-edit-pattern.md`):
+
+- **"+ Adicionar interconexão"** is a creator. It offers every other solution
+  except the ones that already have a record.
+- **The pencil on a manual row** edits both fields (re-pointing included),
+  `PATCH solutions.relationships.update`.
+- **The pencil on a documented row** edits the direction only, and records the
+  override with `PUT solutions.relationships.override?other_solution_id=…`.
+  It is a PUT, not a POST, because `x-ui.inline-edit` turns any POST into a
+  "+ Adicionar" creator chip.
+- **The ✕** is `x-ui.row-remove` on a row that has a record.
+- **Every response** is the card's slot.
+- **`{relationship}` is resolved by `Solution::resolveChildRouteBinding()`**:
+  the record lives in two columns, so no relation can scope it. A record that
+  does not involve the URL's solution is a 404.
+
+**The direction options say "esta"** ("→ esta chama a outra"), not the name: a
+long name cut the sentence inside the 13rem select. The helper that builds them
+is `directionChoices()`, because a class component's public method named like a
+view key replaces that key (`.claude/rules/blade-compiler-traps.md`). Every
+select once rendered empty because of it.
+
+**MCP: `set_solution_relationship` / `remove_solution_relationship`.** Both are
+catalog-module write tools, `SolutionWriteTool`s.
+
+- **Directions:** "chama", "é chamada por", "mútua", read from `solution`'s
+  side.
+- **Set** is idempotent, and when it contradicts the documentation it says so
+  ("A documentação dizia outra coisa…").
+- **Remove** refuses a documented-only pair, naming the page and diagram to
+  edit instead.
+- **The log:** both write `mcp_writes` as the solution's `relationships` set
+  (`RecordFields`, the same shape as `people`), so the existing revert re-syncs
+  the set.
+- **The revert caveat:** a revert re-validates the solution's own columns
+  (`RevertMcpWrite::invalidRestore()`), so a test reverting one needs the
+  attribute vocabulary seeded.
+- **`get_solution.relationships[]`** carries `source` ("documentado",
+  "cadastrado", "cadastro sobre a documentação"), `documented_direction` and
+  `recorded_by`.

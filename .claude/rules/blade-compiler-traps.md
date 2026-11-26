@@ -170,3 +170,16 @@ where it is a PROP the component echoes with `{{ }}` (`description` on
 `x-ui.empty-state`, `confirm` on `x-ui.row-remove`), `e()` escapes the `&` and
 the reader sees `&quot;Desenhar esta página&quot;`. Four screens shipped that.
 In a prop, use typographic quotes (“ ”), which need no escaping at all.
+
+### A class component's PUBLIC METHOD is a view variable, and it wins (2026-11-26)
+
+Laravel hands a class component's view every public property AND every
+public method (as an invokable `InvokableComponentVariable`) — merged over
+the array `render()` passes to `view()`. A method named like one of those keys
+silently replaces it. `Solutions\Relationships` had a static
+`directionOptions()` building the array it passed as `'directionOptions'`; the
+view received the method wrapper (it JSON-encodes as `{}`), every direction
+`<select>` rendered with no option, and saving posted `direction: null`. The
+render tests were green, since they never looked for the options. Name helpers
+differently from view keys (it is `directionChoices()` now), and when a select
+matters, assert one of its option labels in a render test.

@@ -161,6 +161,22 @@ class Solution extends Model
         return $this->belongsToMany(Notebook::class)->orderBy('name');
     }
 
+    /**
+     * `{relationship}` under `solutions/{solution}`: an interconnection lives
+     * in two columns (either side may be this solution), so no single relation
+     * can scope it and `scopeBindings()` has nothing to walk. This is that
+     * scoping: a record that does not involve the solution in the URL is a 404,
+     * never somebody else's interconnection changed through this page.
+     */
+    public function resolveChildRouteBinding($childType, $value, $field)
+    {
+        if ($childType === 'relationship') {
+            return SolutionRelationship::query()->involving($this)->whereKey($value)->firstOrFail();
+        }
+
+        return parent::resolveChildRouteBinding($childType, $value, $field);
+    }
+
     public function scopeWithDiagramCounts(Builder $query): void
     {
         $query->withCount([
