@@ -2,6 +2,8 @@
 
 namespace App\Actions\Catalog;
 
+use App\Actions\Documentation\RewriteSolutionBindings;
+use App\Actions\Documentation\SyncPageSolutionLinks;
 use App\Models\Solution;
 use Illuminate\Support\Str;
 
@@ -17,7 +19,19 @@ use Illuminate\Support\Str;
  */
 class SaveSolution
 {
-    /** @param  array<string, mixed>  $data */
+    public function __construct(
+        private readonly RewriteSolutionBindings $rewriteBindings,
+        private readonly SyncPageSolutionLinks $syncLinks,
+    ) {}
+
+    /**
+     * The slug is the address a UML diagram binds a solution by
+     * (`"solution": "<slug>"`), so both ends of its life reach the
+     * documentation: a rename rewrites the bindings, and a solution created
+     * after a page that already named it gets that page's relationships.
+     *
+     * @param  array<string, mixed>  $data
+     */
     public function handle(array $data, ?Solution $solution = null): Solution
     {
         $data['slug'] = filled($data['slug'] ?? null)
@@ -30,12 +44,20 @@ class SaveSolution
         $data['contract_status'] = $data['contract_status'] ?? $solution?->contract_status ?? 'unknown';
 
         if ($solution) {
+            $old = $solution->slug;
             $solution->update($data);
+
+            if ($solution->wasChanged('slug')) {
+                $this->rewriteBindings->handle($old, $solution->slug);
+            }
 
             return $solution;
         }
 
-        return Solution::create($data);
+        $solution = Solution::create($data);
+        $this->syncLinks->forPagesNaming($solution->slug);
+
+        return $solution;
     }
 
     private function uniqueSlug(string $name, ?Solution $solution): string

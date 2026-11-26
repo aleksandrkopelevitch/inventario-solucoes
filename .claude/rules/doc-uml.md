@@ -126,6 +126,15 @@ ways of being surprised:**
   interface only) and the `callout` relation in grids; and `from_role`/`to_role`
   beside the multiplicity, on the other side of the line.
 
+**An element may be BOUND to a catalog solution** (`"solution": "<slug>"`,
+since 2026-11-26): that is where the solution pages' "Relacionamentos" and the
+`/map` arrows come from. `parse()` checks only the shape (a slug, on a
+`BINDABLE_KINDS` element or a group) and stays free of the database; whether
+the slug exists, and what the diagram then says about who calls whom, is
+`.claude/rules/solution-relationships.md`. The figure carries
+`id="uml-figure-{n}"` (document order, counted by the renderer) so a
+relationship's evidence can link straight to it.
+
 **Inline it is a picture; fullscreen is the way to read a big one.** The SVG
 shrinks to the column but never below 60% of its natural width (the stage
 scrolls past that — labels stop being legible). The figure carries

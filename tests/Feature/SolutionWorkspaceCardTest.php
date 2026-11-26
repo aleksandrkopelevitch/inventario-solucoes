@@ -26,7 +26,7 @@ it('renders both columns as separate slots inside the card', function () {
     $this->actingAs(workspaceAdmin())
         ->get(route('solutions.show', $solution))
         ->assertOk()
-        ->assertSee('id="solution-diagram-titles-slot"', false)
+        ->assertSee('id="solution-relationships-slot"', false)
         ->assertSee('id="solution-notebooks-slot"', false);
 });
 
@@ -50,18 +50,6 @@ it('offers "novo caderno" to an admin and no diagram creation to anybody', funct
         ->assertDontSee('Novo caderno');
 });
 
-it('names the caderno each of the solution diagrams belongs to', function () {
-    $solution = Solution::factory()->create();
-    $notebook = Notebook::factory()->create(['name' => 'Caderno do SAP']);
-    $diagram = Diagram::factory()->forNotebook($notebook)->create();
-    $diagram->participants()->attach($solution->id, ['position' => 0]);
-
-    $this->actingAs(workspaceAdmin())
-        ->get(route('solutions.show', $solution))
-        ->assertOk()
-        ->assertSee('Caderno: Caderno do SAP');
-});
-
 it('draws an illustrated empty state on each column that has nothing', function () {
     $solution = Solution::factory()->create();
 
@@ -70,30 +58,32 @@ it('draws an illustrated empty state on each column that has nothing', function 
     $this->actingAs(workspaceAdmin())
         ->get(route('solutions.show', $solution))
         ->assertOk()
-        ->assertSee('Nenhum diagrama ainda')
+        ->assertSee('Nenhum relacionamento documentado')
         ->assertSee('Nenhum caderno vinculado')
         ->assertSee('focusable="false"', false);
 });
 
 it('replaces an empty state with the real list once each side has content', function () {
-    $solution = Solution::factory()->create();
-    $diagram = Diagram::factory()->create(['name' => 'SVL ↔ Digibee', 'status' => 'active']);
-    attachParticipants($diagram, [[$solution, 0]]);
+    $solution = Solution::factory()->create(['name' => 'SVL', 'category' => 'erp']);
+    $digibee = Solution::factory()->create(['name' => 'Digibee', 'category' => 'erp']);
 
     $notebook = Notebook::factory()->create(['name' => 'Integrações SVL']);
     $notebook->solutions()->attach($solution);
-    DocumentationPage::factory()->for($notebook)->create(['title' => 'Visão geral', 'documentation' => '# Doc']);
+    DocumentationPage::factory()->for($notebook)->create(['title' => 'Visão geral', 'documentation' => "# Doc\n\n{% uml type=\"sequence\" %}\n"
+        . json_encode([
+            'participants' => [['id' => 'svl', 'solution' => $solution->slug], ['id' => 'dgb', 'solution' => $digibee->slug]],
+            'messages'     => [['from' => 'svl', 'to' => 'dgb', 'label' => 'pedido']],
+        ]) . "\n{% enduml %}"]);
 
     $this->actingAs(workspaceAdmin())
         ->get(route('solutions.show', $solution))
         ->assertOk()
-        ->assertSee('SVL ↔ Digibee')
-        ->assertSee('Ativa')
+        ->assertSee('SVL chama Digibee')
         // The CADERNO is what this card names, with how much of it is written —
         // the page titles live one level in, inside the caderno itself.
         ->assertSee('Integrações SVL')
         ->assertSee('1/1')
-        ->assertDontSee('Nenhum diagrama ainda')
+        ->assertDontSee('Nenhum relacionamento documentado')
         ->assertDontSee('Nenhum caderno vinculado');
 });
 

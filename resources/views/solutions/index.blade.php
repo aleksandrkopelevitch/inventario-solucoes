@@ -56,7 +56,7 @@
                 <span class="font-display font-semibold text-ink">{{ $row['count'] }}</span> {{ mb_strtolower($row['label']) }}
             </span>
         @endforeach
-        <span class="ml-auto">{{ $catalogStats['diagrams'] }} diagramas desenhados</span>
+        <span class="ml-auto">{{ $catalogStats['relationships'] }} {{ $catalogStats['relationships'] === 1 ? 'relacionamento documentado' : 'relacionamentos documentados' }}</span>
     </div>
 
     {{-- Search + filters, one bar (same form: search is a filter[] field, so it

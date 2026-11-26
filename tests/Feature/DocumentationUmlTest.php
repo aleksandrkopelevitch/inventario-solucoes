@@ -1,8 +1,12 @@
 <?php
 
 use App\Mcp\Tools\GetCodeDocumentationGuide;
+use App\Models\Solution;
 use App\Support\Documentation\UmlDiagram;
 use App\Support\GitbookRenderer;
+use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+
+uses(LazilyRefreshDatabase::class);
 
 function umlBlock(string $type, array $body, string $title = 'Pedido'): string
 {
@@ -50,7 +54,7 @@ function classBody(): array
 it('renders a sequence diagram as a figure carrying its data and its text', function () {
     $html = (new GitbookRenderer)->render(umlBlock('sequence', sequenceBody()));
 
-    expect($html)->toContain('<figure class="ak-uml" data-ak-uml=')
+    expect($html)->toContain('<figure class="ak-uml" id="uml-figure-1" data-ak-uml=')
         ->toContain('data-ak-uml-stage')
         ->toContain('Diagrama de sequência — Pedido')
         ->toContain('<strong>Cliente</strong> → <strong>API de Pedidos</strong>: POST /pedidos')
@@ -130,9 +134,16 @@ it('teaches only examples that pass the validator', function () {
     $guide = file_get_contents(resource_path(GetCodeDocumentationGuide::GUIDE));
     preg_match_all('/```json\n(.*?)\n```/s', $guide, $examples);
 
-    expect($examples[1])->toHaveCount(2)
+    expect($examples[1])->toHaveCount(3)
         ->and(UmlDiagram::parse('sequence', '', $examples[1][0])['problems'])->toBe([])
-        ->and(UmlDiagram::parse('class', '', $examples[1][1])['problems'])->toBe([]);
+        ->and(UmlDiagram::parse('class', '', $examples[1][1])['problems'])->toBe([])
+        ->and(UmlDiagram::parse('component', '', $examples[1][2])['problems'])->toBe([]);
+
+    // The binding example names real slugs: the write is refused otherwise.
+    foreach (['sap-s4', 'freshdesk', 'sap-cpi-integracao'] as $slug) {
+        Solution::factory()->create(['slug' => $slug]);
+    }
+    expect((new GitbookRenderer)->problems("{% uml type=\"component\" %}\n{$examples[1][2]}\n{% enduml %}"))->toBe([]);
 
     preg_match('/```\n(\{% scene.*?\{% endscene %\})\n```/s', $guide, $scene);
     expect((new GitbookRenderer)->problems($scene[1]))->toBe([]);

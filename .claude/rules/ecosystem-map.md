@@ -5,7 +5,7 @@ paths:
   - "resources/views/components/ecosystem-map.blade.php"
   - "resources/views/solutions/map.blade.php"
   - "app/Http/Controllers/SolutionMapController.php"
-  - "app/Services/DiagramGraphService.php"
+  - "app/Services/EcosystemMapService.php"
   - "resources/views/components/attribute-options/group-list.blade.php"
 ---
 
@@ -16,16 +16,23 @@ Brain" by Jay E / RoboNuggets under CC BY 4.0 — the visible credit at the bott
 of the map is the license, never tidy it away). Since 2026-10-07, by the user's
 call:
 
+- **The arrows come from the DOCUMENTATION** (since 2026-11-26): the direct
+  pairs `SolutionRelationshipService::pairs()` folds out of the UML diagrams in
+  caderno pages (`.claude/rules/solution-relationships.md`), no longer from the
+  topology drawings, which are being removed. `EcosystemMapService::globalMap()`
+  returns `nodes`, `edges`, `hostings`; `edges[].evidence` (name "Caderno ›
+  Página — diagrama", url to `#uml-figure-n`) is what the card an arrow opens
+  lists under "Onde está documentado", as links only for whoever may open the
+  cadernos (`data-ak-map-evidence`). A pair inferred THROUGH a platform ("via
+  Digibee") is never drawn: it would only repeat the two arrows that already
+  meet at the platform.
 - **No drill-down.** A click selects and opens a card; it never unfolds a
-  system into its diagrams or a diagram into its chain — that was "detail of
-  the detail" for a picture of the whole ecosystem. The payload carries no
-  drawings any more (`DiagramGraphService::globalMap()` returns `nodes`,
-  `edges`, `hostings`); `edges[].diagrams` (name, slug, url) is all that is
-  left of them, for the card an arrow opens.
-- **One arrow per PAIR of systems**, whatever number of diagrams and flows
-  connect them (`dedupePairs()`), carrying the direction of all of them:
-  `unidirectional` always means source → target (the pair is oriented by the
-  first flow seen), `bidirectional` gets a head at each end. Arrows are
+  system into its diagrams — that was "detail of the detail" for a picture of
+  the whole ecosystem.
+- **One arrow per PAIR of systems**, whatever number of diagrams and calls
+  connect them, carrying the direction of all of them: `unidirectional` always
+  means source → target, `bidirectional` gets a head at each end, and
+  `undirected` (only plain UML associations) gets NO head. Arrows are
   straight — the per-index curvature the reference used is what read as a
   tangle.
 - **No filters.** The bar above the canvas is the VIEW selector and, on the

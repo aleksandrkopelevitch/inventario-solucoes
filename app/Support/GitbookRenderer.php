@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Diagram;
+use App\Models\Solution;
 use App\Support\Documentation\BeforeAfterScene;
 use App\Support\Documentation\ComparisonScene;
 use App\Support\Documentation\PageLinks;
@@ -13,6 +14,7 @@ use App\Support\Documentation\StepScene;
 use App\Support\Documentation\TimelineScene;
 use App\Support\Documentation\TreeScene;
 use App\Support\Documentation\UmlDiagram;
+use App\Support\Documentation\UmlSolutionBindings;
 use Illuminate\Support\Facades\Cache;
 use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
@@ -102,6 +104,15 @@ class GitbookRenderer
     private int $uid = 0;
 
     /**
+     * The order of a `{% uml %}` block in the page, counted from 1 — valid or
+     * not — and printed as the figure's `id="uml-figure-{n}"`. It is the same
+     * count UmlSolutionBindings stores as `diagram_position`, so a solution's
+     * "Onde está documentado" links straight to the figure. Reset on every
+     * `render()`.
+     */
+    private int $umlCount = 0;
+
+    /**
      * @param  bool  $linkDiagrams  Whether a cited drawing gets a link to its
      *                              canvas. FALSE for anything a guest can read:
      *                              `/diagrams/{slug}` is behind auth, so the
@@ -128,6 +139,7 @@ class GitbookRenderer
         // previous call can't leave it behind either.
         $this->linkDiagrams = $linkDiagrams;
         $this->pageLinks = $pageLinks ?? PageLinks::none();
+        $this->umlCount = 0;
 
         if (blank($markdown)) {
             return '';
@@ -159,7 +171,7 @@ class GitbookRenderer
     }
 
     /** Bumped when `renderLines()`'s output changes shape — old entries then miss. */
-    private const PARSE_CACHE_VERSION = 'v1';
+    private const PARSE_CACHE_VERSION = 'v2';
 
     /** Below this many characters a parse costs less than the cache round trip. */
     private const PARSE_CACHE_MIN_LENGTH = 4096;
@@ -1027,9 +1039,10 @@ class GitbookRenderer
     {
         $title = trim(html_entity_decode($attrs['title'] ?? '', ENT_QUOTES));
         ['diagram' => $diagram, 'problems' => $problems] = UmlDiagram::parse($attrs['type'] ?? '', $title, implode("\n", $lines));
+        $id = 'uml-figure-' . (++$this->umlCount);
 
         if ($diagram === null) {
-            return '<div class="ak-uml-error" role="note"><strong>Este diagrama UML não pôde ser desenhado:</strong><ul>'
+            return '<div class="ak-uml-error" id="' . $id . '" role="note"><strong>Este diagrama UML não pôde ser desenhado:</strong><ul>'
                 . implode('', array_map(fn (string $problem) => '<li>' . e($problem) . '</li>', $problems))
                 . '</ul></div>';
         }
@@ -1039,7 +1052,7 @@ class GitbookRenderer
             ? '<ol class="ak-uml__text">' . $this->umlSequenceText($diagram['messages'], $diagram['participants']) . '</ol>'
             : $this->umlGridText($diagram);
 
-        return '<figure class="ak-uml" data-ak-uml="' . e(json_encode($diagram, JSON_UNESCAPED_UNICODE)) . '">'
+        return '<figure class="ak-uml" id="' . $id . '" data-ak-uml="' . e(json_encode($diagram, JSON_UNESCAPED_UNICODE)) . '">'
             // Not aria-hidden: the fullscreen button lives in here. The SVG
             // hides itself; the text below is what assistive technology reads.
             . '<div class="ak-uml__stage" data-ak-uml-stage></div>'
@@ -1140,6 +1153,7 @@ class GitbookRenderer
     {
         $known = $previous === null ? [] : array_column($this->figureBlocks($previous), 'raw');
         $problems = [];
+        $bindings = [];
 
         foreach ($this->figureBlocks($markdown) as $block) {
             if (in_array($block['raw'], $known, true)) {
@@ -1172,11 +1186,28 @@ class GitbookRenderer
                     $problems[] = "{$label}: {$problem}";
                 }
 
+                foreach (UmlSolutionBindings::slugsOf($parsed['diagram']) as $slug) {
+                    $bindings[$slug][] = $label;
+                }
+
                 continue;
             }
 
             foreach ($this->sceneProblems($block['attrs'], $block['inner']) as $problem) {
                 $problems[] = 'Cena "' . ($block['attrs']['type'] ?? '?') . "\": {$problem}";
+            }
+        }
+
+        // A binding to a slug the catalog does not have would derive nothing,
+        // silently: refused on write, like any other mistake in the block. One
+        // query for the whole body, and only over the blocks that changed.
+        if ($bindings !== []) {
+            $known = Solution::query()->whereIn('slug', array_keys($bindings))->pluck('slug')->all();
+
+            foreach (array_diff_key($bindings, array_flip($known)) as $slug => $labels) {
+                foreach (array_unique($labels) as $label) {
+                    $problems[] = "{$label}: a solução \"{$slug}\" não existe no catálogo. Use search_solutions para achar o slug certo — nunca invente um.";
+                }
             }
         }
 
@@ -1260,7 +1291,7 @@ class GitbookRenderer
      *
      * @return list<array{kind: string, attrs: array<string, string>, inner: array<int, string>, raw: string, closed: bool, inHint: bool}>
      */
-    private function figureBlocks(string $markdown): array
+    public function figureBlocks(string $markdown): array
     {
         $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $markdown));
         $blocks = [];

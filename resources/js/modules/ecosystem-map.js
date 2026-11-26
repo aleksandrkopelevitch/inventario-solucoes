@@ -2,8 +2,10 @@
 //
 // Always at SOLUTION level (2026-10-07): one block per system, one arrow per
 // PAIR of systems. The arrow carries the direction of every flow between the
-// two, across every diagram — ida, volta or ambos — so two systems that meet
-// in five drawings still get a single line. The drill-down that used to unfold
+// two, across every diagram — ida, volta or ambos, or no head at all for a
+// plain association — so two systems that meet in five diagrams still get a
+// single line. The pairs come from the documentation's UML diagrams
+// (`SolutionRelationshipService`, since 2026-11-26), no longer from drawings. The drill-down that used to unfold
 // a system into its diagrams and a diagram into its chain is gone: too much
 // detail for a picture of the whole ecosystem. A click opens a card instead.
 //
@@ -12,7 +14,7 @@
 //   - "Por ligações" (default): the systems on concentric rings (or a force
 //     simulation), most connected in the middle.
 //   - "Por hospedagem": one coloured container per cloud / hosting model
-//     (`DiagramGraphService::hostingOf()`), its look set on the attributes
+//     (`EcosystemMapService::hostingOf()`), its look set on the attributes
 //     screen, with the systems inside. Its arrows run between the CONTAINERS
 //     by default — one per link the systems have — or between the systems,
 //     toggled by `[data-ak-map-arrows-mode]`. A link between two systems of the
@@ -194,9 +196,10 @@ function mount(shell) {
                 kind: 'pair',
                 sn: byId.get(edge.source),
                 tn: byId.get(edge.target),
-                // `unidirectional` always runs source → target: the server
-                // orients every pair by the first flow it saw.
-                forward: true,
+                // `unidirectional` always runs source → target (the server
+                // orients a one-way pair by its flow); `undirected` is a plain
+                // association, drawn with no head at all.
+                forward: edge.direction !== 'undirected',
                 backward: edge.direction === 'bidirectional',
             }))
 
@@ -875,7 +878,15 @@ function mount(shell) {
     }
 
     function arrowGlyph(link) {
+        if (!link.forward) return '—'
+
         return link.backward ? '↔' : '→'
+    }
+
+    function directionText(link) {
+        if (!link.forward) return 'Sem sentido definido'
+
+        return link.backward ? 'Ida e volta' : `${link.sn.label} → ${link.tn.label}`
     }
 
     function tipForNode(node) {
@@ -887,11 +898,11 @@ function mount(shell) {
     }
 
     function tipForLink(link) {
-        const count = link.diagrams?.length ?? 0
+        const count = link.evidence?.length ?? 0
 
         return `<strong>${escapeHtml(link.sn.label)} ${arrowGlyph(link)} ${escapeHtml(link.tn.label)}</strong>
             ${link.label ? `<span class="block text-white/55">${escapeHtml(link.label)}</span>` : ''}
-            <span class="block text-white/40">${count} diagrama${count === 1 ? '' : 's'} · clique para ver</span>`
+            <span class="block text-white/40">${count} diagrama${count === 1 ? '' : 's'} UML · clique para ver</span>`
     }
 
     function tipForBox(box) {
@@ -919,11 +930,11 @@ function mount(shell) {
         if (subject.type === 'link') {
             const link = subject.link
             title = `${link.sn.label} ${arrowGlyph(link)} ${link.tn.label}`
-            add('Sentido', link.backward ? 'Ida e volta' : `${link.sn.label} → ${link.tn.label}`)
-            add('Protocolo', link.label)
-            body = (link.diagrams ?? []).length
-                ? `<p class="mt-3 text-[10px] uppercase tracking-wider text-white/40">Diagramas</p>
-                   <ul class="mt-1 space-y-1">${link.diagrams.map((d) => `<li>${diagramItem(d)}</li>`).join('')}</ul>`
+            add('Sentido', directionText(link))
+            add('Rótulos', link.label)
+            body = (link.evidence ?? []).length
+                ? `<p class="mt-3 text-[10px] uppercase tracking-wider text-white/40">Onde está documentado</p>
+                   <ul class="mt-1 space-y-1">${link.evidence.map((e) => `<li>${evidenceItem(e)}</li>`).join('')}</ul>`
                 : ''
         } else if (subject.type === 'container') {
             title = subject.box.label
@@ -955,16 +966,16 @@ function mount(shell) {
     }
 
     /**
-     * A diagram behind an arrow: a link for whoever may open the diagrams
-     * (the documentation module — `data-ak-map-diagrams`), its name for
-     * everybody else. The map itself is open to every account; the drawings
-     * are not.
+     * A UML diagram behind an arrow ("Caderno › Página — diagrama"): a link
+     * for whoever may open the cadernos (`data-ak-map-evidence`), its name for
+     * everybody else. The map itself is open to every account; the
+     * documentation is not.
      */
-    function diagramItem(d) {
-        const name = escapeHtml(d.name)
+    function evidenceItem(e) {
+        const name = escapeHtml(e.name)
 
-        return shell.dataset.akMapDiagrams === '1'
-            ? `<a href="${escapeAttr(d.url)}" target="_blank" rel="noopener"
+        return shell.dataset.akMapEvidence === '1'
+            ? `<a href="${escapeAttr(e.url)}" target="_blank" rel="noopener"
                   class="text-[12px] text-white/85 underline decoration-white/25 underline-offset-2 hover:text-white">${name} ↗</a>`
             : `<span class="text-[12px] text-white/75">${name}</span>`
     }

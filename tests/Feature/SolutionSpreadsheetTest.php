@@ -174,7 +174,7 @@ it('exports an xlsx workbook', function () {
     $alpha = sheetSolution();
 
     $response = $this->actingAs(sheetUser())
-        ->get(route('solutions.spreadsheet.export', ['format' => 'xlsx', 'columns' => ['name', 'diagrams'], 'ids' => [$alpha->id]]))
+        ->get(route('solutions.spreadsheet.export', ['format' => 'xlsx', 'columns' => ['name', 'relationships'], 'ids' => [$alpha->id]]))
         ->assertOk()
         ->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 
@@ -192,7 +192,7 @@ it('exports an xlsx workbook', function () {
     $reader->close();
     unlink($path);
 
-    expect($rows)->toBe([['Solução', 'Diagramas'], ['Alpha ERP', 0]]);
+    expect($rows)->toBe([['Solução', 'Relacionamentos'], ['Alpha ERP', 0]]);
 });
 
 it('refuses an unknown format or column', function () {
