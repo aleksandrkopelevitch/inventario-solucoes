@@ -1,6 +1,6 @@
 # Solution relationships from the documentation — and the end of the drawing canvas
 
-Status: **phases 1–2 implemented** · revision 2 · 2026-11-26 · history in §13, implementation notes in §14
+Status: **phases 1–2 implemented, phase 3 merged (production run pending)** · revision 2 · 2026-11-26 · history in §13, implementation notes in §14
 
 The graphical canvas is removed, both of its owners:
 
@@ -873,7 +873,7 @@ Status per phase (✅ done · 🚧 in progress · ⏳ not started):
 |---|---|---|
 | 1. Bindings and documented relationships | ✅ DONE, verified 2026-11-26 (§14) | `97deeb8` |
 | 2. Manual relationships | ✅ DONE, verified 2026-11-26 (§14) | see §14 |
-| 3. The conversion | ⏳ | — |
+| 3. The conversion | 🚧 command merged; run in production pending (§14) | — |
 | 4. The removal | ⏳ | — |
 | 5. Documentation | ⏳ (the rule `solution-relationships.md` shipped with phase 1) | — |
 
@@ -898,7 +898,7 @@ Status per phase (✅ done · 🚧 in progress · ⏳ not started):
    - §6.3: inline add, edit, override and remove.
    - §8.1: the two MCP write tools, the log and the revert.
    - The source and "via" badges.
-3. ⏳ **The conversion:** `diagrams:to-uml` (§9). Run `--dry-run` in production,
+3. 🚧 **The conversion:** `diagrams:to-uml` (§9). Run `--dry-run` in production,
    review its report, then run it for real. The person reviews the 11 pages,
    and `/map` should show the drawings' pairs again, now from UML.
 4. ⏳ **The removal:** everything in §8, CATI canvas included.
@@ -1195,3 +1195,62 @@ Differences from the text above:
   solution whose category option was deleted since cannot have its
   interconnections reverted either. That predates this phase (it applies to
   `people` too) and was left as it is.
+
+### Phase 3 — 2026-11-26 🚧 command merged, production run pending
+
+`App\Support\Diagrams\DiagramToUml` (the conversion, pure) and
+`diagrams:to-uml` (the placement and the writes). Both are deleted in phase 4.
+
+**Built against the production drawings**, read through `get_diagram` on
+2026-11-26:
+
+- data flows between systems;
+- processes made only of steps and decisions, with no system at all
+  (Fluxo Login Cliente, Pipelines Digibee e VTEX, Visão AS-IS);
+- a lifeline sequence (SAP × Onfly);
+- a mixed drawing (Amigo Leo).
+
+Three of them were recreated in a throwaway database, converted by the real
+command, and screenshotted as `/docs` draws them.
+
+**What the person runs**, as www-data, after the deploy:
+
+```bash
+sudo -u www-data php artisan diagrams:to-uml --dry-run --user=<e-mail>
+sudo -u www-data php artisan diagrams:to-uml --user=<e-mail>        # same output, written
+```
+
+After the real run, check two things. `/map` shows the drawings' pairs again,
+and the command's last line reports no page still citing a diagram.
+
+**Differences from §9:**
+
+- **The type is chosen from the blocks**, not "component unless lifelines":
+  - **sequence**: lifelines, OR only systems/actors with two or more links
+    between one pair. "Visão Geral E-Commerce" is SAP → CPI → Digibee → VTEX
+    and back, in three rounds, nine links over four systems. As components those
+    rounds were lines drawn on top of each other; as a sequence they read in
+    order, and the via inference sees SAP ⟷ VTEX through CPI and Digibee.
+  - **activity**: no block is a system — a process of steps and decisions. Steps
+    become `action`s, links become `flow`s.
+  - **component**: otherwise.
+- **Cells:**
+  - **From the canvas positions**, when every block has one AND they fit 12 × 20.
+  - **Otherwise from the links' depth.** An activity grows DOWNWARD (row = depth),
+    since a process of 14 steps does not fit 12 columns; the others grow
+    rightward.
+  - **Collisions** move to the next free cell either way.
+- **An appended diagram goes under `## {nome do desenho}`**, not
+  `## Diagrama`. Two drawings landing on one page would otherwise get two
+  identical headings.
+- **`--show`** prints each block; **`--user`** signs the page saves.
+- **Known limit: a response is a call.** The canvas never distinguished a
+  response from a call, so "Onfly → SAP: RDVs aprovadas" converts to a `sync`
+  message and the pair reads "mútua". That is the same direction the old map
+  drew. It was not guessed, because the reverse message right after a call is
+  NOT always its response: VTEX → Digibee in the e-commerce flow is a webhook.
+  The person reviewing marks `"kind": "return"` in the editor where it is one.
+- **Manually declared systems are dropped.** "Pipelines Digibee e VTEX" lists
+  Digibee, CPI and SAP as participants with no block for them, and no
+  relationship follows from them. A UML block has nowhere honest to put "these
+  systems take part, somewhere".
