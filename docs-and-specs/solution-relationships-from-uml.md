@@ -1,6 +1,6 @@
 # Solution relationships from the documentation — and the end of the drawing canvas
 
-Status: **phase 1 implemented** · revision 2 · 2026-11-26 · history in §13, implementation notes in §14
+Status: **phases 1–2 implemented** · revision 2 · 2026-11-26 · history in §13, implementation notes in §14
 
 The graphical canvas is removed, both of its owners:
 
@@ -867,7 +867,17 @@ free text). It is off by default.
 
 Each phase is one branch, one commit, a `--no-ff` merge and a deploy.
 
-1. **Bindings and documented relationships** (additive; nothing is removed):
+Status per phase (✅ done · 🚧 in progress · ⏳ not started):
+
+| phase | status | merged |
+|---|---|---|
+| 1. Bindings and documented relationships | ✅ DONE, verified 2026-11-26 (§14) | `97deeb8` |
+| 2. Manual relationships | ✅ DONE, verified 2026-11-26 (§14) | see §14 |
+| 3. The conversion | ⏳ | — |
+| 4. The removal | ⏳ | — |
+| 5. Documentation | ⏳ (the rule `solution-relationships.md` shipped with phase 1) | — |
+
+1. ✅ **Bindings and documented relationships** (additive; nothing is removed):
    - §3: the `solution` key, `BINDABLE_KINDS`, group inheritance,
      `UmlSolutionBindings`, the editor check's problems and hints, the MCP
      refusal, the guide.
@@ -883,15 +893,15 @@ Each phase is one branch, one commit, a `--no-ff` merge and a deploy.
    - §8.1: `get_solution.relationships`. `get_diagram` and `search_diagrams`
      stay one more phase.
    - On deploy, run `documentation:solution-links` once.
-2. **Manual relationships:**
+2. ✅ **Manual relationships:**
    - §5.2: the migration, the model, the two actions.
    - §6.3: inline add, edit, override and remove.
    - §8.1: the two MCP write tools, the log and the revert.
    - The source and "via" badges.
-3. **The conversion:** `diagrams:to-uml` (§9). Run `--dry-run` in production,
+3. ⏳ **The conversion:** `diagrams:to-uml` (§9). Run `--dry-run` in production,
    review its report, then run it for real. The person reviews the 11 pages,
    and `/map` should show the drawings' pairs again, now from UML.
-4. **The removal:** everything in §8, CATI canvas included.
+4. ⏳ **The removal:** everything in §8, CATI canvas included.
    - **The gate:** no page body still contains `{% diagram`. The migration
      REFUSES to run otherwise and names the pages.
    - **The media:** `media` rows with `model_type = App\Models\Diagram`, and
@@ -903,7 +913,7 @@ Each phase is one branch, one commit, a `--no-ff` merge and a deploy.
    - **The rules:** fix every `paths:` that pointed at a deleted or renamed
      file. `ecosystem-map.md` points at the new service. A glob that resolves
      to nothing never loads.
-5. **Documentation:**
+5. ⏳ **Documentation:**
    - README: ~60 mentions; the main blocks are 4-28, 589-617, 783-806,
      859-925, 1017-1035, 1124-1142, 1296-1333, 1565, 1732-1795 and 1931-1993.
    - AGENTS.md: 9-10, 65-74, 513, the module list in its opening paragraph,
@@ -923,6 +933,11 @@ Each phase is one branch, one commit, a `--no-ff` merge and a deploy.
    - Also `docs/cati-fase-*.md`.
 
 ## 11. Tests
+
+The groups below are the cases, not file names: phase 1 put its derivation,
+binding, via, sync, card and MCP cases in ONE file,
+`tests/Feature/SolutionRelationshipsTest.php`, and the map's in
+`EcosystemMapTest.php`.
 
 **New:**
 
@@ -1063,7 +1078,36 @@ Each phase is one branch, one commit, a `--no-ff` merge and a deploy.
 
 ## 14. Implementation notes
 
-### Phase 1 — 2026-11-26
+### Phase 1 — 2026-11-26 ✅ DONE
+
+Merged as `97deeb8`. Verified against §10's list item by item:
+
+| item | status | where |
+|---|---|---|
+| §3 binding key, `BINDABLE_KINDS`, groups | ✅ | `UmlDiagram::solution()`, `BINDABLE_KINDS` |
+| §3.3 slug resolution, editor problems/hints, MCP refusal | ✅ | `UmlSolutionBindings`, `NotebookPageUmlController`, `GitbookRenderer::problems()` |
+| §3.4 rename rewrite, create pick-up | ✅ | `RewriteSolutionBindings`, `SyncPageSolutionLinks::forPagesNaming()`, `SaveSolution` |
+| §4.1–4.3 direction and folding | ✅ | `UmlSolutionBindings::links()`, `SolutionRelationshipService::derive()` |
+| §4.4 via (sequence order, grid fan-in/out, ≤ 2 platforms, one diagram) | ✅ | `viaSequence()`, `viaGrid()` |
+| §5.1 table, model, sync on every writer, command | ✅ | migration `2026_11_26_191220`, `DocumentationPage::booted()`, `documentation:solution-links` |
+| `#uml-figure-{n}` | ✅ | `GitbookRenderer::renderUml()` |
+| §6.1–6.2 card (read-only), index strip, spreadsheet | ✅ | `Solutions\Relationships`, `SolutionCatalogStatsService`, `SolutionSpreadsheetService` |
+| §7 `/map` | ✅ | `EcosystemMapService`, `ecosystem-map.js` |
+| §8.1 `get_solution.relationships` | ✅ | `Presenter::relationship()` |
+| guide | ✅ | `code-documentation-guide.md` § "Vínculo com o catálogo" |
+
+The verification also checked two things no item names:
+
+- **No writer bypasses the page model.** There is no `DB::table` and no
+  builder-level `update()` of `documentation` in `app/`, so the hook sees every
+  write. Tests cover the editor save (`notebooks.pages.update`) and the MCP
+  `update_page`.
+- **The screen at both widths.** The card was screenshotted in headless Chrome,
+  desktop and 390 px. On a phone the row's own solution is its logo alone (the
+  name is `max-sm:hidden`), because the counterpart's name was being truncated
+  to "Active …".
+
+Still on the person: run `documentation:solution-links` once after the deploy.
 
 Shipped as specified, with these differences. Each is the code's answer, and
 the rule `.claude/rules/solution-relationships.md` describes the result.
@@ -1101,3 +1145,53 @@ the rule `.claude/rules/solution-relationships.md` describes the result.
   relacionamento documentado" and `/map`'s links view is empty. That is
   expected, and phase 3's conversion of the 11 drawings is what brings their
   pairs back.
+
+### Phase 2 — 2026-11-26 ✅ DONE
+
+Verified against §10's list:
+
+| item | status | where |
+|---|---|---|
+| §5.2 table, model, normalized pair, authorship | ✅ | migration `2026_11_26_193414`, `SolutionRelationship`, `ManualRelationshipDirection` |
+| §5.2 scoped `{relationship}` binding | ✅ | `Solution::resolveChildRouteBinding()` |
+| §5.3 a record wins for its pair; `documented` kept | ✅ | `SolutionRelationshipService::overlay()`, `Relationship::source()` |
+| §6.3 add, edit (re-point), override, remove — inline | ✅ | `Solutions\Relationships`, `SolutionRelationshipController`, `Store/UpdateSolutionRelationshipRequest` |
+| source and via badges | ✅ | the card's second line |
+| §6.4 delete confirm names the interconnections | ✅ | `solutions/show.blade.php` |
+| §7 map counts manual pairs, card says "Cadastro: manual, por …" | ✅ | `EcosystemMapService`, `ecosystem-map.js` |
+| §8.1 `set_solution_relationship` / `remove_solution_relationship`, log, revert | ✅ | `App\Mcp\Tools\Write\*`, `RecordFields` (`relationships`), `WriteList` |
+| `get_solution` source / documented / recorded by | ✅ | `Presenter::relationship()` |
+
+**Verified in a browser**, headless Chrome on a throwaway SQLite database:
+recording an interconnection with the creator, overriding a documented pair
+from its pencil, and the editor open on a manual row. The first run found a
+real bug the tests had missed:
+
+- Every direction `<select>` rendered EMPTY, and saving posted
+  `direction: null` (422).
+- The cause: the component had a public static `directionOptions()`, and a
+  class component's public methods are handed to its view as variables,
+  replacing the array `render()` passed under the same key.
+- The fix: it is `directionChoices()` now. A render test asserts the option
+  labels, and the trap is in `.claude/rules/blade-compiler-traps.md`.
+
+Differences from the text above:
+
+- **The override is `PUT solutions.relationships.override`** (the counterpart
+  in the query string), not a POST to `store`. `x-ui.inline-edit` makes every
+  POST a "+ Adicionar" creator chip, and the documented row's pencil is an edit.
+- **The badges sit on the row's second line**, with "via", not beside the
+  name. Beside it, the badge covered the counterpart's name and squeezed the
+  open editor.
+- **The direction options say "esta"** ("→ esta chama a outra"), not the
+  solution's name, which cut the sentence inside the select.
+- **MCP `source` values:** "documentado", "cadastrado", "cadastro sobre a
+  documentação". The payload also carries `documented_direction` and
+  `recorded_by`.
+- **The write log names the relation "interconexões cadastradas"** and prints
+  each as "slug (chama)".
+- **A known edge of the existing revert:** `RevertMcpWrite` re-validates every
+  column of the solution even when only a relation is being reverted, so a
+  solution whose category option was deleted since cannot have its
+  interconnections reverted either. That predates this phase (it applies to
+  `people` too) and was left as it is.

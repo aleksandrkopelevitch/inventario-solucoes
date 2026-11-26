@@ -96,7 +96,7 @@ if a rule you expect is not here, it is in one of these:
 | `inline-edit-pattern.md` | `x-ui.inline-edit` |
 | `solutions-spreadsheet.md` | the read-only catalog spreadsheet, its export and its magic link |
 | `ecosystem-map.md` | the `/map` canvas: solution level only, one arrow per pair, the hosting view |
-| `solution-relationships.md` | who talks to whom: `"solution"` bindings in `{% uml %}`, `uml_solution_links`, platform ("via") inference, the "Relacionamentos" card |
+| `solution-relationships.md` | who talks to whom: `"solution"` bindings in `{% uml %}`, `uml_solution_links`, platform ("via") inference, manual interconnections and their override, the "Relacionamentos" card, the MCP's `set/remove_solution_relationship` |
 
 When a rule changes, edit it where it lives. When adding one, give it a
 `paths:` list of globs that actually resolve — a glob pointing at a renamed file

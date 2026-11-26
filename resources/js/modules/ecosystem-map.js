@@ -932,6 +932,7 @@ function mount(shell) {
             title = `${link.sn.label} ${arrowGlyph(link)} ${link.tn.label}`
             add('Sentido', directionText(link))
             add('Rótulos', link.label)
+            if (link.manual) add('Cadastro', link.manual.by ? `manual, por ${link.manual.by}` : 'manual')
             body = (link.evidence ?? []).length
                 ? `<p class="mt-3 text-[10px] uppercase tracking-wider text-white/40">Onde está documentado</p>
                    <ul class="mt-1 space-y-1">${link.evidence.map((e) => `<li>${evidenceItem(e)}</li>`).join('')}</ul>`

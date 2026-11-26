@@ -143,8 +143,15 @@ class Presenter
         return $this->compact([
             'solution'  => ['slug' => $relationship->other->slug, 'name' => $relationship->other->name],
             'direction' => $relationship->direction->label(),
-            'source'    => 'documentado',
-            'via'       => $relationship->direct
+            'source'    => match ($relationship->source()) {
+                'manual'   => 'cadastrado',
+                'adjusted' => 'cadastro sobre a documentação',
+                default    => 'documentado',
+            },
+            // What the documentation says on its own, when a record overrides it.
+            'documented_direction' => $relationship->documented?->label(),
+            'recorded_by'          => $relationship->manual?->creator?->name,
+            'via'                  => $relationship->direct
                 ? null
                 : array_map(fn (Solution $p) => ['slug' => $p->slug, 'name' => $p->name], $relationship->via),
             'labels'   => $relationship->labels,

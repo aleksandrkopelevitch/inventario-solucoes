@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\RelationshipDirection;
 use App\Models\DocumentationPage;
 use App\Models\Solution;
+use App\Models\SolutionRelationship;
 use App\Models\UmlSolutionLink;
 use App\Support\Fold;
 use App\Support\Relationships\Relationship;
@@ -30,6 +31,11 @@ use Illuminate\Support\Collection;
  *
  * Platform inference runs on read, so changing a solution's category changes
  * the answer at once, with no page to re-sync.
+ *
+ * A MANUAL interconnection (`solution_relationships`, recorded by a person)
+ * joins the same folding and wins for its pair: its direction replaces the
+ * documented one, which is kept aside as `documented` so the screen can say
+ * what was overridden. A manual record alone is a relationship too.
  */
 class SolutionRelationshipService
 {
@@ -61,16 +67,19 @@ class SolutionRelationshipService
             ->map(fn (UmlSolutionLink $link) => "{$link->documentation_page_id}:{$link->diagram_position}")
             ->flip();
 
-        if ($diagrams->isEmpty()) {
-            return collect();
-        }
-
-        $rows = UmlSolutionLink::query()
+        $rows = $diagrams->isEmpty() ? collect() : UmlSolutionLink::query()
             ->whereIn('documentation_page_id', $diagrams->keys()->map(fn (string $key) => (int) explode(':', $key)[0])->unique()->values())
             ->get()
             ->filter(fn (UmlSolutionLink $link) => $diagrams->has("{$link->documentation_page_id}:{$link->diagram_position}"));
 
-        $pairs = array_filter($this->derive($rows, withVia: true), fn (array $pair) => $pair['a'] === $id || $pair['b'] === $id);
+        $pairs = $this->derive($rows, withVia: true);
+        $this->overlay($pairs, SolutionRelationship::query()->involving($solution)->with(['creator:id,name', 'updater:id,name'])->get());
+
+        $pairs = array_filter($pairs, fn (array $pair) => $pair['a'] === $id || $pair['b'] === $id);
+
+        if ($pairs === []) {
+            return collect();
+        }
 
         return $this->relationships($pairs, $solution)
             ->sortBy(fn (Relationship $r) => Fold::text($r->other->name))
@@ -81,11 +90,12 @@ class SolutionRelationshipService
      * Every DIRECT pair in the catalog, for the ecosystem map: the "via" pairs
      * would only repeat the two arrows that already meet at the platform.
      *
-     * @return list<array{source: Solution, target: Solution, direction: string, labels: list<string>, evidence: list<array{page: DocumentationPage, position: int, title: ?string, type: string}>}>
+     * @return list<array{source: Solution, target: Solution, direction: string, labels: list<string>, evidence: list<array{page: DocumentationPage, position: int, title: ?string, type: string}>, manual: ?array{by: ?string}}>
      */
     public function pairs(): array
     {
         $pairs = $this->derive(UmlSolutionLink::query()->get(), withVia: false);
+        $this->overlay($pairs, SolutionRelationship::query()->with('creator:id,name')->get());
         $solutions = $this->solutions($pairs);
         $pages = $this->pages($pairs);
 
@@ -103,6 +113,7 @@ class SolutionRelationshipService
                 },
                 'labels'   => $pair['labels'],
                 'evidence' => $this->evidence($pair, $pages),
+                'manual'   => $pair['manual'] === null ? null : ['by' => $pair['manual']->creator?->name],
             ];
         }, $pairs));
     }
@@ -117,7 +128,7 @@ class SolutionRelationshipService
     {
         $counts = [];
 
-        foreach ($this->derive(UmlSolutionLink::query()->get(), withVia: true) as $pair) {
+        foreach ($this->all() as $pair) {
             $counts[$pair['a']] = ($counts[$pair['a']] ?? 0) + 1;
             $counts[$pair['b']] = ($counts[$pair['b']] ?? 0) + 1;
         }
@@ -128,7 +139,16 @@ class SolutionRelationshipService
     /** How many pairs of solutions are related, directly or through a platform. */
     public function total(): int
     {
-        return count($this->derive(UmlSolutionLink::query()->get(), withVia: true));
+        return count($this->all());
+    }
+
+    /** Every pair in the catalog, direct, inferred and manual. @return array<string, array<string, mixed>> */
+    private function all(): array
+    {
+        $pairs = $this->derive(UmlSolutionLink::query()->get(), withVia: true);
+        $this->overlay($pairs, SolutionRelationship::query()->get());
+
+        return $pairs;
     }
 
     /* ------------------------------------------------------------------ */
@@ -186,7 +206,7 @@ class SolutionRelationshipService
         [$a, $b] = $from < $to ? [$from, $to] : [$to, $from];
         $key = "{$a}|{$b}";
 
-        $pairs[$key] ??= ['a' => $a, 'b' => $b, 'aToB' => false, 'bToA' => false, 'direct' => false, 'via' => [], 'labels' => [], 'evidence' => []];
+        $pairs[$key] ??= self::emptyPair($a, $b);
         $pair = &$pairs[$key];
 
         if ($directed) {
@@ -211,6 +231,38 @@ class SolutionRelationshipService
             'title'    => $row->diagram_title,
             'type'     => $row->diagram_type,
         ];
+    }
+
+    /** @return array<string, mixed> */
+    private static function emptyPair(int $a, int $b): array
+    {
+        return ['a' => $a, 'b' => $b, 'aToB' => false, 'bToA' => false, 'direct' => false, 'via' => [], 'labels' => [], 'evidence' => [], 'manual' => null, 'documented' => null];
+    }
+
+    /**
+     * Lays the manual records over the documented pairs: a record decides its
+     * pair's direction, and what the documentation said is kept as
+     * `documented` (null when it said nothing). A record with no documented
+     * pair under it is a pair of its own — direct, since a person recorded
+     * the two talking to each other.
+     *
+     * @param  array<string, array<string, mixed>>  $pairs
+     * @param  Collection<int, SolutionRelationship>  $records
+     */
+    private function overlay(array &$pairs, Collection $records): void
+    {
+        foreach ($records as $record) {
+            $key = "{$record->solution_a_id}|{$record->solution_b_id}";
+            $pair = $pairs[$key] ?? self::emptyPair($record->solution_a_id, $record->solution_b_id);
+
+            $pair['documented'] = isset($pairs[$key]) ? ['aToB' => $pair['aToB'], 'bToA' => $pair['bToA']] : null;
+            $pair['aToB'] = $record->direction->aToB();
+            $pair['bToA'] = $record->direction->bToA();
+            $pair['direct'] = $pair['direct'] || $pair['via'] === [];
+            $pair['manual'] = $record;
+
+            $pairs[$key] = $pair;
+        }
     }
 
     /**
@@ -331,6 +383,11 @@ class SolutionRelationshipService
                 via: array_values(array_filter(array_map(fn (int $id) => $solutions[$id] ?? null, $pair['via']))),
                 labels: $pair['labels'],
                 evidence: $this->evidence($pair, $pages),
+                manual: $pair['manual'],
+                documented: $pair['documented'] === null ? null : RelationshipDirection::fromFlags(
+                    out: $isA ? $pair['documented']['aToB'] : $pair['documented']['bToA'],
+                    in: $isA ? $pair['documented']['bToA'] : $pair['documented']['aToB'],
+                ),
             );
         })->values();
     }

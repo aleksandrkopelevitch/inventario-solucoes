@@ -3,6 +3,7 @@
 namespace App\View\Components\Mcp;
 
 use App\Enums\PersonSolutionRole;
+use App\Enums\RelationshipDirection;
 use App\Mcp\ToolRegistry;
 use App\Models\Company;
 use App\Models\DocumentationPage;
@@ -136,6 +137,7 @@ class WriteList extends Component
             'job_title'              => 'cargo',
             'notes'                  => 'observações',
             'people'                 => 'responsáveis',
+            'relationships'          => 'interconexões cadastradas',
             'solutions'              => 'soluções documentadas',
             'title'                  => 'título',
             'documentation'          => 'texto',
@@ -167,6 +169,12 @@ class WriteList extends Component
 
         if ($field === 'solutions' && is_array($value)) {
             return implode(', ', $value);
+        }
+
+        if ($field === 'relationships' && is_array($value)) {
+            return collect($value)
+                ->map(fn (array $link) => $link['solution'] . ' (' . (RelationshipDirection::tryFrom((string) $link['direction'])?->label() ?? $link['direction']) . ')')
+                ->implode(', ');
         }
 
         if ($field === 'people' && is_array($value)) {

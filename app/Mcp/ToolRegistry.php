@@ -43,6 +43,8 @@ class ToolRegistry
         Tools\Write\UpdateSolution::class,
         Tools\Write\LinkPersonToSolution::class,
         Tools\Write\UnlinkPersonFromSolution::class,
+        Tools\Write\SetSolutionRelationship::class,
+        Tools\Write\RemoveSolutionRelationship::class,
         Tools\Write\CreatePerson::class,
         Tools\Write\UpdatePerson::class,
         Tools\Write\CreateCompany::class,

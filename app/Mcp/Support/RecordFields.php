@@ -2,10 +2,13 @@
 
 namespace App\Mcp\Support;
 
+use App\Enums\ManualRelationshipDirection;
+use App\Enums\RelationshipDirection;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Models\Person;
 use App\Models\Solution;
+use App\Models\SolutionRelationship;
 use App\Services\DocumentationPageService;
 use Illuminate\Database\Eloquent\Model;
 
@@ -27,7 +30,7 @@ final class RecordFields
 {
     /** Relation fields, per model: what `get()`/`set()` treat as a set rather than a column. */
     private const RELATIONS = [
-        Solution::class          => ['people'],
+        Solution::class          => ['people', 'relationships'],
         Notebook::class          => ['solutions'],
         DocumentationPage::class => ['placement'],
     ];
@@ -61,6 +64,20 @@ final class RecordFields
                         // when a link is re-pointed, and a revert must too.
                         'is_primary' => (bool) $person->pivot->is_primary,
                     ])
+                    ->values()
+                    ->all(),
+                // The MANUAL interconnections only (the documented ones are
+                // the documentation's, and change by editing a page), each
+                // read from this solution's side, keyed by the other's slug.
+                $model instanceof Solution && $field === 'relationships' => SolutionRelationship::query()
+                    ->involving($model)
+                    ->with(['solutionA:id,slug', 'solutionB:id,slug'])
+                    ->get()
+                    ->map(fn (SolutionRelationship $r) => [
+                        'solution'  => ($r->solution_a_id === $model->getKey() ? $r->solutionB : $r->solutionA)->slug,
+                        'direction' => $r->directionFrom($model)->value,
+                    ])
+                    ->sortBy('solution')
                     ->values()
                     ->all(),
                 $model instanceof Notebook && $field === 'solutions' => $model->solutions()
@@ -111,6 +128,32 @@ final class RecordFields
                         'is_primary' => (bool) ($link['is_primary'] ?? false),
                     ]])
                     ->all());
+            }
+
+            // Re-syncs this solution's manual interconnections to the set: a
+            // record not in it is removed, one in it is written back with its
+            // direction. A counterpart that no longer exists is skipped.
+            if ($model instanceof Solution && $field === 'relationships') {
+                $ids = Solution::query()->whereIn('slug', collect($value)->pluck('solution')->all())->pluck('id', 'slug');
+                $keep = [];
+
+                foreach ($value as $link) {
+                    if (! isset($ids[$link['solution']])) {
+                        continue;
+                    }
+
+                    $other = (int) $ids[$link['solution']];
+                    $a = min($model->getKey(), $other);
+                    $record = SolutionRelationship::query()->forPair($model->getKey(), $other)->first() ?? new SolutionRelationship;
+                    $record->fill([
+                        'solution_a_id' => $a,
+                        'solution_b_id' => max($model->getKey(), $other),
+                        'direction'     => ManualRelationshipDirection::fromSide(RelationshipDirection::from($link['direction']), $model->getKey() === $a),
+                    ])->save();
+                    $keep[] = $record->getKey();
+                }
+
+                SolutionRelationship::query()->involving($model)->whereKeyNot($keep)->get()->each->delete();
             }
 
             if ($model instanceof Notebook && $field === 'solutions') {

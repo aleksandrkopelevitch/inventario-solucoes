@@ -18,7 +18,7 @@ use App\Support\Images\PublicImage;
  *             'categoryLabel','statusLabel','criticalityLabel','environmentLabel',
  *             'cloudLabel','contractLabel','supportLabel','directorate',
  *             'categoryFamily','hosting'], ... ],
- *         'edges' => [ ['id','source','target','label','direction','evidence'], ... ],
+ *         'edges' => [ ['id','source','target','label','direction','evidence','manual'], ... ],
  *         'hostings' => [ ['id','label','kind','color','image','icon'], ... ],
  *     ]
  *
@@ -82,6 +82,8 @@ class EcosystemMapService
                 'name' => $this->evidenceName($e['page'], $e['title'], $e['type']),
                 'url'  => route('notebooks.pages.edit', [$e['page']->notebook, $e['page']]) . '#uml-figure-' . $e['position'],
             ], $pair['evidence']),
+            // A person recorded (or corrected) this pair on the solution page.
+            'manual' => $pair['manual'],
         ], $pairs);
 
         return [

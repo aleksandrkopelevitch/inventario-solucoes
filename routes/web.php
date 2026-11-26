@@ -22,6 +22,7 @@ use App\Http\Controllers\Inventory\CompanyController;
 use App\Http\Controllers\Inventory\PersonAccessController;
 use App\Http\Controllers\Inventory\PersonController;
 use App\Http\Controllers\Inventory\SolutionController;
+use App\Http\Controllers\Inventory\SolutionRelationshipController;
 use App\Http\Controllers\Inventory\SolutionSpreadsheetController;
 use App\Http\Controllers\KnowledgeBaseController;
 use App\Http\Controllers\Mcp\ConnectController;
@@ -196,6 +197,23 @@ Route::middleware('auth')->group(function () {
         ->scopeBindings()
         ->name('solutions.people.update');
     Route::delete('solutions/{solution}/people/{person}', [SolutionController::class, 'detachPerson'])->name('solutions.people.destroy');
+
+    // Manual interconnections, from the "Relacionamentos" card. Scoped:
+    // `{relationship}` is resolved through Solution::resolveChildRouteBinding()
+    // (a record lives in two columns, either side may be this solution), so
+    // one that does not involve `{solution}` is a 404.
+    Route::post('solutions/{solution}/relationships', [SolutionRelationshipController::class, 'store'])->name('solutions.relationships.store');
+    // The same record, set from the pencil of a row the DOCUMENTATION states
+    // (the override; the counterpart rides in the query string). A PUT rather
+    // than a second POST because x-ui.inline-edit makes a POST a creator — a
+    // "+ Adicionar" chip — and this is an edit of a row that is already there.
+    Route::put('solutions/{solution}/relationships', [SolutionRelationshipController::class, 'store'])->name('solutions.relationships.override');
+    Route::patch('solutions/{solution}/relationships/{relationship}', [SolutionRelationshipController::class, 'update'])
+        ->scopeBindings()
+        ->name('solutions.relationships.update');
+    Route::delete('solutions/{solution}/relationships/{relationship}', [SolutionRelationshipController::class, 'destroy'])
+        ->scopeBindings()
+        ->name('solutions.relationships.destroy');
 
     // A solution's documentation is no longer ITS OWN: it lives in cadernos
     // (see `notebooks.*` below), and a solution links to as many as describe

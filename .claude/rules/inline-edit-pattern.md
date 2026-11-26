@@ -203,6 +203,7 @@ with:
 | `Companies\People` | `Person.company_id` | `companies.people.{store,destroy}` | `company-people-slot` |
 | `Companies\ProvidedSolutions` | `Solution.vendor_company_id` | `companies.solutions.{store,destroy}` | `company-solutions-slot` |
 | `Solutions\DetailHeader` (owners grid) | `person_solution` pivot | `solutions.people.{store,update,destroy}` | `solution-detail-header-slot` |
+| `Solutions\Relationships` | `solution_relationships` (manual interconnections) | `solutions.relationships.{store,override,update,destroy}` | `solution-relationships-slot` |
 
 Things that are easy to get wrong here:
 
