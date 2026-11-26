@@ -51,6 +51,16 @@ final class UmlDiagram
         'port', 'nary', 'text', 'divider',
     ];
 
+    /**
+     * Grid kinds that can BE a system, and so may be bound to a catalog
+     * solution with `"solution": "<slug>"` (every sequence participant may).
+     * A note, a decision or a fork is never a system: a binding there is a
+     * mistake the author is told about, not a relationship.
+     */
+    public const BINDABLE_KINDS = [
+        'component', 'node', 'database', 'artifact', 'actor', 'object', 'package', 'class', 'abstract', 'interface',
+    ];
+
     /** Kinds whose box may carry a template parameter (`template`, drawn in a dashed box on the corner). */
     public const TEMPLATE_KINDS = ['class', 'abstract', 'interface'];
 
@@ -192,11 +202,12 @@ final class UmlDiagram
                 continue;
             }
 
-            $participants[$id] = [
-                'id'    => $id,
-                'label' => $this->text($item['label'] ?? $id, "\"label\" do {$where}", self::MAX_LABEL) ?: $id,
-                'kind'  => $kind,
-            ];
+            $participants[$id] = array_filter([
+                'id'       => $id,
+                'label'    => $this->text($item['label'] ?? $id, "\"label\" do {$where}", self::MAX_LABEL) ?: $id,
+                'kind'     => $kind,
+                'solution' => $this->solution($item, "o {$where}"),
+            ], fn ($value) => $value !== null);
         }
 
         $count = count($participants);
@@ -419,6 +430,11 @@ final class UmlDiagram
                 $this->problems[] = "O {$where} tem \"template\", que só vale em " . implode(', ', self::TEMPLATE_KINDS) . '.';
             }
 
+            if (isset($item['solution']) && ! in_array($kind, self::BINDABLE_KINDS, true)) {
+                $this->problems[] = "O {$where} é um(a) " . self::NODE_LABELS[$kind] . ': só elementos que podem ser um sistema aceitam "solution" ('
+                    . implode(', ', self::BINDABLE_KINDS) . ').';
+            }
+
             $nodes[$id] = array_filter([
                 'id'         => $id,
                 'kind'       => $kind,
@@ -429,6 +445,7 @@ final class UmlDiagram
                 'attributes' => $this->lines($item['attributes'] ?? [], "\"attributes\" do {$where}"),
                 'operations' => $this->lines($item['operations'] ?? [], "\"operations\" do {$where}"),
                 'at'         => $at,
+                'solution'   => in_array($kind, self::BINDABLE_KINDS, true) ? $this->solution($item, "o {$where}") : null,
             ], fn ($value) => $value !== null && $value !== '' && $value !== []);
         }
 
@@ -548,11 +565,12 @@ final class UmlDiagram
                 }
             }
 
-            $out[] = [
-                'label' => $this->text($group['label'] ?? '', "\"label\" do {$where}", self::MAX_LABEL),
-                'kind'  => $this->choice($group['kind'] ?? 'package', self::GROUP_KINDS, "\"kind\" do {$where}"),
-                'nodes' => $members,
-            ];
+            $out[] = array_filter([
+                'label'    => $this->text($group['label'] ?? '', "\"label\" do {$where}", self::MAX_LABEL),
+                'kind'     => $this->choice($group['kind'] ?? 'package', self::GROUP_KINDS, "\"kind\" do {$where}"),
+                'nodes'    => $members,
+                'solution' => $this->solution($group, "o {$where}"),
+            ], fn ($value) => $value !== null);
         }
 
         foreach ($out as $a => $one) {
@@ -679,6 +697,31 @@ final class UmlDiagram
         }
 
         return $value;
+    }
+
+    /**
+     * The catalog solution an element is bound to, by SLUG — checked for shape
+     * only. Whether the slug exists is a database question, and this class
+     * never asks one: the reader draws without waiting on a query.
+     * UmlSolutionBindings resolves the slugs and says which ones do not exist.
+     *
+     * @param  array<string, mixed>  $item
+     */
+    private function solution(array $item, string $where): ?string
+    {
+        if (! array_key_exists('solution', $item) || $item['solution'] === null) {
+            return null;
+        }
+
+        $slug = $item['solution'];
+
+        if (! is_string($slug) || ! preg_match('/^[a-z0-9]+(?:-[a-z0-9]+)*$/', $slug) || strlen($slug) > 255) {
+            $this->problems[] = "O \"solution\" d{$where} deve ser o slug de uma solução do catálogo (letras minúsculas, números e hífens).";
+
+            return null;
+        }
+
+        return $slug;
     }
 
     /** @param list<string> $allowed */

@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\Diagram;
+use App\Models\DocumentationPage;
 use App\Models\Solution;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -29,8 +29,13 @@ it('serves the whole map, ignoring the filters the map no longer has', function 
     $mkt = Solution::factory()->create(['category' => 'marketing', 'directorate' => 'Comercial']);
     $tms = Solution::factory()->create(['category' => 'tms', 'directorate' => 'Comercial']);
 
-    attachParticipants(Diagram::factory()->active()->create(), [[$erp, 0], [$crm, 1]]);
-    attachParticipants(Diagram::factory()->active()->create(), [[$mkt, 0], [$tms, 1]]);
+    // The arrows come from the documentation's UML diagrams (2026-11-26).
+    foreach ([[$erp, $crm], [$mkt, $tms]] as [$a, $b]) {
+        DocumentationPage::factory()->create(['documentation' => "{% uml type=\"sequence\" %}\n" . json_encode([
+            'participants' => [['id' => 'a', 'solution' => $a->slug], ['id' => 'b', 'solution' => $b->slug]],
+            'messages'     => [['from' => 'a', 'to' => 'b']],
+        ]) . "\n{% enduml %}"]);
+    }
 
     $nodes = $this->actingAs(User::factory()->create())
         ->getJson(route('solutions.map.data', ['category' => 'erp', 'directorate' => 'TI', 'status' => 'planned']))

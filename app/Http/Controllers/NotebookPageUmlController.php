@@ -6,6 +6,7 @@ use App\Http\Requests\CheckPageUmlRequest;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Support\Documentation\UmlDiagram;
+use App\Support\Documentation\UmlSolutionBindings;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -16,12 +17,17 @@ use Illuminate\Http\JsonResponse;
  * two elements in one cell): the browser preview is lenient by design, and a
  * second validator written in JavaScript would drift from this one.
  *
+ * It also reads the diagram's catalog BINDINGS (`"solution": "<slug>"`,
+ * UmlSolutionBindings): a slug the catalog does not have is a problem — the
+ * page would draw the diagram, but no relationship would come of it — and an
+ * unbound element named like a solution is a HINT, never a refusal.
+ *
  * Writes nothing. The page is in the route only for the authorization and the
  * URL shape the scene block already uses.
  */
 class NotebookPageUmlController extends Controller
 {
-    public function check(CheckPageUmlRequest $request, Notebook $notebook, DocumentationPage $page): JsonResponse
+    public function check(CheckPageUmlRequest $request, Notebook $notebook, DocumentationPage $page, UmlSolutionBindings $bindings): JsonResponse
     {
         $parsed = UmlDiagram::parse(
             (string) $request->validated('type'),
@@ -29,6 +35,15 @@ class NotebookPageUmlController extends Controller
             (string) $request->validated('source'),
         );
 
-        return response()->json(['problems' => $parsed['problems']]);
+        if ($parsed['diagram'] === null) {
+            return response()->json(['problems' => $parsed['problems'], 'bindings' => [], 'hints' => []]);
+        }
+
+        // The page draws a diagram with an unknown slug — it only derives no
+        // relationship from it — so that is not one of `problems`, which the
+        // block words as "a página vai mostrar este diagrama como erro".
+        $check = $bindings->check($parsed['diagram']);
+
+        return response()->json(['problems' => [], 'bindings' => $check['problems'], 'hints' => $check['hints']]);
     }
 }

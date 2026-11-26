@@ -29,6 +29,8 @@ use Illuminate\Support\Collection;
  */
 class SolutionSpreadsheetService
 {
+    public function __construct(private readonly SolutionRelationshipService $relationships) {}
+
     /** Attribute columns, in reading order: key => [AttributeOption group, label]. */
     private const ATTRIBUTES = [
         'category'        => ['category', 'Categoria'],
@@ -45,12 +47,13 @@ class SolutionSpreadsheetService
     ];
 
     /**
-     * Columns that come from the DOCUMENTATION module (cadernos, diagrams).
+     * Columns that come from the DOCUMENTATION module (cadernos, and the
+     * relationships their UML diagrams state).
      * Dropped — not merely hidden — for a reader whose level there is None
      * (App\Enums\AccessLevel): the spreadsheet is the catalog's screen, and it
      * must not become a way to read the other module.
      */
-    public const DOCUMENTATION_COLUMNS = ['notebooks', 'documented', 'diagrams'];
+    public const DOCUMENTATION_COLUMNS = ['notebooks', 'documented', 'relationships'];
 
     /** Owner roles that start hidden — the rarer ones, to keep the first screen scannable. */
     private const HIDDEN_ROLES = [PersonSolutionRole::KeyUser, PersonSolutionRole::VendorContact];
@@ -91,7 +94,7 @@ class SolutionSpreadsheetService
 
         $columns[] = $this->column('notebooks', 'Cadernos', 'Documentação');
         $columns[] = $this->column('documented', 'Documentada', 'Documentação');
-        $columns[] = $this->column('diagrams', 'Diagramas', 'Documentação', kind: 'number');
+        $columns[] = $this->column('relationships', 'Relacionamentos', 'Documentação', kind: 'number');
         $columns[] = $this->column('updated_at', 'Atualizado em', 'Documentação', kind: 'date', hidden: true);
 
         if (! $documentation) {
@@ -120,13 +123,15 @@ class SolutionSpreadsheetService
         }
 
         $internal = $audience === SpreadsheetAudience::Internal;
+        // One read of the whole relationships index, never one per row.
+        $relationships = $documentation ? $this->relationships->counts() : [];
 
         return $solutions->map(fn (Solution $solution) => [
             'id'    => $solution->id,
             'url'   => $internal ? route('solutions.show', $solution) : null,
             'cells' => $documentation
-                ? $this->cells($solution, $internal)
-                : array_diff_key($this->cells($solution, $internal), array_flip(self::DOCUMENTATION_COLUMNS)),
+                ? $this->cells($solution, $internal, $relationships)
+                : array_diff_key($this->cells($solution, $internal, []), array_flip(self::DOCUMENTATION_COLUMNS)),
         ])->all();
     }
 
@@ -163,7 +168,6 @@ class SolutionSpreadsheetService
                     ->orderBy('people.name'),
                 'notebooks' => fn ($q) => $q->select(['notebooks.id', 'notebooks.name']),
             ])
-            ->withCount('diagrams')
             // "Documentada" means the same thing as the catalog's "sem
             // documentação" filter, negated: some linked caderno has a page
             // with content (Solution::scopeFilter).
@@ -171,8 +175,11 @@ class SolutionSpreadsheetService
             ->orderBy('solutions.name');
     }
 
-    /** @return array<string, mixed> */
-    private function cells(Solution $solution, bool $internal): array
+    /**
+     * @param  array<int, int>  $relationships  solution id → how many relationships it has
+     * @return array<string, mixed>
+     */
+    private function cells(Solution $solution, bool $internal, array $relationships): array
     {
         $cells = [
             'name'        => $solution->name,
@@ -210,7 +217,7 @@ class SolutionSpreadsheetService
 
         $cells['notebooks'] = $solution->notebooks->pluck('name')->all();
         $cells['documented'] = $solution->is_documented ? 'Sim' : 'Não';
-        $cells['diagrams'] = (int) $solution->diagrams_count;
+        $cells['relationships'] = $relationships[$solution->id] ?? 0;
         $cells['updated_at'] = $solution->updated_at?->toDateString();
 
         return $cells;

@@ -303,7 +303,7 @@ it('gives the pages rail a working mobile affordance instead of hiding it outrig
         ->and(substr_count($content, 'data-ak-toggle-classes="md:!w-0 md:!border-r-0 max-md:!translate-x-0"'))->toBe(2);
 });
 
-it('lists the solution diagrams as plain links, without the F3 canvas, on the solution page', function () {
+it('lists no diagrams on the solution page any more: its card shows relationships, without the F3 canvas', function () {
     $solution = Solution::factory()->create();
     $diagram = Diagram::factory()->create([
         'name'  => 'SAP -> AllStrategy',
@@ -317,8 +317,8 @@ it('lists the solution diagrams as plain links, without the F3 canvas, on the so
 
     expect($response->getContent())
         ->not->toContain('data-ak-chain-viz')
-        ->toContain('href="' . route('diagrams.show', $diagram) . '"')
-        ->toContain('SAP -&gt; AllStrategy');
+        ->not->toContain('href="' . route('diagrams.show', $diagram) . '"')
+        ->toContain('Relacionamentos');
 });
 /*
 |--------------------------------------------------------------------------

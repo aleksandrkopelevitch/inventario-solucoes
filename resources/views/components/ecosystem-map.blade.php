@@ -24,7 +24,7 @@
     @if ($id) id="{{ $id }}" @endif
     data-ak-ecosystem-map
     data-ak-map-url="{{ $sourceUrl }}"
-    data-ak-map-diagrams="{{ auth()->user()?->can('viewAny', \App\Models\Diagram::class) ? '1' : '0' }}"
+    data-ak-map-evidence="{{ auth()->user()?->can('viewAny', \App\Models\Notebook::class) ? '1' : '0' }}"
     {{ $attributes->class(['relative overflow-hidden rounded-card bg-[#0b0e11] shadow-card ring-1 ring-black/15']) }}
     style="height: {{ $height }}"
 >

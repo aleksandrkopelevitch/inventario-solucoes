@@ -529,7 +529,7 @@ it('answers the editor block with the problems the page would show, and only to 
 
     $good = ['nodes' => [['id' => 'a', 'kind' => 'class', 'name' => 'A', 'at' => [0, 0]]]];
     test()->actingAs(docsWriter())->postJson($url, ['type' => 'class', 'source' => json_encode($good)])
-        ->assertOk()->assertExactJson(['problems' => []]);
+        ->assertOk()->assertExactJson(['problems' => [], 'bindings' => [], 'hints' => []]);
 
     test()->actingAs(User::factory()->reader()->create())->postJson($url, $bad)->assertForbidden();
 });

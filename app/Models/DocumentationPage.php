@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Actions\Documentation\SyncPageSolutionLinks;
 use App\Contracts\Documentable;
 use App\Models\Concerns\HasWebImageRendition;
 use App\Support\Documentation\PageTextSql;
@@ -299,6 +300,20 @@ class DocumentationPage extends Model implements Documentable
 
             if ($page->isDirty()) {
                 $page->updated_by_id = auth()->id();
+            }
+        });
+
+        // Every writer of a body passes here — the editor, the MCP, the GitBook
+        // import, the CATI promotion — so the solution relationships its UML
+        // diagrams state are re-read on each, inside that writer's transaction.
+        // A title-only save leaves them alone. Deleting needs nothing: the rows
+        // cascade with the page. Two events, not `saved` + `wasRecentlyCreated`:
+        // that flag stays true for the instance's whole life, so every later
+        // save of a page created in the same request would re-sync.
+        static::created(fn (self $page) => app(SyncPageSolutionLinks::class)->handle($page));
+        static::updated(function (self $page) {
+            if ($page->wasChanged('documentation')) {
+                app(SyncPageSolutionLinks::class)->handle($page);
             }
         });
 

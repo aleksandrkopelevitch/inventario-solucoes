@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\DiagramGraphService;
+use App\Services\EcosystemMapService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -25,7 +25,7 @@ class SolutionMapController extends Controller
         'hosting' => 'Por hospedagem',
     ];
 
-    public function __construct(private readonly DiagramGraphService $graph) {}
+    public function __construct(private readonly EcosystemMapService $map) {}
 
     public function index(Request $request)
     {
@@ -37,7 +37,7 @@ class SolutionMapController extends Controller
     }
 
     /**
-     * The map's payload. `?view=hosting` adds the systems no diagram names —
+     * The map's payload. `?view=hosting` adds the systems no relationship names —
      * that view is a picture of where everything runs, connected or not.
      *
      * Read as a plain string or not at all: a query string can make it an
@@ -48,6 +48,6 @@ class SolutionMapController extends Controller
     {
         $view = is_string($request->query('view')) ? $request->query('view') : 'links';
 
-        return response()->json($this->graph->globalMap(wholeCatalog: $view === 'hosting'));
+        return response()->json($this->map->globalMap(wholeCatalog: $view === 'hosting'));
     }
 }

@@ -12,7 +12,10 @@ use App\Models\Notebook;
 use App\Models\Person;
 use App\Models\Solution;
 use App\Support\ChainLabeler;
+use App\Support\Documentation\UmlDiagram;
 use App\Support\Images\PublicImage;
+use App\Support\Relationships\Relationship;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -60,7 +63,10 @@ class Presenter
     }
 
     /** @return array<string, mixed> */
-    public function solution(Solution $solution, bool $withDiagrams = true, bool $withUnpublished = false): array
+    /**
+     * @param  Collection<int, Relationship>|null  $relationships  null leaves the key out
+     */
+    public function solution(Solution $solution, bool $withDiagrams = true, bool $withUnpublished = false, ?Collection $relationships = null, bool $withEvidence = false): array
     {
         return $this->compact([
             ...$this->solutionSummary($solution),
@@ -83,6 +89,7 @@ class Presenter
             'diagrams' => $withDiagrams
                 ? $solution->diagrams->map(fn (Diagram $diagram) => $this->diagramSummary($diagram))->all()
                 : null,
+            'relationships' => $relationships?->map(fn (Relationship $r) => $this->relationship($r, $withEvidence, $withUnpublished))->all(),
             // Published cadernos only — the same reading `/docs` makes. A
             // solution documented exclusively in an unpublished caderno answers
             // with an empty list here, which is why the tool's own description
@@ -103,6 +110,45 @@ class Presenter
                     ->values()
                     ->all()
                 : null,
+        ]);
+    }
+
+    /**
+     * One relationship of a solution, read from its side: "chama", "é chamada
+     * por", "mútua" or "sem sentido definido".
+     *
+     * The relationship itself is a fact about two catalog records and goes to
+     * every caller of `get_solution`. Its EVIDENCE — where the documentation
+     * states it — is cut to what this caller may read: nothing without the
+     * documentation module, and an unpublished caderno only for a connection
+     * that writes the documentation (ReadableNotebooks), marked as such. An
+     * unpublished page's title never reaches anybody else.
+     *
+     * @return array<string, mixed>
+     */
+    public function relationship(Relationship $relationship, bool $withEvidence, bool $withUnpublished): array
+    {
+        $evidence = collect($withEvidence ? $relationship->evidence : [])
+            ->filter(fn (array $e) => $withUnpublished || $e['page']->notebook->isPublished())
+            ->map(fn (array $e) => $this->compact([
+                'notebook'  => $e['page']->notebook->slug,
+                'page_slug' => $e['page']->slug,
+                'page'      => $e['page']->title,
+                'diagram'   => $e['title'] ?? UmlDiagram::TYPES[$e['type']] ?? null,
+                'published' => $e['page']->notebook->isPublished() ? null : false,
+            ]))
+            ->values()
+            ->all();
+
+        return $this->compact([
+            'solution'  => ['slug' => $relationship->other->slug, 'name' => $relationship->other->name],
+            'direction' => $relationship->direction->label(),
+            'source'    => 'documentado',
+            'via'       => $relationship->direct
+                ? null
+                : array_map(fn (Solution $p) => ['slug' => $p->slug, 'name' => $p->name], $relationship->via),
+            'labels'   => $relationship->labels,
+            'evidence' => $evidence,
         ]);
     }
 

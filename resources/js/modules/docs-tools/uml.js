@@ -229,9 +229,21 @@ export default class UmlTool {
                     body: JSON.stringify({type: this.data.type, title: this.data.title, source: this.data.source}),
                 })
                 if (!response.ok || ticket !== this.ticket) return
-                const {problems = []} = await response.json()
-                if (ticket !== this.ticket || !problems.length) return
-                status.textContent = `A página vai mostrar este diagrama como erro: ${problems.join(' · ')}`
+                const {problems = [], bindings = [], hints = []} = await response.json()
+                if (ticket !== this.ticket) return
+                if (problems.length) {
+                    status.textContent = `A página vai mostrar este diagrama como erro: ${problems.join(' · ')}`
+
+                    return
+                }
+                // The diagram draws; these only concern the catalog
+                // relationships it states. A hint is a suggestion, never a
+                // refusal: a name is not a binding.
+                const notes = [
+                    ...(bindings.length ? [`Vínculo sem efeito: ${bindings.join(' · ')}`] : []),
+                    ...(hints.length ? [`Dica: ${hints.join(' · ')}`] : []),
+                ]
+                if (notes.length) status.textContent = [status.textContent, ...notes].filter(Boolean).join(' ')
             } catch {
                 // Unreachable server: the preview stays the only word.
             }

@@ -49,7 +49,9 @@ What a member may do is a LEVEL PER MODULE — `App\Enums\AccessModule` ×
   module), the ecosystem map (by decision — it belongs to no module), `/docs`
   (published cadernos), `/mcp/connect`, the profile.
 - **Where one module shows another's records, it asks**: the solution page's
-  diagrams/cadernos card and the committee warning, the spreadsheet's
+  cadernos column (and the "Onde está documentado" links of its
+  relationships — the relationships themselves are a catalog fact) and the
+  committee warning, the spreadsheet's
   documentation columns (`SolutionSpreadsheetService::DOCUMENTATION_COLUMNS`,
   dropped — not hidden), and the Especialista's documentation picker/search/
   attachments all check the other module's `viewAny`. Names of related

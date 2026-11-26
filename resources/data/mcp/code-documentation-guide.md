@@ -249,6 +249,45 @@ largura do seu maior elemento; deixe uma coluna vazia para afastar grupos.
 - Layout que lê bem: hierarquia de cima para baixo (pai acima dos filhos), fluxo da
   esquerda para a direita, até ~15 elementos por diagrama — passou disso, divida.
 
+### Vínculo com o catálogo — `"solution"`
+
+Quando um participante ou elemento **é um sistema do catálogo** (SAP S/4, Digibee,
+VTEX…), ponha nele `"solution": "<slug>"`. É assim que o iSol sabe quais soluções se
+comunicam: a página da solução lista esses relacionamentos e o mapa do ecossistema
+desenha as setas a partir deles.
+
+- **Ache o slug com `search_solutions` — nunca invente um.** Um slug que não existe
+  recusa a escrita.
+- Vale em todo participante de sequência; num diagrama estrutural, em `component`,
+  `node`, `database`, `artifact`, `actor`, `object`, `package`, `class`, `abstract` e
+  `interface`, e em grupos. Um elemento sem vínculo próprio dentro de um grupo vinculado
+  conta como aquela solução.
+- **Um componente interno do sistema documentado não é uma solução**: não o vincule
+  sozinho. Ponha-o dentro de um grupo vinculado ao sistema.
+- O sentido vem do desenho: uma mensagem `sync`/`async`/`create`/`destroy` ou uma
+  relação `directed`/`dependency`/`flow` de A para B diz que A chama B; `return` não
+  conta; `association` liga sem sentido.
+- **Desenhe a plataforma de integração (Digibee, SAP CPI) como o participante que ela
+  é.** A ligação de ponta a ponta ("SAP → Freshdesk, via SAP CPI") é deduzida dela,
+  dentro do mesmo diagrama.
+
+```json
+{
+  "nodes": [
+    {"id": "sap", "kind": "component", "name": "SAP S/4", "solution": "sap-s4", "at": [0, 0]},
+    {"id": "iflow", "kind": "component", "name": "iFlow clientes", "at": [1, 0]},
+    {"id": "fd", "kind": "component", "name": "Freshdesk", "solution": "freshdesk", "at": [2, 0]}
+  ],
+  "edges": [
+    {"from": "sap", "to": "iflow", "kind": "directed", "label": "IDoc"},
+    {"from": "iflow", "to": "fd", "kind": "directed", "label": "REST"}
+  ],
+  "groups": [
+    {"label": "SAP CPI", "kind": "boundary", "solution": "sap-cpi-integracao", "nodes": ["iflow"]}
+  ]
+}
+```
+
 ## 6. Cenas animadas — `{% scene %}`
 
 Para o que não é UML. **Cada marcação fica sozinha na sua linha, e o corpo de `step`,
