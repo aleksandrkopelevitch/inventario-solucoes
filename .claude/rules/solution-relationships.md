@@ -205,3 +205,17 @@ catalog-module write tools, `SolutionWriteTool`s.
 - **`get_solution.relationships[]`** carries `source` ("documentado",
   "cadastrado", "cadastro sobre a documentação"), `documented_direction` and
   `recorded_by`.
+
+### Converting the old drawings (phase 3, temporary)
+
+`diagrams:to-uml` (`App\Support\Diagrams\DiagramToUml` + the command) turns
+each `Diagram` into a `{% uml %}` block in the page that cited it, else in the
+page it was drawn from, else in its caderno's first page.
+
+- **The type comes from the blocks:**
+  - sequence for lifelines, or for systems talking in rounds;
+  - activity when there is no system;
+  - component otherwise.
+- **The output is validated before it is written.** A block the validator
+  refuses keeps its citation, and phase 4's gate catches it.
+- **It is deleted with `Diagram` in phase 4.** Its limits are in the spec's §14.
