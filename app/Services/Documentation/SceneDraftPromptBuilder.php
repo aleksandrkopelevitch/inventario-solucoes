@@ -21,9 +21,8 @@ use App\Support\Documentation\TreeScene;
  * to docs-scene.js, and keeping them out of the request is the whole reason a
  * fast model is enough here: it is choosing words, not composing a picture.
  *
- * Shares no contract with the Documentation Assistant, for the reason the
- * diagram draft gives (DiagramDraftPromptBuilder): that one returns prose with a
- * block that replaces the page; this returns a JSON object the editor drops
+ * Shares no contract with the Documentation Assistant: that one returns prose
+ * with a block that replaces the page; this returns a JSON object the editor drops
  * into ONE block, and the page is not written by the server at all.
  */
 class SceneDraftPromptBuilder

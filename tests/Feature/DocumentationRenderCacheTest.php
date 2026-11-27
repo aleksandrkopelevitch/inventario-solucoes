@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Support\Documentation\PageLinks;
@@ -17,8 +16,8 @@ uses(LazilyRefreshDatabase::class);
 |--------------------------------------------------------------------------
 |
 | `GitbookRenderer::parsed()` caches commonmark's output for a page past a
-| few KB. What the parse reads besides the text — a cited diagram's name and
-| picture, a file's name and size, the URL root — is in the key, and a page
+| few KB. What the parse reads besides the text — a file's name and size, the
+| URL root — is in the key, and a page
 | with a card grid (resolved per reader inside the parse) is never cached.
 */
 
@@ -30,43 +29,35 @@ function longMarkdown(string $extra): string
 
 it('serves a large page from the cache instead of parsing it again', function () {
     $markdown = longMarkdown('Fim.');
-    $key = 'gitbook-render:v2:' . md5(implode("\0", [$markdown, '0', url('/'), '']));
+    $key = 'gitbook-render:v3:' . md5(implode("\0", [$markdown, url('/'), '']));
 
     expect(cache()->has($key))->toBeFalse();
 
-    $first = app(GitbookRenderer::class)->render($markdown, linkDiagrams: false);
+    $first = app(GitbookRenderer::class)->render($markdown);
 
     expect(cache()->has($key))->toBeTrue()
-        ->and(app(GitbookRenderer::class)->render($markdown, linkDiagrams: false))->toBe($first);
+        ->and(app(GitbookRenderer::class)->render($markdown))->toBe($first);
 
     // A short page is not worth the round trip: parsed every time, never stored.
     $short = "# Curta\n\nTexto.";
-    app(GitbookRenderer::class)->render($short, linkDiagrams: false);
-    expect(cache()->has('gitbook-render:v2:' . md5(implode("\0", [$short, '0', url('/'), '']))))->toBeFalse();
+    app(GitbookRenderer::class)->render($short);
+    expect(cache()->has('gitbook-render:v3:' . md5(implode("\0", [$short, url('/'), '']))))->toBeFalse();
 });
 
-it('sees a diagram renamed, re-drawn or deleted after the page was cached', function () {
+it('sees a file renamed or replaced after the page was cached', function () {
     Storage::fake('public');
-    $diagram = Diagram::factory()->create(['name' => 'Fluxo antigo']);
-    $markdown = longMarkdown('{% diagram slug="' . $diagram->slug . '" %}');
-    $render = fn () => app(GitbookRenderer::class)->render($markdown, linkDiagrams: false);
+    $page = DocumentationPage::factory()->for(Notebook::factory())->create();
+    $media = $page->addMedia(UploadedFile::fake()->create('contrato.pdf', 10))->toMediaCollection('docs');
+    $markdown = longMarkdown('{% file src="/files/' . $media->id . '" %}');
+    $render = fn () => app(GitbookRenderer::class)->render($markdown);
 
-    expect($render())->toContain('Fluxo antigo')->toContain('Sem imagem ainda');
+    expect($render())->toContain('contrato.pdf');
 
-    $diagram->update(['name' => 'Fluxo novo']);
-    expect($render())->toContain('Fluxo novo')->not->toContain('Fluxo antigo');
+    $media->update(['file_name' => 'contrato-assinado.pdf']);
+    expect($render())->toContain('contrato-assinado.pdf')->not->toContain('>contrato.pdf<');
 
-    $diagram->addMedia(UploadedFile::fake()->image('a.png'))->toMediaCollection(Diagram::DIAGRAM_COLLECTION);
-    $first = $diagram->fresh()->picture();
-    expect($render())->toContain('?v=' . $first->id);
-
-    $diagram->addMedia(UploadedFile::fake()->image('b.png'))->toMediaCollection(Diagram::DIAGRAM_COLLECTION);
-    $second = $diagram->fresh()->picture();
-    expect($second->id)->not->toBe($first->id)
-        ->and($render())->toContain('?v=' . $second->id)->not->toContain('?v=' . $first->id);
-
-    $diagram->delete();
-    expect($render())->toContain('Diagrama removido');
+    $media->delete();
+    expect($render())->toContain('Baixar arquivo');
 });
 
 it('never caches a page with a card grid, whose links depend on the reader', function () {

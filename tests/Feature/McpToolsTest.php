@@ -5,7 +5,6 @@ use App\Enums\UserRole;
 use App\Mcp\ToolRegistry;
 use App\Models\AttributeOption;
 use App\Models\Company;
-use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\McpToken;
 use App\Models\Notebook;
@@ -133,72 +132,6 @@ it('never exposes a numeric id, only slugs', function () {
 });
 
 /* ------------------------------------------------------------------ */
-/*  Diagrams */
-/* ------------------------------------------------------------------ */
-
-it('returns a diagram as both a graph and a sentence', function () {
-    $a = Solution::factory()->create(['name' => 'CWS', 'slug' => 'cws']);
-    $b = Solution::factory()->create(['name' => 'SAP', 'slug' => 'sap']);
-
-    $diagram = Diagram::factory()->create(['name' => 'CWS -> SAP', 'slug' => 'cws-sap']);
-    $diagram->chain = [
-        'nodes' => [
-            ['solution_id' => $a->id, 'label' => null, 'kind' => 'system'],
-            ['solution_id' => null, 'label' => 'Aprovado?', 'kind' => 'decision'],
-            ['solution_id' => $b->id, 'label' => null, 'kind' => 'system'],
-        ],
-        'edges' => [
-            ['from' => 0, 'to' => 1, 'arrow' => '->', 'protocol' => 'rest'],
-            ['from' => 1, 'to' => 2, 'arrow' => '->', 'protocol' => null],
-        ],
-    ];
-    $diagram->save();
-    $diagram->afterChainMutation();
-
-    $data = tool('get_diagram', ['slug' => 'cws-sap'])['data'];
-
-    expect($data['nodes'])->toHaveCount(3)
-        // A decision block is free text and can never name a Solution.
-        ->and($data['nodes'][1])->toMatchArray(['kind' => 'decision', 'label' => 'Aprovado?'])
-        ->and($data['nodes'][1])->not->toHaveKey('solution')
-        ->and($data['nodes'][0]['solution'])->toBe('cws')
-        // `from`/`to` stay indices — rewriting them into labels is lossy the
-        // moment two blocks share a name.
-        ->and($data['edges'][0])->toMatchArray(['from' => 0, 'to' => 1])
-        ->and($data['topology'])->toContain('CWS')
-        ->and($data['participants'])->toHaveCount(2);
-});
-
-it('names a diagram caderno only when that caderno is published', function () {
-    // Documentation on this server is the PUBLISHED cadernos and nothing else,
-    // so a diagram must not be the one place a token learns that an
-    // unpublished caderno exists.
-    $published = Notebook::factory()->create(['name' => 'Manual', 'slug' => 'manual']);
-    $published->forceFill(['published_at' => now()])->save();
-    Diagram::factory()->forNotebook($published)->create(['slug' => 'publicado']);
-    Diagram::factory()->forNotebook(Notebook::factory()->create(['name' => 'Rascunho interno']))->create(['slug' => 'interno']);
-
-    expect(tool('get_diagram', ['slug' => 'publicado'])['data']['caderno'])->toBe(['slug' => 'manual', 'name' => 'Manual'])
-        ->and(tool('get_diagram', ['slug' => 'interno'])['data'])->not->toHaveKey('caderno')
-        ->and(tool('search_diagrams')['text'])->not->toContain('Rascunho interno');
-});
-
-it('lists the diagrams a solution takes part in', function () {
-    $solution = Solution::factory()->create(['slug' => 'alvo']);
-    $other = Solution::factory()->create();
-
-    $mine = Diagram::factory()->create(['name' => 'Com alvo']);
-    attachParticipants($mine, [[$solution, 0], [$other, 1]]);
-    $theirs = Diagram::factory()->create(['name' => 'Sem alvo']);
-    attachParticipants($theirs, [[$other, 0]]);
-
-    $data = tool('search_diagrams', ['solution' => 'alvo'])['data'];
-
-    expect($data['total'])->toBe(1)
-        ->and($data['diagrams'][0]['name'])->toBe('Com alvo');
-});
-
-/* ------------------------------------------------------------------ */
 /*  Documentation — publication is the whole authorisation */
 /* ------------------------------------------------------------------ */
 
@@ -272,8 +205,7 @@ it('returns a page as Markdown, in a block of its own', function () {
 
     expect($result['content'])->toHaveCount(2)
         ->and($result['content'][1]['text'])->toContain('# Título')
-        // The dialect survives: a {% diagram %} is a slug `get_diagram` takes,
-        // and a {% hint %} still reads as a warning.
+        // The dialect survives: a {% hint %} still reads as a warning.
         ->and($result['content'][1]['text'])->toContain('{% hint');
 });
 

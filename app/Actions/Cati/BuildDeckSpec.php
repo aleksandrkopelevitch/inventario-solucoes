@@ -4,9 +4,10 @@ namespace App\Actions\Cati;
 
 use App\Enums\SubmissionDiagramKind;
 use App\Enums\SubmissionSectionKey;
-use App\Models\Diagram;
 use App\Models\Submission;
+use App\Services\SolutionRelationshipService;
 use App\Support\Cati\MarkdownToBlocks;
+use App\Support\Relationships\Relationship;
 
 /**
  * Turns a submission into a deck spec — the JSON the renderer typesets.
@@ -33,12 +34,15 @@ class BuildDeckSpec
 
     private const BLOCKS_PER_SLIDE = 12;
 
+    /** DeckSpecValidator::MAX_TABLE_ROWS. */
+    private const RELATIONSHIP_ROWS_PER_SLIDE = 12;
+
     public function __construct(private readonly MarkdownToBlocks $markdown) {}
 
     /** @return array<string, mixed> */
     public function handle(Submission $submission): array
     {
-        $submission->loadMissing(['sections', 'solution', 'requester', 'solution.diagrams.media']);
+        $submission->loadMissing(['sections', 'solution', 'requester']);
 
         $rows = $submission->sections->keyBy(fn ($section) => $section->key->value);
 
@@ -159,21 +163,16 @@ class BuildDeckSpec
      * during the meeting and the deck and the inventory disagree, silently.
      * One editing surface, many views.
      *
-     * The Solution's existing diagram canvases still follow, and they are
-     * not redundant: they are the catalog's own record of what exists today,
-     * at the level of one diagram each, while AS IS is the submitter's
-     * summary of the same reality. A submission that drew an AS IS suppresses
-     * them, because two answers to "how does it work today" on consecutive
-     * slides is a question from the committee, not an answer.
+     * The Solution's documented relationships follow, as a table: the
+     * catalog's own record of who it talks to today.
      *
      * @return list<array<string, mixed>>
      */
     private function diagrams(Submission $submission): array
     {
-        $submission->loadMissing(['diagrams.media', 'solution.diagrams']);
+        $submission->loadMissing(['diagrams.media']);
 
         $slides = [];
-        $drewAsIs = false;
 
         foreach (SubmissionDiagramKind::cases() as $kind) {
             $diagram = $submission->diagrams->firstWhere(fn ($d) => $d->kind === $kind);
@@ -185,8 +184,6 @@ class BuildDeckSpec
             if ($media === null || ! is_file($media->getPath())) {
                 continue;
             }
-
-            $drewAsIs = $drewAsIs || $kind === SubmissionDiagramKind::AsIs;
 
             $slides[] = [
                 'layout' => 'content',
@@ -203,50 +200,51 @@ class BuildDeckSpec
             ];
         }
 
-        return [...$slides, ...$this->diagramSlides($submission, $drewAsIs)];
+        return [...$slides, ...$this->relationshipSlides($submission)];
     }
 
     /**
-     * One slide per diagram of the linked Solution that has a picture of
-     * its canvas — the catalog's own view of what exists today.
-     *
-     * Suppressed once the submission drew its own AS IS: the two answer the
-     * same question at different altitudes, and printing both invites the
-     * committee to spot the difference instead of reading the proposal.
+     * "Relacionamentos documentados": who the linked Solution talks to, as the
+     * documentation's UML diagrams and the recorded interconnections say it
+     * (SolutionRelationshipService) — the catalog's own view of what exists
+     * today, beside the submission's drawings of what will change. A table,
+     * so it pages at the validator's row limit; no slide when there is
+     * nothing to list.
      *
      * @return list<array<string, mixed>>
      */
-    private function diagramSlides(Submission $submission, bool $drewAsIs): array
+    private function relationshipSlides(Submission $submission): array
     {
         $solution = $submission->solution;
 
-        if ($solution === null || $drewAsIs) {
+        if ($solution === null) {
             return [];
         }
 
-        $slides = [];
+        $rows = app(SolutionRelationshipService::class)->forSolution($solution)
+            ->map(fn (Relationship $r) => [
+                $r->other->name,
+                $r->sentence(),
+                $r->direct || $r->via === []
+                    ? '—'
+                    : implode('; ', array_map(fn (array $route) => implode(' › ', array_map(fn ($p) => $p->name, $route)), $r->via)),
+                match ($r->source()) {
+                    'manual'   => 'Manual',
+                    'adjusted' => 'Ajustado manualmente',
+                    default    => 'Documentado',
+                },
+            ])
+            ->values();
 
-        foreach ($solution->diagrams as $diagram) {
-            $media = $diagram->getFirstMedia(Diagram::DIAGRAM_COLLECTION);
-
-            // No picture yet means nobody has saved that canvas since the
-            // feature existed. Skipping beats a slide with a hole in it.
-            if ($media === null || ! is_file($media->getPath())) {
-                continue;
-            }
-
-            $slides[] = [
-                'layout' => 'content',
-                'title'  => "Arquitetura — {$diagram->name}",
-                'blocks' => [[
-                    'type' => 'image',
-                    'path' => $media->getPath(),
-                    'link' => route('diagrams.show', $diagram),
-                ]],
-            ];
-        }
-
-        return $slides;
+        return $rows->chunk(self::RELATIONSHIP_ROWS_PER_SLIDE)->values()->map(fn ($chunk, int $i) => [
+            'layout' => 'content',
+            'title'  => 'Relacionamentos documentados' . ($i > 0 ? ' (cont.)' : ''),
+            'blocks' => [[
+                'type'    => 'table',
+                'columns' => ['Solução', 'Sentido', 'Via', 'Origem'],
+                'rows'    => $chunk->values()->all(),
+            ]],
+        ])->all();
     }
 
     /** @return array<string, mixed> */

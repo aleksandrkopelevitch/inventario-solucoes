@@ -62,7 +62,7 @@ class SearchSolutions implements Tool
         Busca sistemas e soluções no catálogo por nome, fornecedor ou pessoa responsável,
         com filtros opcionais de categoria, status, diretoria, ambiente e contrato.
         Retorna um resumo de cada solução; use get_solution com o slug retornado para o
-        cadastro completo (descrição, responsáveis, diagramas e cadernos publicados).
+        cadastro completo (descrição, responsáveis, cadernos publicados e relacionamentos).
 
         Chame sem nenhum argumento para listar o catálogo inteiro. A busca ignora acentos
         e maiúsculas, então "solucao" encontra "Solução".

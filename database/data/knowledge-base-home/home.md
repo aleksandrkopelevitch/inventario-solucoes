@@ -30,9 +30,9 @@ Dentro de um caderno, a busca fica no alto da tela (ou em **⌘K** / **Ctrl+K**)
 
 ## Diagramas
 
-Muitas páginas trazem **diagramas de topologia**: quais sistemas participam de um fluxo, como se conectam e em que ordem. Eles são desenhados no canvas do Inventário, a partir dos sistemas do catálogo, e a página mostra sempre a **versão atual** do desenho — quando o diagrama muda, a documentação muda junto.
+Muitas páginas trazem **diagramas UML** — de sequência, de componentes, de implantação: quais sistemas participam de um fluxo, como se conectam e em que ordem. Eles são escritos no próprio texto da página, e cada sistema do catálogo citado num diagrama alimenta os **relacionamentos** que aparecem na página da solução — quando a documentação muda, os relacionamentos mudam junto.
 
-{{figure:base-diagramas.svg|Uma página citando um diagrama: o desenho é o mesmo que o time mantém no canvas.}}
+{{figure:base-diagramas.svg|Um diagrama numa página: os sistemas e as chamadas entre eles.}}
 
 ## Informações protegidas
 

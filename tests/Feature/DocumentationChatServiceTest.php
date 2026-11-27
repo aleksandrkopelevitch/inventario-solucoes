@@ -302,7 +302,7 @@ it('repairs a token the model retyped from an unmasked source', function () {
 
 /*
 |--------------------------------------------------------------------------
-| Preserved blocks — images, files, embeds, diagram citations
+| Preserved blocks — images, files, embeds, UML diagrams
 |--------------------------------------------------------------------------
 |
 | The system prompt used to FORBID `<figure>`/`<img>`/`{% file %}`/`{% embed %}`
@@ -321,11 +321,11 @@ function pageWithBlocks(): DocumentationPage
             . "<figure><img src=\"/files/12\" alt=\"Topologia\"><figcaption>Topologia atual</figcaption></figure>\n\n"
             . "Texto que o usuário quer mudar.\n\n"
             . "{% file src=\"/files/13\" %}\n\n"
-            . "{% diagram slug=\"zfl-bloqueio\" %}\n",
+            . "{% uml type=\"sequence\" title=\"Bloqueio\" %}\n{\"participants\":[{\"id\":\"zfl-bloqueio\",\"label\":\"ZFL\"}],\"messages\":[]}\n{% enduml %}\n",
     ]);
 }
 
-it('never shows the model an image, a file card or a diagram citation', function () {
+it('never shows the model an image, a file card or a UML diagram', function () {
     $page = pageWithBlocks();
     $service = fakeChatService('Ok.');
 
@@ -340,7 +340,7 @@ it('never shows the model an image, a file card or a diagram citation', function
         // …and it is told what each marker stands for, and to keep it.
         ->toContain('BLOCOS PRESERVADOS')
         ->toContain('= imagem')
-        ->toContain('= diagrama');
+        ->toContain('= diagrama UML');
 });
 
 it('puts every block back into a draft that kept its markers', function () {
@@ -352,7 +352,8 @@ it('puts every block back into a draft that kept its markers', function () {
     expect($result->draft)
         ->toContain('<figure><img src="/files/12" alt="Topologia"><figcaption>Topologia atual</figcaption></figure>')
         ->toContain('{% file src="/files/13" %}')
-        ->toContain('{% diagram slug="zfl-bloqueio" %}')
+        ->toContain('{% uml type="sequence" title="Bloqueio" %}')
+        ->toContain('"zfl-bloqueio"')
         ->not->toContain('[[BLOCK-')
         ->and($result->meta['blocks'])->toBe(['frozen' => 3, 'dropped' => 0]);
 });

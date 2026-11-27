@@ -2,12 +2,10 @@
 
 namespace App\Support;
 
-use App\Models\Diagram;
 use App\Models\Solution;
 use App\Support\Documentation\BeforeAfterScene;
 use App\Support\Documentation\ComparisonScene;
 use App\Support\Documentation\PageLinks;
-use App\Support\Documentation\PictureResponse;
 use App\Support\Documentation\SceneIcons;
 use App\Support\Documentation\SecretText;
 use App\Support\Documentation\StepScene;
@@ -72,9 +70,6 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 class GitbookRenderer
 {
     /** Set by `render()` on every call — see the note there. */
-    private bool $linkDiagrams = true;
-
-    /** Set by `render()` on every call, for the same reason `$linkDiagrams` is. */
     private PageLinks $pageLinks;
 
     private ?MarkdownConverter $converter = null;
@@ -113,31 +108,19 @@ class GitbookRenderer
     private int $umlCount = 0;
 
     /**
-     * @param  bool  $linkDiagrams  Whether a cited drawing gets a link to its
-     *                              canvas. FALSE for anything a guest can read:
-     *                              `/diagrams/{slug}` is behind auth, so the
-     *                              link is both a dead end (it lands on the
-     *                              login screen) and a disclosure — it tells an
-     *                              anonymous reader the drawing exists and what
-     *                              its slug is. The card itself still renders:
-     *                              the picture and the name are documentation,
-     *                              the link is an editing affordance.
      * @param  PageLinks|null  $pageLinks  How a `page:{slug}` link becomes a URL.
      *                                     Omitted means "there is no caderno to resolve
      *                                     against", and such a link then renders as dead
      *                                     text rather than as an address that goes
      *                                     nowhere — see PageLinks::none().
      */
-    public function render(?string $markdown, bool $linkDiagrams = true, ?PageLinks $pageLinks = null): string
+    public function render(?string $markdown, ?PageLinks $pageLinks = null): string
     {
         // A property rather than a parameter threaded through `renderLines()`:
-        // that walk recurses (tabs and hints nest), so the flag would have to
-        // ride every recursive call and every helper between here and the one
-        // place that reads it. Nothing binds this class as a singleton and a
-        // render is not re-entrant, so the value cannot be observed by another
-        // call — but it is set on EVERY entry, never only when false, so a
-        // previous call can't leave it behind either.
-        $this->linkDiagrams = $linkDiagrams;
+        // that walk recurses (tabs and hints nest), so the value would have to
+        // ride every recursive call. Nothing binds this class as a singleton and
+        // a render is not re-entrant, and it is set on EVERY entry, so a
+        // previous call can't leave it behind.
         $this->pageLinks = $pageLinks ?? PageLinks::none();
         $this->umlCount = 0;
 
@@ -171,7 +154,7 @@ class GitbookRenderer
     }
 
     /** Bumped when `renderLines()`'s output changes shape — old entries then miss. */
-    private const PARSE_CACHE_VERSION = 'v2';
+    private const PARSE_CACHE_VERSION = 'v3';
 
     /** Below this many characters a parse costs less than the cache round trip. */
     private const PARSE_CACHE_MIN_LENGTH = 4096;
@@ -188,11 +171,9 @@ class GitbookRenderer
      *
      * What the parse reads besides the text is all in the key:
      *
-     * - `linkDiagrams` and the URL root, since a citation card prints absolute
-     *   `route()` URLs;
-     * - every cited DIAGRAM's id, name and current picture (`dependencies()`),
-     *   so a rename, a re-save of the canvas or a deletion is a new key;
-     * - every `{% file %}`'s media name and size, which its card prints.
+     * - the URL root, since a file card prints an absolute `route()` URL;
+     * - every `{% file %}`'s media name and size, which its card prints
+     *   (`dependencies()`).
      *
      * A page with a CARD grid is not cached at all: a card's destination is
      * resolved per reader inside the parse (`cardUrl()`), against the reader's
@@ -209,7 +190,6 @@ class GitbookRenderer
 
         $key = 'gitbook-render:' . self::PARSE_CACHE_VERSION . ':' . md5(implode("\0", [
             $markdown,
-            $this->linkDiagrams ? '1' : '0',
             url('/'),
             $this->dependencies($markdown),
         ]));
@@ -218,28 +198,12 @@ class GitbookRenderer
     }
 
     /**
-     * The database state a parse of `$markdown` prints: the cited diagrams
-     * (missing ones included, as a slug with no row) and the files' media.
-     * Two queries at most, none for a page that cites neither.
+     * The database state a parse of `$markdown` prints: the files' media. One
+     * query at most, none for a page that cites no file.
      */
     private function dependencies(string $markdown): string
     {
         $parts = [];
-
-        if (preg_match_all('/^\s*\{%\s*diagram\s+slug="([^"]*)"\s*%\}\s*$/m', $markdown, $m)) {
-            $slugs = array_values(array_unique($m[1]));
-            $diagrams = Diagram::query()->whereIn('slug', $slugs)->get(['id', 'slug', 'name']);
-            $pictures = Media::query()
-                ->where('model_type', (new Diagram)->getMorphClass())
-                ->whereIn('model_id', $diagrams->modelKeys())
-                ->where('collection_name', Diagram::DIAGRAM_COLLECTION)
-                ->pluck('id', 'model_id');
-
-            foreach ($slugs as $slug) {
-                $diagram = $diagrams->firstWhere('slug', $slug);
-                $parts[] = 'd:' . $slug . ':' . ($diagram ? $diagram->id . ':' . $diagram->name . ':' . ($pictures[$diagram->id] ?? '-') : 'missing');
-            }
-        }
 
         if (preg_match_all('/^\s*\{%\s*file\s+src="[^"]*\/files\/(\d+)[^"]*"\s*%\}\s*$/m', $markdown, $m)) {
             foreach (Media::query()->whereIn('id', array_unique($m[1]))->orderBy('id')->get(['id', 'file_name', 'size']) as $media) {
@@ -322,9 +286,8 @@ class GitbookRenderer
      *
      * A slug this caderno does not have loses its `href` ENTIRELY rather than
      * getting a broken one. An `<a>` with no href is not a link — it renders as
-     * the words the author wrote, which is the same promise the "Diagrama
-     * removido" card makes: deleting a page must never damage the prose that
-     * mentioned it. Pointing it at `#` instead would look like a link and
+     * the words the author wrote: deleting a page must never damage the prose
+     * that mentioned it. Pointing it at `#` instead would look like a link and
      * scroll the reader to the top of the page for no stated reason.
      */
     private function resolvePageLinks(string $html): string
@@ -438,14 +401,6 @@ class GitbookRenderer
             if (preg_match('/^\{%\s*file\s+src="([^"]*)"\s*%\}$/', $trimmed, $m)) {
                 $flush();
                 $html .= $this->renderFile($m[1]);
-                $i++;
-
-                continue;
-            }
-
-            if (preg_match('/^\{%\s*diagram\s+slug="([^"]*)"\s*%\}$/', $trimmed, $m)) {
-                $flush();
-                $html .= $this->renderDiagram($m[1]);
                 $i++;
 
                 continue;
@@ -605,66 +560,6 @@ class GitbookRenderer
             . '<div role="tablist" class="flex flex-wrap gap-1 border-b border-line">' . $tablist . '</div>'
             . '<div id="' . $containerId . '">' . $panels . '</div>'
             . '</div>';
-    }
-
-    /**
-     * A CITED drawing: its current picture, its name, and a way to open the
-     * canvas in a new tab.
-     *
-     * Addressed by SLUG rather than id, deliberately. It is what the author
-     * picked and what the URL shows, it survives a database reload between
-     * environments, and a citation that outlives its diagram then still says
-     * something legible instead of `diagram id="41"`.
-     *
-     * Three states, and all three have to read as deliberate:
-     *
-     * - **Picture present** — the PNG the canvas posts after every layout save
-     *   (`Diagram::DIAGRAM_COLLECTION`), shown inline.
-     * - **No picture yet** — the drawing exists but nobody has opened its canvas
-     *   since the snapshot feature landed, so there is nothing to show. The card
-     *   still renders, with the chain's own summary in place of the image: the
-     *   link is the point, and a citation that vanished because a derived file
-     *   is missing would read as a broken document.
-     * - **Diagram gone** — deleting a drawing must never damage the prose around
-     *   the citation, so this degrades to a plain "removido" card.
-     */
-    private function renderDiagram(string $slug): string
-    {
-        $diagram = Diagram::where('slug', $slug)->first();
-
-        if (! $diagram) {
-            return '<div class="ak-doc-diagram my-4 flex items-center gap-3 rounded-card border border-dashed border-line px-4 py-3 text-sm text-muted">'
-                . '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757" /></svg>'
-                . '<span>Diagrama removido (<code>' . e($slug) . '</code>).</span>'
-                . '</div>';
-        }
-
-        $picture = $diagram->picture();
-
-        $figure = $picture
-            ? '<img src="' . e(PictureResponse::versionedUrl('diagrams.picture.show', ['diagram' => $diagram], $picture)) . '" alt="' . e($diagram->name) . '"'
-                . ' class="w-full rounded-t-card border-b border-line bg-white object-contain">'
-            : '<div class="flex items-center gap-2 border-b border-dashed border-line px-4 py-6 text-xs text-muted">'
-                . '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M18 15h.008" /></svg>'
-                . '<span>Sem imagem ainda — abra o diagrama e salve o layout para gerar uma.</span>'
-                . '</div>';
-
-        return '<figure class="ak-doc-diagram my-5 overflow-hidden rounded-card border border-line bg-surface">'
-            . $figure
-            . '<figcaption class="flex items-center justify-between gap-3 px-4 py-3">'
-            . '<span class="min-w-0 flex-1 truncate text-sm font-semibold text-ink">' . e($diagram->name) . '</span>'
-            // New tab, and `rel` with it: the canvas is a full-screen editor,
-            // and losing the page you were reading to reach it is the one thing
-            // a citation must not do.
-            . ($this->linkDiagrams
-                ? '<a href="' . e(route('diagrams.show', $diagram)) . '" target="_blank" rel="noopener"'
-                    . ' class="inline-flex shrink-0 items-center gap-1.5 rounded-field border border-line bg-surface px-2.5 py-1 text-xs font-medium text-ink no-underline transition-colors hover:border-accent-line hover:bg-accent-soft/40">'
-                    . 'Abrir diagrama'
-                    . '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>'
-                    . '</a>'
-                : '')
-            . '</figcaption>'
-            . '</figure>';
     }
 
     /**
@@ -1485,8 +1380,7 @@ class GitbookRenderer
      * A destination this reader has no address for (another caderno on a magic
      * link, an unpublished one in `/docs`, a deleted one anywhere) turns the
      * card into a `<div>` instead of dropping it: the logo and the name are
-     * documentation, the click is an affordance — the same call
-     * `renderDiagram()` makes for a drawing with no picture.
+     * documentation, the click is an affordance.
      *
      * @param  array<string, string>  $attrs
      * @param  array<int, string>  $body
@@ -1522,9 +1416,9 @@ class GitbookRenderer
             return '<div class="ak-doc-card">' . $content . '</div>';
         }
 
-        // An address outside the app opens in a new tab, for the reason the
-        // "Abrir diagrama" button does: losing the page you were reading is the
-        // one thing a card in the middle of a document must not do.
+        // An address outside the app opens in a new tab: losing the page you
+        // were reading is the one thing a card in the middle of a document must
+        // not do.
         $external = ! str_starts_with($url, '/') && ! str_starts_with($url, url('/'));
 
         return '<a class="ak-doc-card" href="' . e($url) . '"'

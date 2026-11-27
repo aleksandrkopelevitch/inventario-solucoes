@@ -7,8 +7,8 @@
 // Native in Markdown: header, paragraph, list (ordered/unordered/checklist),
 // quote, code, delimiter, table, image (<figure>). With no native Markdown,
 // through GitBook notation: hint ({% hint %}), tabs ({% tabs %}), file
-// ({% file %}), diagram ({% diagram %} — a citation of a catalog drawing,
-// ours), cards ({% cards %} — a grid of product cards, also ours) and scenes
+// ({% file %}), cards ({% cards %} — a grid of product cards, ours), UML
+// diagrams ({% uml %} — JSON carried verbatim, ours) and scenes
 // ({% scene type="steps|before-after|tree|compare|timeline" %} — an animated
 // "fluxo em etapas", "antes → depois", "árvore", "comparação lado a lado" or
 // "linha do tempo", ours too).
@@ -380,10 +380,6 @@ function serializeBlock(block) {
             return serializeImage(d)
         case 'attaches':
             return `{% file src="${fileSrc(d.file)}" %}`
-        case 'diagram':
-            // A block with no diagram chosen serializes to nothing rather than
-            // an empty citation the renderer would have to apologise for.
-            return d.slug ? `{% diagram slug="${escapeAttr(d.slug)}" %}` : ''
         case 'embed':
             return `{% embed url="${escapeAttr(d.source || d.embed || '')}" %}`
         case 'hint':
@@ -497,7 +493,8 @@ function serializeTabs(d) {
  * (`cols`); everything else belongs to one card.
  *
  * A card with NOTHING in it is dropped rather than written as an empty
- * citation — the same call `diagram` makes for a block with no drawing chosen.
+ * citation, so the page never carries a card the renderer would have to draw
+ * empty.
  * The description is the card's BODY (like a tab's content) instead of a fifth
  * attribute: it is text somebody wrote, so it has no business being escaped
  * into a quoted string.
@@ -798,15 +795,6 @@ function parseLines(lines) {
             continue
         }
 
-        // diagram — a citation of a drawing from the catalog. Only the slug
-        // is stored; the name and the picture are resolved when rendered.
-        m = trimmed.match(/^\{%\s*diagram\s+slug="([^"]*)"\s*%\}$/)
-        if (m) {
-            blocks.push({type: 'diagram', data: {slug: m[1]}})
-            i++
-            continue
-        }
-
         // file
         m = trimmed.match(/^\{%\s*file\s+src="([^"]*)"\s*%\}$/)
         if (m) {
@@ -894,7 +882,7 @@ function startsNewBlock(line) {
     return (
         /^(#{1,6})\s+/.test(t) ||
         /^(```|~~~)/.test(t) ||
-        /^\{%\s*(hint|tabs|cards|scene|uml|file|embed|diagram)/.test(t) ||
+        /^\{%\s*(hint|tabs|cards|scene|uml|file|embed)/.test(t) ||
         /^<figure/.test(t) ||
         /^<img\s/i.test(t) ||
         /^(\*\*\*+|---+|___+)$/.test(t) ||

@@ -49,7 +49,7 @@ hardcode a hex color or a one-off `border-radius` that already has a token.
 - Global browser-chrome overrides that have no per-element target, e.g. the
   scrollbar styling in `resources/css/components/scrollbar.css`.
 - `resources/views/components/chain/viz.blade.php` (the F3 diagram canvas,
-  shared by a `Diagram` and a submission's drawings) uses a scoped `--viz-*`
+  which now serves only the committee's AS IS / TO BE drawings) uses a scoped `--viz-*`
   token set — in `resources/css/components/chain-viz.css` since 2026-11-12,
   imported by `chain-viz.js` so it ships with the canvas's lazy chunk instead
   of as 82 KB of uncached inline `<style>` (the edges SVG keeps its own small
@@ -70,9 +70,8 @@ leftover from a copied reference bundle), delete it rather than leaving it —
 `GitbookRenderer::parsed()` caches `renderLines()` — commonmark, the whole cost
 of a render (380–730 ms for each of the six largest imported pages, against
 0.4 ms for every per-reader pass together) — for pages of 4 KB and up. The key
-holds the text, `linkDiagrams`, the URL root and `dependencies()`: each cited
-diagram's id, name and current picture, each `{% file %}`'s media name and
-size. A page with a CARD grid is never cached, since a card's link is resolved
+holds the text, the URL root and `dependencies()`: each `{% file %}`'s media
+name and size. A page with a CARD grid is never cached, since a card's link is resolved
 per reader inside the parse. Anything new that the parse prints from the
 database must join `dependencies()`, or it goes stale for 30 days; bump
 `PARSE_CACHE_VERSION` when the output's shape changes.
@@ -82,7 +81,7 @@ database must join `dependencies()`, or it goes stale for 30 days; bump
 | | `App\Support\GitbookRenderer` | `App\Support\MarkdownText` |
 |---|---|---|
 | for | documentation pages, authored in the Editor.js block editor | the short free-text fields: a person's/company's `notes`, a solution's `description` and `support_operation_note` |
-| speaks | Markdown **+ GitBook notation** (`{% hint %}`, `{% tabs %}`, `{% file %}`, `{% embed %}`) plus our own: `{% diagram slug="…" %}`, `{% cards %}`, `{% scene %}` (doc-scenes.md), `{% uml %}` (doc-uml.md) and the inline `{% secret %}` | plain Markdown (GFM), nothing else |
+| speaks | Markdown **+ GitBook notation** (`{% hint %}`, `{% tabs %}`, `{% file %}`, `{% embed %}`) plus our own: `{% cards %}`, `{% scene %}` (doc-scenes.md), `{% uml %}` (doc-uml.md) and the inline `{% secret %}` | plain Markdown (GFM), nothing else |
 | raw HTML in the source | `html_input=allow` — it's how images arrive as `<figure><img src="/files/{id}">` | `html_input=strip`, plus `allow_unsafe_links=false`: a `<script>` in someone's notes must never run for the next reader |
 | single newline | a normal Markdown soft break | rendered as `<br>` (`renderer.soft_break`), because these fields were plain textareas read back with `whitespace-pre-line` and every note already in the database relies on it |
 | read side | `.html-content` + `GitbookRenderer` | `x-ui.markdown` + `.ak-rich-text` |
@@ -141,38 +140,17 @@ the table itself scrolls away with it. A table pasted as raw HTML never reaches
 the Table node and so is never wrapped, which is why `.html-content table` still
 carries the whole frame on its own.
 
-### A diagram citation is PREVIEWED in the editor, not described
+### A tool that repaints itself must be `data-mutation-free`
 
-The `diagram` block stores a slug and nothing else — the name and the picture
-are resolved at render time, so a renamed or redrawn diagram updates every page
-citing it without anybody editing prose. That is also why the editor has to
-resolve them too: it used to print the raw slug, so an author had no way to tell
-whether they had cited the right drawing, and a page reopened later read as
-`zfl-bloq-desbloq-cliente`.
-
-`docs-tools/diagram.js` now draws the same card `GitbookRenderer::renderDiagram()`
-will, with the same three states (picture / "sem imagem ainda" / "removido"),
-from the catalog it already fetches — `diagrams.catalog` carries `pictureUrl`
-(null when the canvas has never been saved with one) and `url` per entry, both
-built with `route()` server-side, which is what keeps the tool free of a path
-of its own. The media is eager-loaded there: `picture()` is a `getFirstMedia()`
-per row on a payload meant to be one query.
-
-**A tool that paints itself asynchronously must be `data-mutation-free`.**
 Editor.js decides a block changed by watching its DOM, so a preview that
-arrives when a fetch resolves reads as an edit: it marks the page dirty and
-autosave writes it, seconds after someone merely opened it. The wrapper carries
+repaints for a reason that is not an edit (a fetch resolving, a redraw)
+reads as one: it marks the page dirty and autosave writes it, seconds after
+someone merely opened it. The preview's wrapper carries
 `data-mutation-free="true"` (Editor.js drops any mutation whose nodes sit inside
-one) and the tool dispatches the one real change itself, via
-`options.block.dispatchChange()` when a diagram is picked — the same shape as
-`docs-tools/code.js`'s language field. Get one half without the other and you
-either autosave on load or lose the citation the author just made.
-
-One more distinction the block has to keep: an EMPTY catalog and an
-UNREACHABLE one look identical from the lookup table, and they must not read
-the same. "Diagrama removido" is a claim about the author's citation; a failed
-fetch is a fact about the request, and reporting the first for the second tells
-someone their drawing was deleted because a request timed out.
+one) and the tool dispatches the real changes itself, via
+`block.dispatchChange()` — the shape of `docs-tools/uml.js`, `scene.js` and
+`code.js`'s language field. Get one half without the other and you either
+autosave on load or lose the edit the author just made.
 
 ### Code blocks — the fence's LANGUAGE is data, and it is easy to lose
 

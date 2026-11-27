@@ -12,7 +12,7 @@
             <x-forms.button type="button" variant="ghost"
                 data-ak-ajax="solution-page-delete"
                 data-ak-action="{{ route('solutions.destroy', $solution) }}"
-                data-ak-confirm="Excluir a solução &quot;{{ $solution->name }}&quot;? As pessoas e as empresas ligadas a ela continuam existindo — só o vínculo acaba. As interconexões cadastradas com ela são removidas. Nos diagramas em que ela aparece, o bloco continua no lugar e com o mesmo nome, como texto livre."
+                data-ak-confirm="Excluir a solução &quot;{{ $solution->name }}&quot;? As pessoas e as empresas ligadas a ela continuam existindo — só o vínculo acaba. As interconexões cadastradas com ela são removidas. Nos diagramas UML que a citam, o elemento continua desenhado, sem vínculo."
                 title="Excluir solução"
                 class="!p-1.5 text-muted hover:!text-crit">
                 <x-heroicon-o-trash class="size-4" />
@@ -28,27 +28,6 @@
     <div class="animate-ak-rise">
         <x-solutions.detail-header :solution="$solution" />
     </div>
-
-    {{-- 2.5. A committee approved a topology for this solution and nobody has
-         applied it to the catalog yet. Above the documentation card on purpose:
-         it is a warning ABOUT that list — the graph below is showing the
-         previous scenario. Not a slot: nothing on this page changes it, and it
-         is resolved on the submission's own screen. Only for whoever can open
-         the committee module — the warning is a link into it. --}}
-    @can('viewAny', \App\Models\Submission::class)
-    @foreach ($pendingTopologies as $pending)
-        <div class="animate-ak-rise mt-5 flex flex-wrap items-center gap-3 rounded-card border border-cat-amber-line bg-cat-amber-soft px-4 py-3" style="animation-delay: 80ms">
-            <x-heroicon-o-arrow-path-rounded-square class="size-5 shrink-0 text-cat-amber-ink" />
-            <p class="min-w-0 flex-1 text-sm text-cat-amber-ink">
-                O comitê aprovou uma topologia para esta solução em
-                {{ $pending->approved_at->format('d/m/Y') }} que ainda não foi aplicada —
-                os diagramas do catálogo mostram o cenário anterior.
-            </p>
-            <a href="{{ route('submissions.show', $pending->submission) }}"
-               class="shrink-0 text-sm font-medium text-cat-amber-ink underline">Ver a submissão</a>
-        </div>
-    @endforeach
-    @endcan
 
     {{-- 3. Who this solution talks to, and what documents it, in one card: the
          relationships on the left (derived from the documentation's UML

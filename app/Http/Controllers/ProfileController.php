@@ -6,7 +6,6 @@ use App\Http\Requests\ConfirmEmailChangeRequest;
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Mail\ConfirmEmailChangeMail;
 use App\Models\Company;
-use App\Models\Diagram;
 use App\Models\FlowspecChat;
 use App\Models\FlowspecMessage;
 use App\Models\Notebook;
@@ -33,7 +32,6 @@ class ProfileController extends Controller
         // landing page doubles as the fastest way into the four catalogs.
         $metrics = [
             ['model' => Solution::class, 'label' => 'Soluções', 'detail' => 'catalogadas', 'icon' => 'squares-2x2', 'url' => route('solutions.index')],
-            ['model' => Diagram::class, 'label' => 'Diagramas', 'detail' => 'desenhados', 'icon' => 'share', 'url' => route('diagrams.index')],
             ['model' => Person::class, 'label' => 'Pessoas', 'detail' => 'responsáveis', 'icon' => 'users', 'url' => route('people.index')],
             ['model' => Company::class, 'label' => 'Empresas', 'detail' => 'fornecedores', 'icon' => 'building-office-2', 'url' => route('companies.index')],
         ];
@@ -59,7 +57,6 @@ class ProfileController extends Controller
         // Shortcuts into the work — the things staff actually come here to do.
         $shortcuts = [
             ['model' => Notebook::class, 'label' => 'Documentação', 'detail' => 'Hub de cobertura por conteúdo', 'icon' => 'book-open', 'url' => route('documentation.index')],
-            ['model' => Diagram::class, 'label' => 'Diagramas', 'detail' => 'Fluxos desenhados do ecossistema', 'icon' => 'share', 'url' => route('diagrams.index')],
             // The map belongs to no module: every account reads it.
             ['model' => null, 'label' => 'Mapa do ecossistema', 'detail' => 'Grafo das integrações', 'icon' => 'globe-alt', 'url' => route('solutions.map')],
             ['model' => FlowspecChat::class, 'label' => 'Especialista em Integrações', 'detail' => 'Gera flowSpecs para a Digibee', 'icon' => 'cpu-chip', 'url' => route('flowspec.index')],

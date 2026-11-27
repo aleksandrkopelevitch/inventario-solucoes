@@ -4,7 +4,6 @@ namespace App\Actions\Mcp;
 
 use App\Actions\DeleteSolution;
 use App\Mcp\Support\RecordFields;
-use App\Models\ApprovedTopology;
 use App\Models\Company;
 use App\Models\DocumentationChat;
 use App\Models\DocumentationPage;
@@ -14,6 +13,7 @@ use App\Models\Person;
 use App\Models\Solution;
 use App\Models\SolutionRelationship;
 use App\Models\Submission;
+use App\Models\UmlSolutionLink;
 use App\Models\User;
 use App\Services\DocumentationPageService;
 use App\Support\Catalog\CompanyRules;
@@ -110,10 +110,8 @@ class RevertMcpWrite
                 $subject->people()->exists() ? 'pessoas vinculadas' : null,
                 $subject->notebooks()->exists() ? 'cadernos' : null,
                 SolutionRelationship::query()->involving($subject)->exists() ? 'interconexões cadastradas' : null,
-                $subject->diagrams()->exists() ? 'diagramas' : null,
-                $subject->diagramsAsSource()->exists() || $subject->diagramsAsTarget()->exists() ? 'integrações' : null,
+                UmlSolutionLink::query()->where(fn ($q) => $q->where('from_solution_id', $subject->getKey())->orWhere('to_solution_id', $subject->getKey()))->exists() ? 'relacionamentos documentados' : null,
                 Submission::query()->where('solution_id', $subject->getKey())->exists() ? 'submissões ao comitê' : null,
-                ApprovedTopology::query()->where('solution_id', $subject->getKey())->exists() ? 'topologias aprovadas' : null,
                 $subject->logo_path ? 'um logo' : null,
             ],
             $subject instanceof Person => [
@@ -130,7 +128,6 @@ class RevertMcpWrite
             ],
             $subject instanceof Notebook => [
                 $subject->pages()->exists() ? 'páginas' : null,
-                $subject->diagrams()->exists() ? 'diagramas' : null,
                 $subject->isPublished() ? 'publicação na base' : null,
                 // Neither moves the caderno's `updated_at`, so only asking
                 // for them keeps a revert from deleting them along.

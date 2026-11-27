@@ -2,9 +2,9 @@
 
 use App\Contracts\Documentable;
 use App\Enums\UserRole;
-use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
+use App\Models\SubmissionDiagram;
 use App\Models\User;
 use App\Support\GitbookRenderer;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -266,10 +266,10 @@ it('queues a rendition only for the documentation images that have none', functi
     $gone = imageOnPage($page, renditionSource(800, 400));
     unlink($gone->getPath());
     imageOnPage($page, renditionSource(300, 200, 'gif'));
-    // A diagram's pasted image lives in a `docs` collection too, and since
-    // 2026-11-12 gets the same rendition (HasWebImageRendition) — so the
-    // backfill queues it as well.
-    $pasted = Diagram::factory()->create()->addMedia(renditionSource(800, 400))->toMediaCollection(Documentable::DOCS_COLLECTION);
+    // A committee drawing's pasted image lives in a `docs` collection too,
+    // and since 2026-11-12 gets the same rendition (HasWebImageRendition) — so
+    // the backfill queues it as well.
+    $pasted = SubmissionDiagram::factory()->create()->addMedia(renditionSource(800, 400))->toMediaCollection(Documentable::DOCS_COLLECTION);
 
     $uploads = Queue::pushed(PerformConversionsJob::class)->count();
 

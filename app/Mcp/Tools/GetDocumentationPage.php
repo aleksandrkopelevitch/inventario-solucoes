@@ -17,9 +17,9 @@ use App\Support\Documentation\SecretText;
  * **Markdown rather than rendered HTML**, and rather than plain text, for three
  * reasons that all point the same way: it is what the author wrote, it costs the
  * fewest tokens of the three, and it keeps the constructs of the dialect legible
- * — a `{% hint %}` still reads as a warning, and a `{% diagram slug="…" %}` is
- * still a slug `get_diagram` can be called with. Stripping them would leave
- * prose referring to a picture the model has no way to ask about.
+ * — a `{% hint %}` still reads as a warning, and a `{% uml %}` block is still the
+ * JSON of the diagram, with the solutions it binds. Stripping them would leave
+ * prose referring to a picture the model has no way to read.
  *
  * **`SecretText::mask()` is the load-bearing line in this file.** This is the
  * seventh surface that hands a page's text to somebody (after the editor, the
@@ -66,8 +66,7 @@ class GetDocumentationPage implements Tool
         search_documentation).
 
         O texto pode conter construções do dialeto GitBook: {% hint %} (destaque),
-        {% tabs %}, {% file %} (anexo) e {% diagram slug="..." %} — esta última cita um
-        diagrama, que se abre com get_diagram usando o slug citado. Links internos têm a
+        {% tabs %} e {% file %} (anexo). Links internos têm a
         forma [texto](page:slug-da-pagina) e apontam para outra página do mesmo caderno.
 
         Dois blocos são figuras desenhadas pelo app a partir do texto: {% uml type="..." %}

@@ -22,8 +22,6 @@ class ToolRegistry
     public const TOOLS = [
         Tools\SearchSolutions::class,
         Tools\GetSolution::class,
-        Tools\SearchDiagrams::class,
-        Tools\GetDiagram::class,
         Tools\ListNotebooks::class,
         Tools\GetNotebook::class,
         Tools\GetDocumentationPage::class,

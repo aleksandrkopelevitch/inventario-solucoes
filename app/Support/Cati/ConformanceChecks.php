@@ -5,6 +5,7 @@ namespace App\Support\Cati;
 use App\Enums\ConformanceVerdict;
 use App\Enums\SubmissionSectionKey;
 use App\Models\Submission;
+use App\Services\SolutionRelationshipService;
 use App\Support\Fold;
 
 /**
@@ -55,7 +56,7 @@ class ConformanceChecks
      */
     public static function for(Submission $submission): array
     {
-        $submission->loadMissing(['sections', 'solution.diagrams']);
+        $submission->loadMissing(['sections', 'solution']);
 
         $solution = $submission->solution;
         $content = $submission->sections->mapWithKeys(
@@ -67,7 +68,9 @@ class ConformanceChecks
             ->implode(' ');
 
         $standards = $text(SubmissionSectionKey::Standards);
-        $hasDiagrams = ($solution?->diagrams->count() ?? 0) > 0;
+        // What the documentation (and people) say this solution talks to —
+        // SolutionRelationshipService, since the catalog's drawings went.
+        $hasRelationships = $solution !== null && app(SolutionRelationshipService::class)->forSolution($solution)->isNotEmpty();
 
         return [
             self::cloudTarget($solution?->cloud),
@@ -81,7 +84,7 @@ class ConformanceChecks
                 question: 'Que processo de desenvolvimento a solução segue — esteira, revisão de código, versionamento?',
             ),
 
-            self::integrationPlatform($hasDiagrams, $text(SubmissionSectionKey::Architecture, SubmissionSectionKey::Standards)),
+            self::integrationPlatform($hasRelationships, $text(SubmissionSectionKey::Architecture, SubmissionSectionKey::Standards)),
 
             self::mentionCheck(
                 key: 'observability',
@@ -137,13 +140,12 @@ class ConformanceChecks
     }
 
     /** @return array{key: string, label: string, verdict: ConformanceVerdict, detail: string, question: string} */
-    private static function integrationPlatform(bool $hasDiagrams, string $haystack): array
+    private static function integrationPlatform(bool $hasRelationships, string $haystack): array
     {
-        // Nothing in the schema records WHICH platform mediates a diagram
-        // (`Diagram.protocol` is the transport — rest, sftp — not the
-        // platform), so this can only ever be a content check.
+        // A content check: whether the submission SAYS which platform its
+        // integrations go through, not whether the documentation shows one.
         $verdict = match (true) {
-            ! $hasDiagrams                                  => ConformanceVerdict::Ok,
+            ! $hasRelationships                             => ConformanceVerdict::Ok,
             self::mentions($haystack, self::PLATFORM_TERMS) => ConformanceVerdict::Ok,
             default                                         => ConformanceVerdict::Attention,
         };
@@ -153,9 +155,9 @@ class ConformanceChecks
             'label'   => 'Padrão de integração',
             'verdict' => $verdict,
             'detail'  => match (true) {
-                ! $hasDiagrams                      => 'Sem diagramas catalogados.',
+                ! $hasRelationships                 => 'Sem relacionamentos documentados.',
                 $verdict === ConformanceVerdict::Ok => 'Plataforma de integração citada.',
-                default                             => 'Integrações existentes, sem plataforma citada.',
+                default                             => 'Integrações documentadas, sem plataforma citada.',
             },
             'question' => 'Por onde passam as integrações — plataforma corporativa ou ponto a ponto? Se for exceção ao padrão, qual a justificativa?',
         ];

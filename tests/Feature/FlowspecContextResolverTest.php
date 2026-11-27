@@ -2,7 +2,6 @@
 
 use App\Enums\ContextExtractionState;
 use App\Enums\FlowspecAttachmentKind;
-use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\FlowspecAttachment;
 use App\Models\FlowspecChat;
@@ -157,13 +156,12 @@ it('ignores a stored reference to something that is not a page', function () {
     // documentation was retired. A row left over from then must not be read as
     // documentation — it has none — and must not break the turn either.
     $chat = FlowspecChat::factory()->create();
-    $diagram = Diagram::factory()->create(['name' => 'IAM -> SVL']);
 
     FlowspecAttachment::factory()->for($chat, 'chat')->create([
         'kind'           => FlowspecAttachmentKind::Document,
-        'label'          => $diagram->name,
-        'reference_type' => Diagram::class,
-        'reference_id'   => $diagram->id,
+        'label'          => 'IAM -> SVL',
+        'reference_type' => 'App\\Models\\Diagram',
+        'reference_id'   => 1,
         'content'        => null,
     ]);
 
@@ -283,10 +281,6 @@ it('suggests documentation for a solution named in the text', function () {
     $iamDocs = Notebook::factory()->create(['name' => 'IAM']);
     $iamDocs->solutions()->attach($iam);
     $page = DocumentationPage::factory()->for($iamDocs)->create(['title' => 'Autenticação', 'documentation' => 'x']);
-    // A diagram naming both solutions is deliberately NOT suggested: a drawing
-    // has no text to put in the prompt.
-    $diagram = Diagram::factory()->create(['name' => 'IAM -> SVL']);
-    $diagram->participants()->attach([$iam->id => ['position' => 0], $svl->id => ['position' => 1]]);
 
     $suggestions = (new FlowspecContextResolver)->suggestFor('Preciso saber como o IAM autentica antes de continuar.');
 

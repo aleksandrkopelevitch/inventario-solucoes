@@ -1,13 +1,11 @@
 <?php
 
-use App\Actions\Cati\ApplyApprovedTopology;
 use App\Enums\UserRole;
-use App\Models\ApprovedTopology;
 use App\Models\Company;
-use App\Models\Diagram;
 use App\Models\Notebook;
 use App\Models\Person;
 use App\Models\Solution;
+use App\Models\SolutionRelationship;
 use App\Models\Submission;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -56,45 +54,10 @@ it('keeps the people and the company the solution was linked to', function () {
     expect($person->fresh()->solutions()->count())->toBe(0);
 });
 
-it('leaves the drawing standing, with the block as free text', function () {
-    $solution = Solution::factory()->create(['name' => 'Sistema Fantasma']);
-    $other = Solution::factory()->create();
-    $diagram = Diagram::factory()->create([
-        'chain' => [
-            'nodes' => [
-                ['solution_id' => $solution->id, 'label' => null, 'kind' => 'system'],
-                ['solution_id' => $other->id, 'label' => null, 'kind' => 'system'],
-            ],
-            'edges' => [['from' => 0, 'to' => 1, 'arrow' => '->', 'protocol' => null]],
-        ],
-    ]);
-    $diagram->afterChainMutation();
-
-    expect($diagram->fresh()->source_solution_id)->toBe($solution->id);
-
-    $this->actingAs(solutionAdmin())->deleteJson(route('solutions.destroy', $solution))->assertOk();
-
-    // The cascade on `source_solution_id` would have taken the whole drawing.
-    $this->assertModelExists($diagram);
-
-    $chain = $diagram->fresh()->chain;
-    expect($chain['nodes'][0]['solution_id'])->toBeNull()
-        ->and($chain['nodes'][0]['label'])->toBe('Sistema Fantasma')
-        ->and($chain['edges'])->toHaveCount(1)
-        // Re-derived from what is LEFT in the chain, not blanked: the other
-        // block is still a solution, so it becomes the source. Asserted by
-        // NAME, not by `not->toBe($solution->id)` — `null` satisfies that too,
-        // so the weaker form passed whether the column was re-derived or
-        // wiped, which is the one distinction this line exists to make.
-        ->and($diagram->fresh()->source_solution_id)->toBe($other->id);
-});
-
-it('cleans a CATI submission drawing the same way it cleans a catalog one', function () {
-    // A submission's AS IS / TO BE is the SAME canvas with a different owner
-    // (both implement `ChainCanvas`), storing the same `{solution_id, label}`
-    // node — and it has no foreign key to cascade, so a delete that only swept
-    // `diagrams` left a node pointing at a row that is gone, which
-    // `ChainLabeler` renders as "?".
+it('leaves a CATI submission drawing standing, with the block as free text', function () {
+    // A submission's AS IS / TO BE stores `{solution_id, label}` per node with
+    // no foreign key to cascade, so a delete that left it alone kept a node
+    // pointing at a row that is gone, which `ChainLabeler` renders as "?".
     $solution = Solution::factory()->create(['name' => 'Sistema Fantasma']);
     $submission = Submission::factory()->create();
     $canvas = $submission->diagrams()->create([
@@ -121,69 +84,38 @@ it('shows the delete control only to an admin', function () {
         ->assertDontSee('solution-page-delete');
 });
 
-it('cleans an approved TO BE snapshot, so applying it later still works', function () {
-    // `approved_topologies.chain` is the THIRD table storing the same node
-    // shape, and the one the sweep missed. Its own foreign key only covers the
-    // solution the submission was ABOUT, so a solution that merely appears
-    // inside the approved chain survived the delete as a dangling id — and
-    // `ApplyApprovedTopology` then died on it, because `SyncDiagramFromChain`
-    // attaches the participants it reads from the chain.
-    $subject = Solution::factory()->create(['name' => 'Assunto']);
-    $mentioned = Solution::factory()->create(['name' => 'Sistema Citado']);
-
-    $topology = ApprovedTopology::factory()->create([
-        'solution_id' => $subject->id,
-        'chain'       => ['nodes' => [
-            ['solution_id' => $subject->id, 'label' => 'Assunto', 'kind' => 'system'],
-            ['solution_id' => $mentioned->id, 'label' => 'Sistema Citado', 'kind' => 'system'],
-        ], 'edges' => [['from' => 0, 'to' => 1, 'arrow' => '->', 'protocol' => 'rest']]],
-    ]);
-
-    $this->actingAs(solutionAdmin())->deleteJson(route('solutions.destroy', $mentioned))->assertOk();
-
-    $chain = $topology->fresh()->chain;
-
-    expect($chain['nodes'][1]['solution_id'])->toBeNull()
-        ->and($chain['nodes'][1]['label'])->toBe('Sistema Citado');
-
-    // The point of the sweep: the snapshot is still appliable.
-    $diagram = app(ApplyApprovedTopology::class)->handle($topology->fresh(), solutionAdmin(), notebook: Notebook::factory()->create());
-
-    expect($diagram->participants->pluck('id')->all())->toBe([$subject->id]);
-});
-
 it('names a block whose label was blank rather than leaving it nameless', function () {
     // `?? ` only substitutes on null, so a node stored with an empty string
     // kept it and rendered as an unnamed rectangle — the outcome the sweep
     // exists to avoid.
     $solution = Solution::factory()->create(['name' => 'Sem Rotulo']);
-    $diagram = Diagram::factory()->create([
+    $canvas = Submission::factory()->create()->diagrams()->create([
+        'kind'  => 'as_is',
         'chain' => ['nodes' => [['solution_id' => $solution->id, 'label' => '', 'kind' => 'system']], 'edges' => []],
     ]);
 
     $this->actingAs(solutionAdmin())->deleteJson(route('solutions.destroy', $solution))->assertOk();
 
-    expect($diagram->fresh()->chain['nodes'][0]['label'])->toBe('Sem Rotulo');
+    expect($canvas->fresh()->chain['nodes'][0]['label'])->toBe('Sem Rotulo');
 });
 
-it('says how many approved topologies went with the solution', function () {
-    // `approved_topologies.solution_id` is NOT NULL and cascades, so these rows
-    // cannot be kept: an approval to apply a topology TO a system means nothing
-    // once the system is gone. What it can stop doing is going in silence — a
-    // committee decision disappearing without a word is how somebody goes
-    // looking for a pendência weeks later and finds nothing.
-    $solution = Solution::factory()->create(['name' => 'Portal']);
-    ApprovedTopology::factory()->count(2)->create(['solution_id' => $solution->id]);
+it('takes the interconnections recorded with it, and nothing else', function () {
+    $solution = Solution::factory()->create();
+    $other = Solution::factory()->create();
+    [$a, $b] = $solution->id < $other->id ? [$solution, $other] : [$other, $solution];
+    $relationship = SolutionRelationship::query()->create([
+        'solution_a_id' => $a->id,
+        'solution_b_id' => $b->id,
+        'direction'     => 'both',
+    ]);
 
-    $this->actingAs(solutionAdmin())
-        ->deleteJson(route('solutions.destroy', $solution))
-        ->assertOk()
-        ->assertJsonPath('message', 'Solução "Portal" excluída. 2 topologia(s) aprovada(s) para ela também foram removidas.');
+    $this->actingAs(solutionAdmin())->deleteJson(route('solutions.destroy', $solution))->assertOk();
 
-    expect(ApprovedTopology::count())->toBe(0);
+    $this->assertModelMissing($relationship);
+    $this->assertModelExists($other);
 });
 
-it('says nothing extra when no approved topology was involved', function () {
+it('says only that the solution was deleted', function () {
     $solution = Solution::factory()->create(['name' => 'Portal']);
 
     $this->actingAs(solutionAdmin())

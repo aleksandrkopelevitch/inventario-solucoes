@@ -129,3 +129,11 @@ it('serves the hosting view from the map endpoint', function () {
         ->assertOk()
         ->assertJsonMissingPath('hostings.0');
 });
+
+it('renders the map page container', function () {
+    $this->actingAs(User::factory()->create())
+        ->get(route('solutions.map'))
+        ->assertOk()
+        ->assertSee('Mapa de integrações')
+        ->assertSee('data-ak-map-view', false);
+});

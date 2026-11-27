@@ -126,11 +126,11 @@ it('masks a context page protected values', function () {
         ->toMatch('/\[\[SECRET-[a-z0-9]{8}\]\]/');
 });
 
-it('strips a context page media and diagram blocks instead of freezing them', function () {
+it('strips a context page media and UML blocks instead of freezing them', function () {
     $notebook = Notebook::factory()->create();
     $page = DocumentationPage::factory()->for($notebook)->create();
     $reference = DocumentationPage::factory()->for($notebook)->create([
-        'documentation' => "Antes.\n\n<figure><img src=\"/files/77\"></figure>\n\n{% diagram slug=\"fluxo-x\" %}\n\nDepois.",
+        'documentation' => "Antes.\n\n<figure><img src=\"/files/77\"></figure>\n\n{% uml type=\"sequence\" title=\"Fluxo X\" %}\n{\"participants\":[{\"id\":\"fluxo-x\",\"label\":\"X\"}],\"messages\":[]}\n{% enduml %}\n\nDepois.",
     ]);
 
     $service = fakeContextPageService();
@@ -141,9 +141,9 @@ it('strips a context page media and diagram blocks instead of freezing them', fu
     // the model can copy a `/files/{id}` it is shown.
     expect($service->capturedPrompt)
         ->not->toContain('/files/77')
-        ->not->toContain('slug="fluxo-x"')
+        ->not->toContain('"fluxo-x"')
         ->toContain('[imagem]')
-        ->toContain('[diagrama]');
+        ->toContain('[diagrama UML]');
 });
 
 it('never lets the page being written be its own context', function () {

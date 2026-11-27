@@ -220,7 +220,7 @@ function makeImageTool(Base) {
 
 // Editor.js and its plugins are heavy (~400 kB) and only used on this page, so
 // they're loaded on demand (separate chunk) only when an editor is on screen.
-async function loadTools({uploadUrl = '', catalogUrl = '', linkTargetsUrl = '', cardTargetsUrl = '', sceneUrl = '', umlCheckUrl = '', pageSlug = ''} = {}) {
+async function loadTools({uploadUrl = '', linkTargetsUrl = '', cardTargetsUrl = '', sceneUrl = '', umlCheckUrl = '', pageSlug = ''} = {}) {
     const [
         {default: EditorJS},
         {default: Header},
@@ -235,7 +235,6 @@ async function loadTools({uploadUrl = '', catalogUrl = '', linkTargetsUrl = '', 
         {default: Marker},
         {default: Embed},
         {default: HintTool},
-        {default: DiagramTool},
         {default: CardsTool},
         {default: SceneTool},
         {default: UmlTool},
@@ -257,7 +256,6 @@ async function loadTools({uploadUrl = '', catalogUrl = '', linkTargetsUrl = '', 
         import('@editorjs/marker'),
         import('@editorjs/embed'),
         import('./docs-tools/hint'),
-        import('./docs-tools/diagram'),
         import('./docs-tools/cards'),
         import('./docs-tools/scene'),
         import('./docs-tools/uml'),
@@ -349,7 +347,6 @@ async function loadTools({uploadUrl = '', catalogUrl = '', linkTargetsUrl = '', 
         // block, so Link (and bold, italic, código, Valor protegido) were
         // unreachable in the one place a callout most needs them.
         hint: {class: HintTool, inlineToolbar: true},
-        diagram: {class: DiagramTool, config: {catalogUrl}},
         // No `inlineToolbar`, deliberately, and it is the one tool here that
         // wants none: the whole card is a link, and a link inside a link is not
         // valid HTML — so a toolbar whose first offer is "Link" would be an

@@ -6,13 +6,11 @@ use App\Actions\Documentation\RevealPageSecret;
 use App\Contracts\Documentable;
 use App\Http\Requests\RevealPageSecretRequest;
 use App\Http\Requests\SearchDocumentationRequest;
-use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Services\Documentation\DocumentationReader;
 use App\Services\DocumentationPageService;
 use App\Services\DocumentationSearchService;
-use App\Support\Documentation\DiagramCitation;
 use App\Support\Documentation\DocumentationMediaResponse;
 use App\Support\Documentation\ReaderUrls;
 use App\View\Components\Documentation\SearchResults;
@@ -42,8 +40,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  * else is published" is a question that can honestly be answered.
  *
  * **Every endpoint re-asks whether the caderno is published**, including the
- * three that are reached by id rather than by browsing (`file`,
- * `diagramPicture`, `search`). That is the whole authorization of this surface
+ * two that are reached by id rather than by browsing (`file`, `search`). That is the whole authorization of this surface
  * and it is deliberately NOT a policy: `NotebookPolicy` answers about the
  * caderno as an object of editing, and it says `true` for every `Viewer` —
  * including for the two hundred cadernos nobody published.
@@ -228,14 +225,6 @@ class KnowledgeBaseController extends Controller
         abort_unless($allowed, 404);
 
         return DocumentationMediaResponse::for($media, $request);
-    }
-
-    /** The picture of a diagram this caderno cites — authorised by the citation. */
-    public function diagramPicture(Request $request, Notebook $notebook, Diagram $diagram): BinaryFileResponse
-    {
-        $this->guard($notebook);
-
-        return DiagramCitation::stream($notebook, $diagram, $request);
     }
 
     /**

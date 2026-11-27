@@ -14,7 +14,7 @@ use function Laravel\Ai\agent;
  * Proposes an animated scene — a "fluxo em etapas", an "antes → depois" or an
  * "árvore" — from a page's text.
  *
- * The same shape as DiagramDraftService, for the same reasons: one model call
+ * One model call
  * and at most ONE repair round (the IR is small, and a payload still wrong
  * after being told exactly what is wrong is not going to converge), answered
  * inside the request because one person is watching one button.

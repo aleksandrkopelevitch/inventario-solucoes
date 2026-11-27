@@ -19,11 +19,7 @@
    simplesmente não entram no bundle e o lock sai sem estilo nenhum. */
 @source "../../app/Support/GitbookRenderer.php";
 
-/* Same deal for the diagram status badge/dot tones, named as literals
-   inside the enum so the two places that draw a status can't drift apart. */
-@source "../../app/Enums/DiagramStatus.php";
-
-/* Same again for the CATI submission tones: SubmissionStatus (7 lifecycle
+/* Same deal for the CATI submission tones: SubmissionStatus (7 lifecycle
    badges), SubmissionSectionState (empty / IA draft / confirmed) and
    ContextExtractionState all name their classes as literals inside the
    enum, so the badge can't drift between the list and the detail page. */

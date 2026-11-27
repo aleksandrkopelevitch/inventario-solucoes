@@ -123,7 +123,7 @@ class DocumentationSearchService
     // (`DocumentationPage::textHash()`, computed in SQL) instead of the text
     // itself — the key is proved fresh without hydrating the corpus. Same
     // inputs, different formula, so a v5 entry would never be found again.
-    private const VERSION = 'v6';
+    private const VERSION = 'v7';
 
     public function __construct(private readonly DocumentationPageService $pages) {}
 
@@ -565,11 +565,7 @@ class DocumentationSearchService
      */
     private function parse(string $title, string $markdown): array
     {
-        // `linkDiagrams: false` for two reasons: "Abrir diagrama" is chrome and
-        // has no business being searchable, and the index is CACHED — a render
-        // that varied by the viewer's auth state would bake one audience's
-        // chrome into everybody's results.
-        $html = (new GitbookRenderer)->render($markdown, linkDiagrams: false);
+        $html = (new GitbookRenderer)->render($markdown);
         $empty = ['lead' => ['text' => '', 'tags' => [], 'scopes' => []], 'sections' => []];
 
         if (trim($html) === '') {
@@ -698,11 +694,10 @@ class DocumentationSearchService
             'image'   => '<img',
             'callout' => 'data-callout',
             'file'    => 'ak-doc-file',
-            // A cited drawing. It used to be a per-PAGE flag read off
-            // `documentation_pages.diagram_id`; with the citation living in the
-            // text, the facet is per SECTION like every other one — "the
-            // section with the drawing" rather than "somewhere on this page".
-            'diagram' => 'ak-doc-diagram',
+            // A UML diagram written into the section (`{% uml %}`). It used to
+            // mean a cited topology drawing; those were converted into UML
+            // blocks and the citation is gone from the dialect.
+            'diagram' => 'class="ak-uml"',
         ] as $tag => $needle) {
             if (str_contains($html, $needle)) {
                 $tags[] = $tag;

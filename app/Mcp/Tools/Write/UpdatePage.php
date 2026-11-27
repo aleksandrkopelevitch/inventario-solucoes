@@ -27,7 +27,7 @@ use Illuminate\Support\Facades\Validator;
  * - **Guards against LOSING content**, each refusing with the exact list of
  *   what would be lost: a protected value whose marker is missing (deleting
  *   the marker deletes the value, by design, in `SecretText::restore()`), a
- *   diagram citation or file reference that is gone, or a body that shrank
+ *   UML diagram or file reference that is gone, or a body that shrank
  *   sharply — the shape of a model writing "[restante inalterado]". The
  *   confirmation must REPEAT the list rather than be a boolean, so the call
  *   the client shows the person before approving spells out the loss.
@@ -84,7 +84,7 @@ class UpdatePage extends DocumentationWriteTool
                 'title'            => ['type' => 'string', 'description' => 'Novo título (o slug não muda).'],
                 'content'          => ['type' => 'string', 'description' => 'O texto COMPLETO da página, em Markdown.'],
                 'remove_secrets'   => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Só com confirmação da pessoa: os marcadores [[SECRET-…]] que devem ser apagados.'],
-                'confirm_removals' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Só com confirmação da pessoa: os itens que a recusa listou (ex.: "diagram:fluxo", "file:812", "shrink:30%").'],
+                'confirm_removals' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Só com confirmação da pessoa: os itens que a recusa listou (ex.: "uml:Fluxo de pedidos", "file:812", "shrink:30%").'],
             ],
             'required' => ['notebook', 'page', 'version'],
         ];
@@ -187,7 +187,7 @@ class UpdatePage extends DocumentationWriteTool
             fn (string $id) => ! in_array("[[SECRET-{$id}]]", $removeSecrets, true) && ! in_array($id, $removeSecrets, true),
         ));
 
-        // Citations and files: present before, gone after.
+        // UML diagrams and files: present before, gone after.
         $references = array_values(array_diff(self::references($stored), self::references($restored)));
         $unconfirmedReferences = array_values(array_diff($references, $confirmed));
 
@@ -197,7 +197,7 @@ class UpdatePage extends DocumentationWriteTool
         }
 
         if ($unconfirmedReferences !== []) {
-            $lost[] = 'diagramas/arquivos citados — para removê-los, repita com confirm_removals contendo: '
+            $lost[] = 'diagramas UML/arquivos — para removê-los, repita com confirm_removals contendo: '
                 . json_encode($unconfirmedReferences, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         }
 
@@ -245,31 +245,28 @@ class UpdatePage extends DocumentationWriteTool
     }
 
     /**
-     * `diagram:{slug}`, `uml:{title}` and `file:{…}` items, as a refusal names them.
+     * `uml:{title}` and `file:{…}` items, as a refusal names them.
      *
-     * A UML diagram written into the page is drawn content like a citation,
-     * so dropping one is a loss to confirm; it is named by its title (its type
+     * A UML diagram written into the page is drawn content, so dropping one is
+     * a loss to confirm; it is named by its title (its type
      * when it has none), the label a person recognises it by. Two diagrams
      * with the same label are two items — the second is `uml:{label}#2` — so
      * dropping one of a pair is a loss too: deduplicated, a pair and a single
      * diagram would read the same and the drop would pass unconfirmed.
      *
-     * A diagram counts only as the renderer reads it — alone on its line
-     * (GitbookRenderer): moved into a sentence it is text, and the citation is
-     * gone. A file is any `/files/{id}` (an image, a link, a `{% file %}`), or
+     * A diagram counts only as the renderer reads it — its opening line alone
+     * (GitbookRenderer). A file is any `/files/{id}` (an image, a link, a `{% file %}`), or
      * a `{% file src="…" %}` pointing anywhere else.
      *
      * @return list<string>
      */
     private static function references(string $text): array
     {
-        preg_match_all('/^\s*\{%\s*diagram\s+slug="([^"]+)"\s*%\}\s*$/m', $text, $diagrams);
         preg_match_all('/^\s*\{%\s*uml\b(.*?)%\}\s*$/m', $text, $umls);
         preg_match_all('#/files/(\d+)#', $text, $files);
         preg_match_all('/\{%\s*file\s+src="([^"]+)"/', $text, $sources);
 
         return array_values(array_unique([
-            ...array_map(fn (string $slug) => "diagram:{$slug}", $diagrams[1]),
             ...self::umlItems($umls[1]),
             ...array_map(fn (string $id) => "file:{$id}", $files[1]),
             ...array_map(fn (string $src) => "file:{$src}", array_filter($sources[1], fn (string $src) => ! preg_match('#^/files/\d+$#', $src))),

@@ -7,7 +7,7 @@
 <x-layouts.layout title="Conexão MCP">
     <x-ui.hero-panel compact class="mb-6">
         <x-ui.page-header eyebrow="Integrações" title="Conectar ao Claude"
-            description="Deixa o Claude (ou o ChatGPT) consultar o inventário direto na conversa: soluções, diagramas, pessoas, empresas e a documentação publicada, com a sua conta Leo. Quem é editor também pode criar e editar por lá." />
+            description="Deixa o Claude (ou o ChatGPT) consultar o inventário direto na conversa: soluções, pessoas, empresas e a documentação publicada, com a sua conta Leo. Quem é editor também pode criar e editar por lá." />
     </x-ui.hero-panel>
 
     <div class="space-y-6">
@@ -50,10 +50,7 @@
                 <p class="text-[11px] font-semibold uppercase tracking-wide text-muted">O que a conexão enxerga</p>
                 <ul class="mt-1.5 space-y-1 text-xs leading-relaxed text-muted">
                     @if (auth()->user()->canView(\App\Enums\AccessModule::Catalog))
-                        <li>· O catálogo: soluções, pessoas (com contatos) e empresas.</li>
-                    @endif
-                    @if (auth()->user()->canView(\App\Enums\AccessModule::Documentation))
-                        <li>· Os diagramas.</li>
+                        <li>· O catálogo: soluções e seus relacionamentos, pessoas (com contatos) e empresas.</li>
                     @endif
                     <li>· Da documentação, só os cadernos publicados{{ $writableModules !== [] ? ' (para quem autorizou a edição, também os não publicados)' : '' }}.</li>
                     <li>· Valores protegidos nunca saem — o modelo vê só que existe um.</li>

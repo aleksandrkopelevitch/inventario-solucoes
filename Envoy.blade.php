@@ -129,7 +129,7 @@
           - DatabaseSeeder creates admin@leomadeiras.com.br with the literal
             password `password` (the model's `hashed` cast makes it a working
             login).
-          - SolutionSeeder/DiagramSeeder/AttributeOptionSeeder were the INITIAL
+          - SolutionSeeder/AttributeOptionSeeder were the INITIAL
             import from inventory_seed.json. The app owns those records now —
             upsertSolution() overwrites 11 columns by slug, including every
             field behind the solution header's inline-edit badges — so

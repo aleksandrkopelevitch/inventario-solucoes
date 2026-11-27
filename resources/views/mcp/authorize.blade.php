@@ -48,10 +48,7 @@
                 <p class="text-[11px] font-semibold uppercase tracking-wide text-muted">O que essa conexão vai ler</p>
                 <ul class="mt-2 space-y-1.5 text-[13px] leading-relaxed text-body">
                     @if ($user->canView(\App\Enums\AccessModule::Catalog))
-                        <li>· O catálogo: soluções, pessoas (com contatos) e empresas.</li>
-                    @endif
-                    @if ($user->canView(\App\Enums\AccessModule::Documentation))
-                        <li>· Os diagramas.</li>
+                        <li>· O catálogo: soluções e seus relacionamentos, pessoas (com contatos) e empresas.</li>
                     @endif
                     <li>· A documentação dos cadernos publicados na base de conhecimento.</li>
                     <li>· Valores protegidos nunca saem — o modelo vê só que existe um.</li>

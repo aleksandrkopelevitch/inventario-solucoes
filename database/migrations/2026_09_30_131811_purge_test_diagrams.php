@@ -1,7 +1,8 @@
 <?php
 
-use App\Models\Diagram;
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Support\Facades\DB;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 /**
  * Deletes every diagram that exists before diagrams start belonging to a
@@ -13,17 +14,27 @@ use Illuminate\Database\Migrations\Migration;
  * NOT NULL with no backfill: there is no honest way to decide which caderno a
  * drawing nobody filed belongs to.
  *
- * Through the MODELS, not a table truncate: each diagram carries Spatie media
- * (the pasted images and the rendered picture), and only a model delete
- * removes those files. `diagram_solution` cascades and
+ * The media goes through the Media MODEL, not a table delete: each diagram
+ * carried Spatie media (the pasted images and the rendered picture), and only
+ * a model delete removes those files. `diagram_solution` cascades and
  * `approved_topologies.diagram_id` is `nullOnDelete`, so nothing else is left
  * pointing at a row that is gone.
+ *
+ * It ran in production on 2026-09-30. It used to delete through the `Diagram`
+ * model; that class left with the drawings (2026-11-27), so the same work is
+ * written against the tables and the stored morph name, which is what lets a
+ * fresh database (the test suite) still migrate.
  */
 return new class extends Migration
 {
     public function up(): void
     {
-        Diagram::query()->cursor()->each(fn (Diagram $diagram) => $diagram->delete());
+        Media::query()
+            ->where('model_type', 'App\\Models\\Diagram')
+            ->lazyById()
+            ->each(fn (Media $media) => $media->delete());
+
+        DB::table('diagrams')->delete();
     }
 
     /** Nothing to restore — the drawings were test data and are not coming back. */

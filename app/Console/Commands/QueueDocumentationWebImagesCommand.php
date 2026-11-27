@@ -3,7 +3,6 @@
 namespace App\Console\Commands;
 
 use App\Contracts\Documentable;
-use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\SubmissionDiagram;
 use Illuminate\Console\Command;
@@ -42,11 +41,10 @@ class QueueDocumentationWebImagesCommand extends Command
 
         Media::query()
             // Every model whose `docs` collection gets the rendition
-            // (HasWebImageRendition): the pages, and the two canvases whose
-            // pasted pictures are served by the same route.
+            // (HasWebImageRendition): the pages, and the committee's canvas,
+            // whose pasted pictures are served by the same route.
             ->whereIn('model_type', [
                 (new DocumentationPage)->getMorphClass(),
-                (new Diagram)->getMorphClass(),
                 (new SubmissionDiagram)->getMorphClass(),
             ])
             ->where('collection_name', Documentable::DOCS_COLLECTION)

@@ -121,7 +121,7 @@ entry carries its text four times. What it does instead:
   registers `ak_md5()` on SQLite beside `Fold`'s function), so the corpus never
   leaves the database to be hashed — the per-caderno key does the same through
   `DocumentationPageService::tree(withTextHash: true)`, and `pageKey()` hashes
-  title, slug and that md5 (VERSION v6). The tree every OTHER caller walks is
+  title, slug and that md5 (VERSION v7). The tree every OTHER caller walks is
   `light()`: no text, `hasContent()` answered by `coalesce(col,'') <> ''`,
   which costs nothing over the bare columns (3.7 ms vs 15 ms hydrated on the
   133-page caderno) — unlike a `btrim`, which costs more than hydrating.

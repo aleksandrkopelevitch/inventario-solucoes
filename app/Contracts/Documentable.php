@@ -11,15 +11,15 @@ use Spatie\MediaLibrary\HasMedia;
  *
  * Implemented by DocumentationPage and nothing else — it is the one kind of
  * documentation there is. `Integration` used to implement it too, with a
- * `documentation` column of its own; that entity became `Diagram`, which holds
- * a drawing and no prose. Consumed by the block editor (Editor.js) via
+ * `documentation` column of its own; that entity became a topology drawing,
+ * which held no prose and is gone too. Consumed by the block editor (Editor.js) via
  * App\Http\Controllers\Concerns\EditsDocumentation and by the read-only
  * render App\Support\GitbookRenderer.
  *
  * `DOCS_COLLECTION` still has readers beyond that one implementer, and
  * deliberately so: `MediaController::show()` authorizes `/files/{id}` by this
- * collection name alone, so every canvas owner (`Diagram`,
- * `SubmissionDiagram`) stores its pasted image nodes in a collection with
+ * collection name alone, so the committee's canvas (`SubmissionDiagram`)
+ * stores its pasted image nodes in a collection with
  * exactly this name in order to be servable at all.
  *
  * @property string|null $documentation

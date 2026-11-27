@@ -18,7 +18,7 @@
     </x-ui.hero-panel>
 
     {{-- Live inventory snapshot — each card is a doorway into its section --}}
-    <div class="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="grid gap-3.5 sm:grid-cols-3">
         @foreach ($metrics as $i => $metric)
             <a href="{{ $metric['url'] }}"
                class="group animate-ak-rise rounded-card border border-line bg-surface p-5 no-underline shadow-card transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-accent-line hover:shadow-[0_8px_24px_-8px_rgba(20,58,34,0.18)]"

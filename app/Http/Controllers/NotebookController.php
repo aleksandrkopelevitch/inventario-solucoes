@@ -26,7 +26,7 @@ use Illuminate\Support\Str;
  *
  * This is the controller that replaced two: `DocumentationGroupController` and
  * the share/CRUD half of `SolutionDocumentationController`. A caderno is
- * addressed by itself (`/notebooks/{notebook}`), the way a diagram is — it is
+ * addressed by itself (`/notebooks/{notebook}`) — it is
  * not reached through a solution, because it may describe several, or none.
  */
 class NotebookController extends Controller

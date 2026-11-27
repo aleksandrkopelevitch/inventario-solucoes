@@ -10,8 +10,7 @@ use Illuminate\Support\Facades\Cache;
 /**
  * Editable values (at runtime, via the "Manage attributes" area) for the 8
  * Solution attributes, now grouped by `group` (see `App\Enums\AttributeGroup`)
- * — previously these were fixed PHP `enum`s in code. `Criticality` is also
- * used by Diagram, which consumes the same group.
+ * — previously these were fixed PHP `enum`s in code.
  */
 class AttributeOption extends Model
 {

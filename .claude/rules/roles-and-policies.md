@@ -21,7 +21,7 @@ What a member may do is a LEVEL PER MODULE — `App\Enums\AccessModule` ×
 | module | covers | policies |
 |---|---|---|
 | `Catalog` | solutions, people, companies | `SolutionPolicy`, `PersonPolicy`, `CompanyPolicy` |
-| `Documentation` | cadernos, pages, diagrams | `NotebookPolicy`, `DocumentationPagePolicy`, `DiagramPolicy` |
+| `Documentation` | cadernos, pages | `NotebookPolicy`, `DocumentationPagePolicy` |
 | `Integrations` | the Especialista em Integrações and its corpus | `FlowspecChatPolicy`, `FlowspecExamplePolicy`, `FlowspecGuidelinePolicy` |
 | `Committee` | the Comitê de Arquitetura | `SubmissionPolicy` (+ `SubmissionDiagramPolicy`, which delegates) |
 
@@ -71,9 +71,9 @@ What a member may do is a LEVEL PER MODULE — `App\Enums\AccessModule` ×
   input to act on it (the attachment picker's `?chat=`) asks `update`, not
   `view`, now that `view` is everybody.
 - **DELETING any record is the admin's** — solutions, cadernos, PAGES (and
-  their subtree; this used to ride on the caderno's `update`), diagrams,
-  submissions, the flowSpec corpus. Changing a record's contents (a diagram's
-  blocks, a person's contacts, links between records, a submission's sources)
+  their subtree; this used to ride on the caderno's `update`),
+  submissions, the flowSpec corpus. Changing a record's contents (a committee
+  drawing's blocks, a person's contacts, links between records, a submission's sources)
   is editing and belongs to the module's Editor.
 - **What is not content stays with the admin**: accounts, the role and the
   module levels, linking a person to an account (`UserPolicy::manage`); the

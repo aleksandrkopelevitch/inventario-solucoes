@@ -177,31 +177,14 @@ final class DocumentationReader
     /** Renders the Markdown and points its assets at this surface's routes. */
     private function renderMarkdown(?string $markdown, Notebook $notebook, ReaderUrls $urls): string
     {
-        // `linkDiagrams: false` on BOTH read-only surfaces, for two different
-        // reasons that land in the same place.
-        //
-        // On the magic link the reader has no account: the canvas is behind
-        // auth, so the link would put them on the login screen while telling
-        // them the drawing's slug on the way.
-        //
-        // On `/docs` they do have one, and it is usually a `Reader` — the tier
-        // Entra provisions, which may not reach `/diagrams/{slug}` either. The
-        // link could be rendered conditionally, and deliberately is not: the
-        // knowledge base would then be a screen whose content changes with the
-        // reader's tier, which is the property the search index gave up
-        // `linkDiagrams` to avoid. Reading is reading. The PICTURE and the name
-        // are the documentation; the link is an editing affordance, and anybody
-        // who has one already knows where the canvas lives.
-        //
-        // `pageLinks()` is the same idea for a link between two pages of this
-        // caderno, and the reason that link is stored as `page:{slug}` rather
-        // than as a URL: the same page has a different address on every
-        // surface, so an address written into the Markdown is correct for
-        // exactly one audience.
+        // `pageLinks()` turns a link between two pages of this caderno into
+        // this surface's address. It is why that link is stored as
+        // `page:{slug}` rather than as a URL: the same page has a different
+        // address on every surface, so an address written into the Markdown
+        // is correct for exactly one audience.
         return $this->rewriteAssetUrls(
             $this->renderer->render(
                 $markdown,
-                linkDiagrams: false,
                 pageLinks: $urls->pageLinks(),
             ),
             $urls,
@@ -209,17 +192,12 @@ final class DocumentationReader
     }
 
     /**
-     * Points every in-app asset URL at this surface's twin.
+     * Points every embedded media URL (`/files/{id}`) at this surface's twin.
      *
-     * Two shapes, both emitted by the renderer as the AUTHENTICATED url it
-     * would use inside the app, and both rewritten here rather than made
-     * surface-aware upstream — that is what keeps `GitbookRenderer` ignorant of
-     * magic links and knowledge bases alike:
-     *
-     * - `/files/{id}` — media embedded in the Markdown.
-     * - `/diagrams/{slug}/picture` — the rendered picture of a cited drawing.
-     *   Missing this one left every citation on a shared link showing a broken
-     *   image, since that route redirects a guest to the login screen.
+     * The renderer emits the AUTHENTICATED url it would use inside the app, and
+     * it is rewritten here rather than made surface-aware upstream — that is
+     * what keeps `GitbookRenderer` ignorant of magic links and knowledge bases
+     * alike.
      *
      * `/docs` needs the rewrite for a reason the magic link did not have: a
      * `Reader` IS signed in, so `files.show` would answer them — with any
@@ -229,22 +207,9 @@ final class DocumentationReader
      */
     private function rewriteAssetUrls(string $content, ReaderUrls $urls): string
     {
-        $content = preg_replace_callback(
+        return preg_replace_callback(
             '#(src|href)="/files/(\d+)"#',
             fn (array $m) => $m[1] . '="' . $urls->file($m[2]) . '"',
-            $content,
-        );
-
-        // The host is optional in the pattern: `/files/{id}` reaches the
-        // renderer as a root-relative path written into the Markdown, but the
-        // picture URL is built with `route()`, which emits an ABSOLUTE url. A
-        // pattern anchored at `/` silently matched neither.
-        //
-        // The `?v={media id}` the renderer pins the picture with travels along:
-        // it is what lets the response be cached for a year (PictureResponse).
-        return preg_replace_callback(
-            '#(src|href)="(?:https?://[^/"]+)?/diagrams/([^/"?]+)/picture(\?v=\d+)?"#',
-            fn (array $m) => $m[1] . '="' . $urls->diagramPicture($m[2]) . ($m[3] ?? '') . '"',
             $content,
         );
     }

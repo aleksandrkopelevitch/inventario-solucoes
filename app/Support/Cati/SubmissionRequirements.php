@@ -8,6 +8,7 @@ use App\Enums\SubmissionSectionState;
 use App\Models\AttributeOption;
 use App\Models\Submission;
 use App\Models\SubmissionDiagram;
+use App\Services\SolutionRelationshipService;
 
 /**
  * The deterministic, non-AI checklist for a submission — the single most
@@ -46,7 +47,7 @@ class SubmissionRequirements
         // Explicit: strict mode does NOT arm on a single-model fetch, so an
         // unloaded relation here would lazy-load in silence, in any
         // environment — including inside the queued job that builds the prompt.
-        $submission->loadMissing(['sections', 'sources', 'diagrams.media', 'solution.vendor', 'solution.diagrams']);
+        $submission->loadMissing(['sections', 'sources', 'diagrams.media', 'solution.vendor']);
 
         return [
             'facts'      => self::facts($submission),
@@ -118,11 +119,13 @@ class SubmissionRequirements
             ];
         }
 
-        if ($solution->diagrams->isNotEmpty()) {
+        $relationships = app(SolutionRelationshipService::class)->forSolution($solution);
+
+        if ($relationships->isNotEmpty()) {
             $facts[] = [
-                'key'      => 'diagrams',
-                'label'    => 'Integrações já catalogadas',
-                'value'    => $solution->diagrams->pluck('name')->implode(', '),
+                'key'      => 'relationships',
+                'label'    => 'Integrações já documentadas',
+                'value'    => $relationships->map(fn ($r) => $r->other->name)->implode(', '),
                 'sections' => [
                     SubmissionSectionKey::LegacyImpact->value,
                     SubmissionSectionKey::Architecture->value,

@@ -23,7 +23,7 @@ single-row fetch (`find()`, `firstOrFail()`, a `belongsTo`/`hasOne` relation,
 or a model a queued job restores via `SerializesModels`) never arms it, so an
 unloaded relation on it silently lazy-loads with **no exception, in any
 environment** — verified 2026-07-15 by calling
-`Diagram::query()->find($id)->source` inside a `LazilyRefreshDatabase`
+`Diagram::query()->find($id)->source` (a model since removed) inside a `LazilyRefreshDatabase`
 Feature test with `app()->isProduction()` confirmed false: no exception.
 Jobs are where this bites most — `handle(SomeModel $thing)` then
 `$thing->relatedModel->...` gets zero protection from strict mode, which is
@@ -75,7 +75,8 @@ Three things this depends on:
   string literal is still open: it then reports "Invalid parameter number" on a
   statement whose placeholders and bindings match perfectly.
 - **Client-side filters fold too** (`resources/js/modules/fold.js` — the
-  flowSpec document picker, the diagram picker, the ecosystem map). A list
+  flowSpec document picker, the caderno switcher, the spreadsheet, the ecosystem
+  map). A list
   narrowed in the browser must answer a query the same way the database does,
   or the same word finds different things on two screens.
 
@@ -90,10 +91,6 @@ since linking an account is how an address gets attached to a person without
 their own column ever being filled in. Folding is only half of "can this be
 found"; the other half is which columns the `orWhere` chain names, and that half
 has no macro to get right for you.
-
-The one deliberate exception is `PublicDocumentationController::diagramPicture()`,
-which asks whether a caderno cites an exact slug. That is authorisation, not
-search: folding it would let `SLUG-A` stand in for `slug-a`.
 
 **This is also the shape of a bug the test suite cannot see.** All of these were
 case-INsensitive while the app ran on SQLite and turned case-sensitive the day

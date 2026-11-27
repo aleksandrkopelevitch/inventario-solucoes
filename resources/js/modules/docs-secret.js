@@ -23,7 +23,7 @@
 // is load-bearing on the second shape: Editor.js decides a block changed by
 // watching its DOM, so injecting a field into the editor would mark the page
 // dirty and autosave would write it seconds later (the same trap
-// `docs-tools/diagram.js` needs `data-mutation-free` for).
+// `docs-tools/cards.js` needs `data-mutation-free` for).
 //
 // The endpoint is not built here. It arrives as `data-ak-secret-url` with
 // `__SECRET__` where the address goes — one template for the authenticated

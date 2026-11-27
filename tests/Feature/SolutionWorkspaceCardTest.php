@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\UserRole;
-use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Models\Solution;
@@ -101,36 +100,4 @@ it('shows the same caderno on every solution it documents', function () {
             ->assertOk()
             ->assertSee('Integração SAP ↔ SVL');
     }
-});
-
-it('shows the diagram status in the editor top bar, editable in place for an admin', function () {
-    $solution = Solution::factory()->create();
-    $diagram = Diagram::factory()->create(['name' => 'Integração X', 'status' => 'in_development']);
-    attachParticipants($diagram, [[$solution, 0]]);
-
-    $response = $this->actingAs(workspaceAdmin())
-        ->get(route('diagrams.show', $diagram))
-        ->assertOk()
-        ->assertSee('id="diagram-meta-slot"', false)
-        ->assertSee('Em desenvolvimento')
-        ->assertSee('data-ak-inline-edit-field="status"', false)
-        ->assertSee('data-ak-inline-edit-field="name"', false);
-
-    // The editor's endpoint rides inside a JSON attribute, so its slashes
-    // arrive escaped. Asserting the raw `route()` string passed only because
-    // the DELETE button's url happened to start with the same characters.
-    expect($response->getContent())
-        ->toContain(str_replace('/', '\\/', route('diagrams.update', $diagram)));
-});
-
-it('shows the same status as plain text to a viewer', function () {
-    $solution = Solution::factory()->create();
-    $diagram = Diagram::factory()->create(['name' => 'Integração X', 'status' => 'deprecated']);
-    attachParticipants($diagram, [[$solution, 0]]);
-
-    $this->actingAs(User::factory()->create()) // viewer
-        ->get(route('diagrams.show', $diagram))
-        ->assertOk()
-        ->assertSee('Descontinuada')
-        ->assertDontSee('data-ak-inline-edit-field="status"', false);
 });

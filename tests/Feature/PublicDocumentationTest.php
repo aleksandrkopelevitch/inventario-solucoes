@@ -2,11 +2,9 @@
 
 use App\Enums\UserRole;
 use App\Http\Controllers\NotebookController;
-use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Models\User;
-use App\Services\DocumentationSearchService;
 use App\View\Components\Notebooks\SharePanel;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -177,20 +175,10 @@ it('lists the solution pages in the public sidebar, and nothing else', function 
     $notebook = Notebook::factory()->create(['public_token' => 'tok-side', 'name' => 'Minha Solução']);
     $page = publicPage($notebook, '# Visão geral');
 
-    // A drawing the solution takes part in is deliberately NOT an entry here:
-    // the public surface renders documentation, and a diagram carries none. It
-    // reaches a visitor only as an image embedded in a page.
-    $diagram = Diagram::factory()->create([
-        'name'  => 'Integração Alfa',
-        'chain' => ['nodes' => [['solution_id' => $notebook->id, 'label' => null]], 'edges' => []],
-    ]);
-    attachParticipants($diagram, [[$notebook, 0]]);
-
     $this->get(route('public.docs.notebook', $notebook->public_token))
         ->assertOk()
         ->assertSee('Minha Solução')
-        ->assertSee($page->title)
-        ->assertDontSee('Integração Alfa');
+        ->assertSee($page->title);
 });
 
 /*
@@ -296,54 +284,6 @@ it('sees through GitBook front matter when deciding the title is a duplicate', f
     expect(substr_count($content, '<h1'))->toBe(1);
 });
 
-it('never hands a visitor the link to open a cited diagram', function () {
-    // The canvas is behind auth. Showing the link to someone reading a magic
-    // link is both a dead end — it lands them on the login screen — and a
-    // disclosure: it tells them the drawing exists and what its slug is.
-    $diagram = Diagram::factory()->create(['name' => 'SAP ↔ SVL']);
-    $notebook = Notebook::factory()->create(['public_token' => 'tok-diag-guest']);
-    $page = publicPage($notebook, "# Fluxo\n\n{% diagram slug=\"{$diagram->slug}\" %}");
-    $page->update(['slug' => 'fluxo']);
-
-    $content = $this->get(route('public.docs.page', ['tok-diag-guest', 'fluxo']))
-        ->assertOk()
-        ->getContent();
-
-    // The card itself stays — the picture and the name are documentation.
-    expect($content)
-        ->toContain('ak-doc-diagram')
-        ->toContain('SAP ↔ SVL')
-        // …the editing affordance does not.
-        ->not->toContain(route('diagrams.show', $diagram))
-        ->not->toContain('Abrir diagrama');
-});
-
-it('still gives an authenticated reader the link to the canvas', function () {
-    // The other half of the rule: withholding it from guests must not withhold
-    // it from the people the citation exists for.
-    $diagram = Diagram::factory()->create(['name' => 'SAP ↔ SVL']);
-    $notebook = Notebook::factory()->create();
-    $page = publicPage($notebook, "# Fluxo\n\n{% diagram slug=\"{$diagram->slug}\" %}");
-
-    $this->actingAs(User::factory()->create()) // a viewer, not an admin
-        ->get(route('notebooks.pages.edit', [$notebook, $page]))
-        ->assertOk()
-        ->assertSee(route('diagrams.show', $diagram), false)
-        ->assertSee('Abrir diagrama');
-});
-
-it('keeps chrome out of the search index', function () {
-    // The index is CACHED, so a render that varied by the viewer's auth state
-    // would bake one audience's chrome into everybody's results — and "Abrir
-    // diagrama" is a button, not something anyone should be able to search for.
-    $diagram = Diagram::factory()->create(['name' => 'SAP ↔ SVL']);
-    $notebook = Notebook::factory()->create();
-    publicPage($notebook, "# Fluxo\n\n{% diagram slug=\"{$diagram->slug}\" %}");
-
-    expect(app(DocumentationSearchService::class)->search($notebook, 'Abrir diagrama')['total'])
-        ->toBe(0);
-});
-
 it('prints no eyebrow over either title', function () {
     // There were two — "DOCUMENTAÇÃO" over the caderno's name in the topbar and
     // "CADERNO" over the page title — and each labelled something the screen
@@ -364,48 +304,4 @@ it('prints no eyebrow over either title', function () {
         // …and neither carries a label above it.
         ->not->toContain('>Documentação</p>')
         ->not->toContain('>Caderno</p>');
-});
-
-it('serves a cited diagram\'s picture to a visitor, through the token', function () {
-    // Withholding the "Abrir diagrama" link was right; letting the PICTURE 302
-    // to the login screen was not the same thing, and it left every citation on
-    // a shared link showing a broken image.
-    Storage::fake('public');
-    $diagram = Diagram::factory()->create(['name' => 'SAP ↔ SVL']);
-    $diagram->addMedia(UploadedFile::fake()->image('canvas.png'))->toMediaCollection(Diagram::DIAGRAM_COLLECTION);
-
-    $notebook = Notebook::factory()->create(['public_token' => 'tok-pic']);
-    $page = publicPage($notebook, "# Fluxo\n\n{% diagram slug=\"{$diagram->slug}\" %}");
-    $page->update(['slug' => 'fluxo']);
-
-    // The page points the image at the token-scoped route, never at the
-    // authenticated one.
-    $content = $this->get(route('public.docs.page', ['tok-pic', 'fluxo']))->assertOk()->getContent();
-
-    // The version pin travels through the rewrite: it is what lets the
-    // picture be cached for a year (PictureResponse).
-    expect($content)
-        ->toContain(route('public.docs.diagram', ['tok-pic', $diagram->slug]) . '?v=' . $diagram->picture()->id)
-        ->not->toContain(route('diagrams.picture.show', $diagram));
-
-    // …and that route actually serves the bytes, cacheable when pinned.
-    $pinned = $this->get(route('public.docs.diagram', ['tok-pic', $diagram, 'v' => $diagram->picture()->id]))
-        ->assertOk()
-        ->assertHeader('content-type', 'image/png');
-
-    expect($pinned->headers->getCacheControlDirective('immutable'))->toBeTrue();
-});
-
-it('404s the picture of a diagram this caderno never cited', function () {
-    // Authorised by CITATION, not by the diagram: a valid token must not become
-    // a way to walk the whole drawing catalog.
-    Storage::fake('public');
-    $cited = Diagram::factory()->create();
-    $uncited = Diagram::factory()->create();
-    $uncited->addMedia(UploadedFile::fake()->image('other.png'))->toMediaCollection(Diagram::DIAGRAM_COLLECTION);
-
-    $notebook = Notebook::factory()->create(['public_token' => 'tok-uncited']);
-    publicPage($notebook, "# Fluxo\n\n{% diagram slug=\"{$cited->slug}\" %}");
-
-    $this->get(route('public.docs.diagram', ['tok-uncited', $uncited]))->assertNotFound();
 });

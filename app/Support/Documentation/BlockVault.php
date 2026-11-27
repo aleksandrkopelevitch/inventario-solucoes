@@ -4,14 +4,13 @@ namespace App\Support\Documentation;
 
 /**
  * Freezes the blocks the Documentation Assistant may neither write nor lose:
- * images, file cards, embeds, diagram citations, card grids, scenes and UML
- * diagrams.
+ * images, file cards, embeds, card grids, scenes and UML diagrams.
  *
  * A reply rewrites the WHOLE page (the 4-backtick draft block), so everything
  * the model is not handed back comes out deleted. These constructs are the
  * ones it cannot author correctly — `<figure><img src="/files/12">` needs a
- * media id only the upload knows, `{% diagram slug="…" %}` a slug from the
- * catalog — and the system prompt used to say so as a flat ban: "não use
+ * media id only the upload knows, a card grid slugs only the picker does — and
+ * the system prompt used to say so as a flat ban: "não use
  * imagens, `<figure>`, `<img>`, `{% file %}` nem `{% embed %}`".
  *
  * That ban is what deleted people's images. Told to return the complete page
@@ -71,7 +70,6 @@ final class BlockVault
         ['imagem', '/<img\b[^>]*>/i'],
         ['arquivo', '/\{%\s*file\b[^%]*%\}/i'],
         ['vídeo/embed', '/\{%\s*embed\b[^%]*%\}/i'],
-        ['diagrama', '/\{%\s*diagram\b[^%]*%\}/i'],
         ['grade de cards', '/\{%\s*cards\b.*?\{%\s*endcards\s*%\}/is'],
         ['fluxo em etapas', '/\{%\s*scene\b.*?\{%\s*endscene\s*%\}/is'],
         ['diagrama UML', '/\{%\s*uml\b.*?\{%\s*enduml\s*%\}/is'],
@@ -93,8 +91,7 @@ final class BlockVault
      * those as `[[BLOCK-n]]` would be exactly wrong — a marker is an
      * instruction to keep the block, and these blocks belong to a DIFFERENT
      * page. Handing the raw markup over instead is worse: the model would be
-     * shown a `/files/{id}` or a `{% diagram slug="…" %}` it is perfectly
-     * capable of copying into the draft, which is how a reference page's image
+     * shown a `/files/{id}` it is perfectly capable of copying into the draft, which is how a reference page's image
      * ends up embedded in the page being written — and it would half-work,
      * since `MediaController` authorizes by collection while the magic link
      * scopes media to the caderno's own pages, so the same image renders inside
@@ -210,9 +207,9 @@ final class BlockVault
         }
 
         return $this->dropped === 1
-            ? '⚠️ Atenção: o rascunho não inclui 1 bloco que está na página (imagem, arquivo, diagrama ou grade de cards). '
+            ? '⚠️ Atenção: o rascunho não inclui 1 bloco que está na página (imagem, arquivo, grade de cards, cena ou diagrama UML). '
                 . 'Se você não pediu essa remoção, revise o rascunho antes de aplicar.'
-            : "⚠️ Atenção: o rascunho não inclui {$this->dropped} blocos que estão na página (imagens, arquivos, diagramas ou grades de cards). "
+            : "⚠️ Atenção: o rascunho não inclui {$this->dropped} blocos que estão na página (imagens, arquivos, grades de cards, cenas ou diagramas UML). "
                 . 'Se você não pediu essa remoção, revise o rascunho antes de aplicar.';
     }
 

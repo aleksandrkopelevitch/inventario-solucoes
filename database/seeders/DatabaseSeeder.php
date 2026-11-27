@@ -25,7 +25,6 @@ class DatabaseSeeder extends Seeder
         $this->call([
             AttributeOptionSeeder::class,
             SolutionSeeder::class,
-            DiagramSeeder::class,
             FlowspecExampleSeeder::class,
         ]);
     }

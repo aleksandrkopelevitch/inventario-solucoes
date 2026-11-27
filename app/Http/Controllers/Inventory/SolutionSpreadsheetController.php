@@ -47,7 +47,7 @@ class SolutionSpreadsheetController extends Controller
     }
 
     /**
-     * Whether the cadernos/diagrams columns belong on this reader's sheet —
+     * Whether the documentation columns belong on this reader's sheet —
      * they are the documentation module's (SolutionSpreadsheetService).
      */
     private function seesDocumentation(): bool

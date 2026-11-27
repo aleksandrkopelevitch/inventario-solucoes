@@ -12,7 +12,6 @@ use App\View\Components\Submissions\Deliberation;
 use App\View\Components\Submissions\DetailHeader;
 use App\View\Components\Submissions\PreReview;
 use App\View\Components\Submissions\StageStrip;
-use App\View\Components\Submissions\TopologyHandoff;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -113,8 +112,6 @@ class SubmissionDecisionController extends Controller
 
         if ($status === SubmissionStatus::Approved || $status === SubmissionStatus::ApprovedWithConditions) {
             $page = $promote->handle($submission->fresh(['sections', 'solution']));
-        } else {
-            $promote->withdraw($submission);
         }
 
         return response()->json([
@@ -127,10 +124,6 @@ class SubmissionDecisionController extends Controller
                 Checklist::slot($submission->fresh(['sections', 'sources', 'solution'])),
                 Deliberation::slot($submission->fresh()),
                 StageStrip::slot($submission->fresh(['sections', 'sources'])),
-                // Approving records a pending topology handoff (see
-                // PromoteApprovedSubmission) — without this slot the card that
-                // says the catalog is out of date only appears on a reload.
-                TopologyHandoff::slot($submission->fresh()),
             ],
         ]);
     }

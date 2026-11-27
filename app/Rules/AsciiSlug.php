@@ -18,9 +18,8 @@ use Illuminate\Support\Str;
  *
  * Why it matters beyond tidiness: a slug is an ADDRESS. It travels through
  * route model binding, gets percent-encoded in some clients and not others,
- * is compared byte-for-byte by `PublicDocumentationController::diagramPicture()`
- * (authorisation, deliberately not folded — see AGENTS.md § Searching), and is
- * pasted into documentation as `page:{slug}` and `{% diagram slug="…" %}`.
+ * and is pasted into documentation as `page:{slug}`, `notebook:{slug}` and a
+ * UML block's `"solution": "{slug}"`.
  * Every one of those is a place where `operações` and `operacoes` are two
  * different strings that look like one.
  */

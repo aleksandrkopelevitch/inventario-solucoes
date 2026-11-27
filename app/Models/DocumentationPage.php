@@ -30,10 +30,9 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  * reaches a Solution the long way round, through `Notebook::solutions()`, and
  * therefore reaches as many of them as the notebook actually documents.
  *
- * A page CITES drawings rather than owning one. `diagram_id` is gone: a page
- * carries `{% diagram %}` blocks in its text, as many as the prose needs, which
- * is what a reference actually is. The FK modelled "this page is the page of
- * that drawing", which was never true of more than a handful of them.
+ * A page carries its diagrams IN its text (`{% uml %}` blocks, as many as the
+ * prose needs). It used to point at a topology drawing (`diagram_id`, then a
+ * `{% diagram %}` citation); both are gone with the drawings.
  *
  * The tree's shape is deliberately capped, and both halves of the cap matter:
  *
@@ -169,7 +168,7 @@ class DocumentationPage extends Model implements Documentable
 
     public function registerMediaCollections(): void
     {
-        // See Solution/Diagram — documentation media, served by
+        // Documentation media, served by
         // `files.show`, referenced as /files/{id} in the Markdown.
         $this->addMediaCollection(self::DOCS_COLLECTION);
     }

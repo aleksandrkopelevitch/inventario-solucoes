@@ -5,6 +5,7 @@ namespace App\Support\Cati;
 use App\Enums\ConformanceVerdict;
 use App\Enums\SubmissionSectionKey;
 use App\Models\Submission;
+use App\Services\SolutionRelationshipService;
 
 /**
  * The questions the committee actually asks, written as rules over data the
@@ -60,7 +61,7 @@ class DeviationRules
      */
     public static function for(Submission $submission): array
     {
-        $submission->loadMissing(['sections', 'solution.vendor', 'solution.diagrams']);
+        $submission->loadMissing(['sections', 'solution.vendor']);
 
         return [
             ...self::fromConformance($submission),
@@ -144,15 +145,15 @@ class DeviationRules
             ];
         }
 
-        $diagrams = $solution?->diagrams ?? collect();
+        $relationships = $solution !== null ? app(SolutionRelationshipService::class)->forSolution($solution) : collect();
 
-        if ($diagrams->isNotEmpty() && blank($content->get(SubmissionSectionKey::LegacyImpact->value))) {
+        if ($relationships->isNotEmpty() && blank($content->get(SubmissionSectionKey::LegacyImpact->value))) {
             $rules[] = [
                 'key'      => 'legacy_impact_blank',
                 'section'  => SubmissionSectionKey::LegacyImpact->value,
-                'question' => 'A solução já aparece em ' . $diagrams->count() . ' diagrama(s) do catálogo ('
-                    . $diagrams->pluck('name')->implode(', ') . '). Quais desses fluxos mudam, e há algo a descomissionar?',
-                'why'      => 'Fluxos já desenhados no inventário, sem impacto descrito',
+                'question' => 'A solução já tem ' . $relationships->count() . ' relacionamento(s) ('
+                    . $relationships->map(fn ($r) => $r->other->name)->implode(', ') . '). Quais desses fluxos mudam, e há algo a descomissionar?',
+                'why'      => 'Relacionamentos já documentados no inventário, sem impacto descrito',
                 'severity' => 'high',
             ];
         }

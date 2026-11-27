@@ -1,14 +1,11 @@
 <?php
 
-use App\Http\Controllers\ApprovedTopologyController;
 use App\Http\Controllers\AttributeOptionController;
 use App\Http\Controllers\Auth\AccessLinkController;
 use App\Http\Controllers\Auth\EntraController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\ResetPasswordController;
-use App\Http\Controllers\DiagramController;
-use App\Http\Controllers\DiagramPictureController;
 use App\Http\Controllers\DigibeeLogController;
 use App\Http\Controllers\DigibeeSessionController;
 use App\Http\Controllers\DocumentationHubController;
@@ -31,9 +28,7 @@ use App\Http\Controllers\McpWriteController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\NotebookContextDocumentController;
 use App\Http\Controllers\NotebookController;
-use App\Http\Controllers\NotebookDiagramController;
 use App\Http\Controllers\NotebookPageController;
-use App\Http\Controllers\NotebookPageDiagramController;
 use App\Http\Controllers\NotebookPageSceneController;
 use App\Http\Controllers\NotebookPageUmlController;
 use App\Http\Controllers\NotebookPublicationController;
@@ -123,12 +118,11 @@ Route::middleware(['entra.silent', 'auth'])->group(function () {
     Route::get('docs/search', [KnowledgeBaseController::class, 'search'])->name('docs.search');
 
     Route::get('docs/{notebook}', [KnowledgeBaseController::class, 'notebook'])->name('docs.notebook');
-    // Media and diagram pictures get routes of their own rather than reusing
-    // `files.show` / `diagrams.picture.show`: those authorize by collection
-    // name and by `auth` — for every caderno in the app, published or not —
+    // Media gets a route of its own rather than reusing `files.show`: that one
+    // authorizes by collection name and by `auth` — for every caderno in the
+    // app, published or not —
     // and `/docs` serves only what was published. See KnowledgeBaseController::file().
     Route::get('docs/{notebook}/file/{media}', [KnowledgeBaseController::class, 'file'])->name('docs.file');
-    Route::get('docs/{notebook}/diagram/{diagram}', [KnowledgeBaseController::class, 'diagramPicture'])->name('docs.diagram');
 
     Route::scopeBindings()->group(function () {
         // `{page}` 404s unless it belongs to the `{notebook}` in the URL — a
@@ -515,23 +509,6 @@ Route::middleware('auth')->group(function () {
     // SubmissionChatController::apply() checks the ownership explicitly instead.
     Route::post('submissions/{submission}/chat/messages/{message}/apply', [SubmissionChatController::class, 'apply'])->name('submissions.chat.messages.apply');
 
-    /*
-     | Closing the loop a committee opened: the TO BE it approved either lands on
-     | a real catalog Diagram or is declared already reflected.
-     |
-     | NOT scoped, for the same reason the message route above isn't:
-     | `scopeBindings()` resolves `{topology}` through a PLURAL
-     | `Submission::topologies()`, and the relation is a HasOne — a submission is
-     | deliberated once. A HasMany that can only ever hold one row would be a lie
-     | written to satisfy the router, so the controller checks ownership itself.
-     |
-     | The target diagram is checked against the SOLUTION in
-     | ApplyApprovedTopologyRequest: an approval must never overwrite a diagram
-     | belonging to somebody else.
-     */
-    Route::post('submissions/{submission}/topology/{topology}/apply', [ApprovedTopologyController::class, 'apply'])->name('submissions.topology.apply');
-    Route::post('submissions/{submission}/topology/{topology}/dismiss', [ApprovedTopologyController::class, 'dismiss'])->name('submissions.topology.dismiss');
-
     Route::get('flowspec/{chat}/status', [FlowspecChatController::class, 'status'])->name('flowspec.status');
     Route::post('flowspec/{chat}/messages', [FlowspecMessageController::class, 'store'])->name('flowspec.messages.store');
 
@@ -552,79 +529,6 @@ Route::middleware('auth')->group(function () {
     Route::scopeBindings()->group(function () {
         Route::patch('flowspec/{chat}/attachments/{attachment}', [FlowspecAttachmentController::class, 'update'])->name('flowspec.attachments.update');
         Route::delete('flowspec/{chat}/attachments/{attachment}', [FlowspecAttachmentController::class, 'destroy'])->name('flowspec.attachments.destroy');
-    });
-
-    /*
-     |--------------------------------------------------------------------------
-     | Diagrams — the drawings module
-     |--------------------------------------------------------------------------
-     |
-     | Flat, not nested: a diagram is addressed by itself. It used to be an
-     | `Integration` reachable only under a solution that took part in it, which
-     | meant every one of these URLs carried a `{solution}` the endpoint didn't
-     | need and a `scopeBindings` check to keep the two in agreement. It
-     | belongs to a caderno now, but is still addressed by itself — its slug is
-     | what a page's `{% diagram %}` names, and it must survive the caderno
-     | being renamed. Nothing here CREATES one: that is
-     | `notebooks/{notebook}/diagrams` and the page's "Desenhar esta página".
-     |
-     | The twelve chain endpoints are the canvas's, and they mirror the
-     | submission-diagram ones ONE FOR ONE: same payloads, same responses, same
-     | FormRequests. `chain-viz.js` never learns which owner it is editing,
-     | because every URL it calls arrives inside the graph payload
-     | (`ChainCanvas::chainUrls()`).
-     |
-     | `{node}`/`{edge}` are plain integer INDICES into `chain.nodes`/`.edges`
-     | (`whereNumber`), not models.
-     */
-    Route::get('diagrams', [DiagramController::class, 'index'])->name('diagrams.index');
-
-    Route::prefix('diagrams/{diagram}')->name('diagrams.')->group(function () {
-        Route::get('/', [DiagramController::class, 'show'])->name('show');
-        // Name/status only — never the chain (that is the canvas's, below).
-        Route::patch('/', [DiagramController::class, 'update'])->name('update');
-        // The systems somebody DECLARES the drawing concerns — the manual half
-        // of `diagram_solution`. Not a chain endpoint: the drawing is untouched,
-        // only what the catalog and the map are told it is about.
-        Route::patch('systems', [DiagramController::class, 'syncSystems'])->name('systems');
-        Route::delete('/', [DiagramController::class, 'destroy'])->name('destroy');
-        // Purely visual: block positions, edge anchors, comments, lanes, notes.
-        Route::patch('layout', [DiagramController::class, 'saveLayout'])->name('layout.save');
-
-        // The canvas's own rendered PNG, posted right after a layout save and
-        // read by the CATI deck. Media only — never topology.
-        Route::post('picture', [DiagramPictureController::class, 'store'])->name('picture.store');
-        Route::get('picture', [DiagramPictureController::class, 'show'])->name('picture.show');
-
-        // Kind/title of a single block — {node} is the index in the chain.
-        Route::patch('chain/nodes/{node}', [DiagramController::class, 'updateNode'])
-            ->whereNumber('node')->name('chain.node.update');
-        // Removes a block AND every link touching it (indices shift — see removeChainNode()).
-        Route::delete('chain/nodes/{node}', [DiagramController::class, 'removeNode'])
-            ->whereNumber('node')->name('chain.node.remove');
-        // New block, born isolated — wiring is a separate gesture.
-        Route::post('chain/nodes', [DiagramController::class, 'addNode'])->name('chain.node.add');
-        // New IMAGE block — pasting a picture directly on the canvas (Ctrl+V).
-        Route::post('chain/images', [DiagramController::class, 'addImageNode'])->name('chain.image.add');
-        // A picture INSIDE an existing action block — {node} is the index in the chain.
-        Route::post('chain/nodes/{node}/image', [DiagramController::class, 'setNodeImage'])
-            ->whereNumber('node')->name('chain.node.image.store');
-        Route::delete('chain/nodes/{node}/image', [DiagramController::class, 'removeNodeImage'])
-            ->whereNumber('node')->name('chain.node.image.remove');
-        // Protocol and/or direction of a single link — {edge} is the index in chain.edges.
-        Route::patch('chain/protocol/{edge}', [DiagramController::class, 'updateProtocol'])
-            ->whereNumber('edge')->name('chain.protocol.update');
-        // Retargets one end of an existing link to a different block.
-        Route::patch('chain/edge/{edge}', [DiagramController::class, 'retargetEdge'])
-            ->whereNumber('edge')->name('chain.edge.retarget');
-        // New link between two blocks that already exist.
-        Route::post('chain/edges', [DiagramController::class, 'addEdge'])->name('chain.edge.add');
-        // Removes a link without removing its blocks.
-        Route::delete('chain/edge/{edge}', [DiagramController::class, 'removeEdge'])
-            ->whereNumber('edge')->name('chain.edge.remove');
-        // A whole earlier state (chain + layout) written back — the canvas's
-        // Ctrl+Z / Ctrl+Y for a step that touched the topology.
-        Route::put('chain', [DiagramController::class, 'restoreChainState'])->name('chain.restore');
     });
 
     // Documentation Hub — the cross-cutting view of what's documented and
@@ -692,13 +596,6 @@ Route::middleware('auth')->group(function () {
 
     Route::post('notebooks/{notebook}/pages', [NotebookPageController::class, 'store'])->name('notebooks.pages.store');
 
-    // The caderno's drawings: the lookup modal its rail opens, and the one way
-    // left to start a blank one. A diagram belongs to a caderno — nothing
-    // creates one outside it. Static segment, so it is ahead of the {page}
-    // group and reserved in DocumentationPageService::RESERVED_SLUGS.
-    Route::get('notebooks/{notebook}/diagrams', [NotebookDiagramController::class, 'index'])->name('notebooks.diagrams.index');
-    Route::post('notebooks/{notebook}/diagrams', [NotebookDiagramController::class, 'store'])->name('notebooks.diagrams.store');
-
     // Three catalogs the documentation editor reads, all static segments and so
     // all BEFORE the {page} group below (and all reserved in
     // DocumentationPageService::RESERVED_SLUGS, or a page could take the URL):
@@ -740,16 +637,6 @@ Route::middleware('auth')->group(function () {
         Route::post('notebooks/{notebook}/{page}/secrets/{secret}', [NotebookPageController::class, 'revealSecret'])
             ->where('secret', '[a-z0-9]+')
             ->name('notebooks.pages.secrets');
-        // The drawing this page describes, written into the page's CADERNO:
-        // `target` is the dialog asking "new (named) or over one of this
-        // caderno's?", and the two POSTs draw once it is answered. The page is
-        // READ here and never written; prose reaches a drawing by citing it.
-        Route::get('notebooks/{notebook}/{page}/diagram/target', [NotebookPageDiagramController::class, 'target'])->name('notebooks.pages.diagram.target');
-        Route::post('notebooks/{notebook}/{page}/diagram', [NotebookPageDiagramController::class, 'store'])->name('notebooks.pages.diagram');
-        // The same page, drawn as one of the four MODELS. `{model}` is an
-        // implicit enum binding, so a shape outside the four 404s before the
-        // controller runs.
-        Route::post('notebooks/{notebook}/{page}/diagram/{model}', [NotebookPageDiagramController::class, 'model'])->name('notebooks.pages.diagram.model');
         // An animated scene proposed from the page's text (the "Fluxo em
         // etapas" block). Answers with the scene and writes nothing — the
         // editor puts it in the block and saves the page like any other edit.
@@ -765,10 +652,6 @@ Route::middleware('auth')->group(function () {
     // Media embedded in documentation (images/files from the `docs`
     // collection), referenced via /files/{id} inside the Markdown. Authenticated only.
     Route::get('files/{media}', [MediaController::class, 'show'])->name('files.show');
-
-    // The diagram catalog as a solution-grouped tree, for the documentation
-    // editor's `diagram` block picker. Read-only JSON.
-    Route::get('diagrams-catalog', [DiagramController::class, 'catalog'])->name('diagrams.catalog');
 
     // Heroicons outline icons for the documentation callout picker (only the
     // editor consumes this; read-only views already ship with the rendered SVG).
@@ -798,12 +681,6 @@ $stateless = [StartSession::class, ShareErrorsFromSession::class, PreventRequest
 Route::get('public-docs/{token}/file/{media}', [PublicDocumentationController::class, 'file'])
     ->withoutMiddleware($stateless)
     ->name('public.docs.file');
-// The rendered picture of a diagram CITED by a page in the shared caderno. The
-// canvas itself stays behind auth — this serves the image and nothing else, the
-// same split `public.docs.file` makes for embedded media.
-Route::get('public-docs/{token}/diagram/{diagram}', [PublicDocumentationController::class, 'diagramPicture'])
-    ->withoutMiddleware($stateless)
-    ->name('public.docs.diagram');
 // One protected value of a page in the shared caderno. The magic link does NOT
 // carry the right to read it: the token grants the prose, the caderno's secret
 // code grants a value inside it, and the same five-per-twelve-hours limit

@@ -4,7 +4,6 @@ paths:
   - "app/Models/DocumentationPage.php"
   - "app/Services/DocumentationPageService.php"
   - "app/Support/Documentation/PageLinks.php"
-  - "app/Support/Documentation/DiagramCitation.php"
   - "app/Support/GitbookRenderer.php"
   - "resources/js/modules/docs-markdown.js"
   - "resources/js/modules/docs-tools/**"
@@ -106,43 +105,11 @@ Anything asking "is this solution documented?" goes through
 the container: the public magic link (`notebooks.public_token`) and the Assiste
 IA context documents (`Notebook::CONTEXT_COLLECTION`).
 
-**A page CITES a diagram; it does not own one.** `documentation_pages.diagram_id`
-is gone, and with it the Documentação/Diagrama tab pair a linked page used to
-grow. A drawing is referenced from prose with `{% diagram slug="…" %}` — a fifth
-construct in the dialect, self-closing with one attribute, the same shape as the
-four GitBook ones, so both parsers (`GitbookRenderer` and `docs-markdown.js`)
-take it the way they take `file`.
-
-It renders as the drawing's current picture plus a link that opens the canvas in
-a **new tab — and only for someone signed in.**
-`GitbookRenderer::render(..., linkDiagrams: false)` withholds that link from the
-public magic link and from the search index. `/diagrams/{slug}` is behind auth,
-so for a visitor the button is both a dead end onto the login screen and a
-disclosure: it names a drawing they cannot reach and hands over its slug. The
-card itself renders either way — the picture and the name are documentation, the
-link is an editing affordance. The PICTURE therefore needs a public route of its
-own (`public.docs.diagram`), authorised by CITATION rather than by the diagram:
-the token grants one caderno, and what that caderno shows is what its pages
-cite, so an uncited drawing 404s even with a valid token. Without it every
-citation on a shared link rendered a broken image, since
-`diagrams.picture.show` redirects a guest to the login screen — withholding the
-link and letting the image 302 are not the same thing. The index passes `false` for a second reason: it
-is CACHED, so a render that varied by the viewer's auth state would bake one
-audience's chrome into everybody's results, and "Abrir diagrama" is a button
-nobody should be able to search for.
-
-It degrades on purpose: a diagram with no snapshot yet says so
-(the PNG is posted by the BROWSER after a layout save, so a diagram nobody has
-opened since that feature landed has none), and a deleted diagram becomes a
-"removido" card rather than damaging the prose around it.
-
-Addressed by SLUG, never id: it is what the author picked and what the URL shows,
-it survives a database reload between environments, and a stale citation still
-reads as something. A diagram BELONGS to a caderno (`notebook_id`), but a page
-may cite any caderno's drawing — the public route authorises a picture by
-citation, not by owner. So the picker (`diagrams.catalog?notebook=`) leads with
-a "Deste caderno" group and then groups the whole catalog by SOLUTION, with a
-trailing group for drawings that name none, since those are still citable.
+**A page draws its pictures in its own text.** The catalog's topology drawings
+(`Diagram`, `/diagrams`, and the `{% diagram slug="…" %}` citation that put one
+in a page) were removed on 2026-11-27; a figure is now a `{% uml %}` block
+(`.claude/rules/doc-uml.md`) or a scene (`.claude/rules/doc-scenes.md`). A
+leftover `{% diagram %}` line renders as plain text.
 
 **A link between two pages is `[texto](page:{slug})`, resolved per READER.**
 It is the one construct of the dialect that is not a `{% … %}` block — it is an
@@ -171,9 +138,8 @@ Five things that follow, and each of them has a reason that is not obvious:
   the same promise as addressing it forever.
 - **A slug the caderno does not have loses its `href` ENTIRELY.** An `<a>` with
   no href is not a link: it renders as the words the author wrote (styled by
-  `.html-content a:not([href])`), which is the same promise the "Diagrama
-  removido" card makes — deleting a page must never damage the prose that
-  mentioned it. Pointing it at `#` instead would look like a link and scroll the
+  `.html-content a:not([href])`) — deleting a page must never damage the prose
+  that mentioned it. Pointing it at `#` instead would look like a link and scroll the
   reader to the top for no stated reason.
 - **The resolution runs over the FINISHED html**, not over the Markdown, for the
   same reason `paintSecrets()` does: `renderLines()` recurses, and a link is
@@ -199,8 +165,8 @@ Five things that follow, and each of them has a reason that is not obvious:
 ### A card GRID may leave the caderno; a sentence still may not
 
 `{% cards cols="3" %}` … `{% card title="…" image="/files/12" fit="cover"
-link="notebook:sap" %}`descrição`{% endcard %}` … `{% endcards %}` is the sixth
-construct of the dialect and the second one of our own. It draws a regular grid
+link="notebook:sap" %}`descrição`{% endcard %}` … `{% endcards %}` is a construct
+of the dialect of our own, not GitBook's. It draws a regular grid
 of product cards — a logo, a name, an optional line of description and a
 destination — which is how a landing page indexes what it links to.
 
@@ -280,8 +246,7 @@ already, and the panel names the card it is about instead of outlining it.
 **There is exactly ONE kind of documentation: the page.** There used to be two —
 a page tree, and an integration's own single-page `documentation` column with
 its own editor route, its own place in the rail and its own coverage
-percentage. The second one is gone; what it was really for (text beside a
-drawing) is a page CITING one with `{% diagram %}`, above.
+percentage. The second one is gone.
 
 A caderno's documentation is a tree of `DocumentationPage`s up to
 `DocumentationPage::MAX_DEPTH` levels deep (5 today, which is the depth the
@@ -324,10 +289,8 @@ Three more rules that are easy to half-implement:
   the caderno. It answers with the catalog SLOT, not a `redirect` — from the
   catalog, a redirect to the catalog is a full reload that throws away the
   filters the URL still shows. The confirm states the consequences that are
-  COUNTED rather than guessed: how many pages go with it, how many DIAGRAMS go
-  with it (they belong to the caderno, and are deleted through the models so
-  their media goes too), and whether a public link somebody already holds stops
-  working.
+  COUNTED rather than guessed: how many pages go with it, and whether a public
+  link somebody already holds stops working.
 
 The rail (`x-documentation.pages-nav`) renders that walk as ONE flat `@foreach`
 with an indent class per depth — deliberately not a recursive partial, so every

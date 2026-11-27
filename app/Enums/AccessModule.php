@@ -9,14 +9,14 @@ namespace App\Enums;
  * policy asking `User::canEdit()` about it.
  *
  * The ecosystem map belongs to none: it is a read-only view derived from the
- * drawings, and every account reads it.
+ * documented relationships, and every account reads it.
  */
 enum AccessModule: string
 {
     /** Solutions, people and companies. */
     case Catalog = 'catalog';
 
-    /** Cadernos, their pages and the diagrams drawn inside them. */
+    /** Cadernos and their pages, UML diagrams included. */
     case Documentation = 'documentation';
 
     /** The Especialista em Integrações (`/flowspec`) and its corpus. */
@@ -29,7 +29,7 @@ enum AccessModule: string
     {
         return match ($this) {
             self::Catalog       => 'Soluções, Pessoas e Empresas',
-            self::Documentation => 'Documentação e Diagramas',
+            self::Documentation => 'Documentação',
             self::Integrations  => 'Especialista em Integrações',
             self::Committee     => 'Comitê de Arquitetura',
         };

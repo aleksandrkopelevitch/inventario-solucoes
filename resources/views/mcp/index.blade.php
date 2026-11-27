@@ -43,7 +43,7 @@
             <div class="mt-4 rounded-field border border-line bg-raised/60 px-3.5 py-3">
                 <p class="text-[11px] font-semibold uppercase tracking-wide text-muted">O que o token alcança</p>
                 <ul class="mt-1.5 space-y-1 text-xs leading-relaxed text-muted">
-                    <li>· Todo o catálogo: soluções, diagramas, pessoas (com contatos) e empresas.</li>
+                    <li>· Todo o catálogo: soluções e seus relacionamentos, pessoas (com contatos) e empresas.</li>
                     <li>· Da documentação, <strong class="font-semibold text-ink">só os cadernos publicados</strong> em
                         <a href="{{ route('docs.index') }}" class="text-accent hover:underline">/docs</a>.
                         Caderno não publicado é invisível, inclusive para quem tem o token.</li>

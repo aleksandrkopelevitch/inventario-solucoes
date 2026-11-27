@@ -215,16 +215,16 @@ it('refuses to drop a protected value unless the call names it', function () {
         ->and(DocumentationPage::sole()->documentation)->toBe('Sem senha.');
 });
 
-it('refuses to drop a cited diagram or file unless the call names it', function () {
-    mcpDocPage("Veja:\n\n{% diagram slug=\"fluxo-pedidos\" %}\n\n<a href=\"/files/812\">anexo</a>");
+it('refuses to drop a file unless the call names it', function () {
+    mcpDocPage("Veja:\n\n<a href=\"/files/811\">contrato</a>\n\n<a href=\"/files/812\">anexo</a>");
     $writer = docsWriter();
     $args = ['notebook' => 'manual', 'page' => 'pagina', 'version' => readVersion($writer, 'manual', 'pagina'), 'content' => 'Veja: nada.'];
 
     $refused = docTool($writer, 'update_page', $args);
-    expect($refused['text'])->toContain('diagram:fluxo-pedidos')->toContain('file:812');
+    expect($refused['text'])->toContain('file:811')->toContain('file:812');
 
-    expect(docTool($writer, 'update_page', $args + ['confirm_removals' => ['diagram:fluxo-pedidos']])['isError'])->toBeTrue();
-    expect(docTool($writer, 'update_page', $args + ['confirm_removals' => ['diagram:fluxo-pedidos', 'file:812']])['isError'])->toBeFalse();
+    expect(docTool($writer, 'update_page', $args + ['confirm_removals' => ['file:811']])['isError'])->toBeTrue();
+    expect(docTool($writer, 'update_page', $args + ['confirm_removals' => ['file:811', 'file:812']])['isError'])->toBeFalse();
 });
 
 it('refuses a sharp shrink, and accepts a confirmed band at or below the real one', function () {
@@ -394,16 +394,16 @@ it('does not let shrink:0% pre-confirm a loss', function () {
     ])['isError'])->toBeTrue();
 });
 
-it('counts a diagram citation moved into a sentence as removed, and tracks any file src', function () {
-    mcpDocPage("{% diagram slug=\"fluxo\" %}\n\n{% file src=\"https://example.com/a.pdf\" %}");
+it('tracks a file src that is not one of ours', function () {
+    mcpDocPage("Texto.\n\n{% file src=\"https://example.com/a.pdf\" %}");
     $writer = docsWriter();
 
     $refused = docTool($writer, 'update_page', [
         'notebook' => 'manual', 'page' => 'pagina', 'version' => readVersion($writer, 'manual', 'pagina'),
-        'content'  => 'Veja {% diagram slug="fluxo" %} aqui.',
+        'content'  => 'Texto.',
     ]);
 
-    expect($refused['text'])->toContain('diagram:fluxo')->toContain('file:https://example.com/a.pdf');
+    expect($refused['text'])->toContain('file:https://example.com/a.pdf');
 });
 
 it('accepts a numbered legacy marker as keeping its value', function () {

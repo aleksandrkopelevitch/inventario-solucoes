@@ -18,7 +18,7 @@ use App\Services\SolutionRelationshipService;
  * Every relation is eager-loaded here rather than left to the presenter, for the
  * reason § Strict mode spells out: this is a SINGLE-ROW fetch, so
  * `Model::shouldBeStrict()` never arms and a missing `with()` lazy-loads in
- * silence — no exception, in any environment. `people` and `diagrams` are
+ * silence — no exception, in any environment. `people` and `notebooks` are
  * collections walked one row at a time by the presenter, which is exactly the
  * N+1 that would never be caught by a test.
  */
@@ -49,8 +49,8 @@ class GetSolution implements Tool
         return <<<'TXT'
         Cadastro completo de uma solução pelo slug: descrição, categoria, criticidade,
         ambiente, contrato, empresa fornecedora, pessoas responsáveis (com o papel de
-        cada uma), diagramas de que ela participa, cadernos publicados que a documentam
-        e os relacionamentos com outras soluções.
+        cada uma), cadernos publicados que a documentam e os relacionamentos com outras
+        soluções.
 
         "relationships" vem dos diagramas UML da documentação: cada item diz com qual
         solução ela se comunica, em que sentido ("chama", "é chamada por", "mútua",
@@ -101,26 +101,18 @@ class GetSolution implements Tool
      */
     public function present(Solution $solution, Actor $actor): array
     {
-        // The diagrams are the documentation module's: a caller at level None
-        // there gets the solution without them, as the solution page in the
-        // browser hides that card behind `viewAny` on Notebook.
-        $withDiagrams = $actor->canRead(AccessModule::Documentation);
-
         $solution->load([
             'vendor',
             'people:id,slug,name',
             'notebooks',
-            ...($withDiagrams ? [
-                'diagrams:id,notebook_id,slug,name,status',
-                'diagrams.notebook:id,name,slug,published_at',
-            ] : []),
         ]);
 
         return $this->presenter->solution(
             $solution,
-            $withDiagrams,
             ReadableNotebooks::seesUnpublished($actor),
             $this->relationships->forSolution($solution),
+            // Where a relationship is documented is the documentation module's:
+            // a caller at level None there gets the pairs without the pages.
             withEvidence: $actor->canRead(AccessModule::Documentation),
         );
     }
