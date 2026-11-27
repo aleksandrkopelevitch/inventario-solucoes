@@ -50,7 +50,7 @@ A base também pode ser consultada **conversando com o Claude**. Conecte o Inven
 
 {{figure:base-claude.svg|O Claude responde a partir dos cadernos publicados e diz de qual caderno tirou a resposta.}}
 
-A conexão é **somente leitura** e enxerga apenas os cadernos publicados aqui; valores protegidos nunca saem.
+Por padrão a conexão só lê, e enxerga apenas os cadernos publicados aqui; valores protegidos nunca saem. Quem é **Editor** pode também autorizá-la a criar e editar soluções e cadernos: aí ela enxerga também os cadernos ainda não publicados, e cada alteração fica registrada em nome de quem conectou e pode ser desfeita por um administrador.
 
 ## Como navegar
 
