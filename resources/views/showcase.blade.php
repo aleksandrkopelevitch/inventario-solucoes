@@ -142,7 +142,7 @@ de linha — como nas notas de uma pessoa." />
 
                 <x-ui.empty-state illustration="docs" title="Nenhuma página ainda"
                     description="x-ui.empty-state — ilustração + o que falta + o que fazer." />
-                <x-ui.empty-state illustration="diagrams" title="Nenhum diagrama" illustration-class="max-w-[180px]"
+                <x-ui.empty-state illustration="relationships" title="Nenhum relacionamento" illustration-class="max-w-[180px]"
                     description="A ilustração é escolhida por nome (illustrations/empty-*)." />
 
                 <div class="space-y-2 sm:col-span-2">

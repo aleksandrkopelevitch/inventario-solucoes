@@ -4,7 +4,7 @@
      placeholder and not as a broken card.
 
      `illustration` names a component under `resources/views/components/
-     illustrations/` (`diagrams` → x-illustrations.empty-diagrams). Those
+     illustrations/` (`relationships` → x-illustrations.empty-relationships). Those
      are inlined unDraw SVGs painted with `currentColor` plus the app's tokens,
      which is why the color is set here, once, rather than inside each drawing. --}}
 @props([
