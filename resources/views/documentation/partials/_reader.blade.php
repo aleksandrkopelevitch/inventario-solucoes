@@ -42,7 +42,8 @@
              the steps of this page (NotebookPageSceneController); null outside
              a caderno, which leaves the block hand-written only. `umlCheckUrl`
              is where the "Diagrama UML" block asks whether the page will draw
-             its diagram (NotebookPageUmlController). --}}
+             its diagram, and `umlDraftUrl` where its "Gerar com IA" asks the
+             model for one (both NotebookPageUmlController). --}}
         <div class="ak-docs-editor" data-ak-docs-editor
             data-config="{{ json_encode([
                 'uploadUrl'      => $uploadUrl,
@@ -50,6 +51,7 @@
                 'cardTargetsUrl' => isset($notebook) ? route('notebooks.card-targets', $notebook) : null,
                 'sceneUrl'       => isset($notebook, $titlePage) ? route('notebooks.pages.scene', [$notebook, $titlePage]) : null,
                 'umlCheckUrl'    => isset($notebook, $titlePage) ? route('notebooks.pages.uml', [$notebook, $titlePage]) : null,
+                'umlDraftUrl'    => isset($notebook, $titlePage) ? route('notebooks.pages.uml.draft', [$notebook, $titlePage]) : null,
                 'pageSlug'       => $titlePage->slug ?? null,
                 // What this editor's saves are based on — see SavePageContent.
                 'version' => isset($titlePage) ? $titlePage->version() : null,

@@ -6,6 +6,11 @@ paths:
   - "app/Mcp/Tools/GetCodeDocumentationGuide.php"
   - "app/Http/Controllers/NotebookPageUmlController.php"
   - "app/Http/Requests/CheckPageUmlRequest.php"
+  - "app/Http/Requests/DraftPageUmlRequest.php"
+  - "app/Services/Documentation/UmlDraftService.php"
+  - "app/Services/Documentation/UmlDraftPromptBuilder.php"
+  - "app/Exceptions/UmlDraftFailed.php"
+  - "tests/Feature/DocumentationUmlDraftTest.php"
   - "resources/data/mcp/code-documentation-guide.md"
   - "tests/Feature/DocumentationUmlTest.php"
 ---
@@ -175,6 +180,38 @@ per render and in one query, for `data-ak-uml-logos` (`{slug: url}`, the
 `PublicImage` thumbnail). Put them inside the parse and a changed logo waits 30
 days for the cache. The editor's check answers the same map (`logos`) and the
 block redraws once with it. A slug with no logo, or no solution, draws no badge.
+
+**"Gerar com IA" (since 2026-11-27) — a model proposes the block's JSON.**
+Spec: `docs-and-specs/uml-ai-generation.md`. The block's row (instruction +
+button) POSTs to `notebooks.pages.uml.draft`; `UmlDraftService` asks the
+documentation model (`services.documentation_ai`, `uml_timeout`) and answers
+`{source, problems, warnings, logos}`. It writes nothing: the block replaces
+its JSON (keeping the old one for "Desfazer") and the editor saves. Five
+things that are easy to undo:
+
+- **The syntax is §5 of the MCP guide, sliced at runtime**
+  (`UmlDraftPromptBuilder::guideSection()`, `## 5.` to `## 6.`), so the in-app
+  model and an MCP client are taught from the one text the tests check. It
+  throws if the section is not found; renumber the guide and the test says so.
+- **Synchronous, one repair round, like the scenes.** The repair is fed the
+  validator's problems, the crossings (`warnings`) and the unknown slugs, and
+  is SKIPPED once the first call used half of `uml_timeout`: a second call past
+  that risks the proxy cutting the request with nothing to show.
+- **A draft still wrong after the repair is RETURNED with its problems**, not
+  thrown (unlike a scene): a few KB of mostly right JSON beats a retry. 422
+  (`UmlDraftFailed`) only when there is nothing to show — no JSON, the model's
+  `{"error"}`, a provider that hung, an empty page with no instruction.
+- **The type is the author's.** The model returns the body only; an echoed
+  `type`/`title` is dropped. With something typed AND a diagram of the
+  author's own in the block, the request sends that JSON as the thing to
+  change; with nothing typed, regenerating asks first.
+- **The row, its note and the status line are `data-mutation-free`.** They
+  repaint for reasons that are not edits ("Gerando…", a check answering); a
+  failed generation left the page "Não salvo" until they were.
+
+The catalog goes in WHOLE (`slug — name`) or not at all past
+`uml_max_catalog`, the assistant's page-catalog rule. Assiste IA still freezes
+UML blocks; if it ever writes diagrams, it should call this service.
 
 **The guide teaches only what the validator accepts.** The playbook and the
 syntax a model reads live in `resources/data/mcp/code-documentation-guide.md`

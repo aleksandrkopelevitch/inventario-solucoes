@@ -617,6 +617,9 @@ Route::middleware('auth')->group(function () {
         // Whether the "Diagrama UML" block's diagram is one the page will
         // draw — the reader's own validator, asked while the author types.
         Route::post('notebooks/{notebook}/{page}/uml', [NotebookPageUmlController::class, 'check'])->name('notebooks.pages.uml');
+        // "Gerar com IA" on that block: the model's proposal for its JSON,
+        // validated and repaired once. Writes nothing, like the scene's.
+        Route::post('notebooks/{notebook}/{page}/uml/draft', [NotebookPageUmlController::class, 'draft'])->name('notebooks.pages.uml.draft');
         // Documentation Assistant — a chat that helps write the page (job + polling per turn).
         Route::get('notebooks/{notebook}/{page}/chat', [NotebookPageController::class, 'chatPanel'])->name('notebooks.chat.panel');
         Route::post('notebooks/{notebook}/{page}/chat/messages', [NotebookPageController::class, 'sendMessage'])->name('notebooks.chat.messages.store');

@@ -9,7 +9,9 @@ documentação rica (estilo GitBook) em
 animadas** montadas a partir do texto (fluxo em etapas, antes → depois, árvore,
 comparação lado a lado, linha do tempo), com **diagramas UML** escritos na própria
 página (sequência, classes, componentes, implantação, casos de uso, atividades,
-estados e pacotes, desenhados pelo app na notação UML, com tela cheia) e com
+estados e pacotes, desenhados pelo app na notação UML, com tela cheia, o logo
+das soluções do catálogo e um "Gerar com IA" que monta ou altera o diagrama a
+partir da página) e com
 valores sensíveis atrás de cadeado —, uma **base de conhecimento** interna (`/docs`) com os cadernos
 publicados, um hub que reúne a cobertura dessa documentação,
 um Especialista em Integrações que gera flowSpec Digibee em formato de chat — e

@@ -11,7 +11,14 @@
 // as an edit; see `userEdited` there.)
 //
 // The server check also answers each bound solution's logo (`logos`), which
-// the preview then draws as a corner badge, the way the reader does. The JSON is the source of truth on purpose: it is what a
+// the preview then draws as a corner badge, the way the reader does.
+//
+// "Gerar com IA" (`umlDraftUrl`, UmlDraftService) asks the model for the JSON:
+// from the page, from what the author typed beside the button, or — when the
+// block holds a diagram of its own and something was typed — as a CHANGE to
+// it. The answer REPLACES the JSON, so the previous one is kept for
+// "Desfazer" (a tool's data has no Editor.js undo). Spec:
+// docs-and-specs/uml-ai-generation.md. The JSON is the source of truth on purpose: it is what a
 // model writes through the MCP server, and one notation edited by both is the
 // only way the two never drift. The SERVER is the judge of a valid diagram
 // (App\Support\Documentation\UmlDiagram), and the block ASKS it
@@ -21,9 +28,11 @@
 // the author saved a picture the page then showed as an error box.
 //
 // Typing in a textarea changes a property, not the DOM tree, so Editor.js
-// would never notice it — each field calls `dispatchChange()`. The preview
-// repaints for reasons that are not edits, so it sits in a
-// `data-mutation-free` box (see .claude/rules/css-and-docs-rendering.md).
+// would never notice it — each field calls `dispatchChange()`. The preview,
+// the status line, the "Gerar com IA" row and its note repaint for reasons
+// that are not edits (a check answering, "Gerando…"), so each is
+// `data-mutation-free` (see .claude/rules/css-and-docs-rendering.md): a
+// generation that failed must not leave the page "Não salvo".
 
 import {mountUml} from '../docs-uml'
 
@@ -106,6 +115,10 @@ export default class UmlTool {
         this.readOnly = readOnly
         this.timer = null
         this.checkUrl = config?.umlCheckUrl || ''
+        this.draftUrl = config?.umlDraftUrl || ''
+        this.busy = false
+        // The JSON a generation replaced, for "Desfazer".
+        this.previous = null
         this.checkTimer = null
         this.ticket = 0
         // slug → logo URL, as the server check last answered it.
@@ -143,6 +156,7 @@ export default class UmlTool {
         const status = document.createElement('p')
         status.className = 'ak-uml-tool__status'
         status.setAttribute('role', 'status')
+        status.dataset.mutationFree = 'true'
         this.statuses.add(status)
 
         // The preview box is the positioned frame the fullscreen button sits on.
@@ -180,7 +194,17 @@ export default class UmlTool {
         })
 
         head.append(type, title)
-        wrap.append(head, status, preview)
+        wrap.append(head)
+        if (this.draftUrl && !this.readOnly) {
+            // What a generation brought back — muted, apart from the status
+            // line, which is the validator's and reads as a warning.
+            this.noteEl = document.createElement('p')
+            this.noteEl.className = 'ak-uml-tool__note'
+            this.noteEl.setAttribute('role', 'status')
+            this.noteEl.dataset.mutationFree = 'true'
+            wrap.append(this.renderDraftRow(), this.noteEl)
+        }
+        wrap.append(status, preview)
         // After the block is in the document: the renderer measures text with
         // the font the preview is set in.
         requestAnimationFrame(() => this.paint())
@@ -194,6 +218,129 @@ export default class UmlTool {
 
     get status() {
         return [...this.statuses][0]?.textContent || ''
+    }
+
+    setNote(text) {
+        if (this.noteEl) this.noteEl.textContent = text
+    }
+
+    /* -------------------------------------------------------------- */
+    /*  "Gerar com IA"                                                 */
+    /* -------------------------------------------------------------- */
+
+    renderDraftRow() {
+        const row = document.createElement('div')
+        row.className = 'ak-uml-tool__ai'
+        row.dataset.mutationFree = 'true'
+
+        this.instruction = document.createElement('input')
+        this.instruction.type = 'text'
+        this.instruction.className = 'ak-uml-tool__instruction'
+        this.instruction.maxLength = 600
+        this.instruction.placeholder = 'Descreva o diagrama ou a mudança (opcional) — ex.: o pedido do VTEX ao SAP, via Digibee'
+        this.instruction.setAttribute('aria-label', 'O que o diagrama deve mostrar')
+        this.instruction.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return
+            e.preventDefault()
+            this.generate()
+        })
+
+        this.generateBtn = document.createElement('button')
+        this.generateBtn.type = 'button'
+        this.generateBtn.className = 'ak-uml-tool__generate'
+        this.generateBtn.textContent = 'Gerar com IA'
+        this.generateBtn.addEventListener('click', () => this.generate())
+
+        this.undoBtn = document.createElement('button')
+        this.undoBtn.type = 'button'
+        this.undoBtn.className = 'ak-uml-tool__undo'
+        this.undoBtn.textContent = 'Desfazer'
+        this.undoBtn.title = 'Voltar ao diagrama de antes da geração'
+        this.undoBtn.hidden = true
+        this.undoBtn.addEventListener('click', () => this.undo())
+
+        row.append(this.instruction, this.generateBtn, this.undoBtn)
+
+        return row
+    }
+
+    isSkeleton() {
+        return this.data.source.trim() === skeleton(this.data.type).trim()
+    }
+
+    async generate() {
+        if (!this.draftUrl || this.busy) return
+
+        const instruction = this.instruction.value.trim()
+        // A diagram of the author's own and nothing asked: this starts over.
+        if (!this.isSkeleton() && !instruction
+            && !window.confirm('Gerar um diagrama novo a partir da página? O diagrama atual será substituído (dá para desfazer).')) return
+
+        this.setBusy(true)
+        try {
+            // The page as it is NOW in the editor, as the scene block sends it:
+            // the paragraph just written is usually the one the diagram is for.
+            const content = typeof window.__akDocsGetMarkdown === 'function' ? await window.__akDocsGetMarkdown() : null
+            const response = await fetch(this.draftUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: JSON.stringify({
+                    type: this.data.type,
+                    title: this.data.title || null,
+                    instruction: instruction || null,
+                    content,
+                    // With something asked, the block's own diagram is what changes.
+                    source: !this.isSkeleton() && instruction ? this.data.source : null,
+                }),
+            })
+            const data = await response.json().catch(() => null)
+            if (!response.ok || typeof data?.source !== 'string') {
+                throw new Error(data?.message || 'Não foi possível gerar agora. Tente de novo.')
+            }
+
+            this.previous = this.data.source
+            this.data.source = data.source
+            this.logos = data.logos || {}
+            if (this.source) this.source.value = data.source
+            this.undoBtn.hidden = false
+            const left = (data.problems?.length || 0) + (data.warnings?.length || 0)
+            this.setNote(left
+                ? 'Diagrama gerado, com pontos a corrigir no código (listados abaixo). Revise antes de publicar.'
+                : 'Diagrama gerado. Revise antes de publicar.')
+            this.changed()
+        } catch (error) {
+            window.Toast?.open({title: 'Diagrama UML', content: error.message, type: 'warning'})
+            this.setNote('')
+        } finally {
+            this.setBusy(false)
+        }
+    }
+
+    undo() {
+        if (this.previous === null) return
+        this.data.source = this.previous
+        if (this.source) this.source.value = this.previous
+        this.forgetGeneration()
+        this.changed()
+    }
+
+    /** After an undo, or once the author edits the JSON by hand. */
+    forgetGeneration() {
+        this.previous = null
+        this.setNote('')
+        if (this.undoBtn) this.undoBtn.hidden = true
+    }
+
+    setBusy(busy) {
+        this.busy = busy
+        this.generateBtn.disabled = busy
+        this.instruction.disabled = busy
+        this.generateBtn.textContent = busy ? 'Gerando…' : 'Gerar com IA'
+        if (busy) this.setNote('Lendo a página e montando o diagrama — leva alguns segundos.')
     }
 
     /**
@@ -234,6 +381,7 @@ export default class UmlTool {
         source.readOnly = this.readOnly
         source.addEventListener('input', () => {
             this.data.source = source.value
+            this.forgetGeneration()
             this.changed()
         })
         // Tab indents instead of leaving the field: this is code.
