@@ -953,7 +953,8 @@ dialog[open]::backdrop {
     opacity: 0.85;
     transition: opacity 0.15s, color 0.15s, border-color 0.15s;
 }
-.ak-uml-toggle--zoom { right: 2.75rem; }
+.ak-uml-toggle--zoom,
+.ak-uml-toggle--code { right: 2.75rem; }
 .ak-uml-toggle[hidden] { display: none; }
 .ak-uml-toggle svg { width: 1rem; height: 1rem; }
 .ak-uml-toggle:hover,

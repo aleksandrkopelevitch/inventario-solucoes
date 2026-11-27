@@ -22,7 +22,14 @@
 
     `renderUml(diagram, measure)` is pure — it returns the SVG markup and its
     natural size — so the editor's preview, the reader and a node script can
-    all call it. The figure gets one button: "Tela cheia".
+    all call it. The figure gets one button: "Tela cheia" (the editor's
+    preview a second one, "Código", which opens the block's JSON).
+
+    An element bound to a catalog solution (`"solution": "<slug>"`) whose
+    solution has a logo wears it as a badge straddling its top-left corner.
+    The logos are NOT part of the diagram: the reader is handed them beside it
+    (`data-ak-uml-logos`, resolved per render by GitbookRenderer) and the
+    editor's block by the server check, as `{slug: url}`.
 --------------------------------------------------*/
 
 const FONT = {size: 12.5, weight: 400}
@@ -105,6 +112,7 @@ const figureStyle = (uid) => `<style>
 .uml-halo{paint-order:stroke;stroke:#ffffff;stroke-width:4px;stroke-linejoin:round}
 .uml-i{font-style:italic}
 .uml-u{text-decoration:underline}
+.uml-logo{fill:#ffffff;stroke:#d4d4d8;stroke-width:1}
 #${uid} .uml-box{fill:url(#${uid}-fill)}
 #${uid} .uml-head{fill:url(#${uid}-head)}
 #${uid} .uml-note{fill:url(#${uid}-note)}
@@ -114,6 +122,23 @@ const figureStyle = (uid) => `<style>
 <linearGradient id="${uid}-head" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f4f5"/><stop offset="1" stop-color="#d9d9de"/></linearGradient>
 <linearGradient id="${uid}-note" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e4f0fd"/></linearGradient>
 </defs>`
+
+/*
+ * A solution's logo, as a badge CENTRED on an element's corner: half of it
+ * outside the outline, so the name (centred, and at least 13 px below the top
+ * edge in every bound kind) is never covered. 24 px stays legible when the
+ * figure shrinks to the column, and is a corner, not a second element.
+ */
+const BADGE = 24
+
+function badge(url, x, y) {
+    if (!url) return ''
+    const h = BADGE / 2
+    const pad = 3
+
+    return `<g class="uml-badge"><rect x="${r1(x - h)}" y="${r1(y - h)}" width="${BADGE}" height="${BADGE}" rx="6" class="uml-logo"/>`
+        + `<image href="${esc(url)}" x="${r1(x - h + pad)}" y="${r1(y - h + pad)}" width="${BADGE - 2 * pad}" height="${BADGE - 2 * pad}" preserveAspectRatio="xMidYMid meet"/></g>`
+}
 
 function text(x, y, value, cls = 'uml-t', anchor = 'middle', extra = '') {
     return `<text x="${r1(x)}" y="${r1(y)}" text-anchor="${anchor}" dominant-baseline="middle" class="${cls}"${extra}>${esc(value)}</text>`
@@ -157,13 +182,13 @@ function noteShape(x, y, w, h) {
 }
 
 /** The pentagon tag in the top-left corner of a frame ("alt", "ref", "loop"…). */
-function frameTag(x, y, label, measure) {
-    const w = measure(label, BOLD) + 18
+function frameTag(x, y, label, measure, indent = 0) {
+    const w = measure(label, BOLD) + 18 + indent
 
     return {
         width: w,
         svg: `<path d="M${r1(x)} ${r1(y)}H${r1(x + w)}V${r1(y + 13)}L${r1(x + w - 7)} ${r1(y + 20)}H${r1(x)}Z" class="uml-tag"/>`
-            + text(x + 7, y + 10.5, label, 'uml-b', 'start'),
+            + text(x + 7 + indent, y + 10.5, label, 'uml-b', 'start'),
     }
 }
 
@@ -223,6 +248,10 @@ function headSize(p, measure) {
 }
 
 function drawHead(p, cx, top, size) {
+    return drawHeadShape(p, cx, top, size) + badge(p._logo, cx - size.w / 2, top)
+}
+
+function drawHeadShape(p, cx, top, size) {
     const {w, h} = size
     const icon = top + 2
 
@@ -629,6 +658,11 @@ function sizeNode(node, measure) {
 }
 
 function drawNode(node, box, measure) {
+    // A node's box starts 10 px down, under its 3D top.
+    return drawNodeShape(node, box, measure) + badge(node._logo, box.x, box.y + (node.kind === 'node' ? 10 : 0))
+}
+
+function drawNodeShape(node, box, measure) {
     const {x, y, w, h} = box
     const cx = x + w / 2
     const cy = y + h / 2
@@ -875,6 +909,7 @@ function renderGrid(d, measure) {
         }
         if (b.node.kind === 'port' && (b.node.name || b.node.stereotype)) grow(b.x + b.w + 10 + measure(`«${b.node.stereotype || ''}» ${b.node.name || ''}`, FONT), b.y)
         if (b.size.template) grow(b.x + b.w + 8, b.y - 12)
+        if (b.node._logo) grow(b.x - BADGE / 2, b.y - BADGE / 2)
     })
 
     // Frames, outermost first so an inner one paints over it.
@@ -891,23 +926,29 @@ function renderGrid(d, measure) {
         const w = x2 - x1
         const h = y2 - y1
         const label = g.label || ''
+        // A badge on the corner pushes a label that starts there past it.
+        const indent = g._logo ? 8 : 0
+        // A package's corner is its tab's.
+        const corner = g.kind === 'package' ? y1 - 20 : y1
+        if (g._logo) grow(x1 - BADGE / 2, corner - BADGE / 2)
         if (g.kind === 'package') {
-            const tw = Math.max(60, measure(label, BOLD) + 20)
+            const tw = Math.max(60, measure(label, BOLD) + 20 + indent)
             svg.push(`<rect x="${r1(x1)}" y="${r1(y1 - 20)}" width="${r1(tw)}" height="21" class="uml-group"/>`
                 + `<rect x="${r1(x1)}" y="${r1(y1)}" width="${r1(w)}" height="${r1(h)}" class="uml-group"/>`
-                + text(x1 + 10, y1 - 9.5, label, 'uml-b', 'start'))
+                + text(x1 + 10 + indent, y1 - 9.5, label, 'uml-b', 'start'))
         } else if (g.kind === 'node') {
             svg.push(`<path d="M${r1(x1)} ${r1(y1)}L${r1(x1 + 12)} ${r1(y1 - 12)}H${r1(x2 + 12)}V${r1(y2 - 12)}L${r1(x2)} ${r1(y2)}" class="uml-group"/>`
                 + `<rect x="${r1(x1)}" y="${r1(y1)}" width="${r1(w)}" height="${r1(h)}" class="uml-group"/>`
                 + line(x2, y1, x2 + 12, y1 - 12, 'uml-frame')
-                + text(x1 + 10, y1 + 13, label, 'uml-b', 'start'))
+                + text(x1 + 10 + indent, y1 + 13, label, 'uml-b', 'start'))
         } else if (g.kind === 'frame') {
-            const tag = frameTag(x1, y1, label || 'frame', measure)
+            const tag = frameTag(x1, y1, label || 'frame', measure, indent)
             svg.push(`<rect x="${r1(x1)}" y="${r1(y1)}" width="${r1(w)}" height="${r1(h)}" class="uml-group"/>` + tag.svg)
         } else {
             svg.push(`<rect x="${r1(x1)}" y="${r1(y1)}" width="${r1(w)}" height="${r1(h)}" rx="4" class="uml-group"/>`
                 + text(x1 + w / 2, y1 + 13, label, 'uml-b'))
         }
+        svg.push(badge(g._logo, x1, corner))
     })
 
     // Relations: straight, clipped at each outline; parallels fan out.
@@ -922,6 +963,7 @@ function renderGrid(d, measure) {
     const crossings = []
     // Everything a label must not land on: the boxes, then each label placed.
     const taken = [...boxes.values()].map((b) => ({x: b.x - 3, y: b.y - 3, w: b.w + 6, h: b.h + 6}))
+    boxes.forEach((b) => b.node._logo && taken.push({x: b.x - BADGE / 2, y: b.y - BADGE / 2, w: BADGE, h: BADGE}))
     const free = (r) => !taken.some((t) => r.x < t.x + t.w && t.x < r.x + r.w && r.y < t.y + t.h && t.y < r.y + r.h)
     const place = (r) => { taken.push(r); grow(r.x, r.y); grow(r.x + r.w, r.y + r.h) }
     edges.forEach((e) => {
@@ -1070,17 +1112,23 @@ function normalizeItems(items, ids) {
 }
 
 function normalize(d) {
+    // `_logo`: the badge an element bound to a solution wears, when that
+    // solution has a logo. The map comes from the page, never from the author.
+    const logos = d.logos && typeof d.logos === 'object' ? d.logos : {}
+    const logoOf = (item) => (typeof item.solution === 'string' && typeof logos[item.solution] === 'string' ? logos[item.solution] : null)
+
     if (d.type === 'sequence') {
-        const participants = (Array.isArray(d.participants) ? d.participants : []).filter((p) => p && p.id).map((p) => ({kind: 'object', label: p.id, ...p}))
+        const participants = (Array.isArray(d.participants) ? d.participants : []).filter((p) => p && p.id)
+            .map((p) => ({kind: 'object', label: p.id, ...p, _logo: logoOf(p)}))
 
         return {...d, participants, messages: normalizeItems(d.messages, new Set(participants.map((p) => p.id)))}
     }
 
     return {
         ...d,
-        nodes: (Array.isArray(d.nodes) ? d.nodes : []).filter((n) => n && n.id).map((n) => ({kind: 'class', ...n})),
+        nodes: (Array.isArray(d.nodes) ? d.nodes : []).filter((n) => n && n.id).map((n) => ({kind: 'class', ...n, _logo: logoOf(n)})),
         edges: (Array.isArray(d.edges) ? d.edges : []).filter((e) => e && e.from && e.to).map((e) => ({kind: 'association', ...e})),
-        groups: (Array.isArray(d.groups) ? d.groups : []).filter((g) => g && Array.isArray(g.nodes)),
+        groups: (Array.isArray(d.groups) ? d.groups : []).filter((g) => g && Array.isArray(g.nodes)).map((g) => ({...g, _logo: logoOf(g)})),
     }
 }
 
@@ -1116,6 +1164,8 @@ const EXPAND_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" 
 const COLLAPSE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25"/></svg>'
 const ACTUAL_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607ZM10.5 7.5v6m3-3h-6"/></svg>'
 
+const CODE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5"/></svg>'
+
 const mounted = new WeakMap()
 
 function isExpanded(stage) {
@@ -1129,6 +1179,9 @@ function syncButtons(stage, state) {
     state.expand.setAttribute('aria-label', label)
     state.expand.title = label
     state.zoom.hidden = !expanded
+    // The code opens in a dialog of the page, which has no place over a
+    // fullscreen stage — and a full screen is for reading the picture.
+    if (state.code) state.code.hidden = expanded
     stage.classList.toggle('is-actual', expanded && state.actual)
     const zoomLabel = state.actual ? 'Ajustar à tela' : 'Tamanho real'
     state.zoom.setAttribute('aria-label', zoomLabel)
@@ -1154,12 +1207,22 @@ function button(className, onClick) {
  * Draws `diagram` into `stage` (the reader's figure or the editor's preview)
  * and gives it the fullscreen button. Native fullscreen where the browser
  * offers it on an element; a fixed overlay where it does not (iPhone Safari).
+ *
+ * `onCode`, passed by the editor's block on its first mount, adds the
+ * "Código" button beside it: the block keeps its JSON out of sight and opens
+ * it from the diagram.
  */
-export function mountUml(stage, diagram) {
+export function mountUml(stage, diagram, {onCode = null} = {}) {
     let state = mounted.get(stage)
 
     if (!state) {
-        state = {diagram: null, actual: false}
+        state = {diagram: null, actual: false, code: null}
+        if (onCode) {
+            state.code = button('ak-uml-toggle ak-uml-toggle--code', onCode)
+            state.code.innerHTML = CODE_ICON
+            state.code.setAttribute('aria-label', 'Código do diagrama')
+            state.code.title = 'Código do diagrama'
+        }
         state.expand = button('ak-uml-toggle ak-uml-toggle--expand', () => {
             if (isExpanded(stage)) {
                 if (document.fullscreenElement === stage) document.exitFullscreen?.()
@@ -1207,7 +1270,7 @@ function paint(stage, state) {
     // Inline it shrinks to the column, but never below 60% of its size: past
     // that the labels stop being legible, and the stage scrolls instead.
     stage.firstElementChild.style.minWidth = `${Math.round(width * 0.6)}px`
-    stage.append(state.zoom, state.expand)
+    stage.append(...[state.code, state.zoom, state.expand].filter(Boolean))
     syncButtons(stage, state)
 
     return {warnings}
@@ -1217,11 +1280,14 @@ function paint(stage, state) {
 export function init() {
     document.querySelectorAll('figure[data-ak-uml]:not([data-ak-uml-ready])').forEach((figure) => {
         let diagram
+        let logos
         try {
             diagram = JSON.parse(figure.dataset.akUml || 'null')
+            logos = JSON.parse(figure.dataset.akUmlLogos || '{}')
         } catch {
             return
         }
+        if (diagram && logos) diagram.logos = logos
 
         const stage = figure.querySelector('[data-ak-uml-stage]')
         if (!diagram || !stage) return

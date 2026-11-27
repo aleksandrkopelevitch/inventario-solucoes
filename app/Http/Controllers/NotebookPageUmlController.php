@@ -7,6 +7,7 @@ use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Support\Documentation\UmlDiagram;
 use App\Support\Documentation\UmlSolutionBindings;
+use App\Support\GitbookRenderer;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -20,7 +21,8 @@ use Illuminate\Http\JsonResponse;
  * It also reads the diagram's catalog BINDINGS (`"solution": "<slug>"`,
  * UmlSolutionBindings): a slug the catalog does not have is a problem — the
  * page would draw the diagram, but no relationship would come of it — and an
- * unbound element named like a solution is a HINT, never a refusal.
+ * unbound element named like a solution is a HINT, never a refusal. And it
+ * answers the bound solutions' logos, which the preview draws as badges.
  *
  * Writes nothing. The page is in the route only for the authorization and the
  * URL shape the scene block already uses.
@@ -36,7 +38,7 @@ class NotebookPageUmlController extends Controller
         );
 
         if ($parsed['diagram'] === null) {
-            return response()->json(['problems' => $parsed['problems'], 'bindings' => [], 'hints' => []]);
+            return response()->json(['problems' => $parsed['problems'], 'bindings' => [], 'hints' => [], 'logos' => (object) []]);
         }
 
         // The page draws a diagram with an unknown slug — it only derives no
@@ -44,6 +46,13 @@ class NotebookPageUmlController extends Controller
         // block words as "a página vai mostrar este diagrama como erro".
         $check = $bindings->check($parsed['diagram']);
 
-        return response()->json(['problems' => [], 'bindings' => $check['problems'], 'hints' => $check['hints']]);
+        return response()->json([
+            'problems' => [],
+            'bindings' => $check['problems'],
+            'hints'    => $check['hints'],
+            // The badges the reader draws on bound elements, so the preview
+            // draws them too.
+            'logos' => (object) GitbookRenderer::umlLogos(UmlSolutionBindings::slugsOf($parsed['diagram'])),
+        ]);
     }
 }

@@ -29,7 +29,7 @@ function longMarkdown(string $extra): string
 
 it('serves a large page from the cache instead of parsing it again', function () {
     $markdown = longMarkdown('Fim.');
-    $key = 'gitbook-render:v3:' . md5(implode("\0", [$markdown, url('/'), '']));
+    $key = 'gitbook-render:v4:' . md5(implode("\0", [$markdown, url('/'), '']));
 
     expect(cache()->has($key))->toBeFalse();
 
@@ -41,7 +41,7 @@ it('serves a large page from the cache instead of parsing it again', function ()
     // A short page is not worth the round trip: parsed every time, never stored.
     $short = "# Curta\n\nTexto.";
     app(GitbookRenderer::class)->render($short);
-    expect(cache()->has('gitbook-render:v3:' . md5(implode("\0", [$short, url('/'), '']))))->toBeFalse();
+    expect(cache()->has('gitbook-render:v4:' . md5(implode("\0", [$short, url('/'), '']))))->toBeFalse();
 });
 
 it('sees a file renamed or replaced after the page was cached', function () {

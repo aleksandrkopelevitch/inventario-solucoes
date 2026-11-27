@@ -148,6 +148,34 @@ they sit on the screen's corner. Fit vs 1:1 uses `margin: auto` on the SVG, not
 `justify-content: center`, which makes the left edge of an overflowing diagram
 unreachable.
 
+**In the editor the JSON is out of sight (since 2026-11-27).** The "Diagrama
+UML" block shows its type, its title and the diagram; the JSON opens in
+`#main-modal` from a "Código" `.ak-uml-toggle` beside "Tela cheia" (hidden in
+fullscreen), via `mountUml(stage, diagram, {onCode})` — the reader passes no
+`onCode` and gets no such button. Typing there edits the block as the inline
+field did (data, `dispatchChange()`, the preview redrawing behind the dialog),
+and the status line is mirrored under the field. Two things that are easy to
+break:
+
+- **The click that opens it is what makes the typing an edit.** The dialog is
+  outside `[data-ak-docs-editor]`, so docs-editor.js's `userEdited` never sees
+  its keystrokes; the trusted click on "Código" (a button inside the editor
+  that is not text) is what arms autosave. A synthetic `.click()` does not, so
+  a browser test must click through CDP `Input.dispatchMouseEvent`.
+- **A diagram that cannot be drawn keeps a door to its code**
+  (`.ak-uml-tool__code`, "Abrir o código do diagrama"): the toggles go with the
+  picture, and the JSON is the only way to fix it.
+
+**A bound element wears its solution's logo** as a 24 px badge centred on its
+top-left corner (a package group's tab, a `node`'s box under the 3D top). A
+group's left-anchored label moves past it. The logos are catalog state, so they
+are NOT in the parse: `renderUml()` writes only the slugs
+(`data-ak-uml-bound`), and `GitbookRenderer::resolveUmlLogos()` swaps them,
+per render and in one query, for `data-ak-uml-logos` (`{slug: url}`, the
+`PublicImage` thumbnail). Put them inside the parse and a changed logo waits 30
+days for the cache. The editor's check answers the same map (`logos`) and the
+block redraws once with it. A slug with no logo, or no solution, draws no badge.
+
 **The guide teaches only what the validator accepts.** The playbook and the
 syntax a model reads live in `resources/data/mcp/code-documentation-guide.md`
 (served by `get_code_documentation_guide`, pointed at from `initialize`), and

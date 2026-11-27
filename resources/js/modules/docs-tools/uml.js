@@ -3,7 +3,15 @@
 // The block holds the diagram's type, its title and its JSON body VERBATIM
 // (`source`), and previews it with the reader's own renderer (docs-uml.js's
 // mountUml), so what the author sees is what the page will draw, fullscreen
-// button included. The JSON is the source of truth on purpose: it is what a
+// button included. The JSON is NOT on the block: it opens from the diagram's
+// "Código" button in `#main-modal`, and the preview behind it redraws as it
+// is typed. A page of diagrams used to read as a page of JSON. (That click
+// is a click inside the editor on something that is not text, so it is what
+// lets docs-editor.js take the typing in the dialog — outside the editor —
+// as an edit; see `userEdited` there.)
+//
+// The server check also answers each bound solution's logo (`logos`), which
+// the preview then draws as a corner badge, the way the reader does. The JSON is the source of truth on purpose: it is what a
 // model writes through the MCP server, and one notation edited by both is the
 // only way the two never drift. The SERVER is the judge of a valid diagram
 // (App\Support\Documentation\UmlDiagram), and the block ASKS it
@@ -100,6 +108,10 @@ export default class UmlTool {
         this.checkUrl = config?.umlCheckUrl || ''
         this.checkTimer = null
         this.ticket = 0
+        // slug → logo URL, as the server check last answered it.
+        this.logos = {}
+        // The block's status line, and its copy in the open code dialog.
+        this.statuses = new Set()
     }
 
     render() {
@@ -126,17 +138,12 @@ export default class UmlTool {
         title.placeholder = 'Título (opcional)'
         title.value = this.data.title
 
-        const source = document.createElement('textarea')
-        source.className = 'ak-uml-tool__source'
-        source.spellcheck = false
-        source.rows = 10
-        source.placeholder = 'JSON do diagrama'
-        source.value = this.data.source || skeleton(this.data.type)
-        if (!this.data.source) this.data.source = source.value
+        if (!this.data.source) this.data.source = skeleton(this.data.type)
 
         const status = document.createElement('p')
         status.className = 'ak-uml-tool__status'
         status.setAttribute('role', 'status')
+        this.statuses.add(status)
 
         // The preview box is the positioned frame the fullscreen button sits on.
         const preview = document.createElement('div')
@@ -149,41 +156,129 @@ export default class UmlTool {
         if (this.readOnly) {
             type.disabled = true
             title.readOnly = true
-            source.readOnly = true
         }
 
-        const changed = () => {
+        this.stage = stage
+        this.changed = () => {
             this.block?.dispatchChange()
             clearTimeout(this.timer)
-            this.timer = setTimeout(() => this.paint(stage, status), 250)
+            this.timer = setTimeout(() => this.paint(), 250)
         }
 
         type.addEventListener('change', () => {
             // An untouched skeleton follows the type; anything typed stays.
-            if (source.value.trim() === skeleton(this.data.type).trim()) source.value = skeleton(type.value)
+            if (this.data.source.trim() === skeleton(this.data.type).trim()) {
+                this.data.source = skeleton(type.value)
+                if (this.source) this.source.value = this.data.source
+            }
             this.data.type = type.value
-            this.data.source = source.value
-            changed()
+            this.changed()
         })
         title.addEventListener('input', () => {
             this.data.title = title.value
-            changed()
-        })
-        source.addEventListener('input', () => {
-            this.data.source = source.value
-            changed()
+            this.changed()
         })
 
         head.append(type, title)
-        wrap.append(head, source, status, preview)
+        wrap.append(head, status, preview)
         // After the block is in the document: the renderer measures text with
         // the font the preview is set in.
-        requestAnimationFrame(() => this.paint(stage, status))
+        requestAnimationFrame(() => this.paint())
 
         return wrap
     }
 
-    paint(stage, status) {
+    setStatus(text) {
+        this.statuses.forEach((el) => { el.textContent = text })
+    }
+
+    get status() {
+        return [...this.statuses][0]?.textContent || ''
+    }
+
+    /**
+     * The JSON, in the shared `#main-modal`. Typing there edits the block like
+     * the field it replaced did: the data, the change, the preview behind the
+     * dialog, and the status — mirrored under the field, since the block's own
+     * is out of sight while the dialog is open.
+     */
+    openCode() {
+        const modal = document.getElementById('main-modal')
+        if (!modal || !window.Modal) {
+            window.Toast?.show('Não consegui abrir o código do diagrama.', 'warning')
+
+            return
+        }
+
+        const shell = document.createElement('div')
+        shell.className = 'flex max-h-[85vh] flex-col'
+
+        const header = document.createElement('div')
+        header.className = 'border-b border-line px-6 py-4'
+        const heading = document.createElement('h2')
+        heading.className = 'text-base font-bold text-ink'
+        heading.textContent = this.data.title ? `Código — ${this.data.title}` : 'Código do diagrama'
+        const hint = document.createElement('p')
+        hint.className = 'mt-0.5 text-xs text-muted'
+        hint.textContent = this.readOnly
+            ? `${TYPES[this.data.type]}, em JSON.`
+            : `${TYPES[this.data.type]}, em JSON. O diagrama atrás desta janela se redesenha enquanto você digita.`
+        header.append(heading, hint)
+
+        const source = document.createElement('textarea')
+        source.className = 'ak-uml-tool__source ak-uml-tool__source--dialog'
+        source.spellcheck = false
+        source.placeholder = 'JSON do diagrama'
+        source.setAttribute('aria-label', 'JSON do diagrama')
+        source.value = this.data.source
+        source.readOnly = this.readOnly
+        source.addEventListener('input', () => {
+            this.data.source = source.value
+            this.changed()
+        })
+        // Tab indents instead of leaving the field: this is code.
+        source.addEventListener('keydown', (e) => {
+            if (e.key !== 'Tab' || e.shiftKey || this.readOnly) return
+            e.preventDefault()
+            document.execCommand('insertText', false, '  ')
+        })
+
+        const status = document.createElement('p')
+        status.className = 'ak-uml-tool__status'
+        status.setAttribute('role', 'status')
+        status.textContent = this.status
+
+        const footer = document.createElement('div')
+        footer.className = 'flex justify-end px-6 py-4'
+        const close = document.createElement('button')
+        close.type = 'button'
+        close.dataset.close = ''
+        close.className = 'rounded-field border border-line-2 bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-canvas'
+        close.textContent = 'Fechar'
+        footer.append(close)
+
+        const field = document.createElement('div')
+        field.className = 'flex min-h-0 flex-1 flex-col px-6 pt-4'
+        field.append(source, status)
+
+        shell.append(header, field, footer)
+        modal.querySelector('[data-content]').replaceChildren(shell)
+        modal.querySelector('[data-loading]')?.classList.add('hidden')
+        window.Modal.open('main-modal', true)
+
+        this.source = source
+        this.statuses.add(status)
+        modal.addEventListener('close', () => {
+            this.statuses.delete(status)
+            if (this.source === source) this.source = null
+        }, {once: true})
+        // At the top: focus alone puts the caret, and the scroll, at the end.
+        source.focus({preventScroll: true})
+        source.setSelectionRange(0, 0)
+        source.scrollTop = 0
+    }
+
+    paint() {
         // Whatever an older server question answers no longer describes this text.
         this.ticket++
         clearTimeout(this.checkTimer)
@@ -191,20 +286,46 @@ export default class UmlTool {
         try {
             body = JSON.parse(this.data.source || '{}')
         } catch (error) {
-            status.textContent = `JSON inválido: ${error.message}`
-            stage.replaceChildren()
+            this.setStatus(`JSON inválido: ${error.message}`)
+            this.mount(null)
 
             return
         }
 
         try {
-            const {warnings} = mountUml(stage, {...body, type: this.data.type, title: this.data.title})
-            status.textContent = warnings.length ? `Aviso: ${warnings.join(' ')} Mova um dos elementos para outra célula.` : ''
-            this.askServer(status)
+            const {warnings} = this.mount({...body, type: this.data.type, title: this.data.title, logos: this.logos})
+            this.setStatus(warnings.length ? `Aviso: ${warnings.join(' ')} Mova um dos elementos para outra célula.` : '')
+            this.askServer(body)
         } catch (error) {
-            status.textContent = `${error?.message || 'Não foi possível desenhar este diagrama.'} Confira os ids, os "kind" e as posições "at"; ao salvar, a página lista cada problema.`
-            stage.replaceChildren()
+            this.setStatus(`${error?.message || 'Não foi possível desenhar este diagrama.'} Confira os ids, os "kind" e as posições "at"; ao salvar, a página lista cada problema.`)
+            this.mount(null)
         }
+    }
+
+    /**
+     * Draws into the preview, or — for a diagram that cannot be drawn — leaves
+     * only the "Código" button there: the JSON is the way to fix it, and it
+     * has no other door.
+     */
+    mount(diagram) {
+        const stage = this.stage
+        if (diagram) return mountUml(stage, diagram, {onCode: () => this.openCode()})
+
+        stage.replaceChildren()
+        if (!this.fallbackCode) {
+            this.fallbackCode = document.createElement('button')
+            this.fallbackCode.type = 'button'
+            this.fallbackCode.className = 'ak-uml-tool__code'
+            this.fallbackCode.textContent = 'Abrir o código do diagrama'
+            this.fallbackCode.addEventListener('click', (e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                this.openCode()
+            })
+        }
+        stage.append(this.fallbackCode)
+
+        return {warnings: []}
     }
 
     /**
@@ -213,7 +334,7 @@ export default class UmlTool {
      * answer is shown — an answer to an older text is dropped. A failed
      * request says nothing: the preview is still right about what it draws.
      */
-    askServer(status) {
+    askServer(body) {
         if (!this.checkUrl || this.readOnly) return
         const ticket = ++this.ticket
         clearTimeout(this.checkTimer)
@@ -229,12 +350,22 @@ export default class UmlTool {
                     body: JSON.stringify({type: this.data.type, title: this.data.title, source: this.data.source}),
                 })
                 if (!response.ok || ticket !== this.ticket) return
-                const {problems = [], bindings = [], hints = []} = await response.json()
+                const {problems = [], bindings = [], hints = [], logos = {}} = await response.json()
                 if (ticket !== this.ticket) return
                 if (problems.length) {
-                    status.textContent = `A página vai mostrar este diagrama como erro: ${problems.join(' · ')}`
+                    this.setStatus(`A página vai mostrar este diagrama como erro: ${problems.join(' · ')}`)
 
                     return
+                }
+                // New logos redraw the preview with their badges — without
+                // asking again: nothing about the text changed.
+                if (JSON.stringify(logos) !== JSON.stringify(this.logos)) {
+                    this.logos = logos
+                    try {
+                        this.mount({...body, type: this.data.type, title: this.data.title, logos})
+                    } catch {
+                        // It drew a moment ago; the badges are decoration.
+                    }
                 }
                 // The diagram draws; these only concern the catalog
                 // relationships it states. A hint is a suggestion, never a
@@ -243,7 +374,7 @@ export default class UmlTool {
                     ...(bindings.length ? [`Vínculo sem efeito: ${bindings.join(' · ')}`] : []),
                     ...(hints.length ? [`Dica: ${hints.join(' · ')}`] : []),
                 ]
-                if (notes.length) status.textContent = [status.textContent, ...notes].filter(Boolean).join(' ')
+                if (notes.length) this.setStatus([this.status, ...notes].filter(Boolean).join(' '))
             } catch {
                 // Unreachable server: the preview stays the only word.
             }

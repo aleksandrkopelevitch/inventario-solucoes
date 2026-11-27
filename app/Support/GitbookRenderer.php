@@ -13,6 +13,7 @@ use App\Support\Documentation\TimelineScene;
 use App\Support\Documentation\TreeScene;
 use App\Support\Documentation\UmlDiagram;
 use App\Support\Documentation\UmlSolutionBindings;
+use App\Support\Images\PublicImage;
 use Illuminate\Support\Facades\Cache;
 use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
@@ -150,11 +151,11 @@ class GitbookRenderer
         // page was edited under them still opens the value they clicked.
         $markdown = SecretText::replace($markdown, fn (string $address): string => self::secretToken($address));
 
-        return $this->resolvePageLinks($this->paintSecrets($this->deferImages($this->parsed($markdown))));
+        return $this->resolveUmlLogos($this->resolvePageLinks($this->paintSecrets($this->deferImages($this->parsed($markdown)))));
     }
 
     /** Bumped when `renderLines()`'s output changes shape — old entries then miss. */
-    private const PARSE_CACHE_VERSION = 'v3';
+    private const PARSE_CACHE_VERSION = 'v4';
 
     /** Below this many characters a parse costs less than the cache round trip. */
     private const PARSE_CACHE_MIN_LENGTH = 4096;
@@ -313,6 +314,57 @@ class GitbookRenderer
             },
             $html,
         );
+    }
+
+    /**
+     * Hands each UML figure the logos of the catalog solutions it is bound to,
+     * which docs-uml.js draws as a badge on the bound element's corner.
+     *
+     * After the parse, not in it: the parse is cached for 30 days and a logo is
+     * catalog state, so a figure only carries the SLUGS it binds
+     * (`data-ak-uml-bound`, written by `renderUml()`), and this pass — one query
+     * for every figure on the page, none for a page binding nothing — swaps
+     * them for `data-ak-uml-logos`, `{slug: url}`. A slug with no logo, or no
+     * solution, is simply absent: the element is drawn without a badge.
+     */
+    private function resolveUmlLogos(string $html): string
+    {
+        if (! preg_match_all('/data-ak-uml-bound="([^"]*)"/', $html, $m)) {
+            return $html;
+        }
+
+        $slugs = array_values(array_unique(array_filter(explode(' ', implode(' ', $m[1])))));
+        $logos = $slugs === [] ? [] : self::umlLogos($slugs);
+
+        return (string) preg_replace_callback(
+            '/data-ak-uml-bound="([^"]*)"/',
+            fn (array $match): string => 'data-ak-uml-logos="'
+                . e(json_encode((object) array_intersect_key($logos, array_flip(array_filter(explode(' ', $match[1])))), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE))
+                . '"',
+            $html,
+        );
+    }
+
+    /**
+     * slug → logo URL (its thumbnail when it has one), for the solutions among
+     * `$slugs` that have a logo. Also what the editor's UML block is answered.
+     *
+     * @param  list<string>  $slugs
+     * @return array<string, string>
+     */
+    public static function umlLogos(array $slugs): array
+    {
+        if ($slugs === []) {
+            return [];
+        }
+
+        return Solution::query()
+            ->whereIn('slug', $slugs)
+            ->whereNotNull('logo_path')
+            ->get(['slug', 'logo_path'])
+            ->mapWithKeys(fn (Solution $solution) => [$solution->slug => PublicImage::url($solution->logo_path)])
+            ->filter()
+            ->all();
     }
 
     /**
@@ -947,7 +999,12 @@ class GitbookRenderer
             ? '<ol class="ak-uml__text">' . $this->umlSequenceText($diagram['messages'], $diagram['participants']) . '</ol>'
             : $this->umlGridText($diagram);
 
-        return '<figure class="ak-uml" id="' . $id . '" data-ak-uml="' . e(json_encode($diagram, JSON_UNESCAPED_UNICODE)) . '">'
+        // The slugs only (a slug is `[a-z0-9-]`): the logos are catalog state,
+        // resolved per render by resolveUmlLogos(), outside the parse cache.
+        $bound = UmlSolutionBindings::slugsOf($diagram);
+
+        return '<figure class="ak-uml" id="' . $id . '" data-ak-uml="' . e(json_encode($diagram, JSON_UNESCAPED_UNICODE)) . '"'
+            . ($bound !== [] ? ' data-ak-uml-bound="' . e(implode(' ', $bound)) . '"' : '') . '>'
             // Not aria-hidden: the fullscreen button lives in here. The SVG
             // hides itself; the text below is what assistive technology reads.
             . '<div class="ak-uml__stage" data-ak-uml-stage></div>'
