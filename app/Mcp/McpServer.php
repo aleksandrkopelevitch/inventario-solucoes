@@ -171,6 +171,9 @@ class McpServer
             ? "\n\nPara documentar código-fonte (pasta, zip ou repositório) num caderno, ou para escrever "
                 . 'um diagrama UML ou uma cena animada numa página, chame get_code_documentation_guide ANTES: '
                 . 'ele traz o roteiro e a sintaxe. O iSol não renderiza Mermaid.'
+                . "\n\nAs relações entre soluções (get_solution, \"relationships\") vêm dos diagramas UML da "
+                . 'documentação (vínculo "solution") ou de interconexões cadastradas com set_solution_relationship. '
+                . 'Quando a página que descreve a integração existir, prefira documentar a relação no diagrama.'
             : '';
     }
 

@@ -15,6 +15,7 @@ use App\Models\AttributeOption;
 use App\Models\Company;
 use App\Models\Person;
 use App\Models\Solution;
+use App\Models\SolutionRelationship;
 use App\Services\SolutionCatalogStatsService;
 use App\Support\Catalog\SolutionRules;
 use App\Support\Images\PublicImage;
@@ -69,7 +70,27 @@ class SolutionController extends Controller
             return response()->json(['solution' => $solution]);
         }
 
-        return view('solutions.show', ['solution' => $solution]);
+        return view('solutions.show', [
+            'solution'      => $solution,
+            'deleteConfirm' => auth()->user()->can('delete', $solution) ? $this->deleteConfirm($solution) : null,
+        ]);
+    }
+
+    /**
+     * What deleting this solution costs, said before it happens. Built here
+     * because a directive inside a component attribute is never compiled.
+     */
+    private function deleteConfirm(Solution $solution): string
+    {
+        $manual = SolutionRelationship::query()->involving($solution)->count();
+
+        return "Excluir a solução \"{$solution->name}\"? As pessoas e as empresas ligadas a ela continuam existindo — só o vínculo acaba."
+            . match (true) {
+                $manual === 1 => ' A interconexão cadastrada com ela é removida.',
+                $manual > 1   => " As {$manual} interconexões cadastradas com ela são removidas.",
+                default       => '',
+            }
+        . ' Nos diagramas UML que a citam, o elemento continua desenhado, sem vínculo.';
     }
 
     /** Search by name for the "Systems" chips autocomplete in the Person form. */

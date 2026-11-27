@@ -16,11 +16,8 @@ use Spatie\MediaLibrary\HasMedia;
  * App\Http\Controllers\Concerns\EditsDocumentation and by the read-only
  * render App\Support\GitbookRenderer.
  *
- * `DOCS_COLLECTION` still has readers beyond that one implementer, and
- * deliberately so: `MediaController::show()` authorizes `/files/{id}` by this
- * collection name alone, so the committee's canvas (`SubmissionDiagram`)
- * stores its pasted image nodes in a collection with
- * exactly this name in order to be servable at all.
+ * `MediaController::show()` authorizes `/files/{id}` by this collection name
+ * alone, so nothing outside it can be served there.
  *
  * @property string|null $documentation
  */

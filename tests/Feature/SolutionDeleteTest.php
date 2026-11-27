@@ -88,3 +88,16 @@ it('says only that the solution was deleted', function () {
         ->assertOk()
         ->assertJsonPath('message', 'Solução "Portal" excluída.');
 });
+
+it('counts the interconnections a delete takes, in the confirm', function () {
+    $solution = Solution::factory()->create(['name' => 'Portal']);
+    foreach (Solution::factory()->count(2)->create() as $other) {
+        [$a, $b] = $solution->id < $other->id ? [$solution, $other] : [$other, $solution];
+        SolutionRelationship::query()->create(['solution_a_id' => $a->id, 'solution_b_id' => $b->id, 'direction' => 'both']);
+    }
+
+    $this->actingAs(solutionAdmin())->get(route('solutions.show', $solution))
+        ->assertOk()
+        ->assertSee('Excluir a solução &quot;Portal&quot;?', false)
+        ->assertSee('As 2 interconexões cadastradas com ela são removidas.');
+});

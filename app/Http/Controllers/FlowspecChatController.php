@@ -105,9 +105,7 @@ class FlowspecChatController extends Controller
     /**
      * Search behind the picker panel — documentation pages, from any caderno.
      * IDs come prefixed (`page:{id}`) because the reference is stored as a morph
-     * pair and `FlowspecDocumentReference` validates that shape; it used to also
-     * carry `diagram:{id}`, back when an integration held documentation of its
-     * own.
+     * pair and `FlowspecDocumentReference` validates that shape.
      */
     public function searchDocuments(Request $request): JsonResponse
     {

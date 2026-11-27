@@ -80,8 +80,7 @@ class FlowspecAttachmentController extends Controller
     }
 
     /**
-     * The picker panel: every Solution that has documentation, its pages, and
-     * the diagrams it participates in that document themselves.
+     * The picker panel: the documentation pages, grouped by caderno.
      *
      * Not nested under `{chat}` — the new-chat screen has no chat and needs the
      * same picker. When a chat IS given, what it already has attached comes back
