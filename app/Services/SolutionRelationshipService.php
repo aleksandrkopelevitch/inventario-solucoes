@@ -13,7 +13,7 @@ use Illuminate\Support\Collection;
 
 /**
  * Who talks to whom in the catalog, as the documentation's UML diagrams say
- * it (docs-and-specs/solution-relationships-from-uml.md).
+ * it (docs-and-specs/done/solution-relationships-from-uml.md).
  *
  * `uml_solution_links` holds the EVIDENCE — one row per call or association a
  * diagram states. This folds it into one relationship per pair of solutions:

@@ -17,7 +17,7 @@ use Laravel\Passport\Passport;
 uses(LazilyRefreshDatabase::class);
 
 /*
- * Manual interconnections (docs-and-specs/solution-relationships-from-uml.md,
+ * Manual interconnections (docs-and-specs/done/solution-relationships-from-uml.md,
  * phase 2): recorded inline on the solution page or through the MCP, one per
  * pair, overriding what the documentation says about that pair.
  */

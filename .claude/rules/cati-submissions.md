@@ -28,7 +28,7 @@ is only what a change here has to keep true.
 The submission's four pictures (AS IS, TO BE, C4 C1/C2) are uploads; their
 media collection is in `.claude/rules/media-and-uploads.md`. AS IS / TO BE
 were drawn on an in-app canvas, with an AS IS × TO BE diff, until 2026-11-27
-(docs-and-specs/solution-relationships-from-uml.md, phase 4b).
+(docs-and-specs/done/solution-relationships-from-uml.md, phase 4b).
 
 ### The workbench REPORTS a stage, it never enforces one
 

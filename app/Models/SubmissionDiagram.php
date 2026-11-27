@@ -19,7 +19,7 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
  * AS IS / TO BE used to be drawn on an in-app canvas (a `chain` of blocks);
  * it was removed on 2026-11-27 with the catalog's topology drawings, and every
  * drawing's rendered PNG became its upload
- * (docs-and-specs/solution-relationships-from-uml.md, phase 4b). Nothing is
+ * (docs-and-specs/done/solution-relationships-from-uml.md, phase 4b). Nothing is
  * derived from these pictures: who talks to whom is the documentation's.
  */
 class SubmissionDiagram extends Model implements HasMedia

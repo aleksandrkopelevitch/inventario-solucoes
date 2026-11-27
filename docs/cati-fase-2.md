@@ -2,7 +2,7 @@
 
 > **Nota (2026-11-27):** os slides com o canvas de cada diagrama do catálogo
 > saíram junto com os desenhos de topologia; no lugar deles o deck traz um slide
-> "Relacionamentos documentados" (`docs-and-specs/solution-relationships-from-uml.md`).
+> "Relacionamentos documentados" (`docs-and-specs/done/solution-relationships-from-uml.md`).
 
 Continuação de `cati-fase-1.md` (registro, checklist, entrevista e saídas em
 texto, tudo pronto). Aqui o registro vira `.pptx`.

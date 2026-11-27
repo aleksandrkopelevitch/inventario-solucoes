@@ -24,7 +24,7 @@ paths:
 
 ### Who talks to whom comes from the documentation's UML (since 2026-11-26)
 
-The spec is `docs-and-specs/solution-relationships-from-uml.md`.
+The spec is `docs-and-specs/done/solution-relationships-from-uml.md`.
 
 - **Phase 1 is shipped:** bindings, the index, platform inference, the
   "Relacionamentos" card, `/map` and `get_solution.relationships`.
