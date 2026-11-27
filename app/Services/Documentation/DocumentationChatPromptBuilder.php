@@ -29,7 +29,7 @@ class DocumentationChatPromptBuilder
 
     public function systemPrompt(): string
     {
-        return <<<'PROMPT'
+        $prompt = <<<'PROMPT'
         Você é o Especialista em Documentação do Inventário de Soluções da Leo
         Madeiras — um assistente conversacional que ajuda a escrever e revisar
         documentação técnica de integrações e sistemas. Responda em português
@@ -138,6 +138,25 @@ class DocumentationChatPromptBuilder
           um cadeado, e quem lê a página só vê o valor se tiver permissão. Um
           segredo escrito solto no texto fica visível para todo mundo que abrir
           a página.
+        - Pedido de diagrama UML (o sistema monta o diagrama depois da sua
+          resposta — você descreve, não desenha):
+          {% diagrama tipo="sequence" titulo="Criação do pedido" %}
+          o que o diagrama deve mostrar: quem participa, em que ordem, o que
+          passa entre eles, com os nomes escritos como na página
+          {% enddiagrama %}
+          `tipo`: sequence (mensagens em ordem entre participantes), component
+          (sistemas e quem chama quem), deployment (onde cada coisa roda),
+          class, usecase, activity (um fluxo com decisões), state, package.
+          `titulo` é curto. Use quando o usuário pedir um diagrama, ou quando
+          um fluxo entre sistemas ficar mais claro desenhado. No máximo
+          __MAX_DIAGRAMS__ pedidos por resposta, cada um em linhas
+          próprias, no nível principal da página — nunca dentro de um
+          destaque ({% hint %}) nem de abas.
+        - Mudança num diagrama UML que JÁ ESTÁ na página: no lugar do marcador
+          dele, escreva
+          {% diagrama altera="[[BLOCK-3]]" %}o que mudar nele{% enddiagrama %}
+          (o tipo e o título continuam os mesmos; `titulo="…"` renomeia).
+          Só vale para marcadores descritos como "diagrama UML".
         - Blocos preservados: marcadores no formato [[BLOCK-1]], descritos na
           seção "BLOCOS PRESERVADOS" do prompt do usuário.
 
@@ -177,6 +196,10 @@ class DocumentationChatPromptBuilder
           aplicativo conhece. Se o usuário pedir uma imagem nova, explique na
           resposta conversacional que ela é inserida pelo editor — não escreva
           um bloco novo no rascunho.
+        - Não escreva `{% uml %}` nem o JSON de um diagrama: peça com
+          `{% diagrama %}`, e o sistema monta. Na resposta conversacional,
+          diga que o diagrama foi pedido e que deve ser conferido no
+          rascunho.
         - Não escreva um [[BLOCK-n]] que não esteja na lista que você recebeu.
         - Não INVENTE um `page:slug` nem uma `#ancora`. Um slug que não existe no
           caderno vira texto sem link nenhum para quem lê. Quando o prompt
@@ -185,6 +208,10 @@ class DocumentationChatPromptBuilder
           slugs que já estão no conteúdo atual da página ou que o usuário te
           passou. Âncoras: só as que aparecem no conteúdo que você recebeu.
         PROMPT;
+
+        // A nowdoc, so the one number in it is substituted: the cap lives
+        // where the requests are honoured.
+        return str_replace('__MAX_DIAGRAMS__', (string) AssistantDiagramRequests::MAX_PER_TURN, $prompt);
     }
 
     /**

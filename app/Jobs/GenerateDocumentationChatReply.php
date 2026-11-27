@@ -21,15 +21,24 @@ class GenerateDocumentationChatReply implements ShouldQueue
 {
     use Queueable;
 
-    /** Single model call (no correction loop, unlike flowSpec) — comfortably below the retry_after (900s). */
-    public int $timeout = 240;
+    /**
+     * One model call for the reply (`documentation_ai.timeout`, 180s), plus
+     * the UML diagrams its draft may ask for — at most
+     * AssistantDiagramRequests::MAX_PER_TURN, each up to ~1.5 ×
+     * `uml_timeout` (one call and, time allowing, one repair). 180 + 2 × 90 =
+     * 360, plus margin; still well below the retry_after (900s).
+     * DocumentationChatService starts no diagram past TIMEOUT − 30s.
+     */
+    public const TIMEOUT = 420;
+
+    public int $timeout = self::TIMEOUT;
 
     /**
      * Sized for the worst case of WithoutOverlapping: each "wait" (a job
      * blocked by another one for the same chat) goes back to the queue via
      * release() and consumes one attempt — not a real failure, just queuing.
-     * A job ahead can hold the lock for up to $timeout (240s), and the
-     * blocked one retries every releaseAfter (30s): 240/30 = 8 possible
+     * A job ahead can hold the lock for up to $timeout (420s), and the
+     * blocked one retries every releaseAfter (30s): 420/30 = 14 possible
      * releases, plus margin. REAL failures are bounded by $maxExceptions, not
      * this.
      */

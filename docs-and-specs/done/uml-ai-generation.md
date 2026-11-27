@@ -154,6 +154,9 @@ One row under the type and title: an instruction field
   whole page; a new diagram there would need the same validate-and-repair step
   inside the chat pipeline, and ~8 KB more syntax in every turn. If it comes,
   it should call `UmlDraftService` rather than learn the syntax itself.
+  *Done the same day, exactly that way:* the assistant writes a
+  `{% diagrama %}` request and `AssistantDiagramRequests` turns it into the
+  block (`.claude/rules/documentation-assistant.md`).
 - **Letting the model choose the type** (see §2.8).
 - **Picking context pages / documents** for the generation, as the assistant
   can. The page plus the instruction cover the case asked for.

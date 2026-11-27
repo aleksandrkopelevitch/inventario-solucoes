@@ -74,7 +74,18 @@ class UmlDraftPromptBuilder
         // Masked and stripped like every other surface that hands a page to a
         // model: a protected value must not be quotable into a label, and a
         // media block is markup the model can neither author nor keep.
-        $content = BlockVault::strip(SecretText::mask($content));
+        //
+        // Then every MARKER becomes a plain word, which the other surfaces do
+        // not need: here what comes back is JSON, and a marker copied into a
+        // label would be "restored" inside it — a `[[SECRET-x]]` re-wrapped as
+        // a `{% secret %}` construct (SecretText::restoreWithIds() re-wraps a
+        // bare marker), a `[[BLOCK-n]]` from the assistant's draft as a whole
+        // figure. Either one breaks the diagram's JSON.
+        $content = (string) preg_replace(
+            ['/\{%\s*secret\b[^%]*%\}\s*\[\[SECRET-[a-z0-9]+\]\]\s*\{%\s*endsecret\s*%\}/i', '/\[\[SECRET-[a-z0-9]+\]\]/', '/\[\[BLOCK-\d+\]\]/'],
+            ['[valor protegido]', '[valor protegido]', '[bloco]'],
+            BlockVault::strip(SecretText::mask($content)),
+        );
 
         $sections = [
             'PÁGINA: ' . $title,

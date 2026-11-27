@@ -210,8 +210,12 @@ things that are easy to undo:
   failed generation left the page "Não salvo" until they were.
 
 The catalog goes in WHOLE (`slug — name`) or not at all past
-`uml_max_catalog`, the assistant's page-catalog rule. Assiste IA still freezes
-UML blocks; if it ever writes diagrams, it should call this service.
+`uml_max_catalog`, the assistant's page-catalog rule. Assiste IA asks for
+diagrams through this same service (`AssistantDiagramRequests`, see
+`.claude/rules/documentation-assistant.md`); it is never taught the JSON. That
+is why the prompt builder turns every MARKER in the page (`[[SECRET-x]]`,
+`[[BLOCK-n]]`) into a plain word: a marker copied into a label would be
+"restored" inside the JSON and break it.
 
 **The guide teaches only what the validator accepts.** The playbook and the
 syntax a model reads live in `resources/data/mcp/code-documentation-guide.md`

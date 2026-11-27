@@ -5,7 +5,8 @@ Madeiras: cadastro de soluções/pessoas/empresas, os **relacionamentos** entre
 as soluções (quem chama quem, lidos dos diagramas UML da documentação ou
 cadastrados à mão) com um mapa read-only do ecossistema derivado deles,
 documentação rica (estilo GitBook) em
-árvore de páginas — com um assistente de IA que gera rascunhos, com **cenas
+árvore de páginas — com um assistente de IA que gera rascunhos (diagramas UML
+incluídos), com **cenas
 animadas** montadas a partir do texto (fluxo em etapas, antes → depois, árvore,
 comparação lado a lado, linha do tempo), com **diagramas UML** escritos na própria
 página (sequência, classes, componentes, implantação, casos de uso, atividades,
