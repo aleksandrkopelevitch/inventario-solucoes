@@ -2,6 +2,7 @@
 
 namespace App\Services\Documentation;
 
+use App\Jobs\GenerateDocumentationChatReply;
 use App\Models\DocumentationChatMessage;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
@@ -20,6 +21,10 @@ use function Laravel\Ai\agent;
  * loop, unlike flowSpec's JSON generation, since Markdown has no strict shape
  * to validate. A reply MAY include a draft (see DocumentationChatPromptBuilder's
  * 4-backtick convention); if it doesn't, the turn is purely conversational.
+ *
+ * The one exception to "one call": a draft may carry `{% diagrama %}`
+ * requests, and each becomes a UML diagram through UmlDraftService
+ * (AssistantDiagramRequests) before the draft is handed to the person.
  */
 class DocumentationChatService
 {
@@ -37,14 +42,23 @@ class DocumentationChatService
      */
     private const DRAFT_FENCE_PATTERN = '/^(?<before>.*?)\n?`{4}[^\n]*\n(?<draft>.*?)\n`{4}[ \t]*(?:\n(?<after>.*))?$/s';
 
+    private readonly AssistantDiagramRequests $diagrams;
+
     public function __construct(
         private readonly ContextDocumentResolver $contextDocs,
         private readonly ContextPageResolver $contextPages,
         private readonly DocumentationChatPromptBuilder $prompts,
-    ) {}
+        ?AssistantDiagramRequests $diagrams = null,
+    ) {
+        $this->diagrams = $diagrams ?? app(AssistantDiagramRequests::class);
+    }
 
     public function generate(DocumentationChatMessage $userMessage): DocumentationChatReply
     {
+        // The diagrams a draft asks for run inside the same job, after the
+        // reply: none is STARTED once the job could no longer finish it.
+        $deadline = microtime(true) + GenerateDocumentationChatReply::TIMEOUT - 30;
+
         // The job dispatches a freshly deserialized model (SerializesModels)
         // with no relations loaded — strict mode doesn't arm the guard on a
         // single fetch, so the eager load is explicit (see AGENTS.md).
@@ -127,16 +141,27 @@ class DocumentationChatService
         // marker until then, and it has to be the draft rather than the whole
         // reply — a model that says "removi o [[BLOCK-2]]" in prose would
         // otherwise be counted as having kept it.
-        $blocks->audit($this->extractDraft($response->text)[1]);
+        [$content, $draft] = $this->extractDraft($response->text);
+        $blocks->audit($draft);
 
-        [$content, $draft] = $this->extractDraft($vault->restore($blocks->restore($response->text)));
+        // The diagrams the draft asks for, on the RAW draft: a change names
+        // its diagram by the marker, which a restore would already have
+        // turned into the block.
+        $diagrams = $draft !== null ? $this->diagrams->resolve($draft, $blocks, $deadline) : null;
+        $draft = $diagrams['draft'] ?? $draft;
+
+        $content = $vault->restore($blocks->restore($content));
+        $draft = $draft !== null ? $vault->restore($blocks->restore($draft)) : null;
 
         // A dropped block is said out loud rather than left for the person to
         // spot in the diff. It is not necessarily wrong — removing an image is
         // legitimate when it was asked for — so the notice states what is
         // missing and leaves the judgement to whoever presses "Aplicar".
-        if ($notice = $blocks->droppedNotice()) {
-            $content = trim($content . "\n\n" . $notice);
+        // A diagram that could not be made (or came with problems) likewise.
+        foreach ([$blocks->droppedNotice(), ...($diagrams['notices'] ?? [])] as $notice) {
+            if ($notice !== null) {
+                $content = trim($content . "\n\n" . $notice);
+            }
         }
 
         return new DocumentationChatReply(
@@ -160,6 +185,7 @@ class DocumentationChatService
                 'requirements'        => $requirements,
                 'literals'            => $vault->stats(),
                 'blocks'              => $blocks->stats(),
+                'diagrams'            => $diagrams['stats'] ?? null,
             ],
         );
     }

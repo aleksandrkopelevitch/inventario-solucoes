@@ -152,6 +152,32 @@ final class BlockVault
         return str_replace(array_values($blocks), array_keys($blocks), $text);
     }
 
+    /** The block a marker stands for, or null for a marker this vault never issued. */
+    public function block(string $marker): ?string
+    {
+        return $this->blocks[$marker] ?? null;
+    }
+
+    /**
+     * A UML diagram's legend line names its type and title, because the
+     * assistant may ASK for a change to one (`{% diagrama altera="[[BLOCK-n]]" %}`,
+     * AssistantDiagramRequests) and has to know which marker is the
+     * "diagrama de sequência da criação do pedido". Still nothing to copy: the
+     * JSON never reaches it.
+     */
+    private static function umlLabel(string $block): string
+    {
+        preg_match('/^\{%\s*uml\b(.*?)%\}/s', $block, $head);
+        preg_match('/\btype="([^"]*)"/', $head[1] ?? '', $type);
+        preg_match('/\btitle="([^"]*)"/', $head[1] ?? '', $title);
+        $kind = UmlDiagram::TYPES[$type[1] ?? ''] ?? null;
+        $name = trim(html_entity_decode($title[1] ?? '', ENT_QUOTES));
+
+        return 'diagrama UML' . ($kind !== null || $name !== ''
+            ? ' (' . implode(' — ', array_filter([$kind, $name !== '' ? "\"{$name}\"" : null])) . ')'
+            : '');
+    }
+
     public function restore(string $text): string
     {
         if ($this->isEmpty()) {
@@ -251,7 +277,7 @@ final class BlockVault
         foreach (self::PATTERNS as [$label, $pattern]) {
             $text = (string) preg_replace_callback(
                 $pattern,
-                fn (array $m): string => $this->register($m[0], $label),
+                fn (array $m): string => $this->register($m[0], $label === 'diagrama UML' ? self::umlLabel($m[0]) : $label),
                 $text,
             );
         }

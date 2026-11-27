@@ -4,6 +4,9 @@ paths:
   - "app/Services/Documentation/ContextPage*.php"
   - "app/Services/Documentation/ContextDocument*.php"
   - "app/Support/Documentation/BlockVault.php"
+  - "app/Services/Documentation/AssistantDiagramRequests.php"
+  - "app/Jobs/GenerateDocumentationChatReply.php"
+  - "tests/Feature/DocumentationAssistantDiagramsTest.php"
   - "app/Support/Documentation/LiteralVault.php"
   - "app/Support/Documentation/DocumentationRequirements.php"
   - "app/Http/Controllers/Concerns/AssistsDocumentation.php"
@@ -267,3 +270,40 @@ Four things that are easy to undo:
 `meta.literals` (`frozen`/`repaired`/`unresolved`) audits each turn;
 `unresolved` counts markers the model invented, which is the shape of a
 prompt regression.
+
+### The assistant ASKS for UML diagrams; it never writes one (since 2026-11-27)
+
+Its draft may carry a request on lines of its own,
+`{% diagrama tipo="sequence" titulo="…" %}description{% enddiagrama %}`, or, in
+place of an existing diagram's marker,
+`{% diagrama altera="[[BLOCK-n]]" %}what to change{% enddiagrama %}`.
+`AssistantDiagramRequests` hands each one to `UmlDraftService` (the block's
+"Gerar com IA": validator, one repair, catalog slugs), grounded on the DRAFT,
+and puts the `{% uml %}` block it answers in its place
+(`docs-and-specs/done/uml-ai-generation.md` §6). The assistant's prompt never
+shows the JSON; the BlockVault legend names each UML marker's type and title
+so a change can point at the right one.
+
+Five things that are easy to undo:
+
+- **It runs on the RAW draft, between `audit()` and the restores.** The
+  marker in `altera` is what identifies the diagram, and the audit has
+  already counted it as kept (it is in the draft) — correct, since the diagram
+  is replaced, not lost. Restore first and the marker is gone.
+- **A request that fails never costs the page its diagram.** A failed change
+  puts the original marker back, a failed new one is left out, and every
+  outcome that is not a clean diagram (failure, refusal, leftover problems,
+  over the cap, inside a hint or tabs, no time left) is a PT-BR notice
+  appended to the conversational half, like `droppedNotice()`. A provider error
+  is `report()`ed and noticed, never allowed to fail the whole reply.
+- **`MAX_PER_TURN` (2) and the job's `TIMEOUT` (420s) are sized together**:
+  180s for the reply, then ~1.5 × `uml_timeout` per diagram. No diagram is
+  STARTED past `TIMEOUT − 30s` (`DocumentationChatService`'s deadline). Raise
+  one and the other has to follow; `REPLY_STALL_SECONDS` (660) and the poll
+  ceiling (750s) must stay above the timeout.
+- **The block is written the way the editor writes it** (`serializeUml()`):
+  `type` then `title`, `"` as `&quot;`, no `title` when empty — so applying the
+  draft and saving it again changes nothing.
+- **The nowdoc system prompt carries `__MAX_DIAGRAMS__`**, substituted from
+  `MAX_PER_TURN`, so the number the model reads is the number honoured.
+
