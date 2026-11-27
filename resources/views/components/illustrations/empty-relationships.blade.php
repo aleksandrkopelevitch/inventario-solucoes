@@ -1,7 +1,8 @@
-{{-- Empty state of the "Diagramas" column (solution detail) and of the diagrams
-     index: a small graph of boxes wired by arrows — the same thing the F3
-     canvas draws once there IS a diagram, which is the point of showing it
-     here.
+{{-- Empty state of the "Relacionamentos" column (solution detail): a small
+     graph of boxes wired by arrows — systems and who talks to whom, which is
+     what the column lists once there IS a relationship. It was the empty
+     "Diagramas" column's picture until the topology drawings were removed
+     (2026-11-27), hence the drawing.
 
      unDraw illustration "Database tables" (undraw.co, free license, no
      attribution required), inlined rather than linked so it needs no network

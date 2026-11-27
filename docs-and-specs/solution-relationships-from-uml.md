@@ -1412,3 +1412,13 @@ The CATI phase plans (`docs/cati-fase-{2,3,4}.md`) keep their text as a record,
 each with a dated note on what was superseded. AGENTS.md and the rules were
 updated with phases 4a and 4b.
 
+
+### Final review — 2026-11-27
+
+Every name in §8.5 swept from the code, the rules and AGENTS.md; every rule's
+`paths:` resolves. One promise left open: the `diagrams` empty-state
+illustration, which phase 1 said phase 4 would rename. It is
+`empty-relationships` now, used by the card and the showcase. The `/docs` home
+page in production still described the canvas: `KnowledgeBaseHomeSeeder` runs
+once per environment, so phase 4a's edit of `home.md` never reached it, and the
+live page is edited by hand.

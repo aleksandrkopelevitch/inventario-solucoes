@@ -153,7 +153,7 @@
             </li>
         @empty
             <li>
-                <x-ui.empty-state illustration="diagrams" illustration-class="max-w-[268px]"
+                <x-ui.empty-state illustration="relationships" illustration-class="max-w-[268px]"
                     title="Nenhum relacionamento documentado"
                     description="Os relacionamentos vêm dos diagramas UML das páginas dos cadernos (vincule um participante a uma solução com “solution”) ou das interconexões cadastradas aqui." />
             </li>
