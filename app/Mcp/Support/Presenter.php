@@ -151,9 +151,11 @@ class Presenter
             // What the documentation says on its own, when a record overrides it.
             'documented_direction' => $relationship->documented?->label(),
             'recorded_by'          => $relationship->manual?->creator?->name,
-            'via'                  => $relationship->direct
+            // One list per route, platforms in the order a call crosses them
+            // from this solution.
+            'via' => $relationship->direct
                 ? null
-                : array_map(fn (Solution $p) => ['slug' => $p->slug, 'name' => $p->name], $relationship->via),
+                : array_map(fn (array $route) => array_map(fn (Solution $p) => ['slug' => $p->slug, 'name' => $p->name], $route), $relationship->via),
             'labels'   => $relationship->labels,
             'evidence' => $evidence,
         ]);

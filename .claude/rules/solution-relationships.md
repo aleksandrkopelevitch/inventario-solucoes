@@ -96,6 +96,12 @@ Pairs are folded ON READ by `SolutionRelationshipService`:
 - **At read time, on purpose:** changing a solution's category changes the
   answer at once, with no page to re-sync.
 - **Never drawn on `/map`:** via pairs are excluded from `pairs()`.
+- **`via` is the list of distinct ROUTES, never their union.** Each route is
+  stored oriented a → b, so one route drawn both ways is one route, and is read
+  from the asking solution's side. Production had SAP ⟷ VTEX through Digibee in
+  one diagram and through CPI › Digibee in another. The union read
+  "via Digibee › SAP CPI", a route nobody drew, in the wrong order (fixed
+  2026-11-27).
 
 **The slug is the address, so both ends of a solution's life reach the text.**
 

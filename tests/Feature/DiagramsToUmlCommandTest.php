@@ -71,7 +71,7 @@ it('converts systems talking in rounds into a sequence, bound and in order', fun
     $vtexRow = app(SolutionRelationshipService::class)->forSolution($sap)->first(fn ($r) => $r->other->is($vtex));
 
     expect($vtexRow->direction)->toBe(RelationshipDirection::Both)
-        ->and(array_map(fn ($p) => $p->slug, $vtexRow->via))->toBe(['sap-cpi-integracao', 'digibee-ipaas']);
+        ->and(array_map(fn ($route) => array_map(fn ($p) => $p->slug, $route), $vtexRow->via))->toBe([['sap-cpi-integracao', 'digibee-ipaas']]);
 });
 
 it('keeps lifelines a sequence, self calls included, and reads every arrow way', function () {

@@ -159,7 +159,11 @@ class SolutionRelationshipService
      * One entry per unordered pair, keyed "a|b" with a < b.
      *
      * @param  Collection<int, UmlSolutionLink>  $rows
-     * @return array<string, array{a: int, b: int, aToB: bool, bToA: bool, direct: bool, via: list<int>, labels: list<string>, evidence: array<string, array{page: int, position: int, title: ?string, type: string}>}>
+     *                                                  `via` holds the distinct ROUTES through platforms, each a list of
+     *                                                  platform ids oriented from `a` to `b` — never their union: SAP → VTEX
+     *                                                  documented once through Digibee and once through CPI › Digibee is two
+     *                                                  routes, and one merged list would read as a third that nobody drew.
+     * @return array<string, array{a: int, b: int, aToB: bool, bToA: bool, direct: bool, via: array<string, list<int>>, labels: list<string>, evidence: array<string, array{page: int, position: int, title: ?string, type: string}>}>
      */
     private function derive(Collection $rows, bool $withVia): array
     {
@@ -199,7 +203,7 @@ class SolutionRelationshipService
     /**
      * @param  array<string, array<string, mixed>>  $pairs
      * @param  list<?string>  $labels
-     * @param  list<int>|null  $via  null for a call the diagram states directly
+     * @param  list<int>|null  $via  the platforms in the middle, in the call's order; null for a call the diagram states directly
      */
     private function add(array &$pairs, int $from, int $to, bool $directed, UmlSolutionLink $row, array $labels, ?array $via = null): void
     {
@@ -216,7 +220,9 @@ class SolutionRelationshipService
         if ($via === null) {
             $pair['direct'] = true;
         } else {
-            $pair['via'] = array_values(array_unique([...$pair['via'], ...$via]));
+            // Oriented a → b, so the same route drawn both ways is one route.
+            $route = $from === $a ? $via : array_reverse($via);
+            $pair['via'][implode('>', $route)] = $route;
         }
 
         foreach ($labels as $label) {
@@ -380,7 +386,11 @@ class SolutionRelationshipService
                     in: $isA ? $pair['bToA'] : $pair['aToB'],
                 ),
                 direct: $pair['direct'],
-                via: array_values(array_filter(array_map(fn (int $id) => $solutions[$id] ?? null, $pair['via']))),
+                // Each route read from THIS solution's side, left to right.
+                via: array_values(array_map(
+                    fn (array $route) => array_values(array_filter(array_map(fn (int $id) => $solutions[$id] ?? null, $isA ? $route : array_reverse($route)))),
+                    $pair['via'],
+                )),
                 labels: $pair['labels'],
                 evidence: $this->evidence($pair, $pages),
                 manual: $pair['manual'],
@@ -398,7 +408,7 @@ class SolutionRelationshipService
      */
     private function solutions(array $pairs): array
     {
-        $ids = array_unique(array_merge([], ...array_map(fn (array $p) => [$p['a'], $p['b'], ...$p['via']], array_values($pairs))));
+        $ids = array_unique(array_merge([], ...array_map(fn (array $p) => [$p['a'], $p['b'], ...array_merge([], ...array_values($p['via']))], array_values($pairs))));
 
         return Solution::query()->whereIn('id', $ids)->get(self::SOLUTION_COLUMNS)->keyBy('id')->all();
     }
