@@ -69,10 +69,3 @@ puts a wildcard where static segments also live:
   only ever applied when a slug is GENERATED, so it cannot rescue a page that
   already carries one; verified against the dev corpus when `/docs` landed (207
   pages, 38 imported GitBook spaces, no collision).
-
-The committee canvas's chain-editing routes
-(`submissions/{submission}/diagrams/{diagram}/chain/nodes/{node}`,
-`chain/protocol/{edge}`, `chain/edge/{edge}`) take a plain integer INDEX into
-`chain.nodes`/`chain.edges` (`whereNumber(...)`), not a model — those aren't
-bindings at all, just route params validated as numeric and range-checked
-inside the controller.

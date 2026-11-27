@@ -221,9 +221,8 @@ class SubmissionRequirements
      * unticked rather than derive a false compliance claim from a section's
      * state; this is what finally answers it honestly.
      *
-     * An AS IS / TO BE counts only once something beyond the seeded root node
-     * exists (`SubmissionDiagram::isFilled()`) — opening the canvas is not
-     * drawing on it.
+     * A slot counts once it holds an uploaded picture
+     * (`SubmissionDiagram::isFilled()`).
      */
     public static function diagramsComplete(Submission $submission): bool
     {

@@ -152,16 +152,13 @@ class BuildDeckSpec
     /**
      * The architecture slides.
      *
-     * A submission's OWN drawings come first, in the committee's order: AS IS,
+     * A submission's OWN pictures come first, in the committee's order: AS IS,
      * TO BE, then the two C4 views. They are what the committee is actually
-     * deliberating on — a proposal is about what will change, and until Fase 3
-     * there was nowhere to draw that, so the deck could only ever show how the
-     * catalog looks today.
+     * deliberating on — a proposal is about what will change.
      *
-     * A picture with a LINK, never native shapes. Autoshapes would make the
-     * deck a second place the diagram can be edited — someone nudges a box
-     * during the meeting and the deck and the inventory disagree, silently.
-     * One editing surface, many views.
+     * A picture, never native shapes. Autoshapes would make the deck a second
+     * place the diagram can be edited — someone nudges a box during the
+     * meeting and the deck and the upload disagree, silently.
      *
      * The Solution's documented relationships follow, as a table: the
      * catalog's own record of who it talks to today.
@@ -191,11 +188,6 @@ class BuildDeckSpec
                 'blocks' => [[
                     'type' => 'image',
                     'path' => $media->getPath(),
-                    // Only a drawn kind has a canvas to go back to; an
-                    // uploaded C4 came from a tool this app does not host.
-                    'link' => $kind->isDrawn()
-                        ? route('submissions.diagrams.edit', [$submission, $diagram])
-                        : null,
                 ]],
             ];
         }

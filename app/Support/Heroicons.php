@@ -9,8 +9,7 @@ use Illuminate\Support\Facades\Cache;
 /**
  * Thin bridge to `blade-ui-kit/blade-heroicons` outside a Blade context —
  * used to embed the (outline) SVG of a chosen icon inside payloads consumed
- * by JS (e.g. `data-ak-chain-graph`, read by `chain-viz.js`; the
- * documentation callouts' icon picker), where `<x-heroicon-o-*>` doesn't apply.
+ * by JS (e.g. the documentation callouts' icon picker), where `<x-heroicon-o-*>` doesn't apply.
  */
 class Heroicons
 {

@@ -262,25 +262,3 @@ is the column the row sits in, and a role picker inside a column already titled
 with one has nowhere honest to live. Re-roling stays on the person's page (where
 the role is a badge of its own), even though `UpdateSolutionPersonRequest`
 validates `role` too, to stay symmetric with its mirror.
-
-### An integration's name and status live in the editor's top bar — nowhere else
-
-`Solutions\IntegrationMeta` (slot `integration-meta-slot`) renders both in the
-top bar of the integration's unified documentation+diagram page, as two
-`x-ui.inline-edit`s pointing at the same endpoint
-(`solutions.integrations.update` / `UpdateIntegrationMetaRequest`, whose rules
-are `sometimes` + `required` so one field can be confirmed without blanking the
-other — same shape as the three detail pages' field requests). The response
-returns that slot **and** `PagesNav::slot(...)`, since the rail beside it lists
-the integration by name.
-
-The canvas had a second editor for exactly these two fields (a pencil in its
-own top bar opening a panel over the diagram) until 2026-08-17. It's gone, and
-so is its `data-ak-statuses` payload and the canvas's own `data-viz-title` —
-two editors of one field desync on the first edit, and the canvas title became
-the stale copy the moment the name above it became editable. If you find
-yourself adding a status control to the canvas again, this is the question
-being reopened.
-
-Everything else about the integration is still authored on the canvas: the
-topology is the chain, and only `SyncIntegrationFromChain` derives from it.

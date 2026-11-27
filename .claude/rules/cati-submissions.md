@@ -25,10 +25,10 @@ tabs — Preparação, Documento, Diagramas, Comitê — all reachable at any po
 The reasoning behind each phase is in `docs/cati-fase-{1,2,3,4}.md`; this file
 is only what a change here has to keep true.
 
-The submission's own drawings are covered elsewhere: the canvas contract in
-`.claude/rules/diagram-chain-canvas.md`, the media collections in
-`.claude/rules/media-and-uploads.md`. The canvas, `TopologyDiff` included, is
-being removed (docs-and-specs/solution-relationships-from-uml.md, phase 4b).
+The submission's four pictures (AS IS, TO BE, C4 C1/C2) are uploads; their
+media collection is in `.claude/rules/media-and-uploads.md`. AS IS / TO BE
+were drawn on an in-app canvas, with an AS IS × TO BE diff, until 2026-11-27
+(docs-and-specs/solution-relationships-from-uml.md, phase 4b).
 
 ### The workbench REPORTS a stage, it never enforces one
 
@@ -123,16 +123,15 @@ and only then does something else write the file — **nothing downstream of the
 validator can invent a slide**. The fidelity lives in the corporate template,
 not in the script, so a layout fix belongs in the `.pptx`.
 
-A diagram enters the deck as an **image with a link**, never as a native
-PowerPoint shape. A native shape would create a second place where the drawing
+A diagram enters the deck as an **image**, never as a native PowerPoint
+shape. A native shape would create a second place where the drawing
 can be edited, and somebody nudging a box during the meeting is precisely the
 drift this module exists to eliminate.
 
 ### Approval does NOT write topology
 
-A submission's TO BE is a free graph, and a proposal can be rejected, so
-nothing drawn here writes the catalog (`SubmissionDiagram::afterChainMutation()`
-is deliberately empty). Who talks to whom is the documentation's: the UML
+A proposal can be rejected, so nothing in a submission writes the catalog's
+topology. Who talks to whom is the documentation's: the UML
 diagrams in caderno pages and the interconnections recorded on the solution
 page (`.claude/rules/solution-relationships.md`). An approval publishes the
 proposal's prose and its TO BE picture into the solution's caderno
@@ -145,10 +144,6 @@ publishes into the solution's caderno, so `RecordSubmissionDecisionRequest`
 also wants `create` on `Notebook` (a 422 that says why; a rejection writes
 nothing outside the submission and needs only `update` on it). Before that, a
 Committee Editor with no Documentation level could publish a page.
-
-A committee drawing stores `{solution_id, label, kind}` per node with no
-foreign key, so `App\Actions\DeleteSolution` turns a departing solution's
-nodes into free text before the row goes.
 
 ### Only an admin or the committee leader records the deliberation (2026-11-03)
 

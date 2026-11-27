@@ -9,11 +9,9 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 /**
  * The lighter WEB rendition of every raster image in a model's `docs`
- * collection — a documentation page's embedded images, and the pictures
- * pasted onto a diagram's canvas (`Diagram`, `SubmissionDiagram`), which are
- * served by the same `/files/{id}` route and were the one `docs` collection
- * without it: a 10 MB paste was drawn in a 160 px block, and embedded whole
- * into every PNG export of the drawing.
+ * collection — a documentation page's embedded images. (The committee's
+ * canvas used it too for its pasted pictures, until the canvas was removed on
+ * 2026-11-27.)
  *
  * At most 1600px wide — twice the 768px reading column, so it stays sharp on
  * a high-density screen — re-encoded as WebP. The original is never touched;

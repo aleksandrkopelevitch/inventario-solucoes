@@ -11,11 +11,9 @@ use App\Models\User;
  * being argued about, and whoever may edit that may edit its diagrams.
  *
  * It exists as its own policy rather than being folded into
- * `SubmissionPolicy` because the chain requests authorize against whatever
- * `ChainCanvas` the route bound (`Concerns\AuthorizesChainOwner`), and that is
- * a `SubmissionDiagram`. Without this, `can('update', $diagram)` would find no
- * policy and answer false — a 403 on the working path, which reads as a
- * broken canvas rather than as a missing file.
+ * `SubmissionPolicy` because the upload request authorizes against the
+ * `SubmissionDiagram` the route bound. Without this, `can('update', $diagram)`
+ * would find no policy and answer false — a 403 on the working path.
  */
 class SubmissionDiagramPolicy
 {

@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\ChainNodeKind;
 use App\Enums\SubmissionDiagramKind;
 use App\Enums\SubmissionSectionKey;
 use App\Enums\SubmissionSectionState;
@@ -161,7 +160,7 @@ class Submission extends Model implements HasMedia
 
     /**
      * The drawings go through the model, not the database cascade: each one
-     * owns media (pasted images, the C4 upload, the canvas PNG), and Spatie
+     * owns its uploaded picture, and Spatie
      * removes media only when the OWNING model's delete event fires. Left to
      * the cascade, every deleted submission left those rows and files behind.
      */
@@ -177,26 +176,10 @@ class Submission extends Model implements HasMedia
         return $this->hasMany(SubmissionDiagram::class);
     }
 
-    /**
-     * The row for one drawing, creating it if it doesn't exist yet.
-     *
-     * A DRAWN kind is born with the same single root node a Diagram gets
-     * (`DiagramController::store()`), for the same reason: the F3
-     * canvas draws a chain, and a chain with no nodes has nothing to hang the
-     * first gesture on. The root is the linked catalog Solution when there is
-     * one — the proposal is about that system, so making the person place it
-     * by hand is asking for something already on the record — and free text
-     * carrying the submission's own name when there isn't (a brand-new
-     * system, which is most of what reaches this committee).
-     *
-     * An UPLOADED kind gets no chain at all; it carries a picture instead.
-     */
+    /** The row for one drawing slot, creating it if it doesn't exist yet. */
     public function diagram(SubmissionDiagramKind $kind): SubmissionDiagram
     {
-        return $this->diagrams()->firstOrCreate(
-            ['kind' => $kind->value],
-            ['chain' => $kind->isDrawn() ? $this->seedChain() : null],
-        );
+        return $this->diagrams()->firstOrCreate(['kind' => $kind->value]);
     }
 
     /**
@@ -220,21 +203,6 @@ class Submission extends Model implements HasMedia
                 $this->diagram($kind);
             }
         }
-    }
-
-    /** @return array{nodes: list<array<string, mixed>>, edges: list<mixed>} */
-    private function seedChain(): array
-    {
-        $this->loadMissing('solution');
-
-        return [
-            'nodes' => [[
-                'solution_id' => $this->solution_id,
-                'label'       => $this->solution_id ? null : $this->name,
-                'kind'        => ChainNodeKind::System->value,
-            ]],
-            'edges' => [],
-        ];
     }
 
     /**

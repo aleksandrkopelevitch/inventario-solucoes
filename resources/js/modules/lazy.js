@@ -3,8 +3,8 @@
 
     `app.js` imports every module statically and bundles them into the one
     file every page loads. Most modules are a few hundred bytes of event
-    delegation and belong there; a handful carry a library (the diagram
-    canvas with html-to-image and gif.js, the ecosystem map with d3-force)
+    delegation and belong there; a handful carry a library (the ecosystem
+    map with d3-force)
     or a page's whole feature (the Editor.js editor, the scenes and their
     icon catalogue, the spreadsheet) and were costing every list and detail
     page three quarters of the bundle for nothing.

@@ -147,8 +147,7 @@
         <div id="submission-tab-diagrams" class="hidden flex flex-col gap-4">
             <p class="text-sm text-muted">
                 O comitê pede o desenho da solução e um C4 com no mínimo C1 e C2.
-                AS IS e TO BE são desenhados no mesmo canvas das integrações — o C4 vem
-                da ferramenta que você já usa.
+                Envie a imagem de cada um, feita na ferramenta que você já usa.
             </p>
 
             <x-submissions.diagrams :submission="$submission" />
