@@ -23,7 +23,7 @@ use App\Models\SolutionRelationship;
 final readonly class Relationship
 {
     /**
-     * @param  list<Solution>  $via  the platforms in the middle, in order, when not direct
+     * @param  list<list<Solution>>  $via  the routes through platforms, each read from `$solution` to `$other`
      * @param  list<string>  $labels  up to SolutionRelationshipService::MAX_LABELS
      * @param  list<array{page: DocumentationPage, position: int, title: ?string, type: string}>  $evidence
      */

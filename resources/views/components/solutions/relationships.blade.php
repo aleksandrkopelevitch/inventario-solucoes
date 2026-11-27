@@ -106,17 +106,21 @@
                                   title="{{ $recordedBy }}">ajustado manualmente</span>
                             <span class="min-w-0 truncate">documentado: “{{ $relationship->documented->sentence($solution->name, $other->name) }}”</span>
                         @endif
-                        @if (! $relationship->direct && $relationship->via !== [])
-                            <span class="inline-flex min-w-0 items-center gap-1.5">
-                                <span>via</span>
-                                @foreach ($relationship->via as $platform)
-                                    <x-ui.logo :name="$platform->name" :src="$platform->logo_path" size="sm" class="!size-5 !p-0.5" />
-                                    <span class="truncate">{{ $platform->name }}</span>
-                                    @if (! $loop->last)
-                                        <span aria-hidden="true">›</span>
-                                    @endif
-                                @endforeach
-                            </span>
+                        {{-- One "via" per route, its platforms in the order a
+                             call crosses them from this solution. --}}
+                        @if (! $relationship->direct)
+                            @foreach ($relationship->via as $route)
+                                <span class="inline-flex min-w-0 items-center gap-1.5">
+                                    <span>via</span>
+                                    @foreach ($route as $platform)
+                                        <x-ui.logo :name="$platform->name" :src="$platform->logo_path" size="sm" class="!size-5 !p-0.5" />
+                                        <span class="truncate">{{ $platform->name }}</span>
+                                        @if (! $loop->last)
+                                            <span aria-hidden="true">›</span>
+                                        @endif
+                                    @endforeach
+                                </span>
+                            @endforeach
                         @endif
                     </p>
                 @endif

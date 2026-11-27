@@ -218,7 +218,7 @@ it('infers the end-to-end pair through a platform in a sequence, and keeps the d
         ->and($relationships['cpi']->direct)->toBeTrue()
         ->and($relationships['fresh']->direct)->toBeFalse()
         ->and($relationships['fresh']->direction)->toBe(RelationshipDirection::Outgoing)
-        ->and(array_map(fn ($p) => $p->slug, $relationships['fresh']->via))->toBe(['cpi']);
+        ->and(array_map(fn ($route) => array_map(fn ($p) => $p->slug, $route), $relationships['fresh']->via))->toBe([['cpi']]);
 });
 
 it('chains two platforms, but no other caller may come between', function () {
@@ -239,7 +239,7 @@ it('chains two platforms, but no other caller may come between', function () {
 
     // SAP → VTEX via CPI and Digibee; and "outro" called CPI before CPI called
     // SAP, so that call is outro's, not a round trip of SAP's.
-    expect(array_map(fn ($p) => $p->slug, $relationships['vtex']->via))->toBe(['cpi', 'digibee'])
+    expect(array_map(fn ($route) => array_map(fn ($p) => $p->slug, $route), $relationships['vtex']->via))->toBe([['cpi', 'digibee']])
         ->and($relationships['outro']->direction)->toBe(RelationshipDirection::Incoming)
         ->and($relationships['outro']->direct)->toBeFalse();
 });
@@ -565,4 +565,25 @@ it('infers through a box from a fan-in too: several callers, one callee', functi
         'b'   => RelationshipDirection::Incoming,
         'hub' => RelationshipDirection::Incoming,
     ]);
+});
+
+it('keeps two routes through platforms apart, each read from the asking side', function () {
+    // The production case: SAP ⟷ VTEX documented once through Digibee alone
+    // and once through CPI › Digibee. A union would draw "via Digibee › CPI",
+    // a route nobody drew, in the wrong order.
+    $sap = relSolution('sap');
+    $vtex = relSolution('vtex');
+    relSolution('cpi', 'ipaas');
+    relSolution('digibee', 'ipaas');
+
+    relPage(relSequence(['sap', 'digibee', 'vtex'], [['sap', 'digibee'], ['digibee', 'vtex']]));
+    relPage(relSequence(['sap', 'cpi', 'digibee', 'vtex'], [['vtex', 'digibee'], ['digibee', 'cpi'], ['cpi', 'sap']]));
+
+    $routes = fn (Solution $from, Solution $to) => array_map(
+        fn ($route) => array_map(fn ($p) => $p->slug, $route),
+        app(SolutionRelationshipService::class)->forSolution($from)->first(fn ($r) => $r->other->is($to))->via,
+    );
+
+    expect($routes($sap, $vtex))->toEqualCanonicalizing([['digibee'], ['cpi', 'digibee']])
+        ->and($routes($vtex, $sap))->toEqualCanonicalizing([['digibee'], ['digibee', 'cpi']]);
 });
