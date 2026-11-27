@@ -15,7 +15,7 @@ use function Laravel\Ai\agent;
 /**
  * Proposes the JSON body of a "Diagrama UML" block — from the page, from what
  * the author asked, or as a change to the diagram already in the block.
- * Spec: docs-and-specs/uml-ai-generation.md.
+ * Spec: docs-and-specs/done/uml-ai-generation.md.
  *
  * The shape is SceneDraftService's — one call, at most one repair round,
  * answered inside the request because one person is watching one button, and

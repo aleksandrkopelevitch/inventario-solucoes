@@ -182,7 +182,7 @@ days for the cache. The editor's check answers the same map (`logos`) and the
 block redraws once with it. A slug with no logo, or no solution, draws no badge.
 
 **"Gerar com IA" (since 2026-11-27) — a model proposes the block's JSON.**
-Spec: `docs-and-specs/uml-ai-generation.md`. The block's row (instruction +
+Spec: `docs-and-specs/done/uml-ai-generation.md`. The block's row (instruction +
 button) POSTs to `notebooks.pages.uml.draft`; `UmlDraftService` asks the
 documentation model (`services.documentation_ai`, `uml_timeout`) and answers
 `{source, problems, warnings, logos}`. It writes nothing: the block replaces

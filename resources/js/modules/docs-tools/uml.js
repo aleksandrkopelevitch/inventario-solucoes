@@ -18,7 +18,7 @@
 // block holds a diagram of its own and something was typed — as a CHANGE to
 // it. The answer REPLACES the JSON, so the previous one is kept for
 // "Desfazer" (a tool's data has no Editor.js undo). Spec:
-// docs-and-specs/uml-ai-generation.md. The JSON is the source of truth on purpose: it is what a
+// docs-and-specs/done/uml-ai-generation.md. The JSON is the source of truth on purpose: it is what a
 // model writes through the MCP server, and one notation edited by both is the
 // only way the two never drift. The SERVER is the judge of a valid diagram
 // (App\Support\Documentation\UmlDiagram), and the block ASKS it
