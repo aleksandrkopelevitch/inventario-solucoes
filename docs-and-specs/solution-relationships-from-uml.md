@@ -1,6 +1,6 @@
 # Solution relationships from the documentation — and the end of the drawing canvas
 
-Status: **phases 1–2 implemented, phase 3 merged (production run pending)** · revision 2 · 2026-11-26 · history in §13, implementation notes in §14
+Status: **phases 1–3 done; phase 4 next** · revision 2 · 2026-11-26 · history in §13, implementation notes in §14
 
 The graphical canvas is removed, both of its owners:
 
@@ -873,7 +873,7 @@ Status per phase (✅ done · 🚧 in progress · ⏳ not started):
 |---|---|---|
 | 1. Bindings and documented relationships | ✅ DONE, verified 2026-11-26 (§14) | `97deeb8` |
 | 2. Manual relationships | ✅ DONE, verified 2026-11-26 (§14) | see §14 |
-| 3. The conversion | 🚧 command merged; run in production pending (§14) | — |
+| 3. The conversion | ✅ DONE — run in production 2026-11-27, pages reviewed (§14) | `b9beb89` |
 | 4. The removal | ⏳ | — |
 | 5. Documentation | ⏳ (the rule `solution-relationships.md` shipped with phase 1) | — |
 
@@ -898,7 +898,7 @@ Status per phase (✅ done · 🚧 in progress · ⏳ not started):
    - §6.3: inline add, edit, override and remove.
    - §8.1: the two MCP write tools, the log and the revert.
    - The source and "via" badges.
-3. 🚧 **The conversion:** `diagrams:to-uml` (§9). Run `--dry-run` in production,
+3. ✅ **The conversion:** `diagrams:to-uml` (§9). Run `--dry-run` in production,
    review its report, then run it for real. The person reviews the 11 pages,
    and `/map` should show the drawings' pairs again, now from UML.
 4. ⏳ **The removal:** everything in §8, CATI canvas included.
@@ -1254,3 +1254,50 @@ and the command's last line reports no page still citing a diagram.
   Digibee, CPI and SAP as participants with no block for them, and no
   relationship follows from them. A UML block has nowhere honest to put "these
   systems take part, somewhere".
+
+### Phase 3 — production run, 2026-11-27 ✅ DONE
+
+**The run:** `diagrams:to-uml` converted all 11 drawings, and the validator
+refused none. Its last line reported ONE page still citing a diagram,
+`leo-e-commerce-vtex/clientes`. That citation was to
+`cadastro-e-atualizacao-de-clientes-2`, a drawing deleted BEFORE the
+conversion, so the page showed the "Diagrama removido" card and the command
+had nothing to convert.
+
+**Fixed through the MCP** (`update_page`, every change logged in "Alterações
+via MCP" and revertible):
+
+- `clientes`: the dead citation and the page's Mermaid + ASCII tabs, which
+  this app never draws, became one `{% uml type="sequence" %}`. It is bound to
+  `sap-s-4hana`, `digibee-ipaas` and `vtex`, with its alt/loop/returns. **No
+  page cites a diagram any more, so phase 4's gate is open.**
+- Crossings removed by moving cells only:
+  - `accessone-iam/teste`. That diagram was not a test: it is the page's real
+    integration architecture (Senior HCM → AccessOne → Entra ID). It was
+    renamed "Integrações do AccessOne", not deleted.
+  - `amigo-leo/amigo-leo`
+  - `integracoes-leo-360/dados-e-acessos`
+  - `leo-e-commerce-vtex/fluxo-cadastro-cliente`, top-down
+  - `leo-e-commerce-vtex/pagina-inicial`, the Pipelines activity, top-down
+  - `freshdesk-integracoes/integracao-freshdesk`
+- **Moved:** the two "Dados Mestre de Clientes…" diagrams went from
+  `integracao-freshdesk` to `dados-mestre-de-clientes`, next to the pictures
+  of the same flows.
+- **Returns marked:** the sequence's responses are `"kind": "return"` in
+  "Dados Mestre" and in "SAP × Onfly".
+
+**Left to the person:**
+
+- **`pdv-online`: the "Visão AS-IS • Processo" diagram** landed on the
+  caderno's first page ("Difusão / Fluxo de Produtos e Preços", 20 KB) when it
+  belongs on `visao-as-is` (50 KB). Neither page was resent whole through the
+  MCP, which was too large to retype safely. The re-laid, validated JSON
+  (14 steps, top-down) was handed over to paste in the editor.
+- **`amigo-leo`: the old canvas's palette leftovers.** "Decisão", "Ator
+  (pessoa/área)", Início, Fim and "Etapaestá muito grande eu acho" are still
+  in the diagram. Removing them was refused by the permission classifier as
+  beyond the approved scope, rightly so.
+- **`accessone-iam`: the "UBER" node** looks like a test entry.
+- **Found on the way, unrelated:** `onfly/integracao-sap-x-onfly-manual-de-orientacao`
+  publishes the Onfly API token in plain text (the "Parâmetros por Empresa
+  SAP" table). It belongs in `{% secret %}`, and the token should be rotated.
