@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Contracts\Documentable;
 use App\Models\Notebook;
-use App\Models\SubmissionDiagram;
 use App\Support\Documentation\DocumentationMediaResponse;
 use Illuminate\Http\Request;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
@@ -24,22 +23,12 @@ class MediaController extends Controller
     {
         abort_unless($media->collection_name === Documentable::DOCS_COLLECTION, 404);
 
-        // Asked of the module the OWNER belongs to. A committee drawing keeps
-        // its pasted images in a collection of this same name (so the canvas
-        // can address them as `/files/{id}`), and gating every file on the
-        // documentation module let any account with no Committee access read
-        // a proposal's images by counting ids — while a Committee member with
-        // no Documentation level got a 403 on their own canvas. Everything
-        // else here is documentation media, closed to a level of None there.
-        // (`/docs` and the magic link serve published media through routes of
-        // their own.)
-        $owner = $media->model;
-
-        if ($owner instanceof SubmissionDiagram) {
-            $this->authorize('view', $owner->submission()->firstOrFail());
-        } else {
-            $this->authorize('viewAny', Notebook::class);
-        }
+        // Documentation media, closed to an account whose Documentation level
+        // is None. (`/docs` and the magic link serve published media through
+        // routes of their own.) Until 2026-11-27 the committee's canvas kept
+        // its pasted pictures in a collection of this name too, and was
+        // authorized by its submission here.
+        $this->authorize('viewAny', Notebook::class);
 
         return DocumentationMediaResponse::for($media, $request);
     }

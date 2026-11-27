@@ -12,7 +12,7 @@
             <x-forms.button type="button" variant="ghost"
                 data-ak-ajax="solution-page-delete"
                 data-ak-action="{{ route('solutions.destroy', $solution) }}"
-                data-ak-confirm="Excluir a solução &quot;{{ $solution->name }}&quot;? As pessoas e as empresas ligadas a ela continuam existindo — só o vínculo acaba. As interconexões cadastradas com ela são removidas. Nos diagramas UML que a citam, o elemento continua desenhado, sem vínculo."
+                data-ak-confirm="{{ $deleteConfirm }}"
                 title="Excluir solução"
                 class="!p-1.5 text-muted hover:!text-crit">
                 <x-heroicon-o-trash class="size-4" />

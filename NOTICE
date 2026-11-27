@@ -15,8 +15,7 @@ per-color cached glow and orb sprites, the deterministic bowed-link geometry,
 and the concentric-ring layout with its easing.
 
 What is ours: everything the map is ABOUT — solutions, the pair aggregation,
-the diagram drill-down, the chain's node kinds and their shapes, the category
-palette, the copy, and the payload behind all of it
-(`App\Services\DiagramGraphService`).
+the hosting view, the category palette, the copy, and the payload behind all
+of it (`App\Services\EcosystemMapService`).
 
 The attribution is also shown to the reader, at the bottom of the map itself.
