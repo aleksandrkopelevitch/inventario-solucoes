@@ -116,6 +116,55 @@ it('tells the editor about an unknown slug and hints at a name that is a solutio
         ->and($response->json('hints')[0])->toContain('"solution": "digibee-ipaas"');
 });
 
+it('hands each figure the logos of its bound solutions, resolved per render', function () {
+    relSolution('sap-s4');
+    $vtex = relSolution('vtex');
+    $vtex->forceFill(['logo_path' => 'solution-logos/vtex.png'])->save();
+    relSolution('sem-logo');
+
+    $renderer = app(GitbookRenderer::class);
+    $body = relSequence(['sap-s4', 'vtex'], [['sap-s4', 'vtex']]) . "\n\n" . relSequence(['sem-logo', 'fantasma'], [['sem-logo', 'fantasma']]);
+    $html = $renderer->render($body);
+
+    preg_match_all('/data-ak-uml-logos="([^"]*)"/', $html, $m);
+    $logos = array_map(fn (string $attr) => json_decode(html_entity_decode($attr), true), $m[1]);
+
+    // Only the solutions with a logo; a figure binding none still says so,
+    // and the slugs never reach the page as a placeholder.
+    expect($logos)->toHaveCount(2)
+        ->and(array_keys($logos[0]))->toBe(['vtex'])
+        ->and($logos[0]['vtex'])->toContain('solution-logos/vtex.png')
+        ->and($logos[1])->toBe([])
+        ->and($html)->not->toContain('data-ak-uml-bound');
+
+    // Not frozen by the parse cache: a logo removed shows at the next render.
+    $long = $body . "\n\n" . str_repeat("Texto de preenchimento.\n\n", 300);
+    expect($renderer->render($long))->toContain('vtex.png');
+    $vtex->forceFill(['logo_path' => null])->save();
+    expect($renderer->render($long))->not->toContain('vtex.png');
+});
+
+it('answers the editor the logos of the solutions a diagram binds', function () {
+    $notebook = Notebook::factory()->create();
+    $page = DocumentationPage::factory()->for($notebook)->create();
+    relSolution('vtex')->forceFill(['logo_path' => 'solution-logos/vtex.png'])->save();
+    relSolution('sap-s4');
+
+    $response = $this->actingAs(User::factory()->admin()->create())
+        ->postJson(route('notebooks.pages.uml', [$notebook, $page]), [
+            'type'   => 'component',
+            'source' => json_encode([
+                'nodes' => [
+                    ['id' => 'a', 'kind' => 'component', 'name' => 'VTEX', 'solution' => 'vtex', 'at' => [0, 0]],
+                    ['id' => 'b', 'kind' => 'component', 'name' => 'SAP', 'solution' => 'sap-s4', 'at' => [1, 0]],
+                ],
+            ]),
+        ])->assertOk();
+
+    expect(array_keys($response->json('logos')))->toBe(['vtex'])
+        ->and($response->json('logos.vtex'))->toContain('solution-logos/vtex.png');
+});
+
 /* ------------------------------------------------------------------ */
 /*  Direction */
 /* ------------------------------------------------------------------ */

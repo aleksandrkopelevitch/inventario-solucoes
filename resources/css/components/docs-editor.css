@@ -990,8 +990,9 @@
 }
 
 /* ------------------------------------------------------------------------ */
-/*  "Diagrama UML" (docs-tools/uml.js) — type, title, the JSON body and a    */
-/*  preview drawn by docs-uml.js exactly as the reader draws it.             */
+/*  "Diagrama UML" (docs-tools/uml.js) — type, title and a preview drawn by  */
+/*  docs-uml.js exactly as the reader draws it. The JSON body opens in       */
+/*  #main-modal from the preview's "Código" button (__source is that field). */
 /* ------------------------------------------------------------------------ */
 .ak-uml-tool {
     margin: 0.75rem 0;
@@ -1022,6 +1023,8 @@
     line-height: 1.45;
     resize: vertical;
 }
+/* In the dialog the field is the whole window. */
+.ak-uml-tool__source--dialog { flex: 1 1 auto; min-height: 50vh; resize: none; }
 .ak-uml-tool__type:focus,
 .ak-uml-tool__title:focus,
 .ak-uml-tool__source:focus { outline: 2px solid var(--color-accent); outline-offset: 1px; }
@@ -1034,6 +1037,21 @@
     border: 1px dashed var(--color-line);
     border-radius: var(--radius-card);
 }
+/* A diagram that cannot be drawn leaves this in the preview: the code is the
+   only way to fix it, and the "Código" toggle went with the picture. */
+.ak-uml-tool__code {
+    display: block;
+    margin: 0.5rem auto;
+    padding: 0.4rem 0.8rem;
+    border: 1px solid var(--color-line-2);
+    border-radius: var(--radius-field);
+    background: var(--color-surface);
+    color: var(--color-accent);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+.ak-uml-tool__code:hover { border-color: var(--color-accent-line); }
 
 /* ------------------------------------------------------------------------ */
 /*  "Fluxo em etapas" (docs-tools/scene.js) — the editor's half of a scene.  */
