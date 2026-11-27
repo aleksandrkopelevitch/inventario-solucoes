@@ -26,7 +26,7 @@ use App\Support\Images\PublicImage;
  * arrows come from the documentation — SolutionRelationshipService's DIRECT
  * pairs, as the UML diagrams in caderno pages state them — and no longer from
  * the topology drawings, which were removed
- * (docs-and-specs/solution-relationships-from-uml.md). `direction` is
+ * (docs-and-specs/done/solution-relationships-from-uml.md). `direction` is
  * `bidirectional` (a head at each end), `unidirectional` (source → target) or
  * `undirected` (no head: a plain association). A pair inferred THROUGH a
  * platform is not drawn: it would only repeat the two arrows that already

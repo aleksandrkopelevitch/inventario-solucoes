@@ -3,7 +3,7 @@
 > **Nota (2026-11-27):** a pendência de topologia aprovada (`ApprovedTopology`,
 > aplicar / já refletida) foi removida. Aprovar publica a prosa e a imagem do
 > TO BE no caderno; quem fala com quem vem dos diagramas UML da documentação
-> (`docs-and-specs/solution-relationships-from-uml.md`).
+> (`docs-and-specs/done/solution-relationships-from-uml.md`).
 
 Fecha o ciclo. Fase 1 preparou a submissão, Fase 2 gerou o deck; aqui o comitê
 delibera e o que foi aprovado volta para o catálogo.

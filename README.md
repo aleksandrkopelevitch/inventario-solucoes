@@ -26,7 +26,7 @@ documentado. Até 2026-11-27 isso vinha de um editor gráfico de topologia
 (`/diagrams`); os 11 desenhos que existiam foram convertidos em blocos UML nos
 cadernos correspondentes e o editor foi removido, junto com o canvas do AS IS /
 TO BE do Comitê (hoje imagens enviadas). Detalhes em
-`docs-and-specs/solution-relationships-from-uml.md`.
+`docs-and-specs/done/solution-relationships-from-uml.md`.
 
 A documentação em si mora em **Cadernos** (`Notebook`, à la *Space* do GitBook),
 e cada caderno se relaciona com **0..N soluções**: uma solução não tem páginas

@@ -3,7 +3,7 @@
 > **Nota (2026-11-27):** o canvas do AS IS / TO BE e o comparativo
 > (`TopologyDiff`) foram removidos. As quatro peças são imagens enviadas, e o
 > desenho salvo de cada canvas virou a imagem do slot
-> (`docs-and-specs/solution-relationships-from-uml.md`, fase 4b). Este plano fica
+> (`docs-and-specs/done/solution-relationships-from-uml.md`, fase 4b). Este plano fica
 > como registro do que foi construído.
 
 Continuação de `cati-fase-1.md` (registro, checklist, entrevista, saídas em

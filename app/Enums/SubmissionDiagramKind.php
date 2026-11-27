@@ -8,7 +8,7 @@ namespace App\Enums;
  * images the person uploads, made in whatever tool they draw in.
  *
  * AS IS / TO BE used to be drawn on an in-app canvas; that canvas was removed
- * on 2026-11-27 (docs-and-specs/solution-relationships-from-uml.md, phase 4b).
+ * on 2026-11-27 (docs-and-specs/done/solution-relationships-from-uml.md, phase 4b).
  */
 enum SubmissionDiagramKind: string
 {

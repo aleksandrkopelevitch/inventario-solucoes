@@ -24,7 +24,7 @@ uses(LazilyRefreshDatabase::class);
 
 /*
  * The solution↔solution relationships derived from the documentation's UML
- * diagrams (docs-and-specs/solution-relationships-from-uml.md, phase 1).
+ * diagrams (docs-and-specs/done/solution-relationships-from-uml.md, phase 1).
  */
 
 function relSolution(string $slug, string $category = 'erp', ?string $name = null): Solution
