@@ -31,7 +31,7 @@ The spec is `docs-and-specs/solution-relationships-from-uml.md`.
 - **Phase 2 is shipped:** manual interconnections, inline and through the MCP.
 - **Phases 3 and 4 are shipped:** the old drawings were converted into
   `{% uml %}` blocks, `/diagrams` was removed, and the committee's AS IS / TO
-  BE canvas became uploads (2026-11-27). Phase 5 is the README.
+  BE canvas became uploads (2026-11-27). Phase 5 (the README) is done too.
 
 **A participant, element or group is bound to a catalog solution by
 `"solution": "<slug>"` in the `{% uml %}` JSON, and ONLY that way.** A label

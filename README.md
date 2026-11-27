@@ -1,10 +1,10 @@
 # Inventário de Soluções
 
 Aplicação Laravel standalone para catalogar as soluções e integrações da Leo
-Madeiras: cadastro de soluções/pessoas/empresas, um módulo de **Diagramas**
-(editor gráfico de topologia, um desenho por vez — todo diagrama pertence a um
-caderno), um mapa read-only do
-ecossistema derivado desses desenhos, documentação rica (estilo GitBook) em
+Madeiras: cadastro de soluções/pessoas/empresas, os **relacionamentos** entre
+as soluções (quem chama quem, lidos dos diagramas UML da documentação ou
+cadastrados à mão) com um mapa read-only do ecossistema derivado deles,
+documentação rica (estilo GitBook) em
 árvore de páginas — com um assistente de IA que gera rascunhos, com **cenas
 animadas** montadas a partir do texto (fluxo em etapas, antes → depois, árvore,
 comparação lado a lado, linha do tempo), com **diagramas UML** escritos na própria
@@ -19,13 +19,14 @@ Digibee** (`/digibee-logs`, também pelo MCP) e o módulo do **Comitê de Arquit
 onde uma proposta é preparada, entrevistada, vira deck e volta para o catálogo
 depois de deliberada.
 
-Todo diagrama **pertence a um caderno** (nunca a uma página dele) e só nasce
-dentro de um: lido a partir de uma página ("Desenhar esta página") ou em branco,
-em "Diagramas do caderno". O texto chega ao desenho **citando-o**
-(`{% diagram slug="…" %}`), de qualquer página, inclusive de outro caderno.
-Até 2026-08-26 existiam **duas** documentações — a árvore de páginas
-e uma coluna própria de cada integração — e a segunda deixou de existir junto
-com a entidade `Integration`, que virou `Diagram`.
+Quem fala com quem é a **documentação** que diz: um participante ou elemento de
+um bloco `{% uml %}` vinculado a uma solução do catálogo (`"solution": "<slug>"`)
+vira um relacionamento, com o sentido da chamada e a página onde está
+documentado. Até 2026-11-27 isso vinha de um editor gráfico de topologia
+(`/diagrams`); os 11 desenhos que existiam foram convertidos em blocos UML nos
+cadernos correspondentes e o editor foi removido, junto com o canvas do AS IS /
+TO BE do Comitê (hoje imagens enviadas). Detalhes em
+`docs-and-specs/solution-relationships-from-uml.md`.
 
 A documentação em si mora em **Cadernos** (`Notebook`, à la *Space* do GitBook),
 e cada caderno se relaciona com **0..N soluções**: uma solução não tem páginas
@@ -208,13 +209,14 @@ diferentes depois que eles otimizam do lado deles — o original pré-otimizaç�
 não é alcançável pela API documentada. O que é arquivado é o que o
 `downloadURL` devolve, que é também exatamente o que o import já guardava.
 
-**Manutenção da documentação.** Três comandos. Os dois primeiros rodam sozinhos,
-e o terceiro é para quando aparecer uma suspeita:
+**Manutenção da documentação.** Quatro comandos. Os dois primeiros rodam
+sozinhos, e os outros dois são para quando aparecer uma suspeita:
 
 ```bash
 php artisan documentation:search-warm     # prepara os índices de busca (deploy + diário 04:00)
 php artisan documentation:web-images      # enfileira a versão leve das imagens que não têm (deploy)
 php artisan documentation:secrets-audit   # páginas com valores protegidos danificados (só leitura)
+php artisan documentation:solution-links  # refaz o índice de relacionamentos a partir dos diagramas UML
 ```
 
 - **`documentation:search-warm`** monta o índice de busca de cada caderno
@@ -232,6 +234,10 @@ php artisan documentation:secrets-audit   # páginas com valores protegidos dani
   página, que pode ser cópia ou repetição de propósito. `--all` lista também as
   páginas sem sinal de dano, com a data do último salvamento, para comparar com
   um backup. `--notebook=<slug>` limita a um caderno. Nunca imprime um valor.
+- **`documentation:solution-links`** relê os vínculos `"solution"` dos diagramas
+  UML de todas as páginas e reconstrói `uml_solution_links`. Cada gravação de
+  página já faz isso para ela mesma; o comando é o reparo (e foi o backfill
+  quando os relacionamentos chegaram).
 
 **Logs da Digibee na máquina do dev.** Com a sessão Digibee da própria pessoa,
 nunca no servidor (os três recusam rodar em produção; lá a leitura é a tela
@@ -273,7 +279,7 @@ que um usuário pode fazer é um **nível por módulo** (`App\Enums\AccessModule
 | Módulo | Cobre |
 |---|---|
 | Soluções, Pessoas e Empresas | o catálogo |
-| Documentação e Diagramas | cadernos, páginas e diagramas |
+| Documentação | cadernos e páginas (diagramas UML e cenas incluídos) |
 | Especialista em Integrações | `/flowspec`, o corpus de exemplos/diretrizes e os **Logs Digibee** (`/digibee-logs` e as ferramentas de log do MCP) |
 | Comitê de Arquitetura | `/submissions` |
 
@@ -286,7 +292,7 @@ Cada módulo tem três níveis:
   criou; no Especialista, só as próprias conversas (o Leitor lê as de todos).
 
 **Toda conta nova** (convite, acesso concedido ou login pela Microsoft) nasce
-**Leitor** em Soluções/Pessoas/Empresas e em Documentação/Diagramas, e
+**Leitor** em Soluções/Pessoas/Empresas e em Documentação, e
 **Nenhum** no Especialista e no Comitê — um administrador abre esses dois por
 pessoa (`AccessModule::defaultLevel()`). As contas que já existiam antes dos
 níveis por módulo mantiveram exatamente o acesso que tinham.
@@ -388,8 +394,8 @@ Blade + JS vanilla organizado em módulos. Isso é uma decisão deliberada, não
 falta de ferramenta: o app é majoritariamente CRUD/catálogo (formulários,
 listas, filtros) com round-trip ao servidor por ação — cenário em que um SPA
 adicionaria hidratação, bundle e um segundo modelo mental sobre o Blade sem
-ganho. As duas telas de fato interativas (o canvas de diagrama e o mapa do
-ecossistema) são SVG/DOM imperativo, que um framework tampouco simplificaria.
+ganho. As telas de fato interativas (o mapa do ecossistema, os diagramas UML e
+as cenas) são canvas/SVG imperativo, que um framework tampouco simplificaria.
 Se um dia surgir reatividade local complexa, o caminho é **Alpine.js** (ilha
 declarativa) ou **Livewire** (componente server-driven) — ambos preservam este
 modelo —, nunca um rewrite em SPA.
@@ -471,11 +477,12 @@ Um job por thread/alvo de cada vez (`WithoutOverlapping`), porque a UI assume
   substitui por id. Ver abaixo.
 - **Controllers finos** — lógica ampla em Services, operações únicas em Actions;
   validação sempre em Form Requests; toda mutação passa por `authorize()`/Policy.
-- **Fonte de verdade única por domínio** — a topologia de um diagrama vive só
-  na `chain`; colunas derivadas são reconstruídas por uma Action, nunca
-  escritas à mão (ver "Notas técnicas").
+- **Fonte de verdade única por domínio** — quem fala com quem vive só no texto
+  da documentação (os blocos `{% uml %}`); o índice `uml_solution_links` é
+  reconstruído por uma Action a cada gravação da página, nunca escrito à mão
+  (ver "Notas técnicas").
 - **Assíncrono por job + polling** — features de IA disparam um job e o front
-  faz polling do status até sair de `pending`; sem broadcasting (diagrama acima).
+  faz polling do status até sair de `pending`; sem broadcasting (desenho acima).
 - **Strict mode do Eloquent** fora de produção — relação não carregada lança
   exceção em vez de lazy-load silencioso (ver "Notas técnicas").
 
@@ -578,17 +585,13 @@ trait em um subdiretório `Concerns`. É o mesmo raciocínio do
   updatable slot" (`toSlot()`). Aplicável a qualquer componente que apareça
   num slot; ver § acima.
 - **`App\Http\Controllers\Concerns\*`** (`EditsDocumentation`,
-  `AssistsDocumentation`, `LinksPageDiagram`) — as traits guardam o que a tela
+  `AssistsDocumentation`, `BuildsPagesNav`) — as traits guardam o que a tela
   de documentação faz (montar a página do editor, salvar o Markdown, subir
-  mídia, vincular/desvincular o diagrama, o painel e o polling do Assiste IA) e
+  mídia, o trilho de páginas, o painel e o polling do Assiste IA) e
   recebem do controller só o contexto de rota. Elas eram compartilhadas por
   DOIS controllers, um por tipo de container; com o **Caderno** virando o único
   container sobrou `NotebookPageController`, e a divisão continua valendo pela
   mesma razão: o controller resolve rota, a trait monta o editor.
-- **`App\Http\Controllers\Concerns\EditsChain`** — as nove mutações do
-  canvas contra qualquer `ChainCanvas`. Dois donos hoje (`Diagram` e
-  `SubmissionDiagram`) e o cliente nunca sabe qual: toda URL que ele chama vem
-  dentro do payload do grafo.
 - **`App\Http\Requests\Concerns\ParsesFlowspecContextInput`** — regras de
   validação + parsing do contexto (solutions citadas, refs de documento)
   reaproveitados por mais de um Form Request do flowSpec.
@@ -604,17 +607,18 @@ Controllers são finos de propósito (§ Arquitetura). A lógica sai deles para
 dois lugares, por *forma* e não por tamanho:
 
 - **Action** = uma operação única, com um verbo, invocada de vários gatilhos.
-  Classe com um `handle()` e DI no construtor. `App\Actions\
-  SyncDiagramFromChain` (rederiva as colunas da topologia a cada mutação
-  da `chain` — são nove endpoints chamando a mesma coisa) e
+  Classe com um `handle()` e DI no construtor. `App\Actions\Documentation\
+  SyncPageSolutionLinks` (relê os vínculos `"solution"` dos diagramas UML de
+  uma página a cada gravação, venha ela do editor, do MCP ou do Assiste IA) e
   `App\Actions\Flowspec\SaveFlowspecExample`/`NormalizeReferenceFlowspec` são
   os exemplos: cada uma faz *uma* coisa, chamada de vários controllers/pontos,
   e por isso merece um objeto testável e injetável em vez de um método privado
   repetido.
 - **Service** = lógica *ampla* de um subdomínio, coordenando mais de um passo
   ou consulta. `DocumentationCoverageService` (agrega cobertura por conteúdo
-  real), `DiagramCatalogService` (os números e a lista do módulo de
-  diagramas), `DiagramGraphService` (monta/deduplica o grafo do ecossistema),
+  real), `SolutionRelationshipService` (dobra os vínculos em pares e infere o
+  que passa por uma plataforma), `EcosystemMapService` (monta o grafo do
+  ecossistema),
   os `Services\Documentation\*` e `Services\Flowspec\*`. Não é "um verbo" — é
   um conjunto coeso de operações de uma área.
 
@@ -734,7 +738,7 @@ duas famílias:
    O `init()` varre `querySelectorAll('[data-ak-…]')` e monta cada elemento —
    mas precisa ser **idempotente**, porque `init()` roda de novo a cada troca de
    slot (ver adiante). A guarda é um **`WeakSet`** de elementos já
-   inicializados. Usado por `docs-editor`, `chain-viz`, `ecosystem-map`,
+   inicializados. Usado por `docs-editor`, `ecosystem-map`,
    `tabs`.
 
    ```js
@@ -780,30 +784,17 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   Diretoria), a grade de owners por papel e um bloco de anotações livres.
   Atributos em branco mostram "Não informado" em vez de sumir da ficha, e
   tudo ali é editável na própria página (ver abaixo). Abaixo do cabeçalho,
-  um card único reúne os diagramas em que a solução aparece e as páginas de
-  documentação dela, lado a lado (ver "Diagramas").
+  um card único reúne os relacionamentos da solução e os cadernos que a
+  documentam, lado a lado (ver "Relacionamentos").
 
   **Excluir uma solução é do admin** (`SolutionPolicy::delete`), e o que está
   em volta dela sobrevive: dono e fornecedor são registros de primeira classe
   aqui — uma pessoa não é filha da solução, e a empresa a solução aponta
   (`vendor_company_id`) em vez de possuir —, então só os vínculos vão junto.
-  Duas referências precisam de trabalho antes da linha sair, e são a mesma
-  vista duas vezes: `diagrams.source_solution_id`/`target_solution_id`
-  cascateiam, e o banco apagaria **o desenho inteiro** em vez da referência
-  (as duas são derivadas da chain, então re-derivar resolve); e um nó da chain
-  guarda o `solution_id` ao lado do `label` com que foi desenhado — largar só
-  o id deixa o bloco onde estava, com o mesmo nome, como texto livre, que é
-  exatamente a cara que um sistema que saiu do catálogo deve ter (apagar o
-  bloco renumeraria todas as arestas depois dele).
-
-  **Três tabelas guardam aquele formato de nó, não duas.** `Diagram`,
-  `SubmissionDiagram` e `approved_topologies.chain` — essa última é um
-  *snapshot* do TO BE de um comitê, então não é um `ChainCanvas` (nada a
-  desenha ou edita), e a FK dela só cobre a solução de que a submissão
-  **tratava**. Uma solução que apenas **aparece** dentro de uma chain
-  aprovada sobrevivia à exclusão como id pendurado, e `ApplyApprovedTopology`
-  morria nela meses depois: `FOREIGN KEY constraint failed` em
-  `diagram_solution`, um 500 para quem aprovou.
+  As interconexões cadastradas à mão e as linhas do índice de vínculos vão
+  junto, em cascata, e a confirmação diz quantas interconexões serão removidas.
+  Um diagrama UML que vinculava a solução continua desenhando o elemento, agora
+  sem vínculo — o texto da página não é tocado.
 - **Edição in place nas três páginas de detalhe** (solução, pessoa, empresa):
   a página é de leitura, e cada dado vira editor sob **duplo clique** — ou um
   clique no lápis ao lado, que é o caminho do teclado e do toque. O side panel
@@ -820,9 +811,7 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
       mesmo, cada card devolvendo seu próprio slot.
 
   O mesmo gesto vale fora dessas três páginas onde um dado precisa ser lido e
-  ajustado no mesmo lugar: o nome e o status de um diagrama, na barra de cima
-  do canvas dele, e o diagrama vinculado a uma página de documentação, na barra
-  de cima do editor.
+  ajustado no mesmo lugar, como as interconexões no card de Relacionamentos.
 - **Atributos gerenciáveis em runtime**: os valores de cada um dos 8 grupos
   (`App\Enums\AttributeGroup`) são registros `AttributeOption` editáveis por
   admin em "Gerenciar atributos" (`/attributes`, sempre dentro da `#main-modal`,
@@ -856,168 +845,55 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   coluna dela nunca ser preenchida. Dobrar acento e caixa (`whereFolded()`) é só
   metade de "isso pode ser encontrado"; a outra metade é quais colunas o
   `orWhere` nomeia, e essa não tem macro que acerte por você.
-- **Diagramas** (`/diagrams`): o módulo dos desenhos. Um diagrama é um registro
-  de primeira classe — tem nome, status e uma página só sua
-  (`/diagrams/{slug}`) onde o canvas gráfico
-  (`resources/js/modules/chain-viz.js`) desenha e edita a `chain`. Nome e
-  **status** são editados in place na barra de cima
-  (`Diagrams\Meta`), que também mostra o **caderno** do desenho — e é para
-  ele que a seta de voltar leva.
+- **Relacionamentos** (no detalhe da solução): quem fala com quem, numa lista
+  `[(logo) esta solução] ──▶ [(logo) outra]` — a seta tem uma ponta (quem
+  chama) ou duas (mútua), ou nenhuma quando o diagrama só associa as duas.
+  Esta solução fica sempre à esquerda, então "──▶" sempre lê "esta chama a
+  outra". Cada linha abre "Onde está documentado", com links para a figura na
+  página (`#uml-figure-{n}`).
 
-  Todo diagrama **pertence a um caderno** (`diagrams.notebook_id`, obrigatório;
-  apagar o caderno apaga os desenhos dele, e a confirmação diz quantos). O
-  índice é a única tela que junta os desenhos de todos os cadernos, então cada
-  linha diz de qual caderno ela é, e há um filtro por caderno; ele **não cria**
-  diagrama nenhum. Criar acontece só dentro de um caderno, por dois caminhos:
-  "Desenhar esta página" (abaixo) e **"Diagramas do caderno"**, no pé do menu
-  lateral das páginas — um modal com os desenhos do caderno, os sistemas que
-  cada um cita, "Abrir canvas", "Copiar citação" e a criação em branco (nome
-  obrigatório). Tudo que escreve um desenho passa por uma ação só,
-  `App\Actions\WriteNotebookDiagram`. Em 2026-09-30, quando isso entrou, todos
-  os diagramas existentes eram de teste e foram apagados pela migration
-  `purge_test_diagrams`; não houve backfill.
+  A fonte é a **documentação**: um participante (sequência) ou elemento
+  (diagramas estruturais) de um bloco `{% uml %}` com `"solution": "<slug>"`
+  vira um vínculo — e SÓ assim; um rótulo igual ao nome de uma solução não
+  vincula nada. Um elemento sem vínculo próprio herda o do grupo mais interno
+  vinculado.
 
-  O índice mostra ainda, por diagrama, o resumo da cadeia e os sistemas do
-  catálogo que ele cita — ou diz em voz alta que não cita nenhum.
+  - **O que conta como chamada:** na sequência, `sync`/`async`/`create`/
+    `destroy` (o `return` é resposta, não chamada); nos estruturais,
+    `directed`/`dependency`/`flow`, e `association` vira "sem sentido
+    definido".
+  - **Via plataforma:** uma solução da categoria `ipaas` (Digibee, SAP CPI) no
+    meio do caminho gera o par de ponta a ponta "via" ela, dentro de UM
+    diagrama só — na sequência pela ordem das mensagens (até duas
+    plataformas), num estrutural só num leque inequívoco. Cada rota fica
+    separada; os pares diretos com a plataforma continuam.
+  - **O índice** (`uml_solution_links`, uma linha por chamada) é reconstruído a
+    cada gravação da página, venha ela do editor, do MCP ou do Assiste IA;
+    `php artisan documentation:solution-links` refaz tudo. Os pares são
+    dobrados na leitura por `SolutionRelationshipService`.
+  - **Renomear o slug** de uma solução reescreve os vínculos dentro dos blocos
+    UML (e só lá); criar uma solução recolhe as páginas que já a citavam.
 
-  Até 2026-08-26 isto era uma `Integration`, alcançável só por dentro de uma
-  solução que participasse dela (`/solutions/{slug}/integrations/{slug}/documentation`)
-  e com uma documentação de página única própria. As duas coisas foram
-  embora: o desenho é endereçado por si mesmo, e o texto que o explica é uma
-  página de documentação que aponta para ele.
+  Também dá para **cadastrar à mão** (`solution_relationships`, um registro por
+  par): "+ Adicionar interconexão" no próprio card, escolhendo a outra solução
+  e o sentido (esq/dir/ambos), tudo inline. Editar uma linha documentada cria
+  um **ajuste manual** que prevalece sobre a documentação; removê-lo volta ao
+  que a documentação diz. Pelo MCP, `set_solution_relationship` e
+  `remove_solution_relationship` fazem o mesmo, registrados e reversíveis em
+  "Alterações via MCP".
 
-- **Diagramas de uma solução**: no detalhe da solução, um card único reúne os
-  **diagramas** em que ela aparece (à esquerda) e os **cadernos que a
-  documentam** (à direita) — o mesmo tipo de coisa, uma lista que se
-  abre para ler/editar, então uma moldura só. Cada diagrama da lista diz de
-  qual **caderno** ele é. Daqui se cria caderno, mas não diagrama: um desenho
-  nasce dentro de um caderno que documenta a solução. Um lado vazio mostra uma
-  ilustração dizendo o que falta, não uma linha de texto cinza.
+  O card é um fato do catálogo, visível a quem vê a solução; só os links para
+  os cadernos pedem o módulo de Documentação. A contagem aparece também na faixa
+  do catálogo e na planilha.
 
-  "Aparece" quer dizer uma coisa só: a solução é um **bloco** do desenho (pivot
-  derivado da chain). Havia um segundo caminho — uma página dela apontava para o
-  desenho via `documentation_pages.diagram_id` — e ele saiu junto com a FK: prosa
-  **cita** um diagrama hoje, e uma citação vive no texto, não numa coluna.
-
-  A topologia vive só na `chain`, e tudo o mais é derivado dela:
-
-  ```
-  Diagram.chain (json)  ←  ÚNICA fonte de verdade da topologia
-    nodes: [{ kind, solution_id?, label }]
-            kind = system | decision | actor | start | end | image
-                 | lifeline | step
-    edges: [{ from, to, arrow, protocol, fromT?, toT? }]
-            from/to = índices em nodes (não posições consecutivas)
-            arrow   = ->  |  <-  |  <->
-            fromT/toT = onde na LATERAL a seta encosta (fração da altura),
-                        só para lifeline — ver "modelos de diagrama"
-       │
-       │  toda mutação da chain (store · add/update/removeNode ·
-       │  add/retarget/removeEdge · updateProtocol) chama, em seguida:
-       ▼
-  App\Actions\SyncDiagramFromChain  ← o único que escreve as colunas abaixo
-       ├─ diagram_solution (pivot, com position)    ← kind=system|lifeline
-       ├─ source_solution_id / target_solution_id
-       ├─ direction
-       └─ protocol   (o 1º protocolo não-nulo, como resumo escalar)
-
-  Diagram.viz_layout (json)  ←  paralelo, e PURAMENTE VISUAL
-    x/y, cor, fonte, tracejado, post-it por bloco, raias
-    saveLayout() nunca toca a chain, e nada daqui entra no cálculo acima
-  ```
-
-  **Só `system` e `lifeline` referenciam uma Solution** — decision/actor/
-  start/end/step/image são texto livre (ou imagem) e por isso nunca viram
-  participantes, mesmo que um `solution_id` antigo tenha sobrado no nó. A
-  linha de vida entra nessa lista porque os participantes de uma sequência
-  **são** os sistemas do catálogo: uma chamada entre SAP e Digibee é a mesma
-  relação desenhada como duas caixas ou como duas colunas, e derivar só num
-  dos dois desenhos seria o catálogo enxergar metade do que foi dito.
-
-  É um **grafo livre de verdade**, não uma cadeia linear: um bloco pode ficar
-  sem nenhuma ligação (nasce isolado — ligar é um gesto à parte), e cada
-  ligação carrega seu próprio sentido (`->`/`<-`/`<->`) e protocolo.
-
-  Editável direto no canvas: título e tipo de um nó (exceto o raiz),
-  sentido/protocolo de uma ligação, adicionar um bloco novo (ligado ou
-  isolado), colar uma **imagem** como bloco, religar a ponta de uma ligação
-  arrastando, criar uma ligação nova entre dois blocos ("modo ligar"), e
-  desligar uma ligação. Em volta disso, três recursos que existem só no plano
-  visual e vivem no `viz_layout`: **raias** (swimlanes de fundo, que agrupam
-  sem nunca definir topologia), **post-its** por bloco (comentário em
-  Markdown) e a paleta de cor/fonte de cada bloco. Todos os gestos rodam em
-  **eventos de ponteiro**, então mouse, toque e caneta seguem um caminho de
-  código só.
-
-  Três detalhes de edição que valem saber, porque são o que faz o canvas
-  parecer previsível:
-
-  - **Renomear um bloco `system` é a busca de Solução.** O duplo clique no
-    texto abre um `<input>` no lugar dele com autocomplete sobre o catálogo; a
-    primeira sugestão já nasce em destaque e é ela que o Enter (ou o clique na
-    linha, ou clicar fora) aplica — o destaque é o aviso de qual Solução vai
-    ser ligada. Digitar algo que não casa com nenhuma Solução não abre lista
-    nenhuma e vira **texto livre**, que é como um sistema fora do catálogo
-    entra no desenho. Mesma mecânica no pill de protocolo de uma ligação, com
-    o enum de protocolos no lugar do catálogo.
-  - **As affordances não engordam no zoom.** Portas do bloco, alças da ponta
-    da seta, pontos de ancoragem e o pill tracejado "+ protocolo" mantêm o
-    tamanho **em tela** em qualquer zoom (contra-escala por `--viz-inv-scale`,
-    escrito a cada pan/zoom): são controles, e um controle que dobra de tamanho
-    a 220% passa a dominar o bloco que deveria só apontar. O desenho em si —
-    blocos, texto, traço, seta, pill com protocolo escrito — escala normal,
-    porque é conteúdo e sai assim no screenshot exportado.
-  - **O cartão de tipo aparece onde o gesto terminou.** Soltar uma seta em
-    canvas vazio cria o bloco no ponto do drop e abre o "Adicionar bloco" ali
-    do lado (preso dentro do canvas: perto da borda ele dobra pra dentro), em
-    vez de mandar você atravessar a tela até um canto. O "+" da topbar, que não
-    tem ponto nenhum pra ancorar, segue abrindo no canto fixo.
-
-  E quatro coisas que só apareceram quando os desenhos ficaram **grandes** —
-  os primeiros gerados a partir de uma página trouxeram dezenas de blocos de
-  uma vez, e a maior parte do ruído não era densidade:
-
-  - **A ligação sai perpendicular e vira em ângulo reto.** Era uma Bézier
-    cúbica, que nenhum diagrama técnico desenha assim. O trecho reto antes da
-    primeira curva existe para a seta não começar a dobrar ainda encostada no
-    bloco, e o raio do canto é limitado à metade do menor dos dois segmentos
-    que ele une — sem isso, dois blocos quase colados ganham uma curva mais
-    larga que o próprio segmento. O rótulo pousa no **maior trecho reto** da
-    rota, não no meio geométrico, que numa rota ortogonal costuma ser um canto.
-  - **A seta contorna os dois blocos, nunca passa por trás deles.** A rota era
-    escolhida só pela orientação das duas pontas: com o destino atrás da face
-    de saída (arrastar o bloco de origem para além do destino), o cotovelo
-    voltava por baixo do próprio bloco e o handle da seta ficava escondido. O
-    roteador agora recebe as caixas dos dois blocos, mantém a rota de sempre
-    quando ela está livre — os desenhos que já estavam certos não mudam — e,
-    quando não está, escolhe a rota ortogonal com menos curvas que não volta,
-    não sai da face de chegada e não atravessa bloco nenhum, tentando primeiro
-    o vão entre eles.
-  - **O pill "+ protocolo" some até você chegar perto.** Toda ligação sem
-    protocolo desenhava um pill tracejado, sempre, em tamanho cheio: num
-    desenho com raias é um por ligação, em cima dos rótulos de verdade e uns
-    dos outros. Agora só aparece sob o ponteiro ou aceso por um bloco
-    selecionado, e nunca entra no PNG. Esconder tirou o único jeito de agarrar
-    uma ligação (o SVG das arestas é `pointer-events: none`), então cada uma
-    ganhou um **alvo transparente de 16px** — uma linha de 2px finalmente é
-    algo em que se acerta o clique.
-  - **Selecionar um bloco acende as ligações dele** e apaga o resto. A
-    alternativa óbvia era colorir cada seta pela origem, e ela funcionaria mal
-    aqui: num desenho em que três blocos são Digibee, as linhas que mais se
-    cruzam sairiam todas do mesmo azul — e linha colorida custa contraste o
-    tempo todo, para responder uma pergunta que só se faz às vezes.
-  - **Apagar um bloco não joga fora o que não foi salvo.** Remover um nó
-    reindexa a chain, então o servidor devolve o grafo inteiro e o cliente
-    re-renderiza — e o layout reaplicado vinha de `savedLayouts`, escrito só
-    pelo "Salvar". Arrastar blocos, escolher um tema e então apagar um deles
-    revertia o desenho para o último estado gravado. O estado vivo agora é
-    reindexado do mesmo jeito que o servidor reindexou o dele.
 - **Mapa do ecossistema** (`/map`): derivado (somente leitura), um canvas
   (`ecosystem-map.js`) **sempre no nível da solução** — um bloco por sistema e
-  **uma seta por par de sistemas** (`DiagramGraphService::dedupePairs()`), que
-  respeita o sentido de todos os fluxos entre os dois, em todos os diagramas
-  (ida, volta ou ambos). Não há mais detalhamento por diagrama/fluxo nem
-  filtros: o cabeçalho tem só o seletor de visões.
+  **uma seta por par de sistemas** (`EcosystemMapService`), lida dos pares
+  diretos dos **Relacionamentos** — os documentados nos diagramas UML e os
+  cadastrados à mão — e que respeita o sentido de todas as chamadas entre os
+  dois (ida, volta ou ambos; sem ponta para uma associação). Um par inferido
+  "via" plataforma não é desenhado: repetiria as duas setas que já se encontram
+  nela. Não há filtros: o cabeçalho tem só o seletor de visões.
 
   - **Por ligações** (padrão): órbitas (o mais conectado no centro) ou
     simulação de força.
@@ -1031,8 +907,9 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
 
   A busca ("Buscar sistema") marca o sistema com um anel laranja e centraliza
   o mapa nele, até o Esc. Clicar num sistema abre o card dele; numa seta, o
-  sentido, o protocolo e os diagramas por trás dela (links só para quem pode
-  abrir diagramas). O mapa não pertence a nenhum módulo: toda conta o lê.
+  sentido e os diagramas UML por trás dela (links para as páginas só para quem
+  lê a documentação), ou "cadastrado manualmente". O mapa não pertence a nenhum
+  módulo: toda conta o lê.
 - **Documentação rica (estilo GitBook)**: editor Editor.js persistido como
   Markdown + notação estendida GitBook (`hint`, `tabs`, `embed`, imagens com
   preset de largura) numa coluna `documentation` só de texto — sem tabela de
@@ -1121,26 +998,10 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
       marcador que perdeu o construto em vez de resolvê-lo — a proteção é do
       servidor, não do cliente.
 
-  **Uma página CITA diagramas, não possui um.** O bloco `Diagrama` do editor
-  insere `{% diagram slug="…" %}` no Markdown — quinto construto do dialeto,
-  auto-fechado com um atributo, mesma forma dos quatro do GitBook. Ele renderiza
-  a imagem atual do desenho mais um link que abre o canvas **em nova aba**, e o
-  seletor é uma árvore colapsável **por solução** (`diagrams.catalog`), com um
-  grupo final para desenhos que não citam solução nenhuma — senão ficariam
-  incitáveis.
-
-  Havia uma FK (`documentation_pages.diagram_id`) e, com ela, um par de abas
-  **Documentação**/**Diagrama** na página. As duas saíram: a FK modelava "esta
-  página é *a* página daquele desenho", mais estreito do que as pessoas
-  escrevem — uma página cita vários desenhos, ao lado dos parágrafos que
-  precisam deles. Endereçado por **slug**, não por id: é o que o autor escolheu
-  e o que a URL mostra, sobrevive a uma troca de base entre ambientes, e uma
-  citação órfã ainda diz alguma coisa.
-
-  O bloco degrada de propósito. Sem snapshot ainda (o PNG é gerado pelo
-  **navegador** ao salvar o layout, então um desenho que ninguém abriu não tem
-  nenhum) ele diz isso em vez de sumir; com o diagrama apagado, vira um card
-  "removido" em vez de estragar a prosa em volta.
+  **As figuras de uma página moram no texto dela**: um bloco `{% uml %}` ou uma
+  cena (`{% scene %}`). Até 2026-11-27 havia também a citação de um desenho do
+  catálogo (`{% diagram slug="…" %}`); os desenhos foram convertidos em blocos
+  UML e a citação saiu do dialeto.
 
   **Um link entre duas páginas é `[texto](page:{slug})`, resolvido por LEITOR.**
   É o único construto do dialeto que não é um `{% … %}`: é um link Markdown
@@ -1165,9 +1026,8 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
       apontar para fora seria um link que funciona enquanto você edita e morre
       no dia em que o caderno é compartilhado. O seletor é escopado igual.
     - **Slug que o caderno não tem perde o `href` inteiro.** Um `<a>` sem href
-      não é link: ele renderiza como as palavras que o autor escreveu — a mesma
-      promessa do card "Diagrama removido", de que apagar uma página nunca
-      estraga a prosa que a mencionava. Apontar para `#` pareceria um link e
+      não é link: ele renderiza como as palavras que o autor escreveu — apagar
+      uma página nunca estraga a prosa que a mencionava. Apontar para `#` pareceria um link e
       levaria o leitor para o topo da página sem explicação nenhuma.
     - **As âncoras nunca são derivadas no navegador.** O seletor é alimentado
       por `DocumentationSearchService::linkTargets()`, que é uma **leitura do
@@ -1211,13 +1071,6 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   Um **link público** ("magic link", por **caderno**) expõe as páginas dele sem
   exigir login. Renderização read-only via `App\Support\GitbookRenderer`.
 
-  O que um visitante **não** ganha: o link "Abrir diagrama" de uma citação. O
-  canvas fica atrás de login, então o botão seria um beco sem saída — e uma
-  divulgação, já que nomearia um desenho fora do alcance dele e entregaria o
-  slug. O card em si continua (imagem e nome são documentação; o link é uma
-  affordance de edição), e a imagem é servida por uma rota própria com escopo de
-  token, **autorizada por citação**: o token dá um caderno, o caderno dá o que
-  as páginas dele citam, e um desenho não citado dá 404 mesmo com token válido.
 - **Assiste IA (rascunho por LLM, em formato de chat)**: em qualquer página de
   documentação, um painel lateral é uma
   **conversa** — espelhando o composer do Especialista em Integrações — e não
@@ -1239,8 +1092,8 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
 
   Uma página emprestada chega **mascarada** (`SecretText::mask()` — é a quinta
   superfície que entrega o texto de uma página a alguém, e a única em que a
-  página lida não é a página editada) e com imagem, arquivo, embed e citação de
-  diagrama **arrancados**, não congelados (`BlockVault::strip()`): um marcador
+  página lida não é a página editada) e com imagem, arquivo, embed, grade de
+  cards, cena e diagrama UML **arrancados**, não congelados (`BlockVault::strip()`): um marcador
   `[[BLOCK-n]]` quer dizer "mantenha este bloco", e esses blocos são de outra
   página. O que não cabe no orçamento é **sinalizado** (`meta.omitted_pages`),
   nunca descartado em silêncio — alguém escolheu aquilo à mão. Os dois limites
@@ -1281,8 +1134,8 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
       base64 —, porque o modelo os copia **errado** e erra em silêncio.
     - `[[SECRET-<id>]]` (`SecretText`) congela valores protegidos, porque o modelo
       (e quem está editando) **não pode ler** aquilo.
-    - `[[BLOCK-n]]` (`BlockVault`) congela imagem, arquivo, embed e citação de
-      diagrama, porque o modelo **não sabe escrever** um desses (o `/files/{id}`
+    - `[[BLOCK-n]]` (`BlockVault`) congela imagem, arquivo, embed, grade de
+      cards, cena e diagrama UML, porque o modelo **não sabe escrever** um desses (o `/files/{id}`
       depende de um id que só o upload conhece).
 
   O terceiro nasceu de um bug de prompt: o sistema proibia `<figure>` e ao mesmo
@@ -1292,46 +1145,6 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   nunca reinserido (um marcador apagado não tem mais posição para onde voltar), e
   a resposta avisa em PT-BR: remover uma imagem é legítimo quando foi pedido,
   então o aviso diz o que falta e deixa o julgamento com quem aperta "Aplicar".
-- **"Desenhar esta página"**: um menu, cinco desenhos. A prosa de uma página
-  vira um `Diagram` comum **do caderno da página** — o **grafo livre** (`ChainDraft`, "o que conversa
-  com o quê") ou um dos quatro **modelos** (`DiagramModel`), que são as outras
-  quatro perguntas que uma página costuma fazer:
-
-  | modelo | a pergunta | como é desenhado |
-  |---|---|---|
-  | Sequência | em que **ordem** as chamadas acontecem | uma linha de vida por participante, cada mensagem encostando na altura do seu passo |
-  | Ciclo de vida | quais são os **estados** de uma execução | o curso numa linha e tudo que falhou numa segunda abaixo — um retry desce e volta tracejado |
-  | Fluxo de dados | onde o dado **descansa** | uma raia vertical por estágio, blocos empilhados |
-  | Processo | **quem** faz o quê | uma raia horizontal por ator, passos avançando nela |
-
-  `architecture` está ausente de propósito: o grafo livre que o canvas já
-  desenha **é** isso, e um segundo jeito de responder a mesma pergunta é a
-  segunda verdade que o módulo de Diagramas foi colapsado para evitar.
-
-  **A divisão entre semântica e geometria é o projeto inteiro.** `ModelSpec`
-  não carrega uma coordenada — quem participa, em que raia, em que ordem — e
-  `ModelLayout` transforma isso em posições. Um modelo de linguagem a quem se
-  entrega um canvas devolve coordenadas plausíveis que se sobrepõem; a quem se
-  entrega uma ordem devolve uma ordem. Os prompts dizem isso em voz alta ("NÃO
-  escreva posição, coordenada, largura, altura ou ordem numérica"), e o layout
-  é determinístico, testável sem browser e o mesmo toda vez.
-
-  O resultado é um diagrama **editável no mesmo canvas de sempre**, não um
-  artefato: a primeira coisa que alguém faz com um desenho gerado é arrastar
-  algo. Uma chamada de modelo, no máximo uma rodada de reparo contra as frases
-  do nosso próprio validador, e o prompt dá ao modelo como dizer "esta página
-  não tem sequência nenhuma" — resposta que vale mais que quatro caixas
-  inventadas para satisfazer o pedido.
-
-  **Antes de gerar, um diálogo pergunta o destino**: criar um diagrama novo
-  (nome obrigatório, já preenchido com o título da página) ou **substituir** um
-  dos diagramas deste caderno. Perguntar antes, e não depois, é o que mantém a
-  chamada ao modelo numa requisição só, sem rascunho estacionado em lugar
-  nenhum. Substituir mantém nome, endereço, status e os sistemas declarados à
-  mão — as páginas que citam o desenho passam a mostrar o novo — e descarta a
-  imagem renderizada, que mostraria o desenho antigo até alguém abrir o canvas.
-  Um diagrama de **outro** caderno não pode ser o alvo. O resultado abre numa
-  aba nova, e a página que está sendo escrita fica como estava.
 - **Base de conhecimento** (`/docs`): os cadernos que um administrador
   publicou (a coluna "Em /docs" do catálogo de Cadernos), lidos por qualquer
   conta Leo — a maioria chega pelo SSO da Entra. É a mesma tela do link público
@@ -1561,59 +1374,35 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   (`SubmissionChatService`): ele pergunta o que falta, e uma resposta aplicada
   escreve a seção em vez de virar mais uma mensagem.
 
-  A submissão tem **arquitetura própria**: quatro desenhos
-  (`SubmissionDiagramKind` — AS IS, TO BE, C4 Contexto e C4 Contêineres) no
-  mesmo canvas do módulo de Diagramas, porque `ChainCanvas` deixou o canvas
-  agnóstico de dono. O `afterChainMutation()` de um `SubmissionDiagram` é vazio
-  de propósito: proposta não escreve no catálogo, porque proposta pode ser
-  reprovada.
-
-  **O AS IS × TO BE é comparado, e a comparação não é guardada em lugar
-  nenhum.** `TopologyDiff::between()` é função pura das duas chains, calculada
-  quando a aba Comitê é lida — sem modelo, sem renderer, sem artefato. É
-  justamente isso que a faz valer: uma comparação que nunca é armazenada não
-  tem como descrever dois desenhos que já andaram, então não existe botão de
-  "gerar de novo" nem momento em que o painel está mentindo. O painel diz o
-  que **sobreviveu** junto com o que mudou, porque uma proposta que mantém
-  doze blocos e troca um não é a mesma conversa que uma que troca tudo.
-
-  Identidade é o desenho inteiro: um bloco é o mesmo bloco quando nomeia a
-  mesma **Solution** — tenham digitado o que tiverem por cima — ou, em texto
-  livre, quando os rótulos **dobram** para a mesma coisa (acento não é
-  mudança). O **índice** da chain nunca é usado: `removeNode()` reindexa,
-  então dois canvas desenhados em separado não compartilham índice nenhum e
-  casar por ele reportaria todo bloco como adicionado e removido ao mesmo
-  tempo. E uma ligação é identificada pelo **par** que ela une, não pelo
-  sentido nem pelo protocolo — virar a seta é mudar uma ligação que já existe,
-  e chamar isso de uma remoção mais uma adição enterra os blocos que de fato
-  entraram e saíram. O painel só aparece com os **dois** canvas preenchidos
-  (`isFilled()`, não "tem nós": `open()` semeia um bloco raiz, e um canvas
-  intocado compararia como o desenho de uma caixa).
+  A submissão tem **arquitetura própria**: quatro imagens enviadas
+  (`SubmissionDiagramKind` — AS IS, TO BE, C4 Contexto e C4 Contêineres), feitas
+  na ferramenta que a pessoa já usa. Até 2026-11-27 o AS IS e o TO BE eram
+  desenhados num canvas do app, com um comparativo AS IS × TO BE; o desenho
+  salvo de cada um virou a imagem enviada. Nada de uma proposta escreve no
+  catálogo, porque proposta pode ser reprovada.
 
   As saídas são três: o documento em Markdown, o texto pronto do chamado no Leo
   Resolve e o **deck `.pptx`** (`resources/cati/cati-template.pptx` +
   `scripts/render_deck.py`, um sidecar em python-pptx). Diagrama entra no deck
-  como **imagem com link**, nunca como forma nativa — forma nativa criaria um
+  como **imagem**, nunca como forma nativa — forma nativa criaria um
   segundo lugar onde o desenho se edita, e alguém empurrando uma caixa no
   PowerPoint durante a reunião é exatamente a deriva que este módulo existe
   para eliminar.
 
   Do lado do comitê: conformidade determinística (`ConformanceChecks`), uma
   **prévia adversarial** por LLM (`PreReviewService`) e a deliberação com
-  ressalvas rastreáveis. Aprovar **não escreve topologia** — um TO BE é um grafo
-  livre, pode descrever várias integrações ou uma que ainda não existe, e uma
-  aprovação que adivinhasse o alvo sobrescreveria topologia real com um chute.
-  Ela registra uma **pendência** com snapshot do `chain` (`ApprovedTopology`),
-  visível nos dois lados (aba Comitê da submissão e aviso na página da Solution,
-  acima da lista que ainda mostra o cenário anterior), com dois desfechos que
-  não são a mesma afirmação: APLICADA ("o catálogo agora diz isto") e JÁ
-  REFLETIDA ("o catálogo já estava certo"). As quatro fases e o raciocínio de
+  ressalvas rastreáveis. A conformidade e as perguntas do comitê leem os
+  **Relacionamentos** da solução, e o deck ganha um slide "Relacionamentos
+  documentados" (Solução · Sentido · Via · Origem). Aprovar publica a prosa da
+  proposta e a imagem do TO BE no caderno da solução, e **não escreve
+  topologia**: quem fala com quem passa a valer quando alguém documenta isso
+  nos diagramas UML (ou cadastra à mão). As quatro fases e o raciocínio de
   cada uma estão em `docs/cati-fase-{1,2,3,4}.md`.
 
 - **Servidor MCP** (`POST /mcp`): deixa o Claude, o ChatGPT e o Gemini
-  consultarem o inventário como ferramentas — treze tools somente leitura sobre
-  soluções, diagramas, pessoas, empresas e a documentação publicada
-  (`App\Mcp\ToolRegistry`; a décima terceira, `get_code_documentation_guide`, é o
+  consultarem o inventário como ferramentas — onze tools somente leitura sobre
+  soluções (com os relacionamentos), pessoas, empresas e a documentação
+  publicada (`App\Mcp\ToolRegistry`; uma delas, `get_code_documentation_guide`, é o
   roteiro para documentar um repositório num caderno e a sintaxe dos diagramas UML
   e das cenas — quem lê o código é o cliente, o app recebe as páginas prontas), mais as quatro de **Logs Digibee** (abaixo), as
   únicas que saem do banco do app e leem uma plataforma ao vivo — por isso
@@ -1632,9 +1421,9 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   mesma tela.
 
   Quem é **Editor** de um módulo também pode **criar e editar** por lá: soluções,
-  pessoas, empresas e os vínculos entre elas; cadernos, as soluções que eles
-  documentam e as páginas (criar, reescrever, mover na árvore). São treze
-  ferramentas a mais, só para uma conexão OAuth que autorizou o scope
+  pessoas, empresas e os vínculos entre elas, as interconexões entre soluções;
+  cadernos, as soluções que eles documentam e as páginas (criar, reescrever,
+  mover na árvore). São quinze ferramentas a mais, só para uma conexão OAuth que autorizou o scope
   `mcp:write` na tela de consentimento — conexões antigas continuam só leitura
   até a pessoa reconectar, e um token nunca escreve. Nada é apagado; toda
   alteração fica registrada em nome da pessoa (`mcp_writes`, criptografado, 180
@@ -1642,7 +1431,7 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   texto de uma página vai inteiro e com a `version` lida: se alguém salvou no
   meio — inclusive no editor do app, que agora manda a versão também e recebe um
   409 —, nada é sobrescrito; e um texto que perderia um valor protegido, um
-  diagrama citado, um arquivo ou boa parte da página é recusado até a chamada
+  diagrama UML, um arquivo ou boa parte da página é recusado até a chamada
   repetir exatamente o que se perde. Especificação e as três rodadas de revisão
   em `docs-and-specs/mcp-write-tools.md`.
 
@@ -1711,43 +1500,6 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
 
 ## Notas técnicas não óbvias
 
-- **Dentro de um SVG inline, `<style>` é lido como MARKUP.** Não é texto cru
-  como o `<style>` do HTML: um `<` ali dentro — mesmo num comentário de CSS —
-  abre um elemento de verdade, o `</style>` legítimo fecha o que aquilo
-  aninhou, e **tudo escrito depois vira filho do style**. Custou as pontas das
-  setas e o realce de seleção de uma vez só: o `<defs>` inteiro foi parar
-  dentro da folha de estilo, então `marker-end` apontava para um elemento que
-  estava no documento, com o id certo e o `fill` certo, sem pintar nada. As
-  linhas sobreviveram só porque a folha externa do componente duplica as
-  regras delas; os markers não tinham segunda casa. Antes de culpar o
-  elemento, **conte os filhos do `<svg>`**. `ChainVizMarkupTest` trava isso:
-  a folha interna não pode conter `<`, e os markers têm que parsear fora dela.
-
-  A folha interna existe porque `html-to-image` **clona cru** o SVG aninhado e
-  nenhuma regra de fora alcança o clone — que é o mesmo motivo de a primeira
-  classe de path adicionada depois disso ter caído na armadilha vizinha: sem a
-  regra duplicada lá dentro, o alvo de clique transparente das ligações caiu
-  no `fill: black` padrão do UA e pintou um borrão preto ao longo de cada seta
-  no PNG exportado.
-- **O PNG de um diagrama é DERIVADO, e quem o produz é o navegador.** O cliente
-  captura o canvas depois de cada salvamento de layout bem-sucedido e posta o
-  arquivo (fire-and-forget) numa coleção `singleFile` — só a imagem atual
-  interessa. Nada nesse caminho toca `chain` ou `viz_layout`: ele existe para
-  o deck do CATI imprimir a arquitetura **sem um navegador no meio**, que é o
-  que mantém o canvas como o único lugar onde um diagrama se edita.
-
-  A regra de validação é **PNG e só PNG** (`StoreDiagramPictureRequest`), e
-  isso é deliberado em vez de descuido: não é um upload que alguém escolheu, é
-  um arquivo que o próprio canvas produziu (`captureDiagramCanvas()`, lado
-  maior de 1600px), então aceitar jpg/webp/svg aqui só alargaria o que um
-  request feito à mão consegue colocar na coleção. **Os dois canvas passam
-  pela mesma classe** — o do catálogo e o AS IS/TO BE de uma submissão —, como
-  os nove requests de chain ao lado dela: a carga é idêntica e só o dono muda,
-  então `AuthorizesChainOwner` resolve o dono **por tipo**. Por nome de
-  parâmetro não dá: os dois grupos de rota escrevem `{diagram}` e ligam
-  modelos diferentes nele, e o `authorize()` que olhasse o parâmetro errado
-  acharia `null` e responderia 403 no caminho que funciona — o que se lê como
-  canvas quebrado, não como permissão.
 - **Erros de validação não seguem o shape padrão do Laravel.** `bootstrap/app.php`
   reformata `ValidationException` para `{message, title, type}` (sem `errors`),
   para casar com o padrão de Toast/Modal do frontend. `assertJsonValidationErrors()`
@@ -1757,45 +1509,12 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
   relação não carregada lança exceção em vez de silenciosamente disparar uma
   query. Ver `AGENTS.md` § Eloquent para o padrão de `setRelation()` quando um
   componente filho precisa de uma relação que o pai já tem em mãos.
-- **A cadeia (`chain`) é a única fonte de verdade da topologia de um diagrama**
-  — nunca escrever `participants`/`source_solution_id`/`target_solution_id`/
-  `direction` diretamente; editar `chain` e deixar `SyncDiagramFromChain`
-  rederivar (via `Diagram::afterChainMutation()`, que `Concerns\EditsChain`
-  chama nos nove endpoints). `Diagram.viz_layout` é posição/estilo do canvas,
-  sem nenhum efeito colateral em topologia. Ver `AGENTS.md` § Diagram topology
-  invariant.
-- **Diagramas são endereçados por si mesmos.** As rotas são planas
-  (`/diagrams/{diagram}/...`), sem `{solution}` nenhum: eram aninhadas numa
-  solução participante até 2026-08-26, o que fazia cada URL carregar um
-  parâmetro que o endpoint não usava mais um `scopeBindings` para manter os
-  dois de acordo. A relação com a solução vem pelo outro lado agora (uma
-  página aponta para o diagrama). Também não há uma página separada de "editor
-  de diagrama" — o mesmo canvas que **mostra** a chain é o que a **edita**.
-- **O canvas não sabe de quem é o desenho.** `chain-viz.js` não tem rota
-  nenhuma: toda URL que ele chama chega dentro do payload do grafo
-  (`ChainCanvas::chainUrls()`). É isso que faz um segundo dono ser barato — os
-  desenhos AS IS/TO BE de uma submissão do CATI usam o mesmo cliente, sem uma
-  linha de diferença. Ver `AGENTS.md` § Diagram topology invariant.
-- **Adicionar um bloco não muda o zoom.** `appendNode()` chamava `fit()`, que
-  recalcula a escala — desenhar um fluxo de dez blocos dava dez saltos de zoom
-  e jogava fora a escala que a pessoa tinha escolhido. Agora é `panIntoView()`:
-  a panorâmica mínima para o bloco novo aparecer, escala intacta, e nada quando
-  ele já estava visível. Só "Organizar", "Centralizar" e a carga inicial
-  reenquadram.
-- **Bloco é branco; a FORMA diz o que ele é.** Hexágono chanfrado = decisão,
-  círculo = ator/início/fim, borda tracejada = texto livre externo. A cor ficou
-  livre para significar o que o autor decidir (`viz_layout.nodes[i].color`);
-  só os dois terminais de fluxo têm preenchimento próprio (verde/vermelho).
-  Ator, início e fim escrevem o rótulo **fora** da forma, numa chip igual à da
-  seta — e isso é estrutural, não estético: `node.w`/`h` vêm de
-  `offsetWidth`/`offsetHeight`, e um rótulo dentro da caixa arrasta as portas e
-  as âncoras das setas para fora do centro.
-- **Nome e status de um diagrama têm um editor só.** Ficam na barra de cima do
-  canvas (`Diagrams\Meta`, dois `x-ui.inline-edit` no mesmo endpoint
-  `diagrams.update`, cujas regras são `sometimes`+`required` para confirmar um
-  campo sem apagar o outro). O canvas teve um segundo editor desses dois
-  campos até 2026-08-17; dois editores do mesmo campo dessincronizam na
-  primeira edição, então ele foi removido — e não deve voltar.
+- **Quem fala com quem vem só do texto da documentação.** Um elemento de um
+  bloco `{% uml %}` vincula uma solução apenas com `"solution": "<slug>"`, nunca
+  por um rótulo igual ao nome dela, e o índice `uml_solution_links` é
+  reconstruído a cada gravação da página. A inferência "via" plataforma roda na
+  LEITURA, dentro de um diagrama só, então mudar a categoria de uma solução muda
+  a resposta na hora. Ver `.claude/rules/solution-relationships.md`.
 - **Um valor protegido tem UMA porta.** O `GitbookRenderer` não tem flag de
   "mostra mesmo assim": o texto puro sai por `RevealPageSecret` e por mais nada,
   o que dá a essa feature um comportamento só para auditar em vez de um público
@@ -1928,24 +1647,21 @@ API de `XMLHttpRequest` (`.onload`/`.send()`). Trate sempre como Promise
 composer test
 ```
 
-Cobertura relevante: `DiagramChain*Test` (edição de nó/ligação/protocolo/
-adicionar/remover/colar imagem na chain), `SyncDiagramFromChainTest`
-(rederivação das colunas), `DiagramLayoutSaveTest` (persistência de
-`viz_layout` sem tocar topologia), `DiagramsModuleTest` (o módulo: índice,
-contadores separados de desenhado/no-catálogo, filtros, canvas, delete e a
-entrada no menu), `SolutionAttributeInlineUpdateTest` (edição
+Cobertura relevante: `SolutionRelationshipsTest` (o vínculo `"solution"` nos
+diagramas UML, o que conta como chamada, a inferência "via" plataforma por rota,
+o card e o mapa), `ManualRelationshipTest` (interconexões cadastradas: inline,
+o ajuste sobre o documentado e as duas ferramentas do MCP, com o revert),
+`EcosystemMapTest` (o mapa: um par por seta e a visão por hospedagem),
+`SolutionAttributeInlineUpdateTest` (edição
 inline dos 8 atributos), `{Solution,Person,Company}InlineFieldUpdateTest` e
 `{Solution,Person,Company}InlineRelationsTest` (edição in place das páginas de
 detalhe — campos, upload, e criar/trocar/remover relação), `DetailHeaderSlotTest`
 (a mutação devolve o slot da página de detalhe, não só o do índice),
-`SolutionWorkspaceCardTest` (o card de diagramas + cadernos: dois slots,
-as duas afordâncias de criação, estados vazios ilustrados e o status editável
-na barra do canvas), `DiagramCrudTest` (criar redireciona para o canvas, com ou
-sem solução no bloco raiz; edição parcial de nome/status),
+`SolutionWorkspaceCardTest` (o card de relacionamentos + cadernos: dois slots,
+o "novo caderno" e os estados vazios ilustrados),
 `PersonContactsSyncTest` (sincronização de contatos adicionais),
-`DocumentationTest` (editor de blocos; a citação de diagrama nos seus três
-estados — com imagem, sem snapshot ainda, e apontando para um desenho apagado;
-os cards de sub-páginas; e o rail colapsado no galho em edição),
+`DocumentationTest` (editor de blocos; os cards de sub-páginas; e o rail
+colapsado no galho em edição),
 `NotebookTest` (CRUD do caderno e o vínculo com soluções — inclusive a exclusão
 pelo card do catálogo, em cascata por três níveis),
 `DocumentationPageMoveTest` (mover página entre cadernos, com a subárvore),
@@ -1983,17 +1699,13 @@ a indexação aos poucos e o `documentation:search-warm`),
 protegidos deixou de rastro), `GitbookImportTest`
 (a importação, o snapshot datado e a poda que só ele faz) e a família
 `Cati*Test` (o Comitê de Arquitetura: modelo, ingestão de material, checklist,
-entrevista, deck, desenhos próprios, conformidade, prévia adversarial e a
-topologia aprovada), `CatiTopologyDiffTest` (AS IS × TO BE: identidade por
-Solution e por rótulo dobrado, seta virada como mudança de uma ligação só).
+entrevista, deck, as quatro imagens, conformidade, prévia adversarial e o slide
+de relacionamentos).
 
-Do que é mais novo: `SolutionDeleteTest` (o que sobrevive à exclusão, e as
-**três** tabelas que guardam nó de chain), `SolutionGraphGroupingTest` (os
-quatro eixos do mapa agrupado — mesmos grupos e nós em todos, com a contagem
-de queries fixada), `DiagramModelGeneratorTest` (os quatro modelos: spec sem
-geometria, layout determinístico e a recusa quando a página não descreve
-aquilo), `ChainVizMarkupTest` (a folha de estilo interna do SVG **não** pode
-conter `<`, e os markers precisam ficar fora dela — ver "Notas técnicas"),
+Do que é mais novo: `SolutionDeleteTest` (o que sobrevive à exclusão e o que a
+confirmação conta), `TopologyDiagramRemovalTest`/`CatiCanvasRemovalTest` (as
+migrações que aposentaram os desenhos: a trava das citações, a mídia apagada e
+o PNG do canvas virando a imagem enviada),
 `AttributeOptionCacheTest` (o memo: contagem de queries, rename visível na
 mesma requisição, e que `forgetScopedInstances()` o derruba),
 `PipelineLifecycleRunTest`/`PipelineHealingTest`/`PipelineReadinessTest`/
