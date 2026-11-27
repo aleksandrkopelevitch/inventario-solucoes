@@ -1422,3 +1422,7 @@ illustration, which phase 1 said phase 4 would rename. It is
 page in production still described the canvas: `KnowledgeBaseHomeSeeder` runs
 once per environment, so phase 4a's edit of `home.md` never reached it, and the
 live page is edited by hand.
+The live page was corrected through the MCP (2026-11-27): the "Diagramas" text
+and caption from `home.md`, and the "Pergunte ao Claude" sentence, which still
+called the connection read-only although Editors can write through it since
+2026-11-17. `home.md` carries the same sentence now.
