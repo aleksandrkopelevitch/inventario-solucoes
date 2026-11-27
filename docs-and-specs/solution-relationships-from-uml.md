@@ -1,6 +1,6 @@
 # Solution relationships from the documentation — and the end of the drawing canvas
 
-Status: **phases 1–3 and 4a done; 4b (the committee canvas) next** · revision 2 · 2026-11-27 · history in §13, implementation notes in §14
+Status: **phases 1–4 done; phase 5 (README) next** · revision 2 · 2026-11-27 · history in §13, implementation notes in §14
 
 The graphical canvas is removed, both of its owners:
 
@@ -875,7 +875,7 @@ Status per phase (✅ done · 🚧 in progress · ⏳ not started):
 | 2. Manual relationships | ✅ DONE, verified 2026-11-26 (§14) | see §14 |
 | 3. The conversion | ✅ DONE — run in production 2026-11-27, pages reviewed (§14) | `b9beb89` |
 | 4a. The removal — the catalog drawings | ✅ DONE 2026-11-27 (§14) | see §14 |
-| 4b. The removal — the committee canvas | ⏳ | — |
+| 4b. The removal — the committee canvas | ✅ DONE 2026-11-27 (§14) | see §14 |
 | 5. Documentation | ⏳ (the rule `solution-relationships.md` shipped with phase 1) | — |
 
 1. ✅ **Bindings and documented relationships** (additive; nothing is removed):
@@ -905,7 +905,7 @@ Status per phase (✅ done · 🚧 in progress · ⏳ not started):
 4. **The removal:** everything in §8, CATI canvas included. Split in two
    deliveries, each with a green suite and its own deploy: ✅ **4a**, the
    catalog drawings (the `/diagrams` module, the citations, the MCP tools,
-   `ApprovedTopology`, their tables); ⏳ **4b**, the committee canvas (§8.2).
+   `ApprovedTopology`, their tables); ✅ **4b**, the committee canvas (§8.2).
    - **The gate:** no page body still contains `{% diagram`. The migration
      REFUSES to run otherwise and names the pages.
    - **The media:** `media` rows with `model_type = App\Models\Diagram`, and
@@ -1352,4 +1352,40 @@ reader closed to the documentation) or to the committee canvas (the web
 rendition). New: `TopologyDiagramRemovalTest` (the gate and the media sweep)
 and "renders the map page container". Suite: 1882 passed, 1 skipped, and the
 same 3 failures `main` has (DigibeeDesignProbe ×2, PipelineLifecycleRun ×1).
+
+### Phase 4b — 2026-11-27 ✅ DONE (the committee canvas)
+
+AS IS / TO BE are uploads, like the C4 slots: the Diagramas tab renders four
+upload slots (`data-ak-cati-diagram-pick` / `-upload`), `SubmissionDiagram`
+has one collection (`submission_diagram`), `picture()` and `isFilled()` read
+it, and the deck's AS IS / TO BE slides lost their link to a canvas.
+
+Removed: the canvas (`chain-viz.js` and its CSS, `components/chain/*`,
+`submissions/diagram.blade.php`, `Submissions\DiagramWorkspace`,
+`ChainWorkspace`), its contract and helpers (`ChainCanvas`, `EditsChain`,
+`ChainGraph`, `ChainLabeler`, `ChainNodeKind`, `Protocol`, `TopologyDiff`), the
+thirteen chain requests, `StoreDiagramPictureRequest`, `AuthorizesChainOwner`,
+`ValidatesChainNode`, the routes `submissions.diagrams.{edit, layout.save,
+picture.store, chain.*}`, the reduced-motion exception for presentation mode,
+the lazy loader entry, and the npm packages `html-to-image` and `gif.js`.
+`DeleteSolution` is one line now (there is no chain left to sweep); it stays an
+Action because two callers delete through it. The upload request authorizes on
+its own (`update` on the bound `SubmissionDiagram`).
+
+**Migrations:** `2026_11_27_153112` moves each canvas PNG (`diagram`) into the
+upload collection through the `Media` model (same row, same file), deletes it
+instead where an upload already existed, deletes the pasted pictures (`docs`),
+and LOGS (`CATI canvas removal: drawings with no saved picture were dropped`)
+any AS IS / TO BE that had blocks but no PNG. `2026_11_27_153113` (one second
+later on purpose, so it sorts after) drops `chain` and `viz_layout`; its
+`down()` gives them back empty.
+
+**Rules:** `diagram-chain-canvas.md` and `chain-viz-pointer-events.md` deleted;
+`cati-submissions`, `media-and-uploads`, `css-and-docs-rendering`,
+`data-ak-attribute-reference`, `slugs-and-routing`, `inline-edit-pattern` (its
+stale integration section) and the AGENTS.md Security example updated.
+
+**Tests:** `CatiSubmissionDiagramTest` rewritten around uploads;
+`CatiCanvasRemovalTest` covers the move, the kept upload and the pasted
+pictures; the canvas-only tests went with the code.
 

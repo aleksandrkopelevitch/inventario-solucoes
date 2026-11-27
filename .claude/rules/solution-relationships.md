@@ -29,9 +29,9 @@ The spec is `docs-and-specs/solution-relationships-from-uml.md`.
 - **Phase 1 is shipped:** bindings, the index, platform inference, the
   "Relacionamentos" card, `/map` and `get_solution.relationships`.
 - **Phase 2 is shipped:** manual interconnections, inline and through the MCP.
-- **Phases 3 and 4a are shipped:** the old drawings were converted into
-  `{% uml %}` blocks, and `/diagrams` was removed (2026-11-27). Still to come:
-  phase 4b, the committee's AS IS / TO BE canvas.
+- **Phases 3 and 4 are shipped:** the old drawings were converted into
+  `{% uml %}` blocks, `/diagrams` was removed, and the committee's AS IS / TO
+  BE canvas became uploads (2026-11-27). Phase 5 is the README.
 
 **A participant, element or group is bound to a catalog solution by
 `"solution": "<slug>"` in the `{% uml %}` JSON, and ONLY that way.** A label

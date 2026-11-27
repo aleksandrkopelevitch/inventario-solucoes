@@ -3,21 +3,12 @@
 namespace App\Enums;
 
 /**
- * The four drawings a CATI submission is expected to carry, and the reason
- * they are not all the same thing.
+ * The four pictures a CATI submission is expected to carry: the committee's
+ * checklist asks for "desenho da solução e C4 com mínimo C1/C2". All four are
+ * images the person uploads, made in whatever tool they draw in.
  *
- * The committee's own checklist asks for "desenho da solução e C4 com mínimo
- * C1/C2", and those two halves are answered differently on purpose:
- *
- * - **AS IS / TO BE are DRAWN here**, on the same F3 canvas the diagrams
- *   use, because they are topology — the thing this inventory already models
- *   and already renders. Accepting them as uploaded pictures would give the
- *   proposal's architecture no home but a PNG: editable nowhere, diffable
- *   against nothing, stale the moment anything moves.
- * - **C4 C1/C2 are UPLOADED**, because C4 is a modelling notation and the
- *   canvas is a free graph. Bending one into the other would mean inventing a
- *   notation and calling it C4 — worse than accepting the drawing the
- *   architect already made in a tool that speaks it.
+ * AS IS / TO BE used to be drawn on an in-app canvas; that canvas was removed
+ * on 2026-11-27 (docs-and-specs/solution-relationships-from-uml.md, phase 4b).
  */
 enum SubmissionDiagramKind: string
 {
@@ -53,19 +44,6 @@ enum SubmissionDiagramKind: string
     }
 
     /**
-     * Drawn on the F3 canvas (chain + viz_layout) rather than uploaded.
-     *
-     * The one question the rest of the module asks this enum: it decides
-     * whether a row gets a canvas or a file input, whether its deck slide's
-     * picture comes from a captured canvas or an upload, and whether a chain
-     * mutation is even legal against it.
-     */
-    public function isDrawn(): bool
-    {
-        return $this === self::AsIs || $this === self::ToBe;
-    }
-
-    /**
      * Token safe inside a Tailwind arbitrary variant's value
      * (`group-data-[kind=as-is]:…`).
      *
@@ -76,17 +54,5 @@ enum SubmissionDiagramKind: string
     public function slug(): string
     {
         return str_replace('_', '-', $this->value);
-    }
-
-    /** @return array<int, self> Canvas-backed, in the order the deck shows them. */
-    public static function drawnCases(): array
-    {
-        return [self::AsIs, self::ToBe];
-    }
-
-    /** @return array<int, self> Upload-backed, in the order the deck shows them. */
-    public static function uploadedCases(): array
-    {
-        return [self::C4Context, self::C4Container];
     }
 }

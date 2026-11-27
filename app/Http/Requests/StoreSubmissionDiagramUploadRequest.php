@@ -2,23 +2,28 @@
 
 namespace App\Http\Requests;
 
-use App\Http\Requests\Concerns\AuthorizesChainOwner;
+use App\Models\SubmissionDiagram;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * The picture that fills a C4 slot (`SubmissionDiagramKind::C4Context` /
- * `C4Container`).
+ * The picture that fills one of a submission's four diagram slots
+ * (`SubmissionDiagramKind`).
  *
  * SVG is accepted here and NOT under the avatar/logo rules, for the reason
  * documentation media already accepts it: it is a diagram format, it is what
- * a C4 tool exports, and it is never served from the public disk — it goes
+ * a diagramming tool exports, and it is never served from the public disk — it goes
  * into a MediaLibrary collection behind an authenticated route. Laravel's
  * bare `image` rule would reject it outright, so the rule is `file` + an
  * explicit mime list, same as `StoreSubmissionSourceRequest`.
  */
 class StoreSubmissionDiagramUploadRequest extends FormRequest
 {
-    use AuthorizesChainOwner;
+    public function authorize(): bool
+    {
+        $diagram = $this->route('diagram');
+
+        return $diagram instanceof SubmissionDiagram && ($this->user()?->can('update', $diagram) ?? false);
+    }
 
     /** @return array<string, mixed> */
     public function rules(): array

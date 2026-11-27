@@ -4,10 +4,7 @@ use App\Actions\Cati\BuildDeckSpec;
 use App\Actions\Cati\RenderTicketText;
 use App\Enums\SubmissionDiagramKind;
 use App\Enums\UserRole;
-use App\Models\Solution;
-use App\Models\SolutionRelationship;
 use App\Models\Submission;
-use App\Models\UmlSolutionLink;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -25,6 +22,13 @@ function diagramSubmission(array $attributes = []): Submission
     return Submission::factory()->withSections()->create([
         'created_by_id' => test()->user->id,
         ...$attributes,
+    ]);
+}
+
+function uploadDiagram(Submission $submission, SubmissionDiagramKind $kind, string $name = 'diagrama.png')
+{
+    return test()->post(route('submissions.diagrams.upload.store', [$submission, $submission->diagram($kind)]), [
+        'image' => UploadedFile::fake()->image($name),
     ]);
 }
 
@@ -47,235 +51,61 @@ it('opens the four slots on demand and never opens them twice', function () {
         ->toBe(['as_is', 'c4_container', 'c4_context', 'to_be']);
 });
 
-it('seeds a drawn canvas with the linked solution as its root', function () {
-    // The proposal is about that system — making the person place it by hand
-    // is asking for something already on the record.
-    $solution = Solution::factory()->create(['name' => 'SKBridge']);
-    $submission = diagramSubmission(['solution_id' => $solution->id]);
-
-    $chain = $submission->diagram(SubmissionDiagramKind::ToBe)->chain;
-
-    expect($chain['nodes'])->toHaveCount(1)
-        ->and($chain['nodes'][0]['solution_id'])->toBe($solution->id)
-        ->and($chain['edges'])->toBe([]);
-});
-
-it('seeds a drawn canvas with free text when there is no catalog solution', function () {
-    // A brand-new system is most of what reaches this committee.
-    $submission = diagramSubmission(['name' => 'CATI SKBridge', 'solution_id' => null]);
-
-    $chain = $submission->diagram(SubmissionDiagramKind::AsIs)->chain;
-
-    expect($chain['nodes'][0]['solution_id'])->toBeNull()
-        ->and($chain['nodes'][0]['label'])->toBe('CATI SKBridge');
-});
-
-it('gives an uploaded kind no chain at all', function () {
-    expect(diagramSubmission()->diagram(SubmissionDiagramKind::C4Context)->chain)->toBeNull();
-});
-
-it('counts a canvas as filled only once something beyond the seeded root exists', function () {
-    // Opening the canvas is not drawing on it — otherwise the committee's
-    // checklist would tick for every submission that ever clicked the tab.
+it('accepts an uploaded picture on every slot, AS IS and TO BE included, and reports it everywhere it shows', function () {
+    Storage::fake('public');
     $submission = diagramSubmission();
-    $diagram = $submission->diagram(SubmissionDiagramKind::ToBe);
 
-    expect($diagram->isFilled())->toBeFalse();
+    foreach (SubmissionDiagramKind::cases() as $kind) {
+        $response = uploadDiagram($submission, $kind)->assertOk();
 
-    $chain = $diagram->chain;
-    $chain['nodes'][] = ['solution_id' => null, 'label' => 'ERP', 'kind' => 'system'];
-    $diagram->update(['chain' => $chain]);
-
-    expect($diagram->fresh()->isFilled())->toBeTrue();
+        expect($submission->diagram($kind)->fresh()->isFilled())->toBeTrue()
+            ->and(collect($response->json('updatableSlots'))->pluck('id')->all())
+            ->toBe(['submission-diagrams-slot', 'submission-checklist-slot', 'submission-stage-strip-slot']);
+    }
 });
 
-/*
-|--------------------------------------------------------------------------
-| The chain endpoints — the same canvas, a different owner
-|--------------------------------------------------------------------------
-*/
-
-it('runs the same chain semantics against a submission drawing', function () {
+it('removes an uploaded picture', function () {
+    Storage::fake('public');
     $submission = diagramSubmission();
-    $diagram = $submission->diagram(SubmissionDiagramKind::ToBe);
+    uploadDiagram($submission, SubmissionDiagramKind::ToBe)->assertOk();
 
-    $this->postJson(route('submissions.diagrams.chain.node.add', [$submission, $diagram]), [
-        'kind' => 'system', 'label' => 'ERP',
-    ])->assertOk()->assertJson(['type' => 'success', 'node' => ['label' => 'ERP']]);
+    $this->deleteJson(route('submissions.diagrams.upload.destroy', [$submission, $submission->diagram(SubmissionDiagramKind::ToBe)]))
+        ->assertOk();
 
-    $this->postJson(route('submissions.diagrams.chain.edge.add', [$submission, $diagram]), [
-        'from' => 0, 'to' => 1, 'arrow' => '->', 'protocol' => 'rest',
-    ])->assertOk()->assertJson(['index' => 0]);
-
-    expect($diagram->fresh()->chain['edges'])->toHaveCount(1);
+    expect($submission->diagram(SubmissionDiagramKind::ToBe)->fresh()->isFilled())->toBeFalse();
 });
 
-it('reindexes a submission drawing on delete, exactly as the diagram canvas does', function () {
-    // The one mutation that reindexes, against the second owner — if the
-    // shared trait ever grows a Diagram-specific branch, this is what
-    // catches it.
-    $submission = diagramSubmission();
-    $diagram = $submission->diagram(SubmissionDiagramKind::ToBe);
-    $diagram->update([
-        'chain' => [
-            'nodes' => [
-                ['solution_id' => null, 'label' => 'A', 'kind' => 'system'],
-                ['solution_id' => null, 'label' => 'B', 'kind' => 'system'],
-                ['solution_id' => null, 'label' => 'C', 'kind' => 'system'],
-            ],
-            'edges' => [
-                ['from' => 0, 'to' => 1, 'arrow' => '->', 'protocol' => null],
-                ['from' => 1, 'to' => 2, 'arrow' => '->', 'protocol' => null],
-                ['from' => 0, 'to' => 2, 'arrow' => '->', 'protocol' => null],
-            ],
-        ],
-        'viz_layout' => [
-            'nodes'    => [['x' => 0, 'y' => 0], ['x' => 1, 'y' => 1], ['x' => 2, 'y' => 2]],
-            'comments' => ['ca', 'cb', 'cc'],
-            'edges'    => [['from' => 'r', 'to' => 'l'], ['from' => 't', 'to' => 'b'], ['from' => 'b', 'to' => 't']],
-        ],
-    ]);
-
-    $response = $this->deleteJson(route('submissions.diagrams.chain.node.remove', [$submission, $diagram, 1]))->assertOk();
-
-    $fresh = $diagram->fresh();
-
-    expect($fresh->chain['nodes'])->toHaveCount(2)
-        // Only the 0→2 edge survives, with `to` decremented.
-        ->and($fresh->chain['edges'])->toHaveCount(1)
-        ->and($fresh->chain['edges'][0])->toMatchArray(['from' => 0, 'to' => 1])
-        // Positions and comments are per NODE index…
-        ->and($fresh->viz_layout['comments'])->toBe(['ca', 'cc'])
-        ->and($fresh->viz_layout['nodes'])->toHaveCount(2)
-        // …and anchors are per EDGE index: only the third edge's survives.
-        ->and($fresh->viz_layout['edges'])->toBe([['from' => 'b', 'to' => 't']])
-        // A reindex answers with a whole rebuilt graph, never a patch.
-        ->and($response->json('graph.nodes'))->toHaveCount(2);
-});
-
-it('never derives anything from a submission drawing', function () {
-    // A proposal — which may well be rejected — must never write into the
-    // catalog: who talks to whom is the documentation's, and a TO BE drawn
-    // here states nothing about it.
-    $solution = Solution::factory()->create();
-    $other = Solution::factory()->create();
-
-    $submission = diagramSubmission(['solution_id' => $solution->id]);
-    $drawing = $submission->diagram(SubmissionDiagramKind::ToBe);
-
-    $this->postJson(route('submissions.diagrams.chain.node.add', [$submission, $drawing]), [
-        'kind' => 'system', 'solution_id' => $other->id,
-    ])->assertOk();
-
-    expect(SolutionRelationship::count())->toBe(0)
-        ->and(UmlSolutionLink::count())->toBe(0);
-});
-
-it('refuses a drawing that belongs to another submission', function () {
+it('refuses a slot that belongs to another submission', function () {
+    Storage::fake('public');
     $mine = diagramSubmission();
     $theirs = diagramSubmission();
 
-    $this->postJson(
-        route('submissions.diagrams.chain.node.add', [$mine, $theirs->diagram(SubmissionDiagramKind::ToBe)]),
-        ['kind' => 'system', 'label' => 'Invadido'],
-    )->assertNotFound();
+    $this->post(route('submissions.diagrams.upload.store', [$mine, $theirs->diagram(SubmissionDiagramKind::ToBe)]), [
+        'image' => UploadedFile::fake()->image('invadido.png'),
+    ])->assertNotFound();
 });
 
-it('lets a viewer read the canvas but not draw on it', function () {
+it('lets a viewer see the pictures but not upload one', function () {
+    Storage::fake('public');
     $submission = diagramSubmission();
-    $diagram = $submission->diagram(SubmissionDiagramKind::ToBe);
+    uploadDiagram($submission, SubmissionDiagramKind::AsIs)->assertOk();
+    $diagram = $submission->diagram(SubmissionDiagramKind::AsIs);
 
     $this->actingAs(User::factory()->reader()->create());
 
-    $this->get(route('submissions.diagrams.edit', [$submission, $diagram]))->assertOk();
-    $this->postJson(route('submissions.diagrams.chain.node.add', [$submission, $diagram]), [
-        'kind' => 'system', 'label' => 'ERP',
+    $this->get(route('submissions.diagrams.picture.show', [$submission, $diagram]))->assertOk();
+    $this->post(route('submissions.diagrams.upload.store', [$submission, $diagram]), [
+        'image' => UploadedFile::fake()->image('outra.png'),
     ])->assertForbidden();
 });
 
-it('mounts the canvas with submission urls, so the client never learns whose chain it is', function () {
-    $submission = diagramSubmission();
-    $diagram = $submission->diagram(SubmissionDiagramKind::ToBe);
-
-    $html = $this->get(route('submissions.diagrams.edit', [$submission, $diagram]))->assertOk()->getContent();
-
-    expect($html)
-        ->toContain('data-ak-chain-graph')
-        ->toContain('data-ak-node-kinds')
-        // The endpoints travel inside the payload — this is what makes the
-        // 4.5k-line canvas owner-agnostic with no client change at all.
-        ->toContain(str_replace('/', '\/', route('submissions.diagrams.chain.node.add', [$submission, $diagram])));
-});
-
-it('refuses to draw on a c4 slot', function () {
-    // C4 is a notation the free-graph canvas does not speak; the slot takes an
-    // upload instead, and there is no chain to mutate.
-    $submission = diagramSubmission();
-
-    $this->get(route('submissions.diagrams.edit', [$submission, $submission->diagram(SubmissionDiagramKind::C4Context)]))
-        ->assertNotFound();
-});
-
-/*
-|--------------------------------------------------------------------------
-| Pictures
-|--------------------------------------------------------------------------
-*/
-
-it('accepts an uploaded c4 image and reports it everywhere it shows', function () {
+it('refuses a file that is not a picture', function () {
     Storage::fake('public');
-
-    $submission = diagramSubmission();
-    $diagram = $submission->diagram(SubmissionDiagramKind::C4Context);
-
-    $response = $this->post(route('submissions.diagrams.upload.store', [$submission, $diagram]), [
-        'image' => UploadedFile::fake()->image('c4.png'),
-    ])->assertOk();
-
-    expect($diagram->fresh()->isFilled())->toBeTrue()
-        ->and(collect($response->json('updatableSlots'))->pluck('id')->all())
-        ->toBe(['submission-diagrams-slot', 'submission-checklist-slot', 'submission-stage-strip-slot']);
-});
-
-it('holds a submission capture to the same png rule as the catalog canvas', function () {
-    Storage::fake('public');
-
     $submission = diagramSubmission();
 
-    // Both canvases publish through `StoreDiagramPictureRequest`: the file is
-    // one the canvas produced itself, so widening this to the app's shared
-    // image rule on ONE of the two owners is the drift the shared class
-    // exists to prevent.
-    $this->postJson(route('submissions.diagrams.picture.store', [$submission, $submission->diagram(SubmissionDiagramKind::AsIs)]), [
-        'image' => UploadedFile::fake()->image('canvas.jpg'),
-    ])->assertStatus(422)->assertJson(['type' => 'warning']);
-});
-
-it('refuses a viewer publishing a submission capture', function () {
-    Storage::fake('public');
-
-    $submission = diagramSubmission();
-    $diagram = $submission->diagram(SubmissionDiagramKind::AsIs);
-
-    $this->actingAs(User::factory()->create(['role' => UserRole::Member]));
-
-    $this->postJson(route('submissions.diagrams.picture.store', [$submission, $diagram]), [
-        'image' => UploadedFile::fake()->image('canvas.png'),
-    ])->assertForbidden();
-});
-
-it('refuses an upload onto a drawn slot, and a canvas capture onto a c4 one', function () {
-    Storage::fake('public');
-
-    $submission = diagramSubmission();
-
-    $this->post(route('submissions.diagrams.upload.store', [$submission, $submission->diagram(SubmissionDiagramKind::ToBe)]), [
-        'image' => UploadedFile::fake()->image('nope.png'),
-    ])->assertNotFound();
-
-    $this->post(route('submissions.diagrams.picture.store', [$submission, $submission->diagram(SubmissionDiagramKind::C4Context)]), [
-        'image' => UploadedFile::fake()->image('nope.png'),
-    ])->assertNotFound();
+    $this->postJson(route('submissions.diagrams.upload.store', [$submission, $submission->diagram(SubmissionDiagramKind::AsIs)]), [
+        'image' => UploadedFile::fake()->create('notas.pdf', 10, 'application/pdf'),
+    ])->assertStatus(422);
 });
 
 it('serves a diagram picture behind the submission permission', function () {
@@ -286,16 +116,14 @@ it('serves a diagram picture behind the submission permission', function () {
 
     $this->get(route('submissions.diagrams.picture.show', [$submission, $diagram]))->assertNotFound();
 
-    $this->post(route('submissions.diagrams.upload.store', [$submission, $diagram]), [
-        'image' => UploadedFile::fake()->image('c4.png'),
-    ])->assertOk();
+    uploadDiagram($submission, SubmissionDiagramKind::C4Container)->assertOk();
 
     $this->get(route('submissions.diagrams.picture.show', [$submission, $diagram]))->assertOk();
 });
 
 /*
 |--------------------------------------------------------------------------
-| What the drawings answer
+| What the pictures answer
 |--------------------------------------------------------------------------
 */
 
@@ -308,66 +136,46 @@ it('ticks the committee diagram item only when all four slots are filled', funct
     expect(app(RenderTicketText::class)->handle($submission))
         ->toContain('* [ ] ' . $item);
 
-    // Two drawn, two uploaded — the item is a claim about ATTACHMENTS, so it
-    // must not move until every one of them is actually there.
-    foreach (SubmissionDiagramKind::drawnCases() as $kind) {
-        $diagram = $submission->diagram($kind);
-        $chain = $diagram->chain;
-        $chain['nodes'][] = ['solution_id' => null, 'label' => 'ERP', 'kind' => 'system'];
-        $diagram->update(['chain' => $chain]);
+    // The item is a claim about ATTACHMENTS, so it must not move until every
+    // one of them is actually there.
+    foreach ([SubmissionDiagramKind::AsIs, SubmissionDiagramKind::ToBe, SubmissionDiagramKind::C4Context] as $kind) {
+        uploadDiagram($submission, $kind)->assertOk();
     }
 
     expect(app(RenderTicketText::class)->handle($submission->fresh()))
         ->toContain('* [ ] ' . $item);
 
-    foreach (SubmissionDiagramKind::uploadedCases() as $kind) {
-        $this->post(route('submissions.diagrams.upload.store', [$submission, $submission->diagram($kind)]), [
-            'image' => UploadedFile::fake()->image('c4.png'),
-        ])->assertOk();
-    }
+    uploadDiagram($submission, SubmissionDiagramKind::C4Container)->assertOk();
 
     expect(app(RenderTicketText::class)->handle($submission->fresh()))
         ->toContain('* [x] ' . $item);
 });
 
-it('puts the submission drawings on the deck, in the committee order', function () {
+it('puts the submission pictures on the deck, in the committee order', function () {
     Storage::fake('public');
 
     $submission = diagramSubmission();
 
-    foreach ([SubmissionDiagramKind::AsIs, SubmissionDiagramKind::ToBe] as $kind) {
-        $diagram = $submission->diagram($kind);
-        $chain = $diagram->chain;
-        $chain['nodes'][] = ['solution_id' => null, 'label' => 'ERP', 'kind' => 'system'];
-        $diagram->update(['chain' => $chain]);
-        $this->post(route('submissions.diagrams.picture.store', [$submission, $diagram]), [
-            'image' => UploadedFile::fake()->image('canvas.png'),
-        ])->assertOk();
+    foreach ([SubmissionDiagramKind::C4Context, SubmissionDiagramKind::ToBe, SubmissionDiagramKind::AsIs] as $kind) {
+        uploadDiagram($submission, $kind)->assertOk();
     }
-
-    $this->post(route('submissions.diagrams.upload.store', [$submission, $submission->diagram(SubmissionDiagramKind::C4Context)]), [
-        'image' => UploadedFile::fake()->image('c1.png'),
-    ])->assertOk();
 
     $spec = app(BuildDeckSpec::class)->handle($submission->fresh());
     $diagramTitles = collect(SubmissionDiagramKind::cases())->map->slideTitle()->all();
-    $titles = collect($spec['slides'])->pluck('title')->filter(fn ($t) => in_array($t, $diagramTitles, true))->values();
+    $slides = collect($spec['slides'])->filter(fn ($slide) => in_array($slide['title'], $diagramTitles, true))->values();
 
-    expect($titles->all())->toBe(['Arquitetura AS IS', 'Arquitetura TO BE', 'C4 · Contexto (C1)'])
-        // A drawn kind links back to its canvas; an uploaded one has nowhere
-        // to go — the tool that made it isn't hosted here.
-        ->and(collect($spec['slides'])->firstWhere('title', 'Arquitetura TO BE')['blocks'][0]['link'])
-        ->toContain('/diagrams/')
-        ->and(collect($spec['slides'])->firstWhere('title', 'C4 · Contexto (C1)')['blocks'][0]['link'])
-        ->toBeNull();
+    expect($slides->pluck('title')->all())->toBe(['Arquitetura AS IS', 'Arquitetura TO BE', 'C4 · Contexto (C1)'])
+        ->and($slides->every(fn ($slide) => $slide['blocks'][0]['type'] === 'image' && ! isset($slide['blocks'][0]['link'])))->toBeTrue();
 });
 
-it('renders the diagrams tab with all four slots', function () {
+it('renders the diagrams tab with four upload slots', function () {
     $html = $this->get(route('submissions.show', diagramSubmission()))->assertOk()->getContent();
 
     expect($html)
         ->toContain('id="submission-tab-diagrams"')
         ->toContain('submission-diagrams-slot')
         ->toContain('Arquitetura AS IS')
-        ->toContain('C4 · Contêineres (C2)');
+        ->toContain('C4 · Contêineres (C2)')
+        ->and(substr_count($html, 'data-ak-cati-diagram-upload='))->toBe(4)
+        ->and($html)->not->toContain('Desenhar');
 });

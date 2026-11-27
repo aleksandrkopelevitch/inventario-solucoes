@@ -465,41 +465,14 @@ Route::middleware('auth')->group(function () {
         Route::get('submissions/{submission}/chat/{chat}/status', [SubmissionChatController::class, 'status'])->name('submissions.chat.status');
 
         /*
-         | The submission's four drawings. `{diagram}` resolves through
-         | Submission::diagrams(), so a diagram belonging to another submission
-         | 404s instead of being edited through the wrong parent.
-         |
-         | The twelve chain endpoints mirror the diagrams module's ONE FOR ONE
-         | — same request classes, same controller trait (Concerns\EditsChain),
-         | same response shapes — because it is the same canvas over a
-         | different owner. `chain-viz.js` never learns which one it is
-         | drawing: every URL it calls arrives inside the graph payload
-         | (`ChainCanvas::chainUrls()`).
-         |
-         | The index params are a plain integer into `chain.nodes`/`chain.edges`
-         | (`whereNumber`), not a model — exactly as on the diagrams routes.
+         | The submission's four pictures. `{diagram}` resolves through
+         | Submission::diagrams(), so a slot belonging to another submission
+         | 404s instead of being written through the wrong parent.
          */
         Route::prefix('submissions/{submission}/diagrams/{diagram}')->name('submissions.diagrams.')->group(function () {
-            Route::get('/', [SubmissionDiagramController::class, 'edit'])->name('edit');
-            Route::patch('layout', [SubmissionDiagramController::class, 'saveLayout'])->name('layout.save');
             Route::get('picture', [SubmissionDiagramController::class, 'showPicture'])->name('picture.show');
-            Route::post('picture', [SubmissionDiagramController::class, 'storePicture'])->name('picture.store');
-
             Route::post('upload', [SubmissionDiagramController::class, 'storeUpload'])->name('upload.store');
             Route::delete('upload', [SubmissionDiagramController::class, 'destroyUpload'])->name('upload.destroy');
-
-            Route::post('chain/nodes', [SubmissionDiagramController::class, 'addNode'])->name('chain.node.add');
-            Route::post('chain/images', [SubmissionDiagramController::class, 'addImageNode'])->name('chain.image.add');
-            Route::post('chain/nodes/{node}/image', [SubmissionDiagramController::class, 'setNodeImage'])->whereNumber('node')->name('chain.node.image.store');
-            Route::delete('chain/nodes/{node}/image', [SubmissionDiagramController::class, 'removeNodeImage'])->whereNumber('node')->name('chain.node.image.remove');
-            Route::patch('chain/nodes/{node}', [SubmissionDiagramController::class, 'updateNode'])->whereNumber('node')->name('chain.node.update');
-            Route::delete('chain/nodes/{node}', [SubmissionDiagramController::class, 'removeNode'])->whereNumber('node')->name('chain.node.remove');
-
-            Route::post('chain/edges', [SubmissionDiagramController::class, 'addEdge'])->name('chain.edge.add');
-            Route::patch('chain/protocol/{edge}', [SubmissionDiagramController::class, 'updateProtocol'])->whereNumber('edge')->name('chain.protocol.update');
-            Route::patch('chain/edge/{edge}', [SubmissionDiagramController::class, 'retargetEdge'])->whereNumber('edge')->name('chain.edge.retarget');
-            Route::delete('chain/edge/{edge}', [SubmissionDiagramController::class, 'removeEdge'])->whereNumber('edge')->name('chain.edge.remove');
-            Route::put('chain', [SubmissionDiagramController::class, 'restoreChainState'])->name('chain.restore');
         });
     });
 

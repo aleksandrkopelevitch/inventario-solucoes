@@ -40,7 +40,7 @@ Register new modules in `window.globalModules` in `app.js`.
 `app.js` bundles every static import into the one file every page loads, and
 on 2026-11-12 that file was 336 KB (108 KB gzip) of which three quarters was
 six modules used by a handful of screens: the diagram canvas (with
-html-to-image and gif.js), the ecosystem map (d3-force), the Editor.js glue,
+html-to-image and gif.js, since removed), the ecosystem map (d3-force), the Editor.js glue,
 the documentation chat (which imports the editor), the scenes with their icon
 catalogue, and the spreadsheet. They are `lazy()` stubs now
 (`resources/js/modules/lazy.js`) — same `{init}` shape in `globalModules`, but

@@ -1,6 +1,6 @@
 /* ------------------------------------------------------------------
    Editor de blocos da documentação (Editor.js) — estilo GitBook.
-   Exceção de CSS custom legítima (mesma razão do .ak-viz-md): conteúdo
+   Exceção de CSS custom legítima (mesma razão do .html-content): conteúdo
    dinâmico dirigido por JS, sem elemento fixo para prender utilitários
    antes de existir. Usa os tokens de @theme (app.css).
 -------------------------------------------------------------------- */
@@ -462,7 +462,7 @@
    editor — daí não ter prefixo `.ak-docs-editor` aqui, e daí ser CSS solto em
    vez de utilitários Tailwind num componente Blade: o elemento nasce em
    runtime, dentro de um pacote de terceiros, sem markup nosso onde pendurar
-   classe (mesma exceção documentada de `.ak-viz-md`).
+   classe (mesma exceção documentada de `.html-content`).
 
    É o único aviso do app que não passa pelo `Toast`: os plugins fazem o upload
    sozinhos e chamam o notifier próprio, que também esconde o preloader do

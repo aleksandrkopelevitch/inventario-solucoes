@@ -1,17 +1,13 @@
 <?php
 
-use App\Contracts\Documentable;
 use App\Enums\UserRole;
 use App\Models\Company;
 use App\Models\Solution;
-use App\Models\SubmissionDiagram;
 use App\Models\User;
 use App\Support\Images\PublicImage;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
-use Spatie\MediaLibrary\Conversions\Jobs\PerformConversionsJob;
 
 uses(LazilyRefreshDatabase::class);
 
@@ -80,14 +76,4 @@ it('falls back to the original while the thumbnail does not exist, and the backf
     expect(PublicImage::url(null))->toBeNull()
         ->and(PublicImage::url('https://example.test/x.png'))->toBe('https://example.test/x.png')
         ->and($solution->fresh()->logo_path)->toBe($path);
-});
-
-it('queues the web rendition for a picture pasted onto a diagram canvas', function () {
-    Queue::fake();
-
-    $diagram = SubmissionDiagram::factory()->create();
-    $diagram->addMedia(UploadedFile::fake()->image('paste.png', 2400, 1200))
-        ->toMediaCollection(Documentable::DOCS_COLLECTION);
-
-    Queue::assertPushed(PerformConversionsJob::class);
 });

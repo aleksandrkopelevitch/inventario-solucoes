@@ -33,12 +33,6 @@ enum AttributeGroup: string
     }
 
     /**
-     * Only `Environment`/`Cloud` expose an icon (heroicons) per value — used
-     * as a subtle highlight on top of each solution block in the data-viz
-     * (F3, `chain-viz.js`). The other groups have no icon field in the
-     * "Manage attributes" UI.
-     */
-    /**
      * Where a system runs — Hospedagem and Cloud. These carry a colour and a
      * picture as well as the icon: the ecosystem map's "Por hospedagem" view
      * draws one container per value, filled with the colour and badged with
@@ -52,6 +46,10 @@ enum AttributeGroup: string
         };
     }
 
+    /**
+     * Only Hospedagem and Cloud expose an icon (heroicons) per value; the
+     * other groups have no icon field in the "Gerenciar atributos" screen.
+     */
     public function supportsIcon(): bool
     {
         return match ($this) {

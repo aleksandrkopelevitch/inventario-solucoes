@@ -84,8 +84,8 @@ class NotebookPageController extends Controller
             'chatPanelUrl'      => route('notebooks.chat.panel', [$notebook, $page]),
             // Where a lock posts its code. A TEMPLATE, with the value's address
             // as a placeholder `docs-secret.js` substitutes: the reader holds many
-            // locks and the module must not build a path of its own (same rule
-            // that keeps `chain-viz.js` free of routes) — so the one route()
+            // locks and the module must not build a path of its own — so the
+            // one route()
             // call happens here.
             'secretRevealUrl' => route('notebooks.pages.secrets', [$notebook, $page, 'secret' => '__SECRET__']),
             // Failed attempts are remembered per CADERNO, since that is what a

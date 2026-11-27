@@ -28,7 +28,7 @@
 // The endpoint is not built here. It arrives as `data-ak-secret-url` with
 // `__SECRET__` where the address goes — one template for the authenticated
 // reader and the magic link, so this module has no route of its own and cannot
-// tell which surface it is running on (the contract `chain-viz.js` keeps).
+// tell which surface it is running on.
 import * as ajaxModule from './ajax'
 
 const MAX_ATTEMPTS = 5

@@ -4,7 +4,6 @@ use App\Contracts\Documentable;
 use App\Enums\UserRole;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
-use App\Models\SubmissionDiagram;
 use App\Models\User;
 use App\Support\GitbookRenderer;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -266,15 +265,11 @@ it('queues a rendition only for the documentation images that have none', functi
     $gone = imageOnPage($page, renditionSource(800, 400));
     unlink($gone->getPath());
     imageOnPage($page, renditionSource(300, 200, 'gif'));
-    // A committee drawing's pasted image lives in a `docs` collection too,
-    // and since 2026-11-12 gets the same rendition (HasWebImageRendition) — so
-    // the backfill queues it as well.
-    $pasted = SubmissionDiagram::factory()->create()->addMedia(renditionSource(800, 400))->toMediaCollection(Documentable::DOCS_COLLECTION);
 
     $uploads = Queue::pushed(PerformConversionsJob::class)->count();
 
     $this->artisan('documentation:web-images')
-        ->expectsOutputToContain('Queued 2 documentation image(s)')
+        ->expectsOutputToContain('Queued 1 documentation image(s)')
         ->expectsOutputToContain('Skipped 1 whose file is missing on disk')
         ->assertSuccessful();
 
@@ -283,9 +278,8 @@ it('queues a rendition only for the documentation images that have none', functi
     // The job keeps its media protected and offers no accessor.
     $mediaOf = fn (PerformConversionsJob $job): Media => (fn () => $this->media)->call($job);
 
-    expect($queued)->toHaveCount(2)
+    expect($queued)->toHaveCount(1)
         ->and($queued->map($mediaOf)->contains(fn (Media $m) => $m->is($pending)))->toBeTrue()
-        ->and($queued->map($mediaOf)->contains(fn (Media $m) => $m->is($pasted)))->toBeTrue()
         ->and($done->hasGeneratedConversion(Documentable::WEB_CONVERSION))->toBeTrue();
 });
 

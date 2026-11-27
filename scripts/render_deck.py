@@ -162,11 +162,11 @@ def add_table(slide, block, left, top, width, height):
 
 def add_image(slide, block, left, top, width, height):
     """
-    A diagram, rendered by the F3 canvas and published on every layout save.
+    A diagram the person uploaded to the submission.
 
-    It goes in as a picture with a hyperlink back to the canvas on purpose:
-    native shapes would make the deck a SECOND place the diagram can be
-    edited, and the two would drift apart on the first meeting.
+    It goes in as a picture, never as native shapes: shapes would make the
+    deck a SECOND place the diagram can be edited, and the two would drift
+    apart on the first meeting. A block may carry a `link` the picture opens.
     """
     picture = slide.shapes.add_picture(block['path'], left, top, height=height)
 

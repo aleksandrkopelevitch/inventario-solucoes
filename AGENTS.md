@@ -63,7 +63,6 @@ if a rule you expect is not here, it is in one of these:
 
 | file | covers |
 |---|---|
-| `diagram-chain-canvas.md` | the `chain` topology invariant, node kinds, the owner-agnostic canvas |
 | `cadernos-notebooks.md` | `Notebook` as the one container, the page tree, `page:` links, card grids |
 | `docs-reader-surfaces.md` | the magic link and `/docs`, one screen in two audiences |
 | `docs-search-index.md` | the documentation search index and its ⌘K palette, the `/docs` global index, `documentation:search-warm` |
@@ -89,7 +88,6 @@ if a rule you expect is not here, it is in one of these:
 | `media-and-uploads.md` | the MediaLibrary collections and the upload rules |
 | `testing-time.md` | freezing time in window/TTL tests |
 | `data-ak-attribute-reference.md` | the `data-ak-*` hook table |
-| `chain-viz-pointer-events.md` | the canvas runs on pointer events |
 | `flowspec-context-attachments.md` | flowSpec chat attachments and the token meter |
 | `gitbook-import-and-doc-markdown.md` | `gitbook:import` and the Markdown round trip |
 | `inline-edit-pattern.md` | `x-ui.inline-edit` |
@@ -226,7 +224,7 @@ Route::get('/proposals/{proposal}/analyses/{analysis}', ...)
 
 - Every model must define `$fillable` — no `$guarded = []` shortcuts
 - Every controller action that mutates data must call `$this->authorize()` or use a Policy
-- Validate all input via Form Request classes — no inline `$request->validate()` in controllers. **This one has no exception**, and the loophole to refuse is the plausible-sounding "it is one rule over a payload the client generated": the canvas posting its own rendered PNG is exactly that, and it has `StoreDiagramPictureRequest` (which is also where the reasoning lives — PNG only, deliberately not the app's shared image rule). A second endpoint doing the same thing inline is drift, not a judgement call:
+- Validate all input via Form Request classes — no inline `$request->validate()` in controllers. **This one has no exception**, and the loophole to refuse is the plausible-sounding "it is one rule over a single file": the committee's diagram upload is exactly that, and it has `StoreSubmissionDiagramUploadRequest` (which is also where the reasoning lives — SVG accepted, deliberately not the app's shared image rule). A second endpoint doing the same thing inline is drift, not a judgement call:
 
 ```php
 class StoreProposalRequest extends FormRequest

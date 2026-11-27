@@ -2,8 +2,8 @@
    A person's/company's notes, a solution's description and its support ×
    operation note (see App\Support\MarkdownText and x-ui.markdown).
 
-   Custom CSS here is a legitimate exception, the same one `.ak-viz-md` gets
-   (see CLAUDE.md): the HTML is produced by the renderer, so there is no
+   Custom CSS here is a legitimate exception, the same one `.html-content`
+   gets (see .claude/rules/css-and-docs-rendering.md): the HTML is produced by the renderer, so there is no
    element to hang a utility class on before it exists.
 
    Distinct from `.html-content`, which types a whole GitBook documentation

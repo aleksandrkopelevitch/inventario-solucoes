@@ -15,30 +15,11 @@ class SubmissionDiagramFactory extends Factory
         return [
             'submission_id' => Submission::factory(),
             'kind'          => SubmissionDiagramKind::ToBe,
-            // The seeded root, same shape a brand-new Diagram is born
-            // with — a canvas needs somewhere to hang the first gesture.
-            'chain'      => ['nodes' => [['solution_id' => null, 'label' => 'Sistema', 'kind' => 'system']], 'edges' => []],
-            'viz_layout' => null,
         ];
-    }
-
-    /** A drawing with more than the seeded root — what `isFilled()` counts. */
-    public function drawn(): static
-    {
-        return $this->state(fn () => ['chain' => [
-            'nodes' => [
-                ['solution_id' => null, 'label' => 'Sistema', 'kind' => 'system'],
-                ['solution_id' => null, 'label' => 'ERP', 'kind' => 'system'],
-            ],
-            'edges' => [['from' => 0, 'to' => 1, 'arrow' => '->', 'protocol' => 'rest']],
-        ]]);
     }
 
     public function kind(SubmissionDiagramKind $kind): static
     {
-        return $this->state(fn () => [
-            'kind'  => $kind,
-            'chain' => $kind->isDrawn() ? $this->definition()['chain'] : null,
-        ]);
+        return $this->state(fn () => ['kind' => $kind]);
     }
 }

@@ -6,7 +6,6 @@ use App\Models\Notebook;
 use App\Models\Person;
 use App\Models\Solution;
 use App\Models\SolutionRelationship;
-use App\Models\Submission;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 
@@ -54,25 +53,6 @@ it('keeps the people and the company the solution was linked to', function () {
     expect($person->fresh()->solutions()->count())->toBe(0);
 });
 
-it('leaves a CATI submission drawing standing, with the block as free text', function () {
-    // A submission's AS IS / TO BE stores `{solution_id, label}` per node with
-    // no foreign key to cascade, so a delete that left it alone kept a node
-    // pointing at a row that is gone, which `ChainLabeler` renders as "?".
-    $solution = Solution::factory()->create(['name' => 'Sistema Fantasma']);
-    $submission = Submission::factory()->create();
-    $canvas = $submission->diagrams()->create([
-        'kind'  => 'as_is',
-        'chain' => ['nodes' => [['solution_id' => $solution->id, 'label' => null, 'kind' => 'system']], 'edges' => []],
-    ]);
-
-    $this->actingAs(solutionAdmin())->deleteJson(route('solutions.destroy', $solution))->assertOk();
-
-    $chain = $canvas->fresh()->chain;
-
-    expect($chain['nodes'][0]['solution_id'])->toBeNull()
-        ->and($chain['nodes'][0]['label'])->toBe('Sistema Fantasma');
-});
-
 it('shows the delete control only to an admin', function () {
     $solution = Solution::factory()->create();
 
@@ -82,21 +62,6 @@ it('shows the delete control only to an admin', function () {
     $this->actingAs(User::factory()->editor()->create())
         ->get(route('solutions.show', $solution))
         ->assertDontSee('solution-page-delete');
-});
-
-it('names a block whose label was blank rather than leaving it nameless', function () {
-    // `?? ` only substitutes on null, so a node stored with an empty string
-    // kept it and rendered as an unnamed rectangle — the outcome the sweep
-    // exists to avoid.
-    $solution = Solution::factory()->create(['name' => 'Sem Rotulo']);
-    $canvas = Submission::factory()->create()->diagrams()->create([
-        'kind'  => 'as_is',
-        'chain' => ['nodes' => [['solution_id' => $solution->id, 'label' => '', 'kind' => 'system']], 'edges' => []],
-    ]);
-
-    $this->actingAs(solutionAdmin())->deleteJson(route('solutions.destroy', $solution))->assertOk();
-
-    expect($canvas->fresh()->chain['nodes'][0]['label'])->toBe('Sem Rotulo');
 });
 
 it('takes the interconnections recorded with it, and nothing else', function () {

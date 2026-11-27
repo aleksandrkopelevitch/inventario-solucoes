@@ -30,13 +30,11 @@ import * as railScroll from './modules/rail-scroll.js'
 import * as digibeeSessionImport from './modules/digibee-session-import.js'
 import { lazy } from './modules/lazy.js'
 
-// Loaded on demand, by the root hook each one mounts on (see lazy.js). The
-// diagram canvas alone — with html-to-image and gif.js — was a third of the
-// bundle, on pages that have no canvas. docs-chat is here because it imports
+// Loaded on demand, by the root hook each one mounts on (see lazy.js), so a
+// page pays only for the features it has. docs-chat is here because it imports
 // the editor (flushSave/setEditorLocked), so a static import of it would drag
 // Editor.js's glue back into every page; its own hooks only exist on the
 // editor screen anyway.
-const chainViz = lazy('[data-ak-chain-viz]', () => import('./modules/chain-viz.js'))
 const ecosystemMap = lazy('[data-ak-ecosystem-map]', () => import('./modules/ecosystem-map.js'))
 const docsEditor = lazy('[data-ak-docs-editor]', () => import('./modules/docs-editor.js'))
 const docsChat = lazy(
@@ -68,7 +66,6 @@ window.globalModules = {
     "executeSearch" : executeSearch,
     "sortableTable" : sortableTable,
     "inlineEdit"         : inlineEdit,
-    "chainViz"    : chainViz,
     "ecosystemMap"      : ecosystemMap,
     "docsEditor"        : docsEditor,
     "docsAnchors"       : docsAnchors,
