@@ -1,7 +1,6 @@
 ---
 paths:
   - "app/Models/Submission*.php"
-  - "app/Models/ApprovedTopology.php"
   - "app/Enums/Submission*.php"
   - "app/Enums/ConformanceVerdict.php"
   - "app/Support/Cati/**"
@@ -27,9 +26,9 @@ The reasoning behind each phase is in `docs/cati-fase-{1,2,3,4}.md`; this file
 is only what a change here has to keep true.
 
 The submission's own drawings are covered elsewhere: the canvas contract in
-`.claude/rules/diagram-chain-canvas.md`, the AS IS × TO BE comparison in
-`.claude/rules/diagram-models.md`, the media collections in
-`.claude/rules/media-and-uploads.md`.
+`.claude/rules/diagram-chain-canvas.md`, the media collections in
+`.claude/rules/media-and-uploads.md`. The canvas, `TopologyDiff` included, is
+being removed (docs-and-specs/solution-relationships-from-uml.md, phase 4b).
 
 ### The workbench REPORTS a stage, it never enforces one
 
@@ -131,43 +130,25 @@ drift this module exists to eliminate.
 
 ### Approval does NOT write topology
 
-A submission's TO BE is a free graph: it may describe several diagrams at once,
-or one that does not exist yet. An approval that guessed the target would
-overwrite real topology with a guess, so approving records an
-**`ApprovedTopology`** — a SNAPSHOT of the chain at approval — and a human
-chooses which `Diagram` it becomes.
+A submission's TO BE is a free graph, and a proposal can be rejected, so
+nothing drawn here writes the catalog (`SubmissionDiagram::afterChainMutation()`
+is deliberately empty). Who talks to whom is the documentation's: the UML
+diagrams in caderno pages and the interconnections recorded on the solution
+page (`.claude/rules/solution-relationships.md`). An approval publishes the
+proposal's prose and its TO BE picture into the solution's caderno
+(`PromoteApprovedSubmission`); the relationships follow once somebody documents
+them there. Until 2026-11-27 an approval recorded an `ApprovedTopology` for a
+person to apply into a catalog drawing; both went with the topology drawings.
 
-- Applying goes through `writeChain()` + `afterChainMutation()`, the same door
-  the canvas uses, so the derived columns re-derive without `ApplyApprovedTopology`
-  knowing they exist. Assigning `chain` directly would be the one place in the
-  app where topology changes without them following.
-- The snapshot is what gets written, not whatever the drawing has become since.
-- A pending row is visible on BOTH sides (the submission's Comitê tab and a
-  notice on the Solution), and closes two ways that say different things:
-  **APLICADA** ("the catalog now says this") and **JÁ REFLETIDA** ("the catalog
-  was already right"). Silence is what caused the drift this record exists to
-  end.
+**Recording an APPROVAL asks the module it writes into** (since 2026-11-02): it
+publishes into the solution's caderno, so `RecordSubmissionDecisionRequest`
+also wants `create` on `Notebook` (a 422 that says why; a rejection writes
+nothing outside the submission and needs only `update` on it). Before that, a
+Committee Editor with no Documentation level could publish a page.
 
-**Both writes ask the module they write into** (since 2026-11-02). Recording
-an APPROVAL publishes into the solution's caderno, so
-`RecordSubmissionDecisionRequest` also wants `create` on `Notebook` (a 422 that
-says why; a rejection writes nothing outside the submission and needs only
-`update` on it). APPLYING writes a catalog diagram, so
-`ApplyApprovedTopologyRequest` also wants `update` on the target `Diagram`, or
-`create` on `Diagram` plus `update` on the target caderno. Before that, a
-Committee Editor with no Documentation level could publish a page and overwrite
-any diagram their solution took part in.
-
-This record exists because `SubmissionDiagram::afterChainMutation()` is
-deliberately empty — a proposal must not write the catalog, because a proposal
-can be rejected — which reopened a hole an earlier phase had declared closed.
-
-**`approved_topologies.chain` is the third table storing the
-`{solution_id, label, kind}` node shape**, and its foreign key only covers the
-solution the submission was ABOUT. Anything sweeping chains for a departing
-solution has to include it as a snapshot rather than as a `ChainCanvas` —
-nothing draws or edits it, so the contract's media and URL half would be a
-costume. See `App\Actions\DeleteSolution`.
+A committee drawing stores `{solution_id, label, kind}` per node with no
+foreign key, so `App\Actions\DeleteSolution` turns a departing solution's
+nodes into free text before the row goes.
 
 ### Only an admin or the committee leader records the deliberation (2026-11-03)
 
@@ -181,9 +162,7 @@ could record the verdict on their own proposal.
 The header's status select never takes a verdict (`UpdateSubmissionFieldRequest`
 refuses aprovada / aprovada com ressalvas / reprovada for everyone — a verdict
 set there also skipped the publication), and a decided submission's status
-moves only for someone who may decide. Reopening an approved one from the
-header withdraws its pending topology, like re-recording it as rejected.
+moves only for someone who may decide.
 
 An approval still also needs documentation rights (above): a leader with no
-documentation level can reject, not approve. Applying or dismissing the
-approved topology stays with the author (`update`) plus those rights.
+documentation level can reject, not approve.

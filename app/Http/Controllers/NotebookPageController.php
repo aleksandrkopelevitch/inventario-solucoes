@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Documentation\RevealPageSecret;
-use App\Enums\DiagramModel;
 use App\Http\Controllers\Concerns\AssistsDocumentation;
 use App\Http\Controllers\Concerns\BuildsPagesNav;
 use App\Http\Controllers\Concerns\EditsDocumentation;
@@ -15,7 +14,6 @@ use App\Http\Requests\SaveDocumentationRequest;
 use App\Http\Requests\StoreDocumentationChatMessageRequest;
 use App\Http\Requests\StoreDocumentationPageRequest;
 use App\Http\Requests\UploadDocumentationMediaRequest;
-use App\Models\Diagram;
 use App\Models\DocumentationChat;
 use App\Models\DocumentationChatMessage;
 use App\Models\DocumentationPage;
@@ -30,8 +28,8 @@ use Illuminate\Http\JsonResponse;
 /**
  * The page tree inside a caderno — a tree of 1..N pages, each edited by the
  * Editor.js block editor (Markdown + GitBook notation in
- * `documentation_pages.documentation`), and each optionally pointing at a
- * `Diagram` instead of a second editor existing for drawings.
+ * `documentation_pages.documentation`). Drawings live in the text, as
+ * `{% uml %}` blocks, rather than in a second editor.
  *
  * This is the merge of `SolutionDocumentationController` and
  * `DocumentationGroupPageController`, which were the same controller written
@@ -39,7 +37,7 @@ use Illuminate\Http\JsonResponse;
  * the route name and the label above the rail; everything that mattered was
  * already shared through the traits below.
  *
- * Thin — delegates to `EditsDocumentation` (per page), `LinksPageDiagram`,
+ * Thin — delegates to `EditsDocumentation` (per page),
  * `AssistsDocumentation` (the chat) and `DocumentationPageService` (tree rules:
  * create/rename/move/nest/delete, up to `DocumentationPage::MAX_DEPTH` levels).
  */
@@ -84,21 +82,6 @@ class NotebookPageController extends Controller
             'notebookEditable'  => auth()->user()?->can('update', $notebook) ?? false,
             'createPageUrl'     => route('notebooks.pages.store', $notebook),
             'chatPanelUrl'      => route('notebooks.chat.panel', [$notebook, $page]),
-            // "Desenhar esta página" — reads the page, writes a Diagram of this
-            // caderno. Each item opens the dialog that asks "new or over an
-            // existing one?" (`?model=` says which item); the dialog posts.
-            'diagramDraftUrl' => route('notebooks.pages.diagram.target', [$notebook, $page]),
-            // The four models, in the same menu — one url per type, built here
-            // so the partial holds no route of its own.
-            'modelUrls' => array_map(fn (DiagramModel $model) => [
-                'model' => $model,
-                'url'   => route('notebooks.pages.diagram.target', [$notebook, $page, 'model' => $model->value]),
-            ], DiagramModel::cases()),
-            // The caderno's drawings, at the foot of the rail.
-            ...(auth()->user()?->can('viewAny', Diagram::class) ? [
-                'notebookDiagramsUrl'  => route('notebooks.diagrams.index', $notebook),
-                'notebookDiagramCount' => $notebook->diagrams()->count(),
-            ] : []),
             // Where a lock posts its code. A TEMPLATE, with the value's address
             // as a placeholder `docs-secret.js` substitutes: the reader holds many
             // locks and the module must not build a path of its own (same rule

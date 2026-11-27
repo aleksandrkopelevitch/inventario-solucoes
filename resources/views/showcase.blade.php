@@ -114,8 +114,8 @@
                 <x-ui.heroicon name="cloud" class="size-6 text-muted" />
                 <x-ui.heroicon name="nao-existe" class="size-6 text-muted" />
                 <span class="inline-flex items-center gap-2 text-sm text-muted"><x-ui.typing-dots /> gerando…</span>
-                <x-ui.status-badge :status="\App\Enums\DiagramStatus::cases()[0]" />
-                <x-ui.status-badge :status="\App\Enums\DiagramStatus::cases()[1]" size="md" />
+                <x-ui.status-badge :status="\App\Enums\SubmissionStatus::cases()[0]" />
+                <x-ui.status-badge :status="\App\Enums\SubmissionStatus::cases()[1]" size="md" />
             </div>
             <p class="font-mono text-[11px] text-faint">x-ui.logo (tile quadrado, tom por categoria) · x-ui.avatar (redondo) · x-ui.heroicon (nome vindo do banco; um nome inválido não quebra) · x-ui.typing-dots · x-ui.status-badge (qualquer enum com label() e badgeClass())</p>
 
@@ -189,7 +189,7 @@ de linha — como nas notas de uma pessoa." />
 
             <x-ui.solution-chips :solutions="\App\Models\Solution::query()->orderBy('name')->limit(3)->get(['id', 'name', 'slug'])" />
             <x-ui.solution-picker form-id="showcase-solution-picker" :action="$demoUrl" :items="[]" submit="Salvar (exemplo)" />
-            <p class="font-mono text-[11px] text-faint">x-ui.solution-chips — soluções como chips com link (um diagrama, um caderno) · x-ui.solution-picker — escolher um conjunto de soluções e salvar de uma vez</p>
+            <p class="font-mono text-[11px] text-faint">x-ui.solution-chips — soluções como chips com link (as de um caderno) · x-ui.solution-picker — escolher um conjunto de soluções e salvar de uma vez</p>
         </section>
 
         {{-- ─── Copiar e compartilhar ───────────────────────────────── --}}

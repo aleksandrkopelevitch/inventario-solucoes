@@ -40,66 +40,6 @@
         </x-forms.button>
     @endif
 
-    {{-- "Desenhar esta página" — one menu, five pictures.
-
-         The first item is the free graph — what talks to what. The four below
-         it are the other questions a page asks: in what order the calls
-         happen, what the states of a run are, where the data comes to rest,
-         who does what. All five produce the same thing, an ordinary Diagram of
-         THIS CADERNO on the canvas, which is why they sit in one menu.
-
-         No item draws anything by itself any more. Each opens the dialog
-         (`#main-modal`, notebooks.pages.diagram.target) that asks whether to
-         create a new diagram, under a name the author types, or to draw over
-         one the caderno already has — asked BEFORE the minute-long model call,
-         so nothing has to be parked while the answer comes. The dialog's
-         confirm is what posts, and it carries the `data-ak-ajax-target`
-         new-tab hooks these items used to. Each item also closes this menu
-         (the same `data-ak-toggle` as the trigger): the click lands inside it,
-         so the outside-click rule never would.
-
-         Shown only to whoever may write a diagram (`create`), so a Viewer gets
-         neither the trigger nor an empty popover. --}}
-    @isset($diagramDraftUrl)
-    @can('create', App\Models\Diagram::class)
-        <div class="relative">
-            <x-forms.button type="button" variant="ghost" data-ak-toggle="docs-draw-menu"
-                data-ak-toggle-classes="hidden" data-ak-toggle-blur="true"
-                class="!h-9 !w-9 !p-0" aria-label="Desenhar esta página" title="Desenhar esta página">
-                <x-heroicon-o-rectangle-group class="size-5" />
-            </x-forms.button>
-
-            <div id="docs-draw-menu" class="hidden absolute right-0 top-full z-20 mt-1.5 w-72 rounded-field border border-line bg-surface p-1.5 shadow-xl">
-                <x-forms.button type="button" variant="ghost" data-ak-modal-open="main-modal" data-ak-modal-url="{{ $diagramDraftUrl }}"
-                    data-ak-toggle="docs-draw-menu" data-ak-toggle-classes="hidden"
-                    class="!h-auto !w-full !justify-start !gap-2.5 !rounded-md !px-2 !py-1.5 !text-left">
-                    <x-heroicon-o-share class="size-4 shrink-0 text-muted" />
-                    <span class="min-w-0">
-                        <span class="block truncate text-xs font-semibold text-ink">Fluxo, no canvas</span>
-                        <span class="block truncate text-[11px] text-muted">Um diagrama editável, com os sistemas do catálogo</span>
-                    </span>
-                </x-forms.button>
-
-                @isset($modelUrls)
-                    <span class="my-1 block h-px bg-line"></span>
-
-                    @foreach ($modelUrls as $entry)
-                        <x-forms.button type="button" variant="ghost" data-ak-modal-open="main-modal" data-ak-modal-url="{{ $entry['url'] }}"
-                            data-ak-toggle="docs-draw-menu" data-ak-toggle-classes="hidden"
-                            class="!h-auto !w-full !justify-start !gap-2.5 !rounded-md !px-2 !py-1.5 !text-left">
-                            <x-dynamic-component :component="'heroicon-o-' . $entry['model']->icon()" class="size-4 shrink-0 text-muted" />
-                            <span class="min-w-0">
-                                <span class="block truncate text-xs font-semibold text-ink">{{ $entry['model']->label() }}</span>
-                                <span class="block truncate text-[11px] text-muted">{{ $entry['model']->hint() }}</span>
-                            </span>
-                        </x-forms.button>
-                    @endforeach
-                @endisset
-            </div>
-        </div>
-    @endcan
-    @endisset
-
     @if ($canEdit)
         {{-- `data-ak-panel-dock` anchors the panel as `#docs-shell`'s right COLUMN
              (2026-08-29) — talking about the documentation while it disappeared

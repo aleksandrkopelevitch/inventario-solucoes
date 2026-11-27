@@ -56,13 +56,6 @@ final class ReaderUrls
             : route('public.docs.file', [$this->token, $mediaId]);
     }
 
-    public function diagramPicture(string $slug): string
-    {
-        return $this->token === null
-            ? route('docs.diagram', [$this->notebook, $slug])
-            : route('public.docs.diagram', [$this->token, $slug]);
-    }
-
     /**
      * The palette's endpoint. On `/docs` it is ONE address for every caderno —
      * which one is searched travels as `?notebook=`, set by the palette's own

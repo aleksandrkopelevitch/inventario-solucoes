@@ -4,16 +4,14 @@ use App\Actions\Cati\BuildDeckSpec;
 use App\Actions\Cati\RenderSubmissionDeck;
 use App\Enums\SubmissionSectionKey;
 use App\Enums\SubmissionSectionState;
-use App\Models\Diagram;
 use App\Models\Person;
 use App\Models\Solution;
+use App\Models\SolutionRelationship;
 use App\Models\Submission;
 use App\Support\Cati\DeckSpecValidator;
 use App\Support\Cati\MarkdownToBlocks;
 use App\Support\Context\PptxTextExtractor;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
-use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
 
 uses(LazilyRefreshDatabase::class);
 
@@ -249,48 +247,53 @@ it('renders a real .pptx through the python renderer', function () {
     }
 });
 
-it('puts each diagram\'s canvas picture on its own slide, after the architecture', function () {
-    Storage::fake('public');
+function deckRelate(Solution $one, Solution $two, string $direction = 'both'): void
+{
+    [$a, $b] = $one->id < $two->id ? [$one, $two] : [$two, $one];
+    SolutionRelationship::query()->create(['solution_a_id' => $a->id, 'solution_b_id' => $b->id, 'direction' => $direction]);
+}
 
-    $solution = Solution::factory()->create();
-    $diagram = Diagram::factory()->create(['name' => 'SAP x SkyMob']);
-    attachParticipants($diagram, [[$solution, 0], [Solution::factory()->create(), 1]]);
-
-    $diagram->addMedia(UploadedFile::fake()->image('canvas.png', 1600, 900))
-        ->toMediaCollection(Diagram::DIAGRAM_COLLECTION);
+it('lists the documented relationships as a table, after the architecture', function () {
+    $solution = Solution::factory()->create(['name' => 'SkyMob']);
+    deckRelate($solution, Solution::factory()->create(['name' => 'SAP S/4HANA']));
 
     $submission = Submission::factory()->withSections()->create(['solution_id' => $solution->id]);
     $submission->section(SubmissionSectionKey::Architecture)->update(['content' => 'VM na Google Cloud.']);
 
     $spec = app(BuildDeckSpec::class)->handle($submission->fresh());
     $titles = array_column($spec['slides'], 'title');
+    $index = array_search('Relacionamentos documentados', $titles, true);
 
-    $diagramIndex = array_search('Arquitetura — SAP x SkyMob', $titles, true);
-
-    expect($diagramIndex)->not->toBeFalse()
+    expect($index)->not->toBeFalse()
         // Right after the architecture section, where the committee expects it.
-        ->and($titles[$diagramIndex - 1])->toBe('Arquitetura de solução');
+        ->and($titles[$index - 1])->toBe('Arquitetura de solução');
 
-    $block = $spec['slides'][$diagramIndex]['blocks'][0];
+    $block = $spec['slides'][$index]['blocks'][0];
 
-    expect($block['type'])->toBe('image')
-        ->and(is_file($block['path']))->toBeTrue()
-        // The link is what keeps the canvas the one place a diagram is edited.
-        ->and($block['link'])->toBe(route('diagrams.show', $diagram))
+    expect($block['type'])->toBe('table')
+        ->and($block['columns'])->toBe(['Solução', 'Sentido', 'Via', 'Origem'])
+        ->and($block['rows'])->toBe([['SAP S/4HANA', 'Chamam uma à outra', '—', 'Manual']])
         ->and((new DeckSpecValidator)->validate($spec))->toBe([]);
 });
 
-it('leaves out a diagram whose canvas was never saved', function () {
-    $solution = Solution::factory()->create();
-    $diagram = Diagram::factory()->create(['name' => 'Sem desenho']);
-    attachParticipants($diagram, [[$solution, 0], [Solution::factory()->create(), 1]]);
-
-    $submission = Submission::factory()->withSections()->create(['solution_id' => $solution->id]);
+it('leaves the slide out when the solution has no relationship, and splits a long list', function () {
+    $alone = Solution::factory()->create();
+    $submission = Submission::factory()->withSections()->create(['solution_id' => $alone->id]);
     $submission->section(SubmissionSectionKey::Architecture)->update(['content' => 'Texto.']);
 
     // A slide with a hole in it is worse than a shorter deck.
     expect(array_column(app(BuildDeckSpec::class)->handle($submission->fresh())['slides'], 'title'))
-        ->not->toContain('Arquitetura — Sem desenho');
+        ->not->toContain('Relacionamentos documentados');
+
+    $busy = Solution::factory()->create();
+    Solution::factory()->count(13)->create()->each(fn (Solution $other) => deckRelate($busy, $other));
+    $submission->update(['solution_id' => $busy->id]);
+
+    $spec = app(BuildDeckSpec::class)->handle($submission->fresh());
+
+    expect(array_values(array_filter(array_column($spec['slides'], 'title'), fn (string $t) => str_starts_with($t, 'Relacionamentos'))))
+        ->toBe(['Relacionamentos documentados', 'Relacionamentos documentados (cont.)'])
+        ->and((new DeckSpecValidator)->validate($spec))->toBe([]);
 });
 
 it('rejects an image the renderer would die on', function () {

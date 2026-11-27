@@ -26,8 +26,8 @@ merely in appearance:
 
 - `App\Services\Documentation\DocumentationReader` builds the whole payload.
 - `App\Support\Documentation\ReaderUrls` is the only thing either controller
-  hands it that differs: where a page, a media file, a diagram picture, the
-  search endpoint and a lock's reveal endpoint live for THIS audience.
+  hands it that differs: where a page, a media file, the search endpoint and a
+  lock's reveal endpoint live for THIS audience.
 - `x-documentation.reader-body` is the body both views render.
 
 That is deliberate and it is the requirement: the second copy is how "o mesmo
@@ -47,12 +47,12 @@ including one Entra SSO provisioned on its first visit (see `.claude/rules/roles
 screen can answer "what is published, and since when", and `scopePublished()`
 is the one reading of it.
 
-Five rules that are easy to half-implement:
+Four rules that are easy to half-implement:
 
 - **Every endpoint re-asks whether the caderno is published**, including the
-  three reached by ID rather than by browsing — `file`, `diagramPicture`,
-  `search`. Those are the ones where the question is not "what should I list"
-  but "may this be served at all".
+  two reached by ID rather than by browsing — `file` and `search`. Those are
+  the ones where the question is not "what should I list" but "may this be
+  served at all".
 - **It is NOT a policy.** `NotebookPolicy` answers about the caderno as an
   object of EDITING and says `true` to every account, including for the two
   hundred cadernos nobody published. `RevealPageSecretRequest` on `/docs`
@@ -61,22 +61,16 @@ Five rules that are easy to half-implement:
   has been published" is answerable by looking at it, and a surface that shows
   more to whoever decides what is on it cannot answer that. Previewing before
   publishing is what the editor is for.
-- **Media and diagram pictures need routes of their own**, and this is the
+- **Media needs routes of its own**, and this is the
   reason `/docs` differs from the magic link rather than reusing `files.show`:
   `MediaController::show()` authorizes by COLLECTION NAME alone, so it would
   serve any documentation media in the app, published or not, and `/docs`
-  serves what was published and nothing else. On the magic link, `public.docs.file` and
-  `public.docs.diagram` also run WITHOUT a session (`withoutMiddleware` of
+  serves what was published and nothing else. On the magic link,
+  `public.docs.file` runs WITHOUT a session (`withoutMiddleware` of
   StartSession, ShareErrorsFromSession, PreventRequestForgery — Laravel 13's
   CSRF class, not `ValidateCsrfToken` — and AuthenticateSession): a page asks
   one per image, and each used to store a session. The page and the search
   keep theirs.
-- **`linkDiagrams: false` on `/docs` as well.** The link COULD be rendered
-  conditionally — a reader who may reach `/diagrams/{slug}` exists — and
-  deliberately is not: the knowledge base would then be a screen whose content
-  changes with the viewer's tier, which is the property the search index gave up
-  `linkDiagrams` to avoid. The picture and the name are the documentation; the
-  link is an editing affordance.
 
 **Publishing is `NotebookPolicy::administer` (admin), and it is flipped from two
 screens.** The cadernos catalog (`/notebooks`) carries an "Em /docs" column —
@@ -123,8 +117,7 @@ everything behind it — and rendered by the same `DocumentationReader` +
   refuses to touch an existing home. The source is
   `database/data/knowledge-base-home/`: `home.md` with `{{figure:x.svg|legenda}}`
   placeholders, uploaded as ordinary `docs` media so an editor can replace them.
-  The SVGs are self-animated (CSS keyframes on one shared cycle, like
-  `pending-drawing.js`), which works inside an `<img>` because they carry no
+  The SVGs are self-animated (CSS keyframes on one shared cycle), which works inside an `<img>` because they carry no
   script; each one honours `prefers-reduced-motion` by showing the finished
   picture still.
 - **The landing has the search** (since 2026-10-19), starting on "Todos os

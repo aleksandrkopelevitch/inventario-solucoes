@@ -31,9 +31,9 @@ paths:
 
 ### The MCP server — the catalog as a tool, and a token is not an account
 
-`POST /mcp` lets Claude, ChatGPT and Gemini read this inventory: soluções,
-diagramas, pessoas, empresas and the published documentation, as thirteen
-read-only tools (`App\Mcp\ToolRegistry` — the thirteenth,
+`POST /mcp` lets Claude, ChatGPT and Gemini read this inventory: soluções
+(with their relationships), pessoas, empresas and the published documentation,
+as eleven read-only tools (`App\Mcp\ToolRegistry` — one of them,
 `get_code_documentation_guide`, reads no record: it is the playbook and the
 `{% uml %}`/`{% scene %}` syntax, see `.claude/rules/doc-uml.md`) — and, since 2026-11-17, lets a
 PERSON who is an Editor create and edit the catalog and the cadernos through

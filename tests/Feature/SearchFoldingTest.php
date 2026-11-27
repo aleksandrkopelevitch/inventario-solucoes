@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\Company;
-use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Models\Person;
@@ -27,7 +26,6 @@ use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
  * it guards nothing here; "ORAMA SERVICOS" against "Órama Serviços" needs both
  * halves of the folding and fails without either, on either driver.
  */
-
 uses(LazilyRefreshDatabase::class);
 
 function searcher(): User
@@ -63,12 +61,10 @@ it('folds the search on every catalog that has one', function () {
     // reported would leave the rest broken and silent.
     Company::factory()->create(['name' => 'Órama Serviços']);
     Person::factory()->create(['name' => 'Antônio Gonçalves']);
-    Diagram::factory()->create(['name' => 'Cadastro de Atendentes']);
     $notebook = Notebook::factory()->create(['name' => 'Integração SAP']);
 
     expect(Company::filter(['search' => 'ORAMA SERVICOS'])->count())->toBe(1)
         ->and(Person::filter(['search' => 'antonio goncalves'])->count())->toBe(1)
-        ->and(Diagram::filter(['search' => 'ATENDENTES'])->count())->toBe(1)
         ->and(Notebook::query()->whereFolded('name', 'integracao sap')->count())->toBe(1)
         ->and($notebook->exists)->toBeTrue();
 });

@@ -7,9 +7,8 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
- * The bytes of a diagram's rendered picture — the catalog's
- * (`diagrams.picture.show`), a submission's and a citation's on either reading
- * surface. Each route decides WHO may have it; this decides how it is SENT,
+ * The bytes of a committee drawing's rendered picture
+ * (`submissions.diagrams.picture.show`). The route decides WHO may have it; this decides how it is SENT,
  * which is the half that was costing the most.
  *
  * Three things every picture response carries now, none of which the previous

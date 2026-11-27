@@ -17,7 +17,7 @@
 // chooses the steps; this file chooses columns, sizes, colours and timing, so a
 // scene can never come out crooked or off-brand.
 //
-// How it animates is pending-drawing.js's idea: every mark gets its own
+// How it animates: every mark gets its own
 // @keyframes over ONE shared cycle, so the loop stays in step forever
 // (`animation-delay` would only offset the first pass). The cards appear in
 // order, the arrows draw between them with a lime marker riding the line, and
@@ -1205,7 +1205,7 @@ function renderTimeline(scene, width, measure) {
         const [s0, s1] = times[k]
         const d = pathOf([seg.from, seg.to])
         // A dashed segment cannot use the dash-offset draw trick (that IS its
-        // dash array), so it fades in instead — pending-drawing.js's rule.
+        // dash array), so it fades in instead.
         if (seg.future) {
             f.back.push(`<path class="mk axis future ${f.keyframes('opacity:0', 'opacity:1', s0, s1)}" d="${d}"/>`)
         } else {

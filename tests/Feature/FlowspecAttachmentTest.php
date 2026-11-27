@@ -7,7 +7,6 @@ use App\Enums\ContextExtractionState;
 use App\Enums\FlowspecAttachmentKind;
 use App\Enums\UserRole;
 use App\Jobs\GenerateFlowspecReply;
-use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\FlowspecAttachment;
 use App\Models\FlowspecChat;
@@ -137,10 +136,9 @@ it('is idempotent: re-attaching the same document says so instead of duplicating
 it('refuses to attach a diagram — a drawing has no text to contribute', function () {
     $user = attachmentUser();
     $chat = FlowspecChat::factory()->for($user)->create();
-    $diagram = Diagram::factory()->create(['name' => 'IAM -> SVL']);
 
     $this->actingAs($user)
-        ->postJson(route('flowspec.attachments.store', $chat), ['documents' => ["diagram:{$diagram->id}"]])
+        ->postJson(route('flowspec.attachments.store', $chat), ['documents' => ['diagram:1']])
         ->assertStatus(422);
 
     expect($chat->attachments()->count())->toBe(0);

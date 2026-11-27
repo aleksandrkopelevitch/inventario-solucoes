@@ -12,16 +12,16 @@ paths:
 
 ### UML diagrams in a page — the author places, the code draws (since 2026-11-24)
 
-`{% uml type="…" title="…" %}` + a JSON body + `{% enduml %}` is the eighth
-construct of the dialect: a static UML diagram drawn INTO a page, in UML
+`{% uml type="…" title="…" %}` + a JSON body + `{% enduml %}` is a construct
+of the dialect of our own: a static UML diagram drawn INTO a page, in UML
 notation (the conceptdraw design elements the user handed over as the
 reference: lifelines with actor/boundary/control/entity heads, filled vs open
 arrowheads, dashed returns, `alt`/`loop` frames with the pentagon tag, class
 boxes with compartments, the hollow triangle, the diamonds, the folded note).
 Eight types (`UmlDiagram::TYPES`): `sequence` and seven structural ones that
-share one grid layout. It is NOT the topology `Diagram` (the canvas, a
-`{% diagram slug %}` citation): it lives in the page's text, has no record of
-its own, and cannot be moved by anybody — it is redrawn from the text.
+share one grid layout. It lives in the page's text, has no record of its own,
+and cannot be moved by anybody — it is redrawn from the text. (It replaced the
+catalog's topology drawings, removed on 2026-11-27.)
 
 **It exists so a model can write architecture documentation through the MCP
 server** (`get_code_documentation_guide` → `create_page`), and Mermaid was the
@@ -72,8 +72,8 @@ Five things that are easy to undo:
   `{% endstep %}`; on one line the renderer ignores it, which is exactly the
   mistake the guide used to teach.
 - **Dropping a diagram is a loss to confirm.** `update_page`'s guard names it
-  `uml:{title}` (its type when untitled), beside `diagram:{slug}` and
-  `file:{…}`. The Assiste IA freezes the block whole (`BlockVault`, "diagrama
+  `uml:{title}` (its type when untitled), beside `file:{…}` and
+  `shrink:N%`. The Assiste IA freezes the block whole (`BlockVault`, "diagrama
   UML"), like a scene.
 
 **Three things the first review found (2026-11-24), each fixed and each easy to undo:**

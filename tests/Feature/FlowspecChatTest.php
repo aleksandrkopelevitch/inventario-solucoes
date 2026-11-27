@@ -3,7 +3,6 @@
 use App\Enums\AccessModule;
 use App\Enums\UserRole;
 use App\Jobs\GenerateFlowspecReply;
-use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\FlowspecChat;
 use App\Models\FlowspecExample;
@@ -94,11 +93,10 @@ it('searches documentation pages for the picker', function () {
 
 it('rejects a diagram reference — a drawing carries no text to attach', function () {
     $user = flowspecUser();
-    $diagram = Diagram::factory()->create(['name' => 'IAM -> SVL']);
 
     $this->actingAs($user)->postJson(route('flowspec.store'), [
         'message'   => 'gera um flowspec',
-        'documents' => ["diagram:{$diagram->id}"],
+        'documents' => ['diagram:1'],
     ])->assertStatus(422);
 });
 

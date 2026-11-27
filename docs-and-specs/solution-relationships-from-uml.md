@@ -1,6 +1,6 @@
 # Solution relationships from the documentation — and the end of the drawing canvas
 
-Status: **phases 1–3 done; phase 4 next** · revision 2 · 2026-11-26 · history in §13, implementation notes in §14
+Status: **phases 1–3 and 4a done; 4b (the committee canvas) next** · revision 2 · 2026-11-27 · history in §13, implementation notes in §14
 
 The graphical canvas is removed, both of its owners:
 
@@ -874,7 +874,8 @@ Status per phase (✅ done · 🚧 in progress · ⏳ not started):
 | 1. Bindings and documented relationships | ✅ DONE, verified 2026-11-26 (§14) | `97deeb8` |
 | 2. Manual relationships | ✅ DONE, verified 2026-11-26 (§14) | see §14 |
 | 3. The conversion | ✅ DONE — run in production 2026-11-27, pages reviewed (§14) | `b9beb89` |
-| 4. The removal | ⏳ | — |
+| 4a. The removal — the catalog drawings | ✅ DONE 2026-11-27 (§14) | see §14 |
+| 4b. The removal — the committee canvas | ⏳ | — |
 | 5. Documentation | ⏳ (the rule `solution-relationships.md` shipped with phase 1) | — |
 
 1. ✅ **Bindings and documented relationships** (additive; nothing is removed):
@@ -901,7 +902,10 @@ Status per phase (✅ done · 🚧 in progress · ⏳ not started):
 3. ✅ **The conversion:** `diagrams:to-uml` (§9). Run `--dry-run` in production,
    review its report, then run it for real. The person reviews the 11 pages,
    and `/map` should show the drawings' pairs again, now from UML.
-4. ⏳ **The removal:** everything in §8, CATI canvas included.
+4. **The removal:** everything in §8, CATI canvas included. Split in two
+   deliveries, each with a green suite and its own deploy: ✅ **4a**, the
+   catalog drawings (the `/diagrams` module, the citations, the MCP tools,
+   `ApprovedTopology`, their tables); ⏳ **4b**, the committee canvas (§8.2).
    - **The gate:** no page body still contains `{% diagram`. The migration
      REFUSES to run otherwise and names the pages.
    - **The media:** `media` rows with `model_type = App\Models\Diagram`, and
@@ -1301,3 +1305,51 @@ via MCP" and revertible):
 - **Found on the way, unrelated:** `onfly/integracao-sap-x-onfly-manual-de-orientacao`
   publishes the Onfly API token in plain text (the "Parâmetros por Empresa
   SAP" table). It belongs in `{% secret %}`, and the token should be rotated.
+
+### Phase 4a — 2026-11-27 ✅ DONE (the catalog drawings)
+
+Removed: the `/diagrams` module (model, policy, the five controllers, their
+requests, views, components, routes, the rail entry, the home cards, the
+seeder, the factories), the `{% diagram %}` construct on both ends of the
+round trip (`GitbookRenderer`, `docs-markdown.js`, `docs-tools/diagram.js`),
+the reader picture routes (`docs.diagram`, `public.docs.diagram`,
+`DiagramCitation`, `ReaderUrls::diagramPicture`), "Desenhar esta página"
+(`DiagramDraftService`, `DiagramModelService`, `pending-drawing.js`,
+`ajax-post.js`'s new-tab mode), `search_diagrams`/`get_diagram` and the
+`diagrams` key of `get_solution`, the `diagram:{slug}` items of `update_page`'s
+loss guard, `ApprovedTopology` and the approval's topology handoff, and the
+phase-3 converter (`diagrams:to-uml`, `DiagramToUml`).
+
+What changed shape rather than going:
+
+- **Parse cache** `v3`: the key is the text, the URL root and the `{% file %}`
+  media; `render()` lost `linkDiagrams`. **Search index** `v7`: the "Diagramas"
+  facet now finds UML figures (`class="ak-uml"`).
+- **`DeleteSolution`** only rewrites committee drawings now (a solution node
+  becomes free text) and deletes; interconnections and evidence rows cascade.
+  Its confirm says the UML diagrams keep drawing the element, unbound.
+- **CATI:** the conformance and deviation checks and the requirements fact
+  (`relationships`, "Integrações já documentadas") read
+  `SolutionRelationshipService`. The deck's per-drawing slides became one
+  "Relacionamentos documentados" table (Solução / Sentido / Via / Origem,
+  12 rows per slide, then "(cont.)").
+- **Revert of an MCP create** is blocked by "relacionamentos documentados"
+  (an evidence row naming the solution) where it used to be blocked by its
+  diagrams.
+- **`AccessModule::Documentation`** is labelled "Documentação".
+
+**Migrations** (`2026_11_27_120019_*`, one concern each): the gate plus the
+media sweep (refuses while any page has a `{% diagram %}` line and names it;
+deletes the `App\Models\Diagram` media through the `Media` model), then drop
+`approved_topologies`, `diagram_solution`, `diagrams`. Each drop's `down()`
+recreates the empty table, so a rollback finds the schema the previous release
+expects. `purge_test_diagrams` (2026-09-30) was rewritten against the tables and
+the morph name, since a fresh database could no longer load the model it used.
+
+**Tests:** the diagram-only files went with the code; the rest were moved to
+relationships (deck slide, CATI facts and questions, the MCP evidence for a
+reader closed to the documentation) or to the committee canvas (the web
+rendition). New: `TopologyDiagramRemovalTest` (the gate and the media sweep)
+and "renders the map page container". Suite: 1882 passed, 1 skipped, and the
+same 3 failures `main` has (DigibeeDesignProbe ×2, PipelineLifecycleRun ×1).
+

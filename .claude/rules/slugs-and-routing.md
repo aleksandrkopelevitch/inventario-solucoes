@@ -16,16 +16,13 @@ Everything that GENERATES a slug already complied, because `Str::slug()`
 transliterates. The hole was everything that ACCEPTS one: the six
 Store/Update requests for solutions, people and companies took `slug` as
 `string|max:255|unique` and nothing else, so a posted `Soluções & Cia` would
-have been stored verbatim and become part of a URL. Pages, cadernos and
-diagrams never take a client slug at all — theirs are always derived from the
+have been stored verbatim and become part of a URL. Pages and cadernos
+never take a client slug at all — theirs are always derived from the
 title — so they were never exposed.
 
 The reason is that a slug is an ADDRESS, and it is compared as bytes in places
-where nothing forgives a difference: route model binding, `page:{slug}` and
-`{% diagram slug="…" %}` inside documentation, and
-`PublicDocumentationController::diagramPicture()`, which is authorisation and
-therefore deliberately NOT folded (see `.claude/rules/eloquent-strict-and-search.md` — folding it would let `SLUG-A`
-stand in for `slug-a`). Add an accent and `operações` and `operacoes` become
+where nothing forgives a difference: route model binding, `page:{slug}` inside documentation, and a UML element's
+`"solution"` binding. Add an accent and `operações` and `operacoes` become
 two strings that look like one, in URLs that get pasted into Teams and
 percent-encoded by some clients and not others.
 
@@ -73,14 +70,9 @@ puts a wildcard where static segments also live:
   already carries one; verified against the dev corpus when `/docs` landed (207
   pages, 38 imported GitBook spaces, no collision).
 
-The **diagrams** routes are flat for the same reason `/notebooks` is:
-`diagrams/{diagram}/...` — a diagram is addressed by itself. Both used to be
-nested under a participating solution, which meant every URL carried a
-`{solution}` the endpoint didn't need plus a scope check to keep the two in
-agreement; a diagram reaches a solution the other way round now (a page points
-at it), and a caderno through the `notebook_solution` pivot. Its chain-editing routes (`chain/nodes/{node}`,
+The committee canvas's chain-editing routes
+(`submissions/{submission}/diagrams/{diagram}/chain/nodes/{node}`,
 `chain/protocol/{edge}`, `chain/edge/{edge}`) take a plain integer INDEX into
 `chain.nodes`/`chain.edges` (`whereNumber(...)`), not a model — those aren't
 bindings at all, just route params validated as numeric and range-checked
-inside the controller. The submission-diagram routes mirror all nine one for
-one.
+inside the controller.

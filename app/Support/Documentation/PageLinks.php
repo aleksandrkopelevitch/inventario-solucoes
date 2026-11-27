@@ -15,7 +15,7 @@ use App\Models\Notebook;
  * parsers (`GitbookRenderer` and `docs-markdown.js`), Editor.js's link tool and
  * "Copiar Markdown" working with no change at all.
  *
- * Addressed by SLUG for the same reasons `{% diagram %}` is: it is what the
+ * Addressed by SLUG: it is what the
  * author picked and what the URL shows, it survives a database reload between
  * environments, and a citation that outlives its page still reads as something.
  * What it is NOT is a URL — and that is the whole point of this class. The same
@@ -130,8 +130,7 @@ final class PageLinks
      *   day an admin unpublishes it — which is why the editor's picker says
      *   out loud which cadernos are not published.
      * - **A caderno that no longer exists** is nobody's address. Deleting one
-     *   must not damage the grid that pointed at it, the same promise
-     *   `{% diagram %}` makes for a deleted drawing.
+     *   must not damage the grid that pointed at it.
      */
     public function notebookUrlFor(string $slug): ?string
     {

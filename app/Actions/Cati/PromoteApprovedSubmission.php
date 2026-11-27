@@ -5,7 +5,6 @@ namespace App\Actions\Cati;
 use App\Contracts\Documentable;
 use App\Enums\SubmissionDiagramKind;
 use App\Enums\SubmissionSectionKey;
-use App\Models\ApprovedTopology;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Models\Solution;
@@ -20,20 +19,13 @@ use Illuminate\Support\Str;
  * committee approved would live in a `.pptx` and the inventory would keep
  * drifting until the next submission has to reconstruct the AS-IS by hand.
  *
- * Three things move, and the third one is new since Fase 3.
- *
- * This docblock used to argue that promoting topology was unnecessary — "the
- * architect edits the inventory's own chain while preparing, so the topology is
- * already promoted the moment it is drawn". That was true while the diagrams
- * were pictures of the LIVE diagram canvas. Fase 3 gave a submission
- * drawings of its OWN, whose `afterChainMutation()` is deliberately empty, so
- * an approved TO BE reached nothing and the catalog drifted again.
- *
- * It still does not WRITE the topology: a submission's TO BE is a free graph
- * that may describe several diagrams or one that does not exist yet, and an
- * approval that guessed the target would overwrite real topology with a guess.
- * It records an `ApprovedTopology` instead — pending, visible, and closable by
- * a person either way (see that model, and `ApplyApprovedTopology`).
+ * It does not write topology. Who talks to whom is the documentation's
+ * (the UML diagrams in caderno pages, and the interconnections people record
+ * on the solution page); an approval publishes the proposal's prose and its
+ * TO BE picture into the solution's caderno, and the relationships follow
+ * once somebody documents them there. (Until 2026-11-27 an approval recorded
+ * a topology for a person to apply into a catalog drawing; both went with
+ * the topology drawings.)
  *
  * Idempotent by `promoted_at`, and it never overwrites an existing page — a
  * second run updates the page it created rather than stacking duplicates.
@@ -125,8 +117,6 @@ class PromoteApprovedSubmission
         $page->fill(['title' => $title, 'documentation' => $body]);
         $notebook->pages()->save($page);
 
-        $this->recordApprovedTopology($submission, $solution);
-
         $submission->update(['promoted_at' => now()]);
 
         return $page;
@@ -171,58 +161,6 @@ class PromoteApprovedSubmission
         $copy->save();
 
         return $copy->id;
-    }
-
-    /**
-     * Records what the committee approved, for the catalog to catch up with.
-     *
-     * A SNAPSHOT of the chain, not a pointer at the drawing: the submitter can
-     * keep editing it afterwards, and a pending change that quietly became a
-     * different drawing is worse than none. Idempotent by submission, so
-     * re-promoting refreshes a still-pending row and never resurrects one
-     * somebody already applied or dismissed.
-     */
-    /**
-     * The decision stopped being an approval (re-recorded as rejected): the TO
-     * BE it would have handed the catalog is withdrawn.
-     *
-     * Only a PENDING snapshot goes — one already applied or dismissed is a
-     * record of what was done to the catalog, and stays. It is deleted rather
-     * than dismissed because "dismissed" means "the catalog was already
-     * right", and because a dismissed row would stop a later re-approval from
-     * recording a fresh one (`recordApprovedTopology()` leaves settled rows
-     * alone). Without this, "Aplicar" still wrote a rejected proposal's TO BE
-     * into a catalog diagram.
-     */
-    public function withdraw(Submission $submission): void
-    {
-        ApprovedTopology::query()
-            ->where('submission_id', $submission->id)
-            ->pending()
-            ->delete();
-    }
-
-    private function recordApprovedTopology(Submission $submission, Solution $solution): void
-    {
-        $diagram = $submission->diagrams
-            ->first(fn (SubmissionDiagram $d) => $d->kind === SubmissionDiagramKind::ToBe && $d->isFilled());
-
-        if ($diagram === null) {
-            return;
-        }
-
-        $record = ApprovedTopology::firstOrNew(['submission_id' => $submission->id]);
-
-        if ($record->exists && ! $record->isPending()) {
-            return;
-        }
-
-        $record->fill([
-            'solution_id' => $solution->id,
-            'chain'       => $diagram->chain,
-            'viz_layout'  => $diagram->viz_layout,
-            'approved_at' => $submission->decided_at ?? now(),
-        ])->save();
     }
 
     /**

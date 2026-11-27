@@ -89,7 +89,8 @@ class DocumentationChatService
         // page, and a token copied by hand comes back subtly wrong. Everything
         // the prompt will show is harvested first so one value gets one marker
         // wherever it appears (see LiteralVault).
-        // The page's images, file cards, embeds and diagram citations. They are
+        // The page's images, file cards, embeds, card grids, scenes and UML
+        // diagrams. They are
         // frozen for the opposite reason to the literals: not because the model
         // copies them wrong, but because it was TOLD not to write them — and,
         // asked for the whole page back, obeyed by deleting the ones already

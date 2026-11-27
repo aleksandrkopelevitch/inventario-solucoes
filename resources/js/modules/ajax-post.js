@@ -1,6 +1,5 @@
 import * as ajaxModule from './ajax'
 import {updateSlots} from './ajax-slot'
-import {pendingTabHtml} from './pending-drawing'
 
 document.addEventListener('DOMContentLoaded', () => {
     document.body.addEventListener('click', function (e) {
@@ -32,24 +31,11 @@ export async function postData(e, ajaxElement) {
     const action   = button.getAttribute('data-ak-action')
     const formData = new FormData(form)
 
-    // Opened HERE — synchronously, still inside the click's own task — and not
-    // where the answer arrives. `window.open()` needs the transient user
-    // activation the gesture carries, and that expires in seconds, while the
-    // request behind this attribute can take a minute (generating a diagram is
-    // one model call, answered inside the request). Called from the response
-    // handler instead, every browser blocks it as a popup, silently.
-    const tab = button.getAttribute('data-ak-ajax-target') === '_blank'
-        ? openPendingTab(button)
-        : null
-
     try {
         setButtonLoadingState(button, true)
         const response = await ajaxModule.init('POST', action, formData)
-        await handleAjaxResponse(response, button, tab)
+        await handleAjaxResponse(response, button)
     } catch (error) {
-        // Nothing to show there any more, and a stranded "Preparando…" tab
-        // reads as a request that is still running.
-        tab?.close()
         let data     = {message: 'An unexpected error occurred', type: 'warning'}
         let errorBody = {}
 
@@ -89,14 +75,13 @@ export async function postData(e, ajaxElement) {
     }
 }
 
-async function handleAjaxResponse(response, button, tab = null) {
+async function handleAjaxResponse(response, button) {
     let data
     try {
         data = await response.json()
     } catch (error) {
         console.error('Error parsing JSON:', error)
         showWarning({message: 'Error parsing server response'})
-        tab?.close()
         return
     }
 
@@ -112,53 +97,12 @@ async function handleAjaxResponse(response, button, tab = null) {
     }
 
     if (data.redirect) {
-        // A tab this call opened takes the destination; this one stays where
-        // it is, which is the whole point of asking for one.
-        if (tab) {
-            tab.location.replace(data.redirect)
-            tab.focus()
-        } else {
-            window.location.replace(data.redirect)
-        }
-    } else {
-        // No destination came back: the tab has nothing to become.
-        tab?.close()
+        window.location.replace(data.redirect)
     }
 
     if (data.modalIdToClose) {
         Modal.close(data.modalIdToClose)
     }
-}
-
-/**
- * The blank tab a `data-ak-ajax-target="_blank"` call navigates once its
- * answer arrives, painted with something to look at meanwhile — the label,
- * and, when the button says what kind of drawing it is waiting for
- * (`data-ak-ajax-pending-kind`), that drawing animated in a loop
- * (`pending-drawing.js`).
- *
- * `about:blank` is same-origin, so it can be written into; a browser that
- * refuses the write (or the window entirely) still leaves a usable tab — it
- * just stays empty until the redirect lands.
- */
-function openPendingTab(button) {
-    const tab = window.open('', '_blank')
-    if (!tab) return null
-
-    try {
-        tab.document.write(pendingTabHtml({
-            label: button.getAttribute('data-ak-ajax-pending')
-                || button.getAttribute('aria-label')
-                || 'Preparando…',
-            hint: button.getAttribute('data-ak-ajax-pending-hint'),
-            kind: button.getAttribute('data-ak-ajax-pending-kind'),
-        }))
-        tab.document.close()
-    } catch (_) {
-        // A tab we cannot write into still works as a destination.
-    }
-
-    return tab
 }
 
 function setButtonLoadingState(button, isLoading) {

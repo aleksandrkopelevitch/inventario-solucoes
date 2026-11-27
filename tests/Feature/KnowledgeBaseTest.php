@@ -1,7 +1,6 @@
 <?php
 
 use App\Contracts\Documentable;
-use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Models\User;
@@ -110,7 +109,7 @@ it('404s a page that belongs to another caderno', function () {
 it('lets a brand-new account read the catalog and the documentation as well as /docs', function () {
     $reader = reader();
 
-    foreach (['solutions.index', 'people.index', 'companies.index', 'notebooks.index', 'diagrams.index', 'solutions.map', 'profile.show'] as $route) {
+    foreach (['solutions.index', 'people.index', 'companies.index', 'notebooks.index', 'solutions.map', 'profile.show'] as $route) {
         $this->actingAs($reader)->get(route($route))->assertOk();
     }
 
@@ -147,29 +146,6 @@ it('serves media of the caderno being read and nothing else', function () {
 
     $this->actingAs(reader())
         ->get(route('docs.file', [$other, $media]))
-        ->assertNotFound();
-});
-
-it('serves a diagram picture only to the caderno that cites it', function () {
-    $diagram = Diagram::factory()->create(['slug' => 'fluxo-pedido']);
-    $diagram->addMediaFromString('png-bytes')
-        ->usingFileName('fluxo.png')
-        ->toMediaCollection(Diagram::DIAGRAM_COLLECTION);
-
-    $citing = publishedNotebook('Cita');
-    pageIn($citing, 'Página', 'Veja {% diagram slug="fluxo-pedido" %} abaixo.');
-
-    $silent = publishedNotebook('Não cita');
-    pageIn($silent, 'Página', 'Sem citação nenhuma.');
-
-    $this->actingAs(reader())
-        ->get(route('docs.diagram', [$citing, $diagram]))
-        ->assertOk();
-
-    // Authorised by CITATION, not by the diagram — otherwise the route could be
-    // walked to enumerate the drawing catalog.
-    $this->actingAs(reader())
-        ->get(route('docs.diagram', [$silent, $diagram]))
         ->assertNotFound();
 });
 

@@ -146,7 +146,7 @@ class McpServer
 
         return <<<'TXT'
         Inventário de Soluções da Leo Madeiras: o catálogo de sistemas e integrações,
-        os diagramas de topologia e a base de conhecimento interna.
+        os relacionamentos entre eles e a base de conhecimento interna.
 
         Os dados são em português. Busque pelos termos como estão cadastrados
         (categorias, status e diretorias são valores em PT-BR) e não traduza um termo

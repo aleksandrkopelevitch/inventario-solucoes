@@ -6,13 +6,11 @@ use App\Actions\Documentation\RevealPageSecret;
 use App\Contracts\Documentable;
 use App\Http\Requests\RevealPageSecretRequest;
 use App\Http\Requests\SearchDocumentationRequest;
-use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Services\Documentation\DocumentationReader;
 use App\Services\DocumentationPageService;
 use App\Services\DocumentationSearchService;
-use App\Support\Documentation\DiagramCitation;
 use App\Support\Documentation\DocumentationMediaResponse;
 use App\Support\Documentation\ReaderUrls;
 use App\View\Components\Documentation\SearchResults;
@@ -136,8 +134,7 @@ class PublicDocumentationController extends Controller
                 $request->validated()['code'] ?? null,
                 // No user, ever — a signed-in admin who happens to be reading a
                 // public link is a visitor here. Recognising them would make
-                // the shared page's behaviour depend on who is looking at it,
-                // which is exactly what `linkDiagrams: false` avoids upstream.
+                // the shared page's behaviour depend on who is looking at it.
                 null,
                 'ip' . $request->ip(),
             ),
@@ -156,25 +153,6 @@ class PublicDocumentationController extends Controller
         abort_unless($allowed, 404);
 
         return DocumentationMediaResponse::for($media, $request);
-    }
-
-    /**
-     * The picture of a diagram cited by this caderno.
-     *
-     * A citation renders the drawing's current PNG, and that image used to be
-     * requested from `diagrams.picture.show` — which is behind auth, so every
-     * cited diagram on a magic link rendered as a BROKEN image. Withholding the
-     * "Abrir diagrama" link was right; letting the picture 302 to the login
-     * screen was not the same thing.
-     *
-     * Authorised by CITATION, not by the diagram: the token grants this caderno,
-     * and what this caderno shows is what its pages cite. A diagram nobody cited
-     * here is a 404 even with a valid token, so the route can't be walked to
-     * enumerate the drawing catalog.
-     */
-    public function diagramPicture(Request $request, string $token, Diagram $diagram): BinaryFileResponse
-    {
-        return DiagramCitation::stream($this->resolve($token), $diagram, $request);
     }
 
     private function resolve(string $token): Notebook

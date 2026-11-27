@@ -1,5 +1,5 @@
 @props([
-    // Any status enum with label() and badgeClass() — DiagramStatus,
+    // Any status enum with label() and badgeClass() — SubmissionStatus,
     // ContextExtractionState, ConformanceVerdict…
     'status',
     // `sm` sits in a list row; `md` stands on its own (a page's top bar).

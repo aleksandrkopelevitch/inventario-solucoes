@@ -4,8 +4,8 @@ namespace App\Enums;
 
 /**
  * Where a piece of gathered material came from. `Inventory` is the one that
- * costs nothing to add and is worth the most: it points at a Solution,
- * Diagram or DocumentationPage this app already holds, so the interview
+ * costs nothing to add and is worth the most: it points at a Solution or
+ * DocumentationPage this app already holds, so the interview
  * reads it directly instead of asking the user to paste it.
  *
  * `Text` is what a long paste into the interview's composer becomes — the

@@ -81,7 +81,6 @@ class Index extends Component
             // confirmations, which say what deleting or publishing costs.
             ->withCount([
                 'pages',
-                'diagrams',
                 'solutions',
                 'pages as documented_count' => fn (Builder $q) => $q
                     ->whereNotNull('documentation')->where('documentation', '<>', ''),
@@ -186,8 +185,7 @@ class Index extends Component
      *
      * A `window.confirm` naming only the caderno reads the same whether it
      * holds nothing or holds an imported GitBook space, and the page tree is
-     * exactly what makes those two different acts. The drawings count for the
-     * same reason: they belong to the caderno and are deleted with it.
+     * exactly what makes those two different acts.
      */
     private function confirm(Notebook $notebook): string
     {
@@ -197,12 +195,6 @@ class Index extends Component
             $sentence .= ' ' . ($notebook->pages_count === 1
                 ? 'A página dele vai junto.'
                 : 'As ' . $notebook->pages_count . ' páginas dele vão junto.');
-        }
-
-        if ($notebook->diagrams_count > 0) {
-            $sentence .= ' ' . ($notebook->diagrams_count === 1
-                ? 'O diagrama dele também é excluído.'
-                : 'Os ' . $notebook->diagrams_count . ' diagramas dele também são excluídos.');
         }
 
         if ($notebook->public_token !== null) {

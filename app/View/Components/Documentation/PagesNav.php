@@ -13,8 +13,7 @@ use Illuminate\View\Component;
  *
  * It used to carry a second list below that one, "Integrações", holding each
  * participating integration's own single-page documentation. That whole second
- * kind of documentation is gone; a drawing is a `Diagram` now and a page points
- * at one, so what remains of it here is a marker on the rows that do.
+ * kind of documentation is gone.
  *
  * Purely presentational — the URLs already come ready-made from the controller
  * (`NotebookPageController`), which

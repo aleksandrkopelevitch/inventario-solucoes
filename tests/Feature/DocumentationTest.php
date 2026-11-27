@@ -1,8 +1,6 @@
 <?php
 
-use App\Actions\SyncDiagramFromChain;
 use App\Enums\UserRole;
-use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Models\Solution;
@@ -227,7 +225,7 @@ it('404s a page that does not belong to the caderno in the url', function () {
 
 /*
 |--------------------------------------------------------------------------
-| The page↔diagram link (what replaced integration documentation)
+| The page and its caderno
 |--------------------------------------------------------------------------
 */
 
@@ -303,13 +301,8 @@ it('gives the pages rail a working mobile affordance instead of hiding it outrig
         ->and(substr_count($content, 'data-ak-toggle-classes="md:!w-0 md:!border-r-0 max-md:!translate-x-0"'))->toBe(2);
 });
 
-it('lists no diagrams on the solution page any more: its card shows relationships, without the F3 canvas', function () {
+it('shows relationships on the solution page, without the F3 canvas', function () {
     $solution = Solution::factory()->create();
-    $diagram = Diagram::factory()->create([
-        'name'  => 'SAP -> AllStrategy',
-        'chain' => ['nodes' => [['solution_id' => $solution->id, 'label' => null]], 'edges' => []],
-    ]);
-    attachParticipants($diagram, [[$solution, 0]]);
 
     $response = $this->actingAs(docsAdmin())
         ->get(route('solutions.show', $solution))
@@ -317,9 +310,9 @@ it('lists no diagrams on the solution page any more: its card shows relationship
 
     expect($response->getContent())
         ->not->toContain('data-ak-chain-viz')
-        ->not->toContain('href="' . route('diagrams.show', $diagram) . '"')
         ->toContain('Relacionamentos');
 });
+
 /*
 |--------------------------------------------------------------------------
 | Media — upload + serving (per page, now)
@@ -625,105 +618,12 @@ it('collapses the authenticated rail to the branch being edited', function () {
         ->and($content)->toMatch('/data-page-id="' . $hidden->id . '"[^>]*\\bhidden\\b/');
 });
 
-/*
-|--------------------------------------------------------------------------
-| Citing a diagram — the block that replaced the page↔diagram FK
-|--------------------------------------------------------------------------
-*/
+it('prints a leftover diagram citation as text, since the dialect no longer has one', function () {
+    // `{% diagram %}` left with the topology drawings; the deploy refuses to
+    // run while a page still carries one, so this is only ever a paste.
+    $html = app(GitbookRenderer::class)->render("Antes.\n\n{% diagram slug=\"fluxo\" %}\n\nDepois.");
 
-it('renders a cited diagram with its name and a link that opens in a new tab', function () {
-    $diagram = Diagram::factory()->create(['name' => 'SAP ↔ SVL']);
-
-    $html = app(GitbookRenderer::class)->render('{% diagram slug="' . $diagram->slug . '" %}');
-
-    expect($html)
-        ->toContain('ak-doc-diagram')
-        ->toContain('SAP ↔ SVL')
-        ->toContain('href="' . route('diagrams.show', $diagram) . '"')
-        // A citation must never cost the reader the page they were on.
-        ->toContain('target="_blank"')
-        ->toContain('rel="noopener"');
-});
-
-it('says the picture is missing rather than dropping the citation', function () {
-    // The PNG is posted by the browser after a layout save, so a drawing nobody
-    // has opened since that feature landed has none. The card still renders —
-    // the link is the point, and a citation that vanished because a DERIVED
-    // file is absent would read as a broken document.
-    $diagram = Diagram::factory()->create();
-
-    expect(app(GitbookRenderer::class)->render('{% diagram slug="' . $diagram->slug . '" %}'))
-        ->toContain('Sem imagem ainda')
-        ->toContain(route('diagrams.show', $diagram));
-});
-
-it('degrades a citation of a deleted diagram instead of breaking the page', function () {
-    $html = app(GitbookRenderer::class)->render("Antes.\n\n{% diagram slug=\"sumiu\" %}\n\nDepois.");
-
-    expect($html)
-        ->toContain('Diagrama removido')
-        ->toContain('sumiu')
-        // The prose around it survives untouched.
-        ->toContain('<p>Antes.</p>')
-        ->toContain('<p>Depois.</p>');
-});
-
-it('hands the editor a picture URL only for a drawing that has one', function () {
-    // What makes the editor's diagram block a PREVIEW rather than a label. The
-    // null is as load-bearing as the URL: it is what tells the block to draw
-    // "sem imagem ainda" instead of an <img> that would 404.
-    Storage::fake('public');
-
-    $drawn = Diagram::factory()->create(['name' => 'Com imagem']);
-    $drawn->addMedia(UploadedFile::fake()->image('canvas.png', 800, 600))
-        ->toMediaCollection(Diagram::DIAGRAM_COLLECTION);
-    Diagram::factory()->create(['name' => 'Sem imagem']);
-
-    $entries = collect($this->actingAs(docsAdmin())
-        ->getJson(route('diagrams.catalog'))
-        ->assertOk()
-        ->json('groups'))
-        ->flatMap(fn (array $group) => $group['diagrams'])
-        ->keyBy('name');
-
-    expect($entries['Com imagem']['pictureUrl'])->toBe(route('diagrams.picture.show', ['diagram' => $drawn, 'v' => $drawn->picture()->id]))
-        ->and($entries['Sem imagem']['pictureUrl'])->toBeNull();
-});
-
-it('groups the diagram catalog by solution, loose drawings last', function () {
-    $solution = Solution::factory()->create(['name' => 'SAP']);
-    $placed = Diagram::factory()->create([
-        'name'  => 'Desenho do SAP',
-        'chain' => ['nodes' => [
-            ['solution_id' => $solution->id, 'label' => null, 'kind' => 'system'],
-            ['solution_id' => null, 'label' => 'Parceiro', 'kind' => 'system'],
-        ], 'edges' => [['from' => 0, 'to' => 1, 'arrow' => '->', 'protocol' => null]]],
-    ]);
-    app(SyncDiagramFromChain::class)->handle($placed);
-
-    Diagram::factory()->create(['name' => 'Só texto livre']);
-
-    $groups = $this->actingAs(docsAdmin())
-        ->getJson(route('diagrams.catalog'))
-        ->assertOk()
-        ->json('groups');
-
-    // Each entry carries what the editor's block needs to PREVIEW the citation
-    // — the drawing's name, its picture (null until the canvas has been saved
-    // with one) and its canvas URL, all built with `route()` here so the tool
-    // never assembles a path of its own.
-    expect(collect($groups)->firstWhere('solution', 'SAP')['diagrams'])
-        ->toContain([
-            'slug'       => $placed->slug,
-            'name'       => 'Desenho do SAP',
-            'pictureUrl' => null,
-            'url'        => route('diagrams.show', $placed),
-        ]);
-
-    // A drawing that names no catalog solution is still citable — it lands in
-    // a trailing group of its own rather than being hidden from the picker.
-    expect(end($groups)['solution'])->toBe('Sem solução no catálogo');
-    expect(collect(end($groups)['diagrams'])->pluck('name'))->toContain('Só texto livre');
+    expect($html)->toContain('Antes.')->toContain('Depois.')->not->toContain('ak-doc-diagram');
 });
 
 it('renders a link inside a hint, and keeps it through a save', function () {

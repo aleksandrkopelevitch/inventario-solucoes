@@ -31,7 +31,6 @@
             // admin decides what it shows) and from the switcher inside it.
             ['route' => 'notebooks.index', 'label' => 'Cadernos', 'icon' => 'book-open', 'active' => 'notebooks.*', 'can' => 'viewAny'],
             ['route' => 'documentation.index', 'label' => 'Cobertura da documentação', 'icon' => 'chart-bar-square', 'active' => 'documentation.*', 'can' => 'viewAny'],
-            ['route' => 'diagrams.index', 'label' => 'Diagramas', 'icon' => 'share', 'active' => 'diagrams.*', 'can' => 'viewAny', 'canModel' => \App\Models\Diagram::class],
             ['route' => 'solutions.map', 'label' => 'Mapa do ecossistema', 'icon' => 'globe-alt', 'active' => 'solutions.map'],
             ['route' => 'flowspec.index', 'label' => 'Especialista em Integrações', 'icon' => 'cpu-chip', 'active' => 'flowspec.*', 'can' => 'viewAny', 'canModel' => \App\Models\FlowspecChat::class],
             ['route' => 'digibee-logs.index', 'label' => 'Logs Digibee', 'icon' => 'document-magnifying-glass', 'active' => 'digibee-logs.*', 'can' => 'viewAny', 'canModel' => \App\Models\DigibeeLogReport::class],

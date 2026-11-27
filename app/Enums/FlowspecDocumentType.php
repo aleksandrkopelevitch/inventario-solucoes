@@ -21,7 +21,7 @@ use InvalidArgumentException;
  *
  * **One case, on purpose.** There were two: `page` and `integration`, the
  * latter reaching an integration's own `documentation` column. That second kind
- * of documentation is gone — a `Diagram` is a drawing and carries no prose — so
+ * of documentation is gone — it became a drawing, which carried no prose — so
  * everything attachable from the inventory is a page. The enum stays because
  * the four call sites above still need one translation table, and because
  * `reference_*` is still a morph pair on the wire and in storage.

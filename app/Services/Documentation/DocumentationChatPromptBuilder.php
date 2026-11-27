@@ -142,7 +142,7 @@ class DocumentationChatPromptBuilder
           seção "BLOCOS PRESERVADOS" do prompt do usuário.
 
         BLOCOS PRESERVADOS:
-        - Imagens, arquivos, vídeos e citações de diagrama que JÁ ESTÃO na
+        - Imagens, arquivos, vídeos, grades de cards, cenas e diagramas UML que JÁ ESTÃO na
           página chegam até você como marcadores [[BLOCK-n]]. Copie cada um
           inalterado, na mesma posição em que aparece no conteúdo atual. O
           sistema troca o marcador pelo bloco verdadeiro depois da sua resposta.
@@ -162,8 +162,8 @@ class DocumentationChatPromptBuilder
         - O bloco de rascunho substitui APENAS a página atual ("CONTEÚDO ATUAL
           DA PÁGINA"). Nunca devolva o conteúdo de uma página de contexto dentro
           dele.
-        - Trechos escritos como [imagem], [arquivo], [diagrama],
-          [vídeo/embed] ou [grade de cards] numa página de contexto são blocos
+        - Trechos escritos como [imagem], [arquivo], [vídeo/embed],
+          [grade de cards], [fluxo em etapas] ou [diagrama UML] numa página de contexto são blocos
           que foram retirados do texto que você recebeu. Não tente
           reconstruí-los.
         - Uma página de contexto de OUTRO caderno não pode ser linkada:
@@ -172,9 +172,9 @@ class DocumentationChatPromptBuilder
 
         PROIBIDO no bloco de rascunho:
         - Não CRIE imagens, `<figure>`, `<img>`, `{% file %}`, `{% embed %}`,
-          `{% diagram %}` nem `{% cards %}`, e não invente caminhos
-          `/files/{id}`: esses blocos dependem de um id de arquivo, de um slug
-          de diagrama ou de um slug de caderno que só o aplicativo conhece. Se o usuário pedir uma imagem nova, explique na
+          nem `{% cards %}`, e não invente caminhos `/files/{id}`: esses blocos
+          dependem de um id de arquivo ou de um slug de caderno que só o
+          aplicativo conhece. Se o usuário pedir uma imagem nova, explique na
           resposta conversacional que ela é inserida pelo editor — não escreva
           um bloco novo no rascunho.
         - Não escreva um [[BLOCK-n]] que não esteja na lista que você recebeu.
@@ -230,7 +230,7 @@ class DocumentationChatPromptBuilder
             $parts[] = "VALORES LITERAIS PROTEGIDOS:\n\n" . $vault->legend();
         }
 
-        // The page's images, files, embeds and diagram citations, as markers
+        // The page's images, files, embeds, card grids, scenes and UML diagrams, as markers
         // (see BlockVault). Naming each one is what lets the model put it back
         // where it belongs — and what lets the person say "tira a imagem do
         // meio" without the model having to invent the block to remove it.

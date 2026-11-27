@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Diagram;
 use App\Http\Requests\Concerns\AuthorizesChainOwner;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;

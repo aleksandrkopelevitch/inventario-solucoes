@@ -2,16 +2,12 @@
 
 namespace App\Mcp\Support;
 
-use App\Enums\ChainNodeKind;
 use App\Enums\PersonSolutionRole;
-use App\Enums\Protocol;
 use App\Models\Company;
-use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
 use App\Models\Person;
 use App\Models\Solution;
-use App\Support\ChainLabeler;
 use App\Support\Documentation\UmlDiagram;
 use App\Support\Images\PublicImage;
 use App\Support\Relationships\Relationship;
@@ -41,8 +37,6 @@ use Illuminate\Support\Facades\Storage;
  */
 class Presenter
 {
-    public function __construct(private readonly ChainLabeler $labeler) {}
-
     /* ------------------------------------------------------------------ */
     /*  Solutions */
     /* ------------------------------------------------------------------ */
@@ -66,7 +60,7 @@ class Presenter
     /**
      * @param  Collection<int, Relationship>|null  $relationships  null leaves the key out
      */
-    public function solution(Solution $solution, bool $withDiagrams = true, bool $withUnpublished = false, ?Collection $relationships = null, bool $withEvidence = false): array
+    public function solution(Solution $solution, bool $withUnpublished = false, ?Collection $relationships = null, bool $withEvidence = false): array
     {
         return $this->compact([
             ...$this->solutionSummary($solution),
@@ -86,9 +80,6 @@ class Presenter
                     'is_primary' => (bool) $person->pivot->is_primary,
                 ]))
                 ->all(),
-            'diagrams' => $withDiagrams
-                ? $solution->diagrams->map(fn (Diagram $diagram) => $this->diagramSummary($diagram))->all()
-                : null,
             'relationships' => $relationships?->map(fn (Relationship $r) => $this->relationship($r, $withEvidence, $withUnpublished))->all(),
             // Published cadernos only — the same reading `/docs` makes. A
             // solution documented exclusively in an unpublished caderno answers
@@ -161,91 +152,6 @@ class Presenter
         ]);
     }
 
-    /* ------------------------------------------------------------------ */
-    /*  Diagrams */
-    /* ------------------------------------------------------------------ */
-
-    /**
-     * `caderno` is the caderno the drawing belongs to — but only a PUBLISHED
-     * one. Documentation on this server means the published cadernos and
-     * nothing else (`PublishedNotebooks`), so naming an unpublished one here
-     * would be the one place a token learnt it exists. An unpublished owner is
-     * simply left out, the same answer as "no caderno". Read only when the
-     * caller eager-loaded it: a lazy load across a list of rows is a strict-
-     * mode exception.
-     *
-     * @return array<string, mixed>
-     */
-    public function diagramSummary(Diagram $diagram): array
-    {
-        $notebook = $diagram->relationLoaded('notebook') ? $diagram->notebook : null;
-
-        return $this->compact([
-            'slug'    => $diagram->slug,
-            'name'    => $diagram->name,
-            'status'  => $diagram->status?->label(),
-            'caderno' => $notebook?->isPublished()
-                ? ['slug' => $notebook->slug, 'name' => $notebook->name]
-                : null,
-            'url' => route('diagrams.show', $diagram),
-        ]);
-    }
-
-    /**
-     * The drawing, as a graph the model can read.
-     *
-     * Both the structured `nodes`/`edges` AND a rendered `topology` line, and
-     * the redundancy is deliberate: the arrays are what a model needs to answer
-     * "quantos sistemas passam por aqui", while "A -> B -> C" is what it needs
-     * to answer "como funciona" without reconstructing the walk from indices.
-     * `ChainLabeler::label()` is the same sentence the app puts under the
-     * drawing, so the two surfaces cannot drift.
-     *
-     * `from`/`to` stay INDICES into `nodes`, exactly as stored (§ Diagram
-     * topology invariant). Rewriting them into labels would be lossy the moment
-     * two blocks share a name, which in this corpus they do.
-     *
-     * @return array<string, mixed>
-     */
-    public function diagram(Diagram $diagram): array
-    {
-        $chain = $diagram->chainData() ?? [];
-        $solutions = $this->labeler->resolveSolutions(collect([$chain]));
-
-        return $this->compact([
-            ...$this->diagramSummary($diagram),
-            'criticality'  => $diagram->criticality_label,
-            'protocol'     => $this->protocolLabel($diagram->protocol),
-            'sync_mode'    => $diagram->sync_mode?->label(),
-            'topology'     => $chain ? $this->labeler->label($chain, $solutions) : null,
-            'participants' => $diagram->participants
-                ->map(fn (Solution $solution) => $this->solutionSummary($solution))
-                ->all(),
-            'nodes' => collect($chain['nodes'] ?? [])
-                ->map(fn (array $node) => $this->compact([
-                    'kind'  => ChainNodeKind::fromNode($node)->value,
-                    'label' => $this->labeler->nodeLabel($node, $solutions),
-                    // Only a `system` block names a Solution, so this is the one
-                    // field that says "this block IS a catalogued system" rather
-                    // than free text somebody typed.
-                    'solution' => ChainNodeKind::fromNode($node)->referencesSolution()
-                        ? $solutions[$node['solution_id'] ?? null]?->slug
-                        : null,
-                ]))
-                ->values()
-                ->all(),
-            'edges' => collect($chain['edges'] ?? [])
-                ->map(fn (array $edge) => $this->compact([
-                    'from'     => $edge['from'] ?? 0,
-                    'to'       => $edge['to'] ?? 0,
-                    'arrow'    => $edge['arrow'] ?? '->',
-                    'protocol' => $this->protocolLabel($edge['protocol'] ?? null),
-                ]))
-                ->values()
-                ->all(),
-        ]);
-    }
-
     /**
      * The pivot's `role` is a plain string column holding a
      * `PersonSolutionRole` value, so it is labelled here rather than cast on the
@@ -257,17 +163,6 @@ class Presenter
     private function roleLabel(?string $role): ?string
     {
         return blank($role) ? null : (PersonSolutionRole::tryFrom($role)?->label() ?? $role);
-    }
-
-    /**
-     * A protocol is free text with a known vocabulary in front of it, so the
-     * label is resolved the way `ChainGraph::resolveProtocol()` does it —
-     * `tryFrom()` and fall back to what was typed. An Eloquent enum cast would
-     * throw on the free-text half (§ Diagram, `casts()`).
-     */
-    private function protocolLabel(?string $protocol): ?string
-    {
-        return blank($protocol) ? null : (Protocol::tryFrom($protocol)?->label() ?? $protocol);
     }
 
     /* ------------------------------------------------------------------ */

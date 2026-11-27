@@ -6,7 +6,6 @@ use App\Enums\AttributeGroup;
 use App\Http\Requests\StoreAttributeOptionRequest;
 use App\Http\Requests\UpdateAttributeOptionRequest;
 use App\Models\AttributeOption;
-use App\Models\Diagram;
 use App\Models\Solution;
 use App\Support\Images\PublicImage;
 use App\View\Components\AttributeOptions\GroupList;
@@ -77,8 +76,7 @@ class AttributeOptionController extends Controller
     {
         $this->authorize('manage', AttributeOption::class);
 
-        $inUse = Solution::where($option->group, $option->value)->exists()
-            || ($option->group === 'criticality' && Diagram::where('criticality', $option->value)->exists());
+        $inUse = Solution::where($option->group, $option->value)->exists();
 
         if ($inUse) {
             return response()->json([

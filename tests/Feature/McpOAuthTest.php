@@ -7,8 +7,9 @@ use App\Mcp\OAuth;
 use App\Mcp\ReachesOutside;
 use App\Mcp\ToolRegistry;
 use App\Mcp\Writes;
-use App\Models\Diagram;
+use App\Models\DocumentationPage;
 use App\Models\McpToken;
+use App\Models\Notebook;
 use App\Models\Solution;
 use App\Models\User;
 use Illuminate\Auth\GuardHelpers;
@@ -311,7 +312,7 @@ it('shows a person only the tools of the modules they read, and says so', functi
 
     expect($tools)->not->toContain('search_solutions')
         ->and($tools)->not->toContain('get_person')
-        ->and($tools)->toContain('search_diagrams', 'search_documentation');
+        ->and($tools)->toContain('list_notebooks', 'search_documentation');
 
     mcpAs($user, 'tools/call', ['name' => 'search_solutions', 'arguments' => []])
         ->assertOk()
@@ -321,12 +322,23 @@ it('shows a person only the tools of the modules they read, and says so', functi
         ->toContain('NÃO alcança: Soluções, Pessoas e Empresas');
 });
 
-it('leaves the diagrams out of get_solution for a person who cannot read the documentation', function () {
-    // The browser hides the solution page's diagrams card behind the
-    // documentation module; the connector listed every diagram anyway.
-    $solution = Solution::factory()->create(['slug' => 'skbridge']);
-    $diagram = Diagram::factory()->create(['name' => 'Fluxo interno']);
-    $diagram->participants()->attach($solution->id, ['position' => 0]);
+it('leaves the documentation pages out of get_solution for a person who cannot read them', function () {
+    // The pair is the catalog's; WHERE it is documented is the documentation
+    // module's, and a connection closed there must not learn a page title.
+    $solution = Solution::factory()->create(['slug' => 'skbridge', 'name' => 'SKBridge']);
+    Solution::factory()->create(['slug' => 'erp', 'name' => 'ERP']);
+    DocumentationPage::factory()->for(Notebook::factory()->create(['published_at' => now()]))->create([
+        'title'         => 'Fluxo interno',
+        'documentation' => "{% uml type=\"sequence\" title=\"Pedidos\" %}\n"
+            . json_encode([
+                'participants' => [
+                    ['id' => 'a', 'label' => 'SKBridge', 'solution' => 'skbridge'],
+                    ['id' => 'b', 'label' => 'ERP', 'solution' => 'erp'],
+                ],
+                'messages' => [['from' => 'a', 'to' => 'b', 'label' => 'pedido', 'kind' => 'sync']],
+            ])
+            . "\n{% enduml %}",
+    ]);
 
     $catalogOnly = User::factory()->create(['role' => UserRole::Member->value, 'access' => [
         AccessModule::Catalog->value       => AccessLevel::Reader->value,
@@ -337,6 +349,6 @@ it('leaves the diagrams out of get_solution for a person who cannot read the doc
     $hidden = mcpAs($catalogOnly, 'tools/call', ['name' => 'get_solution', 'arguments' => ['slug' => 'skbridge']])->assertOk();
     $shown = mcpAs($reader, 'tools/call', ['name' => 'get_solution', 'arguments' => ['slug' => 'skbridge']])->assertOk();
 
-    expect($hidden->json('result.content.0.text'))->not->toContain('Fluxo interno')
-        ->and($shown->json('result.content.0.text'))->toContain('Fluxo interno');
+    expect($hidden->json('result.content.0.text'))->toContain('"erp"')->not->toContain('Fluxo interno')
+        ->and($shown->json('result.content.0.text'))->toContain('"erp"')->toContain('Fluxo interno');
 });

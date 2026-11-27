@@ -3,8 +3,7 @@
 namespace App\Enums;
 
 /**
- * The 8 Solution attributes (and, for `Criticality`, also Diagram)
- * whose values are manageable at runtime via `AttributeOption` — see
+ * The 8 Solution attributes whose values are manageable at runtime via `AttributeOption` — see
  * `App\Http\Controllers\AttributeOptionController`. Adding a new group is
  * a code change; the *values* inside each group are editable data.
  */

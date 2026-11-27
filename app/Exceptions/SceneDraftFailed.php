@@ -10,9 +10,7 @@ use RuntimeException;
 /**
  * The model didn't produce a scene the page can draw.
  *
- * The twin of DiagramDraftFailed, and kept apart from it because every message
- * names a different thing on screen — the scene's own noun (SceneType), never
- * "o diagrama".
+ * Every message names the scene's own noun (SceneType), never "o diagrama".
  * A 422 rather than a 500 for the same reason: nothing is broken — the page
  * said too little, or the model answered badly, and asking again is a
  * reasonable next move. PT-BR because it is read on screen.

@@ -1,7 +1,5 @@
-{{-- Solutions as chips, each a link to its page: the systems a drawing
-     concerns (the `/diagrams` rows, the caderno's "Diagramas" modal, the
-     "Desenhar esta página" dialog, the diagram's own "Sistemas envolvidos")
-     and the solutions a caderno documents. One look for "these systems".
+{{-- Solutions as chips, each a link to its page: the solutions a caderno
+     documents. One look for "these systems".
 
      `solutions` are Solution models, eager-loaded with `id,name,slug` by every
      caller; `linked` = false draws them as plain chips, for a place where the

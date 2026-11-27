@@ -14,8 +14,7 @@ use Illuminate\Http\JsonResponse;
  *
  * It answers with the scene and writes nothing: the editor drops it into the
  * block the author is working on and saves the page the way it saves any other
- * edit. That is the difference from "Desenhar esta página", which creates a row
- * in another module; a scene is part of the page's own text.
+ * edit: a scene is part of the page's own text.
  */
 class NotebookPageSceneController extends Controller
 {

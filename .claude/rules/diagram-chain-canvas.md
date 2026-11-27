@@ -1,24 +1,23 @@
 ---
 paths:
-  - "app/Models/Diagram.php"
-  - "app/Actions/SetDiagramSystems.php"
-  - "app/Http/Requests/SyncDiagramSystemsRequest.php"
-  - "app/View/Components/Diagrams/**"
   - "app/Models/SubmissionDiagram.php"
   - "app/Contracts/ChainCanvas.php"
   - "app/Enums/ChainNodeKind.php"
-  - "app/Actions/SyncDiagramFromChain.php"
   - "app/Http/Controllers/Concerns/EditsChain.php"
-  - "app/Http/Controllers/DiagramController.php"
-  - "app/Http/Controllers/DiagramPictureController.php"
   - "app/Http/Controllers/SubmissionDiagramController.php"
   - "app/Http/Requests/*Chain*.php"
   - "app/Support/ChainGraph.php"
-  - "app/Policies/DiagramPolicy.php"
   - "resources/js/modules/chain-viz.js"
   - "resources/views/components/chain/**"
-  - "resources/views/diagrams/**"
 ---
+
+> **Since 2026-11-27 the catalog `Diagram` is gone** (`/diagrams`, its
+> participants, `SyncDiagramFromChain`, `SetDiagramSystems`, the `{% diagram %}`
+> citation — docs-and-specs/solution-relationships-from-uml.md, phase 4a). The
+> canvas below now serves only the committee's AS IS / TO BE drawings
+> (`SubmissionDiagram`), whose chain derives nothing. What this file says about
+> the catalog record is history; the chain shape, the node kinds and the canvas
+> mechanics are still true, until phase 4b removes the canvas and this file.
 
 ### Diagram topology invariant — the chain is the single source of truth
 

@@ -27,7 +27,7 @@ use App\Support\Documentation\SecretText;
  *   and it is the one place where the page being read is not the page being
  *   edited, so a reader who may not see a value in caderno A could otherwise
  *   have the model quote it into caderno B.
- * - **Media, file, embed and diagram blocks are STRIPPED**, not frozen — see
+ * - **Media, file, embed, card, scene and UML blocks are STRIPPED**, not frozen — see
  *   `BlockVault::strip()`. They belong to another page; the model must not be
  *   shown syntax it could copy into this one.
  * - **Opaque literals are vaulted by the caller** (`LiteralVault`, in

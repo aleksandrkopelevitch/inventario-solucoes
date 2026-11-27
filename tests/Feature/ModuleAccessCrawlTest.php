@@ -5,7 +5,6 @@ use App\Enums\AccessLevel;
 use App\Enums\AccessModule;
 use App\Enums\UserRole;
 use App\Models\Company;
-use App\Models\Diagram;
 use App\Models\DigibeeLogReport;
 use App\Models\DocumentationChat;
 use App\Models\DocumentationPage;
@@ -47,7 +46,7 @@ const OPEN_ROUTES = [
     // Connecting a chat client is the account's own business.
     'mcp.connect',
     // The knowledge base: published cadernos, any account (docs-reader-surfaces).
-    'docs.index', 'docs.notebook', 'docs.page', 'docs.search', 'docs.file', 'docs.diagram',
+    'docs.index', 'docs.notebook', 'docs.page', 'docs.search', 'docs.file',
     // Admin screens: closed to every member by their own policies.
     'mcp-tokens.index', 'mcp-writes.index', 'people.accounts', 'attribute-options.index', 'attribute-options.options',
     'digibee-session.index', 'digibee-session.import',
@@ -60,7 +59,7 @@ function routeModules(): array
     foreach (['companies.', 'people.', 'solutions.'] as $prefix) {
         $map[$prefix] = AccessModule::Catalog;
     }
-    foreach (['notebooks.', 'diagrams.', 'documentation.', 'files.'] as $prefix) {
+    foreach (['notebooks.', 'documentation.', 'files.'] as $prefix) {
         $map[$prefix] = AccessModule::Documentation;
     }
     $map['flowspec.'] = AccessModule::Integrations;
@@ -97,7 +96,6 @@ function crawlFixtures(): array
         'notebook'   => $notebook,
         'page'       => $page,
         'media'      => $media,
-        'diagram'    => Diagram::factory()->create(['notebook_id' => $notebook->id]),
         'flowspec'   => $flowspec,
         'message'    => FlowspecMessage::factory()->for($flowspec, 'chat')->create(),
         'submission' => $submission,
@@ -119,7 +117,7 @@ function crawlParameters(Route $route, array $fx): array
         $params[$name] = match ($name) {
             'chat' => str_starts_with($route->getName(), 'submissions.') ? $fx['subchat']
                 : (str_starts_with($route->getName(), 'notebooks.') ? $fx['docchat'] : $fx['flowspec']),
-            'diagram' => str_starts_with($route->getName(), 'submissions.') ? $fx['subdiagram'] : $fx['diagram'],
+            'diagram' => $fx['subdiagram'],
             default   => $fx[$name] ?? 'x',
         };
     }

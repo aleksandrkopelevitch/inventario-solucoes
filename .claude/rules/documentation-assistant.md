@@ -119,7 +119,7 @@ deleted people's work.
 
 `App\Support\Documentation\BlockVault` freezes the blocks the model may
 neither write nor lose — `<figure>`/`<img>`, `{% file %}`, `{% embed %}`,
-`{% diagram %}`, `{% cards %}` — as `[[BLOCK-n]]` markers. The system prompt used
+`{% cards %}`, `{% scene %}`, `{% uml %}` — as `[[BLOCK-n]]` markers. The system prompt used
 to ban that syntax outright ("não use imagens, `<figure>`, `<img>`, `{% file %}` nem
 `{% embed %}`") while also demanding the COMPLETE page back in the draft. On any
 page with an image those two rules contradict each other, and the model resolved
@@ -127,8 +127,8 @@ it the only way it could: by deleting the figure that was already there, while
 answering a request about something else. Reported from the app 2026-08-31.
 
 The ban's intent was right and its wording was not. The model cannot author one
-of these blocks — a `/files/{id}` needs a media id only the upload knows, a
-`{% diagram %}` a slug from the catalog — but that is an argument for never
+of these blocks — a `/files/{id}` needs a media id only the upload knows —
+but that is an argument for never
 showing it the syntax, not for telling it to leave the syntax out of a document
 that already contains it.
 
@@ -203,8 +203,8 @@ prompt against the code that consumes it (2026-09-02).
   IN THE CLEAR — LiteralVault masks it on the way in and restores the real bytes
   on the way out, and the page saved a live credential with no lock. It is in
   the allowed-syntax list unconditionally now, and named as the ONE construct
-  there the model can author from scratch: unlike `{% file %}` or
-  `{% diagram %}` it needs no id or slug only the app knows.
+  there the model can author from scratch: unlike `{% file %}` it needs
+  no id only the app knows.
 - **"Não invente um `page:slug`" forbade without enabling.** With no list of
   slugs, a model that wanted to cross-link could only guess, and a guess renders
   as text with no link at all. The caderno's pages are named in the prompt now

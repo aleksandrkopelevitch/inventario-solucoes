@@ -178,17 +178,6 @@ class Notebook extends Model implements HasMedia
      * consumer has to decide whether it is reading the primary or the set, and
      * the answer drifts. A notebook simply describes these systems.
      */
-    /**
-     * The drawings of this caderno. They belong to the CADERNO, never to one
-     * of its pages: a page is read to draw one, and cites any number of them
-     * with `{% diagram %}`, but a drawing outlives any rewrite of the page it
-     * was first read from.
-     */
-    public function diagrams(): HasMany
-    {
-        return $this->hasMany(Diagram::class)->orderBy('name');
-    }
-
     public function solutions(): BelongsToMany
     {
         return $this->belongsToMany(Solution::class)->orderBy('name');
@@ -207,10 +196,10 @@ class Notebook extends Model implements HasMedia
      * anybody signed in with a Leo account.
      *
      * A scope rather than a `where` written out at each call site, because
-     * "which cadernos does `/docs` show" is asked in six places (the landing,
-     * the switcher, every page render, the search, the media route and the
-     * diagram-picture route) and every one of them is an AUTHORISATION. The
-     * last three matter most: they are reached by id, so the question they ask
+     * "which cadernos does `/docs` show" is asked in five places (the landing,
+     * the switcher, every page render, the search and the media route) and
+     * every one of them is an AUTHORISATION. The last two matter most: they are
+     * reached by id, so the question they ask
      * is not "what should I list" but "may this be served at all".
      */
     public function scopePublished(Builder $query): void
@@ -260,9 +249,8 @@ class Notebook extends Model implements HasMedia
      *
      * `Str::random()` (CSPRNG) rather than a friendlier alphabet: a code read
      * as `X6h2dG` is mixed case on purpose, and comparison is exact
-     * (`hash_equals`), never folded — see the note in
-     * `PublicDocumentationController::diagramPicture()` on why authorisation
-     * is the one place this app does not fold case.
+     * (`hash_equals`), never folded: authorisation is the one place this app
+     * does not fold case.
      */
     public function rotateSecretCode(): string
     {
@@ -301,9 +289,6 @@ class Notebook extends Model implements HasMedia
 
         static::deleting(function (self $notebook) {
             $notebook->pages()->get()->each->delete();
-            // Through the models as well, although the FK cascades: only a
-            // model delete removes a drawing's media (pasted images, picture).
-            $notebook->diagrams()->get()->each->delete();
         });
     }
 }

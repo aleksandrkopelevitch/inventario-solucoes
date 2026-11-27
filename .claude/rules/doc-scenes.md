@@ -19,8 +19,8 @@ paths:
 
 ### Animated scenes — the model picks the words, the code draws the picture
 
-A SCENE is an animated figure inside a documentation page — the seventh
-construct of the dialect, the third of our own. Five types exist, and
+A SCENE is an animated figure inside a documentation page — a construct
+of the dialect of our own. Five types exist, and
 `App\Enums\SceneType` is the one switch everything turns on (prompt, IR,
 editor form, renderer):
 
@@ -107,7 +107,7 @@ confirm, and keeps the caption; a block still on the chooser saves as nothing
 `services.documentation_ai`) only ever returns CONTENT — which steps or
 changes, in what order, which one matters most — as a small JSON object
 validated by the type's IR (short labels, at most one highlight), with one repair
-round, the same shape as `DiagramDraftService` (and a way out, `{"error": …}`,
+round (and a way out, `{"error": …}`,
 for a page with no sequence / change / hierarchy in it). A provider that does
 not answer within `scene_timeout` becomes `SceneDraftFailed::unavailable()` — a
 422 saying "tente de novo", not a 500: a real run hung for 45s on a small page
@@ -147,7 +147,7 @@ Four things that are easy to undo:
   notation the model was never taught, and a rewrite into a numbered list would
   silently take the animation away.
 
-The animation follows pending-drawing.js: one `@keyframes` per mark over ONE
+The animation is one `@keyframes` per mark over ONE
 shared cycle (cards land in order, each arrow draws with a lime marker riding
 it, then data keeps flowing along the arrows until the cycle clears), class
 names prefixed per figure since keyframes are document-global, colours from the

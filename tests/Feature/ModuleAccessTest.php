@@ -4,7 +4,6 @@ use App\Enums\AccessLevel;
 use App\Enums\AccessModule;
 use App\Enums\UserRole;
 use App\Models\Company;
-use App\Models\Diagram;
 use App\Models\DocumentationPage;
 use App\Models\FlowspecChat;
 use App\Models\Notebook;
@@ -85,7 +84,7 @@ it('lets an editor create a person and a company', function () {
         ->and(Company::where('name', 'Fornecedora')->exists())->toBeTrue();
 });
 
-it('lets an editor create a caderno, write a page and draw a diagram', function () {
+it('lets an editor create a caderno and write a page', function () {
     $this->actingAs(writer())->postJson(route('notebooks.store'), ['name' => 'Caderno do Editor'])->assertOk();
     $notebook = Notebook::where('name', 'Caderno do Editor')->sole();
 
@@ -100,9 +99,6 @@ it('lets an editor create a caderno, write a page and draw a diagram', function 
         ->assertOk();
 
     expect($page->fresh()->documentation)->toContain('# Conteúdo');
-
-    $this->actingAs(writer())->postJson(route('notebooks.diagrams.store', $notebook), ['name' => 'Fluxo novo'])->assertOk();
-    expect(Diagram::where('name', 'Fluxo novo')->exists())->toBeTrue();
 });
 
 it('lets an editor see the editor on a page, not the read-only render', function () {
@@ -123,13 +119,10 @@ it('lets an editor see the editor on a page, not the read-only render', function
 
 it('refuses an editor every kind of DELETE', function () {
     $notebook = Notebook::factory()->create();
-    $diagram = Diagram::factory()->create();
 
     $this->actingAs(writer())->deleteJson(route('notebooks.destroy', $notebook))->assertForbidden();
-    $this->actingAs(writer())->deleteJson(route('diagrams.destroy', $diagram))->assertForbidden();
 
     $this->assertModelExists($notebook);
-    $this->assertModelExists($diagram);
 });
 
 it('refuses an editor the account list and an invitation', function () {
@@ -174,7 +167,6 @@ it('still refuses a viewer any write', function () {
     $this->actingAs(viewerUser())
         ->postJson(route('notebooks.pages.store', $notebook), ['title' => 'X'])
         ->assertForbidden();
-    $this->actingAs(viewerUser())->postJson(route('notebooks.diagrams.store', $notebook), ['name' => 'X'])->assertForbidden();
 });
 
 it('gives a viewer the read-only render rather than the editor', function () {
@@ -204,13 +196,13 @@ it('lets a catalog Editor edit the catalog and nothing else', function () {
     $this->actingAs($user)->postJson(route('notebooks.pages.store', $notebook), ['title' => 'X'])->assertForbidden();
 });
 
-it('lets a documentation Editor write cadernos and diagrams but not the catalog', function () {
+it('lets a documentation Editor write cadernos but not the catalog', function () {
     $this->seed(AttributeOptionSeeder::class);
     $user = editorOf(AccessModule::Documentation);
 
     $this->actingAs($user)->postJson(route('notebooks.store'), ['name' => 'Caderno'])->assertOk();
     $notebook = Notebook::where('name', 'Caderno')->sole();
-    $this->actingAs($user)->postJson(route('notebooks.diagrams.store', $notebook), ['name' => 'Fluxo'])->assertOk();
+    $this->actingAs($user)->postJson(route('notebooks.pages.store', $notebook), ['title' => 'Fluxo'])->assertOk();
 
     $this->actingAs($user)
         ->postJson(route('solutions.store'), ['name' => 'X', 'category' => 'erp', 'status' => 'active'])
@@ -468,8 +460,7 @@ it('drops the documentation card and columns for a catalog reader with no docume
         ->assertDontSee('solution-notebooks-slot', false);
 
     $sheet = $this->actingAs($user)->get(route('solutions.spreadsheet'))->assertOk()->getContent();
-    expect($sheet)->not->toContain('"key":"notebooks"')
-        ->and($sheet)->not->toContain('"key":"diagrams"');
+    expect($sheet)->not->toContain('"key":"notebooks"');
 
     $csv = $this->actingAs($user)
         ->get(route('solutions.spreadsheet.export', ['format' => 'csv', 'columns' => ['name', 'notebooks']]))

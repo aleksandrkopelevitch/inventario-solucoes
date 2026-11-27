@@ -4,9 +4,10 @@ use App\Actions\Cati\BuildDeckSpec;
 use App\Actions\Cati\RenderTicketText;
 use App\Enums\SubmissionDiagramKind;
 use App\Enums\UserRole;
-use App\Models\Diagram;
 use App\Models\Solution;
+use App\Models\SolutionRelationship;
 use App\Models\Submission;
+use App\Models\UmlSolutionLink;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -153,33 +154,21 @@ it('reindexes a submission drawing on delete, exactly as the diagram canvas does
 });
 
 it('never derives anything from a submission drawing', function () {
-    // The whole reason a submission's chain is a different owner: a catalog
-    // Diagram's chain writes participants/source/target/direction, and a
-    // proposal — which may well be rejected — must never write into the
-    // catalog. Two records on purpose: `$catalog` is what must not move,
-    // `$drawing` is what gets drawn on.
+    // A proposal — which may well be rejected — must never write into the
+    // catalog: who talks to whom is the documentation's, and a TO BE drawn
+    // here states nothing about it.
     $solution = Solution::factory()->create();
-    $catalog = Diagram::factory()->create();
-    $catalog->participants()->attach($solution->id, ['position' => 0]);
+    $other = Solution::factory()->create();
 
     $submission = diagramSubmission(['solution_id' => $solution->id]);
     $drawing = $submission->diagram(SubmissionDiagramKind::ToBe);
 
-    $before = [
-        'participants' => $catalog->participants()->pluck('solutions.id')->all(),
-        'source'       => $catalog->source_solution_id,
-        'direction'    => $catalog->direction,
-    ];
-
     $this->postJson(route('submissions.diagrams.chain.node.add', [$submission, $drawing]), [
-        'kind' => 'system', 'solution_id' => $solution->id,
+        'kind' => 'system', 'solution_id' => $other->id,
     ])->assertOk();
 
-    $catalog->refresh();
-
-    expect($catalog->participants()->pluck('solutions.id')->all())->toBe($before['participants'])
-        ->and($catalog->source_solution_id)->toBe($before['source'])
-        ->and($catalog->direction)->toBe($before['direction']);
+    expect(SolutionRelationship::count())->toBe(0)
+        ->and(UmlSolutionLink::count())->toBe(0);
 });
 
 it('refuses a drawing that belongs to another submission', function () {
@@ -371,38 +360,6 @@ it('puts the submission drawings on the deck, in the committee order', function 
         ->toContain('/diagrams/')
         ->and(collect($spec['slides'])->firstWhere('title', 'C4 · Contexto (C1)')['blocks'][0]['link'])
         ->toBeNull();
-});
-
-it('stops printing the catalog diagram canvases once the submission drew its own AS IS', function () {
-    // Two answers to "how does it work today" on consecutive slides is a
-    // question from the committee, not an answer.
-    Storage::fake('public');
-
-    $solution = Solution::factory()->create();
-    $diagram = Diagram::factory()->create(['name' => 'SKBridge ↔ ERP']);
-    $diagram->participants()->attach($solution->id, ['position' => 0]);
-    $diagram->addMedia(UploadedFile::fake()->image('diagram.png'))->toMediaCollection(Diagram::DIAGRAM_COLLECTION);
-
-    $submission = diagramSubmission(['solution_id' => $solution->id]);
-
-    // "Arquitetura de solução" is the SECTION slide — only the diagram ones
-    // are in play here.
-    $titles = fn () => collect(app(BuildDeckSpec::class)->handle($submission->fresh())['slides'])
-        ->pluck('title')
-        ->filter(fn ($t) => str_starts_with((string) $t, 'Arquitetura —') || $t === 'Arquitetura AS IS')
-        ->values()->all();
-
-    expect($titles())->toBe(['Arquitetura — SKBridge ↔ ERP']);
-
-    $asIs = $submission->diagram(SubmissionDiagramKind::AsIs);
-    $chain = $asIs->chain;
-    $chain['nodes'][] = ['solution_id' => null, 'label' => 'ERP', 'kind' => 'system'];
-    $asIs->update(['chain' => $chain]);
-    $this->post(route('submissions.diagrams.picture.store', [$submission, $asIs]), [
-        'image' => UploadedFile::fake()->image('canvas.png'),
-    ])->assertOk();
-
-    expect($titles())->toBe(['Arquitetura AS IS']);
 });
 
 it('renders the diagrams tab with all four slots', function () {

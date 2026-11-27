@@ -5,14 +5,15 @@ records, a documentation module (**cadernos** — a page tree per `Notebook`,
 each linked to 0..N solutions, whose pages may carry animated **scenes**: a
 flow of steps, a before/after, a tree, a side-by-side comparison, a timeline —
 and static **UML diagrams** written into the text: sequence, class, component,
-deployment, use case, activity, state, package),
-a **diagrams** module (the graphical topology editor, one drawing at a time;
-every diagram belongs to a caderno and is created only from inside one),
+deployment, use case, activity, state, package — whose `"solution"`
+bindings are where the catalog learns who talks to whom),
 an internal **knowledge base** (`/docs` — the cadernos an admin published, read
 by anybody with a Leo account, most of whom arrive through Entra SSO, opening on
 a home caderno's page beside a filterable rail of every caderno, with a ⌘K
 palette that searches one caderno or all of them at once),
-a read-only map of the ecosystem derived from those drawings, the **Comitê de
+the **relationships** between solutions (on each solution's page and on a
+read-only map of the ecosystem, derived from those UML diagrams plus the
+interconnections people record by hand), the **Comitê de
 Arquitetura** module (`/submissions` — a proposal prepared, interviewed,
 rendered as a deck and deliberated), an **Especialista em Integrações**
 (`/flowspec` — generates a Digibee flowSpec, and writes it into a pipeline,
@@ -63,16 +64,14 @@ if a rule you expect is not here, it is in one of these:
 | file | covers |
 |---|---|
 | `diagram-chain-canvas.md` | the `chain` topology invariant, node kinds, the owner-agnostic canvas |
-| `cadernos-notebooks.md` | `Notebook` as the one container, the page tree, `page:` links, `{% diagram %}` |
+| `cadernos-notebooks.md` | `Notebook` as the one container, the page tree, `page:` links, card grids |
 | `docs-reader-surfaces.md` | the magic link and `/docs`, one screen in two audiences |
 | `docs-search-index.md` | the documentation search index and its ⌘K palette, the `/docs` global index, `documentation:search-warm` |
 | `docs-secrets.md` | `{% secret %}`, the reveal action, the throttle |
 | `documentation-assistant.md` | the Assiste IA chat, its vaults and its prompt contract |
-| `page-to-diagram-draft.md` | drawing a page: the draft IR, exact name resolution, the one synchronous model call |
 | `doc-uml.md` | UML diagrams in a page (`{% uml %}`): the author places, `docs-uml.js` draws; one validator for the reader and the MCP; fullscreen; the code-documentation guide |
 | `doc-scenes.md` | animated scenes in a page ("Fluxo em etapas", "Antes → depois", "Árvore", "Comparação lado a lado", "Linha do tempo"): the model picks words, `docs-scene.js` draws; the icon catalogue; the pause button |
-| `diagram-models.md` | the four diagram models, the semantics/geometry split, the lifeline and the AS IS × TO BE diff |
-| `cati-submissions.md` | the committee module: stages, the checklist, the interview, the deck, the approved topology |
+| `cati-submissions.md` | the committee module: stages, the checklist, the interview, the deck |
 | `digibee-knowledge-base.md` | the two Digibee corpora, redaction, `digibeectl` boundaries, reading logs (`digibee:logs`, the local MCP, the server's "Sessão Digibee" bookmarklet) |
 | `flowspec-pipeline-write.md` | writing a flowSpec into a pipeline, deploy and the test matrix |
 | `mcp-server.md` | the MCP server, its bearer token, what a token may read, and the write tools (`mcp:write`, the write log, the revert) |
@@ -511,9 +510,9 @@ orphaned, reachable only by typing the URL directly. The `active` key
 accepts a string or an array of `routeIs()` patterns; use an array when an
 item needs to light up on several routes (e.g. "Soluções" lists
 `['solutions.index', 'solutions.show']`, so it stays lit on a solution's detail
-page too). A page that got its own top-level section — `/diagrams` did — should
-LEAVE the borrowed patterns behind: "Soluções" listing `diagrams.*` would light
-two rail items at once.
+page too). A page that gets its own top-level section should LEAVE any borrowed
+patterns behind: an item still listing the new section's routes would light two
+rail items at once.
 
 An item an account may not open declares the ability it needs (`can`) and the
 model that ability belongs to (`canModel`, defaulting to `Notebook`) — the rail

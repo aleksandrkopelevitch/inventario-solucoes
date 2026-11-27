@@ -3,8 +3,8 @@
 use App\Contracts\Documentable;
 use App\Enums\UserRole;
 use App\Models\Company;
-use App\Models\Diagram;
 use App\Models\Solution;
+use App\Models\SubmissionDiagram;
 use App\Models\User;
 use App\Support\Images\PublicImage;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -85,7 +85,7 @@ it('falls back to the original while the thumbnail does not exist, and the backf
 it('queues the web rendition for a picture pasted onto a diagram canvas', function () {
     Queue::fake();
 
-    $diagram = Diagram::factory()->create();
+    $diagram = SubmissionDiagram::factory()->create();
     $diagram->addMedia(UploadedFile::fake()->image('paste.png', 2400, 1200))
         ->toMediaCollection(Documentable::DOCS_COLLECTION);
 

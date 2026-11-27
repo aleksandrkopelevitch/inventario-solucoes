@@ -69,18 +69,7 @@ class SolutionController extends Controller
             return response()->json(['solution' => $solution]);
         }
 
-        return view('solutions.show', [
-            'solution' => $solution,
-            // A committee approved a topology for this solution and nobody
-            // applied it yet: the diagrams list below is showing the
-            // previous scenario, and saying so is the whole point of tracking
-            // it (App\Models\ApprovedTopology). Resolved here rather than in
-            // the view — it is a query.
-            'pendingTopologies' => $solution->pendingTopologies()
-                ->with('submission:id,name,slug')
-                ->orderBy('approved_at')
-                ->get(),
-        ]);
+        return view('solutions.show', ['solution' => $solution]);
     }
 
     /** Search by name for the "Systems" chips autocomplete in the Person form. */
@@ -179,19 +168,11 @@ class SolutionController extends Controller
         $this->authorize('delete', $solution);
 
         $name = $solution->name;
-        $approved = $action->handle($solution);
-
-        // An approved topology cascades with the solution (its FK is NOT NULL),
-        // so the only thing left to decide is whether the Toast admits it. A
-        // committee decision disappearing without a word is how somebody finds
-        // out weeks later, looking for a pendência that is no longer there.
-        $note = $approved > 0
-            ? ' ' . $approved . ' topologia(s) aprovada(s) para ela também foram removidas.'
-            : '';
+        $action->handle($solution);
 
         return response()->json([
             'type'     => 'success',
-            'message'  => 'Solução "' . $name . '" excluída.' . $note,
+            'message'  => 'Solução "' . $name . '" excluída.',
             'redirect' => route('solutions.index'),
         ]);
     }

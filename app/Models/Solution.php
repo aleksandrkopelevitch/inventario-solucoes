@@ -9,7 +9,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Solution extends Model
 {
@@ -114,38 +113,6 @@ class Solution extends Model
             ->withTimestamps();
     }
 
-    public function diagramsAsSource(): HasMany
-    {
-        return $this->hasMany(Diagram::class, 'source_solution_id');
-    }
-
-    public function diagramsAsTarget(): HasMany
-    {
-        return $this->hasMany(Diagram::class, 'target_solution_id');
-    }
-
-    /**
-     * Topologies a committee approved for this solution that the catalog has
-     * not caught up with yet.
-     *
-     * Surfaced on the solution's own page because that is where someone reads
-     * the topology and trusts it. An approved change nobody applied is drift,
-     * and drift that is invisible is the failure the CATI module exists to
-     * prevent — see `App\Models\ApprovedTopology`.
-     */
-    public function pendingTopologies(): HasMany
-    {
-        return $this->hasMany(ApprovedTopology::class)->pending();
-    }
-
-    /** Every diagram this solution participates in, in any role. */
-    public function diagrams(): BelongsToMany
-    {
-        return $this->belongsToMany(Diagram::class, 'diagram_solution')
-            ->withPivot(['position'])
-            ->withTimestamps();
-    }
-
     /**
      * The cadernos that document this solution.
      *
@@ -175,14 +142,6 @@ class Solution extends Model
         }
 
         return parent::resolveChildRouteBinding($childType, $value, $field);
-    }
-
-    public function scopeWithDiagramCounts(Builder $query): void
-    {
-        $query->withCount([
-            'diagramsAsSource as active_out' => fn (Builder $q) => $q->where('status', 'active'),
-            'diagramsAsTarget as active_in'  => fn (Builder $q) => $q->where('status', 'active'),
-        ]);
     }
 
     /**
