@@ -18,7 +18,7 @@ uses(LazilyRefreshDatabase::class);
 /*
  * "Gerar com IA" on a "Diagrama UML" block: the model proposes the JSON body,
  * the page's own validator judges it, one repair round, nothing written.
- * Spec: docs-and-specs/uml-ai-generation.md.
+ * Spec: docs-and-specs/done/uml-ai-generation.md.
  */
 
 function fakeUmlDraft(string|Throwable ...$replies): UmlDraftService
