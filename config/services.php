@@ -464,6 +464,15 @@ return [
         // somebody watching a button spinner, so 180s is not a timeout there —
         // it is a hung tab. A handful of short labels fits a tight ceiling.
         'scene_timeout' => env('DOCS_AI_SCENE_TIMEOUT', 45),
+        // "Gerar com IA" on a "Diagrama UML" block (UmlDraftService) answers
+        // inside the request too, but its answer is a few KB of JSON rather
+        // than a handful of labels. Per call: the repair round is skipped once
+        // the first call has used half of it, so the request stays near 1.5×.
+        'uml_timeout' => env('DOCS_AI_UML_TIMEOUT', 60),
+        // The catalog (slug — name) the model may bind elements to. All or
+        // none: past this, a truncated list would read as complete and the
+        // model would invent a slug for a solution past the cut.
+        'uml_max_catalog' => env('DOCS_AI_UML_MAX_CATALOG', 400),
         // Character budget for TEXT context documents embedded in the prompt
         // (PDF/image go as attachments, outside this limit).
         'doc_budget_chars'      => env('DOCS_AI_DOC_BUDGET_CHARS', 60000),

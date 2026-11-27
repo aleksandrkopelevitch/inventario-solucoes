@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\CheckPageUmlRequest;
+use App\Http\Requests\DraftPageUmlRequest;
 use App\Models\DocumentationPage;
 use App\Models\Notebook;
+use App\Services\Documentation\UmlDraftService;
 use App\Support\Documentation\UmlDiagram;
 use App\Support\Documentation\UmlSolutionBindings;
 use App\Support\GitbookRenderer;
@@ -54,5 +56,22 @@ class NotebookPageUmlController extends Controller
             // draws them too.
             'logos' => (object) GitbookRenderer::umlLogos(UmlSolutionBindings::slugsOf($parsed['diagram'])),
         ]);
+    }
+
+    /**
+     * "Gerar com IA": the model's proposal for the block's JSON body
+     * (UmlDraftService). Writes nothing — the block takes the JSON and the
+     * editor saves the page like any other edit. Answers with what the page
+     * would still refuse, if anything, beside the JSON.
+     */
+    public function draft(DraftPageUmlRequest $request, Notebook $notebook, DocumentationPage $page, UmlDraftService $drafts): JsonResponse
+    {
+        return response()->json($drafts->draft(
+            (string) $request->validated('type'),
+            (string) ($request->validated('title') ?? ''),
+            (string) ($request->validated('content') ?? $page->documentation),
+            $request->validated('instruction'),
+            $request->validated('source'),
+        ));
     }
 }
