@@ -1,6 +1,6 @@
 # Solution relationships from the documentation — and the end of the drawing canvas
 
-Status: **phases 1–4 done; phase 5 (README) next** · revision 2 · 2026-11-27 · history in §13, implementation notes in §14
+Status: **all five phases done** · revision 2 · 2026-11-27 · history in §13, implementation notes in §14
 
 The graphical canvas is removed, both of its owners:
 
@@ -876,7 +876,7 @@ Status per phase (✅ done · 🚧 in progress · ⏳ not started):
 | 3. The conversion | ✅ DONE — run in production 2026-11-27, pages reviewed (§14) | `b9beb89` |
 | 4a. The removal — the catalog drawings | ✅ DONE 2026-11-27 (§14) | see §14 |
 | 4b. The removal — the committee canvas | ✅ DONE 2026-11-27 (§14) | see §14 |
-| 5. Documentation | ⏳ (the rule `solution-relationships.md` shipped with phase 1) | — |
+| 5. Documentation | ✅ DONE 2026-11-27 (§14) | see §14 |
 
 1. ✅ **Bindings and documented relationships** (additive; nothing is removed):
    - §3: the `solution` key, `BINDABLE_KINDS`, group inheritance,
@@ -917,7 +917,7 @@ Status per phase (✅ done · 🚧 in progress · ⏳ not started):
    - **The rules:** fix every `paths:` that pointed at a deleted or renamed
      file. `ecosystem-map.md` points at the new service. A glob that resolves
      to nothing never loads.
-5. ⏳ **Documentation:**
+5. ✅ **Documentation:**
    - README: ~60 mentions; the main blocks are 4-28, 589-617, 783-806,
      859-925, 1017-1035, 1124-1142, 1296-1333, 1565, 1732-1795 and 1931-1993.
    - AGENTS.md: 9-10, 65-74, 513, the module list in its opening paragraph,
@@ -1388,4 +1388,27 @@ stale integration section) and the AGENTS.md Security example updated.
 **Tests:** `CatiSubmissionDiagramTest` rewritten around uploads;
 `CatiCanvasRemovalTest` covers the move, the kept upload and the pasted
 pictures; the canvas-only tests went with the code.
+
+### Review of phases 1–4 — 2026-11-27
+
+Checked against §8 after phase 4b's deploy. Found and fixed: the delete confirm
+did not count the manual interconnections (§8.4); the MCP instructions lacked
+the sentence on where relationships come from (§8.1); `MediaController` still
+authorized committee canvas pictures, a branch with nothing left to serve;
+`verify-integration-viz.mjs` was still in the repo root; and a few comments
+(flowSpec picker, `Tool`, `Documentable`) plus NOTICE's map attribution still
+named the drawings. Production verified through the MCP: `get_solution` returns
+the relationships with their evidence, and `search_diagrams` is unknown.
+
+### Phase 5 — 2026-11-27 ✅ DONE (documentation)
+
+README: the intro, the module table, the architecture notes (single source of
+truth, Concerns, Actions/Services), the solution delete, the "Diagramas" and
+"Diagramas de uma solução" sections (replaced by "Relacionamentos"), the map,
+the citation and "Desenhar esta página" passages, the CATI and MCP features, the
+canvas technical notes and the test coverage list now describe what exists; the
+"Manutenção da documentação" commands gained `documentation:solution-links`.
+The CATI phase plans (`docs/cati-fase-{2,3,4}.md`) keep their text as a record,
+each with a dated note on what was superseded. AGENTS.md and the rules were
+updated with phases 4a and 4b.
 
